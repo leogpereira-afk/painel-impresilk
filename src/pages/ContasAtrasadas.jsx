@@ -1,8 +1,12 @@
 // Contas Atrasadas: quem esta devendo, por que, e o que fazer agora.
 // Conclusao primeiro. Todo o calculo vem de calcContasAtrasadas e recalcula ao
 // vivo quando o usuario marca motivo, marca cobrado ou muda a config.
+//
+// A tela e navegavel: os KPIs do topo e as faixas de idade sao FILTROS
+// clicaveis, ha busca por empresa, e cada linha de titulo expande com os
+// detalhes. A lista de titulos vem logo abaixo do painel de numeros.
 
-import { useMemo, useState } from "react";
+import { Fragment, useMemo, useRef, useState } from "react";
 import {
   AlertTriangle,
   Clock,
@@ -11,6 +15,9 @@ import {
   Gauge,
   Phone,
   CheckCircle2,
+  ChevronRight,
+  Search,
+  X,
 } from "lucide-react";
 import {
   ResponsiveContainer,
@@ -24,7 +31,7 @@ import {
 } from "recharts";
 import { useApp } from "../config/store.jsx";
 import { calcContasAtrasadas } from "../lib/calc/contasAtrasadas.js";
-import { moeda, numero } from "../lib/format.js";
+import { moeda, numero, dataLonga } from "../lib/format.js";
 import {
   Card,
   PageTitle,
@@ -47,6 +54,13 @@ function tomDoGrupo(grupo) {
 
 const MARCA = "#3840E8";
 
+// Normaliza para busca (sem acento, minusculo).
+const norm = (s) =>
+  String(s || "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+
 export default function ContasAtrasadas() {
   const {
     config,
@@ -60,6 +74,10 @@ export default function ContasAtrasadas() {
 
   const [filtro, setFiltro] = useState("todos");
   const [diasMin, setDiasMin] = useState(30);
+  const [busca, setBusca] = useState("");
+  const [faixaSel, setFaixaSel] = useState(null); // {faixa, de, ate}
+  const [expandido, setExpandido] = useState(null); // id do titulo aberto
+  const titulosRef = useRef(null);
 
   const vm = useMemo(
     () =>
@@ -72,20 +90,25 @@ export default function ContasAtrasadas() {
   const titulosFiltrados = useMemo(() => {
     if (!vm) return [];
     const min = Number(diasMin) || 0;
+    const q = norm(busca.trim());
     return vm.titulos.filter((t) => {
-      if (filtro === "pendentes") return !t.cobrado;
-      if (filtro === "reincidentes") return t.reincidente;
-      if (filtro === "acima") return t.dias >= min;
+      if (filtro === "pendentes" && t.cobrado) return false;
+      if (filtro === "reincidentes" && !t.reincidente) return false;
+      if (filtro === "acima" && t.dias < min) return false;
+      if (faixaSel && (t.dias < faixaSel.de || t.dias > faixaSel.ate)) return false;
+      if (q) {
+        const alvo = norm(`${t.cliente} ${t.cnpj} ${t.nf} ${t.os}`);
+        if (!alvo.includes(q)) return false;
+      }
       return true;
     });
-  }, [vm, filtro, diasMin]);
+  }, [vm, filtro, diasMin, busca, faixaSel]);
 
   if (erro) return <ErroModulo mensagem={erro} aoTentar={recarregar} />;
   if (!pronto || !vm) return <CarregandoModulo />;
 
   const k = vm.kpis;
-  const tomDso =
-    k.dso <= k.dsoMeta ? "ok" : k.dso <= k.dsoAlerta ? "warn" : "bad";
+  const tomDso = k.dso <= k.dsoMeta ? "ok" : k.dso <= k.dsoAlerta ? "warn" : "bad";
 
   const opcoesFiltro = [
     { valor: "todos", rotulo: "Todos" },
@@ -94,14 +117,31 @@ export default function ContasAtrasadas() {
     { valor: "acima", rotulo: "Acima de X dias" },
   ];
 
+  const temFiltro = filtro !== "todos" || !!busca || !!faixaSel;
+  const limparTudo = () => {
+    setFiltro("todos");
+    setBusca("");
+    setFaixaSel(null);
+  };
+  const irParaTitulos = () =>
+    titulosRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+
+  // Clique num KPI liga/desliga o filtro correspondente e leva para a lista.
+  const alternarFiltro = (novo) => {
+    setFiltro((f) => (f === novo ? "todos" : novo));
+    setFaixaSel(null);
+    irParaTitulos();
+  };
+  const somaFiltrada = titulosFiltrados.reduce((s, t) => s + t.valor, 0);
+
   return (
     <div className="space-y-8">
       <PageTitle
         titulo="Contas Atrasadas"
-        descricao="Quem esta devendo, por que, e o que fazer agora."
+        descricao="Quem esta devendo, por que, e o que fazer agora. Clique nos numeros para filtrar a lista."
       />
 
-      {/* KPIs */}
+      {/* KPIs: clicaveis, filtram a lista de titulos abaixo */}
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-5">
         <StatCard
           rotulo="Total atrasado"
@@ -109,6 +149,11 @@ export default function ContasAtrasadas() {
           sub={`${numero(k.qtd)} titulos em aberto`}
           tom="brand"
           icone={AlertTriangle}
+          ativo={!temFiltro}
+          onClick={() => {
+            limparTudo();
+            irParaTitulos();
+          }}
         />
         <StatCard
           rotulo="Pendentes de cobranca"
@@ -116,6 +161,8 @@ export default function ContasAtrasadas() {
           sub={moeda(k.pendentesValor)}
           tom="warn"
           icone={Clock}
+          ativo={filtro === "pendentes"}
+          onClick={() => alternarFiltro("pendentes")}
         />
         <StatCard
           rotulo="Reincidentes"
@@ -123,6 +170,8 @@ export default function ContasAtrasadas() {
           sub={moeda(k.reincidentesValor)}
           tom="bad"
           icone={Repeat}
+          ativo={filtro === "reincidentes"}
+          onClick={() => alternarFiltro("reincidentes")}
         />
         <StatCard
           rotulo="DSO"
@@ -135,11 +184,225 @@ export default function ContasAtrasadas() {
         <StatCard
           rotulo="Maior atraso"
           valor={`${numero(k.maiorAtrasoDias)} dias`}
-          sub={k.maiorAtrasoCliente || "sem atrasos"}
+          sub={k.maiorAtrasoCliente}
           tom="neutral"
           icone={Timer}
+          ativo={!!busca && busca === k.maiorAtrasoCliente}
+          onClick={() => {
+            setFiltro("todos");
+            setFaixaSel(null);
+            setBusca((b) => (b === k.maiorAtrasoCliente ? "" : k.maiorAtrasoCliente));
+            irParaTitulos();
+          }}
         />
       </div>
+
+      {/* Titulos: logo abaixo do painel de numeros */}
+      <Card ref={titulosRef}>
+        <SectionTitle
+          titulo="Titulos"
+          sub="Clique na linha para ver os detalhes. Classifique o motivo e marque o que ja foi cobrado."
+          acao={
+            <Segmented opcoes={opcoesFiltro} valor={filtro} onChange={setFiltro} />
+          }
+        />
+
+        {/* Busca por empresa */}
+        <div className="mb-4 flex flex-wrap items-center gap-3">
+          <div className="relative min-w-0 flex-1 sm:max-w-sm">
+            <Search
+              size={16}
+              className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
+            />
+            <input
+              type="search"
+              value={busca}
+              onChange={(e) => setBusca(e.target.value)}
+              placeholder="Buscar empresa, CNPJ, NF ou OS"
+              className="input pl-9"
+              aria-label="Buscar empresa"
+            />
+          </div>
+
+          {filtro === "acima" && (
+            <div className="flex items-center gap-2">
+              <label className="label mb-0">A partir de</label>
+              <input
+                type="number"
+                min={1}
+                value={diasMin}
+                onChange={(e) => setDiasMin(e.target.value)}
+                className="input w-20"
+              />
+              <span className="text-sm text-slate-500">dias</span>
+            </div>
+          )}
+
+          {temFiltro && (
+            <button className="btn-ghost" onClick={limparTudo}>
+              <X size={15} /> Limpar filtros
+            </button>
+          )}
+        </div>
+
+        {/* Resumo do que esta na tela */}
+        <div className="mb-3 flex flex-wrap items-center gap-2 text-sm text-slate-500">
+          <span>
+            Mostrando <strong className="tnum text-slate-900">{numero(titulosFiltrados.length)}</strong>{" "}
+            de {numero(vm.titulos.length)} titulos
+            {titulosFiltrados.length > 0 && (
+              <>
+                {" "}
+                · <strong className="tnum text-slate-900">{moeda(somaFiltrada)}</strong>
+              </>
+            )}
+          </span>
+          {faixaSel && (
+            <button className="chip-warn" onClick={() => setFaixaSel(null)}>
+              idade: {faixaSel.faixa} <X size={12} />
+            </button>
+          )}
+        </div>
+
+        {titulosFiltrados.length ? (
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[760px] border-collapse">
+              <thead>
+                <tr>
+                  <th className="th text-left">Cliente</th>
+                  <th className="th text-right">Valor</th>
+                  <th className="th text-right">Atraso</th>
+                  <th className="th text-left">Motivo</th>
+                  <th className="th text-left">Proxima acao</th>
+                  <th className="th text-right">Acao</th>
+                </tr>
+              </thead>
+              <tbody>
+                {titulosFiltrados.map((t) => {
+                  const aberto = expandido === t.id;
+                  return (
+                    <Fragment key={t.id}>
+                      <tr
+                        onClick={() => setExpandido(aberto ? null : t.id)}
+                        className="cursor-pointer transition-colors hover:bg-slate-50"
+                        aria-expanded={aberto}
+                      >
+                        <td className="td">
+                          <div className="flex items-center gap-2">
+                            <ChevronRight
+                              size={16}
+                              strokeWidth={2.4}
+                              className={`shrink-0 text-slate-400 transition-transform ${aberto ? "rotate-90" : ""}`}
+                            />
+                            <span className="font-display font-medium text-slate-900">
+                              {t.cliente}
+                            </span>
+                            {t.reincidente && (
+                              <span className="chip chip-warn shrink-0">reincidente</span>
+                            )}
+                          </div>
+                          <p className="mt-0.5 pl-6 text-xs text-slate-500">
+                            NF {t.nf || "-"}, OS {t.os || "-"}
+                          </p>
+                        </td>
+                        <td className="td text-right tnum font-semibold text-slate-900">
+                          {moeda(t.valor)}
+                        </td>
+                        <td className="td text-right tnum text-slate-700">
+                          {numero(t.dias)} dias
+                        </td>
+                        <td className="td" onClick={(e) => e.stopPropagation()}>
+                          <select
+                            className="select"
+                            value={t.motivoId || ""}
+                            onChange={(e) =>
+                              setOverrideRecebivel(t.id, { motivoId: e.target.value || null })
+                            }
+                          >
+                            <option value="">Sem motivo</option>
+                            {(config.motivosAtraso || []).map((m) => (
+                              <option key={m.id} value={m.id}>
+                                {m.nome}
+                              </option>
+                            ))}
+                          </select>
+                        </td>
+                        <td className="td text-sm text-slate-600">{t.proximaAcao}</td>
+                        <td className="td text-right" onClick={(e) => e.stopPropagation()}>
+                          {t.cobrado ? (
+                            <span className="chip chip-ok inline-flex items-center gap-1">
+                              <CheckCircle2 size={13} strokeWidth={2.4} />
+                              Cobrado
+                            </span>
+                          ) : (
+                            <button
+                              className="btn-outline"
+                              onClick={() => setOverrideRecebivel(t.id, { cobrado: true })}
+                            >
+                              Marcar cobrado
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+
+                      {aberto && (
+                        <tr>
+                          <td colSpan={6} className="px-4 pb-4 pt-0">
+                            <div
+                              className="rounded-xl border bg-slate-50 p-4"
+                              style={{ borderColor: "var(--hairline)" }}
+                            >
+                              <dl className="grid gap-x-6 gap-y-3 sm:grid-cols-3">
+                                <Detalhe rotulo="CNPJ / CPF" valor={t.cnpj || "nao informado"} />
+                                <Detalhe rotulo="Nota fiscal" valor={t.nf || "sem NF"} />
+                                <Detalhe rotulo="Ordem de servico" valor={t.os || "sem OS"} />
+                                <Detalhe
+                                  rotulo="Emissao"
+                                  valor={t.emissao ? dataLonga(t.emissao) : "nao informada"}
+                                />
+                                <Detalhe
+                                  rotulo="Vencimento"
+                                  valor={t.vencimento ? dataLonga(t.vencimento) : "nao informado"}
+                                />
+                                <Detalhe rotulo="Atraso" valor={`${numero(t.dias)} dias`} />
+                                <Detalhe rotulo="Classificacao" valor={t.grupoNome} />
+                                <Detalhe rotulo="Motivo" valor={t.motivoNome} />
+                                <Detalhe
+                                  rotulo="Situacao"
+                                  valor={t.cobrado ? "ja cobrado" : "pendente de cobranca"}
+                                />
+                              </dl>
+                              <div
+                                className="mt-3 border-t pt-3"
+                                style={{ borderColor: "var(--hairline)" }}
+                              >
+                                <p className="label mb-1">Proxima acao sugerida</p>
+                                <p className="flex items-center gap-2 text-sm text-slate-700">
+                                  <Phone size={14} strokeWidth={2.2} className="text-brand" />
+                                  {t.proximaAcao}
+                                </p>
+                              </div>
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                    </Fragment>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <Empty>
+            Nenhum titulo neste filtro.
+            {temFiltro && (
+              <button className="btn-ghost ml-2" onClick={limparTudo}>
+                Limpar filtros
+              </button>
+            )}
+          </Empty>
+        )}
+      </Card>
 
       {/* Por que estao atrasados */}
       <Card>
@@ -183,11 +446,7 @@ export default function ContasAtrasadas() {
                 key={m.motivoId || "sem"}
                 rotulo={m.nome}
                 valorTexto={moeda(m.valor)}
-                pct={
-                  k.totalAtrasado
-                    ? Math.round((m.valor / k.totalAtrasado) * 100)
-                    : 0
-                }
+                pct={k.totalAtrasado ? Math.round((m.valor / k.totalAtrasado) * 100) : 0}
                 tom={tomDoGrupo(m.grupo)}
                 sub={`${numero(m.qtd)} ${m.qtd === 1 ? "titulo" : "titulos"}`}
               />
@@ -198,25 +457,38 @@ export default function ContasAtrasadas() {
         )}
       </Card>
 
-      {/* Idade dos atrasos */}
+      {/* Idade dos atrasos: cada faixa e um filtro clicavel */}
       <Card>
         <SectionTitle
           titulo="Idade dos atrasos"
-          sub="Quanto mais velho o atraso, mais dificil recuperar."
+          sub="Quanto mais velho o atraso, mais dificil recuperar. Clique numa faixa para ver os titulos."
         />
         {vm.idade.some((f) => f.qtd > 0) ? (
-          <div className="space-y-4">
+          <div className="space-y-2">
             {vm.idade.map((f) => {
               const maxValor = Math.max(...vm.idade.map((x) => x.valor), 1);
+              const sel = faixaSel?.faixa === f.faixa;
               return (
-                <BarRow
+                <button
                   key={f.faixa}
-                  rotulo={f.faixa}
-                  valorTexto={moeda(f.valor)}
-                  pct={Math.round((f.valor / maxValor) * 100)}
-                  tom={f.alto ? "bad" : "brand"}
-                  sub={`${numero(f.qtd)} ${f.qtd === 1 ? "titulo" : "titulos"}`}
-                />
+                  disabled={f.qtd === 0}
+                  onClick={() => {
+                    setFaixaSel(sel ? null : f);
+                    setFiltro("todos");
+                    irParaTitulos();
+                  }}
+                  className={`w-full rounded-xl p-2 text-left transition-colors disabled:cursor-default disabled:opacity-60 ${
+                    sel ? "bg-brand/5 ring-1 ring-brand/40" : f.qtd > 0 ? "hover:bg-slate-50" : ""
+                  }`}
+                >
+                  <BarRow
+                    rotulo={f.faixa}
+                    valorTexto={moeda(f.valor)}
+                    pct={Math.round((f.valor / maxValor) * 100)}
+                    tom={f.alto ? "bad" : "brand"}
+                    sub={`${numero(f.qtd)} ${f.qtd === 1 ? "titulo" : "titulos"}`}
+                  />
+                </button>
               );
             })}
           </div>
@@ -252,9 +524,7 @@ export default function ContasAtrasadas() {
                 ) : (
                   <>
                     <div className="mt-4 flex items-end gap-2">
-                      <span className="kpi-value text-2xl text-slate-900">
-                        {moeda(f.soma)}
-                      </span>
+                      <span className="kpi-value text-2xl text-slate-900">{moeda(f.soma)}</span>
                       <span className="mb-1 text-sm text-slate-500">
                         {numero(f.qtd)} {f.qtd === 1 ? "titulo" : "titulos"}
                       </span>
@@ -262,9 +532,18 @@ export default function ContasAtrasadas() {
                     {f.clientes.length > 0 && (
                       <div className="mt-3 flex flex-wrap gap-1.5">
                         {f.clientes.slice(0, 6).map((c) => (
-                          <span key={c} className="chip">
+                          <button
+                            key={c}
+                            className="chip transition-colors hover:bg-slate-200"
+                            onClick={() => {
+                              limparTudo();
+                              setBusca(c);
+                              irParaTitulos();
+                            }}
+                            title="Ver os titulos deste cliente"
+                          >
                             {c}
-                          </span>
+                          </button>
                         ))}
                         {f.clientes.length > 6 && (
                           <span className="chip">+{f.clientes.length - 6}</span>
@@ -299,18 +578,25 @@ export default function ContasAtrasadas() {
                 className="flex flex-wrap items-center justify-between gap-3 py-3 first:pt-0 last:pb-0"
               >
                 <div className="min-w-0">
-                  <p className="font-display text-sm font-semibold text-slate-900">
+                  <button
+                    className="font-display text-sm font-semibold text-slate-900 hover:text-brand"
+                    onClick={() => {
+                      limparTudo();
+                      setBusca(c.cliente);
+                      setExpandido(c.id);
+                      irParaTitulos();
+                    }}
+                    title="Ver este titulo na lista"
+                  >
                     {c.cliente}
-                  </p>
+                  </button>
                   <p className="mt-0.5 flex items-center gap-1.5 text-sm text-slate-500">
                     <Phone size={14} strokeWidth={2.2} className="text-brand" />
                     {c.acao}
                   </p>
                 </div>
                 <div className="text-right">
-                  <p className="tnum text-sm font-semibold text-slate-900">
-                    {moeda(c.valor)}
-                  </p>
+                  <p className="tnum text-sm font-semibold text-slate-900">{moeda(c.valor)}</p>
                   <p className="text-xs text-slate-500">{numero(c.dias)} dias</p>
                 </div>
               </li>
@@ -321,176 +607,51 @@ export default function ContasAtrasadas() {
         )}
       </Card>
 
-      {/* Titulos */}
-      <Card>
-        <SectionTitle
-          titulo="Titulos"
-          sub="Classifique o motivo e marque o que ja foi cobrado."
-          acao={
-            <Segmented
-              opcoes={opcoesFiltro}
-              valor={filtro}
-              onChange={setFiltro}
-            />
-          }
-        />
-
-        {filtro === "acima" && (
-          <div className="mb-4 flex items-center gap-2">
-            <label className="label mb-0">Atraso a partir de</label>
-            <input
-              type="number"
-              min={1}
-              value={diasMin}
-              onChange={(e) => setDiasMin(e.target.value)}
-              className="input w-24"
-            />
-            <span className="text-sm text-slate-500">dias</span>
-          </div>
-        )}
-
-        {titulosFiltrados.length ? (
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[760px] border-collapse">
-              <thead>
-                <tr>
-                  <th className="th text-left">Cliente</th>
-                  <th className="th text-right">Valor</th>
-                  <th className="th text-right">Atraso</th>
-                  <th className="th text-left">Motivo</th>
-                  <th className="th text-left">Proxima acao</th>
-                  <th className="th text-right">Acao</th>
-                </tr>
-              </thead>
-              <tbody>
-                {titulosFiltrados.map((t) => (
-                  <tr key={t.id}>
-                    <td className="td">
-                      <div className="flex items-center gap-2">
-                        <span className="font-display font-medium text-slate-900">
-                          {t.cliente}
-                        </span>
-                        {t.reincidente && (
-                          <span className="chip chip-warn shrink-0">
-                            reincidente
-                          </span>
-                        )}
-                      </div>
-                      <p className="mt-0.5 text-xs text-slate-500">
-                        NF {t.nf}, OS {t.os}
-                      </p>
-                    </td>
-                    <td className="td text-right tnum font-semibold text-slate-900">
-                      {moeda(t.valor)}
-                    </td>
-                    <td className="td text-right tnum text-slate-700">
-                      {numero(t.dias)} dias
-                    </td>
-                    <td className="td">
-                      <select
-                        className="select"
-                        value={t.motivoId || ""}
-                        onChange={(e) =>
-                          setOverrideRecebivel(t.id, {
-                            motivoId: e.target.value || null,
-                          })
-                        }
-                      >
-                        <option value="">Sem motivo</option>
-                        {(config.motivosAtraso || []).map((m) => (
-                          <option key={m.id} value={m.id}>
-                            {m.nome}
-                          </option>
-                        ))}
-                      </select>
-                    </td>
-                    <td className="td text-sm text-slate-600">
-                      {t.proximaAcao}
-                    </td>
-                    <td className="td text-right">
-                      {t.cobrado ? (
-                        <span className="chip chip-ok inline-flex items-center gap-1">
-                          <CheckCircle2 size={13} strokeWidth={2.4} />
-                          Cobrado
-                        </span>
-                      ) : (
-                        <button
-                          className="btn-outline"
-                          onClick={() =>
-                            setOverrideRecebivel(t.id, { cobrado: true })
-                          }
-                        >
-                          Marcar cobrado
-                        </button>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        ) : (
-          <Empty>Nenhum titulo neste filtro.</Empty>
-        )}
-      </Card>
-
       {/* Curva do DSO: so com historico REAL acumulado no cache (um ponto/dia). */}
       {vm.dsoHistorico.length >= 2 ? (
-      <Card>
-        <SectionTitle
-          titulo="Curva do DSO"
-          sub="Prazo medio de recebimento ao longo dos dias, contra a meta."
-        />
-        <div style={{ width: "100%", height: 260 }}>
-          <ResponsiveContainer>
-            <LineChart
-              data={vm.dsoHistorico}
-              margin={{ top: 10, right: 16, left: 0, bottom: 0 }}
-            >
-              <CartesianGrid stroke="#eef2f7" vertical={false} />
-              <XAxis
-                dataKey="mes"
-                tick={{ fontSize: 12, fill: "#94a3b8" }}
-                tickLine={false}
-                axisLine={{ stroke: "#e2e8f0" }}
-              />
-              <YAxis
-                tick={{ fontSize: 12, fill: "#94a3b8" }}
-                tickLine={false}
-                axisLine={false}
-                width={36}
-              />
-              <Tooltip
-                formatter={(v) => [`${v} dias`, "DSO"]}
-                contentStyle={{
-                  borderRadius: 12,
-                  border: "1px solid #e2e8f0",
-                  fontSize: 13,
-                }}
-              />
-              <ReferenceLine
-                y={k.dsoMeta}
-                stroke="#94a3b8"
-                strokeDasharray="4 4"
-                label={{
-                  value: "meta",
-                  position: "right",
-                  fontSize: 11,
-                  fill: "#94a3b8",
-                }}
-              />
-              <Line
-                type="monotone"
-                dataKey="dso"
-                stroke={MARCA}
-                strokeWidth={2.4}
-                dot={{ r: 3, fill: MARCA }}
-                activeDot={{ r: 5 }}
-              />
-            </LineChart>
-          </ResponsiveContainer>
-        </div>
-      </Card>
+        <Card>
+          <SectionTitle
+            titulo="Curva do DSO"
+            sub="Prazo medio de recebimento ao longo dos dias, contra a meta."
+          />
+          <div style={{ width: "100%", height: 260 }}>
+            <ResponsiveContainer>
+              <LineChart data={vm.dsoHistorico} margin={{ top: 10, right: 16, left: 0, bottom: 0 }}>
+                <CartesianGrid stroke="#eef2f7" vertical={false} />
+                <XAxis
+                  dataKey="mes"
+                  tick={{ fontSize: 12, fill: "#94a3b8" }}
+                  tickLine={false}
+                  axisLine={{ stroke: "#e2e8f0" }}
+                />
+                <YAxis
+                  tick={{ fontSize: 12, fill: "#94a3b8" }}
+                  tickLine={false}
+                  axisLine={false}
+                  width={36}
+                />
+                <Tooltip
+                  formatter={(v) => [`${v} dias`, "DSO"]}
+                  contentStyle={{ borderRadius: 12, border: "1px solid #e2e8f0", fontSize: 13 }}
+                />
+                <ReferenceLine
+                  y={k.dsoMeta}
+                  stroke="#94a3b8"
+                  strokeDasharray="4 4"
+                  label={{ value: "meta", position: "right", fontSize: 11, fill: "#94a3b8" }}
+                />
+                <Line
+                  type="monotone"
+                  dataKey="dso"
+                  stroke={MARCA}
+                  strokeWidth={2.4}
+                  dot={{ r: 3, fill: MARCA }}
+                  activeDot={{ r: 5 }}
+                />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+        </Card>
       ) : (
         <Card>
           <SectionTitle titulo="Curva do DSO" sub="Prazo medio de recebimento ao longo do tempo." />
@@ -500,6 +661,18 @@ export default function ContasAtrasadas() {
           </Empty>
         </Card>
       )}
+    </div>
+  );
+}
+
+// Item do painel de detalhes da linha expandida.
+function Detalhe({ rotulo, valor }) {
+  return (
+    <div className="min-w-0">
+      <dt className="label mb-0.5">{rotulo}</dt>
+      <dd className="truncate text-sm text-slate-800" title={valor}>
+        {valor}
+      </dd>
     </div>
   );
 }

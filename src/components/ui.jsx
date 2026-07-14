@@ -1,6 +1,7 @@
 // Vocabulario visual do painel. Todos os modulos compoem a partir daqui, para o
 // layout ficar consistente. Marca indigo, Poppins nos numeros, Spectral no corpo.
 
+import { forwardRef } from "react";
 import { clsx } from "clsx";
 import { ArrowDownRight, ArrowUpRight, Minus } from "lucide-react";
 
@@ -12,25 +13,30 @@ const TOM = {
   neutral: { texto: "text-slate-600", bg: "bg-slate-100", barra: "bg-slate-400", ponto: "bg-slate-400" },
 };
 
-export function Card({ className, children, ...rest }) {
+// forwardRef para as paginas conseguirem rolar ate um card (ex.: filtro que
+// leva para a lista de titulos).
+export const Card = forwardRef(function Card({ className, children, ...rest }, ref) {
   return (
-    <div className={clsx("card p-5 sm:p-6", className)} {...rest}>
+    <div ref={ref} className={clsx("card p-5 sm:p-6", className)} {...rest}>
       {children}
     </div>
   );
-}
+});
 
 // KPI. valor ja formatado (string). tom pinta o icone e o sub.
-export function StatCard({ rotulo, valor, sub, tom = "neutral", icone: Icone, tendencia, onClick }) {
+// Com onClick vira botao; `ativo` destaca o card quando o filtro dele esta ligado.
+export function StatCard({ rotulo, valor, sub, tom = "neutral", icone: Icone, tendencia, onClick, ativo }) {
   const t = TOM[tom] || TOM.neutral;
   const clicavel = typeof onClick === "function";
   const Comp = clicavel ? "button" : "div";
   return (
     <Comp
       onClick={onClick}
+      aria-pressed={clicavel ? !!ativo : undefined}
       className={clsx(
-        "card p-5 text-left w-full",
-        clicavel && "card-hover cursor-pointer"
+        "card p-5 text-left w-full transition-all",
+        clicavel && "card-hover cursor-pointer",
+        ativo && "ring-2 ring-brand ring-offset-2 ring-offset-transparent"
       )}
     >
       <div className="flex items-start justify-between gap-3">

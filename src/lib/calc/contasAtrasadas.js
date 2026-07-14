@@ -41,6 +41,8 @@ export function calcContasAtrasadas(recebiveis, overrides, config, dsoHist = [])
         os: r.os,
         valor: r.valor,
         dias: r.dias,
+        emissao: r.emissao,
+        vencimento: r.vencimento,
         motivoId: ov.motivoId || null,
         motivoNome: motivo?.nome || "Sem motivo",
         grupo: motivo?.grupo || null,
@@ -180,10 +182,13 @@ function faixasIdade(atrasados, limites) {
   }
   buckets.push({ de: anterior + 1, ate: Infinity });
   return buckets.map((b, i) => {
-    const itens = atrasados.filter((r) => r.dias >= (i === 0 ? 1 : b.de) && r.dias <= b.ate);
-    const faixa = b.ate === Infinity ? `${b.de}+ dias` : `${i === 0 ? 1 : b.de} a ${b.ate} dias`;
+    const de = i === 0 ? 1 : b.de;
+    const itens = atrasados.filter((r) => r.dias >= de && r.dias <= b.ate);
+    const faixa = b.ate === Infinity ? `${b.de}+ dias` : `${de} a ${b.ate} dias`;
     return {
       faixa,
+      de, // limites expostos para a faixa virar filtro clicavel na tela
+      ate: b.ate,
       valor: soma(itens),
       qtd: itens.length,
       alto: i >= 2, // faixas mais altas em vermelho
