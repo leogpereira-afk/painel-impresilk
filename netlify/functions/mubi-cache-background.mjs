@@ -88,8 +88,10 @@ export function normOS(os, i, categoriaPorNome) {
     cliente: String(os.cliente || "Cliente"),
     data: String(os.data_cadastro || ""),
     cancelada: /cancel/i.test(String(os.status || "")),
-    itens: (Array.isArray(os.itens) ? os.itens : []).map((it, k) => {
-      const nome = String(it.item || `Item ${k + 1}`).trim();
+    itens: (Array.isArray(os.itens) ? os.itens : []).map((it) => {
+      // Itens sem produto (frete, custos avulsos, servicos gerais) viram
+      // "Outros", em vez de virar um falso produto "Item N".
+      const nome = String(it.item || "").trim() || "Outros";
       return {
         produtoId: nome,
         produto: nome,
