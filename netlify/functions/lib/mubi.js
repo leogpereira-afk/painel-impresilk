@@ -62,7 +62,21 @@ function ultimaPagina(bruto, qtdRecebida, perPage) {
   return qtdRecebida < perPage; // sem meta: para quando a pagina vem incompleta
 }
 
+// Busca UMA pagina de um recurso e devolve tambem o total de paginas.
+// IMPORTANTE: cada invocacao de Function deve fazer NO MAXIMO uma chamada ao
+// Mubisys (a API leva 5-8s por pagina e o limite da Function e 10s); quem
+// orquestra as paginas em paralelo e o navegador.
+export async function mubiGetPagina(caminho, query = {}, page = 1) {
+  const perPage = 500;
+  const bruto = await mubiGet(caminho, { ...query, page, per_page: perPage });
+  const arr = itens(bruto);
+  const pag = bruto?.pagination || bruto?.meta || {};
+  const totalPaginas = Number(pag.last_page) || (arr.length < perPage ? page : page + 1);
+  return { lista: arr, totalPaginas };
+}
+
 // Busca TODAS as paginas de um recurso (per_page maximo = 500; trava em 20 paginas).
+// So usar fora de Functions sincronas (estoura o limite de 10s em listas grandes).
 export async function mubiGetTudo(caminho, query = {}) {
   const perPage = 500;
   const tudo = [];

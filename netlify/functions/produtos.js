@@ -1,33 +1,43 @@
-// Modulo 3: produtos. Campos confirmados com o JSON real do Mubisys em
-// 2026-07-14: cada OS traz itens[] com item (nome do produto), quantidade,
-// valor_final. A categoria vem do catalogo /produto (join pelo nome).
-// Busca status=TODOS por CADASTRO desde ?desde (padrao 1 de janeiro) e ignora
-// OS canceladas.
+// Modulo 3: produtos (campos reais do Mubisys, 2026-07-14). Cada invocacao faz
+// UMA chamada ao Mubisys (limite de 10s da Function):
+//
+// GET ?parte=catalogo            -> { itens: [{nome, categoria}], totalPaginas }
+// GET ?desde=AAAA-MM-DD&page=N   -> { itens: [OS com itens[]], totalPaginas }
+//
+// O front junta as paginas e faz o join da categoria pelo nome do produto.
 
-import { mubiGetTudo, mubiConfigurado, json, semConfig, num, hojeMais } from "./lib/mubi.js";
+import { mubiGetPagina, mubiConfigurado, json, semConfig, num, hojeMais } from "./lib/mubi.js";
 
 export const handler = async (event) => {
   if (!mubiConfigurado()) return semConfig();
+  const q = event.queryStringParameters || {};
   try {
-    const anoInicio = `${new Date().getFullYear()}-01-01`;
-    const desde = event.queryStringParameters?.desde || anoInicio;
+    if (q.parte === "catalogo") {
+      const { lista, totalPaginas } = await mubiGetPagina("produto", {}, Math.max(1, parseInt(q.page, 10) || 1));
+      return json({
+        itens: lista.map((p) => ({
+          nome: String(p.nome || "").trim(),
+          categoria: String(p.categoria || "Geral"),
+        })),
+        totalPaginas,
+      });
+    }
 
-    const [osArr, catalogo] = await Promise.all([
-      mubiGetTudo("ordem-servico", {
+    const anoInicio = `${new Date().getFullYear()}-01-01`;
+    const desde = q.desde || anoInicio;
+    const page = Math.max(1, parseInt(q.page, 10) || 1);
+    const { lista, totalPaginas } = await mubiGetPagina(
+      "ordem-servico",
+      {
         status: "TODOS",
         filtrodata: "CADASTRO",
         datainicial: desde,
         datafinal: hojeMais(0),
-      }),
-      mubiGetTudo("produto"),
-    ]);
-
-    // nome do produto -> categoria (do cadastro de produtos)
-    const categoriaPorNome = new Map(
-      catalogo.map((p) => [String(p.nome || "").trim().toLowerCase(), String(p.categoria || "Geral")])
+      },
+      page
     );
 
-    const ordens = osArr
+    const ordens = lista
       .filter((os) => !/cancel/i.test(String(os.status || "")))
       .map((os, i) => ({
         id: String(os.id ?? `os-${i}`),
@@ -36,20 +46,18 @@ export const handler = async (event) => {
         data: String(os.data_cadastro || ""),
         itens: (Array.isArray(os.itens) ? os.itens : []).map((it, k) => {
           const nome = String(it.item || `Item ${k + 1}`).trim();
-          const quantidade = num(it.quantidade) || 1;
-          const valorTotal = num(it.valor_final) || num(it.sub_total);
           return {
             produtoId: nome,
             produto: nome,
-            categoria: categoriaPorNome.get(nome.toLowerCase()) || "Geral",
-            quantidade,
+            categoria: "Geral", // o front faz o join com ?parte=catalogo
+            quantidade: num(it.quantidade) || 1,
             valorUnit: num(it.valor_unitario),
-            valorTotal,
+            valorTotal: num(it.valor_final) || num(it.sub_total),
           };
         }),
       }));
 
-    return json(ordens);
+    return json({ itens: ordens, totalPaginas });
   } catch (e) {
     if (e.code === "SEM_CONFIG") return semConfig();
     return json({ erro: e.message }, 502);

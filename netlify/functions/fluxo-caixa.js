@@ -1,11 +1,12 @@
-// Modulo 2: fluxo de caixa. Campos confirmados com o JSON real do Mubisys em
-// 2026-07-14. Duas partes (?parte=):
-//   parte=pagar  -> /contas-pagar (PENDENTE + VENCIDO) + 3 provisoes (campos cap_*),
-//                   por VENCIMENTO numa janela de -30 a +60 dias.
-//   parte=bancos -> /conta-bancaria. Exclui contas "Permuta" (credito de troca,
-//                   nao e dinheiro em caixa) e as inativas.
+// Modulo 2: fluxo de caixa (campos reais do Mubisys, 2026-07-14).
+// Cada invocacao faz UMA chamada ao Mubisys (limite de 10s da Function):
+//
+// GET ?parte=bancos                     -> { itens: [contas], totalPaginas }
+// GET ?fonte=pendente|vencido|fixa|cartao|folha&page=N -> { itens: [saidas], totalPaginas }
+//
+// "Permuta" fica fora do saldo (credito de troca, nao e dinheiro em caixa).
 
-import { mubiGetTudo, mubiConfigurado, json, semConfig, num, hojeMais } from "./lib/mubi.js";
+import { mubiGetPagina, mubiConfigurado, json, semConfig, num, hojeMais } from "./lib/mubi.js";
 
 function normalizarPagar(s, i) {
   return {
@@ -18,67 +19,60 @@ function normalizarPagar(s, i) {
   };
 }
 
-function normalizarProvisao(s, i, categoria) {
-  return {
+function normalizarProvisao(categoria) {
+  return (s, i) => ({
     id: String(s.id ?? `prov-${i}`),
     descricao: String(s.cap_despesa || s.cap_descricao || categoria),
     categoria,
     valor: num(s.cap_valor),
     vencimento: String(s.cap_vencimento || ""),
     tipo: "provisao",
-  };
+  });
 }
 
-async function saidas() {
-  const janela = { filtrodata: "VENCIMENTO", datainicial: hojeMais(-30), datafinal: hojeMais(60) };
-
-  const [pendentes, vencidas, fixa, cartao, folha] = await Promise.all([
-    mubiGetTudo("contas-pagar", { ...janela, status: "PENDENTE" }),
-    mubiGetTudo("contas-pagar", { ...janela, status: "VENCIDO" }),
-    mubiGetTudo("contas-pagar-provisao/despesa-fixa", janela),
-    mubiGetTudo("contas-pagar-provisao/cartao-credito", janela),
-    mubiGetTudo("contas-pagar-provisao/folha-pagamento", janela),
-  ]);
-
-  const vistos = new Set();
-  const out = [];
-  const add = (lista, mapear) => {
-    lista.forEach((s, i) => {
-      const n = mapear(s, i);
-      const chave = `${n.tipo}:${n.id}`;
-      if (!n.valor || vistos.has(chave)) return;
-      vistos.add(chave);
-      out.push(n);
-    });
-  };
-  add(pendentes, normalizarPagar);
-  add(vencidas, normalizarPagar);
-  add(fixa, (s, i) => normalizarProvisao(s, i, "Despesa fixa"));
-  add(cartao, (s, i) => normalizarProvisao(s, i, "Cartao"));
-  add(folha, (s, i) => normalizarProvisao(s, i, "Folha"));
-  return out;
-}
-
-async function bancos() {
-  const arr = await mubiGetTudo("conta-bancaria");
-  return arr
-    .filter((b) => String(b.status || "").toLowerCase() === "ativo")
-    // "Permuta" e credito de troca de mercadoria, nao compoe o caixa real.
-    .filter((b) => !/permuta/i.test(String(b.titulo || "")))
-    .map((b, i) => ({
-      id: String(b.id ?? `cb-${i}`),
-      banco: String(b.titulo || "Conta"),
-      conta: String(b.empresa || ""),
-      saldo: num(b.valor_saldo),
-    }));
-}
+const FONTES = {
+  pendente: { caminho: "contas-pagar", extra: { status: "PENDENTE" }, mapear: normalizarPagar },
+  vencido: { caminho: "contas-pagar", extra: { status: "VENCIDO" }, mapear: normalizarPagar },
+  fixa: { caminho: "contas-pagar-provisao/despesa-fixa", extra: {}, mapear: normalizarProvisao("Despesa fixa") },
+  cartao: { caminho: "contas-pagar-provisao/cartao-credito", extra: {}, mapear: normalizarProvisao("Cartao") },
+  folha: { caminho: "contas-pagar-provisao/folha-pagamento", extra: {}, mapear: normalizarProvisao("Folha") },
+};
 
 export const handler = async (event) => {
   if (!mubiConfigurado()) return semConfig();
-  const parte = event.queryStringParameters?.parte || "pagar";
+  const q = event.queryStringParameters || {};
   try {
-    if (parte === "bancos") return json(await bancos());
-    return json(await saidas());
+    if (q.parte === "bancos") {
+      const { lista, totalPaginas } = await mubiGetPagina("conta-bancaria", {}, 1);
+      const contas = lista
+        .filter((b) => String(b.status || "").toLowerCase() === "ativo")
+        .filter((b) => !/permuta/i.test(String(b.titulo || "")))
+        .map((b, i) => ({
+          id: String(b.id ?? `cb-${i}`),
+          banco: String(b.titulo || "Conta"),
+          conta: String(b.empresa || ""),
+          saldo: num(b.valor_saldo),
+        }));
+      return json({ itens: contas, totalPaginas });
+    }
+
+    const fonte = FONTES[q.fonte];
+    if (!fonte) return json({ erro: "informe ?fonte=pendente|vencido|fixa|cartao|folha ou ?parte=bancos" }, 400);
+    const page = Math.max(1, parseInt(q.page, 10) || 1);
+    const { lista, totalPaginas } = await mubiGetPagina(
+      fonte.caminho,
+      {
+        ...fonte.extra,
+        filtrodata: "VENCIMENTO",
+        datainicial: hojeMais(-30),
+        datafinal: hojeMais(60),
+      },
+      page
+    );
+    return json({
+      itens: lista.map(fonte.mapear).filter((n) => n.valor > 0),
+      totalPaginas,
+    });
   } catch (e) {
     if (e.code === "SEM_CONFIG") return semConfig();
     return json({ erro: e.message }, 502);

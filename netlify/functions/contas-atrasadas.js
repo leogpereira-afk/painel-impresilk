@@ -1,10 +1,11 @@
-// Modulo 1: contas a receber em aberto. Campos confirmados com o JSON real do
-// Mubisys em 2026-07-14 (origem, origem_cnpj, numero_nota_fiscal, despesa,
-// valor_titulo, data_despesa, data_vencimento). Busca VENCIDO + PENDENTE por
-// VENCIMENTO numa janela de -365 a +90 dias; o front filtra vencidos, calcula
-// DSO e usa os a vencer no fluxo de caixa.
+// Modulo 1: contas a receber em aberto (campos reais do Mubisys, 2026-07-14).
+// Cada invocacao busca UMA pagina de UM status (limite de 10s da Function);
+// o front chama VENCIDO e PENDENTE e junta as paginas.
+//
+// GET ?status=VENCIDO|PENDENTE&page=N
+// -> { itens: [...], totalPaginas: N }
 
-import { mubiGetTudo, mubiConfigurado, json, semConfig, num, hojeMais } from "./lib/mubi.js";
+import { mubiGetPagina, mubiConfigurado, json, semConfig, num, hojeMais } from "./lib/mubi.js";
 
 function normalizar(r, i) {
   return {
@@ -20,29 +21,26 @@ function normalizar(r, i) {
   };
 }
 
-export const handler = async () => {
+export const handler = async (event) => {
   if (!mubiConfigurado()) return semConfig();
+  const q = event.queryStringParameters || {};
+  const status = q.status === "PENDENTE" ? "PENDENTE" : "VENCIDO";
+  const page = Math.max(1, parseInt(q.page, 10) || 1);
   try {
-    const base = {
-      filtrodata: "VENCIMENTO",
-      datainicial: hojeMais(-365),
-      datafinal: hojeMais(90),
-    };
-    const [vencidos, pendentes] = await Promise.all([
-      mubiGetTudo("contas-receber", { ...base, status: "VENCIDO" }),
-      mubiGetTudo("contas-receber", { ...base, status: "PENDENTE" }),
-    ]);
-
-    const vistos = new Set();
-    const abertos = [];
-    [...vencidos, ...pendentes].forEach((r, i) => {
-      const n = normalizar(r, i);
-      if (!n.valor || vistos.has(n.id)) return;
-      vistos.add(n.id);
-      abertos.push(n);
+    const { lista, totalPaginas } = await mubiGetPagina(
+      "contas-receber",
+      {
+        status,
+        filtrodata: "VENCIMENTO",
+        datainicial: hojeMais(-365),
+        datafinal: hojeMais(90),
+      },
+      page
+    );
+    return json({
+      itens: lista.map(normalizar).filter((n) => n.valor > 0),
+      totalPaginas,
     });
-
-    return json(abertos);
   } catch (e) {
     if (e.code === "SEM_CONFIG") return semConfig();
     return json({ erro: e.message }, 502);
