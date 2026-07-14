@@ -20,7 +20,9 @@ export function mubiConfigurado() {
   return Boolean(BASE && PUB && TOKEN);
 }
 
-// GET em {BASE}/{publicKey}/{caminho}?{query}
+// GET em {BASE}/{publicKey}/{caminho}?{query}, com timeout de 25s por chamada
+// e ate 3 tentativas. Sem isso, uma resposta pendurada do Mubisys congela a
+// background function inteira ate o limite de 15 minutos.
 export async function mubiGet(caminho, query = {}) {
   if (!mubiConfigurado()) {
     const err = new Error(
@@ -33,16 +35,42 @@ export async function mubiGet(caminho, query = {}) {
   Object.entries(query).forEach(([k, v]) => {
     if (v !== undefined && v !== null) url.searchParams.set(k, String(v));
   });
-  const resp = await fetch(url, {
-    headers: { Accept: "application/json", "Access-Token": TOKEN },
-  });
-  if (resp.status === 403) {
-    throw new Error("Mubisys recusou (403): o plano precisa do pacote MubiPro para usar a API.");
+
+  let ultimoErro;
+  for (let tentativa = 1; tentativa <= 3; tentativa++) {
+    const ctl = new AbortController();
+    const timer = setTimeout(() => ctl.abort(), 25000);
+    try {
+      const resp = await fetch(url, {
+        headers: { Accept: "application/json", "Access-Token": TOKEN },
+        signal: ctl.signal,
+      });
+      clearTimeout(timer);
+      if (resp.status === 403) {
+        throw Object.assign(
+          new Error("Mubisys recusou (403): o plano precisa do pacote MubiPro para usar a API."),
+          { fatal: true }
+        );
+      }
+      if (resp.status === 401) {
+        throw Object.assign(
+          new Error("Mubisys recusou (401): confira MUBI_PUBLIC_KEY e MUBI_TOKEN."),
+          { fatal: true }
+        );
+      }
+      if (!resp.ok) {
+        throw new Error(`Mubi ${caminho} respondeu ${resp.status}`);
+      }
+      return await resp.json();
+    } catch (e) {
+      clearTimeout(timer);
+      if (e.fatal) throw e;
+      ultimoErro = e.name === "AbortError" ? new Error(`Mubi ${caminho}: timeout de 25s`) : e;
+      // pequena pausa antes de tentar de novo (o Mubisys engasga sob carga)
+      if (tentativa < 3) await new Promise((r) => setTimeout(r, 2000 * tentativa));
+    }
   }
-  if (!resp.ok) {
-    throw new Error(`Mubi ${caminho} respondeu ${resp.status}`);
-  }
-  return resp.json();
+  throw ultimoErro;
 }
 
 // Extrai o array de itens de uma resposta (aceita array puro ou paginacao

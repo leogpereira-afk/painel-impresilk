@@ -120,6 +120,7 @@ export default async (req) => {
   }
 
   const inicio = Date.now();
+  console.log("mubi-cache: inicio");
   const store = getStore("painel");
   const desde = `${new Date().getFullYear()}-01-01`;
   const contagens = {};
@@ -131,6 +132,7 @@ export default async (req) => {
     const pendentes = await mubiGetTudo("contas-receber", { ...jRec, status: "PENDENTE" });
     const recebiveis = dedup([...vencidos, ...pendentes].map(normRecebivel)).filter((r) => r.valor > 0);
     await store.setJSON("cache_recebiveis", recebiveis);
+    console.log("cache: recebiveis", recebiveis.length);
     contagens.recebiveis = recebiveis.length;
 
     const jPag = { filtrodata: "VENCIMENTO", datainicial: hojeMais(-30), datafinal: hojeMais(60) };
@@ -150,6 +152,7 @@ export default async (req) => {
       (x) => `${x.tipo}:${x.id}`
     ).filter((s) => s.valor > 0);
     await store.setJSON("cache_pagar", pagar);
+    console.log("cache: pagar", pagar.length);
     contagens.pagar = pagar.length;
 
     const bancosBrutos = await mubiGetTudo("conta-bancaria");
@@ -163,6 +166,7 @@ export default async (req) => {
         saldo: num(b.valor_saldo),
       }));
     await store.setJSON("cache_bancos", bancos);
+    console.log("cache: bancos", bancos.length);
     contagens.bancos = bancos.length;
 
     const orcBrutos = await mubiGetTudo("orcamento", {
@@ -173,6 +177,7 @@ export default async (req) => {
     });
     const orcamentos = orcBrutos.map(normOrcamento);
     await store.setJSON("cache_orcamentos", orcamentos);
+    console.log("cache: orcamentos", orcamentos.length);
     contagens.orcamentos = orcamentos.length;
 
     const catalogo = await mubiGetTudo("produto");
@@ -189,6 +194,7 @@ export default async (req) => {
       .filter((os) => !/cancel/i.test(String(os.status || "")))
       .map((os, i) => normOS(os, i, categoriaPorNome));
     await store.setJSON("cache_ordens", ordens);
+    console.log("cache: ordens", ordens.length);
     contagens.ordens = ordens.length;
 
     await store.setJSON("cache_status", {
