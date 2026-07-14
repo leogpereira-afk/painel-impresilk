@@ -19,7 +19,11 @@ export function calcOrcamentos(orcamentos, overrides, config) {
   const corte = p.dataCorteOrcamentos;
   const diasParado = p.diasParado || 7;
 
-  const nomeVend = (id) => (config.vendedores || []).find((v) => v.id === id)?.nome || "Sem vendedor";
+  // No modo real o id do vendedor JA e o nome (vem assim do Mubisys), entao
+  // se o vendedor nao estiver cadastrado em Configuracoes, usamos o proprio id
+  // como nome, em vez de "Sem vendedor".
+  const nomeVend = (id) =>
+    (config.vendedores || []).find((v) => v.id === id)?.nome || (id && id !== "sem" ? id : "Sem vendedor");
   const nomeMotivo = (id) => (config.motivosPerda || []).find((m) => m.id === id)?.nome || "Nao informado";
 
   const hoje = new Date();
