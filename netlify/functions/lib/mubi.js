@@ -38,8 +38,12 @@ export async function mubiGet(caminho, query = {}) {
     if (v !== undefined && v !== null) url.searchParams.set(k, String(v));
   });
 
+  // O Mubisys as vezes devolve 404 intermitente para um recurso valido; ate 4
+  // tentativas absorvem a piscada. Teto de 180s por pagina no total, para nao
+  // acumular timeouts e estourar o limite de 15 min da background.
   let ultimoErro;
-  for (let tentativa = 1; tentativa <= 2; tentativa++) {
+  const inicioChamada = Date.now();
+  for (let tentativa = 1; tentativa <= 4; tentativa++) {
     const ctl = new AbortController();
     const timer = setTimeout(() => ctl.abort(), TIMEOUT_MS);
     try {
@@ -68,7 +72,8 @@ export async function mubiGet(caminho, query = {}) {
       clearTimeout(timer);
       if (e.fatal) throw e;
       ultimoErro = e.name === "AbortError" ? new Error(`Mubi ${caminho}: timeout de ${TIMEOUT_MS / 1000}s`) : e;
-      if (tentativa < 2) await new Promise((r) => setTimeout(r, 3000));
+      if (Date.now() - inicioChamada > 180000) break; // nao insiste alem de 3 min por pagina
+      if (tentativa < 4) await new Promise((r) => setTimeout(r, 2500 * tentativa));
     }
   }
   throw ultimoErro;
