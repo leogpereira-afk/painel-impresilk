@@ -1,37 +1,43 @@
-// Modulo 4: orcamentos. Chama /orcamento, normaliza vendedor, valor, situacao e
-// datas. O front filtra por valor minimo e data de corte, agrupa por vendedor e
-// cruza com o motivo de perda (override).
-//
-// PONTOS A CONFIRMAR NO JSON REAL: nomes de situacao (ganho/perdido/aberto),
-// vendedor e as datas de envio e fechamento.
+// Modulo 4: orcamentos. Busca status=TODOS por CADASTRO desde a data de corte
+// (?desde=AAAA-MM-DD, padrao 1 de janeiro) e normaliza situacao para o front:
+// APROVADO -> ganho, CANCELADO -> perdido, ABERTO -> aberto.
 
-import { mubiGet, mubiConfigurado, json, semConfig, num } from "./lib/mubi.js";
+import { mubiGetTudo, mubiConfigurado, json, semConfig, num, campo, hojeMais } from "./lib/mubi.js";
 
 function mapSituacao(v) {
-  const s = String(v || "").toLowerCase();
-  if (s.includes("ganho") || s.includes("aprovado") || s.includes("fechado")) return "ganho";
-  if (s.includes("perd") || s.includes("recusado") || s.includes("cancel")) return "perdido";
+  const s = String(v || "").toUpperCase();
+  if (s.includes("APROV") || s.includes("GANHO") || s.includes("FECHADO")) return "ganho";
+  if (s.includes("CANCEL") || s.includes("PERD") || s.includes("RECUS") || s.includes("REPROV")) return "perdido";
   return "aberto";
 }
 
-export const handler = async () => {
+export const handler = async (event) => {
   if (!mubiConfigurado()) return semConfig();
   try {
-    const bruto = await mubiGet("orcamento");
-    const arr = Array.isArray(bruto) ? bruto : bruto?.dados || bruto?.data || [];
-    const lista = arr.map((o) => ({
-      id: String(o.id ?? o.codigo ?? o.numero),
-      numero: String(o.numero ?? o.id),
-      cliente: o.cliente?.nome || o.clienteNome || o.cliente || "Cliente",
-      // O front usa vendedorId para casar com config.vendedores; sem cadastro
-      // comum, use o id do vendedor do Mubi (a tela permite (re)cadastrar).
-      vendedorId: String(o.vendedor?.id ?? o.vendedorId ?? o.vendedor ?? "sem"),
-      vendedorNome: o.vendedor?.nome || o.vendedorNome || "",
-      valor: num(o.valor ?? o.valorTotal),
-      situacao: mapSituacao(o.situacao || o.status),
-      dataEnvio: o.dataEnvio || o.emissao || o.data || o.criadoEm || "",
-      dataFechamento: o.dataFechamento || o.dataAprovacao || null,
+    const anoInicio = `${new Date().getFullYear()}-01-01`;
+    const desde = event.queryStringParameters?.desde || anoInicio;
+    const arr = await mubiGetTudo("orcamento", {
+      status: "TODOS",
+      filtrodata: "CADASTRO",
+      datainicial: desde,
+      datafinal: hojeMais(0),
+    });
+
+    const lista = arr.map((o, i) => ({
+      id: String(campo(o, "id", "codigo") ?? `orc-${i}`),
+      numero: String(campo(o, "numero", "id") ?? ""),
+      cliente: String(campo(o, "cliente.nome", "clienteNome", "cliente", "razaoSocial") ?? "Cliente"),
+      // O front casa vendedorId com config.vendedores; usa o nome como id
+      // quando o Mubisys nao mandar um id proprio.
+      vendedorId: String(campo(o, "vendedor.id", "vendedorId", "vendedor_id", "vendedor.nome", "vendedorNome", "vendedor") ?? "sem"),
+      vendedorNome: String(campo(o, "vendedor.nome", "vendedorNome", "vendedor_nome", "vendedor") ?? ""),
+      valor: num(campo(o, "valor", "valorTotal", "valor_total", "total")),
+      situacao: mapSituacao(campo(o, "status", "situacao")),
+      dataEnvio: String(campo(o, "cadastro", "dataCadastro", "data_cadastro", "emissao", "data") ?? ""),
+      dataFechamento:
+        campo(o, "aprovacao", "dataAprovacao", "data_aprovacao", "cancelamento", "dataCancelamento", "data_cancelamento") ?? null,
     }));
+
     return json(lista);
   } catch (e) {
     if (e.code === "SEM_CONFIG") return semConfig();

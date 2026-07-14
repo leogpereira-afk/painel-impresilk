@@ -3,7 +3,7 @@
 // esta pronto para sincronizar no Netlify Blobs. Qualquer mudanca aqui recalcula
 // os modulos ao vivo (os modulos derivam tudo via useMemo).
 
-import { createContext, useContext, useEffect, useMemo, useState, useCallback } from "react";
+import { createContext, useContext, useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { CONFIG_PADRAO } from "./defaults.js";
 import * as mubi from "../services/mubi.js";
 
@@ -36,6 +36,12 @@ export function AppProvider({ children }) {
   const [overridesRecebiveis, setOvRec] = useState(() => ler(K_OV_REC, null));
   const [overridesOrcamentos, setOvOrc] = useState(() => ler(K_OV_ORC, null));
 
+  // Ref da config para o carregamento ler o valor atual sem recarregar a cada edicao.
+  const configRef = useRef(config);
+  useEffect(() => {
+    configRef.current = config;
+  }, [config]);
+
   const [dados, setDados] = useState(null);
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState(null);
@@ -45,12 +51,13 @@ export function AppProvider({ children }) {
     setCarregando(true);
     setErro(null);
     try {
+      const desde = configRef.current?.parametros?.dataCorteOrcamentos;
       const [recebiveis, pagar, bancos, orcamentos, ordens] = await Promise.all([
         mubi.getRecebiveis(),
         mubi.getPagar(),
         mubi.getContasBancarias(),
-        mubi.getOrcamentos(),
-        mubi.getOrdensServico(),
+        mubi.getOrcamentos(desde),
+        mubi.getOrdensServico(desde),
       ]);
       setDados({
         recebiveis,
@@ -58,7 +65,7 @@ export function AppProvider({ children }) {
         bancos,
         orcamentos,
         ordens,
-        catalogo: mubi.getProdutosCatalogo(),
+        catalogo: mubi.getProdutosCatalogo(ordens),
       });
       // Semeia overrides na primeira carga (para o app ja nascer classificado).
       setOvRec((prev) => prev ?? mubi.getSeedOverridesRecebiveis());

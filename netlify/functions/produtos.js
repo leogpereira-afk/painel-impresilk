@@ -1,23 +1,28 @@
-// Modulo 3: produtos. O Mubi nao tem endpoint de vendas por produto, entao o
-// faturamento e o volume saem dos ITENS das Ordens de Servico. Aqui devolvemos
-// as OS normalizadas (numero, cliente, data e itens); o front agrega por produto
-// e por mes.
+// Modulo 3: produtos. O faturamento e o volume saem dos ITENS das Ordens de
+// Servico (status=TODOS, filtrodata=CADASTRO, desde a data de corte ate hoje).
+// O front agrega por produto e por mes e deriva o catalogo dos proprios itens.
 //
-// PONTO CRITICO A CONFIRMAR NO JSON REAL: a estrutura dos itens da OS. Isole a
-// leitura dos itens na funcao normalizarItens abaixo para ajustar num lugar so.
+// Query aceita: ?desde=AAAA-MM-DD (padrao: 1 de janeiro do ano corrente).
+//
+// PONTO CRITICO: a estrutura dos itens da OS ainda nao e publica no OpenAPI.
+// A leitura fica isolada em normalizarItens() com varios nomes candidatos;
+// ajustar ao ver o JSON real.
 
-import { mubiGet, mubiConfigurado, json, semConfig, num } from "./lib/mubi.js";
+import { mubiGetTudo, mubiConfigurado, json, semConfig, num, campo, hojeMais } from "./lib/mubi.js";
 
 function normalizarItens(os) {
-  const itens = os.itens || os.produtos || os.servicos || os.linhas || [];
-  return itens.map((it) => {
-    const quantidade = num(it.quantidade ?? it.qtd ?? 1);
-    const valorUnit = num(it.valorUnitario ?? it.valorUnit ?? it.preco);
-    const valorTotal = num(it.valorTotal ?? it.total ?? quantidade * valorUnit);
+  const lista = campo(os, "itens", "produtos", "servicos", "items", "linhas") || [];
+  if (!Array.isArray(lista)) return [];
+  return lista.map((it, i) => {
+    const quantidade = num(campo(it, "quantidade", "qtd", "qtde") ?? 1) || 1;
+    const valorUnit = num(campo(it, "valorUnitario", "valor_unitario", "valorUnit", "preco", "precoUnitario", "preco_unitario"));
+    const valorTotal = num(campo(it, "valorTotal", "valor_total", "total", "valor")) || quantidade * valorUnit;
+    const nome = String(campo(it, "produto.nome", "produtoNome", "produto_nome", "descricao", "nome", "produto") ?? `Produto ${i + 1}`);
+    const id = String(campo(it, "produtoId", "produto_id", "produto.id", "codigoProduto", "codigo_produto") ?? nome);
     return {
-      produtoId: String(it.produtoId ?? it.produto?.id ?? it.codigoProduto ?? it.produto ?? "produto"),
-      produto: it.produto?.nome || it.produtoNome || it.descricao || "Produto",
-      categoria: it.categoria || it.produto?.categoria || "Geral",
+      produtoId: id,
+      produto: nome,
+      categoria: String(campo(it, "categoria", "produto.categoria", "grupo") ?? "Geral"),
       quantidade,
       valorUnit,
       valorTotal,
@@ -25,18 +30,31 @@ function normalizarItens(os) {
   });
 }
 
-export const handler = async () => {
+export const handler = async (event) => {
   if (!mubiConfigurado()) return semConfig();
   try {
-    const bruto = await mubiGet("ordem-servico");
-    const arr = Array.isArray(bruto) ? bruto : bruto?.dados || bruto?.data || [];
-    const ordens = arr.map((os) => ({
-      id: String(os.id ?? os.codigo ?? os.numero),
-      numero: String(os.numero ?? os.id),
-      cliente: os.cliente?.nome || os.clienteNome || os.cliente || "Cliente",
-      data: os.data || os.dataAbertura || os.emissao || os.criadoEm || "",
-      itens: normalizarItens(os),
-    }));
+    const anoInicio = `${new Date().getFullYear()}-01-01`;
+    const desde = event.queryStringParameters?.desde || anoInicio;
+    const arr = await mubiGetTudo("ordem-servico", {
+      status: "TODOS",
+      filtrodata: "CADASTRO",
+      datainicial: desde,
+      datafinal: hojeMais(0),
+    });
+
+    const ordens = arr
+      .filter((os) => {
+        const sit = String(campo(os, "status", "situacao") ?? "").toUpperCase();
+        return !sit.includes("CANCEL"); // ignora OS canceladas no faturamento
+      })
+      .map((os, i) => ({
+        id: String(campo(os, "id", "codigo") ?? `os-${i}`),
+        numero: String(campo(os, "numero", "id") ?? ""),
+        cliente: String(campo(os, "cliente.nome", "clienteNome", "cliente") ?? "Cliente"),
+        data: String(campo(os, "cadastro", "dataCadastro", "data_cadastro", "data", "emissao", "dataAbertura") ?? ""),
+        itens: normalizarItens(os),
+      }));
+
     return json(ordens);
   } catch (e) {
     if (e.code === "SEM_CONFIG") return semConfig();

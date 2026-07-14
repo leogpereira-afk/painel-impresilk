@@ -61,16 +61,23 @@ Depois, no painel do Netlify (site `painel-impresilk` > Build & deploy > Link re
 
 ## Ligar o Mubi (producao)
 
+API real confirmada (OpenAPI em `api.mubisys.com/api/documentation`):
+
+- Base: `https://api.mubisys.com/api`
+- Rota: `{base}/{publicKey}/{recurso}` com `status`, `filtrodata`, `datainicial`, `datafinal` obrigatorios na maioria dos recursos; paginacao `page`/`per_page` (max 500)
+- Autenticacao: publicKey no caminho + header `Access-Token` (token de autorizacao do usuario)
+- Atencao: a API exige o pacote **MubiPro** no plano (403 sem ele)
+
 No Netlify (Project settings > Environment variables), defina:
 
-- `MUBI_BASE_URL` (ex.: `https://api.mubi.com.br/v1`)
-- `MUBI_PUBLIC_KEY` (a publicKey que vai no caminho)
-- `MUBI_TOKEN` (token de autenticacao, confirmar o metodo exato com a doc)
-- `TOKEN` (segredo leve para a Function `config.js`)
+- `MUBI_BASE_URL` = `https://api.mubisys.com/api`
+- `MUBI_PUBLIC_KEY` = chave publica
+- `MUBI_TOKEN` = Access-Token do usuario (pego no painel do Mubisys)
+- `TOKEN` = segredo leve para a Function `config.js` (ja definido)
 
-Depois troque `MODO_DEMO` para `false` em `src/services/mubi.js`.
+Depois troque `MODO_DEMO` para `false` em `src/services/mubi.js` e faca `git push`.
 
-Ao ver a primeira resposta real de cada endpoint, ajuste o parse nas Functions (os campos estao marcados com "PONTOS A CONFIRMAR" e usam nomes alternativos como fallback).
+Ao ver a primeira resposta real de cada endpoint, conferir os nomes dos campos nas Functions (a normalizacao usa `campo()` com varios nomes candidatos; o OpenAPI do Mubisys nao publica os schemas de resposta).
 
 ## Marca
 

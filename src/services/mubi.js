@@ -45,24 +45,38 @@ export async function getContasBancarias() {
   return chamarFunction("fluxo-caixa", { parte: "bancos" });
 }
 
-export async function getOrcamentos() {
+export async function getOrcamentos(desde) {
   if (MODO_DEMO) {
     await demora();
     return demo.getOrcamentos();
   }
-  return chamarFunction("orcamentos");
+  return chamarFunction("orcamentos", desde ? { desde } : {});
 }
 
-export async function getOrdensServico() {
+export async function getOrdensServico(desde) {
   if (MODO_DEMO) {
     await demora();
     return demo.getOrdensServico();
   }
-  return chamarFunction("produtos", { parte: "ordens" });
+  return chamarFunction("produtos", desde ? { desde } : {});
 }
 
-export function getProdutosCatalogo() {
-  return demo.PRODUTOS;
+// Em demo o catalogo e fixo; com o Mubi real ele e derivado dos itens das OS.
+export function getProdutosCatalogo(ordens) {
+  if (MODO_DEMO) return demo.PRODUTOS;
+  const mapa = new Map();
+  for (const os of ordens || []) {
+    for (const it of os.itens || []) {
+      if (!mapa.has(it.produtoId)) {
+        mapa.set(it.produtoId, {
+          id: it.produtoId,
+          nome: it.produto || it.produtoId,
+          categoria: it.categoria || "Geral",
+        });
+      }
+    }
+  }
+  return [...mapa.values()];
 }
 
 // Sementes das marcacoes manuais (motivos, cobrado) para o app ja nascer vivo.
