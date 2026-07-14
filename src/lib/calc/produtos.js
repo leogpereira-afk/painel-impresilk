@@ -1,6 +1,8 @@
 // Produtos: o Mubi nao tem endpoint de vendas por produto. Faturamento e volume
 // saem dos itens das Ordens de Servico, agregados por produto e por mes desde a
-// virada do ano. Variacao medida do mes corrente contra janeiro.
+// virada do ano. Os TOTAIS somam tudo no ano (inclui o mes corrente em
+// andamento); a VARIACAO e a tendencia comparam janeiro contra o ULTIMO MES
+// FECHADO, para nao mostrar "queda" so porque o mes atual esta pela metade.
 
 import { diaLocalISO, rotuloMes } from "../format.js";
 
@@ -17,6 +19,12 @@ export function calcProdutos(ordens, catalogo, config) {
       idx: m,
     });
   }
+
+  // Ultimo mes fechado: se hoje nao e o ultimo dia do mes, o mes corrente esta
+  // incompleto, entao a comparacao para no mes anterior. Nunca abaixo de janeiro.
+  const ultimoDiaDoMes = new Date(ano, mesAtual + 1, 0).getDate();
+  const mesCorrenteFechado = hoje.getDate() >= ultimoDiaDoMes;
+  const idxFim = mesAtual === 0 ? 0 : mesCorrenteFechado ? mesAtual : mesAtual - 1;
 
   // Estrutura: produto -> mesIdx -> {faturamento, volume}
   const acc = {};
@@ -47,7 +55,8 @@ export function calcProdutos(ordens, catalogo, config) {
     const faturamento = mm.reduce((s, x) => s + x.faturamento, 0);
     const volume = mm.reduce((s, x) => s + x.volume, 0);
     const jan = mm[0] || { faturamento: 0, volume: 0 };
-    const atual = mm[mm.length - 1] || { faturamento: 0, volume: 0 };
+    // "atual" para a variacao = ultimo mes fechado (nao o mes em andamento).
+    const fim = mm[idxFim] || { faturamento: 0, volume: 0 };
     return {
       produtoId: info.id,
       nome: info.nome,
@@ -55,12 +64,14 @@ export function calcProdutos(ordens, catalogo, config) {
       faturamento,
       volume,
       fatJaneiro: jan.faturamento,
-      fatAtual: atual.faturamento,
+      fatAtual: fim.faturamento,
       volJaneiro: jan.volume,
-      volAtual: atual.volume,
-      varFat: varPct(jan.faturamento, atual.faturamento),
-      varVol: varPct(jan.volume, atual.volume),
-      serie: mm.map((x, i) => ({
+      volAtual: fim.volume,
+      varFat: varPct(jan.faturamento, fim.faturamento),
+      varVol: varPct(jan.volume, fim.volume),
+      // Serie/tendencia so ate o ultimo mes fechado, para o grafico nao
+      // despencar por causa do mes corrente incompleto.
+      serie: mm.slice(0, idxFim + 1).map((x, i) => ({
         mes: meses[i].rotulo,
         faturamento: x.faturamento,
         volume: x.volume,
@@ -73,11 +84,13 @@ export function calcProdutos(ordens, catalogo, config) {
   const maiorAlta = [...ranking].sort((a, b) => b.varFat - a.varFat)[0] || null;
   const maiorQueda = [...ranking].sort((a, b) => a.varFat - b.varFat)[0] || null;
 
-  // Serie combinada para o grafico: maior alta x maior queda.
-  const chartData = meses.map((mm, i) => ({
+  // Serie combinada para o grafico: maior alta x maior queda, so ate o ultimo
+  // mes fechado (mesma janela da variacao).
+  const mesesFechados = meses.slice(0, idxFim + 1);
+  const chartData = mesesFechados.map((mm, i) => ({
     mes: mm.rotulo,
-    alta: maiorAlta ? maiorAlta.serie[i].faturamento : 0,
-    queda: maiorQueda ? maiorQueda.serie[i].faturamento : 0,
+    alta: maiorAlta ? maiorAlta.serie[i]?.faturamento || 0 : 0,
+    queda: maiorQueda ? maiorQueda.serie[i]?.faturamento || 0 : 0,
   }));
 
   return {
@@ -86,7 +99,7 @@ export function calcProdutos(ordens, catalogo, config) {
     liderEmQueda: !!lider && lider.varFat < 0,
     maiorAlta,
     maiorQueda,
-    meses: meses.map((m) => m.rotulo),
+    meses: mesesFechados.map((m) => m.rotulo),
     chartData,
     totalFaturamento: ranking.reduce((s, r) => s + r.faturamento, 0),
     totalVolume: ranking.reduce((s, r) => s + r.volume, 0),
