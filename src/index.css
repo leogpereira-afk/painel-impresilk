@@ -1,0 +1,210 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --ease-apple: cubic-bezier(0.32, 0.72, 0, 1);
+  --bg: #f4f4f7;
+  --surface: #ffffff;
+  --hairline: #e6e6ee;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  padding: 0;
+  margin: 0;
+  min-height: 100%;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background-color: var(--bg);
+  color: #1a1a2e;
+  /* Corpo em Spectral (serifada, editorial); titulos e numeros usam Poppins via .font-display */
+  font-family: "Spectral", Georgia, "Times New Roman", serif;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Numeros tabulares alinhados em tabelas e KPIs */
+.tnum {
+  font-family: "Poppins", system-ui, sans-serif;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+}
+
+::-webkit-scrollbar {
+  width: 9px;
+  height: 9px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #cdcdd8;
+  border-radius: 9px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #a9a9b8;
+  background-clip: content-box;
+}
+
+button,
+a,
+input,
+select,
+textarea {
+  transition-timing-function: var(--ease-apple);
+}
+
+/* Foco visivel e consistente (acessibilidade) */
+:focus-visible {
+  outline: 2px solid #3840e8;
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+@layer base {
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  .font-display {
+    font-family: "Poppins", system-ui, sans-serif;
+    letter-spacing: -0.02em;
+  }
+}
+
+@layer components {
+  .card {
+    @apply rounded-2xl border bg-white shadow-card;
+    border-color: var(--hairline);
+  }
+  .card-hover {
+    @apply transition-all duration-300 hover:-translate-y-0.5 hover:shadow-card-hover;
+  }
+  .glass {
+    @apply bg-white/80 backdrop-blur-xl backdrop-saturate-150;
+  }
+  .input {
+    @apply w-full rounded-xl border bg-white px-3.5 py-2.5 text-sm text-slate-900 outline-none transition-all duration-200 focus:border-brand-400 focus:ring-4 focus:ring-brand-100/70 placeholder:text-slate-400;
+    border-color: #d7d7e2;
+  }
+  .select {
+    @apply input pr-9 font-display;
+  }
+  .label {
+    @apply mb-1.5 block font-display text-xs font-semibold uppercase tracking-wide text-slate-500;
+  }
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 font-display text-sm font-medium transition-all duration-200 active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-60 disabled:active:scale-100;
+  }
+  .btn-primary {
+    @apply btn bg-brand text-white shadow-sm hover:bg-brand-600 hover:shadow-md;
+  }
+  .btn-outline {
+    @apply btn border bg-white text-slate-700 hover:bg-slate-50;
+    border-color: #d7d7e2;
+  }
+  .btn-ghost {
+    @apply btn text-slate-600 hover:bg-slate-100;
+  }
+  .btn-danger {
+    @apply btn bg-bad text-white shadow-sm hover:bg-bad-700 hover:shadow-md;
+  }
+  .th {
+    @apply px-4 py-3 text-left font-display text-xs font-semibold uppercase tracking-wide text-slate-500;
+  }
+  .td {
+    @apply px-4 py-3 text-sm text-slate-700;
+  }
+  .chip {
+    @apply inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-2.5 py-1 font-display text-xs font-medium text-slate-600;
+  }
+  .chip-ok {
+    @apply chip bg-ok-50 text-ok-700;
+  }
+  .chip-warn {
+    @apply chip bg-warn-50 text-warn-700;
+  }
+  .chip-bad {
+    @apply chip bg-bad-50 text-bad-700;
+  }
+  .kpi-value {
+    @apply font-display font-bold tabular-nums tracking-tight;
+  }
+}
+
+/* ============================================================
+   TEMA ESCURO — remapeia as utilitarias fixas sob html.dark.
+   ============================================================ */
+html.dark {
+  --bg: #0c0e1a;
+  --surface: #161a2c;
+  --hairline: rgba(255, 255, 255, 0.10);
+  color-scheme: dark;
+}
+html.dark body {
+  background-color: var(--bg);
+  color: #e9ecf6;
+}
+html.dark ::-webkit-scrollbar-thumb {
+  background: #333a55;
+  background-clip: content-box;
+}
+
+.dark .card { background-color: var(--surface); }
+.dark .bg-white { background-color: var(--surface); }
+.dark .bg-white\/80 { background-color: rgba(22, 26, 44, 0.8); }
+.dark .bg-white\/70 { background-color: rgba(22, 26, 44, 0.66); }
+.dark .glass { background-color: rgba(18, 21, 38, 0.72); }
+.dark .bg-slate-50,
+.dark .bg-slate-50\/60,
+.dark .bg-slate-50\/70 { background-color: rgba(255, 255, 255, 0.035); }
+.dark .bg-slate-100,
+.dark .bg-slate-100\/70 { background-color: rgba(255, 255, 255, 0.06); }
+.dark .bg-slate-200 { background-color: rgba(255, 255, 255, 0.1); }
+
+.dark .text-slate-900 { color: #f2f4fb; }
+.dark .text-slate-800 { color: #e9ecf6; }
+.dark .text-slate-700 { color: #d3d9e8; }
+.dark .text-slate-600 { color: #b6bfd2; }
+.dark .text-slate-500 { color: #929cb3; }
+.dark .text-slate-400 { color: #7783a0; }
+
+.dark .border-slate-100 { border-color: rgba(255, 255, 255, 0.08); }
+.dark .border-slate-200,
+.dark .border-slate-200\/60,
+.dark .border-slate-200\/70 { border-color: rgba(255, 255, 255, 0.11); }
+
+.dark .input,
+.dark .select { background-color: rgba(255, 255, 255, 0.04); border-color: rgba(255, 255, 255, 0.14); color: #e9ecf6; }
+.dark .btn-outline { background-color: rgba(255, 255, 255, 0.04); border-color: rgba(255, 255, 255, 0.14); color: #d3d9e8; }
+.dark .btn-outline:hover { background-color: rgba(255, 255, 255, 0.09); }
+.dark .btn-ghost { color: #b6bfd2; }
+.dark .btn-ghost:hover { background-color: rgba(255, 255, 255, 0.08); }
+.dark .th { color: #929cb3; }
+.dark .td { color: #d3d9e8; }
+.dark .chip { background-color: rgba(255, 255, 255, 0.07); color: #b6bfd2; }
+.dark .label { color: #929cb3; }
+
+.dark .bg-ok-50 { background-color: rgba(34, 197, 94, 0.16); }
+.dark .text-ok-700, .dark .text-ok-600 { color: #86efac; }
+.dark .bg-warn-50 { background-color: rgba(217, 119, 6, 0.18); }
+.dark .text-warn-700, .dark .text-warn-600 { color: #fcd34d; }
+.dark .bg-bad-50 { background-color: rgba(220, 38, 38, 0.16); }
+.dark .text-bad-700, .dark .text-bad-600 { color: #fca5a5; }
+.dark .bg-brand\/10 { background-color: rgba(112, 118, 240, 0.18); }
+.dark .text-brand { color: #9ba1f6; }
