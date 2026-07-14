@@ -1,58 +1,52 @@
-// Modulo 3: produtos. O faturamento e o volume saem dos ITENS das Ordens de
-// Servico (status=TODOS, filtrodata=CADASTRO, desde a data de corte ate hoje).
-// O front agrega por produto e por mes e deriva o catalogo dos proprios itens.
-//
-// Query aceita: ?desde=AAAA-MM-DD (padrao: 1 de janeiro do ano corrente).
-//
-// PONTO CRITICO: a estrutura dos itens da OS ainda nao e publica no OpenAPI.
-// A leitura fica isolada em normalizarItens() com varios nomes candidatos;
-// ajustar ao ver o JSON real.
+// Modulo 3: produtos. Campos confirmados com o JSON real do Mubisys em
+// 2026-07-14: cada OS traz itens[] com item (nome do produto), quantidade,
+// valor_final. A categoria vem do catalogo /produto (join pelo nome).
+// Busca status=TODOS por CADASTRO desde ?desde (padrao 1 de janeiro) e ignora
+// OS canceladas.
 
-import { mubiGetTudo, mubiConfigurado, json, semConfig, num, campo, hojeMais } from "./lib/mubi.js";
-
-function normalizarItens(os) {
-  const lista = campo(os, "itens", "produtos", "servicos", "items", "linhas") || [];
-  if (!Array.isArray(lista)) return [];
-  return lista.map((it, i) => {
-    const quantidade = num(campo(it, "quantidade", "qtd", "qtde") ?? 1) || 1;
-    const valorUnit = num(campo(it, "valorUnitario", "valor_unitario", "valorUnit", "preco", "precoUnitario", "preco_unitario"));
-    const valorTotal = num(campo(it, "valorTotal", "valor_total", "total", "valor")) || quantidade * valorUnit;
-    const nome = String(campo(it, "produto.nome", "produtoNome", "produto_nome", "descricao", "nome", "produto") ?? `Produto ${i + 1}`);
-    const id = String(campo(it, "produtoId", "produto_id", "produto.id", "codigoProduto", "codigo_produto") ?? nome);
-    return {
-      produtoId: id,
-      produto: nome,
-      categoria: String(campo(it, "categoria", "produto.categoria", "grupo") ?? "Geral"),
-      quantidade,
-      valorUnit,
-      valorTotal,
-    };
-  });
-}
+import { mubiGetTudo, mubiConfigurado, json, semConfig, num, hojeMais } from "./lib/mubi.js";
 
 export const handler = async (event) => {
   if (!mubiConfigurado()) return semConfig();
   try {
     const anoInicio = `${new Date().getFullYear()}-01-01`;
     const desde = event.queryStringParameters?.desde || anoInicio;
-    const arr = await mubiGetTudo("ordem-servico", {
-      status: "TODOS",
-      filtrodata: "CADASTRO",
-      datainicial: desde,
-      datafinal: hojeMais(0),
-    });
 
-    const ordens = arr
-      .filter((os) => {
-        const sit = String(campo(os, "status", "situacao") ?? "").toUpperCase();
-        return !sit.includes("CANCEL"); // ignora OS canceladas no faturamento
-      })
+    const [osArr, catalogo] = await Promise.all([
+      mubiGetTudo("ordem-servico", {
+        status: "TODOS",
+        filtrodata: "CADASTRO",
+        datainicial: desde,
+        datafinal: hojeMais(0),
+      }),
+      mubiGetTudo("produto"),
+    ]);
+
+    // nome do produto -> categoria (do cadastro de produtos)
+    const categoriaPorNome = new Map(
+      catalogo.map((p) => [String(p.nome || "").trim().toLowerCase(), String(p.categoria || "Geral")])
+    );
+
+    const ordens = osArr
+      .filter((os) => !/cancel/i.test(String(os.status || "")))
       .map((os, i) => ({
-        id: String(campo(os, "id", "codigo") ?? `os-${i}`),
-        numero: String(campo(os, "numero", "id") ?? ""),
-        cliente: String(campo(os, "cliente.nome", "clienteNome", "cliente") ?? "Cliente"),
-        data: String(campo(os, "cadastro", "dataCadastro", "data_cadastro", "data", "emissao", "dataAbertura") ?? ""),
-        itens: normalizarItens(os),
+        id: String(os.id ?? `os-${i}`),
+        numero: String(os.sequencial_ordem || os.sequencial_orcamento || os.id || ""),
+        cliente: String(os.cliente || "Cliente"),
+        data: String(os.data_cadastro || ""),
+        itens: (Array.isArray(os.itens) ? os.itens : []).map((it, k) => {
+          const nome = String(it.item || `Item ${k + 1}`).trim();
+          const quantidade = num(it.quantidade) || 1;
+          const valorTotal = num(it.valor_final) || num(it.sub_total);
+          return {
+            produtoId: nome,
+            produto: nome,
+            categoria: categoriaPorNome.get(nome.toLowerCase()) || "Geral",
+            quantidade,
+            valorUnit: num(it.valor_unitario),
+            valorTotal,
+          };
+        }),
       }));
 
     return json(ordens);

@@ -1,14 +1,25 @@
-// Modulo 4: orcamentos. Busca status=TODOS por CADASTRO desde a data de corte
-// (?desde=AAAA-MM-DD, padrao 1 de janeiro) e normaliza situacao para o front:
-// APROVADO -> ganho, CANCELADO -> perdido, ABERTO -> aberto.
+// Modulo 4: orcamentos. Campos e status confirmados com o JSON real do Mubisys
+// em 2026-07-14. Status reais: "Em aberto" (aberto), "Reprovado"/"Cancelada"
+// (perdido), "Entregue"/"Em producao"/"Concluida"/"Ordem de servico" (ganho).
+// Quando valor_total vem zerado, o valor real e a soma de itens[].valor_final.
 
-import { mubiGetTudo, mubiConfigurado, json, semConfig, num, campo, hojeMais } from "./lib/mubi.js";
+import { mubiGetTudo, mubiConfigurado, json, semConfig, num, hojeMais } from "./lib/mubi.js";
 
-function mapSituacao(v) {
-  const s = String(v || "").toUpperCase();
-  if (s.includes("APROV") || s.includes("GANHO") || s.includes("FECHADO")) return "ganho";
-  if (s.includes("CANCEL") || s.includes("PERD") || s.includes("RECUS") || s.includes("REPROV")) return "perdido";
-  return "aberto";
+function mapSituacao(status) {
+  const s = String(status || "").toLowerCase();
+  if (s.includes("cancel") || s.includes("reprov") || s.includes("recus") || s.includes("perd")) return "perdido";
+  if (s.includes("aberto")) return "aberto";
+  return "ganho"; // Entregue, Em producao, Concluida, Ordem de servico
+}
+
+function valorDoOrcamento(o) {
+  const vt = num(o.valor_total);
+  if (vt > 0) return vt;
+  const soma = (Array.isArray(o.itens) ? o.itens : []).reduce(
+    (s, it) => s + (num(it.valor_final) || num(it.sub_total)),
+    0
+  );
+  return soma;
 }
 
 export const handler = async (event) => {
@@ -23,20 +34,23 @@ export const handler = async (event) => {
       datafinal: hojeMais(0),
     });
 
-    const lista = arr.map((o, i) => ({
-      id: String(campo(o, "id", "codigo") ?? `orc-${i}`),
-      numero: String(campo(o, "numero", "id") ?? ""),
-      cliente: String(campo(o, "cliente.nome", "clienteNome", "cliente", "razaoSocial") ?? "Cliente"),
-      // O front casa vendedorId com config.vendedores; usa o nome como id
-      // quando o Mubisys nao mandar um id proprio.
-      vendedorId: String(campo(o, "vendedor.id", "vendedorId", "vendedor_id", "vendedor.nome", "vendedorNome", "vendedor") ?? "sem"),
-      vendedorNome: String(campo(o, "vendedor.nome", "vendedorNome", "vendedor_nome", "vendedor") ?? ""),
-      valor: num(campo(o, "valor", "valorTotal", "valor_total", "total")),
-      situacao: mapSituacao(campo(o, "status", "situacao")),
-      dataEnvio: String(campo(o, "cadastro", "dataCadastro", "data_cadastro", "emissao", "data") ?? ""),
-      dataFechamento:
-        campo(o, "aprovacao", "dataAprovacao", "data_aprovacao", "cancelamento", "dataCancelamento", "data_cancelamento") ?? null,
-    }));
+    const lista = arr.map((o, i) => {
+      const vendedor = String(o.vendedor || "").trim() || "Sem vendedor";
+      return {
+        id: String(o.id ?? `orc-${i}`),
+        numero: String(o.sequencial_orcamento || o.id || ""),
+        cliente: String(o.cliente || "Cliente"),
+        // O nome do vendedor e o proprio id: casa com config.vendedores por nome.
+        vendedorId: vendedor,
+        vendedorNome: vendedor,
+        valor: valorDoOrcamento(o),
+        situacao: mapSituacao(o.status),
+        dataEnvio: String(o.data_cadastro || ""),
+        dataFechamento: o.data_aprovacao || o.data_cancelamento || null,
+        trabalho: String(o.nome_trabalho || ""),
+        motivoCancelamentoMubi: String(o.motivo_cancelamento || ""),
+      };
+    });
 
     return json(lista);
   } catch (e) {

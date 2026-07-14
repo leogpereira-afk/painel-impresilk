@@ -4,9 +4,9 @@
 
 import * as demo from "./demo/dados.js";
 
-// Enquanto as Functions nao tiverem a chave e o base URL reais, MODO_DEMO faz o
-// app rodar completo com dados coerentes. Trocar para false quando o Mubi entrar.
-export const MODO_DEMO = true;
+// MODO_DEMO desligado em 2026-07-14: o painel agora le os dados reais do
+// Mubisys via Netlify Functions. Religar (true) so para demonstracoes.
+export const MODO_DEMO = false;
 
 const BASE = "/.netlify/functions";
 

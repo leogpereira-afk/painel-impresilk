@@ -1,22 +1,31 @@
-// Modulo 2: fluxo de caixa. Duas partes (parametro ?parte=):
-//   parte=pagar  -> saidas: /contas-pagar (VENCIDO + PENDENTE) mais as tres
-//                   provisoes (despesa-fixa, cartao-credito, folha-pagamento),
-//                   todas por VENCIMENTO numa janela de -30 a +60 dias.
-//   parte=bancos -> /conta-bancaria (saldo inicial).
-// As entradas previstas saem dos recebiveis (funcao contas-atrasadas).
+// Modulo 2: fluxo de caixa. Campos confirmados com o JSON real do Mubisys em
+// 2026-07-14. Duas partes (?parte=):
+//   parte=pagar  -> /contas-pagar (PENDENTE + VENCIDO) + 3 provisoes (campos cap_*),
+//                   por VENCIMENTO numa janela de -30 a +60 dias.
+//   parte=bancos -> /conta-bancaria. Exclui contas "Permuta" (credito de troca,
+//                   nao e dinheiro em caixa) e as inativas.
 
-import { mubiGetTudo, mubiConfigurado, json, semConfig, num, campo, hojeMais } from "./lib/mubi.js";
+import { mubiGetTudo, mubiConfigurado, json, semConfig, num, hojeMais } from "./lib/mubi.js";
 
-function normalizarSaida(s, i, tipo, categoriaPadrao) {
+function normalizarPagar(s, i) {
   return {
-    id: String(campo(s, "id", "codigo") ?? `pag-${tipo}-${i}`),
-    descricao: String(
-      campo(s, "descricao", "historico", "fornecedor.nome", "fornecedorNome", "nome", "titulo") ?? "Saida"
-    ),
-    categoria: String(campo(s, "categoria", "plano", "planoContas", "plano_contas", "grupo") ?? categoriaPadrao),
-    valor: num(campo(s, "valor", "valorTitulo", "valor_titulo", "valorParcela", "valor_parcela")),
-    vencimento: String(campo(s, "vencimento", "dataVencimento", "data_vencimento", "competencia") ?? ""),
-    tipo,
+    id: String(s.id ?? `pag-${i}`),
+    descricao: String(s.despesa || s.descricao || s.origem || "Saida"),
+    categoria: String(s.centro_custo || s.tipo || "Fornecedor"),
+    valor: num(s.valor_titulo),
+    vencimento: String(s.data_vencimento || ""),
+    tipo: "pagar",
+  };
+}
+
+function normalizarProvisao(s, i, categoria) {
+  return {
+    id: String(s.id ?? `prov-${i}`),
+    descricao: String(s.cap_despesa || s.cap_descricao || categoria),
+    categoria,
+    valor: num(s.cap_valor),
+    vencimento: String(s.cap_vencimento || ""),
+    tipo: "provisao",
   };
 }
 
@@ -33,31 +42,35 @@ async function saidas() {
 
   const vistos = new Set();
   const out = [];
-  const add = (lista, tipo, categoriaPadrao) => {
+  const add = (lista, mapear) => {
     lista.forEach((s, i) => {
-      const n = normalizarSaida(s, i, tipo, categoriaPadrao);
-      const chave = `${tipo}:${n.id}`;
-      if (vistos.has(chave)) return;
+      const n = mapear(s, i);
+      const chave = `${n.tipo}:${n.id}`;
+      if (!n.valor || vistos.has(chave)) return;
       vistos.add(chave);
       out.push(n);
     });
   };
-  add(pendentes, "pagar", "Fornecedor");
-  add(vencidas, "pagar", "Fornecedor");
-  add(fixa, "provisao", "Despesa fixa");
-  add(cartao, "provisao", "Cartao");
-  add(folha, "provisao", "Folha");
+  add(pendentes, normalizarPagar);
+  add(vencidas, normalizarPagar);
+  add(fixa, (s, i) => normalizarProvisao(s, i, "Despesa fixa"));
+  add(cartao, (s, i) => normalizarProvisao(s, i, "Cartao"));
+  add(folha, (s, i) => normalizarProvisao(s, i, "Folha"));
   return out;
 }
 
 async function bancos() {
   const arr = await mubiGetTudo("conta-bancaria");
-  return arr.map((b, i) => ({
-    id: String(campo(b, "id", "codigo") ?? `cb-${i}`),
-    banco: String(campo(b, "banco", "nome", "instituicao", "descricao") ?? "Conta"),
-    conta: String(campo(b, "conta", "numero", "numeroConta", "numero_conta") ?? ""),
-    saldo: num(campo(b, "saldo", "saldoAtual", "saldo_atual", "saldoDisponivel", "saldo_disponivel")),
-  }));
+  return arr
+    .filter((b) => String(b.status || "").toLowerCase() === "ativo")
+    // "Permuta" e credito de troca de mercadoria, nao compoe o caixa real.
+    .filter((b) => !/permuta/i.test(String(b.titulo || "")))
+    .map((b, i) => ({
+      id: String(b.id ?? `cb-${i}`),
+      banco: String(b.titulo || "Conta"),
+      conta: String(b.empresa || ""),
+      saldo: num(b.valor_saldo),
+    }));
 }
 
 export const handler = async (event) => {

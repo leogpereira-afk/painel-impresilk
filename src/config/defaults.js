@@ -55,11 +55,13 @@ export const CONFIG_PADRAO = {
   // Limites das faixas de idade dos atrasos (dias).
   faixasIdade: [15, 30, 60, 90],
 
+  // Vendedores reais do Mubisys: o id e o proprio nome como a API devolve,
+  // para as linhas casarem automaticamente com os orcamentos.
   vendedores: [
-    { id: "v-ana", nome: "Ana Ribeiro" },
-    { id: "v-carlos", nome: "Carlos Menezes" },
-    { id: "v-fernanda", nome: "Fernanda Lima" },
-    { id: "v-diego", nome: "Diego Souza" },
+    { id: "Barbara Vasconcelos", nome: "Barbara Vasconcelos" },
+    { id: "Candida", nome: "Candida" },
+    { id: "Jessica Sampaio", nome: "Jessica Sampaio" },
+    { id: "Michelle", nome: "Michelle" },
   ],
 
   motivosPerda: [
