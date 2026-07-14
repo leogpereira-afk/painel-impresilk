@@ -139,9 +139,10 @@ export default function FluxoCaixa() {
           <div>
             <h2 className="font-display text-lg font-semibold text-slate-900">Regra D-1</h2>
             <p className="mt-1 max-w-2xl text-slate-600">
-              O dinheiro precisa estar em caixa um dia antes do vencimento. O recebivel
-              do dia precisa ter caido ate a vespera. Por isso a projecao considera cada
-              entrada e saida na data prevista, sem folga.
+              O dinheiro precisa estar em caixa um dia antes do vencimento. Por isso a
+              projecao reserva cada saida na vespera do vencimento, e conta a entrada so
+              na data prevista (nunca antes). Contas que ja venceram e seguem em aberto
+              entram hoje, nao somem da conta.
             </p>
           </div>
         </div>
