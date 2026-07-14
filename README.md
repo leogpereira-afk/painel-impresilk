@@ -2,6 +2,12 @@
 
 Visao executiva para o CEO da Impresilk Solucoes Visuais: contas atrasadas, fluxo de caixa, produtos e orcamentos. React + Vite, dados do ERP Mubi (somente leitura) via Netlify Functions, e um painel de Configuracoes onde TODAS as regras sao editaveis.
 
+## No ar
+
+**https://painel-impresilk.netlify.app** (site Netlify `painel-impresilk`, time IMPRESILK). Roda em MODO_DEMO ate o Mubi ser ligado.
+
+Deploy atual e **manual** (build na infra do Netlify, nao conectado ao GitHub). Para republicar depois de uma mudanca: rodar `npm run build`, depois pedir o comando de deploy ao MCP do Netlify (acao `deploy-site`) e rodar `npx @netlify/mcp ... --proxy-path ...` dentro da pasta (corrigir a barra dupla `.app//proxy` para `.app/proxy`). Deploy continuo por `git push` fica disponivel quando o repo for conectado no GitHub (ver "Publicar").
+
 ## Como rodar
 
 ```bash
@@ -39,6 +45,19 @@ netlify/functions/
   config.js                                                        (Blobs: config + overrides)
   lib/mubi.js                                                      (helper com a chave)
 ```
+
+## Publicar no GitHub (deploy continuo)
+
+O codigo ja esta em git local (`git init`, branch `main`). Falta so autenticar o GitHub CLI (`gh` ja instalado em `~/apps/bin/gh`). Uma vez logado, o repo e a conexao continua sao criados assim:
+
+```bash
+export PATH="$HOME/apps/bin:$HOME/apps/node20/bin:$PATH"
+gh auth login                 # conta leogpereira-afk (passo interativo, uma vez)
+cd painel
+gh repo create painel-impresilk --private --source=. --push
+```
+
+Depois, no painel do Netlify (site `painel-impresilk` > Build & deploy > Link repository), conectar o repo para publicar sozinho a cada push. A partir dai, `git push` na `main` ja republica.
 
 ## Ligar o Mubi (producao)
 
