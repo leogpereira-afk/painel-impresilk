@@ -6,7 +6,7 @@ Visao executiva para o CEO da Impresilk Solucoes Visuais: contas atrasadas, flux
 
 **https://painel-impresilk.netlify.app** (site Netlify `painel-impresilk`, time IMPRESILK). Roda em MODO_DEMO ate o Mubi ser ligado.
 
-Deploy atual e **manual** (build na infra do Netlify, nao conectado ao GitHub). Para republicar depois de uma mudanca: rodar `npm run build`, depois pedir o comando de deploy ao MCP do Netlify (acao `deploy-site`) e rodar `npx @netlify/mcp ... --proxy-path ...` dentro da pasta (corrigir a barra dupla `.app//proxy` para `.app/proxy`). Deploy continuo por `git push` fica disponivel quando o repo for conectado no GitHub (ver "Publicar").
+**Deploy continuo LIGADO** (2026-07-13): o site esta conectado ao repositorio GitHub `leogpereira-afk/painel-impresilk`. Todo `git push` na branch `main` publica sozinho em ~1 minuto (build `npm run build`, publica `dist`, Functions em `netlify/functions`). Nao ha mais passo manual de deploy.
 
 ## Como rodar
 
