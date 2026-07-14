@@ -127,9 +127,12 @@ export default function ContasAtrasadas() {
     titulosRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
 
   // Clique num KPI liga/desliga o filtro correspondente e leva para a lista.
+  // Limpa busca e faixa para o KPI ser um filtro previsivel (senao o clique
+  // podia cair num "0 titulos" por causa de um filtro anterior ainda ligado).
   const alternarFiltro = (novo) => {
     setFiltro((f) => (f === novo ? "todos" : novo));
     setFaixaSel(null);
+    setBusca("");
     irParaTitulos();
   };
   const somaFiltrada = titulosFiltrados.reduce((s, t) => s + t.valor, 0);
