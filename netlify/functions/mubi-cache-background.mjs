@@ -1,7 +1,13 @@
-// Trabalho pesado: busca TUDO do Mubisys (sequencial, com folga no limite de
-// 15 minutos das background functions) e grava no Netlify Blobs. O painel le
-// esse cache instantaneamente. Disparado pelo cron (mubi-cache-cron) a cada
-// 20 minutos e manualmente via POST com x-token.
+// Trabalho pesado: busca dados do Mubisys e grava no Netlify Blobs; o painel
+// le esse cache instantaneamente. Dois modos (o Mubisys leva MINUTOS por pagina
+// em horario comercial, entao a recarga completa so roda de madrugada):
+//
+//   ?modo=incremental (padrao; cron a cada 20 min)
+//     - recebiveis, contas a pagar e bancos: recarga completa (endpoints rapidos)
+//     - orcamentos e OS: so a janela dos ultimos 4 dias (CADASTRO + APROVACAO +
+//       CANCELAMENTO), mesclada por id no cache existente
+//   ?modo=completo (cron noturno as 03:00; ou manual)
+//     - tudo desde 1 de janeiro
 //
 // Functions 2.0 (ESM): o runtime injeta o contexto do Blobs sozinho.
 
@@ -44,7 +50,7 @@ const normProvisao = (categoria) => (s, i) => ({
   tipo: "provisao",
 });
 
-function normOrcamento(o, i) {
+export function normOrcamento(o, i) {
   const s = String(o.status || "").toLowerCase();
   const situacao =
     s.includes("cancel") || s.includes("reprov") || s.includes("recus") || s.includes("perd")
@@ -75,12 +81,13 @@ function normOrcamento(o, i) {
   };
 }
 
-function normOS(os, i, categoriaPorNome) {
+export function normOS(os, i, categoriaPorNome) {
   return {
     id: String(os.id ?? `os-${i}`),
     numero: String(os.sequencial_ordem || os.sequencial_orcamento || os.id || ""),
     cliente: String(os.cliente || "Cliente"),
     data: String(os.data_cadastro || ""),
+    cancelada: /cancel/i.test(String(os.status || "")),
     itens: (Array.isArray(os.itens) ? os.itens : []).map((it, k) => {
       const nome = String(it.item || `Item ${k + 1}`).trim();
       return {
@@ -107,6 +114,118 @@ function dedup(lista, chave = (x) => x.id) {
   return out;
 }
 
+// ---------------------------------------------------------------- etapas
+
+async function etapaRapidos(store, contagens) {
+  const jRec = { filtrodata: "VENCIMENTO", datainicial: hojeMais(-365), datafinal: hojeMais(90) };
+  const vencidos = await mubiGetTudo("contas-receber", { ...jRec, status: "VENCIDO" });
+  const pendentes = await mubiGetTudo("contas-receber", { ...jRec, status: "PENDENTE" });
+  const recebiveis = dedup([...vencidos, ...pendentes].map(normRecebivel)).filter((r) => r.valor > 0);
+  await store.setJSON("cache_recebiveis", recebiveis);
+  console.log("cache: recebiveis", recebiveis.length);
+  contagens.recebiveis = recebiveis.length;
+
+  const jPag = { filtrodata: "VENCIMENTO", datainicial: hojeMais(-30), datafinal: hojeMais(60) };
+  const pagPend = await mubiGetTudo("contas-pagar", { ...jPag, status: "PENDENTE" });
+  const pagVenc = await mubiGetTudo("contas-pagar", { ...jPag, status: "VENCIDO" });
+  const fixa = await mubiGetTudo("contas-pagar-provisao/despesa-fixa", jPag);
+  const cartao = await mubiGetTudo("contas-pagar-provisao/cartao-credito", jPag);
+  const folha = await mubiGetTudo("contas-pagar-provisao/folha-pagamento", jPag);
+  const pagar = dedup(
+    [
+      ...pagPend.map(normPagar),
+      ...pagVenc.map(normPagar),
+      ...fixa.map(normProvisao("Despesa fixa")),
+      ...cartao.map(normProvisao("Cartao")),
+      ...folha.map(normProvisao("Folha")),
+    ],
+    (x) => `${x.tipo}:${x.id}`
+  ).filter((s) => s.valor > 0);
+  await store.setJSON("cache_pagar", pagar);
+  console.log("cache: pagar", pagar.length);
+  contagens.pagar = pagar.length;
+
+  const bancosBrutos = await mubiGetTudo("conta-bancaria");
+  const bancos = bancosBrutos
+    .filter((b) => String(b.status || "").toLowerCase() === "ativo")
+    .filter((b) => !/permuta/i.test(String(b.titulo || "")))
+    .map((b, i) => ({
+      id: String(b.id ?? `cb-${i}`),
+      banco: String(b.titulo || "Conta"),
+      conta: String(b.empresa || ""),
+      saldo: num(b.valor_saldo),
+    }));
+  await store.setJSON("cache_bancos", bancos);
+  console.log("cache: bancos", bancos.length);
+  contagens.bancos = bancos.length;
+}
+
+async function catalogoCategorias() {
+  const catalogo = await mubiGetTudo("produto");
+  return new Map(
+    catalogo.map((p) => [String(p.nome || "").trim().toLowerCase(), String(p.categoria || "Geral")])
+  );
+}
+
+async function etapaCompleta(store, contagens) {
+  const desde = `${new Date().getFullYear()}-01-01`;
+  const orcBrutos = await mubiGetTudo("orcamento", {
+    status: "TODOS",
+    filtrodata: "CADASTRO",
+    datainicial: desde,
+    datafinal: hojeMais(0),
+  });
+  const orcamentos = orcBrutos.map(normOrcamento);
+  await store.setJSON("cache_orcamentos", orcamentos);
+  console.log("cache: orcamentos (completo)", orcamentos.length);
+  contagens.orcamentos = orcamentos.length;
+
+  const categoriaPorNome = await catalogoCategorias();
+  const osBrutas = await mubiGetTudo("ordem-servico", {
+    status: "TODOS",
+    filtrodata: "CADASTRO",
+    datainicial: desde,
+    datafinal: hojeMais(0),
+  });
+  const ordens = osBrutas.map((os, i) => normOS(os, i, categoriaPorNome)).filter((o) => !o.cancelada);
+  await store.setJSON("cache_ordens", ordens);
+  console.log("cache: ordens (completo)", ordens.length);
+  contagens.ordens = ordens.length;
+}
+
+async function etapaIncremental(store, contagens) {
+  const janela = { status: "TODOS", datainicial: hojeMais(-4), datafinal: hojeMais(0) };
+
+  // Orcamentos: mescla por id o que mudou nos ultimos dias.
+  const orcAtual = (await store.get("cache_orcamentos", { type: "json" })) || [];
+  const mapaOrc = new Map(orcAtual.map((o) => [o.id, o]));
+  for (const filtro of ["CADASTRO", "APROVACAO", "CANCELAMENTO"]) {
+    const brutos = await mubiGetTudo("orcamento", { ...janela, filtrodata: filtro }, 100);
+    brutos.map(normOrcamento).forEach((o) => mapaOrc.set(o.id, o));
+  }
+  const orcamentos = [...mapaOrc.values()];
+  await store.setJSON("cache_orcamentos", orcamentos);
+  console.log("cache: orcamentos (incremental)", orcamentos.length);
+  contagens.orcamentos = orcamentos.length;
+
+  // Ordens de servico: mescla e remove as canceladas.
+  const categoriaPorNome = await catalogoCategorias();
+  const osAtual = (await store.get("cache_ordens", { type: "json" })) || [];
+  const mapaOS = new Map(osAtual.map((o) => [o.id, o]));
+  for (const filtro of ["CADASTRO", "APROVACAO", "CANCELAMENTO"]) {
+    const brutos = await mubiGetTudo("ordem-servico", { ...janela, filtrodata: filtro }, 100);
+    for (const [i, bruto] of brutos.entries()) {
+      const o = normOS(bruto, i, categoriaPorNome);
+      if (o.cancelada) mapaOS.delete(o.id);
+      else mapaOS.set(o.id, o);
+    }
+  }
+  const ordens = [...mapaOS.values()];
+  await store.setJSON("cache_ordens", ordens);
+  console.log("cache: ordens (incremental)", ordens.length);
+  contagens.ordens = ordens.length;
+}
+
 // ---------------------------------------------------------------- o trabalho
 
 export default async (req) => {
@@ -119,96 +238,32 @@ export default async (req) => {
     return new Response(JSON.stringify({ erro: "Mubi nao configurado" }), { status: 501 });
   }
 
+  const modo = new URL(req.url).searchParams.get("modo") === "completo" ? "completo" : "incremental";
   const inicio = Date.now();
-  console.log("mubi-cache: inicio");
+  console.log(`mubi-cache: inicio (${modo})`);
   const store = getStore("painel");
-  const desde = `${new Date().getFullYear()}-01-01`;
   const contagens = {};
 
   try {
-    // Sequencial de proposito: o Mubisys sofre com chamadas paralelas.
-    const jRec = { filtrodata: "VENCIMENTO", datainicial: hojeMais(-365), datafinal: hojeMais(90) };
-    const vencidos = await mubiGetTudo("contas-receber", { ...jRec, status: "VENCIDO" });
-    const pendentes = await mubiGetTudo("contas-receber", { ...jRec, status: "PENDENTE" });
-    const recebiveis = dedup([...vencidos, ...pendentes].map(normRecebivel)).filter((r) => r.valor > 0);
-    await store.setJSON("cache_recebiveis", recebiveis);
-    console.log("cache: recebiveis", recebiveis.length);
-    contagens.recebiveis = recebiveis.length;
-
-    const jPag = { filtrodata: "VENCIMENTO", datainicial: hojeMais(-30), datafinal: hojeMais(60) };
-    const pagPend = await mubiGetTudo("contas-pagar", { ...jPag, status: "PENDENTE" });
-    const pagVenc = await mubiGetTudo("contas-pagar", { ...jPag, status: "VENCIDO" });
-    const fixa = await mubiGetTudo("contas-pagar-provisao/despesa-fixa", jPag);
-    const cartao = await mubiGetTudo("contas-pagar-provisao/cartao-credito", jPag);
-    const folha = await mubiGetTudo("contas-pagar-provisao/folha-pagamento", jPag);
-    const pagar = dedup(
-      [
-        ...pagPend.map(normPagar),
-        ...pagVenc.map(normPagar),
-        ...fixa.map(normProvisao("Despesa fixa")),
-        ...cartao.map(normProvisao("Cartao")),
-        ...folha.map(normProvisao("Folha")),
-      ],
-      (x) => `${x.tipo}:${x.id}`
-    ).filter((s) => s.valor > 0);
-    await store.setJSON("cache_pagar", pagar);
-    console.log("cache: pagar", pagar.length);
-    contagens.pagar = pagar.length;
-
-    const bancosBrutos = await mubiGetTudo("conta-bancaria");
-    const bancos = bancosBrutos
-      .filter((b) => String(b.status || "").toLowerCase() === "ativo")
-      .filter((b) => !/permuta/i.test(String(b.titulo || "")))
-      .map((b, i) => ({
-        id: String(b.id ?? `cb-${i}`),
-        banco: String(b.titulo || "Conta"),
-        conta: String(b.empresa || ""),
-        saldo: num(b.valor_saldo),
-      }));
-    await store.setJSON("cache_bancos", bancos);
-    console.log("cache: bancos", bancos.length);
-    contagens.bancos = bancos.length;
-
-    const orcBrutos = await mubiGetTudo("orcamento", {
-      status: "TODOS",
-      filtrodata: "CADASTRO",
-      datainicial: desde,
-      datafinal: hojeMais(0),
-    });
-    const orcamentos = orcBrutos.map(normOrcamento);
-    await store.setJSON("cache_orcamentos", orcamentos);
-    console.log("cache: orcamentos", orcamentos.length);
-    contagens.orcamentos = orcamentos.length;
-
-    const catalogo = await mubiGetTudo("produto");
-    const categoriaPorNome = new Map(
-      catalogo.map((p) => [String(p.nome || "").trim().toLowerCase(), String(p.categoria || "Geral")])
-    );
-    const osBrutas = await mubiGetTudo("ordem-servico", {
-      status: "TODOS",
-      filtrodata: "CADASTRO",
-      datainicial: desde,
-      datafinal: hojeMais(0),
-    });
-    const ordens = osBrutas
-      .filter((os) => !/cancel/i.test(String(os.status || "")))
-      .map((os, i) => normOS(os, i, categoriaPorNome));
-    await store.setJSON("cache_ordens", ordens);
-    console.log("cache: ordens", ordens.length);
-    contagens.ordens = ordens.length;
+    await etapaRapidos(store, contagens);
+    if (modo === "completo") await etapaCompleta(store, contagens);
+    else await etapaIncremental(store, contagens);
 
     await store.setJSON("cache_status", {
       em: new Date().toISOString(),
       ok: true,
+      modo,
       duracaoMs: Date.now() - inicio,
       contagens,
     });
-
-    return new Response(JSON.stringify({ ok: true, contagens }), { status: 200 });
+    console.log("mubi-cache: fim ok", JSON.stringify(contagens));
+    return new Response(JSON.stringify({ ok: true, modo, contagens }), { status: 200 });
   } catch (e) {
+    console.log("mubi-cache: ERRO", e.message);
     await store.setJSON("cache_status", {
       em: new Date().toISOString(),
       ok: false,
+      modo,
       erro: e.message,
       duracaoMs: Date.now() - inicio,
       contagens,

@@ -7,9 +7,14 @@
   directory = "netlify/functions"
   node_bundler = "esbuild"
 
-# Atualiza o cache do Mubisys no Blobs a cada 20 minutos (dispara a background).
+# Atualiza o cache do Mubisys no Blobs a cada 20 minutos (modo incremental).
 [functions."mubi-cache-cron"]
   schedule = "*/20 * * * *"
+
+# Recarga completa de madrugada (06:00 UTC = 03:00 de Brasilia), quando o
+# Mubisys responde rapido.
+[functions."mubi-cache-noturno"]
+  schedule = "0 6 * * *"
 
 [dev]
   command = "npm run dev"

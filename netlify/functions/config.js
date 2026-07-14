@@ -9,7 +9,18 @@
 
 const { getStore, connectLambda } = require("@netlify/blobs");
 
-const CHAVES = new Set(["config", "ov_rec", "ov_orc"]);
+const CHAVES = new Set([
+  "config",
+  "ov_rec",
+  "ov_orc",
+  // chaves do cache do Mubisys (bootstrap manual e diagnostico)
+  "cache_recebiveis",
+  "cache_pagar",
+  "cache_bancos",
+  "cache_orcamentos",
+  "cache_ordens",
+  "cache_status",
+]);
 
 function resposta(body, status = 200) {
   return {

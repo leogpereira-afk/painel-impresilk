@@ -39,7 +39,9 @@ export async function mubiGet(caminho, query = {}) {
   let ultimoErro;
   for (let tentativa = 1; tentativa <= 3; tentativa++) {
     const ctl = new AbortController();
-    const timer = setTimeout(() => ctl.abort(), 25000);
+    // O Mubisys chega a levar minutos por pagina em horario comercial; quem
+    // chama e sempre a background function (15 min), entao ha folga.
+    const timer = setTimeout(() => ctl.abort(), 240000);
     try {
       const resp = await fetch(url, {
         headers: { Accept: "application/json", "Access-Token": TOKEN },
@@ -65,7 +67,7 @@ export async function mubiGet(caminho, query = {}) {
     } catch (e) {
       clearTimeout(timer);
       if (e.fatal) throw e;
-      ultimoErro = e.name === "AbortError" ? new Error(`Mubi ${caminho}: timeout de 25s`) : e;
+      ultimoErro = e.name === "AbortError" ? new Error(`Mubi ${caminho}: timeout de 240s`) : e;
       // pequena pausa antes de tentar de novo (o Mubisys engasga sob carga)
       if (tentativa < 3) await new Promise((r) => setTimeout(r, 2000 * tentativa));
     }
@@ -103,12 +105,11 @@ export async function mubiGetPagina(caminho, query = {}, page = 1) {
   return { lista: arr, totalPaginas };
 }
 
-// Busca TODAS as paginas de um recurso (per_page maximo = 500; trava em 20 paginas).
-// So usar fora de Functions sincronas (estoura o limite de 10s em listas grandes).
-export async function mubiGetTudo(caminho, query = {}) {
-  const perPage = 500;
+// Busca TODAS as paginas de um recurso (trava em 30 paginas). So usar em
+// background functions (o Mubisys e lento demais para Functions sincronas).
+export async function mubiGetTudo(caminho, query = {}, perPage = 500) {
   const tudo = [];
-  for (let page = 1; page <= 20; page++) {
+  for (let page = 1; page <= 30; page++) {
     const bruto = await mubiGet(caminho, { ...query, page, per_page: perPage });
     const arr = itens(bruto);
     tudo.push(...arr);
