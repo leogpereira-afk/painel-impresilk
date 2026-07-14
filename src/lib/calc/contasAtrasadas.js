@@ -1,11 +1,13 @@
-// Cruza os recebiveis do Mubi (leitura) com os overrides do Supabase/Blobs
-// (motivo, cobrado) e aplica as regras de Configuracoes. Retorna o modelo
-// completo do modulo Contas Atrasadas.
+// Cruza os recebiveis do Mubi (leitura) com os overrides (motivo, cobrado) e
+// aplica as regras de Configuracoes. Retorna o modelo completo do modulo.
+//
+// dsoHist (opcional) e o historico REAL de DSO acumulado no cache (um ponto por
+// dia). Sem historico real, o modulo NAO inventa tendencia nem curva.
 
-import { diasEntre, rotuloMes } from "../format.js";
+import { diasEntre, dataCurta } from "../format.js";
 import { proximaAcao } from "../recomendacao.js";
 
-export function calcContasAtrasadas(recebiveis, overrides, config) {
+export function calcContasAtrasadas(recebiveis, overrides, config, dsoHist = []) {
   const hoje = new Date();
   const hojeISO = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(
     2,
@@ -16,12 +18,14 @@ export function calcContasAtrasadas(recebiveis, overrides, config) {
   const grupoNome = (g) =>
     (config.gruposCausa || []).find((x) => x.id === g)?.nome || g;
 
-  // Quantos titulos vencidos cada cliente tem (para reincidencia).
+  // Reincidencia por CNPJ (mesmo cliente pode aparecer com grafias diferentes;
+  // o CNPJ e a chave estavel). Cai para o nome se nao houver CNPJ.
   const vencidosPorCliente = {};
   const abertos = recebiveis.map((r) => {
     const dias = diasEntre(r.vencimento, hojeISO);
-    if (dias > 0) vencidosPorCliente[r.cliente] = (vencidosPorCliente[r.cliente] || 0) + 1;
-    return { ...r, dias };
+    const chaveCliente = r.cnpj || r.cliente;
+    if (dias > 0) vencidosPorCliente[chaveCliente] = (vencidosPorCliente[chaveCliente] || 0) + 1;
+    return { ...r, dias, chaveCliente };
   });
 
   const atrasados = abertos
@@ -44,7 +48,7 @@ export function calcContasAtrasadas(recebiveis, overrides, config) {
         tag: motivo?.tag || null,
         cobrado: !!ov.cobrado,
         observacao: ov.observacao || "",
-        reincidente: (vencidosPorCliente[r.cliente] || 0) > 1,
+        reincidente: (vencidosPorCliente[r.chaveCliente] || 0) > 1,
         proximaAcao: proximaAcao(ov.motivoId, r.dias, config),
       };
     })
@@ -55,15 +59,24 @@ export function calcContasAtrasadas(recebiveis, overrides, config) {
   const reincidentes = atrasados.filter((r) => r.reincidente);
 
   // DSO (prazo medio de recebimento): media dos dias desde a emissao dos abertos,
-  // ponderada por valor.
+  // ponderada por valor. Valor atual e REAL; a tendencia so aparece quando ha
+  // historico real com pelo menos dois pontos.
   const totValorAberto = abertos.reduce((s, r) => s + r.valor, 0) || 1;
   const dso = Math.round(
     abertos.reduce((s, r) => s + r.valor * diasEntre(r.emissao, hojeISO), 0) /
       totValorAberto
   );
-  const dsoHistorico = curvaDso(dso, config.parametros.dsoMeta, hoje);
-  const dsoAnterior = dsoHistorico.length > 1 ? dsoHistorico[dsoHistorico.length - 2].dso : dso;
-  const dsoTendencia = dso < dsoAnterior ? "baixa" : dso > dsoAnterior ? "alta" : "estavel";
+  const historicoReal = (Array.isArray(dsoHist) ? dsoHist : []).filter(
+    (p) => p && typeof p.dso === "number" && p.dia
+  );
+  const dsoAnterior =
+    historicoReal.length >= 2 ? historicoReal[historicoReal.length - 2].dso : null;
+  const dsoTendencia =
+    dsoAnterior == null ? null : dso < dsoAnterior ? "baixa" : dso > dsoAnterior ? "alta" : "estavel";
+  const dsoHistorico =
+    historicoReal.length >= 2
+      ? historicoReal.map((p) => ({ mes: dataCurta(p.dia), dso: p.dso }))
+      : [];
 
   const maior = atrasados.reduce((a, b) => (b.dias > a.dias ? b : a), atrasados[0] || { dias: 0 });
 
@@ -73,7 +86,7 @@ export function calcContasAtrasadas(recebiveis, overrides, config) {
     const g = r.grupo || "sem";
     porGrupo[g] = (porGrupo[g] || 0) + r.valor;
   }
-  const porOrigem = (config.gruposCausa || [])
+  const porOrigemBase = (config.gruposCausa || [])
     .map((g) => ({
       grupo: g.id,
       nome: g.nome,
@@ -81,10 +94,25 @@ export function calcContasAtrasadas(recebiveis, overrides, config) {
       pct: totalAtrasado ? Math.round(((porGrupo[g.id] || 0) / totalAtrasado) * 100) : 0,
     }))
     .sort((a, b) => b.valor - a.valor);
-  const lider = porOrigem[0];
-  const resumoOrigem = lider && lider.valor
-    ? `O grosso do atraso esta em ${lider.nome.toLowerCase()}: ${lider.pct}% do total.`
-    : "Sem atrasos classificados por origem.";
+
+  const semClass = porGrupo["sem"] || 0;
+  const naoClassPct = totalAtrasado ? Math.round((semClass / totalAtrasado) * 100) : 0;
+
+  // Inclui a fatia sem classificacao para as barras fecharem 100%.
+  const porOrigem = [...porOrigemBase];
+  if (semClass > 0) {
+    porOrigem.push({ grupo: "sem", nome: "Sem classificacao", valor: semClass, pct: naoClassPct });
+  }
+  porOrigem.sort((a, b) => b.valor - a.valor);
+
+  // O "grosso" so considera causas classificadas (ignora a fatia sem motivo).
+  const lider = porOrigemBase.find((o) => o.valor > 0);
+  const resumoOrigem = lider
+    ? `O grosso classificado esta em ${lider.nome.toLowerCase()}: ${lider.pct}% do total.` +
+      (naoClassPct >= 20 ? ` Atencao: ${naoClassPct}% ainda sem motivo, classifique na tabela.` : "")
+    : semClass > 0
+      ? `Nenhum atraso tem motivo definido ainda (${naoClassPct}% do total). Classifique na tabela abaixo.`
+      : "Sem atrasos classificados por origem.";
 
   // --- Padroes por motivo
   const porMotivoMap = {};
@@ -215,18 +243,4 @@ function montarFrentes(atrasados, config) {
       nota: "Dispare o lembrete padrao por WhatsApp e acompanhe a baixa.",
     },
   ];
-}
-
-function curvaDso(dsoAtual, meta, hoje) {
-  // Serie dos ultimos 6 meses convergindo para o DSO atual (partindo de mais alto).
-  const pontos = [];
-  const partida = Math.round(dsoAtual + 10);
-  for (let i = 5; i >= 0; i--) {
-    const d = new Date(hoje.getFullYear(), hoje.getMonth() - i, 1);
-    const t = (5 - i) / 5;
-    const valor = Math.round(partida + (dsoAtual - partida) * t + (i % 2 === 0 ? 2 : -1));
-    pontos.push({ mes: rotuloMes(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`), dso: valor });
-  }
-  pontos[pontos.length - 1].dso = dsoAtual;
-  return pontos;
 }

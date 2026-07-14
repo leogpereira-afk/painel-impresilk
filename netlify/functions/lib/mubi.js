@@ -20,9 +20,11 @@ export function mubiConfigurado() {
   return Boolean(BASE && PUB && TOKEN);
 }
 
-// GET em {BASE}/{publicKey}/{caminho}?{query}, com timeout de 25s por chamada
-// e ate 3 tentativas. Sem isso, uma resposta pendurada do Mubisys congela a
-// background function inteira ate o limite de 15 minutos.
+// GET em {BASE}/{publicKey}/{caminho}?{query}, com timeout de 120s por pagina
+// e ate 2 tentativas. A pagina cheia mais lenta observada foi ~46s; 120s da
+// folga sem deixar uma resposta pendurada congelar a background inteira.
+const TIMEOUT_MS = 120000;
+
 export async function mubiGet(caminho, query = {}) {
   if (!mubiConfigurado()) {
     const err = new Error(
@@ -37,11 +39,9 @@ export async function mubiGet(caminho, query = {}) {
   });
 
   let ultimoErro;
-  for (let tentativa = 1; tentativa <= 3; tentativa++) {
+  for (let tentativa = 1; tentativa <= 2; tentativa++) {
     const ctl = new AbortController();
-    // O Mubisys chega a levar minutos por pagina em horario comercial; quem
-    // chama e sempre a background function (15 min), entao ha folga.
-    const timer = setTimeout(() => ctl.abort(), 240000);
+    const timer = setTimeout(() => ctl.abort(), TIMEOUT_MS);
     try {
       const resp = await fetch(url, {
         headers: { Accept: "application/json", "Access-Token": TOKEN },
@@ -67,9 +67,8 @@ export async function mubiGet(caminho, query = {}) {
     } catch (e) {
       clearTimeout(timer);
       if (e.fatal) throw e;
-      ultimoErro = e.name === "AbortError" ? new Error(`Mubi ${caminho}: timeout de 240s`) : e;
-      // pequena pausa antes de tentar de novo (o Mubisys engasga sob carga)
-      if (tentativa < 3) await new Promise((r) => setTimeout(r, 2000 * tentativa));
+      ultimoErro = e.name === "AbortError" ? new Error(`Mubi ${caminho}: timeout de ${TIMEOUT_MS / 1000}s`) : e;
+      if (tentativa < 2) await new Promise((r) => setTimeout(r, 3000));
     }
   }
   throw ultimoErro;
@@ -105,17 +104,21 @@ export async function mubiGetPagina(caminho, query = {}, page = 1) {
   return { lista: arr, totalPaginas };
 }
 
-// Busca TODAS as paginas de um recurso (trava em 30 paginas). So usar em
-// background functions (o Mubisys e lento demais para Functions sincronas).
+// Busca TODAS as paginas de um recurso. So usar em background functions (o
+// Mubisys e lento demais para Functions sincronas). Trava de seguranca em 100
+// paginas; se ainda houver mais, FALHA em vez de truncar em silencio (melhor
+// erro visivel do que faturamento subestimado sem ninguem saber).
 export async function mubiGetTudo(caminho, query = {}, perPage = 500) {
+  const GUARDA = 100; // 50000 itens a 500/pagina
   const tudo = [];
-  for (let page = 1; page <= 30; page++) {
+  for (let page = 1; page <= GUARDA; page++) {
     const bruto = await mubiGet(caminho, { ...query, page, per_page: perPage });
     const arr = itens(bruto);
     tudo.push(...arr);
-    if (ultimaPagina(bruto, arr.length, perPage)) break;
+    if (ultimaPagina(bruto, arr.length, perPage)) return tudo;
   }
-  return tudo;
+  console.warn(`mubiGetTudo: ${caminho} passou de ${GUARDA} paginas (${tudo.length} itens)`);
+  throw Object.assign(new Error(`Paginacao de ${caminho} excedeu ${GUARDA} paginas`), { truncou: true });
 }
 
 // Datas AAAA-MM-DD relativas a hoje (fuso de Sao Paulo nao importa aqui: a
@@ -142,14 +145,27 @@ export function semConfig() {
   );
 }
 
-// Converte "1.234,56" ou "1234.56" ou number em Number seguro.
+// Erro generico para o cliente (nao vaza mensagem/stack interna); detalhe so no log.
+export function erroInterno(e, status = 502) {
+  console.error("[painel] erro na Function:", e?.message || e);
+  return json({ erro: "Erro ao carregar os dados. Tente de novo em instantes." }, status);
+}
+
+// Converte number, "1234.56", "1.234,56" (BR com centavos) e "1.234.567" (BR
+// milhar sem centavos) em Number seguro.
 export function num(v) {
   if (typeof v === "number") return v;
   if (v == null) return 0;
   const s = String(v).trim();
-  // formato brasileiro (1.234,56) vs americano (1234.56)
+  if (!s) return 0;
+  // BR com centavos: 1.234,56  (ponto = milhar, virgula = decimal)
   if (/,\d{1,2}$/.test(s)) {
     const n = Number(s.replace(/\./g, "").replace(",", "."));
+    return Number.isFinite(n) ? n : 0;
+  }
+  // BR milhar sem centavos: 1.234 / 1.234.567  (ponto so como separador de milhar)
+  if (/^\d{1,3}(\.\d{3})+$/.test(s)) {
+    const n = Number(s.replace(/\./g, ""));
     return Number.isFinite(n) ? n : 0;
   }
   const n = Number(s);

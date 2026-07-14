@@ -46,10 +46,10 @@ export function calcProdutos(ordens, catalogo, config) {
     }
   }
 
-  const varPct = (ini, fim) => {
-    if (!ini) return fim > 0 ? 100 : 0;
-    return Math.round(((fim - ini) / ini) * 100);
-  };
+  // Variacao percentual so faz sentido com base (janeiro) positiva. Base zero
+  // (produto lancado depois de janeiro) retorna null -> tratado como "novo",
+  // sem inventar um +100% que competiria mal no ranking de maior alta.
+  const varPct = (ini, fim) => (ini > 0 ? Math.round(((fim - ini) / ini) * 100) : null);
 
   const ranking = Object.values(acc).map(({ info, meses: mm }) => {
     const faturamento = mm.reduce((s, x) => s + x.faturamento, 0);
@@ -69,6 +69,8 @@ export function calcProdutos(ordens, catalogo, config) {
       volAtual: fim.volume,
       varFat: varPct(jan.faturamento, fim.faturamento),
       varVol: varPct(jan.volume, fim.volume),
+      novoFat: jan.faturamento === 0 && fim.faturamento > 0,
+      novoVol: jan.volume === 0 && fim.volume > 0,
       // Serie/tendencia so ate o ultimo mes fechado, para o grafico nao
       // despencar por causa do mes corrente incompleto.
       serie: mm.slice(0, idxFim + 1).map((x, i) => ({
@@ -81,8 +83,10 @@ export function calcProdutos(ordens, catalogo, config) {
 
   const porFaturamento = [...ranking].sort((a, b) => b.faturamento - a.faturamento);
   const lider = porFaturamento[0] || null;
-  const maiorAlta = [...ranking].sort((a, b) => b.varFat - a.varFat)[0] || null;
-  const maiorQueda = [...ranking].sort((a, b) => a.varFat - b.varFat)[0] || null;
+  // Maior alta/queda so entre produtos com base real (varFat != null).
+  const comBase = ranking.filter((r) => r.varFat != null);
+  const maiorAlta = [...comBase].sort((a, b) => b.varFat - a.varFat)[0] || null;
+  const maiorQueda = [...comBase].sort((a, b) => a.varFat - b.varFat)[0] || null;
 
   // Serie combinada para o grafico: maior alta x maior queda, so ate o ultimo
   // mes fechado (mesma janela da variacao).

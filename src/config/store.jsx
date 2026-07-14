@@ -3,7 +3,7 @@
 // esta pronto para sincronizar no Netlify Blobs. Qualquer mudanca aqui recalcula
 // os modulos ao vivo (os modulos derivam tudo via useMemo).
 
-import { createContext, useContext, useEffect, useMemo, useRef, useState, useCallback } from "react";
+import { createContext, useContext, useEffect, useMemo, useState, useCallback } from "react";
 import { CONFIG_PADRAO } from "./defaults.js";
 import * as mubi from "../services/mubi.js";
 
@@ -36,28 +36,23 @@ export function AppProvider({ children }) {
   const [overridesRecebiveis, setOvRec] = useState(() => ler(K_OV_REC, null));
   const [overridesOrcamentos, setOvOrc] = useState(() => ler(K_OV_ORC, null));
 
-  // Ref da config para o carregamento ler o valor atual sem recarregar a cada edicao.
-  const configRef = useRef(config);
-  useEffect(() => {
-    configRef.current = config;
-  }, [config]);
-
   const [dados, setDados] = useState(null);
+  const [atualizadoEm, setAtualizadoEm] = useState(null);
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState(null);
 
-  // Carrega os dados do Mubi (demo ou Functions) uma vez.
+  // Carrega os dados do Mubi (demo ou Functions). O filtro por data de corte
+  // acontece no front (calc), entao nao precisa reconsultar ao mudar o corte.
   const recarregar = useCallback(async () => {
     setCarregando(true);
     setErro(null);
     try {
-      const desde = configRef.current?.parametros?.dataCorteOrcamentos;
       const [recebiveis, pagar, bancos, orcamentos, ordens] = await Promise.all([
         mubi.getRecebiveis(),
         mubi.getPagar(),
         mubi.getContasBancarias(),
-        mubi.getOrcamentos(desde),
-        mubi.getOrdensServico(desde),
+        mubi.getOrcamentos(),
+        mubi.getOrdensServico(),
       ]);
       setDados({
         recebiveis,
@@ -66,7 +61,9 @@ export function AppProvider({ children }) {
         orcamentos,
         ordens,
         catalogo: mubi.getProdutosCatalogo(ordens),
+        dsoHist: mubi.getDsoHistorico(),
       });
+      setAtualizadoEm(mubi.getUltimaAtualizacao());
       // Semeia overrides na primeira carga (para o app ja nascer classificado).
       setOvRec((prev) => prev ?? mubi.getSeedOverridesRecebiveis());
       setOvOrc((prev) => prev ?? mubi.getSeedOverridesOrcamentos());
@@ -114,6 +111,7 @@ export function AppProvider({ children }) {
       setOverrideRecebivel,
       setOverrideOrcamento,
       dados,
+      atualizadoEm,
       pronto: !!dados && !carregando,
       carregando,
       erro,
@@ -129,6 +127,7 @@ export function AppProvider({ children }) {
       setOverrideRecebivel,
       setOverrideOrcamento,
       dados,
+      atualizadoEm,
       carregando,
       erro,
       recarregar,

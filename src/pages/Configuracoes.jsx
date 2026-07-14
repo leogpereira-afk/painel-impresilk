@@ -48,7 +48,15 @@ export default function Configuracoes() {
       c.parametros[chave] = valor;
       return c;
     });
-  const setParamNum = (chave) => (e) => setParam(chave, Number(e.target.value));
+  // Nao grava campo vazio como 0: isso zerava colchao/metas e desligava os
+  // alertas financeiros. Vazio transitorio e ignorado; negativos tambem.
+  const setParamNum = (chave) => (e) => {
+    const raw = e.target.value;
+    if (raw === "") return;
+    const n = Number(raw);
+    if (!Number.isFinite(n) || n < 0) return;
+    setParam(chave, n);
+  };
 
   return (
     <div className="space-y-8">
@@ -108,6 +116,9 @@ export default function Configuracoes() {
             <input
               type="date"
               className="input tnum"
+              // O cache do Mubisys comeca em 1 de janeiro do ano corrente; nao
+              // deixa escolher antes disso (mostraria "zero" enganoso).
+              min={`${new Date().getFullYear()}-01-01`}
               value={p.dataCorteOrcamentos}
               onChange={(e) => setParam("dataCorteOrcamentos", e.target.value)}
             />
@@ -428,12 +439,16 @@ export default function Configuracoes() {
                 type="number"
                 className="input tnum"
                 value={v}
-                onChange={(e) =>
+                onChange={(e) => {
+                  const raw = e.target.value;
+                  if (raw === "") return;
+                  const n = Number(raw);
+                  if (!Number.isFinite(n) || n < 0) return;
                   updateConfig((c) => {
-                    c.faixasIdade[i] = Number(e.target.value);
+                    c.faixasIdade[i] = n;
                     return c;
-                  })
-                }
+                  });
+                }}
               />
             </Campo>
           ))}

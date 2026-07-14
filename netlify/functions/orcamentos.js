@@ -3,7 +3,7 @@
 // data de corte continua no front (Configuracoes).
 
 import { getStore, connectLambda } from "@netlify/blobs";
-import { json } from "./lib/mubi.js";
+import { json, erroInterno } from "./lib/mubi.js";
 
 export const handler = async (event) => {
   try {
@@ -23,6 +23,6 @@ export const handler = async (event) => {
     }
     return json({ itens: dados, atualizadoEm: status?.em || null });
   } catch (e) {
-    return json({ erro: e.message }, 502);
+    return erroInterno(e);
   }
 };

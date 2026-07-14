@@ -26,7 +26,7 @@ export default function Home() {
   const vm = useMemo(() => {
     if (!dados) return null;
     return {
-      contas: calcContasAtrasadas(dados.recebiveis, overridesRecebiveis, config),
+      contas: calcContasAtrasadas(dados.recebiveis, overridesRecebiveis, config, dados.dsoHist),
       fluxo: calcFluxoCaixa(
         { pagar: dados.pagar, recebiveis: dados.recebiveis, bancos: dados.bancos },
         config

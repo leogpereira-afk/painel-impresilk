@@ -91,7 +91,10 @@ export default function Produtos() {
             </span>
             <div>
               <p className="font-display font-semibold text-ok-700">
-                Lider saudavel: {lider.nome} segue no topo ({lider.varFat >= 0 ? "+" : ""}{lider.varFat}% desde janeiro).
+                Lider saudavel: {lider.nome} segue no topo
+                {lider.varFat == null
+                  ? " (produto novo, sem base em janeiro para comparar)."
+                  : ` (${lider.varFat >= 0 ? "+" : ""}${lider.varFat}% desde janeiro).`}
               </p>
               <p className="mt-1 text-sm text-slate-600">
                 Responde por {moeda(lider.faturamento)} do faturamento no ano.
@@ -137,10 +140,22 @@ export default function Produtos() {
                         <span className="truncate font-display font-semibold text-slate-900">{r.nome}</span>
                         {r.categoria && <span className="chip shrink-0">{r.categoria}</span>}
                       </div>
-                      <DeltaBadge pct={varMetrica} />
+                      {varMetrica == null ? (
+                        <span className="chip-ok shrink-0" title="Produto sem base em janeiro para comparar">
+                          novo
+                        </span>
+                      ) : (
+                        <DeltaBadge pct={varMetrica} />
+                      )}
                     </div>
                     <BarRow
-                      rotulo={i === 0 ? "Lider" : `${Math.round(barPct)}% do lider`}
+                      rotulo={
+                        i === 0
+                          ? "Lider"
+                          : Math.round(barPct) < 1
+                            ? "menos de 1% do lider"
+                            : `${Math.round(barPct)}% do lider`
+                      }
                       valorTexto={valorTexto}
                       pct={barPct}
                       tom={i === 0 ? "brand" : "neutral"}

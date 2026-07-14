@@ -11,6 +11,10 @@ export const MODO_DEMO = false;
 
 const BASE = "/.netlify/functions";
 
+// Frescor do cache e historico real de DSO, capturados das respostas.
+let _atualizadoEm = null;
+let _dsoHist = [];
+
 async function chamarFunction(nome, params = {}, tentativa = 1) {
   const url = new URL(BASE + "/" + nome, window.location.origin);
   Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v));
@@ -27,7 +31,19 @@ async function chamarFunction(nome, params = {}, tentativa = 1) {
     }
     throw new Error(body?.erro || `Function ${nome} respondeu ${resp.status}`);
   }
+  if (body && typeof body === "object") {
+    if (body.atualizadoEm) _atualizadoEm = body.atualizadoEm;
+    if (Array.isArray(body.dsoHist)) _dsoHist = body.dsoHist;
+  }
   return body;
+}
+
+// Horario do ultimo cache bem-sucedido (ISO) e historico real de DSO.
+export function getUltimaAtualizacao() {
+  return MODO_DEMO ? null : _atualizadoEm;
+}
+export function getDsoHistorico() {
+  return MODO_DEMO ? [] : _dsoHist;
 }
 
 // Simula latencia leve no demo para exercitar os estados de carregamento.

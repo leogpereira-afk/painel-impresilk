@@ -43,9 +43,13 @@ export function calcFluxoCaixa(
   }
   const saidasPorDia = {};
   for (const s of pagar) {
-    const d = diaLocalISO(s.vencimento);
-    if (d < hojeISO) continue;
-    saidasPorDia[d] = (saidasPorDia[d] || 0) + s.valor;
+    const venc = diaLocalISO(s.vencimento);
+    // Regra D-1: o dinheiro precisa estar em caixa na vespera do vencimento.
+    // Contas ja vencidas (ou cuja vespera ja passou) entram HOJE, nao somem da
+    // projecao (senao o caixa aparece maior do que e, escondendo risco).
+    const vespera = ymdLocal(new Date(new Date(venc + "T12:00:00").getTime() - 86400000));
+    const alvo = vespera < hojeISO ? hojeISO : vespera;
+    saidasPorDia[alvo] = (saidasPorDia[alvo] || 0) + s.valor;
   }
 
   const projecao = [];

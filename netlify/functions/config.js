@@ -9,18 +9,23 @@
 
 const { getStore, connectLambda } = require("@netlify/blobs");
 
-const CHAVES = new Set([
+// LEITURA: config, overrides e o cache do Mubisys (diagnostico).
+const CHAVES_LEITURA = new Set([
   "config",
   "ov_rec",
   "ov_orc",
-  // chaves do cache do Mubisys (bootstrap manual e diagnostico)
   "cache_recebiveis",
   "cache_pagar",
   "cache_bancos",
   "cache_orcamentos",
   "cache_ordens",
+  "cache_dso_hist",
   "cache_status",
 ]);
+// ESCRITA: SO config e overrides. As chaves cache_* sao gravadas apenas pela
+// background function (mubi-cache-background); bloquear a escrita aqui evita
+// envenenamento do cache financeiro por quem tenha o token.
+const CHAVES_ESCRITA = new Set(["config", "ov_rec", "ov_orc"]);
 
 function resposta(body, status = 200) {
   return {
@@ -37,8 +42,14 @@ exports.handler = async (event) => {
 
   if (event.httpMethod !== "POST") return resposta({ erro: "use POST" }, 405);
 
+  // Auth fail-CLOSED: sem TOKEN no ambiente, recusa tudo (nunca liberar sem segredo).
+  const SEGREDO = process.env.TOKEN;
+  if (!SEGREDO) {
+    console.error("config: TOKEN nao configurado no ambiente");
+    return resposta({ erro: "servidor sem TOKEN" }, 500);
+  }
   const token = event.headers["x-token"] || event.headers["X-Token"];
-  if (process.env.TOKEN && token !== process.env.TOKEN) {
+  if (token !== SEGREDO) {
     return resposta({ erro: "nao autorizado" }, 401);
   }
 
@@ -62,18 +73,19 @@ exports.handler = async (event) => {
           const { blobs } = await store.list();
           return resposta({ auto: `ok(${blobs?.length ?? 0})` });
         } catch (e) {
-          return resposta({ auto: "ERR", detalhe: e.message });
+          console.error("config diag:", e?.message || e);
+          return resposta({ auto: "ERR" });
         }
       }
 
       case "get": {
-        if (!CHAVES.has(corpo.chave)) return resposta({ erro: "chave invalida" }, 400);
+        if (!CHAVES_LEITURA.has(corpo.chave)) return resposta({ erro: "chave invalida" }, 400);
         const valor = await store.get(corpo.chave, { type: "json" });
         return resposta({ ok: true, chave: corpo.chave, valor: valor ?? null });
       }
 
       case "set": {
-        if (!CHAVES.has(corpo.chave)) return resposta({ erro: "chave invalida" }, 400);
+        if (!CHAVES_ESCRITA.has(corpo.chave)) return resposta({ erro: "chave nao gravavel" }, 403);
         await store.setJSON(corpo.chave, corpo.valor ?? null);
         return resposta({ ok: true });
       }
@@ -82,6 +94,7 @@ exports.handler = async (event) => {
         return resposta({ erro: "acao desconhecida" }, 400);
     }
   } catch (e) {
-    return resposta({ erro: e.message }, 500);
+    console.error("config:", e?.message || e);
+    return resposta({ erro: "erro interno" }, 500);
   }
 };

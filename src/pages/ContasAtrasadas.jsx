@@ -64,7 +64,7 @@ export default function ContasAtrasadas() {
   const vm = useMemo(
     () =>
       dados
-        ? calcContasAtrasadas(dados.recebiveis, overridesRecebiveis, config)
+        ? calcContasAtrasadas(dados.recebiveis, overridesRecebiveis, config, dados.dsoHist)
         : null,
     [dados, overridesRecebiveis, config]
   );
@@ -434,11 +434,12 @@ export default function ContasAtrasadas() {
         )}
       </Card>
 
-      {/* Curva do DSO */}
+      {/* Curva do DSO: so com historico REAL acumulado no cache (um ponto/dia). */}
+      {vm.dsoHistorico.length >= 2 ? (
       <Card>
         <SectionTitle
           titulo="Curva do DSO"
-          sub="Prazo medio de recebimento nos ultimos meses, contra a meta."
+          sub="Prazo medio de recebimento ao longo dos dias, contra a meta."
         />
         <div style={{ width: "100%", height: 260 }}>
           <ResponsiveContainer>
@@ -490,6 +491,15 @@ export default function ContasAtrasadas() {
           </ResponsiveContainer>
         </div>
       </Card>
+      ) : (
+        <Card>
+          <SectionTitle titulo="Curva do DSO" sub="Prazo medio de recebimento ao longo do tempo." />
+          <Empty>
+            O historico de DSO comeca a ser registrado agora, um ponto por dia. A curva aparece
+            assim que houver alguns dias acumulados.
+          </Empty>
+        </Card>
+      )}
     </div>
   );
 }

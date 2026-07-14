@@ -13,6 +13,7 @@ import {
   Settings,
   Moon,
   Sun,
+  Clock,
 } from "lucide-react";
 import logoColor from "../assets/brand/logo-color.png";
 import logoWhite from "../assets/brand/logo-white.png";
@@ -40,12 +41,27 @@ function useTema() {
   return [escuro, () => setEscuro((v) => !v)];
 }
 
+// Frescor do cache: HH:MM de Sao Paulo e se ja passou de 40 min (fica ambar).
+function frescor(iso) {
+  if (!iso) return null;
+  const dt = new Date(iso);
+  if (isNaN(dt.getTime())) return null;
+  const idadeMin = Math.round((Date.now() - dt.getTime()) / 60000);
+  const hhmm = dt.toLocaleTimeString("pt-BR", {
+    hour: "2-digit",
+    minute: "2-digit",
+    timeZone: "America/Sao_Paulo",
+  });
+  return { hhmm, velho: idadeMin > 40, idadeMin };
+}
+
 export default function Layout({ children }) {
   const location = useLocation();
   const navigate = useNavigate();
   const [escuro, alternarTema] = useTema();
-  const { modoDemo } = useApp();
+  const { modoDemo, atualizadoEm } = useApp();
   const naHome = location.pathname === "/";
+  const f = modoDemo ? null : frescor(atualizadoEm);
 
   return (
     <div className="min-h-screen">
@@ -74,6 +90,15 @@ export default function Layout({ children }) {
             <div className="flex items-center gap-2 shrink-0">
               {modoDemo && (
                 <span className="chip-warn hidden sm:inline-flex">Modo demonstracao</span>
+              )}
+              {f && (
+                <span
+                  className={`hidden items-center gap-1.5 sm:inline-flex ${f.velho ? "chip-warn" : "chip"}`}
+                  title={`Dados do cache do Mubisys, ${f.idadeMin} min atras`}
+                >
+                  <Clock size={13} />
+                  {f.velho ? `dados de ${f.hhmm} (atrasado)` : `dados de ${f.hhmm}`}
+                </span>
               )}
               <button
                 onClick={alternarTema}

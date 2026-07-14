@@ -32,6 +32,10 @@ export default function Orcamentos() {
   } = useApp();
 
   const [novoVendedor, setNovoVendedor] = useState("");
+  // Listas grandes (centenas de perdidos/parados) mostram um lote por vez,
+  // com "mostrar mais", para nao renderizar tudo de uma vez e travar a tela.
+  const [limPerdidos, setLimPerdidos] = useState(25);
+  const [limParados, setLimParados] = useState(25);
 
   const vm = useMemo(
     () => (dados ? calcOrcamentos(dados.orcamentos, overridesOrcamentos, config) : null),
@@ -217,7 +221,7 @@ export default function Orcamentos() {
               Marque o motivo de cada perda para afinar a analise
             </p>
             <div className="space-y-2">
-              {vm.perdidos.map((o) => (
+              {vm.perdidos.slice(0, limPerdidos).map((o) => (
                 <div
                   key={o.id}
                   className="flex flex-wrap items-center gap-3 rounded-xl border p-3"
@@ -249,6 +253,11 @@ export default function Orcamentos() {
                 </div>
               ))}
             </div>
+            {vm.perdidos.length > limPerdidos && (
+              <button className="btn-ghost mt-3" onClick={() => setLimPerdidos((n) => n + 25)}>
+                Mostrar mais ({vm.perdidos.length - limPerdidos} restantes)
+              </button>
+            )}
           </div>
         )}
       </Card>
@@ -284,7 +293,7 @@ export default function Orcamentos() {
                 </tr>
               </thead>
               <tbody>
-                {vm.parados.map((o) => (
+                {vm.parados.slice(0, limParados).map((o) => (
                   <tr key={o.id}>
                     <td className="td tnum text-slate-600">{o.numero}</td>
                     <td className="td font-medium text-slate-900">{o.cliente}</td>
@@ -303,6 +312,11 @@ export default function Orcamentos() {
               </tbody>
             </table>
           </div>
+        )}
+        {vm.parados.length > limParados && (
+          <button className="btn-ghost mt-3" onClick={() => setLimParados((n) => n + 25)}>
+            Mostrar mais ({vm.parados.length - limParados} restantes)
+          </button>
         )}
       </Card>
     </div>
