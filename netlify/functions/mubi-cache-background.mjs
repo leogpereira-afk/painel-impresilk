@@ -182,16 +182,24 @@ function calcDso(recebiveis) {
 
 async function etapaRapidos() {
   const jRec = { filtrodata: "VENCIMENTO", datainicial: hojeMais(-365), datafinal: hojeMais(90) };
-  const vencidos = await mubiGetTudo("contas-receber", { ...jRec, status: "VENCIDO" });
-  const pendentes = await mubiGetTudo("contas-receber", { ...jRec, status: "PENDENTE" });
+  const jPag = { filtrodata: "VENCIMENTO", datainicial: hojeMais(-30), datafinal: hojeMais(60) };
+
+  // Recursos independentes: em paralelo. Em serie, so esta etapa ja comia
+  // metade do orcamento de tempo da Function.
+  const [vencidos, pendentes, pagPend, pagVenc, fixa, cartao, folha, bancosBrutos] =
+    await Promise.all([
+      mubiGetTudo("contas-receber", { ...jRec, status: "VENCIDO" }),
+      mubiGetTudo("contas-receber", { ...jRec, status: "PENDENTE" }),
+      mubiGetTudo("contas-pagar", { ...jPag, status: "PENDENTE" }),
+      mubiGetTudo("contas-pagar", { ...jPag, status: "VENCIDO" }),
+      mubiGetTudo("contas-pagar-provisao/despesa-fixa", jPag),
+      mubiGetTudo("contas-pagar-provisao/cartao-credito", jPag),
+      mubiGetTudo("contas-pagar-provisao/folha-pagamento", jPag),
+      mubiGetTudo("conta-bancaria"),
+    ]);
+
   const recebiveis = dedup([...vencidos, ...pendentes].map(normRecebivel)).filter((r) => r.valor > 0);
 
-  const jPag = { filtrodata: "VENCIMENTO", datainicial: hojeMais(-30), datafinal: hojeMais(60) };
-  const pagPend = await mubiGetTudo("contas-pagar", { ...jPag, status: "PENDENTE" });
-  const pagVenc = await mubiGetTudo("contas-pagar", { ...jPag, status: "VENCIDO" });
-  const fixa = await mubiGetTudo("contas-pagar-provisao/despesa-fixa", jPag);
-  const cartao = await mubiGetTudo("contas-pagar-provisao/cartao-credito", jPag);
-  const folha = await mubiGetTudo("contas-pagar-provisao/folha-pagamento", jPag);
   const pagar = dedup(
     [
       ...pagPend.map(normPagar),
@@ -203,7 +211,6 @@ async function etapaRapidos() {
     (x) => `${x.tipo}:${x.id}`
   ).filter((s) => s.valor > 0);
 
-  const bancosBrutos = await mubiGetTudo("conta-bancaria");
   const bancos = bancosBrutos
     .filter((b) => String(b.status || "").toLowerCase() === "ativo")
     .filter((b) => !/permuta/i.test(String(b.titulo || "")))
@@ -237,21 +244,15 @@ async function catalogoCategorias() {
 
 async function etapaCompleta() {
   const desde = `${new Date().getFullYear()}-01-01`;
-  const orcBrutos = await mubiGetTudo("orcamento", {
-    status: "TODOS",
-    filtrodata: "CADASTRO",
-    datainicial: desde,
-    datafinal: hojeMais(0),
-  });
-  const orcamentos = orcBrutos.map(normOrcamento);
+  const janela = { status: "TODOS", filtrodata: "CADASTRO", datainicial: desde, datafinal: hojeMais(0) };
 
-  const categoriaPorNome = await catalogoCategorias();
-  const osBrutas = await mubiGetTudo("ordem-servico", {
-    status: "TODOS",
-    filtrodata: "CADASTRO",
-    datainicial: desde,
-    datafinal: hojeMais(0),
-  });
+  const [orcBrutos, categoriaPorNome, osBrutas] = await Promise.all([
+    mubiGetTudo("orcamento", janela),
+    catalogoCategorias(),
+    mubiGetTudo("ordem-servico", janela),
+  ]);
+
+  const orcamentos = orcBrutos.map(normOrcamento);
   const ordens = osBrutas.map((os, i) => normOS(os, i, categoriaPorNome)).filter((o) => !o.cancelada);
 
   return { orcamentos, ordens };
@@ -263,7 +264,7 @@ async function etapaCompleta() {
 // com a mudanca faz o proximo ciclo se reconstruir sozinho.
 const VERSAO_NORM = 2;
 
-async function etapaIncremental(store) {
+async function etapaIncremental(store, remigrarOS = false) {
   const janela = { status: "TODOS", datainicial: hojeMais(-7), datafinal: hojeMais(0) };
 
   const orcAtual = (await store.get("cache_orcamentos", { type: "json" })) || [];
@@ -274,6 +275,24 @@ async function etapaIncremental(store) {
   }
 
   const categoriaPorNome = await catalogoCategorias();
+
+  // O normalizador de OS mudou: o merge de 7 dias so consertaria a ponta, o
+  // historico ficaria com a normalizacao velha. Rebusca o ano inteiro de OS --
+  // e a UNICA fonte afetada, entao nao paga o preco da varredura completa (que
+  // no horario comercial nem cabe nos 15 min da Function).
+  if (remigrarOS) {
+    const osBrutas = await mubiGetTudo("ordem-servico", {
+      status: "TODOS",
+      filtrodata: "CADASTRO",
+      datainicial: `${new Date().getFullYear()}-01-01`,
+      datafinal: hojeMais(0),
+    });
+    const ordens = osBrutas
+      .map((os, i) => normOS(os, i, categoriaPorNome))
+      .filter((o) => !o.cancelada);
+    return { orcamentos: [...mapaOrc.values()], ordens };
+  }
+
   const osAtual = (await store.get("cache_ordens", { type: "json" })) || [];
   const mapaOS = new Map(osAtual.map((o) => [o.id, o]));
   for (const filtro of ["CADASTRO", "APROVACAO", "CANCELAMENTO"]) {
@@ -304,16 +323,18 @@ export default async (req) => {
     return new Response(JSON.stringify({ erro: "Mubi nao configurado" }), { status: 501 });
   }
 
-  const pedido = new URL(req.url).searchParams.get("modo") === "completo" ? "completo" : "incremental";
+  const modo = new URL(req.url).searchParams.get("modo") === "completo" ? "completo" : "incremental";
   const store = getStore("painel");
 
-  // Cache normalizado por uma versao antiga: forca varredura completa, senao o
-  // conserto so valeria para os ultimos 7 dias.
+  // Cache normalizado por uma versao antiga: manda o incremental remigrar as
+  // OS do ano. NAO forca "completo" -- no horario comercial ele nao cabe nos
+  // 15 min da Function, falharia a cada ciclo e congelaria o cache inteiro.
   const statusAnterior = await store.get("cache_status", { type: "json" });
-  const desatualizado = (statusAnterior?.versao ?? 0) !== VERSAO_NORM;
-  const modo = desatualizado ? "completo" : pedido;
-  if (desatualizado && pedido !== "completo") {
-    console.log(`mubi-cache: cache na versao ${statusAnterior?.versao ?? 0}, normalizador na ${VERSAO_NORM} -> completo`);
+  const remigrarOS = (statusAnterior?.versao ?? 0) !== VERSAO_NORM;
+  if (remigrarOS) {
+    console.log(
+      `mubi-cache: cache na versao ${statusAnterior?.versao ?? 0}, normalizador na ${VERSAO_NORM} -> remigrando OS do ano`
+    );
   }
 
   // Trava anti-corrida: nao roda dois ciclos ao mesmo tempo (cron x noturno).
@@ -331,7 +352,8 @@ export default async (req) => {
   try {
     // 1) Busca tudo em memoria (nada gravado ainda).
     const rapidos = await etapaRapidos();
-    const pesados = modo === "completo" ? await etapaCompleta() : await etapaIncremental(store);
+    const pesados =
+      modo === "completo" ? await etapaCompleta() : await etapaIncremental(store, remigrarOS);
     const dados = { ...rapidos, ...pesados };
 
     // 2) DSO do dia + acumula historico real (um ponto por dia, ultimos 180).
@@ -359,9 +381,10 @@ export default async (req) => {
       em: new Date().toISOString(), // horario do ULTIMO sucesso (frescor real)
       ok: true,
       modo,
-      // So carimba a versao numa varredura completa: um incremental nao
-      // reescreve o historico, entao nao pode declarar o cache inteiro migrado.
-      versao: modo === "completo" ? VERSAO_NORM : (statusAnterior?.versao ?? 0),
+      // So carimba quando o historico de OS foi de fato renormalizado (varredura
+      // completa ou remigracao). Um incremental comum so toca 7 dias.
+      versao:
+        modo === "completo" || remigrarOS ? VERSAO_NORM : (statusAnterior?.versao ?? 0),
       dso,
       duracaoMs: Date.now() - inicio,
       contagens,

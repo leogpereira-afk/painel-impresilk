@@ -33,6 +33,12 @@ export async function mubiGet(caminho, query = {}) {
     err.code = "SEM_CONFIG";
     throw err;
   }
+  // Toda chamada ao Mubisys passa por aqui: e o unico lugar onde o teto global
+  // de concorrencia pode ser garantido.
+  return comVaga(() => mubiGetSemFila(caminho, query));
+}
+
+async function mubiGetSemFila(caminho, query) {
   const url = new URL(`${BASE.replace(/\/$/, "")}/${PUB}/${caminho.replace(/^\//, "")}`);
   Object.entries(query).forEach(([k, v]) => {
     if (v !== undefined && v !== null) url.searchParams.set(k, String(v));
@@ -88,11 +94,17 @@ export function itens(bruto) {
   return [];
 }
 
+// O Mubisys devolve o mapa de paginacao em `pagination`; algumas rotas usam
+// `meta`. Ler isso e o que permite buscar as paginas 2..N em paralelo.
+function paginacao(bruto) {
+  const m = bruto?.pagination || bruto?.meta;
+  if (!m || m.current_page == null || m.last_page == null) return null;
+  return { atual: Number(m.current_page), ultima: Number(m.last_page) };
+}
+
 function ultimaPagina(bruto, qtdRecebida, perPage) {
-  const meta = bruto?.meta || bruto;
-  if (meta && meta.current_page != null && meta.last_page != null) {
-    return Number(meta.current_page) >= Number(meta.last_page);
-  }
+  const p = paginacao(bruto);
+  if (p) return p.atual >= p.ultima;
   return qtdRecebida < perPage; // sem meta: para quando a pagina vem incompleta
 }
 
@@ -113,17 +125,65 @@ export async function mubiGetPagina(caminho, query = {}, page = 1) {
 // Mubisys e lento demais para Functions sincronas). Trava de seguranca em 100
 // paginas; se ainda houver mais, FALHA em vez de truncar em silencio (melhor
 // erro visivel do que faturamento subestimado sem ninguem saber).
+// Limite GLOBAL de chamadas simultaneas ao Mubisys. Medido contra a API real:
+// 2 em paralelo respondem em ~70s cada (mais rapido que 1 sozinha, que variou
+// de 106s a 157s); 4 em paralelo estouram TODAS em timeout de 300s. O teto
+// precisa ser global, e nao por chamada: etapaRapidos e etapaCompleta ja
+// disparam recursos em paralelo entre si, e os limites se somariam.
+const TETO = 2;
+let emVoo = 0;
+const fila = [];
+
+async function comVaga(fn) {
+  if (emVoo >= TETO) await new Promise((r) => fila.push(r));
+  emVoo++;
+  try {
+    return await fn();
+  } finally {
+    emVoo--;
+    fila.shift()?.();
+  }
+}
+
 export async function mubiGetTudo(caminho, query = {}, perPage = 500) {
   const GUARDA = 100; // 50000 itens a 500/pagina
-  const tudo = [];
-  for (let page = 1; page <= GUARDA; page++) {
-    const bruto = await mubiGet(caminho, { ...query, page, per_page: perPage });
-    const arr = itens(bruto);
-    tudo.push(...arr);
-    if (ultimaPagina(bruto, arr.length, perPage)) return tudo;
+  const p1 = await mubiGet(caminho, { ...query, page: 1, per_page: perPage });
+  const arr1 = itens(p1);
+  if (ultimaPagina(p1, arr1.length, perPage)) return arr1;
+
+  const pag = paginacao(p1);
+  if (!pag) {
+    // Sem mapa de paginacao: nao da para saber quantas faltam, segue em serie.
+    const tudo = [...arr1];
+    for (let page = 2; page <= GUARDA; page++) {
+      const bruto = await mubiGet(caminho, { ...query, page, per_page: perPage });
+      const arr = itens(bruto);
+      tudo.push(...arr);
+      if (ultimaPagina(bruto, arr.length, perPage)) return tudo;
+    }
+    console.warn(`mubiGetTudo: ${caminho} passou de ${GUARDA} paginas (${tudo.length} itens)`);
+    throw Object.assign(new Error(`Paginacao de ${caminho} excedeu ${GUARDA} paginas`), {
+      truncou: true,
+    });
   }
-  console.warn(`mubiGetTudo: ${caminho} passou de ${GUARDA} paginas (${tudo.length} itens)`);
-  throw Object.assign(new Error(`Paginacao de ${caminho} excedeu ${GUARDA} paginas`), { truncou: true });
+
+  if (pag.ultima > GUARDA) {
+    throw Object.assign(new Error(`Paginacao de ${caminho} excedeu ${GUARDA} paginas`), {
+      truncou: true,
+    });
+  }
+
+  // Dispara todas as paginas restantes: quem controla a concorrencia real e o
+  // teto global no mubiGet, nao um lote aqui.
+  const restantes = [];
+  for (let p = 2; p <= pag.ultima; p++) restantes.push(p);
+  const res = await Promise.all(
+    restantes.map((page) =>
+      mubiGet(caminho, { ...query, page, per_page: perPage }).then((b) => itens(b))
+    )
+  );
+  // Ordem preservada: Promise.all devolve na ordem de entrada, nao de conclusao.
+  return [...arr1, ...res.flat()];
 }
 
 // Datas AAAA-MM-DD relativas a hoje (fuso de Sao Paulo nao importa aqui: a
