@@ -87,26 +87,65 @@ export function normOrcamento(o, i) {
   };
 }
 
+// Rotulos de familia para os dois furos de cadastro. Sao coisas diferentes e
+// tem conserto diferente no ERP, entao nao podem cair no mesmo balde:
+export const SEM_CATEGORIA = "Sem categoria";   // produto existe no catalogo, categoria em branco
+export const FORA_CATALOGO = "Fora do catalogo"; // nome usado na OS que nao existe mais no catalogo
+
+function itemProduto(it, categoriaPorNome, valorTotal) {
+  const nome = String(it.item || "").trim();
+  const k = chaveProduto(nome);
+  const categoria = categoriaPorNome.has(k)
+    ? categoriaPorNome.get(k) || SEM_CATEGORIA
+    : FORA_CATALOGO;
+  return {
+    produtoId: nome,
+    produto: nome,
+    categoria,
+    modelo: String(it.modelo || ""),
+    quantidade: num(it.quantidade) || 1,
+    valorUnit: num(it.valor_unitario),
+    valorTotal,
+  };
+}
+
 export function normOS(os, i, categoriaPorNome) {
+  const itens = [];
+  for (const it of Array.isArray(os.itens) ? os.itens : []) {
+    const bruto = num(it.valor_final) || num(it.sub_total);
+
+    // Item normal: tem produto direto.
+    if (String(it.item || "").trim()) {
+      itens.push(itemProduto(it, categoriaPorNome, bruto));
+      continue;
+    }
+
+    // UNIAO de itens: o Mubisys nao repete `item` no pai, poe os produtos reais
+    // em `itens_agrupados`. Ignorar isso jogava 23% do faturamento num falso
+    // produto "Outros". Os agrupados ja vem com quantidade e valor totais.
+    const agrupados = (Array.isArray(it.itens_agrupados) ? it.itens_agrupados : []).filter((g) =>
+      String(g.item || "").trim()
+    );
+    if (!agrupados.length) continue; // uniao vazia: nao ha produto a atribuir
+
+    // A uniao pode ser vendida com desconto sobre a soma das partes. Rateia
+    // proporcionalmente para que a soma dos itens seja exatamente o valor
+    // cobrado -- sem rateio, o faturamento infla.
+    const soma = agrupados.reduce((s, g) => s + (num(g.valor_final) || num(g.sub_total)), 0);
+    const fator = soma > 0 && bruto > 0 ? bruto / soma : 1;
+    for (const g of agrupados) {
+      const v = (num(g.valor_final) || num(g.sub_total)) * fator;
+      itens.push({ ...itemProduto(g, categoriaPorNome, v), emUniao: true });
+    }
+  }
+
   return {
     id: String(os.id ?? `os-${i}`),
     numero: String(os.sequencial_ordem || os.sequencial_orcamento || os.id || ""),
     cliente: String(os.cliente || "Cliente"),
     data: String(os.data_cadastro || ""),
     cancelada: /cancel/i.test(String(os.status || "")),
-    itens: (Array.isArray(os.itens) ? os.itens : []).map((it) => {
-      // Itens sem produto (frete, custos avulsos, servicos gerais) viram
-      // "Outros", em vez de virar um falso produto "Item N".
-      const nome = String(it.item || "").trim() || "Outros";
-      return {
-        produtoId: nome,
-        produto: nome,
-        categoria: categoriaPorNome.get(nome.toLowerCase()) || "Geral",
-        quantidade: num(it.quantidade) || 1,
-        valorUnit: num(it.valor_unitario),
-        valorTotal: num(it.valor_final) || num(it.sub_total),
-      };
-    }),
+    itens,
   };
 }
 
@@ -178,11 +217,22 @@ async function etapaRapidos() {
   return { recebiveis, pagar, bancos };
 }
 
+// Chave de join produto->catalogo. O nome vem digitado nos dois lados, entao
+// normaliza acento, espaco duplo e caixa, senao "Iluminacao" e "Iluminação"
+// viram dois produtos diferentes.
+export const chaveProduto = (nome) =>
+  String(nome || "")
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toLowerCase();
+
 async function catalogoCategorias() {
   const catalogo = await mubiGetTudo("produto");
-  return new Map(
-    catalogo.map((p) => [String(p.nome || "").trim().toLowerCase(), String(p.categoria || "Geral")])
-  );
+  // Guarda a categoria CRUA (pode ser ""). Quem decide o rotulo e o normOS:
+  // categoria vazia no ERP e produto fora do catalogo sao problemas diferentes.
+  return new Map(catalogo.map((p) => [chaveProduto(p.nome), String(p.categoria || "").trim()]));
 }
 
 async function etapaCompleta() {

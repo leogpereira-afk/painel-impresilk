@@ -6,14 +6,19 @@
 // a tendencia comparam janeiro contra o ULTIMO MES FECHADO, para nao mostrar
 // "queda" so porque o mes atual esta pela metade.
 //
-// BALDE: itens sem produto no ERP caem em "Outros" (produto) / "Geral" e
-// "OUTROS" (familia). Isso e entulho de cadastro, nao um produto nem um
-// segmento: continua no ranking (o dinheiro e real), mas NUNCA e eleito lider
-// nem maior alta/queda, senao o destaque da tela fica sem significado.
+// FURO DE CADASTRO: nao existe item sem produto no Mubisys. O que existe sao
+// duas falhas de CADASTRO, marcadas explicitamente pela normalizacao:
+//   "Sem categoria"    -> o produto existe, mas ninguem preencheu a categoria
+//   "Fora do catalogo" -> a OS usa um nome que nao esta mais no catalogo
+// Sao familias falsas: o dinheiro e real e continua no ranking, mas nunca sao
+// eleitas lider nem maior alta/queda -- senao o destaque perde o sentido. A
+// deteccao e por rotulo exato (nao regex no nome), para que uma familia real
+// chamada "Outros" concorra normalmente.
 
 import { diaLocalISO, rotuloMes } from "../format.js";
 
-const ehBalde = (nome) => /^(outros|geral|sem categoria|nao informado)$/i.test(String(nome || "").trim());
+export const ROTULOS_SEM_CADASTRO = ["Sem categoria", "Fora do catalogo"];
+const semCadastro = new Set(ROTULOS_SEM_CADASTRO);
 
 export function calcProdutos(ordens, catalogo, config) {
   const hoje = new Date();
@@ -37,12 +42,20 @@ export function calcProdutos(ordens, catalogo, config) {
 
   const zeros = () => meses.map(() => ({ faturamento: 0, volume: 0 }));
 
-  // Duas agregacoes a partir dos mesmos itens: por produto e por familia.
+  // Duas agregacoes a partir dos mesmos itens: por produto e por familia. Cada
+  // uma guarda tambem a COMPOSICAO -- o que somou para dar aquele numero --
+  // para a tela poder abrir o detalhe (familia -> produtos, produto -> modelos).
   const accProd = {};
   for (const p of catalogo) {
-    accProd[p.id] = { chave: p.id, nome: p.nome, categoria: p.categoria, meses: zeros() };
+    accProd[p.id] = { chave: p.id, nome: p.nome, categoria: p.categoria, meses: zeros(), comp: {} };
   }
   const accFam = {};
+
+  const somaComp = (destino, rotulo, fat, vol) => {
+    const c = (destino[rotulo] ||= { nome: rotulo, faturamento: 0, volume: 0 });
+    c.faturamento += fat;
+    c.volume += vol;
+  };
 
   for (const os of ordens) {
     const dia = diaLocalISO(os.data);
@@ -58,12 +71,14 @@ export function calcProdutos(ordens, catalogo, config) {
       if (bp) {
         bp.meses[idx].faturamento += fat;
         bp.meses[idx].volume += vol;
+        somaComp(bp.comp, String(it.modelo || "").trim() || "Sem modelo", fat, vol);
       }
 
-      const fam = String(it.categoria || "Geral").trim() || "Geral";
-      const bf = (accFam[fam] ||= { chave: fam, nome: fam, categoria: fam, meses: zeros() });
+      const fam = String(it.categoria || "").trim() || "Sem categoria";
+      const bf = (accFam[fam] ||= { chave: fam, nome: fam, categoria: fam, meses: zeros(), comp: {} });
       bf.meses[idx].faturamento += fat;
       bf.meses[idx].volume += vol;
+      somaComp(bf.comp, it.produto || it.produtoId, fat, vol);
     }
   }
 
@@ -81,11 +96,19 @@ export function calcProdutos(ordens, catalogo, config) {
         const volume = mm.reduce((s, x) => s + x.volume, 0);
         const jan = mm[0] || { faturamento: 0, volume: 0 };
         const fim = mm[idxFim] || { faturamento: 0, volume: 0 };
+        // Composicao: o que somou para dar este numero, do maior para o menor,
+        // ja com o peso de cada parte no total da linha.
+        const composicao = Object.values(b.comp)
+          .filter((c) => c.faturamento > 0 || c.volume > 0)
+          .sort((x, y) => y.faturamento - x.faturamento)
+          .map((c) => ({ ...c, pct: faturamento > 0 ? (c.faturamento / faturamento) * 100 : 0 }));
+
         return {
           produtoId: b.chave,
           nome: b.nome,
           categoria: b.categoria,
-          balde: ehBalde(b.nome),
+          balde: semCadastro.has(b.nome),
+          composicao,
           faturamento,
           volume,
           fatJaneiro: jan.faturamento,

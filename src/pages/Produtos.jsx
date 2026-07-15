@@ -522,8 +522,40 @@ export default function Produtos() {
                                   : `${r.varVol >= 0 ? "+" : ""}${r.varVol}% no volume`
                             }
                           />
-                          <Detalhe rotulo="Categoria" valor={r.categoria || "sem categoria"} />
+                          {!ehFamilia && (
+                            <Detalhe rotulo="Categoria" valor={r.categoria || "sem categoria"} />
+                          )}
                         </dl>
+
+                        {r.composicao?.length > 0 && (
+                          <div
+                            className="mt-3 border-t pt-3"
+                            style={{ borderColor: "var(--hairline)" }}
+                          >
+                            <p className="label mb-2">
+                              {ehFamilia
+                                ? `O que somou estes ${moeda(r.faturamento)}: ${r.composicao.length} ${r.composicao.length === 1 ? "produto" : "produtos"}`
+                                : `Por modelo: ${r.composicao.length} ${r.composicao.length === 1 ? "modelo" : "modelos"}`}
+                            </p>
+                            <ul className="space-y-1.5">
+                              {r.composicao.map((c) => (
+                                <li key={c.nome} className="flex items-center gap-3 text-sm">
+                                  <span className="w-44 shrink-0 truncate sm:w-56" title={c.nome}>
+                                    {c.nome}
+                                  </span>
+                                  <span
+                                    className="h-2 min-w-[2px] rounded-full bg-slate-300"
+                                    style={{ width: `${Math.max(c.pct, 0.5)}%` }}
+                                    aria-hidden="true"
+                                  />
+                                  <span className="tabular-nums text-slate-500">
+                                    {moeda(c.faturamento)} · {pct(c.pct, 1)} · {numero(c.volume)} un
+                                  </span>
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
 
                         <div
                           className="mt-3 border-t pt-3"
