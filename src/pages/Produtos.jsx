@@ -262,7 +262,7 @@ export default function Produtos() {
                 {lider.varFat}% desde janeiro).
               </p>
               <p className="mt-1 text-sm text-slate-600">
-                Ele responde por {moeda(lider.faturamento)} no ano. Vale investigar antes que a
+                {ehFamilia ? "Ela" : "Ele"} responde por {moeda(lider.faturamento)} no ano. Vale investigar antes que a
                 queda pese no total.
               </p>
             </div>
