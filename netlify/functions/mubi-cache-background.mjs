@@ -257,6 +257,12 @@ async function etapaCompleta() {
   return { orcamentos, ordens };
 }
 
+// Versao do normalizador. O ciclo incremental so reescreve os ultimos 7 dias,
+// entao um conserto na normalizacao (ex: destrinchar unioes de itens) ficaria
+// preso no historico ate a proxima varredura completa. Subir este numero junto
+// com a mudanca faz o proximo ciclo se reconstruir sozinho.
+const VERSAO_NORM = 2;
+
 async function etapaIncremental(store) {
   const janela = { status: "TODOS", datainicial: hojeMais(-7), datafinal: hojeMais(0) };
 
@@ -298,8 +304,17 @@ export default async (req) => {
     return new Response(JSON.stringify({ erro: "Mubi nao configurado" }), { status: 501 });
   }
 
-  const modo = new URL(req.url).searchParams.get("modo") === "completo" ? "completo" : "incremental";
+  const pedido = new URL(req.url).searchParams.get("modo") === "completo" ? "completo" : "incremental";
   const store = getStore("painel");
+
+  // Cache normalizado por uma versao antiga: forca varredura completa, senao o
+  // conserto so valeria para os ultimos 7 dias.
+  const statusAnterior = await store.get("cache_status", { type: "json" });
+  const desatualizado = (statusAnterior?.versao ?? 0) !== VERSAO_NORM;
+  const modo = desatualizado ? "completo" : pedido;
+  if (desatualizado && pedido !== "completo") {
+    console.log(`mubi-cache: cache na versao ${statusAnterior?.versao ?? 0}, normalizador na ${VERSAO_NORM} -> completo`);
+  }
 
   // Trava anti-corrida: nao roda dois ciclos ao mesmo tempo (cron x noturno).
   const LOCK_MS = 14 * 60 * 1000;
@@ -344,6 +359,9 @@ export default async (req) => {
       em: new Date().toISOString(), // horario do ULTIMO sucesso (frescor real)
       ok: true,
       modo,
+      // So carimba a versao numa varredura completa: um incremental nao
+      // reescreve o historico, entao nao pode declarar o cache inteiro migrado.
+      versao: modo === "completo" ? VERSAO_NORM : (statusAnterior?.versao ?? 0),
       dso,
       duracaoMs: Date.now() - inicio,
       contagens,
