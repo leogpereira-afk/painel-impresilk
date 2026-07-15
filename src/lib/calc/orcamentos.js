@@ -40,10 +40,12 @@ export function calcOrcamentos(orcamentos, overrides, config) {
         ...o,
         vendedorNome: nomeVend(o.vendedorId),
         motivoPerdaId: ov.motivoPerdaId || null,
+        motivoPerdaNome: ov.motivoPerdaId ? nomeMotivo(ov.motivoPerdaId) : null,
         dias,
         parado: o.situacao === "aberto" && dias > diasParado,
       };
-    });
+    })
+    .sort((a, b) => b.valor - a.valor);
 
   const ganhos = filtrados.filter((o) => o.situacao === "ganho");
   const perdidos = filtrados.filter((o) => o.situacao === "perdido");
@@ -87,6 +89,9 @@ export function calcOrcamentos(orcamentos, overrides, config) {
     .map((o) => ({ id: o.id, numero: o.numero, cliente: o.cliente, vendedorNome: o.vendedorNome, valor: o.valor, dias: o.dias }));
 
   return {
+    // Lista mestra (ja filtrada por valor minimo e data de corte, ordenada por
+    // valor): alimenta a tabela com busca, filtros e linhas expansiveis.
+    lista: filtrados,
     kpis: {
       naMesaQtd: abertos.length,
       naMesaValor: abertos.reduce((s, o) => s + o.valor, 0),

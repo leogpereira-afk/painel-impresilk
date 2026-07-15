@@ -1,10 +1,19 @@
 // Produtos: o Mubi nao tem endpoint de vendas por produto. Faturamento e volume
-// saem dos itens das Ordens de Servico, agregados por produto e por mes desde a
-// virada do ano. Os TOTAIS somam tudo no ano (inclui o mes corrente em
-// andamento); a VARIACAO e a tendencia comparam janeiro contra o ULTIMO MES
-// FECHADO, para nao mostrar "queda" so porque o mes atual esta pela metade.
+// saem dos itens das Ordens de Servico, agregados por PRODUTO e por FAMILIA
+// (a categoria do cadastro), mes a mes desde a virada do ano.
+//
+// Os TOTAIS somam tudo no ano (inclui o mes corrente em andamento); a VARIACAO e
+// a tendencia comparam janeiro contra o ULTIMO MES FECHADO, para nao mostrar
+// "queda" so porque o mes atual esta pela metade.
+//
+// BALDE: itens sem produto no ERP caem em "Outros" (produto) / "Geral" e
+// "OUTROS" (familia). Isso e entulho de cadastro, nao um produto nem um
+// segmento: continua no ranking (o dinheiro e real), mas NUNCA e eleito lider
+// nem maior alta/queda, senao o destaque da tela fica sem significado.
 
 import { diaLocalISO, rotuloMes } from "../format.js";
+
+const ehBalde = (nome) => /^(outros|geral|sem categoria|nao informado)$/i.test(String(nome || "").trim());
 
 export function calcProdutos(ordens, catalogo, config) {
   const hoje = new Date();
@@ -26,11 +35,14 @@ export function calcProdutos(ordens, catalogo, config) {
   const mesCorrenteFechado = hoje.getDate() >= ultimoDiaDoMes;
   const idxFim = mesAtual === 0 ? 0 : mesCorrenteFechado ? mesAtual : mesAtual - 1;
 
-  // Estrutura: produto -> mesIdx -> {faturamento, volume}
-  const acc = {};
+  const zeros = () => meses.map(() => ({ faturamento: 0, volume: 0 }));
+
+  // Duas agregacoes a partir dos mesmos itens: por produto e por familia.
+  const accProd = {};
   for (const p of catalogo) {
-    acc[p.id] = { info: p, meses: meses.map(() => ({ faturamento: 0, volume: 0 })) };
+    accProd[p.id] = { chave: p.id, nome: p.nome, categoria: p.categoria, meses: zeros() };
   }
+  const accFam = {};
 
   for (const os of ordens) {
     const dia = diaLocalISO(os.data);
@@ -39,73 +51,102 @@ export function calcProdutos(ordens, catalogo, config) {
     const idx = Number(m) - 1;
     if (idx < 0 || idx > mesAtual) continue;
     for (const it of os.itens || []) {
-      const bucket = acc[it.produtoId];
-      if (!bucket) continue;
-      bucket.meses[idx].faturamento += it.valorTotal || 0;
-      bucket.meses[idx].volume += it.quantidade || 0;
+      const fat = it.valorTotal || 0;
+      const vol = it.quantidade || 0;
+
+      const bp = accProd[it.produtoId];
+      if (bp) {
+        bp.meses[idx].faturamento += fat;
+        bp.meses[idx].volume += vol;
+      }
+
+      const fam = String(it.categoria || "Geral").trim() || "Geral";
+      const bf = (accFam[fam] ||= { chave: fam, nome: fam, categoria: fam, meses: zeros() });
+      bf.meses[idx].faturamento += fat;
+      bf.meses[idx].volume += vol;
     }
   }
 
   // Variacao percentual so faz sentido com base (janeiro) positiva. Base zero
-  // (produto lancado depois de janeiro) retorna null -> tratado como "novo",
-  // sem inventar um +100% que competiria mal no ranking de maior alta.
+  // (lancado depois de janeiro) retorna null -> tratado como "novo", sem
+  // inventar um +100% que competiria mal no ranking de maior alta.
   const varPct = (ini, fim) => (ini > 0 ? Math.round(((fim - ini) / ini) * 100) : null);
 
-  const ranking = Object.values(acc).map(({ info, meses: mm }) => {
-    const faturamento = mm.reduce((s, x) => s + x.faturamento, 0);
-    const volume = mm.reduce((s, x) => s + x.volume, 0);
-    const jan = mm[0] || { faturamento: 0, volume: 0 };
-    // "atual" para a variacao = ultimo mes fechado (nao o mes em andamento).
-    const fim = mm[idxFim] || { faturamento: 0, volume: 0 };
+  // Monta ranking + lider + maior alta/queda + serie do grafico para UMA dimensao.
+  function montarDimensao(acc, rotuloDim) {
+    const ranking = Object.values(acc)
+      .map((b) => {
+        const mm = b.meses;
+        const faturamento = mm.reduce((s, x) => s + x.faturamento, 0);
+        const volume = mm.reduce((s, x) => s + x.volume, 0);
+        const jan = mm[0] || { faturamento: 0, volume: 0 };
+        const fim = mm[idxFim] || { faturamento: 0, volume: 0 };
+        return {
+          produtoId: b.chave,
+          nome: b.nome,
+          categoria: b.categoria,
+          balde: ehBalde(b.nome),
+          faturamento,
+          volume,
+          fatJaneiro: jan.faturamento,
+          fatAtual: fim.faturamento,
+          volJaneiro: jan.volume,
+          volAtual: fim.volume,
+          varFat: varPct(jan.faturamento, fim.faturamento),
+          varVol: varPct(jan.volume, fim.volume),
+          novoFat: jan.faturamento === 0 && fim.faturamento > 0,
+          novoVol: jan.volume === 0 && fim.volume > 0,
+          serie: mm.slice(0, idxFim + 1).map((x, i) => ({
+            mes: meses[i].rotulo,
+            faturamento: x.faturamento,
+            volume: x.volume,
+          })),
+        };
+      })
+      .filter((r) => r.faturamento > 0 || r.volume > 0)
+      .sort((a, b) => b.faturamento - a.faturamento);
+
+    // Lider e destaques ignoram o balde (nao e produto nem segmento de verdade).
+    const reais = ranking.filter((r) => !r.balde);
+    const lider = reais[0] || null;
+    const comBase = reais.filter((r) => r.varFat != null);
+    const maiorAlta = [...comBase].sort((a, b) => b.varFat - a.varFat)[0] || null;
+    const maiorQueda = [...comBase].sort((a, b) => a.varFat - b.varFat)[0] || null;
+
+    const mesesFechados = meses.slice(0, idxFim + 1);
+    const chartData = mesesFechados.map((mm, i) => ({
+      mes: mm.rotulo,
+      alta: maiorAlta ? maiorAlta.serie[i]?.faturamento || 0 : 0,
+      queda: maiorQueda ? maiorQueda.serie[i]?.faturamento || 0 : 0,
+    }));
+
+    const balde = ranking.find((r) => r.balde) || null;
+
     return {
-      produtoId: info.id,
-      nome: info.nome,
-      categoria: info.categoria,
-      faturamento,
-      volume,
-      fatJaneiro: jan.faturamento,
-      fatAtual: fim.faturamento,
-      volJaneiro: jan.volume,
-      volAtual: fim.volume,
-      varFat: varPct(jan.faturamento, fim.faturamento),
-      varVol: varPct(jan.volume, fim.volume),
-      novoFat: jan.faturamento === 0 && fim.faturamento > 0,
-      novoVol: jan.volume === 0 && fim.volume > 0,
-      // Serie/tendencia so ate o ultimo mes fechado, para o grafico nao
-      // despencar por causa do mes corrente incompleto.
-      serie: mm.slice(0, idxFim + 1).map((x, i) => ({
-        mes: meses[i].rotulo,
-        faturamento: x.faturamento,
-        volume: x.volume,
-      })),
+      rotuloDim,
+      ranking,
+      lider,
+      liderEmQueda: !!lider && lider.varFat != null && lider.varFat < 0,
+      maiorAlta,
+      maiorQueda,
+      chartData,
+      balde,
+      totalFaturamento: ranking.reduce((s, r) => s + r.faturamento, 0),
+      totalVolume: ranking.reduce((s, r) => s + r.volume, 0),
     };
-  });
+  }
 
-  const porFaturamento = [...ranking].sort((a, b) => b.faturamento - a.faturamento);
-  const lider = porFaturamento[0] || null;
-  // Maior alta/queda so entre produtos com base real (varFat != null).
-  const comBase = ranking.filter((r) => r.varFat != null);
-  const maiorAlta = [...comBase].sort((a, b) => b.varFat - a.varFat)[0] || null;
-  const maiorQueda = [...comBase].sort((a, b) => a.varFat - b.varFat)[0] || null;
-
-  // Serie combinada para o grafico: maior alta x maior queda, so ate o ultimo
-  // mes fechado (mesma janela da variacao).
-  const mesesFechados = meses.slice(0, idxFim + 1);
-  const chartData = mesesFechados.map((mm, i) => ({
-    mes: mm.rotulo,
-    alta: maiorAlta ? maiorAlta.serie[i]?.faturamento || 0 : 0,
-    queda: maiorQueda ? maiorQueda.serie[i]?.faturamento || 0 : 0,
-  }));
+  const produtos = montarDimensao(accProd, "produto");
+  const familias = montarDimensao(accFam, "familia");
 
   return {
-    ranking: porFaturamento,
-    lider,
-    liderEmQueda: !!lider && lider.varFat < 0,
-    maiorAlta,
-    maiorQueda,
-    meses: mesesFechados.map((m) => m.rotulo),
-    chartData,
-    totalFaturamento: ranking.reduce((s, r) => s + r.faturamento, 0),
-    totalVolume: ranking.reduce((s, r) => s + r.volume, 0),
+    meses: meses.slice(0, idxFim + 1).map((m) => m.rotulo),
+    // Dimensao PRODUTO no topo (compatibilidade com a tela atual).
+    ...produtos,
+    // Dimensao FAMILIA (segmento): mesma forma, para a tela alternar.
+    produtos,
+    familias,
+    totalFaturamento: produtos.totalFaturamento,
+    totalVolume: produtos.totalVolume,
   };
 }

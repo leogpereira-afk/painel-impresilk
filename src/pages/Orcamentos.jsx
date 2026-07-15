@@ -1,12 +1,26 @@
 // Modulo 4: Orcamentos acima do valor minimo. Conversao do time, motivos de
 // perda e orcamentos parados. Trocar o motivo de um perdido ou incluir/retirar
 // vendedor recalcula a tela ao vivo (useMemo + overrides/config da fundacao).
+//
+// A tela e navegavel: os KPIs do topo, as linhas de "Por vendedor" e as barras
+// de "Por que perdemos" sao FILTROS clicaveis da lista mestra de orcamentos, que
+// tambem tem busca, situacao e linhas expansiveis.
 
-import { useMemo, useState } from "react";
-import { FileText, Percent, TrendingDown, Plus, Trash2, Clock, CheckCircle2 } from "lucide-react";
+import { Fragment, useMemo, useRef, useState } from "react";
+import {
+  FileText,
+  Percent,
+  TrendingDown,
+  Plus,
+  Trash2,
+  Clock,
+  ChevronRight,
+  Search,
+  X,
+} from "lucide-react";
 import { useApp } from "../config/store.jsx";
 import { calcOrcamentos } from "../lib/calc/orcamentos.js";
-import { moeda, pct } from "../lib/format.js";
+import { moeda, numero, pct, dataLonga } from "../lib/format.js";
 import {
   Card,
   PageTitle,
@@ -14,10 +28,30 @@ import {
   StatCard,
   BarRow,
   StatusLine,
+  Segmented,
   Empty,
   CarregandoModulo,
   ErroModulo,
 } from "../components/ui.jsx";
+
+// Normaliza para busca (sem acento, minusculo).
+const norm = (s) =>
+  String(s || "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+
+const ROTULO_SITUACAO = {
+  aberto: "Aberto",
+  ganho: "Ganho",
+  perdido: "Perdido",
+};
+
+const CHIP_SITUACAO = {
+  aberto: "chip-warn",
+  ganho: "chip-ok",
+  perdido: "chip-bad",
+};
 
 export default function Orcamentos() {
   const {
@@ -32,15 +66,40 @@ export default function Orcamentos() {
   } = useApp();
 
   const [novoVendedor, setNovoVendedor] = useState("");
-  // Listas grandes (centenas de perdidos/parados) mostram um lote por vez,
-  // com "mostrar mais", para nao renderizar tudo de uma vez e travar a tela.
-  const [limPerdidos, setLimPerdidos] = useState(25);
-  const [limParados, setLimParados] = useState(25);
+  // Filtros da lista mestra. Todos se combinam e viram selos removiveis.
+  const [situacao, setSituacao] = useState("todos"); // todos|aberto|ganho|perdido|parado
+  const [busca, setBusca] = useState("");
+  const [vendedorSel, setVendedorSel] = useState(null); // {id, nome}
+  const [motivoSel, setMotivoSel] = useState(null); // {chave, id, nome}
+  const [expandido, setExpandido] = useState(null);
+  // Lista grande (centenas de orcamentos) mostra um lote por vez, com
+  // "mostrar mais", para nao renderizar tudo de uma vez e travar a tela.
+  const [limite, setLimite] = useState(25);
+  const listaRef = useRef(null);
 
   const vm = useMemo(
     () => (dados ? calcOrcamentos(dados.orcamentos, overridesOrcamentos, config) : null),
     [dados, overridesOrcamentos, config]
   );
+
+  const filtrados = useMemo(() => {
+    if (!vm) return [];
+    const q = norm(busca.trim());
+    return vm.lista.filter((o) => {
+      if (situacao === "parado" && !o.parado) return false;
+      if (situacao !== "todos" && situacao !== "parado" && o.situacao !== situacao) return false;
+      if (vendedorSel && o.vendedorId !== vendedorSel.id) return false;
+      if (motivoSel) {
+        if (o.situacao !== "perdido") return false;
+        if ((o.motivoPerdaId || "sem") !== motivoSel.chave) return false;
+      }
+      if (q) {
+        const alvo = norm(`${o.cliente} ${o.numero} ${o.vendedorNome} ${o.trabalho || ""}`);
+        if (!alvo.includes(q)) return false;
+      }
+      return true;
+    });
+  }, [vm, situacao, busca, vendedorSel, motivoSel]);
 
   if (erro) return <ErroModulo mensagem={erro} aoTentar={recarregar} />;
   if (!pronto || !vm) return <CarregandoModulo />;
@@ -48,6 +107,52 @@ export default function Orcamentos() {
   const k = vm.kpis;
   const motivos = config.motivosPerda || [];
   const maiorMotivo = vm.porMotivoPerda[0]?.valor || 0;
+
+  const temFiltro = situacao !== "todos" || !!busca || !!vendedorSel || !!motivoSel;
+  const somaFiltrada = filtrados.reduce((s, o) => s + o.valor, 0);
+  const visiveis = filtrados.slice(0, limite);
+  const restantes = filtrados.length - visiveis.length;
+
+  function limparTudo() {
+    setSituacao("todos");
+    setBusca("");
+    setVendedorSel(null);
+    setMotivoSel(null);
+    setLimite(25);
+  }
+
+  const irParaLista = () =>
+    listaRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+
+  // Clique num KPI liga/desliga a situacao correspondente e leva para a lista.
+  // Limpa os outros filtros para o KPI ser previsivel (senao o clique podia cair
+  // num "0 orcamentos" por causa de um filtro anterior ainda ligado).
+  function alternarSituacao(nova) {
+    setSituacao((s) => (s === nova ? "todos" : nova));
+    setBusca("");
+    setVendedorSel(null);
+    setMotivoSel(null);
+    setLimite(25);
+    irParaLista();
+  }
+
+  function alternarVendedor(v) {
+    setVendedorSel((atual) =>
+      atual?.id === v.vendedorId ? null : { id: v.vendedorId, nome: v.nome }
+    );
+    setLimite(25);
+    irParaLista();
+  }
+
+  function alternarMotivo(m) {
+    const chave = m.motivoId || "sem";
+    setMotivoSel((atual) =>
+      atual?.chave === chave ? null : { chave, id: m.motivoId, nome: m.nome }
+    );
+    setSituacao("perdido");
+    setLimite(25);
+    irParaLista();
+  }
 
   function incluirVendedor() {
     const nome = novoVendedor.trim();
@@ -60,11 +165,20 @@ export default function Orcamentos() {
   }
 
   function retirarVendedor(id) {
+    if (vendedorSel?.id === id) setVendedorSel(null);
     updateConfig((c) => {
       c.vendedores = c.vendedores.filter((v) => v.id !== id);
       return c;
     });
   }
+
+  const opcoesSituacao = [
+    { valor: "todos", rotulo: "Todos" },
+    { valor: "aberto", rotulo: "Abertos" },
+    { valor: "ganho", rotulo: "Ganhos" },
+    { valor: "perdido", rotulo: "Perdidos" },
+    { valor: "parado", rotulo: "Parados" },
+  ];
 
   return (
     <div className="space-y-8">
@@ -75,32 +189,38 @@ export default function Orcamentos() {
           moeda(config.parametros.valorMinimoOrcamento) +
           ", desde " +
           dataLongaCorte(config.parametros.dataCorteOrcamentos) +
-          "."
+          ". Clique nos numeros para filtrar a lista."
         }
       />
 
-      {/* KPIs */}
+      {/* KPIs: clicaveis, filtram a lista de orcamentos abaixo */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <StatCard
           rotulo="Na mesa"
           valor={moeda(k.naMesaValor)}
-          sub={k.naMesaQtd + " orcamentos aguardando"}
+          sub={numero(k.naMesaQtd) + " orcamentos aguardando"}
           tom="brand"
           icone={FileText}
+          ativo={situacao === "aberto"}
+          onClick={() => alternarSituacao("aberto")}
         />
         <StatCard
           rotulo="Conversao do time"
           valor={pct(k.conversao)}
-          sub={k.ganhosQtd + " ganhos, " + k.perdidosQtd + " perdidos"}
+          sub={numero(k.ganhosQtd) + " ganhos, " + numero(k.perdidosQtd) + " perdidos"}
           tom={k.conversao >= 40 ? "ok" : "warn"}
           icone={Percent}
+          ativo={situacao === "ganho"}
+          onClick={() => alternarSituacao("ganho")}
         />
         <StatCard
           rotulo="Valor perdido no periodo"
           valor={moeda(k.valorPerdido)}
-          sub={k.perdidosQtd + " orcamentos que nao fecharam"}
+          sub={numero(k.perdidosQtd) + " orcamentos que nao fecharam"}
           tom="bad"
           icone={TrendingDown}
+          ativo={situacao === "perdido"}
+          onClick={() => alternarSituacao("perdido")}
         />
       </div>
 
@@ -108,24 +228,21 @@ export default function Orcamentos() {
       <Card>
         <SectionTitle
           titulo="Por vendedor"
-          sub="Quem esta convertendo. Ajuste a equipe abaixo, a tabela recalcula na hora."
+          sub="Quem esta convertendo. Clique numa linha para ver os orcamentos do vendedor. Ajuste a equipe abaixo, a tabela recalcula na hora."
         />
 
         <div className="mb-4 flex flex-wrap items-center gap-2">
           <input
             className="input max-w-xs"
             placeholder="Nome do vendedor"
+            aria-label="Nome do vendedor"
             value={novoVendedor}
             onChange={(e) => setNovoVendedor(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === "Enter") incluirVendedor();
             }}
           />
-          <button
-            className="btn-primary"
-            onClick={incluirVendedor}
-            disabled={!novoVendedor.trim()}
-          >
+          <button className="btn-primary" onClick={incluirVendedor} disabled={!novoVendedor.trim()}>
             <Plus size={16} strokeWidth={2.4} />
             Incluir
           </button>
@@ -155,17 +272,33 @@ export default function Orcamentos() {
                     : v.conversao >= 40
                     ? "text-ok-700"
                     : "text-bad-700";
+                  const sel = vendedorSel?.id === v.vendedorId;
                   return (
-                    <tr key={v.vendedorId}>
+                    <tr
+                      key={v.vendedorId}
+                      role="button"
+                      tabIndex={0}
+                      aria-pressed={sel}
+                      onClick={() => alternarVendedor(v)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          alternarVendedor(v);
+                        }
+                      }}
+                      className={`cursor-pointer transition-colors ${
+                        sel ? "bg-brand/5" : "hover:bg-slate-50"
+                      }`}
+                    >
                       <td className="td font-medium text-slate-900">{v.nome}</td>
-                      <td className="td tnum text-right">{v.qtd}</td>
+                      <td className="td tnum text-right">{numero(v.qtd)}</td>
                       <td className="td tnum text-right">{moeda(v.valor)}</td>
-                      <td className="td tnum text-right text-ok-700">{v.ganhos}</td>
-                      <td className="td tnum text-right text-bad-700">{v.perdidos}</td>
+                      <td className="td tnum text-right text-ok-700">{numero(v.ganhos)}</td>
+                      <td className="td tnum text-right text-bad-700">{numero(v.perdidos)}</td>
                       <td className={"td tnum text-right font-semibold " + corConv}>
                         {semDados ? "-" : pct(v.conversao)}
                       </td>
-                      <td className="td text-right">
+                      <td className="td text-right" onClick={(e) => e.stopPropagation()}>
                         <button
                           className="btn-ghost btn-danger inline-flex h-8 w-8 items-center justify-center p-0"
                           title={"Retirar " + v.nome}
@@ -183,142 +316,290 @@ export default function Orcamentos() {
         )}
       </Card>
 
-      {/* Por que perdemos */}
+      {/* Por que perdemos: cada motivo e um filtro clicavel */}
       <Card>
-        <SectionTitle titulo="Por que perdemos" sub="O valor deixado na mesa, por motivo." />
+        <SectionTitle
+          titulo="Por que perdemos"
+          sub="O valor deixado na mesa, por motivo. Clique num motivo para ver os orcamentos."
+        />
 
         {vm.porMotivoPerda.length === 0 ? (
           <Empty>Nenhuma perda registrada no periodo.</Empty>
         ) : (
           <>
-            <div className="space-y-4">
-              {vm.porMotivoPerda.map((m, i) => (
-                <BarRow
-                  key={m.motivoId || "sem"}
-                  rotulo={m.nome}
-                  valorTexto={moeda(m.valor)}
-                  pct={maiorMotivo ? (m.valor / maiorMotivo) * 100 : 0}
-                  tom={i === 0 ? "bad" : "warn"}
-                  sub={m.qtd + (m.qtd === 1 ? " orcamento" : " orcamentos")}
-                />
-              ))}
+            <div className="space-y-2">
+              {vm.porMotivoPerda.map((m, i) => {
+                const chave = m.motivoId || "sem";
+                const sel = motivoSel?.chave === chave;
+                return (
+                  <button
+                    key={chave}
+                    onClick={() => alternarMotivo(m)}
+                    aria-pressed={sel}
+                    className={`w-full rounded-xl p-2 text-left transition-colors ${
+                      sel ? "bg-brand/5 ring-1 ring-brand/40" : "hover:bg-slate-50"
+                    }`}
+                  >
+                    <BarRow
+                      rotulo={m.nome}
+                      valorTexto={moeda(m.valor)}
+                      pct={maiorMotivo ? (m.valor / maiorMotivo) * 100 : 0}
+                      tom={i === 0 ? "bad" : "warn"}
+                      sub={numero(m.qtd) + (m.qtd === 1 ? " orcamento" : " orcamentos")}
+                    />
+                  </button>
+                );
+              })}
             </div>
 
             {vm.motivoLider && (
               <div className="mt-5 rounded-xl bg-brand/5 p-4">
-                <p className="label mb-1 text-brand">
-                  Maior motivo: {vm.motivoLider.nome}
-                </p>
+                <p className="label mb-1 text-brand">Maior motivo: {vm.motivoLider.nome}</p>
                 <p className="text-sm text-slate-700">{vm.acaoLider}</p>
               </div>
             )}
           </>
         )}
-
-        {vm.perdidos.length > 0 && (
-          <div className="mt-6">
-            <p className="label mb-3">
-              Marque o motivo de cada perda para afinar a analise
-            </p>
-            <div className="space-y-2">
-              {vm.perdidos.slice(0, limPerdidos).map((o) => (
-                <div
-                  key={o.id}
-                  className="flex flex-wrap items-center gap-3 rounded-xl border p-3"
-                  style={{ borderColor: "var(--hairline)" }}
-                >
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-medium text-slate-900">
-                      {o.cliente}
-                    </p>
-                    <p className="text-xs text-slate-500">Orcamento {o.numero}</p>
-                  </div>
-                  <span className="tnum text-sm font-semibold text-bad-700">
-                    {moeda(o.valor)}
-                  </span>
-                  <select
-                    className="select w-full sm:w-56"
-                    value={o.motivoPerdaId || ""}
-                    onChange={(e) =>
-                      setOverrideOrcamento(o.id, { motivoPerdaId: e.target.value || null })
-                    }
-                  >
-                    <option value="">Motivo nao informado</option>
-                    {motivos.map((m) => (
-                      <option key={m.id} value={m.id}>
-                        {m.nome}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              ))}
-            </div>
-            {vm.perdidos.length > limPerdidos && (
-              <button className="btn-ghost mt-3" onClick={() => setLimPerdidos((n) => n + 25)}>
-                Mostrar mais ({vm.perdidos.length - limPerdidos} restantes)
-              </button>
-            )}
-          </div>
-        )}
       </Card>
 
-      {/* Orcamentos parados */}
-      <Card>
+      {/* Lista mestra: busca, situacao, selos e linhas expansiveis */}
+      <Card ref={listaRef}>
         <SectionTitle
-          titulo="Orcamentos parados"
-          sub={
-            "Enviados sem resposta ha mais de " +
-            config.parametros.diasParado +
-            " dias."
-          }
+          titulo="Orcamentos"
+          sub="Clique na linha para ver os detalhes. Nos perdidos, marque o motivo para afinar a analise."
+          acao={<Segmented opcoes={opcoesSituacao} valor={situacao} onChange={setSituacao} />}
         />
 
-        {vm.parados.length === 0 ? (
-          <Empty>
-            <span className="inline-flex items-center gap-2">
-              <CheckCircle2 size={16} className="text-ok-600" strokeWidth={2.4} />
-              Nenhum orcamento parado. Follow-up em dia.
-            </span>
-          </Empty>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[620px] border-collapse">
-              <thead>
-                <tr>
-                  <th className="th text-left">Orcamento</th>
-                  <th className="th text-left">Cliente</th>
-                  <th className="th text-left">Vendedor</th>
-                  <th className="th text-right">Valor</th>
-                  <th className="th text-right">Parado ha</th>
-                </tr>
-              </thead>
-              <tbody>
-                {vm.parados.slice(0, limParados).map((o) => (
-                  <tr key={o.id}>
-                    <td className="td tnum text-slate-600">{o.numero}</td>
-                    <td className="td font-medium text-slate-900">{o.cliente}</td>
-                    <td className="td text-slate-600">{o.vendedorNome}</td>
-                    <td className="td tnum text-right">{moeda(o.valor)}</td>
-                    <td className="td text-right">
-                      <StatusLine tom={o.dias >= 21 ? "bad" : "warn"}>
-                        <span className="tnum inline-flex items-center gap-1">
-                          <Clock size={13} strokeWidth={2.4} />
-                          {o.dias} dias
-                        </span>
-                      </StatusLine>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+        <div className="mb-4 flex flex-wrap items-center gap-3">
+          <div className="relative min-w-0 flex-1 sm:max-w-sm">
+            <Search
+              size={16}
+              className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
+            />
+            <input
+              type="search"
+              value={busca}
+              onChange={(e) => setBusca(e.target.value)}
+              placeholder="Buscar cliente, numero, vendedor ou trabalho"
+              className="input pl-9"
+              aria-label="Buscar orcamento por cliente, numero, vendedor ou trabalho"
+            />
           </div>
-        )}
-        {vm.parados.length > limParados && (
-          <button className="btn-ghost mt-3" onClick={() => setLimParados((n) => n + 25)}>
-            Mostrar mais ({vm.parados.length - limParados} restantes)
-          </button>
+
+          {temFiltro && (
+            <button className="btn-ghost" onClick={limparTudo}>
+              <X size={15} /> Limpar filtros
+            </button>
+          )}
+        </div>
+
+        {/* Resumo do que esta na tela + selos de filtro ativos */}
+        <div className="mb-3 flex flex-wrap items-center gap-2 text-sm text-slate-500">
+          <span>
+            Mostrando{" "}
+            <strong className="tnum text-slate-900">{numero(filtrados.length)}</strong> de{" "}
+            {numero(vm.lista.length)} orcamentos
+            {filtrados.length > 0 && (
+              <>
+                {" "}
+                · <strong className="tnum text-slate-900">{moeda(somaFiltrada)}</strong>
+              </>
+            )}
+          </span>
+          {situacao === "parado" && (
+            <button className="chip-warn" onClick={() => setSituacao("todos")}>
+              parados ha mais de {config.parametros.diasParado} dias <X size={12} />
+            </button>
+          )}
+          {vendedorSel && (
+            <button className="chip-warn" onClick={() => setVendedorSel(null)}>
+              vendedor: {vendedorSel.nome} <X size={12} />
+            </button>
+          )}
+          {motivoSel && (
+            <button className="chip-bad" onClick={() => setMotivoSel(null)}>
+              motivo: {motivoSel.nome} <X size={12} />
+            </button>
+          )}
+          {busca && (
+            <button className="chip" onClick={() => setBusca("")}>
+              busca: {busca} <X size={12} />
+            </button>
+          )}
+        </div>
+
+        {visiveis.length ? (
+          <>
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[820px] border-collapse">
+                <thead>
+                  <tr>
+                    <th className="th text-left">Cliente</th>
+                    <th className="th text-left">Vendedor</th>
+                    <th className="th text-right">Valor</th>
+                    <th className="th text-left">Situacao</th>
+                    <th className="th text-right">Dias</th>
+                    <th className="th text-left">Motivo da perda</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {visiveis.map((o) => {
+                    const aberto = expandido === o.id;
+                    return (
+                      <Fragment key={o.id}>
+                        <tr
+                          role="button"
+                          tabIndex={0}
+                          aria-expanded={aberto}
+                          onClick={() => setExpandido(aberto ? null : o.id)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter" || e.key === " ") {
+                              e.preventDefault();
+                              setExpandido(aberto ? null : o.id);
+                            }
+                          }}
+                          className="cursor-pointer transition-colors hover:bg-slate-50"
+                        >
+                          <td className="td">
+                            <div className="flex items-center gap-2">
+                              <ChevronRight
+                                size={16}
+                                strokeWidth={2.4}
+                                className={`shrink-0 text-slate-400 transition-transform ${
+                                  aberto ? "rotate-90" : ""
+                                }`}
+                              />
+                              <span className="font-display font-medium text-slate-900">
+                                {o.cliente}
+                              </span>
+                              {o.parado && <span className="chip-warn shrink-0">parado</span>}
+                            </div>
+                            <p className="mt-0.5 pl-6 text-xs text-slate-500">
+                              Orcamento {o.numero}
+                              {o.trabalho ? `, ${o.trabalho}` : ""}
+                            </p>
+                          </td>
+                          <td className="td text-slate-600">{o.vendedorNome}</td>
+                          <td className="td tnum text-right font-semibold text-slate-900">
+                            {moeda(o.valor)}
+                          </td>
+                          <td className="td">
+                            <span className={CHIP_SITUACAO[o.situacao] || "chip"}>
+                              {ROTULO_SITUACAO[o.situacao] || o.situacao}
+                            </span>
+                          </td>
+                          <td className="td text-right">
+                            {o.parado ? (
+                              <StatusLine tom={o.dias >= 21 ? "bad" : "warn"}>
+                                <span className="tnum inline-flex items-center gap-1">
+                                  <Clock size={13} strokeWidth={2.4} />
+                                  {numero(o.dias)} dias
+                                </span>
+                              </StatusLine>
+                            ) : (
+                              <span className="tnum text-slate-700">{numero(o.dias)} dias</span>
+                            )}
+                          </td>
+                          <td className="td" onClick={(e) => e.stopPropagation()}>
+                            {o.situacao === "perdido" ? (
+                              <select
+                                className="select"
+                                aria-label={"Motivo da perda do orcamento " + o.numero}
+                                value={o.motivoPerdaId || ""}
+                                onChange={(e) =>
+                                  setOverrideOrcamento(o.id, {
+                                    motivoPerdaId: e.target.value || null,
+                                  })
+                                }
+                              >
+                                <option value="">Motivo nao informado</option>
+                                {motivos.map((m) => (
+                                  <option key={m.id} value={m.id}>
+                                    {m.nome}
+                                  </option>
+                                ))}
+                              </select>
+                            ) : (
+                              <span className="text-sm text-slate-400">-</span>
+                            )}
+                          </td>
+                        </tr>
+
+                        {aberto && (
+                          <tr>
+                            <td colSpan={6} className="px-4 pb-4 pt-0">
+                              <div
+                                className="rounded-xl border bg-slate-50 p-4"
+                                style={{ borderColor: "var(--hairline)" }}
+                              >
+                                <dl className="grid gap-x-6 gap-y-3 sm:grid-cols-3">
+                                  <Detalhe rotulo="Cliente" valor={o.cliente} />
+                                  <Detalhe rotulo="Orcamento" valor={String(o.numero || "-")} />
+                                  <Detalhe rotulo="Vendedor" valor={o.vendedorNome} />
+                                  <Detalhe rotulo="Valor" valor={moeda(o.valor)} />
+                                  <Detalhe
+                                    rotulo="Situacao"
+                                    valor={ROTULO_SITUACAO[o.situacao] || o.situacao}
+                                  />
+                                  <Detalhe
+                                    rotulo="Enviado em"
+                                    valor={o.dataEnvio ? dataLonga(o.dataEnvio) : "nao informado"}
+                                  />
+                                  <Detalhe
+                                    rotulo="Fechado em"
+                                    valor={
+                                      o.dataFechamento ? dataLonga(o.dataFechamento) : "em aberto"
+                                    }
+                                  />
+                                  <Detalhe rotulo="Dias desde o envio" valor={`${numero(o.dias)} dias`} />
+                                  <Detalhe rotulo="Trabalho" valor={o.trabalho || "nao informado"} />
+                                  {o.situacao === "perdido" && (
+                                    <Detalhe
+                                      rotulo="Motivo da perda"
+                                      valor={o.motivoPerdaNome || "nao informado"}
+                                    />
+                                  )}
+                                </dl>
+                              </div>
+                            </td>
+                          </tr>
+                        )}
+                      </Fragment>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            {restantes > 0 && (
+              <button className="btn-ghost mt-3" onClick={() => setLimite((n) => n + 25)}>
+                Mostrar mais ({numero(restantes)} restantes)
+              </button>
+            )}
+          </>
+        ) : (
+          <Empty>
+            Nenhum orcamento neste filtro.
+            {temFiltro && (
+              <button className="btn-ghost ml-2" onClick={limparTudo}>
+                Limpar filtros
+              </button>
+            )}
+          </Empty>
         )}
       </Card>
+    </div>
+  );
+}
+
+// Item do painel de detalhes da linha expandida.
+function Detalhe({ rotulo, valor }) {
+  return (
+    <div className="min-w-0">
+      <dt className="label mb-0.5">{rotulo}</dt>
+      <dd className="truncate text-sm text-slate-800" title={valor}>
+        {valor}
+      </dd>
     </div>
   );
 }

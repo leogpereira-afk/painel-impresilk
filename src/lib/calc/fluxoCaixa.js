@@ -34,14 +34,24 @@ export function calcFluxoCaixa(
     .map((r) => ({ id: r.id, cliente: r.cliente, valor: r.valor, vencimento: r.vencimento }));
   const idsIncertos = new Set(incertos.map((r) => r.id));
 
-  // Indexa entradas e saidas por dia local.
+  // Indexa entradas e saidas por dia local, guardando TAMBEM os itens de cada
+  // dia (a tela expande o dia para mostrar o que exatamente cai nele).
   const entradasPorDia = {};
+  const itensEntradaPorDia = {};
   for (const r of futuros) {
     if (estresse && idsIncertos.has(r.id)) continue;
     const d = diaLocalISO(r.vencimento);
     entradasPorDia[d] = (entradasPorDia[d] || 0) + r.valor;
+    (itensEntradaPorDia[d] ||= []).push({
+      id: r.id,
+      descricao: r.cliente || "Recebivel",
+      valor: r.valor,
+      incerto: idsIncertos.has(r.id),
+      vencimento: diaLocalISO(r.vencimento),
+    });
   }
   const saidasPorDia = {};
+  const itensSaidaPorDia = {};
   for (const s of pagar) {
     const venc = diaLocalISO(s.vencimento);
     // Regra D-1: o dinheiro precisa estar em caixa na vespera do vencimento.
@@ -50,8 +60,18 @@ export function calcFluxoCaixa(
     const vespera = ymdLocal(new Date(new Date(venc + "T12:00:00").getTime() - 86400000));
     const alvo = vespera < hojeISO ? hojeISO : vespera;
     saidasPorDia[alvo] = (saidasPorDia[alvo] || 0) + s.valor;
+    (itensSaidaPorDia[alvo] ||= []).push({
+      id: s.id,
+      descricao: s.descricao || "Saida",
+      categoria: s.categoria || "",
+      valor: s.valor,
+      tipo: s.tipo,
+      vencimento: venc,
+      vencida: venc < hojeISO,
+    });
   }
 
+  const ordenaPorValor = (a, b) => b.valor - a.valor;
   const projecao = [];
   let saldo = saldoInicial;
   for (let i = 0; i < horizonte; i++) {
@@ -68,6 +88,9 @@ export function calcFluxoCaixa(
       saida,
       saldo,
       abaixo: saldo < colchao,
+      // Detalhe do dia (para a linha expansivel).
+      entradas: (itensEntradaPorDia[iso] || []).sort(ordenaPorValor),
+      saidas: (itensSaidaPorDia[iso] || []).sort(ordenaPorValor),
     });
   }
 
