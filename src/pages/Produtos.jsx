@@ -258,7 +258,7 @@ export default function Produtos() {
             </span>
             <div>
               <p className="font-display font-semibold text-bad-700">
-                Atencao: o produto lider em faturamento ({lider.nome}) esta em queda (
+                Atencao: {ehFamilia ? "a familia lider" : "o produto lider"} em faturamento ({lider.nome}) esta em queda (
                 {lider.varFat}% desde janeiro).
               </p>
               <p className="mt-1 text-sm text-slate-600">
@@ -357,7 +357,7 @@ export default function Produtos() {
             <span>
               Mostrando{" "}
               <strong className="tnum text-slate-900">{numero(listaFiltrada.length)}</strong> de{" "}
-              {numero(listaOrdenada.length)} produtos
+              {numero(listaOrdenada.length)} {termo}
               {listaFiltrada.length > 0 && (
                 <>
                   {" "}
