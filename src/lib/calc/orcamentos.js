@@ -36,13 +36,21 @@ export function calcOrcamentos(orcamentos, overrides, config) {
     .map((o) => {
       const ov = overrides[o.id] || {};
       const dias = diasEntre(o.dataEnvio, hojeISO);
+      // Baixa manual: o CEO registra o desfecho de um orcamento que o ERP
+      // deixou "em aberto" para sempre. O override sobrepoe o status do Mubisys.
+      const baixaManual = ov.situacao === "ganho" || ov.situacao === "perdido";
+      const situacao = baixaManual ? ov.situacao : o.situacao;
       return {
         ...o,
+        situacao,
+        situacaoErp: o.situacao,
+        baixaManual,
+        dataBaixa: baixaManual ? ov.dataBaixa || null : null,
         vendedorNome: nomeVend(o.vendedorId),
         motivoPerdaId: ov.motivoPerdaId || null,
         motivoPerdaNome: ov.motivoPerdaId ? nomeMotivo(ov.motivoPerdaId) : null,
         dias,
-        parado: o.situacao === "aberto" && dias > diasParado,
+        parado: situacao === "aberto" && dias > diasParado,
       };
     })
     .sort((a, b) => b.valor - a.valor);

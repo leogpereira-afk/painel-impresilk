@@ -31,7 +31,7 @@ import {
 } from "recharts";
 import { useApp } from "../config/store.jsx";
 import { calcContasAtrasadas } from "../lib/calc/contasAtrasadas.js";
-import { moeda, numero, dataLonga } from "../lib/format.js";
+import { moeda, numero, dataLonga, dataCurta } from "../lib/format.js";
 import {
   Card,
   PageTitle,
@@ -77,6 +77,9 @@ export default function ContasAtrasadas() {
   const [busca, setBusca] = useState("");
   const [faixaSel, setFaixaSel] = useState(null); // {faixa, de, ate}
   const [expandido, setExpandido] = useState(null); // id do titulo aberto
+  const [ordem, setOrdem] = useState("valor"); // valor | recentes | antigos | atraso
+  const [venceDe, setVenceDe] = useState(""); // periodo de vencimento (YYYY-MM-DD)
+  const [venceAte, setVenceAte] = useState("");
   const titulosRef = useRef(null);
 
   const vm = useMemo(
@@ -91,18 +94,38 @@ export default function ContasAtrasadas() {
     if (!vm) return [];
     const min = Number(diasMin) || 0;
     const q = norm(busca.trim());
-    return vm.titulos.filter((t) => {
+    const filtrados = vm.titulos.filter((t) => {
       if (filtro === "pendentes" && t.cobrado) return false;
       if (filtro === "reincidentes" && !t.reincidente) return false;
       if (filtro === "acima" && t.dias < min) return false;
       if (faixaSel && (t.dias < faixaSel.de || t.dias > faixaSel.ate)) return false;
+      // Periodo por data de vencimento (inclusivo). Titulo sem vencimento so
+      // aparece quando nenhuma ponta do periodo esta preenchida.
+      if (venceDe || venceAte) {
+        if (!t.vencimento) return false;
+        if (venceDe && t.vencimento < venceDe) return false;
+        if (venceAte && t.vencimento > venceAte) return false;
+      }
       if (q) {
         const alvo = norm(`${t.cliente} ${t.cnpj} ${t.nf} ${t.os}`);
         if (!alvo.includes(q)) return false;
       }
       return true;
     });
-  }, [vm, filtro, diasMin, busca, faixaSel]);
+    // "recentes/antigos" = por vencimento; vazio vai sempre para o fim.
+    const porVenc = (dir) => (a, b) => {
+      if (!a.vencimento) return 1;
+      if (!b.vencimento) return -1;
+      return dir * a.vencimento.localeCompare(b.vencimento);
+    };
+    const ordenadores = {
+      valor: (a, b) => b.valor - a.valor,
+      recentes: porVenc(-1),
+      antigos: porVenc(1),
+      atraso: (a, b) => b.dias - a.dias,
+    };
+    return [...filtrados].sort(ordenadores[ordem] || ordenadores.valor);
+  }, [vm, filtro, diasMin, busca, faixaSel, ordem, venceDe, venceAte]);
 
   if (erro) return <ErroModulo mensagem={erro} aoTentar={recarregar} />;
   if (!pronto || !vm) return <CarregandoModulo />;
@@ -117,11 +140,13 @@ export default function ContasAtrasadas() {
     { valor: "acima", rotulo: "Acima de X dias" },
   ];
 
-  const temFiltro = filtro !== "todos" || !!busca || !!faixaSel;
+  const temFiltro = filtro !== "todos" || !!busca || !!faixaSel || !!venceDe || !!venceAte;
   const limparTudo = () => {
     setFiltro("todos");
     setBusca("");
     setFaixaSel(null);
+    setVenceDe("");
+    setVenceAte("");
   };
   const irParaTitulos = () =>
     titulosRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -241,6 +266,47 @@ export default function ContasAtrasadas() {
             </div>
           )}
 
+          {/* Ordenacao */}
+          <div className="flex items-center gap-2">
+            <label className="label mb-0" htmlFor="ordem-titulos">
+              Ordenar
+            </label>
+            <select
+              id="ordem-titulos"
+              value={ordem}
+              onChange={(e) => setOrdem(e.target.value)}
+              className="input w-auto"
+            >
+              <option value="valor">Maior valor</option>
+              <option value="recentes">Vencimento mais recente</option>
+              <option value="antigos">Vencimento mais antigo</option>
+              <option value="atraso">Maior atraso</option>
+            </select>
+          </div>
+
+          {/* Periodo por vencimento */}
+          <div className="flex items-center gap-2">
+            <label className="label mb-0" htmlFor="vence-de">
+              Vencimento
+            </label>
+            <input
+              id="vence-de"
+              type="date"
+              value={venceDe}
+              onChange={(e) => setVenceDe(e.target.value)}
+              className="input w-auto"
+              aria-label="Vencimento a partir de"
+            />
+            <span className="text-sm text-slate-500">ate</span>
+            <input
+              type="date"
+              value={venceAte}
+              onChange={(e) => setVenceAte(e.target.value)}
+              className="input w-auto"
+              aria-label="Vencimento ate"
+            />
+          </div>
+
           {temFiltro && (
             <button className="btn-ghost" onClick={limparTudo}>
               <X size={15} /> Limpar filtros
@@ -263,6 +329,18 @@ export default function ContasAtrasadas() {
           {faixaSel && (
             <button className="chip-warn" onClick={() => setFaixaSel(null)}>
               idade: {faixaSel.faixa} <X size={12} />
+            </button>
+          )}
+          {(venceDe || venceAte) && (
+            <button
+              className="chip-warn"
+              onClick={() => {
+                setVenceDe("");
+                setVenceAte("");
+              }}
+            >
+              vencimento: {venceDe ? dataCurta(venceDe) : "inicio"} a{" "}
+              {venceAte ? dataCurta(venceAte) : "hoje"} <X size={12} />
             </button>
           )}
         </div>

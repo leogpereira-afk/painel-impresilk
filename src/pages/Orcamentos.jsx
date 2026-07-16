@@ -41,6 +41,12 @@ const norm = (s) =>
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "");
 
+// Data de hoje (AAAA-MM-DD) no fuso local, para carimbar a baixa manual.
+const hojeISO = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+};
+
 const ROTULO_SITUACAO = {
   aberto: "Aberto",
   ganho: "Ganho",
@@ -68,6 +74,7 @@ export default function Orcamentos() {
   const [novoVendedor, setNovoVendedor] = useState("");
   // Filtros da lista mestra. Todos se combinam e viram selos removiveis.
   const [situacao, setSituacao] = useState("todos"); // todos|aberto|ganho|perdido|parado
+  const [periodo, setPeriodo] = useState("todos"); // "todos" | "AAAA-MM"
   const [busca, setBusca] = useState("");
   const [vendedorSel, setVendedorSel] = useState(null); // {id, nome}
   const [motivoSel, setMotivoSel] = useState(null); // {chave, id, nome}
@@ -484,8 +491,12 @@ export default function Orcamentos() {
                             {moeda(o.valor)}
                           </td>
                           <td className="td">
-                            <span className={CHIP_SITUACAO[o.situacao] || "chip"}>
+                            <span
+                              className={CHIP_SITUACAO[o.situacao] || "chip"}
+                              title={o.baixaManual ? `Baixa manual (o ERP marca "${ROTULO_SITUACAO[o.situacaoErp] || o.situacaoErp}")` : undefined}
+                            >
                               {ROTULO_SITUACAO[o.situacao] || o.situacao}
+                              {o.baixaManual && " ✎"}
                             </span>
                           </td>
                           <td className="td text-right">
@@ -560,6 +571,82 @@ export default function Orcamentos() {
                                     />
                                   )}
                                 </dl>
+
+                                {/* Dar baixa: registrar o desfecho de um orcamento
+                                    que o ERP deixou em aberto. Persiste no Blobs. */}
+                                <div
+                                  className="mt-3 border-t pt-3"
+                                  style={{ borderColor: "var(--hairline)" }}
+                                  onClick={(e) => e.stopPropagation()}
+                                >
+                                  <p className="label mb-2">
+                                    Dar baixa
+                                    {o.baixaManual
+                                      ? ` · baixa manual (ERP: ${ROTULO_SITUACAO[o.situacaoErp] || o.situacaoErp})`
+                                      : ` · o ERP marca "${ROTULO_SITUACAO[o.situacaoErp] || o.situacaoErp}"`}
+                                  </p>
+                                  <div className="flex flex-wrap items-center gap-2">
+                                    <button
+                                      className={o.situacao === "ganho" ? "chip-ok" : "btn-ghost"}
+                                      onClick={() =>
+                                        setOverrideOrcamento(o.id, {
+                                          situacao: "ganho",
+                                          dataBaixa: hojeISO(),
+                                        })
+                                      }
+                                    >
+                                      Ganho
+                                    </button>
+                                    <button
+                                      className={o.situacao === "perdido" ? "chip-bad" : "btn-ghost"}
+                                      onClick={() =>
+                                        setOverrideOrcamento(o.id, {
+                                          situacao: "perdido",
+                                          dataBaixa: hojeISO(),
+                                        })
+                                      }
+                                    >
+                                      Perdido
+                                    </button>
+                                    {o.baixaManual && (
+                                      <button
+                                        className="btn-ghost text-slate-500"
+                                        onClick={() =>
+                                          setOverrideOrcamento(o.id, {
+                                            situacao: null,
+                                            dataBaixa: null,
+                                          })
+                                        }
+                                      >
+                                        Desfazer baixa
+                                      </button>
+                                    )}
+                                    {o.situacao === "perdido" && (
+                                      <select
+                                        className="select ml-auto"
+                                        aria-label={"Motivo da perda do orcamento " + o.numero}
+                                        value={o.motivoPerdaId || ""}
+                                        onChange={(e) =>
+                                          setOverrideOrcamento(o.id, {
+                                            motivoPerdaId: e.target.value || null,
+                                          })
+                                        }
+                                      >
+                                        <option value="">Motivo nao informado</option>
+                                        {motivos.map((m) => (
+                                          <option key={m.id} value={m.id}>
+                                            {m.nome}
+                                          </option>
+                                        ))}
+                                      </select>
+                                    )}
+                                  </div>
+                                  {o.dataBaixa && (
+                                    <p className="mt-2 text-xs text-slate-500">
+                                      Baixa registrada em {dataLonga(o.dataBaixa)}.
+                                    </p>
+                                  )}
+                                </div>
                               </div>
                             </td>
                           </tr>
