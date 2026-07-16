@@ -374,10 +374,10 @@ export default function FluxoCaixa() {
           )}
         </div>
 
-        {!serieMensal ? (
+        {!(mensal?.disponiveis?.length > 0) || !serieMensal ? (
           <Empty>
-            O historico mensal e montado uma vez por dia de madrugada. Ainda nao rodou pela
-            primeira vez desde a atualizacao; volte mais tarde.
+            O historico mensal esta sendo montado (roda uma vez por dia de madrugada, e na
+            primeira vez logo apos a atualizacao). Volte daqui a pouco.
           </Empty>
         ) : !serieMensal.temAlgum ? (
           <Empty>Nenhuma conta paga registrada em {anoSel}.</Empty>
