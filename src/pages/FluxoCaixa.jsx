@@ -54,9 +54,9 @@ const norm = (s) =>
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "");
 
-// Um lancamento casa com a busca por descricao ou categoria.
+// Um lancamento casa com a busca por nome (fornecedor/cliente), descricao ou categoria.
 const itemCasa = (item, q) =>
-  !!q && norm(`${item.descricao} ${item.categoria || ""}`).includes(q);
+  !!q && norm(`${item.fornecedor || ""} ${item.descricao} ${item.categoria || ""}`).includes(q);
 
 export default function FluxoCaixa() {
   const { config, dados, pronto, erro, recarregar } = useApp();
@@ -694,10 +694,11 @@ export default function FluxoCaixa() {
                                       renderItem={(i) => (
                                         <>
                                           <div className="min-w-0">
-                                            <p className="truncate text-sm text-slate-800">
-                                              {i.descricao}
+                                            <p className="truncate text-sm font-medium text-slate-800">
+                                              {i.fornecedor || i.descricao}
                                             </p>
-                                            <p className="mt-0.5 text-xs text-slate-500">
+                                            <p className="mt-0.5 truncate text-xs text-slate-500">
+                                              {i.fornecedor ? `${i.descricao} · ` : ""}
                                               {i.categoria || "sem categoria"}
                                               {i.tipo === "provisao" ? " · provisao" : ""}
                                             </p>

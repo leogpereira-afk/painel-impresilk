@@ -37,9 +37,15 @@ function normRecebivel(r, i) {
 }
 
 function normPagar(s, i) {
+  // origem = nome do credor (PREFEITURA, SIMPLES NACIONAL, um colaborador...);
+  // despesa = o que e (IPTU, DARF). A tela precisa dos dois: o nome era jogado
+  // fora e a busca por "fornecedor" nunca casava.
+  const fornecedor = String(s.origem || "").trim();
+  const despesa = String(s.despesa || s.descricao || "").trim();
   return {
     id: String(s.id ?? `pag-${i}`),
-    descricao: String(s.despesa || s.descricao || s.origem || "Saida"),
+    fornecedor: fornecedor || "Sem credor",
+    descricao: despesa || fornecedor || "Saida",
     categoria: String(s.centro_custo || s.tipo || "Fornecedor"),
     valor: num(s.valor_titulo),
     vencimento: String(s.data_vencimento || ""),
@@ -49,6 +55,7 @@ function normPagar(s, i) {
 
 const normProvisao = (categoria) => (s, i) => ({
   id: String(s.id ?? `prov-${i}`),
+  fornecedor: String(s.cap_origem || s.origem || "").trim() || categoria,
   descricao: String(s.cap_despesa || s.cap_descricao || categoria),
   categoria,
   valor: num(s.cap_valor),

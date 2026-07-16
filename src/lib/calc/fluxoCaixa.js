@@ -62,6 +62,7 @@ export function calcFluxoCaixa(
     saidasPorDia[alvo] = (saidasPorDia[alvo] || 0) + s.valor;
     (itensSaidaPorDia[alvo] ||= []).push({
       id: s.id,
+      fornecedor: s.fornecedor || "",
       descricao: s.descricao || "Saida",
       categoria: s.categoria || "",
       valor: s.valor,
