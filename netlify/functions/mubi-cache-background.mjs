@@ -280,17 +280,26 @@ async function etapaIncremental(store, remigrarOS = false) {
   // historico ficaria com a normalizacao velha. Rebusca o ano inteiro de OS --
   // e a UNICA fonte afetada, entao nao paga o preco da varredura completa (que
   // no horario comercial nem cabe nos 15 min da Function).
+  //
+  // Resiliente: se a rebusca do ano estourar (API lenta no comercial), NAO
+  // deixa o ciclo inteiro falhar -- cai pro merge leve de 7 dias. O cache
+  // continua fresco (ainda com a normalizacao velha nas OS antigas) e a versao
+  // nao e carimbada, entao a proxima rodada tenta remigrar de novo.
   if (remigrarOS) {
-    const osBrutas = await mubiGetTudo("ordem-servico", {
-      status: "TODOS",
-      filtrodata: "CADASTRO",
-      datainicial: `${new Date().getFullYear()}-01-01`,
-      datafinal: hojeMais(0),
-    });
-    const ordens = osBrutas
-      .map((os, i) => normOS(os, i, categoriaPorNome))
-      .filter((o) => !o.cancelada);
-    return { orcamentos: [...mapaOrc.values()], ordens };
+    try {
+      const osBrutas = await mubiGetTudo("ordem-servico", {
+        status: "TODOS",
+        filtrodata: "CADASTRO",
+        datainicial: `${new Date().getFullYear()}-01-01`,
+        datafinal: hojeMais(0),
+      });
+      const ordens = osBrutas
+        .map((os, i) => normOS(os, i, categoriaPorNome))
+        .filter((o) => !o.cancelada);
+      return { orcamentos: [...mapaOrc.values()], ordens, remigrouOS: true };
+    } catch (e) {
+      console.warn("mubi-cache: remigracao de OS falhou, seguindo com merge leve:", e?.message || e);
+    }
   }
 
   const osAtual = (await store.get("cache_ordens", { type: "json" })) || [];
@@ -355,6 +364,9 @@ export default async (req) => {
     const pesados =
       modo === "completo" ? await etapaCompleta() : await etapaIncremental(store, remigrarOS);
     const dados = { ...rapidos, ...pesados };
+    // So migrou de verdade se a varredura completa rodou ou a remigracao de OS
+    // terminou sem cair no fallback leve.
+    const migrouOS = modo === "completo" || pesados.remigrouOS === true;
 
     // 2) DSO do dia + acumula historico real (um ponto por dia, ultimos 180).
     const dso = calcDso(dados.recebiveis);
@@ -381,10 +393,9 @@ export default async (req) => {
       em: new Date().toISOString(), // horario do ULTIMO sucesso (frescor real)
       ok: true,
       modo,
-      // So carimba quando o historico de OS foi de fato renormalizado (varredura
-      // completa ou remigracao). Um incremental comum so toca 7 dias.
-      versao:
-        modo === "completo" || remigrarOS ? VERSAO_NORM : (statusAnterior?.versao ?? 0),
+      // So carimba quando o historico de OS foi de fato renormalizado. Um
+      // incremental comum (ou uma remigracao que caiu no fallback) so toca 7 dias.
+      versao: migrouOS ? VERSAO_NORM : (statusAnterior?.versao ?? 0),
       dso,
       duracaoMs: Date.now() - inicio,
       contagens,

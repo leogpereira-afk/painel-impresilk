@@ -20,10 +20,13 @@ export function mubiConfigurado() {
   return Boolean(BASE && PUB && TOKEN);
 }
 
-// GET em {BASE}/{publicKey}/{caminho}?{query}, com timeout de 120s por pagina
-// e ate 2 tentativas. A pagina cheia mais lenta observada foi ~46s; 120s da
-// folga sem deixar uma resposta pendurada congelar a background inteira.
-const TIMEOUT_MS = 120000;
+// GET em {BASE}/{publicKey}/{caminho}?{query}, com timeout por pagina e ate 4
+// tentativas. No horario comercial uma pagina de 500 itens ja foi medida em
+// 206s; 120s (o valor antigo) abortava paginas validas e derrubava a etapa.
+// 280s cobre o pior caso observado sem deixar uma resposta pendurada travar a
+// background (cujo teto e 900s).
+const TIMEOUT_MS = 280000;
+const CAP_POR_PAGINA_MS = 300000;
 
 export async function mubiGet(caminho, query = {}) {
   if (!mubiConfigurado()) {
@@ -78,7 +81,7 @@ async function mubiGetSemFila(caminho, query) {
       clearTimeout(timer);
       if (e.fatal) throw e;
       ultimoErro = e.name === "AbortError" ? new Error(`Mubi ${caminho}: timeout de ${TIMEOUT_MS / 1000}s`) : e;
-      if (Date.now() - inicioChamada > 180000) break; // nao insiste alem de 3 min por pagina
+      if (Date.now() - inicioChamada > CAP_POR_PAGINA_MS) break; // nao insiste alem do cap por pagina
       if (tentativa < 4) await new Promise((r) => setTimeout(r, 2500 * tentativa));
     }
   }
