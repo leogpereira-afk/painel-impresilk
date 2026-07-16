@@ -1,11 +1,13 @@
 // Estado central do painel. Guarda a config (regras) e os overrides (marcacoes
-// manuais: motivo, cobrado, motivo de perda). Persiste no localStorage agora e
-// esta pronto para sincronizar no Netlify Blobs. Qualquer mudanca aqui recalcula
-// os modulos ao vivo (os modulos derivam tudo via useMemo).
+// manuais: motivo, cobrado, motivo de perda, baixa). A fonte de verdade e o
+// Netlify Blobs (compartilhado entre aparelhos); o localStorage e cache
+// instantaneo no boot e fallback quando a rede falha. Qualquer mudanca aqui
+// recalcula os modulos ao vivo (os modulos derivam tudo via useMemo).
 
 import { createContext, useContext, useEffect, useMemo, useState, useCallback } from "react";
 import { CONFIG_PADRAO } from "./defaults.js";
 import * as mubi from "../services/mubi.js";
+import * as marcacoes from "../services/marcacoes.js";
 
 const K_CONFIG = "painel_config";
 const K_OV_REC = "painel_ov_rec";
@@ -78,7 +80,26 @@ export function AppProvider({ children }) {
     recarregar();
   }, [recarregar]);
 
-  // Persistencia.
+  // Boot: puxa as marcacoes do Blobs (fonte de verdade, compartilhada entre
+  // aparelhos). O estado inicial ja veio do localStorage, entao a tela nao
+  // pisca; se a rede falhar, segue com o local mesmo.
+  useEffect(() => {
+    let vivo = true;
+    marcacoes
+      .carregarMarcacoes()
+      .then((remoto) => {
+        if (!vivo || !remoto) return;
+        if (remoto.config) setConfig(mesclarConfig(remoto.config));
+        if (remoto.overridesRecebiveis) setOvRec(remoto.overridesRecebiveis);
+        if (remoto.overridesOrcamentos) setOvOrc(remoto.overridesOrcamentos);
+      })
+      .catch((e) => console.warn("marcacoes: boot sem nuvem, usando local:", e?.message || e));
+    return () => {
+      vivo = false;
+    };
+  }, []);
+
+  // Cache local (espelho para boot instantaneo e fallback offline).
   useEffect(() => {
     localStorage.setItem(K_CONFIG, JSON.stringify(config));
   }, [config]);
@@ -89,15 +110,32 @@ export function AppProvider({ children }) {
     if (overridesOrcamentos) localStorage.setItem(K_OV_ORC, JSON.stringify(overridesOrcamentos));
   }, [overridesOrcamentos]);
 
-  // Mutadores.
-  const updateConfig = useCallback((fn) => setConfig((c) => fn(structuredClone(c))), []);
-  const resetarConfig = useCallback(() => setConfig(structuredClone(CONFIG_PADRAO)), []);
+  // Mutadores. Cada um atualiza o estado na hora (UI otimista) e sincroniza com
+  // o Blobs em segundo plano; erro de rede so vira aviso, nunca perde o clique.
+  const updateConfig = useCallback((fn) => {
+    setConfig((c) => {
+      const novo = fn(structuredClone(c));
+      marcacoes.salvarConfig(novo).catch((e) => console.warn("config: sync falhou:", e?.message || e));
+      return novo;
+    });
+  }, []);
+  const resetarConfig = useCallback(() => {
+    const padrao = structuredClone(CONFIG_PADRAO);
+    setConfig(padrao);
+    marcacoes.salvarConfig(padrao).catch((e) => console.warn("config: sync falhou:", e?.message || e));
+  }, []);
 
   const setOverrideRecebivel = useCallback((id, patch) => {
     setOvRec((prev) => ({ ...(prev || {}), [id]: { ...(prev?.[id] || {}), ...patch } }));
+    marcacoes
+      .mesclarOverrideRecebivel(id, patch)
+      .catch((e) => console.warn("ov_rec: sync falhou:", e?.message || e));
   }, []);
   const setOverrideOrcamento = useCallback((id, patch) => {
     setOvOrc((prev) => ({ ...(prev || {}), [id]: { ...(prev?.[id] || {}), ...patch } }));
+    marcacoes
+      .mesclarOverrideOrcamento(id, patch)
+      .catch((e) => console.warn("ov_orc: sync falhou:", e?.message || e));
   }, []);
 
   const valor = useMemo(

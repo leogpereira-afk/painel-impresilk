@@ -42,16 +42,16 @@ exports.handler = async (event) => {
 
   if (event.httpMethod !== "POST") return resposta({ erro: "use POST" }, 405);
 
-  // Auth fail-CLOSED: sem TOKEN no ambiente, recusa tudo (nunca liberar sem segredo).
+  // Auth por chave, nao global. As marcacoes do painel (config, ov_rec, ov_orc)
+  // sao lidas e gravadas pelo front, que nao tem -- nem pode ter -- o TOKEN do
+  // servidor. Elas NAO incluem os dados financeiros (cache_* nao e gravavel por
+  // aqui, ver CHAVES_ESCRITA) e o painel ja e publico de leitura, entao liberar
+  // essas 3 chaves nao piora a postura. Ja o diagnostico do cache_* continua
+  // exigindo o TOKEN (e informacao sensivel e nao pode vazar).
   const SEGREDO = process.env.TOKEN;
-  if (!SEGREDO) {
-    console.error("config: TOKEN nao configurado no ambiente");
-    return resposta({ erro: "servidor sem TOKEN" }, 500);
-  }
   const token = event.headers["x-token"] || event.headers["X-Token"];
-  if (token !== SEGREDO) {
-    return resposta({ erro: "nao autorizado" }, 401);
-  }
+  const autenticado = !!SEGREDO && token === SEGREDO;
+  const chaveSensivel = (chave) => !CHAVES_ESCRITA.has(chave); // tudo que nao e marcacao do painel
 
   let corpo = {};
   try {
@@ -68,6 +68,7 @@ exports.handler = async (event) => {
         return resposta({ ok: true });
 
       case "diag": {
+        if (!autenticado) return resposta({ erro: "nao autorizado" }, 401);
         // Testa a autenticacao automatica do Blobs sem expor segredos.
         try {
           const { blobs } = await store.list();
@@ -80,6 +81,10 @@ exports.handler = async (event) => {
 
       case "get": {
         if (!CHAVES_LEITURA.has(corpo.chave)) return resposta({ erro: "chave invalida" }, 400);
+        // Ler cache_* (diagnostico) exige token; marcacoes do painel sao livres.
+        if (chaveSensivel(corpo.chave) && !autenticado) {
+          return resposta({ erro: "nao autorizado" }, 401);
+        }
         const valor = await store.get(corpo.chave, { type: "json" });
         return resposta({ ok: true, chave: corpo.chave, valor: valor ?? null });
       }
@@ -88,6 +93,32 @@ exports.handler = async (event) => {
         if (!CHAVES_ESCRITA.has(corpo.chave)) return resposta({ erro: "chave nao gravavel" }, 403);
         await store.setJSON(corpo.chave, corpo.valor ?? null);
         return resposta({ ok: true });
+      }
+
+      // Merge por id: o front manda so o patch { [id]: {campos} } e o servidor
+      // funde no objeto existente. Assim device A nao apaga a marcacao que
+      // device B fez no mesmo mapa (last-write-wins por CAMPO, nao por objeto).
+      case "merge": {
+        if (!CHAVES_ESCRITA.has(corpo.chave)) return resposta({ erro: "chave nao gravavel" }, 403);
+        const patch = corpo.patch && typeof corpo.patch === "object" ? corpo.patch : {};
+        const atual = (await store.get(corpo.chave, { type: "json" })) || {};
+        if (corpo.chave === "config") {
+          // config e um objeto unico de regras: merge raso + parametros.
+          const merged = {
+            ...atual,
+            ...patch,
+            parametros: { ...(atual.parametros || {}), ...(patch.parametros || {}) },
+          };
+          await store.setJSON(corpo.chave, merged);
+          return resposta({ ok: true, valor: merged });
+        }
+        // ov_rec / ov_orc: mapa de id -> campos. Funde campo a campo por id.
+        const merged = { ...atual };
+        for (const [id, campos] of Object.entries(patch)) {
+          merged[id] = { ...(atual[id] || {}), ...(campos || {}) };
+        }
+        await store.setJSON(corpo.chave, merged);
+        return resposta({ ok: true, valor: merged });
       }
 
       default:
