@@ -16,6 +16,11 @@
 [functions."mubi-cache-noturno"]
   schedule = "0 6 * * *"
 
+# Fluxo realizado mes a mes (contas pagas do ano corrente e anterior). Pesado,
+# roda 1x/dia as 04:30 UTC (01:30 de Brasilia).
+[functions."mubi-realizado-cron"]
+  schedule = "30 4 * * *"
+
 [dev]
   command = "npm run dev"
   targetPort = 5173

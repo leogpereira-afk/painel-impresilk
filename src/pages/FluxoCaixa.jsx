@@ -5,7 +5,7 @@
 // A tela e navegavel: os KPIs do topo sao FILTROS clicaveis do calendario, ha
 // busca por lancamento, e cada dia expande mostrando o que exatamente cai nele.
 
-import { Fragment, useMemo, useRef, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import {
   Wallet,
   Clock,
@@ -22,6 +22,10 @@ import {
   ResponsiveContainer,
   LineChart,
   Line,
+  BarChart,
+  Bar,
+  Cell,
+  Legend,
   XAxis,
   YAxis,
   Tooltip,
@@ -30,6 +34,7 @@ import {
 } from "recharts";
 import { useApp } from "../config/store.jsx";
 import { calcFluxoCaixa } from "../lib/calc/fluxoCaixa.js";
+import { getFluxoMensal } from "../services/mubi.js";
 import { moeda, moedaCheia, numero, dataLonga } from "../lib/format.js";
 import {
   Card,
@@ -54,6 +59,10 @@ const norm = (s) =>
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "");
 
+// Data local no formato AAAA-MM-DD (mesma forma das datas da projecao).
+const diaISO = (d) =>
+  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+
 // Um lancamento casa com a busca por nome (fornecedor/cliente), descricao ou categoria.
 const itemCasa = (item, q) =>
   !!q && norm(`${item.fornecedor || ""} ${item.descricao} ${item.categoria || ""}`).includes(q);
@@ -67,6 +76,24 @@ export default function FluxoCaixa() {
   const [expandido, setExpandido] = useState(null); // data (AAAA-MM-DD) do dia aberto
   const [visiveis, setVisiveis] = useState(LOTE);
   const calendarioRef = useRef(null);
+
+  // Fluxo REALIZADO mes a mes (contas pagas), carregado sob demanda desta tela.
+  const [mensal, setMensal] = useState(null); // { anos, disponiveis }
+  const [anoSel, setAnoSel] = useState(null);
+  useEffect(() => {
+    let vivo = true;
+    getFluxoMensal()
+      .then((r) => {
+        if (!vivo) return;
+        setMensal(r);
+        const anos = r.disponiveis || [];
+        setAnoSel((a) => a ?? (anos.length ? anos[0] : new Date().getFullYear()));
+      })
+      .catch((e) => console.warn("fluxo mensal: sem dados ainda:", e?.message || e));
+    return () => {
+      vivo = false;
+    };
+  }, []);
 
   const base = useMemo(
     () =>
@@ -91,6 +118,48 @@ export default function FluxoCaixa() {
         : null,
     [dados, config]
   );
+
+  // Serie do realizado mes a mes para o ano selecionado (+ previsto dos proximos
+  // 30 dias no ano corrente, agregado do calculo base da projecao).
+  const serieMensal = useMemo(() => {
+    if (!mensal || !anoSel) return null;
+    const dadosAno = mensal.anos?.[anoSel] || mensal.anos?.[String(anoSel)] || null;
+    const ent = dadosAno?.entradas || {};
+    const sai = dadosAno?.saidas || {};
+    const nomes = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
+    const hoje = new Date();
+    const anoAtual = hoje.getFullYear();
+    const mesAtual = hoje.getMonth(); // 0-based
+
+    let acumulado = 0;
+    let temAlgum = false;
+    const meses = nomes.map((rot, i) => {
+      const chave = `${anoSel}-${String(i + 1).padStart(2, "0")}`;
+      const entradas = ent[chave] || 0;
+      const saidas = sai[chave] || 0;
+      const saldo = entradas - saidas;
+      const houve = entradas > 0 || saidas > 0;
+      if (houve) temAlgum = true;
+      // Mes futuro (ainda nao aconteceu) no ano corrente: sem realizado.
+      const futuro = anoSel > anoAtual || (anoSel === anoAtual && i > mesAtual);
+      const corrente = anoSel === anoAtual && i === mesAtual;
+      acumulado += saldo;
+      return { mes: rot, chave, entradas, saidas, saldo, acumulado, houve, futuro, corrente };
+    });
+
+    // Previsto dos proximos 30 dias (so faz sentido no ano corrente).
+    let previsto = null;
+    if (base && anoSel === anoAtual) {
+      const futuros = base.projecao.filter((d) => d.data > diaISO(hoje));
+      const pe = futuros.reduce((s, d) => s + d.entrada, 0);
+      const ps = futuros.reduce((s, d) => s + d.saida, 0);
+      if (pe > 0 || ps > 0) previsto = { entradas: pe, saidas: ps, saldo: pe - ps };
+    }
+
+    const totalEnt = meses.reduce((s, m) => s + m.entradas, 0);
+    const totalSai = meses.reduce((s, m) => s + m.saidas, 0);
+    return { meses, previsto, temAlgum, totalEnt, totalSai, saldoAno: totalEnt - totalSai };
+  }, [mensal, anoSel, base]);
 
   // Fonte ativa para KPIs, calendario e linha principal do grafico.
   const vm = modoEstresse ? estresse : base;
@@ -272,6 +341,157 @@ export default function FluxoCaixa() {
           )}
         </Card>
       )}
+
+      {/* Realizado mes a mes (o que de fato entrou e saiu), com seletor de ano */}
+      <Card>
+        <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <h2 className="font-display text-lg font-semibold text-slate-900">
+              Realizado mes a mes
+            </h2>
+            <p className="mt-0.5 text-sm text-slate-500">
+              O que de fato entrou e saiu do caixa em cada mes (contas pagas). Escolha o ano.
+            </p>
+          </div>
+          {mensal?.disponiveis?.length > 0 && (
+            <div className="flex items-center gap-2">
+              <label className="label mb-0" htmlFor="ano-fluxo">
+                Ano
+              </label>
+              <select
+                id="ano-fluxo"
+                value={anoSel ?? ""}
+                onChange={(e) => setAnoSel(Number(e.target.value))}
+                className="input w-auto"
+              >
+                {mensal.disponiveis.map((a) => (
+                  <option key={a} value={a}>
+                    {a}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+        </div>
+
+        {!serieMensal ? (
+          <Empty>
+            O historico mensal e montado uma vez por dia de madrugada. Ainda nao rodou pela
+            primeira vez desde a atualizacao; volte mais tarde.
+          </Empty>
+        ) : !serieMensal.temAlgum ? (
+          <Empty>Nenhuma conta paga registrada em {anoSel}.</Empty>
+        ) : (
+          <>
+            {/* Resumo do ano */}
+            <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
+              <ResumoMes rotulo="Entrou no ano" valor={serieMensal.totalEnt} tom="ok" />
+              <ResumoMes rotulo="Saiu no ano" valor={serieMensal.totalSai} tom="bad" />
+              <ResumoMes rotulo="Saldo do ano" valor={serieMensal.saldoAno} tom="saldo" />
+            </div>
+
+            <div style={{ width: "100%", height: 280 }}>
+              <ResponsiveContainer>
+                <BarChart
+                  data={serieMensal.meses.filter((m) => m.houve || !m.futuro)}
+                  margin={{ top: 8, right: 8, left: 4, bottom: 0 }}
+                  barGap={2}
+                >
+                  <CartesianGrid strokeDasharray="3 3" stroke="#eef1f6" vertical={false} />
+                  <XAxis dataKey="mes" tick={{ fontSize: 12 }} tickLine={false} axisLine={false} />
+                  <YAxis
+                    tickFormatter={(v) => moeda(v)}
+                    tick={{ fontSize: 11 }}
+                    tickLine={false}
+                    axisLine={false}
+                    width={64}
+                  />
+                  <Tooltip
+                    formatter={(v, nome) => [moedaCheia(v), nome]}
+                    labelFormatter={(l) => `Mes: ${l}`}
+                  />
+                  <Legend wrapperStyle={{ fontSize: 12 }} />
+                  <Bar dataKey="entradas" name="Entrou" fill="#16a34a" radius={[3, 3, 0, 0]} />
+                  <Bar dataKey="saidas" name="Saiu" fill={VERMELHO} radius={[3, 3, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+
+            {/* Tabela: mes a mes com saldo e acumulado */}
+            <div className="mt-4 overflow-x-auto">
+              <table className="w-full min-w-[520px] border-collapse text-sm">
+                <thead>
+                  <tr className="border-b text-left" style={{ borderColor: "var(--hairline)" }}>
+                    <th className="label py-2">Mes</th>
+                    <th className="label py-2 text-right">Entrou</th>
+                    <th className="label py-2 text-right">Saiu</th>
+                    <th className="label py-2 text-right">Saldo</th>
+                    <th className="label py-2 text-right">Acumulado</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {serieMensal.meses
+                    .filter((m) => m.houve)
+                    .map((m) => (
+                      <tr key={m.chave} className="border-b" style={{ borderColor: "var(--hairline)" }}>
+                        <td className="py-2 font-medium text-slate-700">
+                          {m.mes}
+                          {m.corrente && (
+                            <span className="ml-2 text-xs font-normal text-slate-400">
+                              (mes atual, parcial)
+                            </span>
+                          )}
+                        </td>
+                        <td className="tnum py-2 text-right text-ok-700">{moeda(m.entradas)}</td>
+                        <td className="tnum py-2 text-right text-bad-700">{moeda(m.saidas)}</td>
+                        <td
+                          className={
+                            "tnum py-2 text-right font-semibold " +
+                            (m.saldo < 0 ? "text-bad-700" : "text-slate-900")
+                          }
+                        >
+                          {moeda(m.saldo)}
+                        </td>
+                        <td
+                          className={
+                            "tnum py-2 text-right " +
+                            (m.acumulado < 0 ? "text-bad-700" : "text-slate-500")
+                          }
+                        >
+                          {moeda(m.acumulado)}
+                        </td>
+                      </tr>
+                    ))}
+                </tbody>
+              </table>
+            </div>
+
+            {serieMensal.previsto && (
+              <div
+                className="mt-4 flex flex-wrap items-center gap-x-6 gap-y-1 rounded-xl border border-dashed p-3 text-sm"
+                style={{ borderColor: "rgba(56,64,232,0.35)" }}
+              >
+                <span className="label mb-0 text-brand">Previsto (proximos 30 dias)</span>
+                <span className="text-slate-600">
+                  entra <strong className="tnum text-ok-700">{moeda(serieMensal.previsto.entradas)}</strong>
+                </span>
+                <span className="text-slate-600">
+                  sai <strong className="tnum text-bad-700">{moeda(serieMensal.previsto.saidas)}</strong>
+                </span>
+                <span className="text-slate-600">
+                  saldo{" "}
+                  <strong
+                    className={"tnum " + (serieMensal.previsto.saldo < 0 ? "text-bad-700" : "text-slate-900")}
+                  >
+                    {moeda(serieMensal.previsto.saldo)}
+                  </strong>
+                </span>
+                <span className="text-xs text-slate-400">detalhe dia a dia no calendario abaixo</span>
+              </div>
+            )}
+          </>
+        )}
+      </Card>
 
       {/* Regra D-1 */}
       <Card className="bg-brand/5" style={{ borderColor: "rgba(56,64,232,0.18)" }}>
@@ -738,6 +958,24 @@ export default function FluxoCaixa() {
           </>
         )}
       </Card>
+    </div>
+  );
+}
+
+// Cartao de resumo do ano no realizado mes a mes.
+function ResumoMes({ rotulo, valor, tom }) {
+  const cor =
+    tom === "ok"
+      ? "text-ok-700"
+      : tom === "bad"
+        ? "text-bad-700"
+        : valor < 0
+          ? "text-bad-700"
+          : "text-slate-900";
+  return (
+    <div className="rounded-xl border p-3" style={{ borderColor: "var(--hairline)" }}>
+      <p className="label mb-1">{rotulo}</p>
+      <p className={"tnum font-display text-xl font-semibold " + cor}>{moeda(valor)}</p>
     </div>
   );
 }

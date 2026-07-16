@@ -20,6 +20,7 @@ const CHAVES_LEITURA = new Set([
   "cache_orcamentos",
   "cache_ordens",
   "cache_dso_hist",
+  "cache_fluxo_mensal",
   "cache_status",
 ]);
 // ESCRITA: SO config e overrides. As chaves cache_* sao gravadas apenas pela

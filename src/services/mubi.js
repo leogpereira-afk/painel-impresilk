@@ -73,6 +73,16 @@ export async function getContasBancarias() {
   return (await chamarFunction("fluxo-caixa", { parte: "bancos" })).itens || [];
 }
 
+// Fluxo REALIZADO mes a mes (por ano). { anos: {"2026": {entradas, saidas}}, disponiveis: [...] }
+export async function getFluxoMensal() {
+  if (MODO_DEMO) {
+    await demora();
+    return demo.getFluxoMensal ? demo.getFluxoMensal() : { anos: {}, disponiveis: [] };
+  }
+  const r = await chamarFunction("fluxo-caixa", { parte: "mensal" });
+  return { anos: r.anos || {}, disponiveis: r.disponiveis || [] };
+}
+
 export async function getOrcamentos() {
   if (MODO_DEMO) {
     await demora();

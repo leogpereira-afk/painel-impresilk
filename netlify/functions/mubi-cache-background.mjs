@@ -408,6 +408,20 @@ export default async (req) => {
       contagens,
     });
 
+    // Auto-provisiona o fluxo realizado mes a mes na primeira vez (ou se sumir).
+    // Roda numa background propria (nao pesa este ciclo); fire-and-forget.
+    try {
+      const temMensal = await store.get("cache_fluxo_mensal", { type: "json" });
+      if (!temMensal) {
+        const base = process.env.URL || "https://painel-impresilk.netlify.app";
+        fetch(`${base}/.netlify/functions/mubi-realizado`, {
+          method: "POST",
+          headers: { "x-token": SEGREDO },
+        }).catch(() => {});
+        console.log("mubi-cache: disparou mubi-realizado (primeira carga do mensal)");
+      }
+    } catch {}
+
     console.log("mubi-cache: fim ok", JSON.stringify(contagens));
     return new Response(JSON.stringify({ ok: true, modo, contagens }), { status: 200 });
   } catch (e) {
