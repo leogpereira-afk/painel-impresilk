@@ -5,7 +5,7 @@
 export const handler = async () => {
   const base = process.env.URL || "https://painel-impresilk.netlify.app";
   try {
-    const resp = await fetch(`${base}/.netlify/functions/mubi-realizado`, {
+    const resp = await fetch(`${base}/.netlify/functions/mubi-realizado-background`, {
       method: "POST",
       headers: { "x-token": process.env.TOKEN || "" },
     });
