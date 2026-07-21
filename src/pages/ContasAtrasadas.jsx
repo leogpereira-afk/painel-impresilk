@@ -544,7 +544,7 @@ export default function ContasAtrasadas() {
                             gritar isso sem o gestor ler numero por numero. */}
                         <td className="td text-right">
                           <span
-                            className={`inline-block rounded-md px-2 py-0.5 tnum text-sm font-semibold ${
+                            className={`inline-block whitespace-nowrap rounded-md px-2 py-0.5 tnum text-sm font-semibold ${
                               t.dias >= 90
                                 ? "bg-bad-50 text-bad-700"
                                 : t.dias >= 30
