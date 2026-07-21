@@ -122,7 +122,10 @@ textarea {
   /* Filtro LIGADO acende na cor da marca: e o unico jeito de o gestor ver, sem
      ler, o que esta estreitando a lista. Ambar/vermelho ficam reservados a
      gravidade do atraso -- usar aqui apagaria aquele sinal. */
-  .filtro-ativo {
+  /* Duas classes de proposito: dentro da mesma @layer o Tailwind nao garante a
+     ordem de saida, entao `.filtro { bg-white }` vencia o estado ativo. Com
+     `.filtro.filtro-ativo` a especificidade resolve sem !important. */
+  .filtro.filtro-ativo {
     @apply border-brand-300 bg-brand-50 font-medium text-brand-700;
   }
   /* Controle dentro da linha da tabela: quieto ate ser preciso. Um <select>
@@ -225,7 +228,7 @@ html.dark ::-webkit-scrollbar-thumb {
 .dark .filtro { background-color: rgba(255, 255, 255, 0.04); border-color: rgba(255, 255, 255, 0.14); color: #d3d9e8; }
 /* No escuro o tint claro da marca cegaria: usa o indigo rebaixado, mantendo o
    mesmo significado (filtro ligado) com contraste correto. */
-.dark .filtro-ativo { background-color: rgba(56, 64, 232, 0.22); border-color: rgba(155, 161, 246, 0.55); color: #c2c6fb; }
+.dark .filtro.filtro-ativo { background-color: rgba(56, 64, 232, 0.22); border-color: rgba(155, 161, 246, 0.55); color: #c2c6fb; }
 .dark .input-quieto { color: #c3cad9; }
 .dark .input-quieto:hover { background-color: rgba(255, 255, 255, 0.06); border-color: rgba(255, 255, 255, 0.14); }
 .dark .input-quieto:focus { background-color: rgba(255, 255, 255, 0.08); }
