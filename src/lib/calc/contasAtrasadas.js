@@ -79,7 +79,14 @@ export function calcContasAtrasadas(recebiveis, overrides, config, dsoHist = [],
     return { ...r, dias, chaveCliente };
   });
 
-  const atrasados = abertos
+  // Corte do historico: divida vencida antes desta data e calote velho (2021-22
+  // no ERP), nao cobranca ativa. Fica fora dos totais e da lista, mas continua
+  // no cache e reaparece quando o gestor seleciona aquele ano/periodo -- some
+  // do numero do dia sem sumir da verdade.
+  const corte = config.parametros?.dataCorteAtrasados || "";
+  const ehAntiga = (venc) => !!corte && String(venc || "") < corte;
+
+  const todosAtrasados = abertos
     .filter((r) => r.dias > 0)
     .map((r) => {
       const ov = overrides[r.id] || {};
@@ -105,10 +112,17 @@ export function calcContasAtrasadas(recebiveis, overrides, config, dsoHist = [],
         cobrado: !!ov.cobrado,
         observacao: ov.observacao || "",
         reincidente: (vencidosPorCliente[r.chaveCliente] || 0) > 1,
+        antiga: ehAntiga(r.vencimento),
         proximaAcao: proximaAcao(ov.motivoId, r.dias, config),
       };
     })
     .sort((a, b) => b.valor - a.valor);
+
+  // Daqui para baixo TODO calculo usa so a cobranca ativa: totais, DSO, faixas,
+  // frentes e ranking. As antigas seguem em `todosAtrasados` para a tela poder
+  // revela-las sob demanda.
+  const atrasados = todosAtrasados.filter((t) => !t.antiga);
+  const listaAntigas = todosAtrasados.filter((t) => t.antiga);
 
   const totalAtrasado = soma(atrasados);
   const pendentes = atrasados.filter((r) => !r.cobrado);
@@ -211,7 +225,17 @@ export function calcContasAtrasadas(recebiveis, overrides, config, dsoHist = [],
   const porVendedor = Object.values(porVendedorMapa).sort((a, b) => b.valor - a.valor);
 
   return {
-    titulos: atrasados,
+    // Inclui as antigas (marcadas com `antiga`); a tela as esconde por padrao.
+    titulos: todosAtrasados,
+    qtdAtivos: atrasados.length,
+    // Quanto ficou de fora dos numeros -- a tela avisa, para o dinheiro nunca
+    // sumir em silencio.
+    antigas: {
+      qtd: listaAntigas.length,
+      valor: soma(listaAntigas),
+      corte,
+      anos: [...new Set(listaAntigas.map((t) => (t.vencimento || "").slice(0, 4)))].sort(),
+    },
     porVendedor,
     kpis: {
       totalAtrasado,

@@ -13,6 +13,11 @@ export const CONFIG_PADRAO = {
     saldoInicialManual: 60000, // usado quando saldoInicialModo = manual
     diasParado: 7, // orcamento enviado sem resposta ha X dias
     diasEscala: 10, // "sem contato" acima disso vira escalada
+    // Divida vencida ANTES desta data e historico: nao entra nos totais nem na
+    // lista, e so aparece quando o gestor pede aquele ano/periodo. Existe
+    // calote de 2021-2022 no ERP que ja nao e cobranca ativa e distorceria o
+    // DSO e o total; continua acessivel, mas nao contamina o numero do dia.
+    dataCorteAtrasados: "2025-01-01",
   },
 
   // Os tres grupos de causa sao renomeaveis (o CEO decide o que e falha interna).

@@ -103,6 +103,10 @@ export default function ContasAtrasadas() {
     [dados, overridesRecebiveis, config]
   );
 
+  // Pedir um periodo (ano ou intervalo de datas) e o gesto que revela a divida
+  // antiga. So o mes nao basta: "junho" sem ano nao e um pedido pelo passado.
+  const pediuPeriodo = !!anoSel || !!venceDe || !!venceAte;
+
   const titulosFiltrados = useMemo(() => {
     if (!vm) return [];
     const min = Number(diasMin) || 0;
@@ -120,6 +124,9 @@ export default function ContasAtrasadas() {
         if (venceAte && t.vencimento > venceAte) return false;
       }
       if (vendedorSel && !t.vendedores.includes(vendedorSel)) return false;
+      // Divida anterior ao corte (calote velho) fica fora da lista e dos totais
+      // ate o gestor pedir aquele periodo de proposito -- por ano ou por data.
+      if (t.antiga && !pediuPeriodo) return false;
       // Ano e mes de vencimento: atalhos rapidos que somam ao periodo livre.
       if (anoSel && (t.vencimento || "").slice(0, 4) !== anoSel) return false;
       if (mesSel && (t.vencimento || "").slice(5, 7) !== mesSel) return false;
@@ -142,7 +149,20 @@ export default function ContasAtrasadas() {
       atraso: (a, b) => b.dias - a.dias,
     };
     return [...filtrados].sort(ordenadores[ordem] || ordenadores.valor);
-  }, [vm, filtro, diasMin, busca, faixaSel, ordem, venceDe, venceAte, vendedorSel, anoSel, mesSel]);
+  }, [
+    vm,
+    filtro,
+    diasMin,
+    busca,
+    faixaSel,
+    ordem,
+    venceDe,
+    venceAte,
+    vendedorSel,
+    anoSel,
+    mesSel,
+    pediuPeriodo,
+  ]);
 
   // Dash das dividas: sempre sobre a lista JA filtrada, para responder sobre o
   // que o gestor esta olhando (e nao sobre um total que nao esta na tela).
@@ -439,7 +459,7 @@ export default function ContasAtrasadas() {
         <div className="mb-3 flex flex-wrap items-center gap-2 text-sm text-slate-500">
           <span>
             Mostrando <strong className="tnum text-slate-900">{numero(titulosFiltrados.length)}</strong>{" "}
-            de {numero(vm.titulos.length)} titulos
+            de {numero(pediuPeriodo ? vm.titulos.length : vm.qtdAtivos)} titulos
             {titulosFiltrados.length > 0 && (
               <>
                 {" "}
@@ -464,6 +484,23 @@ export default function ContasAtrasadas() {
               {venceAte ? dataCurta(venceAte) : "hoje"} <X size={12} />
             </button>
           )}
+
+          {/* Dinheiro que existe mas esta fora dos numeros: dito em voz alta e
+              a um clique de distancia. Esconder sem avisar seria mentir. */}
+          {vm.antigas.qtd > 0 &&
+            (pediuPeriodo ? (
+              <span className="chip-warn">
+                incluindo divida de {vm.antigas.anos.join(", ")} (fora do total do painel)
+              </span>
+            ) : (
+              <button
+                className="chip"
+                onClick={() => setAnoSel(vm.antigas.anos[vm.antigas.anos.length - 1])}
+                title={`Ver a divida de ${vm.antigas.anos.join(", ")}`}
+              >
+                + {numero(vm.antigas.qtd)} titulos antigos ({moeda(vm.antigas.valor)}) fora da soma
+              </button>
+            ))}
         </div>
 
         {titulosFiltrados.length ? (
