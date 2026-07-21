@@ -108,6 +108,28 @@ textarea {
   .label {
     @apply mb-1.5 block font-display text-xs font-semibold uppercase tracking-wide text-slate-500;
   }
+  /* Rotulo de filtro: sussurra. Numa barra com 5 controles, rotulo em caixa
+     alta vira ruido e disputa atencao com o valor que se quer ler. */
+  .label-filtro {
+    @apply shrink-0 font-display text-xs font-medium text-slate-400;
+  }
+  /* Controle de filtro compacto. Mesma altura para todos, para a barra ficar
+     alinhada em vez de esfarrapada. */
+  .filtro {
+    @apply h-9 rounded-lg border bg-white px-2.5 py-0 text-sm text-slate-700 outline-none transition-all duration-200 focus:border-brand-400 focus:ring-4 focus:ring-brand-100/70;
+    border-color: #dcdce6;
+  }
+  /* Filtro LIGADO acende na cor da marca: e o unico jeito de o gestor ver, sem
+     ler, o que esta estreitando a lista. Ambar/vermelho ficam reservados a
+     gravidade do atraso -- usar aqui apagaria aquele sinal. */
+  .filtro-ativo {
+    @apply border-brand-300 bg-brand-50 font-medium text-brand-700;
+  }
+  /* Controle dentro da linha da tabela: quieto ate ser preciso. Um <select>
+     com borda em toda linha vira uma parede de caixas e afoga o dado. */
+  .input-quieto {
+    @apply h-8 w-full rounded-lg border border-transparent bg-transparent px-2 text-sm text-slate-600 outline-none transition-all duration-150 hover:border-slate-200 hover:bg-white focus:border-brand-400 focus:bg-white focus:ring-4 focus:ring-brand-100/70;
+  }
   .btn {
     @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 font-display text-sm font-medium transition-all duration-200 active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-60 disabled:active:scale-100;
   }
@@ -199,6 +221,14 @@ html.dark ::-webkit-scrollbar-thumb {
 .dark .td { color: #d3d9e8; }
 .dark .chip { background-color: rgba(255, 255, 255, 0.07); color: #b6bfd2; }
 .dark .label { color: #929cb3; }
+.dark .label-filtro { color: #7f8aa3; }
+.dark .filtro { background-color: rgba(255, 255, 255, 0.04); border-color: rgba(255, 255, 255, 0.14); color: #d3d9e8; }
+/* No escuro o tint claro da marca cegaria: usa o indigo rebaixado, mantendo o
+   mesmo significado (filtro ligado) com contraste correto. */
+.dark .filtro-ativo { background-color: rgba(56, 64, 232, 0.22); border-color: rgba(155, 161, 246, 0.55); color: #c2c6fb; }
+.dark .input-quieto { color: #c3cad9; }
+.dark .input-quieto:hover { background-color: rgba(255, 255, 255, 0.06); border-color: rgba(255, 255, 255, 0.14); }
+.dark .input-quieto:focus { background-color: rgba(255, 255, 255, 0.08); }
 
 /* Fundos de status no escuro: cobre as classes puras, os tons 100 (badges de
    icone dos alertas) e as variantes com opacidade usadas em Produtos/Fluxo. */

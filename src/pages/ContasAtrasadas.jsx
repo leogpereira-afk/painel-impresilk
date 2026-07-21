@@ -273,147 +273,164 @@ export default function ContasAtrasadas() {
           }
         />
 
-        {/* Busca por empresa */}
-        <div className="mb-4 flex flex-wrap items-center gap-3">
-          <div className="relative min-w-0 flex-1 sm:max-w-sm">
-            <Search
-              size={16}
-              className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
-            />
-            <input
-              type="search"
-              value={busca}
-              onChange={(e) => setBusca(e.target.value)}
-              placeholder="Buscar empresa, CNPJ, NF ou OS"
-              className="input pl-9"
-              aria-label="Buscar empresa"
-            />
-          </div>
-
-          {filtro === "acima" && (
-            <div className="flex items-center gap-2">
-              <label className="label mb-0">A partir de</label>
-              <input
-                type="number"
-                min={1}
-                value={diasMin}
-                onChange={(e) => setDiasMin(e.target.value)}
-                className="input w-20"
+        {/* Barra de busca e filtros, em dois niveis.
+            NIVEL 1: buscar e ordenar -- o que se usa a toda hora, com a busca
+            dominando a largura (ela e a acao principal).
+            NIVEL 2: recortes (quando/quem), agrupados numa faixa propria para
+            nao competirem com a busca. Filtro ligado acende em indigo. */}
+        <div className="mb-4 space-y-2.5">
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="relative min-w-[240px] flex-1">
+              <Search
+                size={16}
+                className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
               />
-              <span className="text-sm text-slate-500">dias</span>
+              <input
+                type="search"
+                value={busca}
+                onChange={(e) => setBusca(e.target.value)}
+                placeholder="Buscar empresa, CNPJ, NF, OS ou vendedor"
+                className={`input pl-9 ${busca ? "border-brand-300 bg-brand-50/40" : ""}`}
+                aria-label="Buscar empresa"
+              />
             </div>
-          )}
 
-          {/* Ordenacao */}
-          <div className="flex items-center gap-2">
-            <label className="label mb-0" htmlFor="ordem-titulos">
-              Ordenar
-            </label>
-            <select
-              id="ordem-titulos"
-              value={ordem}
-              onChange={(e) => setOrdem(e.target.value)}
-              className="input w-auto"
-            >
-              <option value="valor">Maior valor</option>
-              <option value="recentes">Vencimento mais recente</option>
-              <option value="antigos">Vencimento mais antigo</option>
-              <option value="atraso">Maior atraso</option>
-            </select>
-          </div>
-
-          {/* Ano e mes: atalhos rapidos de vencimento */}
-          <div className="flex items-center gap-2">
-            <label className="label mb-0" htmlFor="ano-titulos">
-              Ano
-            </label>
-            <select
-              id="ano-titulos"
-              value={anoSel}
-              onChange={(e) => setAnoSel(e.target.value)}
-              className="input w-auto"
-            >
-              <option value="">Todos</option>
-              {anosDisponiveis.map((a) => (
-                <option key={a} value={a}>
-                  {a}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <label className="label mb-0" htmlFor="mes-titulos">
-              Mes
-            </label>
-            <select
-              id="mes-titulos"
-              value={mesSel}
-              onChange={(e) => setMesSel(e.target.value)}
-              className="input w-auto"
-            >
-              <option value="">Todos</option>
-              {MESES.map((m, i) => (
-                <option key={m} value={String(i + 1).padStart(2, "0")}>
-                  {m}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {/* Periodo por vencimento */}
-          <div className="flex items-center gap-2">
-            <label className="label mb-0" htmlFor="vence-de">
-              Vencimento
-            </label>
-            <input
-              id="vence-de"
-              type="date"
-              value={venceDe}
-              onChange={(e) => setVenceDe(e.target.value)}
-              className="input w-auto"
-              aria-label="Vencimento a partir de"
-            />
-            <span className="text-sm text-slate-500">ate</span>
-            <input
-              type="date"
-              value={venceAte}
-              onChange={(e) => setVenceAte(e.target.value)}
-              className="input w-auto"
-              aria-label="Vencimento ate"
-            />
-          </div>
-
-          {/* Carteira de cobranca: isola os titulos de um vendedor para
-              repassar a cobranca a quem tem a relacao com o cliente. */}
-          {vm.porVendedor.length > 1 && (
-            <div className="flex items-center gap-2">
-              <label className="label mb-0" htmlFor="vendedor-titulos">
-                Vendedor
+            <div className="flex shrink-0 items-center gap-2">
+              <label className="label-filtro" htmlFor="ordem-titulos">
+                Ordenar por
               </label>
               <select
-                id="vendedor-titulos"
-                value={vendedorSel}
-                onChange={(e) => setVendedorSel(e.target.value)}
-                className="input w-auto"
+                id="ordem-titulos"
+                value={ordem}
+                onChange={(e) => setOrdem(e.target.value)}
+                className={`filtro font-display ${ordem !== "valor" ? "filtro-ativo" : ""}`}
               >
-                <option value="">Todos</option>
-                {vm.porVendedor
-                  .filter((v) => v.nome !== "Nao localizado")
-                  .map((v) => (
-                    <option key={v.nome} value={v.nome}>
-                      {v.nome} ({v.qtd})
-                    </option>
-                  ))}
+                <option value="valor">Maior valor</option>
+                <option value="recentes">Vencimento mais recente</option>
+                <option value="antigos">Vencimento mais antigo</option>
+                <option value="atraso">Maior atraso</option>
               </select>
             </div>
-          )}
+          </div>
 
-          {temFiltro && (
-            <button className="btn-ghost" onClick={limparTudo}>
-              <X size={15} /> Limpar filtros
-            </button>
-          )}
+          <div
+            className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-xl border bg-slate-50/70 px-3 py-2.5"
+            style={{ borderColor: "var(--hairline)" }}
+          >
+            {/* QUANDO venceu */}
+            <div className="flex items-center gap-2">
+              <label className="label-filtro" htmlFor="ano-titulos">
+                Ano
+              </label>
+              <select
+                id="ano-titulos"
+                value={anoSel}
+                onChange={(e) => setAnoSel(e.target.value)}
+                className={`filtro ${anoSel ? "filtro-ativo" : ""}`}
+              >
+                <option value="">Todos</option>
+                {anosDisponiveis.map((a) => (
+                  <option key={a} value={a}>
+                    {a}
+                  </option>
+                ))}
+              </select>
+
+              <label className="label-filtro ml-1" htmlFor="mes-titulos">
+                Mes
+              </label>
+              <select
+                id="mes-titulos"
+                value={mesSel}
+                onChange={(e) => setMesSel(e.target.value)}
+                className={`filtro ${mesSel ? "filtro-ativo" : ""}`}
+              >
+                <option value="">Todos</option>
+                {MESES.map((m, i) => (
+                  <option key={m} value={String(i + 1).padStart(2, "0")}>
+                    {m}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <span className="hidden h-5 w-px bg-slate-200 sm:block" aria-hidden="true" />
+
+            <div className="flex items-center gap-2">
+              <label className="label-filtro" htmlFor="vence-de">
+                Vencimento entre
+              </label>
+              <input
+                id="vence-de"
+                type="date"
+                value={venceDe}
+                onChange={(e) => setVenceDe(e.target.value)}
+                className={`filtro ${venceDe ? "filtro-ativo" : ""}`}
+                aria-label="Vencimento a partir de"
+              />
+              <span className="text-xs text-slate-400">e</span>
+              <input
+                type="date"
+                value={venceAte}
+                onChange={(e) => setVenceAte(e.target.value)}
+                className={`filtro ${venceAte ? "filtro-ativo" : ""}`}
+                aria-label="Vencimento ate"
+              />
+            </div>
+
+            {/* QUEM vendeu: isola a carteira de cobranca de cada vendedor. */}
+            {vm.porVendedor.length > 1 && (
+              <>
+                <span className="hidden h-5 w-px bg-slate-200 sm:block" aria-hidden="true" />
+                <div className="flex items-center gap-2">
+                  <label className="label-filtro" htmlFor="vendedor-titulos">
+                    Vendedor
+                  </label>
+                  <select
+                    id="vendedor-titulos"
+                    value={vendedorSel}
+                    onChange={(e) => setVendedorSel(e.target.value)}
+                    className={`filtro ${vendedorSel ? "filtro-ativo" : ""}`}
+                  >
+                    <option value="">Todos</option>
+                    {vm.porVendedor
+                      .filter((v) => v.nome !== "Nao localizado")
+                      .map((v) => (
+                        <option key={v.nome} value={v.nome}>
+                          {v.nome} ({v.qtd})
+                        </option>
+                      ))}
+                  </select>
+                </div>
+              </>
+            )}
+
+            {filtro === "acima" && (
+              <>
+                <span className="hidden h-5 w-px bg-slate-200 sm:block" aria-hidden="true" />
+                <div className="flex items-center gap-2">
+                  <label className="label-filtro">Atraso a partir de</label>
+                  <input
+                    type="number"
+                    min={1}
+                    value={diasMin}
+                    onChange={(e) => setDiasMin(e.target.value)}
+                    className="filtro w-16"
+                  />
+                  <span className="text-xs text-slate-400">dias</span>
+                </div>
+              </>
+            )}
+
+            {temFiltro && (
+              <button
+                className="ml-auto inline-flex h-9 shrink-0 items-center gap-1.5 rounded-lg px-2.5 font-display text-sm font-medium text-slate-500 transition-colors hover:bg-white hover:text-slate-800"
+                onClick={limparTudo}
+              >
+                <X size={14} /> Limpar
+              </button>
+            )}
+          </div>
         </div>
 
         {/* Resumo do que esta na tela */}
@@ -465,9 +482,18 @@ export default function ContasAtrasadas() {
                   const aberto = expandido === t.id;
                   return (
                     <Fragment key={t.id}>
+                      {/* Linha: separada por hairline (nao por caixa), com a
+                          aberta marcada por uma faixa indigo na borda esquerda
+                          -- da para saber onde se esta sem procurar a seta. */}
                       <tr
                         onClick={() => setExpandido(aberto ? null : t.id)}
-                        className="cursor-pointer transition-colors hover:bg-slate-50"
+                        className={`cursor-pointer border-t transition-colors ${
+                          aberto ? "bg-brand-50/40" : "hover:bg-slate-50"
+                        }`}
+                        style={{
+                          borderColor: "var(--hairline)",
+                          boxShadow: aberto ? "inset 3px 0 0 0 var(--tw-shadow-color, #3840E8)" : undefined,
+                        }}
                         aria-expanded={aberto}
                       >
                         <td className="td">
@@ -529,13 +555,21 @@ export default function ContasAtrasadas() {
                             {numero(t.dias)} dias
                           </span>
                         </td>
+                        {/* Motivo: select sem moldura. Com borda em toda linha
+                            viravam 83 caixas empilhadas competindo com o dado;
+                            a moldura so aparece ao passar o mouse ou focar.
+                            Quando ha motivo, o texto escurece para mostrar que
+                            aquela linha ja foi classificada. */}
                         <td className="td" onClick={(e) => e.stopPropagation()}>
                           <select
-                            className="select"
+                            className={`input-quieto font-display ${
+                              t.motivoId ? "font-medium text-slate-800" : "text-slate-400"
+                            }`}
                             value={t.motivoId || ""}
                             onChange={(e) =>
                               setOverrideRecebivel(t.id, { motivoId: e.target.value || null })
                             }
+                            aria-label={`Motivo do atraso de ${t.cliente}`}
                           >
                             <option value="">Sem motivo</option>
                             {(config.motivosAtraso || []).map((m) => (
@@ -545,7 +579,7 @@ export default function ContasAtrasadas() {
                             ))}
                           </select>
                         </td>
-                        <td className="td text-sm text-slate-600">{t.proximaAcao}</td>
+                        <td className="td text-sm text-slate-500">{t.proximaAcao}</td>
                         <td className="td text-right" onClick={(e) => e.stopPropagation()}>
                           {t.cobrado ? (
                             <span className="chip chip-ok inline-flex items-center gap-1">
@@ -554,9 +588,10 @@ export default function ContasAtrasadas() {
                             </span>
                           ) : (
                             <button
-                              className="btn-outline"
+                              className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-transparent px-2.5 font-display text-sm font-medium text-slate-500 transition-all duration-150 hover:border-brand-200 hover:bg-brand-50 hover:text-brand-700"
                               onClick={() => setOverrideRecebivel(t.id, { cobrado: true })}
                             >
+                              <CheckCircle2 size={14} strokeWidth={2.2} />
                               Marcar cobrado
                             </button>
                           )}
