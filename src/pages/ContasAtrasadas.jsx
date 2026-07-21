@@ -16,7 +16,6 @@ import {
   Phone,
   CheckCircle2,
   ChevronRight,
-  Download,
   Search,
   User,
   X,
@@ -44,6 +43,8 @@ import {
   Empty,
   CarregandoModulo,
   ErroModulo,
+  BotaoPDF,
+  CabecalhoImpressao,
 } from "../components/ui.jsx";
 
 // Cor de barra por grupo de causa.
@@ -306,26 +307,17 @@ export default function ContasAtrasadas() {
 
       {/* Titulos: logo abaixo do painel de numeros */}
       <Card ref={titulosRef}>
-        {/* Cabecalho que so existe no papel. Sem ele o PDF chega no destinatario
-            sem dizer de quando e, nem que recorte esta olhando -- e uma lista de
-            cobranca sem contexto vira retrabalho. */}
-        <div className="apenas-impressao mb-3">
-          <h1 style={{ fontSize: "14pt", fontWeight: 700, margin: 0 }}>
-            Impresilk - Contas a receber em atraso
-          </h1>
-          <p style={{ fontSize: "9pt", margin: "2px 0 0" }}>
-            Emitido em {dataLonga(ymdLocal(new Date()))} · {numero(titulosFiltrados.length)} titulos ·{" "}
-            {moeda(somaFiltrada)}
-          </p>
-          <p style={{ fontSize: "9pt", margin: "2px 0 0" }}>
-            Recorte: {resumoFiltros}
-            {vm.antigas.qtd > 0 && !pediuPeriodo
-              ? ` · nao inclui ${numero(vm.antigas.qtd)} titulos anteriores a ${dataLonga(
-                  vm.antigas.corte
-                )} (${moeda(vm.antigas.valor)})`
-              : ""}
-          </p>
-        </div>
+        <CabecalhoImpressao
+          titulo="Impresilk - Contas a receber em atraso"
+          linhas={[
+            `Emitido em ${dataLonga(ymdLocal(new Date()))} · ${numero(titulosFiltrados.length)} titulos · ${moeda(somaFiltrada)}`,
+            `Recorte: ${resumoFiltros}${
+              vm.antigas.qtd > 0 && !pediuPeriodo
+                ? ` · nao inclui ${numero(vm.antigas.qtd)} titulos anteriores a ${dataLonga(vm.antigas.corte)} (${moeda(vm.antigas.valor)})`
+                : ""
+            }`,
+          ]}
+        />
 
         <SectionTitle
           className="sem-impressao"
@@ -334,14 +326,7 @@ export default function ContasAtrasadas() {
           acao={
             <div className="flex items-center gap-2">
               <Segmented opcoes={opcoesFiltro} valor={filtro} onChange={setFiltro} />
-              <button
-                className="sem-impressao inline-flex h-9 shrink-0 items-center gap-1.5 rounded-lg border px-3 font-display text-sm font-medium text-slate-600 transition-colors hover:border-brand-300 hover:bg-brand-50 hover:text-brand-700"
-                style={{ borderColor: "var(--hairline)" }}
-                onClick={() => window.print()}
-                title="Gera um PDF com exatamente o recorte que esta na tela"
-              >
-                <Download size={15} strokeWidth={2.2} /> Baixar PDF
-              </button>
+              <BotaoPDF titulo="Gera um PDF com exatamente o recorte que esta na tela" />
             </div>
           }
         />

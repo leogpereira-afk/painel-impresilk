@@ -4,7 +4,7 @@
 // os chips de categoria filtram o ranking e cada produto expande com o detalhe
 // (janeiro contra o ultimo mes fechado, serie mensal e participacao no total).
 
-import { Fragment, useMemo, useRef, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import {
   ResponsiveContainer,
   LineChart,
@@ -29,7 +29,7 @@ import {
 } from "lucide-react";
 import { useApp } from "../config/store.jsx";
 import { calcProdutos } from "../lib/calc/produtos.js";
-import { moeda, numero, pct } from "../lib/format.js";
+import { moeda, numero, pct, dataLonga, ymdLocal } from "../lib/format.js";
 import {
   Card,
   PageTitle,
@@ -41,6 +41,8 @@ import {
   Empty,
   CarregandoModulo,
   ErroModulo,
+  BotaoPDF,
+  CabecalhoImpressao,
 } from "../components/ui.jsx";
 
 const MARCA = "#3840E8";
@@ -105,6 +107,13 @@ export default function Produtos() {
   const [expandido, setExpandido] = useState(null);
   const [limite, setLimite] = useState(LOTE);
   const rankingRef = useRef(null);
+
+  // Antes de imprimir, mostra o ranking inteiro (a tela pagina em lotes).
+  useEffect(() => {
+    const expandir = () => setLimite(Number.MAX_SAFE_INTEGER);
+    window.addEventListener("beforeprint", expandir);
+    return () => window.removeEventListener("beforeprint", expandir);
+  }, []);
 
   const vm = useMemo(
     () => (dados ? calcProdutos(dados.ordens, dados.catalogo, config) : null),
@@ -188,20 +197,31 @@ export default function Produtos() {
         titulo="Produtos"
         descricao="O que mais fatura e para onde a tendencia aponta. Clique nos numeros para filtrar o ranking."
         acao={
-          <Segmented
-            opcoes={[
-              { valor: "produto", rotulo: "Produtos" },
-              { valor: "familia", rotulo: "Familias" },
-            ]}
-            valor={dimensao}
-            onChange={(v) => {
-              setDimensao(v);
-              // Os filtros sao da outra dimensao: comecar limpo evita "0 itens".
-              limparTudo();
-              setExpandido(null);
-            }}
-          />
+          <div className="flex items-center gap-2">
+            <Segmented
+              opcoes={[
+                { valor: "produto", rotulo: "Produtos" },
+                { valor: "familia", rotulo: "Familias" },
+              ]}
+              valor={dimensao}
+              onChange={(v) => {
+                setDimensao(v);
+                // Os filtros sao da outra dimensao: comecar limpo evita "0 itens".
+                limparTudo();
+                setExpandido(null);
+              }}
+            />
+            <BotaoPDF titulo="Gera um PDF do ranking com o recorte atual" />
+          </div>
         }
+      />
+
+      <CabecalhoImpressao
+        titulo={`Impresilk - ${ehFamilia ? "Familias" : "Produtos"} por faturamento`}
+        linhas={[
+          `Emitido em ${dataLonga(ymdLocal(new Date()))} · ${vm ? vm.meses.join(" a ") : ""}`,
+          `${numero(listaFiltrada.length)} ${ehFamilia ? "familias" : "produtos"} · ${moeda(dim?.totalFaturamento || 0)} no periodo`,
+        ]}
       />
 
       {/* Explica a leitura da familia: um produto pode vender e o segmento nao. */}
@@ -311,7 +331,7 @@ export default function Produtos() {
         />
         <Card>
           {/* Busca e atalhos */}
-          <div className="mb-4 flex flex-wrap items-center gap-3">
+          <div className="sem-impressao mb-4 flex flex-wrap items-center gap-3">
             <div className="relative min-w-0 flex-1 sm:max-w-sm">
               <Search
                 size={16}

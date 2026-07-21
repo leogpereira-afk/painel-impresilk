@@ -35,7 +35,7 @@ import {
 import { useApp } from "../config/store.jsx";
 import { calcFluxoCaixa } from "../lib/calc/fluxoCaixa.js";
 import { getFluxoMensal } from "../services/mubi.js";
-import { moeda, moedaCheia, numero, dataLonga } from "../lib/format.js";
+import { moeda, moedaCheia, numero, dataLonga, ymdLocal } from "../lib/format.js";
 import {
   Card,
   PageTitle,
@@ -44,6 +44,8 @@ import {
   Empty,
   CarregandoModulo,
   ErroModulo,
+  BotaoPDF,
+  CabecalhoImpressao,
 } from "../components/ui.jsx";
 
 const MARCA = "#3840E8";
@@ -93,6 +95,14 @@ export default function FluxoCaixa() {
     return () => {
       vivo = false;
     };
+  }, []);
+
+  // O calendario mostra em lotes (Ver mais). Antes de imprimir, revela todos os
+  // dias -- senao o PDF sairia truncado sem avisar.
+  useEffect(() => {
+    const expandir = () => setVisiveis(Number.MAX_SAFE_INTEGER);
+    window.addEventListener("beforeprint", expandir);
+    return () => window.removeEventListener("beforeprint", expandir);
   }, []);
 
   const base = useMemo(
@@ -247,10 +257,19 @@ export default function FluxoCaixa() {
       <PageTitle
         titulo="Fluxo de Caixa"
         descricao="Projecao dos proximos 30 dias com a regra D-1. Clique nos numeros para filtrar o calendario."
+        acao={<BotaoPDF titulo="Gera um PDF do fluxo (realizado do ano + projecao)" />}
       />
 
-      {/* KPIs: clicaveis, filtram o calendario abaixo */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+      <CabecalhoImpressao
+        titulo="Impresilk - Fluxo de Caixa"
+        linhas={[
+          `Emitido em ${dataLonga(ymdLocal(new Date()))}`,
+          `Realizado mes a mes de ${anoSel || ""} e projecao dos proximos 30 dias`,
+        ]}
+      />
+
+      {/* KPIs: clicaveis, filtram o calendario -- viram cartoes mortos no papel */}
+      <div className="sem-impressao grid grid-cols-1 gap-4 sm:grid-cols-3">
         <StatCard
           rotulo="Menor saldo previsto"
           valor={moeda(k.menorSaldo)}
@@ -706,7 +725,7 @@ export default function FluxoCaixa() {
         </div>
 
         {/* Busca por lancamento */}
-        <div className="mb-4 flex flex-wrap items-center gap-3">
+        <div className="sem-impressao mb-4 flex flex-wrap items-center gap-3">
           <div className="relative min-w-0 flex-1 sm:max-w-sm">
             <Search
               size={16}

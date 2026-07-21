@@ -3,7 +3,39 @@
 
 import { forwardRef } from "react";
 import { clsx } from "clsx";
-import { ArrowDownRight, ArrowUpRight, Minus } from "lucide-react";
+import { ArrowDownRight, ArrowUpRight, Download, Minus } from "lucide-react";
+
+// Botao "Baixar PDF": dispara a impressora do navegador (Salvar como PDF). Some
+// no proprio papel (.sem-impressao). A tela decide, via CSS de impressao, o que
+// entra na folha; aqui so mora o gatilho, igual em todas as telas.
+export function BotaoPDF({ titulo = "Gera um PDF com o recorte que esta na tela" }) {
+  return (
+    <button
+      className="sem-impressao inline-flex h-9 shrink-0 items-center gap-1.5 rounded-lg border px-3 font-display text-sm font-medium text-slate-600 transition-colors hover:border-brand-300 hover:bg-brand-50 hover:text-brand-700"
+      style={{ borderColor: "var(--hairline)" }}
+      onClick={() => window.print()}
+      title={titulo}
+    >
+      <Download size={15} strokeWidth={2.2} /> Baixar PDF
+    </button>
+  );
+}
+
+// Cabecalho que SO existe no papel: sem ele o PDF chega ao destinatario sem
+// dizer de quando e nem o que esta olhando. `linhas` sao as sublinhas de
+// contexto (emissao, recorte, total).
+export function CabecalhoImpressao({ titulo, linhas = [] }) {
+  return (
+    <div className="apenas-impressao mb-3">
+      <h1 style={{ fontSize: "14pt", fontWeight: 700, margin: 0 }}>{titulo}</h1>
+      {linhas.filter(Boolean).map((l, i) => (
+        <p key={i} style={{ fontSize: "9pt", margin: "2px 0 0" }}>
+          {l}
+        </p>
+      ))}
+    </div>
+  );
+}
 
 const TOM = {
   brand: { texto: "text-brand", bg: "bg-brand/10", barra: "bg-brand", ponto: "bg-brand" },

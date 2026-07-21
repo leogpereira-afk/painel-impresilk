@@ -6,7 +6,7 @@
 // de "Por que perdemos" sao FILTROS clicaveis da lista mestra de orcamentos, que
 // tambem tem busca, situacao e linhas expansiveis.
 
-import { Fragment, useMemo, useRef, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import {
   FileText,
   Percent,
@@ -20,7 +20,7 @@ import {
 } from "lucide-react";
 import { useApp } from "../config/store.jsx";
 import { calcOrcamentos } from "../lib/calc/orcamentos.js";
-import { moeda, numero, pct, dataLonga } from "../lib/format.js";
+import { moeda, numero, pct, dataLonga, ymdLocal } from "../lib/format.js";
 import {
   Card,
   PageTitle,
@@ -32,6 +32,8 @@ import {
   Empty,
   CarregandoModulo,
   ErroModulo,
+  BotaoPDF,
+  CabecalhoImpressao,
 } from "../components/ui.jsx";
 
 // Normaliza para busca (sem acento, minusculo).
@@ -83,6 +85,13 @@ export default function Orcamentos() {
   // "mostrar mais", para nao renderizar tudo de uma vez e travar a tela.
   const [limite, setLimite] = useState(25);
   const listaRef = useRef(null);
+
+  // Antes de imprimir, mostra a lista inteira (a tela pagina em lotes de 25).
+  useEffect(() => {
+    const expandir = () => setLimite(Number.MAX_SAFE_INTEGER);
+    window.addEventListener("beforeprint", expandir);
+    return () => window.removeEventListener("beforeprint", expandir);
+  }, []);
 
   const vm = useMemo(
     () => (dados ? calcOrcamentos(dados.orcamentos, overridesOrcamentos, config) : null),
@@ -198,10 +207,21 @@ export default function Orcamentos() {
           dataLongaCorte(config.parametros.dataCorteOrcamentos) +
           ". Clique nos numeros para filtrar a lista."
         }
+        acao={<BotaoPDF titulo="Gera um PDF da lista de orcamentos com o recorte atual" />}
       />
 
-      {/* KPIs: clicaveis, filtram a lista de orcamentos abaixo */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+      <CabecalhoImpressao
+        titulo="Impresilk - Orcamentos"
+        linhas={[
+          `Emitido em ${dataLonga(ymdLocal(new Date()))} · ${numero(filtrados.length)} orcamentos · ${moeda(
+            filtrados.reduce((s, o) => s + (o.valor || 0), 0)
+          )}`,
+          `Recorte: ${situacao === "todos" ? "todos" : ROTULO_SITUACAO[situacao] || situacao}${periodo !== "todos" ? ` · ${periodo}` : ""}${busca ? ` · busca "${busca}"` : ""}`,
+        ]}
+      />
+
+      {/* KPIs: clicaveis, filtram a lista -- viram cartoes mortos no papel */}
+      <div className="sem-impressao grid grid-cols-1 gap-4 sm:grid-cols-3">
         <StatCard
           rotulo="Na mesa"
           valor={moeda(k.naMesaValor)}
@@ -238,7 +258,7 @@ export default function Orcamentos() {
           sub="Quem esta convertendo. Clique numa linha para ver os orcamentos do vendedor. Ajuste a equipe abaixo, a tabela recalcula na hora."
         />
 
-        <div className="mb-4 flex flex-wrap items-center gap-2">
+        <div className="sem-impressao mb-4 flex flex-wrap items-center gap-2">
           <input
             className="input max-w-xs"
             placeholder="Nome do vendedor"
@@ -377,7 +397,7 @@ export default function Orcamentos() {
           acao={<Segmented opcoes={opcoesSituacao} valor={situacao} onChange={setSituacao} />}
         />
 
-        <div className="mb-4 flex flex-wrap items-center gap-3">
+        <div className="sem-impressao mb-4 flex flex-wrap items-center gap-3">
           <div className="relative min-w-0 flex-1 sm:max-w-sm">
             <Search
               size={16}
