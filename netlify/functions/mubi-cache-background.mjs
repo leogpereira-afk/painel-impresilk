@@ -150,6 +150,10 @@ export function normOS(os, i, categoriaPorNome) {
     id: String(os.id ?? `os-${i}`),
     numero: String(os.sequencial_ordem || os.sequencial_orcamento || os.id || ""),
     cliente: String(os.cliente || "Cliente"),
+    // Quem vendeu. O contas-receber do Mubisys nao tem vendedor: a cobranca
+    // descobre com quem falar ligando o titulo (campo `despesa` = numero da OS)
+    // a esta OS. Ver src/lib/calc/contasAtrasadas.js.
+    vendedor: String(os.vendedor || "").trim(),
     data: String(os.data_cadastro || ""),
     cancelada: /cancel/i.test(String(os.status || "")),
     itens,
@@ -269,7 +273,7 @@ async function etapaCompleta() {
 // entao um conserto na normalizacao (ex: destrinchar unioes de itens) ficaria
 // preso no historico ate a proxima varredura completa. Subir este numero junto
 // com a mudanca faz o proximo ciclo se reconstruir sozinho.
-const VERSAO_NORM = 2;
+const VERSAO_NORM = 3;
 
 async function etapaIncremental(store, remigrarOS = false) {
   const janela = { status: "TODOS", datainicial: hojeMais(-7), datafinal: hojeMais(0) };

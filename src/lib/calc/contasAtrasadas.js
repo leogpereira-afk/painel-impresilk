@@ -7,7 +7,30 @@
 import { diasEntre, dataCurta } from "../format.js";
 import { proximaAcao } from "../recomendacao.js";
 
-export function calcContasAtrasadas(recebiveis, overrides, config, dsoHist = []) {
+// Quem vendeu cada titulo. O contas-receber do Mubisys nao guarda vendedor: o
+// vinculo e o campo `os` do titulo (que e o numero da Ordem de Servico, e pode
+// citar VARIAS OS, ex "18821-18838"). Cruzando com as OS do cache descobrimos
+// com quem a cobranca deve falar.
+//
+// Cobertura medida (2026-07-21): 167 dos 189 titulos em aberto. Os 22 sem
+// vendedor sao de OS de 2025 -- o cache so guarda o ano corrente. Por isso a
+// tela mostra "nao localizado" em vez de mentir um nome.
+function mapaVendedorPorOS(ordens) {
+  const m = new Map();
+  for (const o of ordens || []) {
+    const n = String(o.numero || "").trim();
+    if (n && o.vendedor) m.set(n, o.vendedor);
+  }
+  return m;
+}
+
+function vendedoresDoTitulo(osTexto, mapa) {
+  const numeros = String(osTexto || "").match(/\d+/g) || [];
+  return [...new Set(numeros.map((n) => mapa.get(n)).filter(Boolean))];
+}
+
+export function calcContasAtrasadas(recebiveis, overrides, config, dsoHist = [], ordens = []) {
+  const vendPorOS = mapaVendedorPorOS(ordens);
   const hoje = new Date();
   const hojeISO = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(
     2,
@@ -33,12 +56,15 @@ export function calcContasAtrasadas(recebiveis, overrides, config, dsoHist = [])
     .map((r) => {
       const ov = overrides[r.id] || {};
       const motivo = motivoMap.get(ov.motivoId);
+      const vendedores = vendedoresDoTitulo(r.os, vendPorOS);
       return {
         id: r.id,
         cliente: r.cliente,
         cnpj: r.cnpj,
         nf: r.nf,
         os: r.os,
+        vendedores,
+        vendedor: vendedores.join(", "),
         valor: r.valor,
         dias: r.dias,
         emissao: r.emissao,
@@ -142,8 +168,23 @@ export function calcContasAtrasadas(recebiveis, overrides, config, dsoHist = [])
     acao: r.proximaAcao,
   }));
 
+  // --- Carteira de cobranca por vendedor: quem vendeu o que esta atrasado.
+  // Serve para repassar a cobranca a quem tem a relacao com o cliente. Um
+  // titulo que cita varias OS conta para cada vendedor envolvido (por isso a
+  // soma das carteiras pode passar do total; o rotulo na tela avisa).
+  const porVendedorMapa = {};
+  for (const t of atrasados) {
+    for (const v of t.vendedores.length ? t.vendedores : ["Nao localizado"]) {
+      const b = (porVendedorMapa[v] ||= { nome: v, qtd: 0, valor: 0 });
+      b.qtd += 1;
+      b.valor += t.valor;
+    }
+  }
+  const porVendedor = Object.values(porVendedorMapa).sort((a, b) => b.valor - a.valor);
+
   return {
     titulos: atrasados,
+    porVendedor,
     kpis: {
       totalAtrasado,
       qtd: atrasados.length,

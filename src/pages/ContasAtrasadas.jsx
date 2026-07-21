@@ -17,6 +17,7 @@ import {
   CheckCircle2,
   ChevronRight,
   Search,
+  User,
   X,
 } from "lucide-react";
 import {
@@ -80,12 +81,19 @@ export default function ContasAtrasadas() {
   const [ordem, setOrdem] = useState("valor"); // valor | recentes | antigos | atraso
   const [venceDe, setVenceDe] = useState(""); // periodo de vencimento (YYYY-MM-DD)
   const [venceAte, setVenceAte] = useState("");
+  const [vendedorSel, setVendedorSel] = useState(""); // carteira de um vendedor
   const titulosRef = useRef(null);
 
   const vm = useMemo(
     () =>
       dados
-        ? calcContasAtrasadas(dados.recebiveis, overridesRecebiveis, config, dados.dsoHist)
+        ? calcContasAtrasadas(
+            dados.recebiveis,
+            overridesRecebiveis,
+            config,
+            dados.dsoHist,
+            dados.ordens
+          )
         : null,
     [dados, overridesRecebiveis, config]
   );
@@ -106,8 +114,9 @@ export default function ContasAtrasadas() {
         if (venceDe && t.vencimento < venceDe) return false;
         if (venceAte && t.vencimento > venceAte) return false;
       }
+      if (vendedorSel && !t.vendedores.includes(vendedorSel)) return false;
       if (q) {
-        const alvo = norm(`${t.cliente} ${t.cnpj} ${t.nf} ${t.os}`);
+        const alvo = norm(`${t.cliente} ${t.cnpj} ${t.nf} ${t.os} ${t.vendedor}`);
         if (!alvo.includes(q)) return false;
       }
       return true;
@@ -125,7 +134,7 @@ export default function ContasAtrasadas() {
       atraso: (a, b) => b.dias - a.dias,
     };
     return [...filtrados].sort(ordenadores[ordem] || ordenadores.valor);
-  }, [vm, filtro, diasMin, busca, faixaSel, ordem, venceDe, venceAte]);
+  }, [vm, filtro, diasMin, busca, faixaSel, ordem, venceDe, venceAte, vendedorSel]);
 
   if (erro) return <ErroModulo mensagem={erro} aoTentar={recarregar} />;
   if (!pronto || !vm) return <CarregandoModulo />;
@@ -140,13 +149,15 @@ export default function ContasAtrasadas() {
     { valor: "acima", rotulo: "Acima de X dias" },
   ];
 
-  const temFiltro = filtro !== "todos" || !!busca || !!faixaSel || !!venceDe || !!venceAte;
+  const temFiltro =
+    filtro !== "todos" || !!busca || !!faixaSel || !!venceDe || !!venceAte || !!vendedorSel;
   const limparTudo = () => {
     setFiltro("todos");
     setBusca("");
     setFaixaSel(null);
     setVenceDe("");
     setVenceAte("");
+    setVendedorSel("");
   };
   const irParaTitulos = () =>
     titulosRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -307,6 +318,31 @@ export default function ContasAtrasadas() {
             />
           </div>
 
+          {/* Carteira de cobranca: isola os titulos de um vendedor para
+              repassar a cobranca a quem tem a relacao com o cliente. */}
+          {vm.porVendedor.length > 1 && (
+            <div className="flex items-center gap-2">
+              <label className="label mb-0" htmlFor="vendedor-titulos">
+                Vendedor
+              </label>
+              <select
+                id="vendedor-titulos"
+                value={vendedorSel}
+                onChange={(e) => setVendedorSel(e.target.value)}
+                className="input w-auto"
+              >
+                <option value="">Todos</option>
+                {vm.porVendedor
+                  .filter((v) => v.nome !== "Nao localizado")
+                  .map((v) => (
+                    <option key={v.nome} value={v.nome}>
+                      {v.nome} ({v.qtd})
+                    </option>
+                  ))}
+              </select>
+            </div>
+          )}
+
           {temFiltro && (
             <button className="btn-ghost" onClick={limparTudo}>
               <X size={15} /> Limpar filtros
@@ -382,15 +418,50 @@ export default function ContasAtrasadas() {
                               <span className="chip chip-warn shrink-0">reincidente</span>
                             )}
                           </div>
-                          <p className="mt-0.5 pl-6 text-xs text-slate-500">
-                            NF {t.nf || "-"}, OS {t.os || "-"}
+                          <p className="mt-0.5 flex flex-wrap items-center gap-x-1.5 pl-6 text-xs text-slate-500">
+                            <span>
+                              NF {t.nf || "-"}, OS {t.os || "-"}
+                            </span>
+                            {/* Quem vendeu: e por quem a cobranca comeca. Fica
+                                clicavel para isolar a carteira do vendedor. */}
+                            {t.vendedor ? (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setVendedorSel(
+                                    vendedorSel === t.vendedores[0] ? "" : t.vendedores[0]
+                                  );
+                                }}
+                                className="inline-flex items-center gap-1 rounded-full bg-brand-50 px-2 py-0.5 font-medium text-brand-700 transition-colors hover:bg-brand-100"
+                                title={`Ver so os titulos de ${t.vendedor}`}
+                              >
+                                <User size={11} strokeWidth={2.4} />
+                                {t.vendedor}
+                              </button>
+                            ) : (
+                              <span className="text-slate-400">· vendedor nao localizado</span>
+                            )}
                           </p>
                         </td>
                         <td className="td text-right tnum font-semibold text-slate-900">
                           {moeda(t.valor)}
                         </td>
-                        <td className="td text-right tnum text-slate-700">
-                          {numero(t.dias)} dias
+                        {/* Atraso com peso visual: em cobranca, 15 dias e 300
+                            dias sao problemas diferentes e a tabela precisa
+                            gritar isso sem o gestor ler numero por numero. */}
+                        <td className="td text-right">
+                          <span
+                            className={`inline-block rounded-md px-2 py-0.5 tnum text-sm font-semibold ${
+                              t.dias >= 90
+                                ? "bg-bad-50 text-bad-700"
+                                : t.dias >= 30
+                                  ? "bg-warn-50 text-warn-700"
+                                  : "text-slate-600"
+                            }`}
+                          >
+                            {numero(t.dias)} dias
+                          </span>
                         </td>
                         <td className="td" onClick={(e) => e.stopPropagation()}>
                           <select
@@ -437,6 +508,10 @@ export default function ContasAtrasadas() {
                                 <Detalhe rotulo="CNPJ / CPF" valor={t.cnpj || "nao informado"} />
                                 <Detalhe rotulo="Nota fiscal" valor={t.nf || "sem NF"} />
                                 <Detalhe rotulo="Ordem de servico" valor={t.os || "sem OS"} />
+                                <Detalhe
+                                  rotulo={t.vendedores.length > 1 ? "Vendedores" : "Vendedor"}
+                                  valor={t.vendedor || "nao localizado (OS de outro ano)"}
+                                />
                                 <Detalhe
                                   rotulo="Emissao"
                                   valor={t.emissao ? dataLonga(t.emissao) : "nao informada"}

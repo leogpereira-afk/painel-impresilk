@@ -299,6 +299,32 @@ export function getPagar() {
 export function getContasBancarias() {
   return BANCOS;
 }
+// Fluxo realizado mes a mes no demo: dois anos plausiveis, para a tela de
+// "Realizado mes a mes" ter o que mostrar sem o Mubisys.
+export function getFluxoMensal() {
+  const ano = new Date().getFullYear();
+  const serie = (base) =>
+    Object.fromEntries(
+      Array.from({ length: 12 }, (_, i) => [
+        `${ano}-${String(i + 1).padStart(2, "0")}`,
+        Math.round(base * (0.85 + ((i * 7) % 10) / 30)),
+      ])
+    );
+  const serieAnt = (base) =>
+    Object.fromEntries(
+      Array.from({ length: 12 }, (_, i) => [
+        `${ano - 1}-${String(i + 1).padStart(2, "0")}`,
+        Math.round(base * (0.8 + ((i * 5) % 10) / 30)),
+      ])
+    );
+  return {
+    anos: {
+      [String(ano - 1)]: { entradas: serieAnt(420000), saidas: serieAnt(400000) },
+      [String(ano)]: { entradas: serie(450000), saidas: serie(425000) },
+    },
+    disponiveis: [String(ano), String(ano - 1)],
+  };
+}
 export function getOrcamentos() {
   // Remove o campo interno de semente antes de entregar (o Mubi nao tem motivo).
   return ORCAMENTOS.map(({ _motivoPerdaSemente, ...o }) => o);
