@@ -93,7 +93,7 @@ export default function Layout({ children }) {
               )}
               {f && (
                 <span
-                  className={`hidden items-center gap-1.5 sm:inline-flex ${f.velho ? "chip-warn" : "chip"}`}
+                  className={`sem-impressao hidden items-center gap-1.5 sm:inline-flex ${f.velho ? "chip-warn" : "chip"}`}
                   title={`Dados do cache do Mubisys, ${f.idadeMin} min atras`}
                 >
                   <Clock size={13} />

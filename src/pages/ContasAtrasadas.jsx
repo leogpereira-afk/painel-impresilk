@@ -246,7 +246,10 @@ export default function ContasAtrasadas() {
       />
 
       {/* KPIs: clicaveis, filtram a lista de titulos abaixo */}
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-5">
+      {/* Os KPIs sao filtros clicaveis: no papel viram cartoes mortos e ainda
+          saem pela metade (os que nao tem clique nao sao botoes). O cabecalho
+          de impressao ja carrega total e quantidade. */}
+      <div className="sem-impressao grid grid-cols-2 gap-4 lg:grid-cols-5">
         <StatCard
           rotulo="Total atrasado"
           valor={moeda(k.totalAtrasado)}
@@ -317,7 +320,7 @@ export default function ContasAtrasadas() {
           <p style={{ fontSize: "9pt", margin: "2px 0 0" }}>
             Recorte: {resumoFiltros}
             {vm.antigas.qtd > 0 && !pediuPeriodo
-              ? ` · nao inclui ${numero(vm.antigas.qtd)} titulos anteriores a ${dataCurta(
+              ? ` · nao inclui ${numero(vm.antigas.qtd)} titulos anteriores a ${dataLonga(
                   vm.antigas.corte
                 )} (${moeda(vm.antigas.valor)})`
               : ""}
@@ -325,6 +328,7 @@ export default function ContasAtrasadas() {
         </div>
 
         <SectionTitle
+          className="sem-impressao"
           titulo="Titulos"
           sub="Clique na linha para ver os detalhes. Classifique o motivo e marque o que ja foi cobrado."
           acao={
@@ -347,7 +351,7 @@ export default function ContasAtrasadas() {
             dominando a largura (ela e a acao principal).
             NIVEL 2: recortes (quando/quem), agrupados numa faixa propria para
             nao competirem com a busca. Filtro ligado acende em indigo. */}
-        <div className="mb-4 space-y-2.5">
+        <div className="sem-impressao mb-4 space-y-2.5">
           <div className="flex flex-wrap items-center gap-3">
             <div className="relative min-w-[240px] flex-1">
               <Search
@@ -502,8 +506,8 @@ export default function ContasAtrasadas() {
           </div>
         </div>
 
-        {/* Resumo do que esta na tela */}
-        <div className="mb-3 flex flex-wrap items-center gap-2 text-sm text-slate-500">
+        {/* Resumo do que esta na tela (no papel isto ja esta no cabecalho). */}
+        <div className="sem-impressao mb-3 flex flex-wrap items-center gap-2 text-sm text-slate-500">
           <span>
             Mostrando <strong className="tnum text-slate-900">{numero(titulosFiltrados.length)}</strong>{" "}
             de {numero(pediuPeriodo ? vm.titulos.length : vm.qtdAtivos)} titulos
