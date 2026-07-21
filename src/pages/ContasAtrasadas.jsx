@@ -31,8 +31,8 @@ import {
   ReferenceLine,
 } from "recharts";
 import { useApp } from "../config/store.jsx";
-import { calcContasAtrasadas } from "../lib/calc/contasAtrasadas.js";
-import { moeda, numero, dataLonga, dataCurta } from "../lib/format.js";
+import { calcContasAtrasadas, agruparDividas } from "../lib/calc/contasAtrasadas.js";
+import { moeda, numero, dataLonga, dataCurta, rotuloMes, MESES } from "../lib/format.js";
 import {
   Card,
   PageTitle,
@@ -82,6 +82,9 @@ export default function ContasAtrasadas() {
   const [venceDe, setVenceDe] = useState(""); // periodo de vencimento (YYYY-MM-DD)
   const [venceAte, setVenceAte] = useState("");
   const [vendedorSel, setVendedorSel] = useState(""); // carteira de um vendedor
+  const [anoSel, setAnoSel] = useState(""); // ano de vencimento (AAAA)
+  const [mesSel, setMesSel] = useState(""); // mes de vencimento (01-12)
+  const [visao, setVisao] = useState("mes"); // dash das dividas: ano | mes | cliente
   const titulosRef = useRef(null);
 
   const vm = useMemo(
@@ -115,6 +118,9 @@ export default function ContasAtrasadas() {
         if (venceAte && t.vencimento > venceAte) return false;
       }
       if (vendedorSel && !t.vendedores.includes(vendedorSel)) return false;
+      // Ano e mes de vencimento: atalhos rapidos que somam ao periodo livre.
+      if (anoSel && (t.vencimento || "").slice(0, 4) !== anoSel) return false;
+      if (mesSel && (t.vencimento || "").slice(5, 7) !== mesSel) return false;
       if (q) {
         const alvo = norm(`${t.cliente} ${t.cnpj} ${t.nf} ${t.os} ${t.vendedor}`);
         if (!alvo.includes(q)) return false;
@@ -134,7 +140,19 @@ export default function ContasAtrasadas() {
       atraso: (a, b) => b.dias - a.dias,
     };
     return [...filtrados].sort(ordenadores[ordem] || ordenadores.valor);
-  }, [vm, filtro, diasMin, busca, faixaSel, ordem, venceDe, venceAte, vendedorSel]);
+  }, [vm, filtro, diasMin, busca, faixaSel, ordem, venceDe, venceAte, vendedorSel, anoSel, mesSel]);
+
+  // Dash das dividas: sempre sobre a lista JA filtrada, para responder sobre o
+  // que o gestor esta olhando (e nao sobre um total que nao esta na tela).
+  const dividas = useMemo(() => agruparDividas(titulosFiltrados), [titulosFiltrados]);
+
+  // Anos disponiveis (dos titulos, nao inventados), para o seletor.
+  const anosDisponiveis = useMemo(() => {
+    if (!vm) return [];
+    return [...new Set(vm.titulos.map((t) => (t.vencimento || "").slice(0, 4)).filter(Boolean))].sort(
+      (a, b) => b.localeCompare(a)
+    );
+  }, [vm]);
 
   if (erro) return <ErroModulo mensagem={erro} aoTentar={recarregar} />;
   if (!pronto || !vm) return <CarregandoModulo />;
@@ -150,7 +168,14 @@ export default function ContasAtrasadas() {
   ];
 
   const temFiltro =
-    filtro !== "todos" || !!busca || !!faixaSel || !!venceDe || !!venceAte || !!vendedorSel;
+    filtro !== "todos" ||
+    !!busca ||
+    !!faixaSel ||
+    !!venceDe ||
+    !!venceAte ||
+    !!vendedorSel ||
+    !!anoSel ||
+    !!mesSel;
   const limparTudo = () => {
     setFiltro("todos");
     setBusca("");
@@ -158,6 +183,8 @@ export default function ContasAtrasadas() {
     setVenceDe("");
     setVenceAte("");
     setVendedorSel("");
+    setAnoSel("");
+    setMesSel("");
   };
   const irParaTitulos = () =>
     titulosRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -292,6 +319,45 @@ export default function ContasAtrasadas() {
               <option value="recentes">Vencimento mais recente</option>
               <option value="antigos">Vencimento mais antigo</option>
               <option value="atraso">Maior atraso</option>
+            </select>
+          </div>
+
+          {/* Ano e mes: atalhos rapidos de vencimento */}
+          <div className="flex items-center gap-2">
+            <label className="label mb-0" htmlFor="ano-titulos">
+              Ano
+            </label>
+            <select
+              id="ano-titulos"
+              value={anoSel}
+              onChange={(e) => setAnoSel(e.target.value)}
+              className="input w-auto"
+            >
+              <option value="">Todos</option>
+              {anosDisponiveis.map((a) => (
+                <option key={a} value={a}>
+                  {a}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <label className="label mb-0" htmlFor="mes-titulos">
+              Mes
+            </label>
+            <select
+              id="mes-titulos"
+              value={mesSel}
+              onChange={(e) => setMesSel(e.target.value)}
+              className="input w-auto"
+            >
+              <option value="">Todos</option>
+              {MESES.map((m, i) => (
+                <option key={m} value={String(i + 1).padStart(2, "0")}>
+                  {m}
+                </option>
+              ))}
             </select>
           </div>
 
@@ -557,6 +623,153 @@ export default function ContasAtrasadas() {
               </button>
             )}
           </Empty>
+        )}
+      </Card>
+
+      {/* Onde a divida esta: mesmo recorte da lista acima, visto por tres
+          angulos. Clicar numa barra filtra a lista (ano/mes) ou busca o
+          cliente, para o gestor ir do "onde" direto para o "quem". */}
+      <Card>
+        <SectionTitle
+          titulo="Onde esta a divida"
+          sub={`${numero(titulosFiltrados.length)} titulos no recorte atual - ${moeda(
+            somaFiltrada
+          )}. Clique numa barra para filtrar.`}
+          acao={
+            <Segmented
+              opcoes={[
+                { valor: "ano", rotulo: "Por ano" },
+                { valor: "mes", rotulo: "Por mes" },
+                { valor: "cliente", rotulo: "Por cliente" },
+              ]}
+              valor={visao}
+              onChange={setVisao}
+            />
+          }
+        />
+        {dividas[visao === "ano" ? "porAno" : visao === "mes" ? "porMes" : "porCliente"].length ? (
+          <div className="space-y-4">
+            {(() => {
+              const lista =
+                visao === "ano"
+                  ? dividas.porAno
+                  : visao === "mes"
+                    ? dividas.porMes
+                    : dividas.porCliente.slice(0, 12);
+              const maior = Math.max(...lista.map((x) => x.valor), 1);
+              const rotulo = (x) => (visao === "mes" ? rotuloMes(x.chave) : x.chave);
+              return lista.map((x) => (
+                <button
+                  key={x.chave}
+                  type="button"
+                  className="block w-full text-left"
+                  onClick={() => {
+                    if (visao === "ano") {
+                      setAnoSel(anoSel === x.chave ? "" : x.chave);
+                      setMesSel("");
+                    } else if (visao === "mes") {
+                      setAnoSel(x.chave.slice(0, 4));
+                      setMesSel(mesSel === x.chave.slice(5, 7) ? "" : x.chave.slice(5, 7));
+                    } else {
+                      setBusca(busca === x.chave ? "" : x.chave);
+                    }
+                    irParaTitulos();
+                  }}
+                  title={
+                    visao === "cliente"
+                      ? `Buscar ${x.chave} na lista`
+                      : `Filtrar a lista por ${rotulo(x)}`
+                  }
+                >
+                  <BarRow
+                    rotulo={rotulo(x)}
+                    valorTexto={moeda(x.valor)}
+                    pct={Math.round((x.valor / maior) * 100)}
+                    tom={x.dias >= 90 ? "bad" : x.dias >= 30 ? "warn" : "brand"}
+                    sub={`${numero(x.qtd)} ${x.qtd === 1 ? "titulo" : "titulos"} - atraso ate ${numero(x.dias)} dias`}
+                  />
+                </button>
+              ));
+            })()}
+            {visao === "cliente" && dividas.porCliente.length > 12 && (
+              <p className="text-xs text-slate-500">
+                Mostrando os 12 maiores de {numero(dividas.porCliente.length)} clientes.
+              </p>
+            )}
+          </div>
+        ) : (
+          <Empty>Nenhum titulo no recorte atual.</Empty>
+        )}
+      </Card>
+
+      {/* Ranking de quem mais deve: a fila de cobranca, na ordem. */}
+      <Card>
+        <SectionTitle
+          titulo="Ranking de devedores"
+          sub="Quem mais deve no recorte atual, com o vendedor que atendeu."
+        />
+        {dividas.porCliente.length ? (
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[620px] border-collapse">
+              <thead>
+                <tr>
+                  <th className="th text-left">#</th>
+                  <th className="th text-left">Cliente</th>
+                  <th className="th text-right">Devendo</th>
+                  <th className="th text-right">Titulos</th>
+                  <th className="th text-right">Maior atraso</th>
+                  <th className="th text-left">Vendedor</th>
+                </tr>
+              </thead>
+              <tbody>
+                {dividas.porCliente.slice(0, 15).map((c, i) => {
+                  const vends = [
+                    ...new Set(
+                      titulosFiltrados
+                        .filter((t) => t.cliente === c.chave)
+                        .flatMap((t) => t.vendedores)
+                    ),
+                  ];
+                  return (
+                    <tr
+                      key={c.chave}
+                      className="cursor-pointer transition-colors hover:bg-slate-50"
+                      onClick={() => {
+                        setBusca(c.chave);
+                        irParaTitulos();
+                      }}
+                      title={`Ver os titulos de ${c.chave}`}
+                    >
+                      <td className="td tnum text-slate-400">{i + 1}</td>
+                      <td className="td font-display font-medium text-slate-900">{c.chave}</td>
+                      <td className="td text-right tnum font-semibold text-slate-900">
+                        {moeda(c.valor)}
+                      </td>
+                      <td className="td text-right tnum text-slate-600">{numero(c.qtd)}</td>
+                      <td className="td text-right">
+                        <span
+                          className={`inline-block rounded-md px-2 py-0.5 tnum text-sm font-semibold ${
+                            c.dias >= 90
+                              ? "bg-bad-50 text-bad-700"
+                              : c.dias >= 30
+                                ? "bg-warn-50 text-warn-700"
+                                : "text-slate-600"
+                          }`}
+                        >
+                          {numero(c.dias)} dias
+                        </span>
+                      </td>
+                      <td className="td text-sm text-slate-600">
+                        {vends.length ? vends.join(", ") : "nao localizado"}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <Empty>Nenhum devedor no recorte atual.</Empty>
         )}
       </Card>
 

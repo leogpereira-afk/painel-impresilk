@@ -38,7 +38,7 @@ export function ymdLocal(d) {
   ).padStart(2, "0")}`;
 }
 
-const MESES = [
+export const MESES = [
   "jan",
   "fev",
   "mar",

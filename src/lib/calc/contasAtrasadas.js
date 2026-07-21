@@ -29,6 +29,34 @@ function vendedoresDoTitulo(osTexto, mapa) {
   return [...new Set(numeros.map((n) => mapa.get(n)).filter(Boolean))];
 }
 
+// Onde a divida esta concentrada: por ano e por mes de VENCIMENTO (quando a
+// divida nasceu) e por cliente (quem deve). Recebe a lista JA FILTRADA da tela,
+// para o painel responder sempre sobre o que esta na frente do gestor.
+export function agruparDividas(titulos) {
+  const porChave = (fn) => {
+    const acc = {};
+    for (const t of titulos) {
+      const k = fn(t);
+      if (!k) continue;
+      const b = (acc[k] ||= { chave: k, qtd: 0, valor: 0, dias: 0 });
+      b.qtd += 1;
+      b.valor += t.valor;
+      b.dias = Math.max(b.dias, t.dias);
+    }
+    return Object.values(acc);
+  };
+
+  const porAno = porChave((t) => (t.vencimento || "").slice(0, 4)).sort((a, b) =>
+    a.chave.localeCompare(b.chave)
+  );
+  const porMes = porChave((t) => (t.vencimento || "").slice(0, 7)).sort((a, b) =>
+    a.chave.localeCompare(b.chave)
+  );
+  const porCliente = porChave((t) => t.cliente).sort((a, b) => b.valor - a.valor);
+
+  return { porAno, porMes, porCliente };
+}
+
 export function calcContasAtrasadas(recebiveis, overrides, config, dsoHist = [], ordens = []) {
   const vendPorOS = mapaVendedorPorOS(ordens);
   const hoje = new Date();
