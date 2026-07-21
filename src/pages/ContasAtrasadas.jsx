@@ -78,7 +78,9 @@ export default function ContasAtrasadas() {
   const [busca, setBusca] = useState("");
   const [faixaSel, setFaixaSel] = useState(null); // {faixa, de, ate}
   const [expandido, setExpandido] = useState(null); // id do titulo aberto
-  const [ordem, setOrdem] = useState("valor"); // valor | recentes | antigos | atraso
+  // Padrao = divida mais velha primeiro: e a fila natural da cobranca (quanto
+  // mais antigo, menor a chance de receber). Trocavel no seletor.
+  const [ordem, setOrdem] = useState("antigos"); // valor | recentes | antigos | atraso
   const [venceDe, setVenceDe] = useState(""); // periodo de vencimento (YYYY-MM-DD)
   const [venceAte, setVenceAte] = useState("");
   const [vendedorSel, setVendedorSel] = useState(""); // carteira de um vendedor
@@ -303,7 +305,7 @@ export default function ContasAtrasadas() {
                 id="ordem-titulos"
                 value={ordem}
                 onChange={(e) => setOrdem(e.target.value)}
-                className={`filtro font-display ${ordem !== "valor" ? "filtro-ativo" : ""}`}
+                className={`filtro font-display ${ordem !== "antigos" ? "filtro-ativo" : ""}`}
               >
                 <option value="valor">Maior valor</option>
                 <option value="recentes">Vencimento mais recente</option>

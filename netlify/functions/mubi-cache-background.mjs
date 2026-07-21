@@ -192,14 +192,20 @@ function calcDso(recebiveis) {
 // (nenhuma etapa grava no Blobs; todas RETORNAM os dados montados)
 
 async function etapaRapidos() {
+  // Recebiveis: PENDENTE olha a janela curta (o que esta por vencer), mas
+  // VENCIDO precisa varrer TUDO. Com datainicial de -365 dias o painel escondia
+  // 33 titulos / R$ 52 mil de calote antigo (medido em 2026-07-21) e o KPI
+  // "maior atraso" batia em 364 dias -- que era o limite da janela, nao o
+  // atraso real (1.782 dias). Divida velha e a que mais precisa aparecer.
   const jRec = { filtrodata: "VENCIMENTO", datainicial: hojeMais(-365), datafinal: hojeMais(90) };
+  const jRecVencido = { filtrodata: "VENCIMENTO", datainicial: "2015-01-01", datafinal: hojeMais(0) };
   const jPag = { filtrodata: "VENCIMENTO", datainicial: hojeMais(-30), datafinal: hojeMais(60) };
 
   // Recursos independentes: em paralelo. Em serie, so esta etapa ja comia
   // metade do orcamento de tempo da Function.
   const [vencidos, pendentes, pagPend, pagVenc, fixa, cartao, folha, bancosBrutos] =
     await Promise.all([
-      mubiGetTudo("contas-receber", { ...jRec, status: "VENCIDO" }),
+      mubiGetTudo("contas-receber", { ...jRecVencido, status: "VENCIDO" }),
       mubiGetTudo("contas-receber", { ...jRec, status: "PENDENTE" }),
       mubiGetTudo("contas-pagar", { ...jPag, status: "PENDENTE" }),
       mubiGetTudo("contas-pagar", { ...jPag, status: "VENCIDO" }),
