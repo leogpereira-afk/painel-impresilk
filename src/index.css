@@ -222,6 +222,53 @@ html.dark ::-webkit-scrollbar-thumb {
 .dark .btn-ghost:hover { background-color: rgba(255, 255, 255, 0.08); }
 .dark .th { color: #929cb3; }
 .dark .td { color: #d3d9e8; }
+/* ---------------------------------------------------------------- impressao
+   Gera o PDF pela propria impressora do navegador ("Salvar como PDF"): o texto
+   sai vetorial (buscavel e copiavel no PDF), respeita os filtros da tela e nao
+   custa nada no bundle -- uma biblioteca de PDF pesaria centenas de KB e ainda
+   rasterizaria o texto.
+   Convencao: .sem-impressao some no papel; .apenas-impressao so existe nele. */
+.apenas-impressao { display: none; }
+
+@media print {
+  @page { size: A4 landscape; margin: 12mm; }
+
+  /* Fora do papel: navegacao, controles e tudo que so serve para clicar. */
+  .sem-impressao,
+  header nav,
+  button:not(.imprimivel),
+  select,
+  input { display: none !important; }
+
+  .apenas-impressao { display: block; }
+  td .apenas-impressao,
+  span.apenas-impressao { display: inline; }
+
+  /* Tinta economica e contraste de papel. */
+  body, .dark body { background: #fff !important; color: #111 !important; }
+  .dark { color-scheme: light; }
+  * { box-shadow: none !important; text-shadow: none !important; }
+
+  /* O conteudo ocupa a folha inteira: nada de cartao flutuando no meio. */
+  main, .card, section { max-width: none !important; width: 100% !important;
+    border: 0 !important; border-radius: 0 !important; padding: 0 !important;
+    margin: 0 0 10mm 0 !important; background: #fff !important; }
+
+  /* Tabela legivel em varias paginas: cabecalho repete, linha nao parte ao
+     meio (uma cobranca cortada entre paginas e ilegivel). */
+  table { width: 100% !important; font-size: 9.5pt; border-collapse: collapse; }
+  thead { display: table-header-group; }
+  tr { break-inside: avoid; page-break-inside: avoid; }
+  th, td { padding: 4px 6px !important; border-bottom: 1px solid #ddd; }
+  .th { color: #333 !important; font-size: 8pt; }
+  .td { color: #111 !important; }
+
+  /* Chips viram texto simples: fundo colorido gasta tinta e nao ajuda no papel,
+     mas o peso da fonte preserva a gravidade do atraso. */
+  .chip, .chip-ok, .chip-warn, .chip-bad { background: transparent !important;
+    color: #111 !important; padding: 0 !important; font-weight: 600; }
+}
+
 .dark .chip { background-color: rgba(255, 255, 255, 0.07); color: #b6bfd2; }
 .dark .label { color: #929cb3; }
 .dark .label-filtro { color: #7f8aa3; }

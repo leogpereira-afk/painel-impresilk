@@ -16,6 +16,7 @@ import {
   Phone,
   CheckCircle2,
   ChevronRight,
+  Download,
   Search,
   User,
   X,
@@ -32,7 +33,7 @@ import {
 } from "recharts";
 import { useApp } from "../config/store.jsx";
 import { calcContasAtrasadas, agruparDividas } from "../lib/calc/contasAtrasadas.js";
-import { moeda, numero, dataLonga, dataCurta, rotuloMes, MESES } from "../lib/format.js";
+import { moeda, numero, dataLonga, dataCurta, rotuloMes, ymdLocal, MESES } from "../lib/format.js";
 import {
   Card,
   PageTitle,
@@ -106,6 +107,21 @@ export default function ContasAtrasadas() {
   // Pedir um periodo (ano ou intervalo de datas) e o gesto que revela a divida
   // antiga. So o mes nao basta: "junho" sem ano nao e um pedido pelo passado.
   const pediuPeriodo = !!anoSel || !!venceDe || !!venceAte;
+
+  // Frase que descreve o recorte, para carimbar no PDF: sem isto o papel sai
+  // sem dizer o que esta (e o que nao esta) na lista.
+  const resumoFiltros = useMemo(() => {
+    const p = [];
+    if (filtro !== "todos") p.push({ pendentes: "so pendentes de cobranca", reincidentes: "so reincidentes", acima: `atraso acima de ${diasMin} dias` }[filtro] || filtro);
+    if (anoSel) p.push(`ano ${anoSel}`);
+    if (mesSel) p.push(`mes ${MESES[Number(mesSel) - 1]}`);
+    if (venceDe || venceAte)
+      p.push(`vencimento de ${venceDe ? dataCurta(venceDe) : "o inicio"} a ${venceAte ? dataCurta(venceAte) : "hoje"}`);
+    if (vendedorSel) p.push(`vendedor ${vendedorSel}`);
+    if (faixaSel) p.push(`idade ${faixaSel.faixa}`);
+    if (busca) p.push(`busca "${busca}"`);
+    return p.length ? p.join(" · ") : "todos os titulos em atraso";
+  }, [filtro, diasMin, anoSel, mesSel, venceDe, venceAte, vendedorSel, faixaSel, busca]);
 
   const titulosFiltrados = useMemo(() => {
     if (!vm) return [];
@@ -287,11 +303,42 @@ export default function ContasAtrasadas() {
 
       {/* Titulos: logo abaixo do painel de numeros */}
       <Card ref={titulosRef}>
+        {/* Cabecalho que so existe no papel. Sem ele o PDF chega no destinatario
+            sem dizer de quando e, nem que recorte esta olhando -- e uma lista de
+            cobranca sem contexto vira retrabalho. */}
+        <div className="apenas-impressao mb-3">
+          <h1 style={{ fontSize: "14pt", fontWeight: 700, margin: 0 }}>
+            Impresilk - Contas a receber em atraso
+          </h1>
+          <p style={{ fontSize: "9pt", margin: "2px 0 0" }}>
+            Emitido em {dataLonga(ymdLocal(new Date()))} · {numero(titulosFiltrados.length)} titulos ·{" "}
+            {moeda(somaFiltrada)}
+          </p>
+          <p style={{ fontSize: "9pt", margin: "2px 0 0" }}>
+            Recorte: {resumoFiltros}
+            {vm.antigas.qtd > 0 && !pediuPeriodo
+              ? ` · nao inclui ${numero(vm.antigas.qtd)} titulos anteriores a ${dataCurta(
+                  vm.antigas.corte
+                )} (${moeda(vm.antigas.valor)})`
+              : ""}
+          </p>
+        </div>
+
         <SectionTitle
           titulo="Titulos"
           sub="Clique na linha para ver os detalhes. Classifique o motivo e marque o que ja foi cobrado."
           acao={
-            <Segmented opcoes={opcoesFiltro} valor={filtro} onChange={setFiltro} />
+            <div className="flex items-center gap-2">
+              <Segmented opcoes={opcoesFiltro} valor={filtro} onChange={setFiltro} />
+              <button
+                className="sem-impressao inline-flex h-9 shrink-0 items-center gap-1.5 rounded-lg border px-3 font-display text-sm font-medium text-slate-600 transition-colors hover:border-brand-300 hover:bg-brand-50 hover:text-brand-700"
+                style={{ borderColor: "var(--hairline)" }}
+                onClick={() => window.print()}
+                title="Gera um PDF com exatamente o recorte que esta na tela"
+              >
+                <Download size={15} strokeWidth={2.2} /> Baixar PDF
+              </button>
+            </div>
           }
         />
 
@@ -573,6 +620,12 @@ export default function ContasAtrasadas() {
                             ) : (
                               <span className="text-slate-400">· vendedor nao localizado</span>
                             )}
+                            {/* O chip acima e um <button> e some na impressao;
+                                sem isto o vendedor -- o dado que faz o PDF de
+                                cobranca valer -- nao sairia no papel. */}
+                            {t.vendedor && (
+                              <span className="apenas-impressao">· vendedor: {t.vendedor}</span>
+                            )}
                           </p>
                         </td>
                         <td className="td text-right tnum font-semibold text-slate-900">
@@ -617,9 +670,15 @@ export default function ContasAtrasadas() {
                               </option>
                             ))}
                           </select>
+                          {/* No papel o <select> some; o motivo vira texto. */}
+                          <span className="apenas-impressao">{t.motivoNome}</span>
                         </td>
                         <td className="td text-sm text-slate-500">{t.proximaAcao}</td>
                         <td className="td text-right" onClick={(e) => e.stopPropagation()}>
+                          {/* No papel o botao some; sobra a situacao, que e o
+                              que interessa a quem vai cobrar com a lista na
+                              mao: ja falei com este cliente ou nao? */}
+                          {!t.cobrado && <span className="apenas-impressao">a cobrar</span>}
                           {t.cobrado ? (
                             <span className="chip chip-ok inline-flex items-center gap-1">
                               <CheckCircle2 size={13} strokeWidth={2.4} />
