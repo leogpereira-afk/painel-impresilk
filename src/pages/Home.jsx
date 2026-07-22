@@ -8,7 +8,13 @@
 // vezes e ver tres frases diferentes faria o painel parecer instavel. O indice
 // vem do dia do ano, entao e a mesma o dia inteiro, em qualquer aparelho.
 
+import { useCallback, useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { AlertTriangle, ChevronRight } from "lucide-react";
 import { useApp } from "../config/store.jsx";
+import { listarAtivos } from "../services/ativos.js";
+import { calcAtivos } from "../lib/calc/ativos.js";
+import { ymdLocal } from "../lib/format.js";
 import { CarregandoModulo, ErroModulo } from "../components/ui.jsx";
 import logoColor from "../assets/brand/logo-color.png";
 import logoWhite from "../assets/brand/logo-white.png";
@@ -49,6 +55,24 @@ function fraseDoDia() {
 
 export default function Home() {
   const { pronto, erro, recarregar } = useApp();
+  const navigate = useNavigate();
+
+  // Documentos e manutencoes que vencem: e a unica coisa que a Home mostra alem
+  // da saudacao, porque e a unica que ninguem lembra de ir olhar sozinho -- um
+  // alvara vence em silencio.
+  const [criticos, setCriticos] = useState([]);
+  useEffect(() => {
+    let vivo = true;
+    listarAtivos()
+      .then((itens) => {
+        if (!vivo) return;
+        setCriticos(calcAtivos(itens, ymdLocal(new Date())).criticos.slice(0, 4));
+      })
+      .catch(() => {});
+    return () => {
+      vivo = false;
+    };
+  }, []);
 
   if (erro) return <ErroModulo mensagem={erro} aoTentar={recarregar} />;
   if (!pronto) return <CarregandoModulo />;
@@ -65,6 +89,33 @@ export default function Home() {
       <p className="mt-4 max-w-xl text-lg leading-relaxed text-slate-500 sm:text-xl">
         {fraseDoDia()}
       </p>
+
+      {criticos.length > 0 && (
+        <button
+          onClick={() => navigate("/documentos")}
+          className="card card-hover mt-8 w-full max-w-lg border-l-4 border-l-warn-600 p-4 text-left"
+        >
+          <span className="flex items-center gap-2">
+            <AlertTriangle size={16} className="shrink-0 text-warn-700" />
+            <span className="flex-1 font-display text-sm font-semibold text-slate-900">
+              {criticos.length === 1
+                ? "1 documento ou manutencao precisa de atencao"
+                : `${criticos.length} documentos ou manutencoes precisam de atencao`}
+            </span>
+            <ChevronRight size={16} className="shrink-0 text-slate-300" />
+          </span>
+          <span className="mt-2 block space-y-0.5">
+            {criticos.map((c) => (
+              <span key={c.id} className="flex items-center gap-2 text-sm">
+                <span className="min-w-0 flex-1 truncate text-slate-600">{c.nome}</span>
+                <span className={c.sit.nivel === "vencido" ? "text-bad-700" : "text-warn-700"}>
+                  {c.sit.rotulo}
+                </span>
+              </span>
+            ))}
+          </span>
+        </button>
+      )}
 
       <p className="mt-8 text-sm text-slate-400">
         Escolha um modulo no menu ao lado para comecar.
