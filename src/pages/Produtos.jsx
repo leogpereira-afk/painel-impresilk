@@ -219,7 +219,9 @@ export default function Produtos() {
       <CabecalhoImpressao
         titulo={`Impresilk - ${ehFamilia ? "Familias" : "Produtos"} por faturamento`}
         linhas={[
-          `Emitido em ${dataLonga(ymdLocal(new Date()))} · ${vm ? vm.meses.join(" a ") : ""}`,
+          `Emitido em ${dataLonga(ymdLocal(new Date()))}${
+            vm && vm.meses.length ? ` · ${vm.meses[0]} a ${vm.meses[vm.meses.length - 1]}` : ""
+          }`,
           `${numero(listaFiltrada.length)} ${ehFamilia ? "familias" : "produtos"} · ${moeda(dim?.totalFaturamento || 0)} no periodo`,
         ]}
       />
