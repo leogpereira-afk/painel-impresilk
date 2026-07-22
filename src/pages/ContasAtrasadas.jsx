@@ -675,7 +675,7 @@ export default function ContasAtrasadas() {
                             </span>
                           ) : (
                             <button
-                              className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-transparent px-2.5 font-display text-sm font-medium text-slate-500 transition-all duration-150 hover:border-brand-200 hover:bg-brand-50 hover:text-brand-700"
+                              className="sem-impressao inline-flex h-8 items-center gap-1.5 rounded-lg border border-transparent px-2.5 font-display text-sm font-medium text-slate-500 transition-all duration-150 hover:border-brand-200 hover:bg-brand-50 hover:text-brand-700"
                               onClick={() => setOverrideRecebivel(t.id, { cobrado: true })}
                             >
                               <CheckCircle2 size={14} strokeWidth={2.2} />

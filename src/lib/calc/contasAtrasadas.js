@@ -128,12 +128,18 @@ export function calcContasAtrasadas(recebiveis, overrides, config, dsoHist = [],
   const pendentes = atrasados.filter((r) => !r.cobrado);
   const reincidentes = atrasados.filter((r) => r.reincidente);
 
-  // DSO (prazo medio de recebimento): media dos dias desde a emissao dos abertos,
-  // ponderada por valor. Valor atual e REAL; a tendencia so aparece quando ha
-  // historico real com pelo menos dois pontos.
-  const totValorAberto = abertos.reduce((s, r) => s + r.valor, 0) || 1;
+  // DSO (prazo medio de recebimento): media dos dias desde a emissao, ponderada
+  // por valor.
+  //
+  // Respeita o MESMO corte do resto da tela. Antes usava `abertos` (tudo que
+  // veio do cache) enquanto todos os outros numeros ja usavam so a cobranca
+  // ativa: como a media e ponderada por valor e por dias, cada titulo de 2021-22
+  // (ha um de 1.782 dias no ERP) empurrava o indicador para cima sozinho, e o
+  // painel exibia um prazo medio que nao correspondia a lista mostrada.
+  const abertosAtivos = abertos.filter((r) => !ehAntiga(r.vencimento));
+  const totValorAberto = abertosAtivos.reduce((s, r) => s + r.valor, 0) || 1;
   const dso = Math.round(
-    abertos.reduce((s, r) => s + r.valor * diasEntre(r.emissao, hojeISO), 0) /
+    abertosAtivos.reduce((s, r) => s + r.valor * diasEntre(r.emissao, hojeISO), 0) /
       totValorAberto
   );
   const historicoReal = (Array.isArray(dsoHist) ? dsoHist : []).filter(

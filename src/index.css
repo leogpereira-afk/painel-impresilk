@@ -233,12 +233,27 @@ html.dark ::-webkit-scrollbar-thumb {
 @media print {
   @page { size: A4 landscape; margin: 12mm; }
 
-  /* Fora do papel: navegacao, controles e tudo que so serve para clicar. */
+  /* Fora do papel: navegacao, controles e tudo que so serve para clicar.
+     ATENCAO: NAO esconder `button` em bloco. Meia tela e feita de botoes que
+     CARREGAM DADO -- as barras de "Onde esta a divida", o nome do cliente em
+     "Cobrar hoje", as linhas do ranking de Produtos, os alertas da Home. A
+     regra antiga (`button:not(.imprimivel)`) apagava tudo isso e o PDF saia
+     com cards vazios, so com titulo e subtitulo.
+     Agora some so o que e CONTROLE: .btn* (acoes de verdade) e o que estiver
+     marcado com .sem-impressao. */
   .sem-impressao,
   header nav,
-  button:not(.imprimivel),
+  .btn,
+  .btn-primary,
+  .btn-outline,
+  .btn-ghost,
+  .btn-danger,
   select,
   input { display: none !important; }
+
+  /* Botao que virou linha de dado nao pode herdar cara de botao. */
+  button { background: transparent !important; border: 0 !important;
+    padding: 0 !important; color: inherit !important; }
 
   .apenas-impressao { display: block; }
   td .apenas-impressao,

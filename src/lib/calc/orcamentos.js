@@ -73,7 +73,12 @@ export function calcOrcamentos(orcamentos, overrides, config) {
     if (o.situacao === "ganho") row.ganhos += 1;
     if (o.situacao === "perdido") row.perdidos += 1;
   }
+  // Vendedores ocultados na tela: a tabela e reconstruida a partir dos
+  // orcamentos, entao quem tem ao menos um voltaria sozinho. Sem este filtro, o
+  // botao de retirar nao tinha efeito nenhum.
+  const ocultos = new Set(config.vendedoresOcultos || []);
   const porVendedor = Object.values(mapV)
+    .filter((r) => !ocultos.has(r.vendedorId))
     .map((r) => ({ ...r, conversao: r.ganhos + r.perdidos ? Math.round((r.ganhos / (r.ganhos + r.perdidos)) * 100) : 0 }))
     .sort((a, b) => b.valor - a.valor);
 

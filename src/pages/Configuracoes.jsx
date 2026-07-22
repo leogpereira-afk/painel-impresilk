@@ -463,14 +463,18 @@ export default function Configuracoes() {
         />
         <div className="grid gap-3 sm:grid-cols-2">
           {config.vendedores.map((v, i) => (
-            <div key={v.id} className="flex items-center gap-2">
+            <div key={i} className="flex items-center gap-2">
               <input
                 className="input"
                 value={v.nome}
                 placeholder="Nome do vendedor"
                 onChange={(e) =>
                   updateConfig((c) => {
+                    // O id acompanha o nome: no Mubisys o `vendedorId` do
+                    // orcamento E o nome do vendedor, entao um id proprio
+                    // nunca casaria e a linha ficaria zerada para sempre.
                     c.vendedores[i].nome = e.target.value;
+                    c.vendedores[i].id = e.target.value.trim();
                     return c;
                   })
                 }
@@ -490,7 +494,7 @@ export default function Configuracoes() {
           className="btn-ghost mt-4"
           onClick={() =>
             updateConfig((c) => {
-              c.vendedores.push({ id: "v-" + Date.now(), nome: "" });
+              c.vendedores.push({ id: "", nome: "" });
               return c;
             })
           }

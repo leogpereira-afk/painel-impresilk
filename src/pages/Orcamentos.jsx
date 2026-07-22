@@ -173,17 +173,26 @@ export default function Orcamentos() {
   function incluirVendedor() {
     const nome = novoVendedor.trim();
     if (!nome) return;
+    // O id PRECISA ser o proprio nome: no Mubisys o `vendedorId` do orcamento e
+    // o nome do vendedor (ver src/lib/calc/orcamentos.js). Com um id gerado
+    // ("v-1753...") a linha nascia e ficava para sempre em 0 orcamentos / R$ 0,
+    // porque nunca casava com nada vindo do ERP.
     updateConfig((c) => {
-      c.vendedores.push({ id: "v-" + Date.now(), nome });
+      const ja = (c.vendedores || []).some((v) => v.id === nome);
+      if (!ja) c.vendedores.push({ id: nome, nome });
       return c;
     });
     setNovoVendedor("");
   }
 
+  // Ocultar, nao "remover": a tabela e reconstruida a partir dos ORCAMENTOS, e
+  // quem tem ao menos um volta na hora seguinte. Antes o clique na lixeira
+  // gravava no Blobs e a linha continuava igual na tela -- parecia defeito.
   function retirarVendedor(id) {
     if (vendedorSel?.id === id) setVendedorSel(null);
     updateConfig((c) => {
-      c.vendedores = c.vendedores.filter((v) => v.id !== id);
+      c.vendedores = (c.vendedores || []).filter((v) => v.id !== id);
+      c.vendedoresOcultos = [...new Set([...(c.vendedoresOcultos || []), id])];
       return c;
     });
   }
@@ -552,6 +561,15 @@ export default function Orcamentos() {
                               </select>
                             ) : (
                               <span className="text-sm text-slate-400">-</span>
+                            )}
+                            {/* No papel o <select> some. Sem este texto, o PDF
+                                de "Perdidos" saia com a coluna do motivo em
+                                branco -- justamente o dado que a tela pede para
+                                o gestor classificar. */}
+                            {o.situacao === "perdido" && (
+                              <span className="apenas-impressao">
+                                {o.motivoPerdaNome || "nao informado"}
+                              </span>
                             )}
                           </td>
                         </tr>

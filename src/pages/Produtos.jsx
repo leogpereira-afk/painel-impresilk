@@ -222,7 +222,18 @@ export default function Produtos() {
           `Emitido em ${dataLonga(ymdLocal(new Date()))}${
             vm && vm.meses.length ? ` · ${vm.meses[0]} a ${vm.meses[vm.meses.length - 1]}` : ""
           }`,
-          `${numero(listaFiltrada.length)} ${ehFamilia ? "familias" : "produtos"} · ${moeda(dim?.totalFaturamento || 0)} no periodo`,
+          `${numero(listaFiltrada.length)} ${ehFamilia ? "familias" : "produtos"} · ${moeda(somaFiltrada)}`,
+          // O que esta filtrado: sem isto o papel nao diz o que ficou de fora.
+          `Recorte: ${
+            [
+              filtro === "queda" ? "so em queda" : filtro === "novos" ? "so novos" : null,
+              categoria ? `categoria ${categoria}` : null,
+              busca ? `busca "${busca}"` : null,
+              porFaturamento ? "ordenado por faturamento" : "ordenado por volume",
+            ]
+              .filter(Boolean)
+              .join(" · ") || "todos"
+          }`,
         ]}
       />
 
