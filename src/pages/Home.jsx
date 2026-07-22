@@ -1,9 +1,27 @@
-// Home: apenas os quatro cards clicaveis, cada um com o numero principal, uma
-// linha de status e duas informacoes de apoio. Conclusao primeiro.
+// Home: a CAPA da Impresilk. Duas camadas, porque sao coisas diferentes:
+//
+//   1. Painel de Gestao -- os quatro modulos do proprio painel, cada um com o
+//      numero principal ja calculado. Conclusao primeiro: o CEO ve o estado
+//      antes de clicar.
+//   2. Sistemas -- portas para fora deste app (RH, DRE) e a configuracao. Nao
+//      tem numero porque nao sao deste painel; sao atalhos de navegacao.
+//
+// Misturar as duas camadas no mesmo grid faria o RH parecer um KPI e o Contas
+// Atrasadas parecer um link.
 
 import { useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import { AlertTriangle, Wallet, Package, FileText, ArrowRight } from "lucide-react";
+import {
+  AlertTriangle,
+  Wallet,
+  Package,
+  FileText,
+  ArrowRight,
+  ArrowUpRight,
+  Users,
+  Settings,
+  BarChart3,
+} from "lucide-react";
 import { useApp } from "../config/store.jsx";
 import { calcContasAtrasadas } from "../lib/calc/contasAtrasadas.js";
 import { calcFluxoCaixa } from "../lib/calc/fluxoCaixa.js";
@@ -105,8 +123,32 @@ export default function Home() {
     },
   ];
 
+  // Portas para fora do painel. `href` = outro sistema (abre em nova aba, o
+  // painel continua aberto atras); `to` = rota interna; `embreve` = ainda nao
+  // existe, e o cartao diz isso em vez de fingir que funciona.
+  const sistemas = [
+    {
+      icone: BarChart3,
+      titulo: "DRE",
+      descricao: "Demonstrativo de resultado",
+      embreve: true,
+    },
+    {
+      icone: Users,
+      titulo: "RH",
+      descricao: "Pessoas, ponto e folha",
+      href: "https://impresilkrh.netlify.app/",
+    },
+    {
+      icone: Settings,
+      titulo: "Configuracoes",
+      descricao: "Regras, metas e equipe",
+      to: "/configuracoes",
+    },
+  ];
+
   return (
-    <div className="space-y-8">
+    <div className="space-y-10">
       <div>
         <h1 className="font-display text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">
           {saudacao()}, aqui esta o resumo
@@ -149,6 +191,93 @@ export default function Home() {
             </div>
           </button>
         ))}
+      </div>
+
+      {/* Sistemas: atalhos, nao KPIs. Cartoes menores e sem numero, para nao
+          competirem com os quatro modulos acima. */}
+      <div>
+        <h2 className="font-display text-lg font-semibold text-slate-900">Sistemas</h2>
+        <p className="mt-0.5 text-sm text-slate-500">
+          Os outros sistemas da Impresilk e as regras deste painel.
+        </p>
+
+        <div className="mt-4 grid gap-4 sm:grid-cols-3">
+          {sistemas.map((s) => {
+            const conteudo = (
+              <>
+                <div className="flex items-start justify-between">
+                  <span
+                    className={`grid h-11 w-11 place-items-center rounded-xl ${
+                      s.embreve ? "bg-slate-100 text-slate-400" : "bg-brand/10 text-brand"
+                    }`}
+                  >
+                    <s.icone size={22} strokeWidth={2.2} />
+                  </span>
+                  {s.embreve ? (
+                    <span className="chip">em breve</span>
+                  ) : s.href ? (
+                    <ArrowUpRight
+                      size={18}
+                      className="text-slate-300 transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5 group-hover:text-brand"
+                    />
+                  ) : (
+                    <ArrowRight
+                      size={18}
+                      className="text-slate-300 transition-transform group-hover:translate-x-1 group-hover:text-brand"
+                    />
+                  )}
+                </div>
+                <h3
+                  className={`mt-3 font-display text-base font-semibold ${
+                    s.embreve ? "text-slate-500" : "text-slate-900"
+                  }`}
+                >
+                  {s.titulo}
+                </h3>
+                <p className="mt-0.5 text-sm text-slate-500">{s.descricao}</p>
+                {s.href && (
+                  <p className="mt-2 text-xs text-slate-400">abre em outra aba</p>
+                )}
+              </>
+            );
+
+            const classe = "card group flex flex-col p-5 text-left";
+
+            if (s.embreve) {
+              return (
+                <div
+                  key={s.titulo}
+                  className={`${classe} cursor-default border-dashed opacity-80`}
+                  title="Ainda nao construido"
+                >
+                  {conteudo}
+                </div>
+              );
+            }
+            if (s.href) {
+              return (
+                <a
+                  key={s.titulo}
+                  href={s.href}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className={`${classe} card-hover`}
+                >
+                  {conteudo}
+                </a>
+              );
+            }
+            return (
+              <button
+                key={s.titulo}
+                onClick={() => navigate(s.to)}
+                className={`${classe} card-hover`}
+              >
+                {conteudo}
+              </button>
+            );
+          })}
+        </div>
       </div>
     </div>
   );
