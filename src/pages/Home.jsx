@@ -130,8 +130,8 @@ export default function Home() {
     {
       icone: BarChart3,
       titulo: "DRE",
-      descricao: "Demonstrativo de resultado",
-      embreve: true,
+      descricao: "Resultado no regime de caixa",
+      href: "https://impresilk-dre.netlify.app/",
     },
     {
       icone: Users,
