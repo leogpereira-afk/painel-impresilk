@@ -7,7 +7,8 @@
 // Acoes (POST JSON): ping | diag | get {chave} | set {chave, valor}.
 // chave em: "config" | "ov_rec" | "ov_orc".
 
-const { getStore, connectLambda } = require("@netlify/blobs");
+import { getStore, connectLambda } from "@netlify/blobs";
+import { exigirSessao } from "./lib/guarda.js";
 
 // LEITURA: config, overrides e o cache do Mubisys (diagnostico).
 const CHAVES_LEITURA = new Set([
@@ -36,23 +37,34 @@ function resposta(body, status = 200) {
   };
 }
 
-exports.handler = async (event) => {
+export const handler = async (event) => {
   try {
     connectLambda(event);
   } catch {}
 
   if (event.httpMethod !== "POST") return resposta({ erro: "use POST" }, 405);
 
-  // Auth por chave, nao global. As marcacoes do painel (config, ov_rec, ov_orc)
-  // sao lidas e gravadas pelo front, que nao tem -- nem pode ter -- o TOKEN do
-  // servidor. Elas NAO incluem os dados financeiros (cache_* nao e gravavel por
-  // aqui, ver CHAVES_ESCRITA) e o painel ja e publico de leitura, entao liberar
-  // essas 3 chaves nao piora a postura. Ja o diagnostico do cache_* continua
-  // exigindo o TOKEN (e informacao sensivel e nao pode vazar).
+  // DUAS portas, porque sao dois publicos:
+  //  - x-token (TOKEN do servidor): so para diagnostico do cache_*, usado por
+  //    ferramenta/manutencao. Continua igual.
+  //  - cracha JWT do painel: para as marcacoes (config, ov_rec, ov_orc).
+  //
+  // Ate 2026-07-22 essas 3 chaves eram ABERTAS -- qualquer pessoa na internet
+  // gravava nelas (confirmado em producao: um POST anonimo alterou a config).
+  // O comentario antigo justificava isso com "o painel ja e publico de leitura";
+  // agora ele tem login, entao a justificativa caiu junto.
   const SEGREDO = process.env.TOKEN;
   const token = event.headers["x-token"] || event.headers["X-Token"];
   const autenticado = !!SEGREDO && token === SEGREDO;
   const chaveSensivel = (chave) => !CHAVES_ESCRITA.has(chave); // tudo que nao e marcacao do painel
+
+  const guarda = await exigirSessao(event);
+  const sessao = guarda.sessao || null;
+  const podeConfigurar =
+    !!sessao &&
+    (sessao.master === true ||
+      (Array.isArray(sessao.perms) &&
+        (sessao.perms.includes("*") || sessao.perms.includes("configuracoes"))));
 
   let corpo = {};
   try {
@@ -86,12 +98,20 @@ exports.handler = async (event) => {
         if (chaveSensivel(corpo.chave) && !autenticado) {
           return resposta({ erro: "nao autorizado" }, 401);
         }
+        // Marcacoes do painel: exigem cracha (antes eram abertas).
+        if (!chaveSensivel(corpo.chave) && !sessao) return guarda.resposta;
         const valor = await store.get(corpo.chave, { type: "json" });
         return resposta({ ok: true, chave: corpo.chave, valor: valor ?? null });
       }
 
       case "set": {
         if (!CHAVES_ESCRITA.has(corpo.chave)) return resposta({ erro: "chave nao gravavel" }, 403);
+        if (!sessao) return guarda.resposta;
+        // Mudar as REGRAS do painel vale para todo mundo: so quem tem
+        // Configuracoes. Marcar um titulo (ov_*) qualquer pessoa logada pode.
+        if (corpo.chave === "config" && !podeConfigurar) {
+          return resposta({ erro: "Voce nao tem acesso as Configuracoes." }, 403);
+        }
         await store.setJSON(corpo.chave, corpo.valor ?? null);
         return resposta({ ok: true });
       }
@@ -101,6 +121,10 @@ exports.handler = async (event) => {
       // device B fez no mesmo mapa (last-write-wins por CAMPO, nao por objeto).
       case "merge": {
         if (!CHAVES_ESCRITA.has(corpo.chave)) return resposta({ erro: "chave nao gravavel" }, 403);
+        if (!sessao) return guarda.resposta;
+        if (corpo.chave === "config" && !podeConfigurar) {
+          return resposta({ erro: "Voce nao tem acesso as Configuracoes." }, 403);
+        }
         const patch = corpo.patch && typeof corpo.patch === "object" ? corpo.patch : {};
         const atual = (await store.get(corpo.chave, { type: "json" })) || {};
         if (corpo.chave === "config") {

@@ -1,4 +1,13 @@
-import { Routes, Route } from "react-router-dom";
+// Sem sessao, o painel inteiro e a tela de login -- nem o Layout monta. Assim
+// nenhuma rota "vaza" por digitar o endereco direto.
+//
+// A protecao por MODULO tem duas camadas: aqui (a rota recusa) e no servidor
+// (a function recusa). A daqui e conforto; a que vale e a de la, porque o
+// navegador esta sempre sob controle de quem usa.
+
+import { useEffect, useState } from "react";
+import { Routes, Route, Navigate } from "react-router-dom";
+import { Lock } from "lucide-react";
 import Layout from "./components/Layout.jsx";
 import Home from "./pages/Home.jsx";
 import ContasAtrasadas from "./pages/ContasAtrasadas.jsx";
@@ -6,17 +15,85 @@ import FluxoCaixa from "./pages/FluxoCaixa.jsx";
 import Produtos from "./pages/Produtos.jsx";
 import Orcamentos from "./pages/Orcamentos.jsx";
 import Configuracoes from "./pages/Configuracoes.jsx";
+import Login from "./pages/Login.jsx";
+import { getSessao, aoMudarSessao, podeAbrir } from "./lib/sessao.js";
+import { Card } from "./components/ui.jsx";
+
+function SemAcesso() {
+  return (
+    <Card className="mx-auto max-w-md p-8 text-center">
+      <span className="mx-auto grid h-12 w-12 place-items-center rounded-xl bg-slate-100 text-slate-400">
+        <Lock size={22} strokeWidth={2.2} />
+      </span>
+      <h2 className="mt-4 font-display text-lg font-semibold text-slate-900">
+        Voce nao tem acesso a este modulo
+      </h2>
+      <p className="mt-1 text-sm text-slate-500">
+        Se precisar dele para o seu trabalho, fale com a direcao.
+      </p>
+    </Card>
+  );
+}
+
+// Rota que so abre se o modulo estiver liberado para a sessao.
+function Restrito({ modulo, sessao, children }) {
+  return podeAbrir(modulo, sessao) ? children : <SemAcesso />;
+}
 
 export default function App() {
+  const [sessao, setSessao] = useState(() => getSessao());
+
+  // Mantem a tela em sincronia com o logout (inclusive o automatico, disparado
+  // por sessao expirada dentro de uma chamada de dados).
+  useEffect(() => aoMudarSessao(() => setSessao(getSessao())), []);
+
+  if (!sessao) return <Login aoEntrar={() => setSessao(getSessao())} />;
+
   return (
-    <Layout>
+    <Layout sessao={sessao}>
       <Routes>
         <Route path="/" element={<Home />} />
-        <Route path="/contas-atrasadas" element={<ContasAtrasadas />} />
-        <Route path="/fluxo-caixa" element={<FluxoCaixa />} />
-        <Route path="/produtos" element={<Produtos />} />
-        <Route path="/orcamentos" element={<Orcamentos />} />
-        <Route path="/configuracoes" element={<Configuracoes />} />
+        <Route
+          path="/contas-atrasadas"
+          element={
+            <Restrito modulo="contas-atrasadas" sessao={sessao}>
+              <ContasAtrasadas />
+            </Restrito>
+          }
+        />
+        <Route
+          path="/fluxo-caixa"
+          element={
+            <Restrito modulo="fluxo-caixa" sessao={sessao}>
+              <FluxoCaixa />
+            </Restrito>
+          }
+        />
+        <Route
+          path="/produtos"
+          element={
+            <Restrito modulo="produtos" sessao={sessao}>
+              <Produtos />
+            </Restrito>
+          }
+        />
+        <Route
+          path="/orcamentos"
+          element={
+            <Restrito modulo="orcamentos" sessao={sessao}>
+              <Orcamentos />
+            </Restrito>
+          }
+        />
+        <Route
+          path="/configuracoes"
+          element={
+            <Restrito modulo="configuracoes" sessao={sessao}>
+              <Configuracoes />
+            </Restrito>
+          }
+        />
+        <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </Layout>
   );

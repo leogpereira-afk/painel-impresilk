@@ -24,17 +24,19 @@ import {
   ClipboardList,
   Ruler,
   ArrowUpRight,
+  LogOut,
 } from "lucide-react";
 import logoColor from "../assets/brand/logo-color.png";
 import logoWhite from "../assets/brand/logo-white.png";
 import { useApp } from "../config/store.jsx";
+import { podeAbrir, sair } from "../lib/sessao.js";
 
 const NAV = [
   { to: "/", rotulo: "Inicio", icone: Home, exato: true },
-  { to: "/contas-atrasadas", rotulo: "Contas Atrasadas", icone: AlertTriangle },
-  { to: "/fluxo-caixa", rotulo: "Fluxo de Caixa", icone: Wallet },
-  { to: "/produtos", rotulo: "Produtos", icone: Package },
-  { to: "/orcamentos", rotulo: "Orcamentos", icone: FileText },
+  { to: "/contas-atrasadas", rotulo: "Contas Atrasadas", icone: AlertTriangle, modulo: "contas-atrasadas" },
+  { to: "/fluxo-caixa", rotulo: "Fluxo de Caixa", icone: Wallet, modulo: "fluxo-caixa" },
+  { to: "/produtos", rotulo: "Produtos", icone: Package, modulo: "produtos" },
+  { to: "/orcamentos", rotulo: "Orcamentos", icone: FileText, modulo: "orcamentos" },
 ];
 
 // Outros sistemas da Impresilk. Abrem em outra aba: o painel fica aberto atras.
@@ -75,7 +77,7 @@ function frescor(iso) {
   return { hhmm, velho: idadeMin > 40, idadeMin };
 }
 
-function ConteudoLateral({ aoNavegar }) {
+function ConteudoLateral({ aoNavegar, sessao }) {
   return (
     <>
       <Link to="/" onClick={aoNavegar} className="flex items-center gap-2.5 px-3 py-1">
@@ -87,7 +89,7 @@ function ConteudoLateral({ aoNavegar }) {
       </p>
 
       <nav className="space-y-0.5">
-        {NAV.map((n) => (
+        {NAV.filter((n) => !n.modulo || podeAbrir(n.modulo, sessao)).map((n) => (
           <NavLink
             key={n.to}
             to={n.to}
@@ -131,29 +133,58 @@ function ConteudoLateral({ aoNavegar }) {
         ))}
       </nav>
 
-      {/* Configuracoes fica no rodape da lateral: e ajuste, nao rotina. */}
-      <div className="mt-auto pt-6">
-        <NavLink
-          to="/configuracoes"
-          onClick={aoNavegar}
-          className={({ isActive }) =>
-            [
-              "flex items-center gap-2.5 rounded-lg px-3 py-2 font-display text-sm font-medium transition-all",
-              isActive
-                ? "bg-brand/10 text-brand"
-                : "text-slate-500 hover:bg-slate-100 hover:text-slate-900",
-            ].join(" ")
-          }
-        >
-          <Settings size={17} strokeWidth={2.2} className="shrink-0" />
-          Configuracoes
-        </NavLink>
+      {/* Rodape: ajuste (nao rotina) e a identidade de quem esta logado. */}
+      <div className="mt-auto space-y-0.5 pt-6">
+        {podeAbrir("configuracoes", sessao) && (
+          <NavLink
+            to="/configuracoes"
+            onClick={aoNavegar}
+            className={({ isActive }) =>
+              [
+                "flex items-center gap-2.5 rounded-lg px-3 py-2 font-display text-sm font-medium transition-all",
+                isActive
+                  ? "bg-brand/10 text-brand"
+                  : "text-slate-500 hover:bg-slate-100 hover:text-slate-900",
+              ].join(" ")
+            }
+          >
+            <Settings size={17} strokeWidth={2.2} className="shrink-0" />
+            Configuracoes
+          </NavLink>
+        )}
+
+        {sessao && (
+          <div
+            className="mt-2 flex items-center gap-2 border-t px-3 pt-3"
+            style={{ borderColor: "var(--hairline)" }}
+          >
+            <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-brand/10 font-display text-xs font-bold text-brand">
+              {String(sessao.nome || sessao.usuario).slice(0, 2).toUpperCase()}
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block truncate font-display text-sm font-medium text-slate-800">
+                {sessao.nome || sessao.usuario}
+              </span>
+              <span className="block text-xs text-slate-400">
+                {sessao.master ? "Direcao" : "Acesso limitado"}
+              </span>
+            </span>
+            <button
+              onClick={sair}
+              className="grid h-8 w-8 shrink-0 place-items-center rounded-lg text-slate-400 transition-colors hover:bg-slate-100 hover:text-bad-700"
+              title="Sair do painel"
+              aria-label="Sair do painel"
+            >
+              <LogOut size={16} />
+            </button>
+          </div>
+        )}
       </div>
     </>
   );
 }
 
-export default function Layout({ children }) {
+export default function Layout({ children, sessao }) {
   const location = useLocation();
   const navigate = useNavigate();
   const [escuro, alternarTema] = useTema();
@@ -174,7 +205,7 @@ export default function Layout({ children }) {
         className="sem-impressao hidden w-60 shrink-0 flex-col border-r bg-white px-3 py-4 lg:sticky lg:top-0 lg:flex lg:h-screen"
         style={{ borderColor: "var(--hairline)" }}
       >
-        <ConteudoLateral />
+        <ConteudoLateral sessao={sessao} />
       </aside>
 
       {/* Gaveta no celular */}
@@ -196,7 +227,7 @@ export default function Layout({ children }) {
             >
               <X size={18} />
             </button>
-            <ConteudoLateral aoNavegar={() => setMenuAberto(false)} />
+            <ConteudoLateral sessao={sessao} aoNavegar={() => setMenuAberto(false)} />
           </aside>
         </div>
       )}

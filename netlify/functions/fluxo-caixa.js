@@ -5,11 +5,16 @@
 
 import { getStore, connectLambda } from "@netlify/blobs";
 import { json, erroInterno } from "./lib/mubi.js";
+import { exigirSessao } from "./lib/guarda.js";
 
 export const handler = async (event) => {
   try {
     connectLambda(event);
   } catch {}
+
+  // Porteiro: sem cracha valido (e sem permissao para "fluxo-caixa"), nao responde.
+  const guarda = await exigirSessao(event, "fluxo-caixa");
+  if (guarda.resposta) return guarda.resposta;
   const parte = event.queryStringParameters?.parte || "pagar";
   try {
     const store = getStore("painel");

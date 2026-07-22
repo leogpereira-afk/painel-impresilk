@@ -7,10 +7,12 @@
 // de leitura e elas nao tocam os dados financeiros). A gravacao usa "merge"
 // por id, entao dois aparelhos nao se sobrescrevem.
 
+import { comCracha } from "../lib/sessao.js";
+
 const BASE = "/.netlify/functions/config";
 
 async function chamar(action, corpo) {
-  const resp = await fetch(BASE, {
+  const resp = await comCracha(BASE, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ action, ...corpo }),

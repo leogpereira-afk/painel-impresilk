@@ -4,6 +4,7 @@
 // junta as paginas, em paralelo, e esta camada.
 
 import * as demo from "./demo/dados.js";
+import { comCracha } from "../lib/sessao.js";
 
 // MODO_DEMO desligado em 2026-07-14: o painel agora le os dados reais do
 // Mubisys via Netlify Functions. Religar (true) so para demonstracoes.
@@ -18,7 +19,7 @@ let _dsoHist = [];
 async function chamarFunction(nome, params = {}, tentativa = 1) {
   const url = new URL(BASE + "/" + nome, window.location.origin);
   Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v));
-  const resp = await fetch(url.toString().replace(window.location.origin, ""));
+  const resp = await comCracha(url.toString().replace(window.location.origin, ""));
   const body = await resp.json().catch(() => null);
   if (!resp.ok) {
     if (body?.preparando) {
