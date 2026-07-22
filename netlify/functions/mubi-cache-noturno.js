@@ -2,7 +2,7 @@
 // COMPLETA do cache do Mubisys, aproveitando a madrugada (a API voa sem carga).
 
 export const handler = async () => {
-  const base = process.env.URL || "https://painel-impresilk.netlify.app";
+  const base = process.env.URL || "https://impresilk.netlify.app";
   try {
     const resp = await fetch(`${base}/.netlify/functions/mubi-cache-background?modo=completo`, {
       method: "POST",

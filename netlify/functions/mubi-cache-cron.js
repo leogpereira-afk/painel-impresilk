@@ -3,7 +3,7 @@
 // (a background devolve 202 na hora e trabalha por conta propria).
 
 export const handler = async () => {
-  const base = process.env.URL || "https://painel-impresilk.netlify.app";
+  const base = process.env.URL || "https://impresilk.netlify.app";
   try {
     const resp = await fetch(`${base}/.netlify/functions/mubi-cache-background`, {
       method: "POST",

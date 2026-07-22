@@ -423,7 +423,7 @@ export default async (req) => {
     try {
       const temMensal = await store.get("cache_fluxo_mensal", { type: "json" });
       if (!temMensal) {
-        const base = process.env.URL || "https://painel-impresilk.netlify.app";
+        const base = process.env.URL || "https://impresilk.netlify.app";
         fetch(`${base}/.netlify/functions/mubi-realizado-background`, {
           method: "POST",
           headers: { "x-token": SEGREDO },
