@@ -26,6 +26,10 @@ import {
 const EXP_SEG = 60 * 60 * 12; // cracha vale 12 horas
 const LOJA = "painel-auth";
 
+// Mensagem UNICA para qualquer falha de login: usuario inexistente e senha
+// errada precisam ser indistinguiveis, senao da para descobrir quem tem acesso.
+const ERRO_LOGIN = "Usuario ou senha incorretos.";
+
 // Modulos que podem ser liberados. "inicio" nao entra: e a porta de entrada e
 // fica sempre acessivel, senao a pessoa loga e cai numa tela sem lugar nenhum.
 export const MODULOS = ["contas-atrasadas", "fluxo-caixa", "produtos", "orcamentos", "configuracoes"];
@@ -109,7 +113,10 @@ export default async (req) => {
           // Senha inicial tambem em tempo constante: comparar com === vazaria,
           // pelo tempo de resposta, quantos caracteres bateram.
           const ok = propria ? await conferirSenha(senha, propria) : !!inicial && igual(senha, inicial);
-          if (!ok) return json({ erro: "Senha incorreta." }, 401);
+          // MESMA mensagem do caminho comum: mensagens diferentes deixavam
+          // enumerar quem existe ("Senha incorreta" so aparecia para usuario
+          // valido). Confirmado atacando o sistema no ar em 2026-07-22.
+          if (!ok) return json({ erro: ERRO_LOGIN }, 401);
           const token = await assinarJwt(
             { sub: master, nome: propria?.nome || "Direcao", master: true, perms: ["*"] },
             secret,
@@ -130,7 +137,7 @@ export default async (req) => {
         // Mensagem unica para usuario inexistente e senha errada: dizer "usuario
         // nao existe" entregaria a lista de quem tem acesso a quem tentar.
         if (!conta || !(await conferirSenha(senha, conta))) {
-          return json({ erro: "Usuario ou senha incorretos." }, 401);
+          return json({ erro: ERRO_LOGIN }, 401);
         }
         const perms = conta.permissoes || [];
         const token = await assinarJwt(
