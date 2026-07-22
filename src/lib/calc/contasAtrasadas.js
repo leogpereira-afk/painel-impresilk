@@ -69,22 +69,27 @@ export function calcContasAtrasadas(recebiveis, overrides, config, dsoHist = [],
   const grupoNome = (g) =>
     (config.gruposCausa || []).find((x) => x.id === g)?.nome || g;
 
-  // Reincidencia por CNPJ (mesmo cliente pode aparecer com grafias diferentes;
-  // o CNPJ e a chave estavel). Cai para o nome se nao houver CNPJ.
-  const vencidosPorCliente = {};
-  const abertos = recebiveis.map((r) => {
-    const dias = diasEntre(r.vencimento, hojeISO);
-    const chaveCliente = r.cnpj || r.cliente;
-    if (dias > 0) vencidosPorCliente[chaveCliente] = (vencidosPorCliente[chaveCliente] || 0) + 1;
-    return { ...r, dias, chaveCliente };
-  });
-
   // Corte do historico: divida vencida antes desta data e calote velho (2021-22
   // no ERP), nao cobranca ativa. Fica fora dos totais e da lista, mas continua
   // no cache e reaparece quando o gestor seleciona aquele ano/periodo -- some
   // do numero do dia sem sumir da verdade.
   const corte = config.parametros?.dataCorteAtrasados || "";
   const ehAntiga = (venc) => !!corte && String(venc || "") < corte;
+
+  // Reincidencia por CNPJ (mesmo cliente pode aparecer com grafias diferentes;
+  // o CNPJ e a chave estavel). Cai para o nome se nao houver CNPJ.
+  const vencidosPorCliente = {};
+  const abertos = recebiveis.map((r) => {
+    const dias = diasEntre(r.vencimento, hojeISO);
+    const chaveCliente = r.cnpj || r.cliente;
+    // So conta para reincidencia o que esta DENTRO do corte. Antes, um cliente
+    // com um atraso hoje e um calote de 2022 vinha marcado como reincidente --
+    // com base num titulo que a tela jura ter tirado de todos os numeros.
+    if (dias > 0 && !ehAntiga(r.vencimento)) {
+      vencidosPorCliente[chaveCliente] = (vencidosPorCliente[chaveCliente] || 0) + 1;
+    }
+    return { ...r, dias, chaveCliente };
+  });
 
   const todosAtrasados = abertos
     .filter((r) => r.dias > 0)

@@ -87,10 +87,27 @@ export default function Orcamentos() {
   const listaRef = useRef(null);
 
   // Antes de imprimir, mostra a lista inteira (a tela pagina em lotes de 25).
+  // Impressao mostra a lista INTEIRA (a tela pagina em lotes).
+  //
+  // `beforeprint` sozinho nao basta: a atualizacao de estado do React e
+  // assincrona e o diálogo de impressao captura a pagina antes do redesenho --
+  // o PDF saia truncado no lote. `matchMedia("print")` avisa quando o modo de
+  // impressao entra E quando sai, dando o quadro extra que faltava, e devolve o
+  // limite ao normal no fim (senao a tela ficava com centenas de linhas
+  // renderizadas e o "mostrar mais" sumia para sempre).
   useEffect(() => {
-    const expandir = () => setLimite(Number.MAX_SAFE_INTEGER);
-    window.addEventListener("beforeprint", expandir);
-    return () => window.removeEventListener("beforeprint", expandir);
+    const mm = window.matchMedia?.("print");
+    const entrar = () => setLimite(Number.MAX_SAFE_INTEGER);
+    const sair = () => setLimite(25);
+    const aoMudar = (e) => (e.matches ? entrar() : sair());
+    mm?.addEventListener?.("change", aoMudar);
+    window.addEventListener("beforeprint", entrar);
+    window.addEventListener("afterprint", sair);
+    return () => {
+      mm?.removeEventListener?.("change", aoMudar);
+      window.removeEventListener("beforeprint", entrar);
+      window.removeEventListener("afterprint", sair);
+    };
   }, []);
 
   const vm = useMemo(
@@ -225,7 +242,19 @@ export default function Orcamentos() {
           `Emitido em ${dataLonga(ymdLocal(new Date()))} · ${numero(filtrados.length)} orcamentos · ${moeda(
             filtrados.reduce((s, o) => s + (o.valor || 0), 0)
           )}`,
-          `Recorte: ${situacao === "todos" ? "todos" : ROTULO_SITUACAO[situacao] || situacao}${periodo !== "todos" ? ` · ${periodo}` : ""}${busca ? ` · busca "${busca}"` : ""}`,
+          `Recorte: ${
+            [
+              situacao === "todos" ? "todos" : ROTULO_SITUACAO[situacao] || situacao,
+              periodo !== "todos" ? periodo : null,
+              // Faltavam estes dois: clicar num vendedor ou num motivo mudava a
+              // lista e o papel continuava dizendo "todos".
+              vendedorSel ? `vendedor ${vendedorSel.nome}` : null,
+              motivoSel ? `motivo ${motivoSel.nome}` : null,
+              busca ? `busca "${busca}"` : null,
+            ]
+              .filter(Boolean)
+              .join(" · ")
+          }`,
         ]}
       />
 

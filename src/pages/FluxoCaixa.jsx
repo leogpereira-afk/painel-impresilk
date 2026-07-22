@@ -99,10 +99,27 @@ export default function FluxoCaixa() {
 
   // O calendario mostra em lotes (Ver mais). Antes de imprimir, revela todos os
   // dias -- senao o PDF sairia truncado sem avisar.
+  // Impressao mostra a lista INTEIRA (a tela pagina em lotes).
+  //
+  // `beforeprint` sozinho nao basta: a atualizacao de estado do React e
+  // assincrona e o diálogo de impressao captura a pagina antes do redesenho --
+  // o PDF saia truncado no lote. `matchMedia("print")` avisa quando o modo de
+  // impressao entra E quando sai, dando o quadro extra que faltava, e devolve o
+  // limite ao normal no fim (senao a tela ficava com centenas de linhas
+  // renderizadas e o "mostrar mais" sumia para sempre).
   useEffect(() => {
-    const expandir = () => setVisiveis(Number.MAX_SAFE_INTEGER);
-    window.addEventListener("beforeprint", expandir);
-    return () => window.removeEventListener("beforeprint", expandir);
+    const mm = window.matchMedia?.("print");
+    const entrar = () => setVisiveis(Number.MAX_SAFE_INTEGER);
+    const sair = () => setVisiveis(LOTE);
+    const aoMudar = (e) => (e.matches ? entrar() : sair());
+    mm?.addEventListener?.("change", aoMudar);
+    window.addEventListener("beforeprint", entrar);
+    window.addEventListener("afterprint", sair);
+    return () => {
+      mm?.removeEventListener?.("change", aoMudar);
+      window.removeEventListener("beforeprint", entrar);
+      window.removeEventListener("afterprint", sair);
+    };
   }, []);
 
   const base = useMemo(
@@ -265,6 +282,11 @@ export default function FluxoCaixa() {
         linhas={[
           `Emitido em ${dataLonga(ymdLocal(new Date()))}`,
           `Realizado mes a mes de ${anoSel || ""} e projecao dos proximos 30 dias`,
+          // Sem isto o PDF do cenario de estresse era identico ao real: mesmos
+          // rotulos, numeros piores, e ninguem sabia que estava lendo simulacao.
+          modoEstresse
+            ? "ATENCAO: cenario de ESTRESSE -- os recebiveis de clientes ja inadimplentes foram desconsiderados. Nao e a projecao real."
+            : null,
         ]}
       />
 

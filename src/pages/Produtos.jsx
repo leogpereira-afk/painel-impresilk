@@ -109,10 +109,27 @@ export default function Produtos() {
   const rankingRef = useRef(null);
 
   // Antes de imprimir, mostra o ranking inteiro (a tela pagina em lotes).
+  // Impressao mostra a lista INTEIRA (a tela pagina em lotes).
+  //
+  // `beforeprint` sozinho nao basta: a atualizacao de estado do React e
+  // assincrona e o diálogo de impressao captura a pagina antes do redesenho --
+  // o PDF saia truncado no lote. `matchMedia("print")` avisa quando o modo de
+  // impressao entra E quando sai, dando o quadro extra que faltava, e devolve o
+  // limite ao normal no fim (senao a tela ficava com centenas de linhas
+  // renderizadas e o "mostrar mais" sumia para sempre).
   useEffect(() => {
-    const expandir = () => setLimite(Number.MAX_SAFE_INTEGER);
-    window.addEventListener("beforeprint", expandir);
-    return () => window.removeEventListener("beforeprint", expandir);
+    const mm = window.matchMedia?.("print");
+    const entrar = () => setLimite(Number.MAX_SAFE_INTEGER);
+    const sair = () => setLimite(LOTE);
+    const aoMudar = (e) => (e.matches ? entrar() : sair());
+    mm?.addEventListener?.("change", aoMudar);
+    window.addEventListener("beforeprint", entrar);
+    window.addEventListener("afterprint", sair);
+    return () => {
+      mm?.removeEventListener?.("change", aoMudar);
+      window.removeEventListener("beforeprint", entrar);
+      window.removeEventListener("afterprint", sair);
+    };
   }, []);
 
   const vm = useMemo(
@@ -222,7 +239,7 @@ export default function Produtos() {
           `Emitido em ${dataLonga(ymdLocal(new Date()))}${
             vm && vm.meses.length ? ` · ${vm.meses[0]} a ${vm.meses[vm.meses.length - 1]}` : ""
           }`,
-          `${numero(listaFiltrada.length)} ${ehFamilia ? "familias" : "produtos"} · ${moeda(somaFiltrada)}`,
+          `${numero(listaFiltrada.length)} ${ehFamilia ? "familias" : "produtos"} · ${porFaturamento ? moeda(somaFiltrada) : numero(somaFiltrada) + " un"}`,
           // O que esta filtrado: sem isto o papel nao diz o que ficou de fora.
           `Recorte: ${
             [
@@ -246,7 +263,7 @@ export default function Produtos() {
       )}
 
       {/* KPIs: clicaveis, filtram o ranking abaixo */}
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-3">
+      <div className="sem-impressao grid grid-cols-2 gap-4 lg:grid-cols-3">
         <StatCard
           rotulo="Faturamento no ano"
           valor={moeda(dim.totalFaturamento)}

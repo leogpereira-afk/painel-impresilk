@@ -8,6 +8,7 @@ import { createContext, useContext, useEffect, useMemo, useState, useCallback } 
 import { CONFIG_PADRAO } from "./defaults.js";
 import * as mubi from "../services/mubi.js";
 import * as marcacoes from "../services/marcacoes.js";
+import { getSessao, aoMudarSessao } from "../lib/sessao.js";
 
 const K_CONFIG = "painel_config";
 const K_OV_REC = "painel_ov_rec";
@@ -45,22 +46,51 @@ export function AppProvider({ children }) {
 
   // Carrega os dados do Mubi (demo ou Functions). O filtro por data de corte
   // acontece no front (calc), entao nao precisa reconsultar ao mudar o corte.
+  // Carrega cada fonte de forma INDEPENDENTE.
+  //
+  // Antes era um Promise.all: bastava UM 403 para derrubar o painel inteiro.
+  // Como cada function agora exige a permissao do seu modulo, quem tivesse
+  // acesso a so um modulo levava erro em TODAS as telas -- inclusive na que
+  // podia ver. A permissao por pessoa nao funcionava na pratica por causa disto.
+  //
+  // Agora: quem nao tem permissao recebe lista vazia naquela fonte e o resto da
+  // tela funciona. So vira erro de verdade se NENHUMA fonte responder (aí e
+  // problema de rede/sessao, nao de permissao).
   const recarregar = useCallback(async () => {
+    if (!getSessao()) return; // sem cracha nao adianta tentar
     setCarregando(true);
     setErro(null);
+
+    const semPermissao = (e) => /nao tem acesso|403/i.test(e?.message || "");
+    const buscar = async (fn) => {
+      try {
+        return { ok: true, valor: await fn() };
+      } catch (e) {
+        return { ok: false, erro: e, permissao: semPermissao(e) };
+      }
+    };
+
     try {
-      const [recebiveis, pagar, bancos, orcamentos, ordens] = await Promise.all([
-        mubi.getRecebiveis(),
-        mubi.getPagar(),
-        mubi.getContasBancarias(),
-        mubi.getOrcamentos(),
-        mubi.getOrdensServico(),
+      const [rRec, rPag, rBan, rOrc, rOrd] = await Promise.all([
+        buscar(mubi.getRecebiveis),
+        buscar(mubi.getPagar),
+        buscar(mubi.getContasBancarias),
+        buscar(mubi.getOrcamentos),
+        buscar(mubi.getOrdensServico),
       ]);
+      const todas = [rRec, rPag, rBan, rOrc, rOrd];
+      const falhasReais = todas.filter((r) => !r.ok && !r.permissao);
+      // Nenhuma respondeu e nao foi permissao: aí sim e erro de verdade.
+      if (todas.every((r) => !r.ok) && falhasReais.length) {
+        throw falhasReais[0].erro;
+      }
+
+      const ordens = rOrd.valor || [];
       setDados({
-        recebiveis,
-        pagar,
-        bancos,
-        orcamentos,
+        recebiveis: rRec.valor || [],
+        pagar: rPag.valor || [],
+        bancos: rBan.valor || [],
+        orcamentos: rOrc.valor || [],
         ordens,
         catalogo: mubi.getProdutosCatalogo(ordens),
         dsoHist: mubi.getDsoHistorico(),
@@ -76,26 +106,44 @@ export function AppProvider({ children }) {
     }
   }, []);
 
+  // Carrega ao entrar -- e RECARREGA quando a sessao muda. Sem isto, o provider
+  // (que monta por cima da tela de login) buscava tudo sem cracha, tomava 401 e
+  // deixava o erro gravado: a pessoa logava e continuava vendo "Entre no
+  // sistema" ate apertar F5.
   useEffect(() => {
     recarregar();
+    return aoMudarSessao(() => recarregar());
   }, [recarregar]);
 
   // Boot: puxa as marcacoes do Blobs (fonte de verdade, compartilhada entre
   // aparelhos). O estado inicial ja veio do localStorage, entao a tela nao
   // pisca; se a rede falhar, segue com o local mesmo.
+  // Roda no boot E a cada troca de sessao. Sem o segundo caso havia risco de
+  // PERDA DE DADOS: quem entrava nunca baixava as regras da nuvem (a chamada do
+  // boot morria com 401, sem cracha), ficava com o CONFIG_PADRAO em memoria e,
+  // ao mexer em qualquer ajuste, gravava esse padrao por cima do que estava no
+  // Blobs -- apagando as regras de todo mundo.
+  const [marcacoesProntas, setMarcacoesProntas] = useState(false);
   useEffect(() => {
     let vivo = true;
-    marcacoes
-      .carregarMarcacoes()
-      .then((remoto) => {
-        if (!vivo || !remoto) return;
-        if (remoto.config) setConfig(mesclarConfig(remoto.config));
-        if (remoto.overridesRecebiveis) setOvRec(remoto.overridesRecebiveis);
-        if (remoto.overridesOrcamentos) setOvOrc(remoto.overridesOrcamentos);
-      })
-      .catch((e) => console.warn("marcacoes: boot sem nuvem, usando local:", e?.message || e));
+    const puxar = () => {
+      if (!getSessao()) return;
+      marcacoes
+        .carregarMarcacoes()
+        .then((remoto) => {
+          if (!vivo || !remoto) return;
+          if (remoto.config) setConfig(mesclarConfig(remoto.config));
+          if (remoto.overridesRecebiveis) setOvRec(remoto.overridesRecebiveis);
+          if (remoto.overridesOrcamentos) setOvOrc(remoto.overridesOrcamentos);
+          setMarcacoesProntas(true);
+        })
+        .catch((e) => console.warn("marcacoes: sem nuvem, usando local:", e?.message || e));
+    };
+    puxar();
+    const parar = aoMudarSessao(puxar);
     return () => {
       vivo = false;
+      parar();
     };
   }, []);
 
@@ -112,13 +160,25 @@ export function AppProvider({ children }) {
 
   // Mutadores. Cada um atualiza o estado na hora (UI otimista) e sincroniza com
   // o Blobs em segundo plano; erro de rede so vira aviso, nunca perde o clique.
-  const updateConfig = useCallback((fn) => {
-    setConfig((c) => {
-      const novo = fn(structuredClone(c));
-      marcacoes.salvarConfig(novo).catch((e) => console.warn("config: sync falhou:", e?.message || e));
-      return novo;
-    });
-  }, []);
+  const updateConfig = useCallback(
+    (fn) => {
+      setConfig((c) => {
+        const novo = fn(structuredClone(c));
+        // Nao grava na nuvem antes de ter LIDO a nuvem: senao a config local
+        // (que pode ser so o padrao) sobe por cima das regras reais de todo
+        // mundo. A tela ja mostra a mudanca; a nuvem espera a leitura chegar.
+        if (marcacoesProntas) {
+          marcacoes
+            .salvarConfig(novo)
+            .catch((e) => console.warn("config: sync falhou:", e?.message || e));
+        } else {
+          console.warn("config: alteracao so local -- as regras da nuvem ainda nao chegaram");
+        }
+        return novo;
+      });
+    },
+    [marcacoesProntas]
+  );
   const resetarConfig = useCallback(() => {
     const padrao = structuredClone(CONFIG_PADRAO);
     setConfig(padrao);

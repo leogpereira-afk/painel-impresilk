@@ -85,7 +85,8 @@ export default async (req) => {
     return json({
       temJwtSecret: !!process.env.JWT_SECRET,
       temMasterSenha: !!process.env.AUTH_MASTER_SENHA,
-      tamanhoMasterSenha: (process.env.AUTH_MASTER_SENHA || "").length,
+      // Nao devolve o tamanho da senha: e uma dica gratuita para quem for
+      // tentar adivinhar, e nao ajuda em nada no diagnostico.
       usuarioMaster: usuarioMaster(),
       contaMasterJaGravada: !!conta,
       totalContas: (await contas.list().catch(() => ({ blobs: [] }))).blobs.length,

@@ -182,9 +182,17 @@ function diasDesde(iso) {
   const hoje = new Date(diaBR() + "T00:00:00Z");
   return Math.round((hoje - d) / 86400000);
 }
+// Corte do historico: precisa ser o MESMO da tela (config.parametros
+// .dataCorteAtrasados, padrao 2025-01-01). O cartao de DSO ja respeita o corte;
+// se a serie gravada aqui somasse tudo, a curva e a seta de tendencia
+// contariam uma historia diferente do numero exibido ao lado.
+const CORTE_ATRASADOS = "2025-01-01";
+
 function calcDso(recebiveis) {
-  const tot = recebiveis.reduce((s, r) => s + (r.valor || 0), 0) || 1;
-  const acc = recebiveis.reduce((s, r) => s + (r.valor || 0) * diasDesde(r.emissao), 0);
+  const ativos = recebiveis.filter((r) => String(r.vencimento || "") >= CORTE_ATRASADOS);
+  const base = ativos.length ? ativos : recebiveis;
+  const tot = base.reduce((s, r) => s + (r.valor || 0), 0) || 1;
+  const acc = base.reduce((s, r) => s + (r.valor || 0) * diasDesde(r.emissao), 0);
   return Math.round(acc / tot);
 }
 

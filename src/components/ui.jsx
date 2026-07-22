@@ -139,7 +139,13 @@ export function BarRow({ rotulo, valorTexto, pct, tom = "brand", sub }) {
 // Alternador de opcoes (ex.: faturamento x volume).
 export function Segmented({ opcoes, valor, onChange, className }) {
   return (
-    <div className={clsx("inline-flex rounded-xl border bg-white p-1", className)} style={{ borderColor: "var(--hairline)" }}>
+    // sem-impressao: e um CONTROLE. No papel ele saia com todas as opcoes lado
+    // a lado e nenhuma marcada (a regra de impressao zera o fundo do botao
+    // ativo), fazendo o leitor achar que via um dado.
+    <div
+      className={clsx("sem-impressao inline-flex rounded-xl border bg-white p-1", className)}
+      style={{ borderColor: "var(--hairline)" }}
+    >
       {opcoes.map((o) => (
         <button
           key={o.valor}
