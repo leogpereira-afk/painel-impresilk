@@ -1,14 +1,10 @@
-// App shell: barra LATERAL com a navegacao, os numeros de cada modulo e os
-// atalhos para os outros sistemas da Impresilk.
-//
-// Por que lateral: com o numero de cada modulo ao lado do nome, o CEO ve o
-// estado da empresa inteira de qualquer tela -- nao so na Home. Foi o que
-// permitiu aposentar os quatro cartoes grandes: eles eram navegacao E numero,
-// e a lateral faz os dois o tempo todo, sem ocupar a tela de trabalho.
+// App shell: barra LATERAL com a navegacao e os atalhos para os outros sistemas
+// da Impresilk. So navegacao: os numeros ficam dentro de cada modulo, para a
+// lateral nao virar um painel dentro do painel.
 //
 // Celular: a lateral vira gaveta (menu no topo). Impressao: some (.sem-impressao).
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { NavLink, useLocation, useNavigate, Link } from "react-router-dom";
 import {
   ChevronLeft,
@@ -30,18 +26,13 @@ import {
 import logoColor from "../assets/brand/logo-color.png";
 import logoWhite from "../assets/brand/logo-white.png";
 import { useApp } from "../config/store.jsx";
-import { calcContasAtrasadas } from "../lib/calc/contasAtrasadas.js";
-import { calcFluxoCaixa } from "../lib/calc/fluxoCaixa.js";
-import { calcProdutos } from "../lib/calc/produtos.js";
-import { calcOrcamentos } from "../lib/calc/orcamentos.js";
-import { moeda } from "../lib/format.js";
 
 const NAV = [
   { to: "/", rotulo: "Inicio", icone: Home, exato: true },
-  { to: "/contas-atrasadas", rotulo: "Contas Atrasadas", icone: AlertTriangle, chave: "contas" },
-  { to: "/fluxo-caixa", rotulo: "Fluxo de Caixa", icone: Wallet, chave: "fluxo" },
-  { to: "/produtos", rotulo: "Produtos", icone: Package, chave: "produtos" },
-  { to: "/orcamentos", rotulo: "Orcamentos", icone: FileText, chave: "orcamentos" },
+  { to: "/contas-atrasadas", rotulo: "Contas Atrasadas", icone: AlertTriangle },
+  { to: "/fluxo-caixa", rotulo: "Fluxo de Caixa", icone: Wallet },
+  { to: "/produtos", rotulo: "Produtos", icone: Package },
+  { to: "/orcamentos", rotulo: "Orcamentos", icone: FileText },
 ];
 
 // Outros sistemas da Impresilk. Abrem em outra aba: o painel fica aberto atras.
@@ -77,58 +68,7 @@ function frescor(iso) {
   return { hhmm, velho: idadeMin > 40, idadeMin };
 }
 
-// Numero-resumo de cada modulo, para a lateral. `tom` pinta so quando ha algo
-// errado: se tudo fosse colorido, nada saltaria.
-function useResumos() {
-  const { config, dados, overridesRecebiveis, overridesOrcamentos } = useApp();
-  return useMemo(() => {
-    if (!dados) return null;
-    try {
-      const contas = calcContasAtrasadas(
-        dados.recebiveis,
-        overridesRecebiveis,
-        config,
-        dados.dsoHist,
-        dados.ordens
-      );
-      const fluxo = calcFluxoCaixa(
-        { pagar: dados.pagar, recebiveis: dados.recebiveis, bancos: dados.bancos },
-        config
-      );
-      const produtos = calcProdutos(dados.ordens, dados.catalogo, config);
-      const orcamentos = calcOrcamentos(dados.orcamentos, overridesOrcamentos, config);
-      const menor15 = fluxo.kpis.menorSaldo15;
-      return {
-        contas: {
-          valor: moeda(contas.kpis.totalAtrasado),
-          tom: contas.kpis.totalAtrasado > 0 ? "bad" : "ok",
-        },
-        fluxo: {
-          valor: moeda(menor15),
-          tom: menor15 < config.parametros.colchaoMinimo ? "bad" : "ok",
-        },
-        produtos: {
-          valor: produtos.lider ? produtos.lider.nome : "-",
-          tom: produtos.liderEmQueda ? "bad" : "ok",
-        },
-        orcamentos: {
-          valor: moeda(orcamentos.kpis.naMesaValor),
-          tom: orcamentos.kpis.conversao >= 40 ? "ok" : "warn",
-        },
-      };
-    } catch {
-      return null; // um calculo quebrado nao pode derrubar a navegacao
-    }
-  }, [dados, config, overridesRecebiveis, overridesOrcamentos]);
-}
-
-const TOM_TEXTO = {
-  bad: "text-bad-700",
-  warn: "text-warn-700",
-  ok: "text-slate-500",
-};
-
-function ConteudoLateral({ resumos, aoNavegar }) {
+function ConteudoLateral({ aoNavegar }) {
   return (
     <>
       <Link to="/" onClick={aoNavegar} className="flex items-center gap-2.5 px-3 py-1">
@@ -140,36 +80,25 @@ function ConteudoLateral({ resumos, aoNavegar }) {
       </p>
 
       <nav className="space-y-0.5">
-        {NAV.map((n) => {
-          const r = n.chave && resumos ? resumos[n.chave] : null;
-          return (
-            <NavLink
-              key={n.to}
-              to={n.to}
-              end={n.exato}
-              onClick={aoNavegar}
-              className={({ isActive }) =>
-                [
-                  "flex items-center gap-2.5 rounded-lg px-3 py-2 font-display text-sm font-medium transition-all",
-                  isActive
-                    ? "bg-brand/10 text-brand"
-                    : "text-slate-600 hover:bg-slate-100 hover:text-slate-900",
-                ].join(" ")
-              }
-            >
-              <n.icone size={17} strokeWidth={2.2} className="shrink-0" />
-              <span className="min-w-0 flex-1 truncate">{n.rotulo}</span>
-              {r && (
-                <span
-                  className={`shrink-0 tnum text-xs font-semibold ${TOM_TEXTO[r.tom] || TOM_TEXTO.ok}`}
-                  title={r.valor}
-                >
-                  {r.valor}
-                </span>
-              )}
-            </NavLink>
-          );
-        })}
+        {NAV.map((n) => (
+          <NavLink
+            key={n.to}
+            to={n.to}
+            end={n.exato}
+            onClick={aoNavegar}
+            className={({ isActive }) =>
+              [
+                "flex items-center gap-2.5 rounded-lg px-3 py-2 font-display text-sm font-medium transition-all",
+                isActive
+                  ? "bg-brand/10 text-brand"
+                  : "text-slate-600 hover:bg-slate-100 hover:text-slate-900",
+              ].join(" ")
+            }
+          >
+            <n.icone size={17} strokeWidth={2.2} className="shrink-0" />
+            <span className="min-w-0 flex-1 truncate">{n.rotulo}</span>
+          </NavLink>
+        ))}
       </nav>
 
       {/* Outros sistemas: logo abaixo da navegacao, sempre a um clique. */}
@@ -225,7 +154,6 @@ export default function Layout({ children }) {
   const [menuAberto, setMenuAberto] = useState(false);
   const naHome = location.pathname === "/";
   const f = modoDemo ? null : frescor(atualizadoEm);
-  const resumos = useResumos();
 
   // Troca de rota fecha a gaveta (senao ela fica por cima do conteudo novo).
   useEffect(() => {
@@ -236,10 +164,10 @@ export default function Layout({ children }) {
     <div className="min-h-screen lg:flex">
       {/* Lateral fixa no desktop */}
       <aside
-        className="sem-impressao hidden w-72 shrink-0 flex-col border-r bg-white px-3 py-4 lg:sticky lg:top-0 lg:flex lg:h-screen"
+        className="sem-impressao hidden w-60 shrink-0 flex-col border-r bg-white px-3 py-4 lg:sticky lg:top-0 lg:flex lg:h-screen"
         style={{ borderColor: "var(--hairline)" }}
       >
-        <ConteudoLateral resumos={resumos} />
+        <ConteudoLateral />
       </aside>
 
       {/* Gaveta no celular */}
@@ -261,7 +189,7 @@ export default function Layout({ children }) {
             >
               <X size={18} />
             </button>
-            <ConteudoLateral resumos={resumos} aoNavegar={() => setMenuAberto(false)} />
+            <ConteudoLateral aoNavegar={() => setMenuAberto(false)} />
           </aside>
         </div>
       )}
