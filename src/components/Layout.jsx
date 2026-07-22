@@ -236,7 +236,7 @@ export default function Layout({ children }) {
     <div className="min-h-screen lg:flex">
       {/* Lateral fixa no desktop */}
       <aside
-        className="sem-impressao hidden w-60 shrink-0 flex-col border-r bg-white px-3 py-4 lg:sticky lg:top-0 lg:flex lg:h-screen"
+        className="sem-impressao hidden w-72 shrink-0 flex-col border-r bg-white px-3 py-4 lg:sticky lg:top-0 lg:flex lg:h-screen"
         style={{ borderColor: "var(--hairline)" }}
       >
         <ConteudoLateral resumos={resumos} />
