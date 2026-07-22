@@ -70,6 +70,24 @@ export default async (req) => {
   const action = String(body.action || "");
   const contas = getStore(LOJA);
 
+  // Diagnostico: diz se o ambiente esta montado, NUNCA os valores. Protegido
+  // pelo TOKEN do servidor. Existe porque "Senha incorreta" tem duas causas
+  // muito diferentes -- senha errada de verdade, ou a variavel AUTH_MASTER_SENHA
+  // invisivel para a funcao -- e sem isto nao da para distinguir de fora.
+  if (action === "diag") {
+    const t = req.headers.get("x-token") || "";
+    if (!process.env.TOKEN || t !== process.env.TOKEN) return json({ erro: "nao autorizado" }, 401);
+    const conta = await contas.get(usuarioMaster(), { type: "json" }).catch(() => null);
+    return json({
+      temJwtSecret: !!process.env.JWT_SECRET,
+      temMasterSenha: !!process.env.AUTH_MASTER_SENHA,
+      tamanhoMasterSenha: (process.env.AUTH_MASTER_SENHA || "").length,
+      usuarioMaster: usuarioMaster(),
+      contaMasterJaGravada: !!conta,
+      totalContas: (await contas.list().catch(() => ({ blobs: [] }))).blobs.length,
+    });
+  }
+
   // Quem pode administrar acessos: so a direcao.
   const exigirMaster = async () => {
     const s = await sessaoDoPedido(req, secret);
