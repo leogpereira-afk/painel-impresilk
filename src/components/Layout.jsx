@@ -25,6 +25,8 @@ import {
   Ruler,
   ArrowUpRight,
   LogOut,
+  RefreshCw,
+  KeyRound,
 } from "lucide-react";
 import logoColor from "../assets/brand/logo-color.png";
 import logoWhite from "../assets/brand/logo-white.png";
@@ -135,6 +137,22 @@ function ConteudoLateral({ aoNavegar, sessao }) {
 
       {/* Rodape: ajuste (nao rotina) e a identidade de quem esta logado. */}
       <div className="mt-auto space-y-0.5 pt-6">
+        <NavLink
+          to="/acessos"
+          onClick={aoNavegar}
+          className={({ isActive }) =>
+            [
+              "flex items-center gap-2.5 rounded-lg px-3 py-2 font-display text-sm font-medium transition-all",
+              isActive
+                ? "bg-brand/10 text-brand"
+                : "text-slate-500 hover:bg-slate-100 hover:text-slate-900",
+            ].join(" ")
+          }
+        >
+          <KeyRound size={17} strokeWidth={2.2} className="shrink-0" />
+          {sessao?.master ? "Acessos" : "Minha senha"}
+        </NavLink>
+
         {podeAbrir("configuracoes", sessao) && (
           <NavLink
             to="/configuracoes"
@@ -188,7 +206,7 @@ export default function Layout({ children, sessao }) {
   const location = useLocation();
   const navigate = useNavigate();
   const [escuro, alternarTema] = useTema();
-  const { modoDemo, atualizadoEm } = useApp();
+  const { modoDemo, atualizadoEm, recarregar, carregando } = useApp();
   const [menuAberto, setMenuAberto] = useState(false);
   const naHome = location.pathname === "/";
   const f = modoDemo ? null : frescor(atualizadoEm);
@@ -273,6 +291,18 @@ export default function Layout({ children, sessao }) {
                   {f.velho ? `dados de ${f.hhmm} (atrasado)` : `dados de ${f.hhmm}`}
                 </span>
               )}
+              {/* Sincronizar: rebusca os dados agora. O cache do servidor se
+                  atualiza sozinho a cada 20 min, mas quem acabou de mexer no
+                  ERP quer ver o efeito sem esperar (ou sem apertar F5). */}
+              <button
+                onClick={() => recarregar()}
+                disabled={carregando}
+                className="btn-ghost h-9 w-9 rounded-lg p-0 disabled:opacity-50"
+                title={carregando ? "Sincronizando..." : "Sincronizar os dados agora"}
+                aria-label="Sincronizar os dados"
+              >
+                <RefreshCw size={17} className={carregando ? "animate-spin" : ""} />
+              </button>
               <button
                 onClick={alternarTema}
                 className="btn-ghost h-9 w-9 rounded-lg p-0"

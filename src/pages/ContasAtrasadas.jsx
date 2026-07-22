@@ -80,9 +80,10 @@ export default function ContasAtrasadas() {
   const [busca, setBusca] = useState("");
   const [faixaSel, setFaixaSel] = useState(null); // {faixa, de, ate}
   const [expandido, setExpandido] = useState(null); // id do titulo aberto
-  // Padrao = divida mais velha primeiro: e a fila natural da cobranca (quanto
-  // mais antigo, menor a chance de receber). Trocavel no seletor.
-  const [ordem, setOrdem] = useState("antigos"); // valor | recentes | antigos | atraso
+  // Padrao = vencimento mais RECENTE: e o que acabou de vencer, onde a cobranca
+  // ainda tem chance real de recuperar. O historico antigo continua a um clique
+  // no seletor.
+  const [ordem, setOrdem] = useState("recentes"); // valor | recentes | antigos | atraso
   const [venceDe, setVenceDe] = useState(""); // periodo de vencimento (YYYY-MM-DD)
   const [venceAte, setVenceAte] = useState("");
   const [vendedorSel, setVendedorSel] = useState(""); // carteira de um vendedor
@@ -323,12 +324,7 @@ export default function ContasAtrasadas() {
           className="sem-impressao"
           titulo="Titulos"
           sub="Clique na linha para ver os detalhes. Classifique o motivo e marque o que ja foi cobrado."
-          acao={
-            <div className="flex items-center gap-2">
-              <Segmented opcoes={opcoesFiltro} valor={filtro} onChange={setFiltro} />
-              <BotaoPDF titulo="Gera um PDF com exatamente o recorte que esta na tela" />
-            </div>
-          }
+          acao={<BotaoPDF titulo="Gera um PDF com exatamente o recorte que esta na tela" />}
         />
 
         {/* Barra de busca e filtros, em dois niveis.
@@ -361,7 +357,7 @@ export default function ContasAtrasadas() {
                 id="ordem-titulos"
                 value={ordem}
                 onChange={(e) => setOrdem(e.target.value)}
-                className={`filtro font-display ${ordem !== "antigos" ? "filtro-ativo" : ""}`}
+                className={`filtro font-display ${ordem !== "recentes" ? "filtro-ativo" : ""}`}
               >
                 <option value="valor">Maior valor</option>
                 <option value="recentes">Vencimento mais recente</option>
@@ -375,6 +371,29 @@ export default function ContasAtrasadas() {
             className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-xl border bg-slate-50/70 px-3 py-2.5"
             style={{ borderColor: "var(--hairline)" }}
           >
+            {/* O QUE mostrar. Estava no cabecalho, espremido contra o titulo, e
+                "Acima de X dias" quebrava em tres linhas. Aqui embaixo, junto
+                dos outros recortes, cabe e faz sentido: e um filtro tambem. */}
+            <div className="flex flex-wrap items-center gap-1.5">
+              {opcoesFiltro.map((o) => (
+                <button
+                  key={o.valor}
+                  type="button"
+                  onClick={() => setFiltro(o.valor)}
+                  aria-pressed={filtro === o.valor}
+                  className={`h-9 whitespace-nowrap rounded-lg border px-3 font-display text-sm font-medium transition-all ${
+                    filtro === o.valor
+                      ? "border-brand-300 bg-brand-50 text-brand-700"
+                      : "border-transparent text-slate-500 hover:bg-white hover:text-slate-800"
+                  }`}
+                >
+                  {o.rotulo}
+                </button>
+              ))}
+            </div>
+
+            <span className="hidden h-5 w-px bg-slate-200 sm:block" aria-hidden="true" />
+
             {/* QUANDO venceu */}
             <div className="flex items-center gap-2">
               <label className="label-filtro" htmlFor="ano-titulos">

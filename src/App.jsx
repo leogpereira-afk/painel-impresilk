@@ -16,6 +16,7 @@ import Produtos from "./pages/Produtos.jsx";
 import Orcamentos from "./pages/Orcamentos.jsx";
 import Configuracoes from "./pages/Configuracoes.jsx";
 import Login from "./pages/Login.jsx";
+import Acessos from "./pages/Acessos.jsx";
 import { getSessao, aoMudarSessao, podeAbrir } from "./lib/sessao.js";
 import { Card } from "./components/ui.jsx";
 
@@ -93,6 +94,10 @@ export default function App() {
             </Restrito>
           }
         />
+        {/* Sem Restrito: qualquer pessoa logada precisa poder trocar a
+            propria senha. A parte de administrar contas so aparece para a
+            direcao, decidido dentro da propria tela. */}
+        <Route path="/acessos" element={<Acessos />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </Layout>

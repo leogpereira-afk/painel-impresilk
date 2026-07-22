@@ -9,7 +9,23 @@ import logoColor from "../assets/brand/logo-color.png";
 import logoWhite from "../assets/brand/logo-white.png";
 
 export default function Login({ aoEntrar }) {
-  const [usuario, setUsuario] = useState("");
+  // Lembra so o USUARIO, nunca a senha: guardar senha no navegador seria
+  // entregar o acesso a quem sentar na maquina.
+  const K_LEMBRAR = "painel_ultimo_usuario";
+  const [usuario, setUsuario] = useState(() => {
+    try {
+      return localStorage.getItem(K_LEMBRAR) || "";
+    } catch {
+      return "";
+    }
+  });
+  const [lembrar, setLembrar] = useState(() => {
+    try {
+      return !!localStorage.getItem(K_LEMBRAR);
+    } catch {
+      return false;
+    }
+  });
   const [senha, setSenha] = useState("");
   const [verSenha, setVerSenha] = useState(false);
   const [erro, setErro] = useState("");
@@ -22,6 +38,10 @@ export default function Login({ aoEntrar }) {
     setEnviando(true);
     try {
       const s = await login(usuario, senha);
+      try {
+        if (lembrar) localStorage.setItem(K_LEMBRAR, usuario.trim());
+        else localStorage.removeItem(K_LEMBRAR);
+      } catch {}
       aoEntrar?.(s);
     } catch (err) {
       setErro(err.message || "Nao consegui entrar.");
@@ -120,6 +140,16 @@ export default function Login({ aoEntrar }) {
                   {erro}
                 </p>
               )}
+
+              <label className="flex cursor-pointer items-center gap-2 text-sm text-slate-600">
+                <input
+                  type="checkbox"
+                  checked={lembrar}
+                  onChange={(e) => setLembrar(e.target.checked)}
+                  className="h-4 w-4 rounded border-slate-300 text-brand focus:ring-brand-200"
+                />
+                Lembrar meu usuario neste aparelho
+              </label>
 
               <button type="submit" className="btn-primary w-full" disabled={enviando}>
                 <LogIn size={16} strokeWidth={2.4} />
