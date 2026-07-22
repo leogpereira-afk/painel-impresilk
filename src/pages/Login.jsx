@@ -38,7 +38,9 @@ export default function Login({ aoEntrar }) {
         className="relative hidden flex-col justify-between p-10 text-white lg:flex"
         style={{ background: "linear-gradient(150deg, #16334f 0%, #0f2236 55%, #0c1c2e 100%)" }}
       >
-        <img src={logoWhite} alt="Impresilk" className="h-9 w-auto" />
+        {/* max-w impede a logo de esticar na coluna larga: `w-auto` sozinho
+            deixa a imagem assumir a largura do flex e ela borra. */}
+        <img src={logoWhite} alt="Impresilk" className="h-9 w-auto max-w-[190px] object-contain" />
         <div>
           <h1 className="max-w-md font-display text-4xl font-bold leading-tight tracking-tight">
             A gestao da Impresilk, num lugar so.
