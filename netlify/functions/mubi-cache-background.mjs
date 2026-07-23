@@ -513,17 +513,18 @@ export default async (req) => {
     console.log("mubi-cache: fim ok", JSON.stringify(contagens));
     return new Response(JSON.stringify({ ok: true, modo, contagens }), { status: 200 });
   } catch (e) {
-    // Nada foi gravado nas chaves de dados: o cache anterior segue intacto.
-    // Preserva o "em" do ultimo sucesso e so marca a falha da tentativa.
+    // Uma tentativa que falhou NAO rebaixa o cache. `em` e `ok` descrevem o
+    // ULTIMO DADO gravado, nao a ultima tentativa -- entao um ciclo lento que
+    // morre nao pode marcar como "parado" o dado que outro ciclo acabou de
+    // atualizar. A falha se registra so em ultimaFalhaEm/erro, campos a parte.
+    // (Antes, o `{...prev, ok:false}` daqui pisoteava o sucesso concorrente e o
+    // painel mostrava dado fresco como parado.)
     console.error("mubi-cache: ERRO", e?.message || e);
     const prev = (await store.get("cache_status", { type: "json" })) || {};
     await store.setJSON("cache_status", {
       ...prev,
-      ok: false,
-      modo,
       ultimaFalhaEm: new Date().toISOString(),
       erro: String(e?.message || e),
-      duracaoMs: Date.now() - inicio,
     });
     return new Response(JSON.stringify({ erro: "falha ao atualizar o cache" }), { status: 502 });
   } finally {
