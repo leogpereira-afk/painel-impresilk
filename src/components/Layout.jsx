@@ -67,7 +67,12 @@ function useTema() {
   return [escuro, () => setEscuro((v) => !v)];
 }
 
-// Frescor do cache: HH:MM de Sao Paulo e se ja passou de 40 min (fica ambar).
+// Frescor do cache. Mostra so a hora quando e de hoje; a partir de umas horas
+// passa a mostrar quanto tempo faz, e acima de um dia mostra a DATA.
+//
+// Motivo: em 2026-07-22 o cache congelou por 8 horas e o chip continuou dizendo
+// so "dados de 14:24" -- que parece recente. O dono percebeu pela conta que nao
+// batia, nao pelo painel. Um numero velho tem que se anunciar velho.
 function frescor(iso) {
   if (!iso) return null;
   const dt = new Date(iso);
@@ -78,7 +83,21 @@ function frescor(iso) {
     minute: "2-digit",
     timeZone: "America/Sao_Paulo",
   });
-  return { hhmm, velho: idadeMin > 40, idadeMin };
+  const dia = dt.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", timeZone: "America/Sao_Paulo" });
+
+  let texto;
+  if (idadeMin < 60) texto = `dados de ${hhmm}`;
+  else if (idadeMin < 60 * 20) texto = `dados de ${hhmm} (ha ${Math.floor(idadeMin / 60)}h)`;
+  else texto = `dados de ${dia} as ${hhmm}`;
+
+  return {
+    hhmm,
+    texto,
+    velho: idadeMin > 40,
+    // Acima de 3 horas nao e "atrasado", e parado: o cron roda a cada 20 min.
+    parado: idadeMin > 180,
+    idadeMin,
+  };
 }
 
 function ConteudoLateral({ aoNavegar, sessao }) {
@@ -213,6 +232,15 @@ export default function Layout({ children, sessao }) {
   const naHome = location.pathname === "/";
   const f = modoDemo ? null : frescor(atualizadoEm);
 
+  // Relogio: sem isto a idade do cache so era recalculada quando os dados
+  // mudavam -- ou seja, justamente quando o cache TRAVA o chip congelava junto,
+  // escondendo o problema.
+  const [, forcarRelogio] = useState(0);
+  useEffect(() => {
+    const t = setInterval(() => forcarRelogio((n) => n + 1), 60000);
+    return () => clearInterval(t);
+  }, []);
+
   // Troca de rota fecha a gaveta (senao ela fica por cima do conteudo novo).
   useEffect(() => {
     setMenuAberto(false);
@@ -286,11 +314,12 @@ export default function Layout({ children, sessao }) {
               {modoDemo && <span className="chip-warn hidden sm:inline-flex">Modo demonstracao</span>}
               {f && (
                 <span
-                  className={`hidden items-center gap-1.5 sm:inline-flex ${f.velho ? "chip-warn" : "chip"}`}
+                  className={`inline-flex items-center gap-1.5 ${f.parado ? "chip-bad" : f.velho ? "chip-warn" : "chip"}`}
                   title={`Dados do cache do Mubisys, ${f.idadeMin} min atras`}
                 >
                   <Clock size={13} />
-                  {f.velho ? `dados de ${f.hhmm} (atrasado)` : `dados de ${f.hhmm}`}
+                  {f.texto}
+                  {f.parado ? " · parado" : f.velho ? " · atrasado" : ""}
                 </span>
               )}
               {/* Sincronizar: rebusca os dados agora. O cache do servidor se
