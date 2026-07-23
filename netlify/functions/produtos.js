@@ -2,7 +2,7 @@
 // cada item ja vem aplicada pela mubi-cache-background via join com /produto).
 
 import { getStore, connectLambda } from "@netlify/blobs";
-import { json, erroInterno } from "./lib/mubi.js";
+import { json, erroInterno, talvezAquecer } from "./lib/mubi.js";
 import { exigirSessao } from "./lib/guarda.js";
 
 export const handler = async (event) => {
@@ -19,6 +19,9 @@ export const handler = async (event) => {
       store.get("cache_ordens", { type: "json" }),
       store.get("cache_status", { type: "json" }),
     ]);
+
+    // Auto-cura: cache velho dispara a reconstrucao (nao espera).
+    talvezAquecer(store, status);
     if (!dados) {
       return json(
         { preparando: true, erro: "Cache do Mubisys ainda nao aquecido. Aguarde uns 2 minutos." },

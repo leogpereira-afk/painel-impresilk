@@ -4,7 +4,7 @@
 //     (padrao)       -> saidas (pagar + provisoes)
 
 import { getStore, connectLambda } from "@netlify/blobs";
-import { json, erroInterno } from "./lib/mubi.js";
+import { json, erroInterno, talvezAquecer } from "./lib/mubi.js";
 import { exigirSessao } from "./lib/guarda.js";
 
 export const handler = async (event) => {
@@ -25,6 +25,8 @@ export const handler = async (event) => {
         store.get("cache_fluxo_mensal", { type: "json" }),
         store.get("cache_status", { type: "json" }),
       ]);
+
+      talvezAquecer(store, status); // auto-cura se o cache estiver velho
       if (!mensal) {
         // Ainda nao rodou o cron do realizado: nao e erro, so nao tem historico.
         return json({ anos: {}, disponiveis: [], atualizadoEm: null, preparando: true });
@@ -41,6 +43,7 @@ export const handler = async (event) => {
       store.get(chave, { type: "json" }),
       store.get("cache_status", { type: "json" }),
     ]);
+    talvezAquecer(store, status); // auto-cura se o cache estiver velho
     if (!dados) {
       return json(
         { preparando: true, erro: "Cache do Mubisys ainda nao aquecido. Aguarde uns 2 minutos." },

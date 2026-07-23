@@ -248,3 +248,30 @@ export function campo(obj, ...nomes) {
   }
   return undefined;
 }
+
+// Auto-cura: quando um modulo e aberto e o cache esta velho, dispara a
+// reconstrucao em segundo plano SEM esperar. E a defesa contra os dois pontos
+// fracos que ja travaram o painel: o agendador do Netlify (que congelou) e o
+// Mubisys estar fora do ar num instante especifico. Assim o painel se atualiza
+// sempre que alguem o usa e o Mubisys responde -- nao depende so do cron.
+//
+// A trava (cache_lock) da propria background deduplica: varias aberturas ao
+// mesmo tempo geram um unico ciclo. Fire-and-forget: a leitura nao espera.
+export function talvezAquecer(store, cacheStatus) {
+  try {
+    const SEGREDO = process.env.TOKEN;
+    if (!SEGREDO) return;
+    const em = cacheStatus?.em ? new Date(cacheStatus.em).getTime() : 0;
+    const idadeMin = em ? (Date.now() - em) / 60000 : Infinity;
+    // 22 min: um pouco acima do ciclo de 20 do cron, para nao competir com ele
+    // quando ele esta saudavel.
+    if (idadeMin < 22) return;
+    const base = process.env.URL || "https://impresilk.netlify.app";
+    fetch(`${base}/.netlify/functions/mubi-cache-background`, {
+      method: "POST",
+      headers: { "x-token": SEGREDO },
+    }).catch(() => {});
+  } catch {
+    /* nunca deixa a auto-cura derrubar a leitura */
+  }
+}
