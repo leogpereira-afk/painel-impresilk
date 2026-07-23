@@ -116,7 +116,15 @@ export default function Ativos() {
       setMsg({ tom: "ok", texto: `${item.nome} salvo.` });
       setForm(null);
       setArquivo(null);
-      carregar();
+      // Mostra JA, sem esperar a listagem: a listagem do Blobs tem consistencia
+      // eventual (~1 min) para chaves novas, e cadastrar algo que nao aparece
+      // parece que nao salvou.
+      setItens((atuais) => {
+        const outros = (atuais || []).filter((x) => x.id !== item.id);
+        return [...outros, { ...item, temArquivo: item.temArquivo || !!arquivo }];
+      });
+      // Reconcilia com o servidor um pouco depois, quando a listagem alcancar.
+      setTimeout(carregar, 60000);
     } catch (err) {
       setMsg({ tom: "erro", texto: err.message });
     } finally {
@@ -138,7 +146,7 @@ export default function Ativos() {
     try {
       await removerAtivo(item.id);
       setMsg({ tom: "aviso", texto: `${item.nome} removido.` });
-      carregar();
+      setItens((atuais) => (atuais || []).filter((x) => x.id !== item.id));
     } catch (err) {
       setMsg({ tom: "erro", texto: err.message });
     }

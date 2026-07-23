@@ -6,17 +6,24 @@
 // so motor com tres tipos, em vez de tres modulos parecidos que divergem com o
 // tempo.
 //
-// Guarda no Blobs (store "painel"):
-//   ativos          -> lista de itens (documento | veiculo | maquina)
-//   arquivo_<id>    -> o PDF/imagem em base64, um blob por arquivo
+// Guarda no Blobs (store "painel"), UM BLOB POR ITEM:
+//   ativo_<id>      -> o item
+//   arquivo_<id>    -> o PDF/imagem em base64
 //
-// O arquivo fica em chave separada de proposito: a lista precisa ser leve para
-// carregar rapido, e um cartao CNPJ digitalizado tem megabytes.
+// Por que um blob por item, e nao uma lista unica: com lista unica, salvar e
+// ler-alterar-gravar. Duas pessoas cadastrando ao mesmo tempo leem a mesma
+// lista e a segunda gravacao apaga a primeira -- perda SILENCIOSA. Aconteceu no
+// primeiro teste desta funcao: dois cadastros seguidos e so um sobreviveu. A
+// versao 8 do @netlify/blobs nao tem escrita condicional, entao a saida e nao
+// compartilhar a chave: cada item so escreve na sua.
+//
+// O arquivo fica em chave separada porque a listagem precisa ser leve e um
+// cartao CNPJ digitalizado tem megabytes.
 
 import { getStore, connectLambda } from "@netlify/blobs";
 import { exigirSessao } from "./lib/guarda.js";
 
-const CHAVE = "ativos";
+const PREFIXO = "ativo_";
 const TIPOS = new Set(["documento", "veiculo", "maquina"]);
 const MAX_ARQUIVO = 4 * 1024 * 1024; // 4 MB em base64 (~3 MB de arquivo)
 
@@ -47,7 +54,18 @@ export const handler = async (event) => {
   }
 
   const store = getStore("painel");
-  const lerLista = async () => (await store.get(CHAVE, { type: "json" })) || [];
+
+  // Le todos os itens. store.list() tem consistencia eventual (~1 min) para
+  // chaves NOVAS, entao quem acabou de cadastrar pode nao ver na lista de
+  // imediato -- por isso a tela adiciona o item devolvido pelo salvar ao seu
+  // estado local em vez de esperar a listagem.
+  const lerLista = async () => {
+    const { blobs } = await store.list({ prefix: PREFIXO });
+    const itens = await Promise.all(
+      (blobs || []).map((b) => store.get(b.key, { type: "json" }).catch(() => null))
+    );
+    return itens.filter(Boolean);
+  };
 
   try {
     switch (corpo.action) {
@@ -60,9 +78,9 @@ export const handler = async (event) => {
         if (!TIPOS.has(tipo)) return resposta({ erro: "tipo invalido" }, 400);
         if (!String(it.nome || "").trim()) return resposta({ erro: "informe o nome" }, 400);
 
-        const lista = await lerLista();
         const agora = new Date().toISOString();
         const id = it.id || `${tipo}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+        const anterior = await store.get(PREFIXO + id, { type: "json" }).catch(() => null);
         const limpo = {
           id,
           tipo,
@@ -85,24 +103,18 @@ export const handler = async (event) => {
           atualizadoPor: quem,
         };
 
-        const i = lista.findIndex((x) => x.id === id);
-        if (i >= 0) limpo.criadoEm = lista[i].criadoEm || agora;
-        else limpo.criadoEm = agora;
-        if (i >= 0) lista[i] = limpo;
-        else lista.push(limpo);
-
-        await store.setJSON(CHAVE, lista);
+        limpo.criadoEm = anterior?.criadoEm || agora;
+        // Escreve SO na chave deste item: nao ha leitura-alteracao-gravacao de
+        // uma estrutura compartilhada, entao nao ha como um cadastro apagar o
+        // outro.
+        await store.setJSON(PREFIXO + id, limpo);
         return resposta({ ok: true, item: limpo });
       }
 
       case "remover": {
         const id = String(corpo.id || "");
         if (!id) return resposta({ erro: "id ausente" }, 400);
-        const lista = await lerLista();
-        await store.setJSON(
-          CHAVE,
-          lista.filter((x) => x.id !== id)
-        );
+        await store.delete(PREFIXO + id).catch(() => {});
         // O arquivo vai junto: deixar o blob orfao so ocupa espaco e guarda um
         // documento que o usuario mandou apagar.
         await store.delete(`arquivo_${id}`).catch(() => {});
