@@ -410,13 +410,43 @@ export default async (req) => {
 
   try {
     // 1) Busca tudo em memoria (nada gravado ainda).
-    const rapidos = await etapaRapidos();
-    const pesados =
-      modo === "completo" ? await etapaCompleta() : await etapaIncremental(store, remigrarOS);
+    //
+    // Os dois blocos sao INDEPENDENTES: um "fetch failed" ao buscar orcamentos/OS
+    // (bloco pesado) nao pode descartar os recebiveis e o caixa que ja vieram
+    // (bloco rapido), e vice-versa. Antes, um erro em qualquer ponto matava o
+    // ciclo inteiro -- foi assim que o Mubisys degradado congelou o painel.
+    let rapidos = {};
+    let pesados = {};
+    try {
+      rapidos = await etapaRapidos();
+    } catch (e) {
+      console.warn("mubi-cache: bloco rapido falhou inteiro:", e?.message || e);
+      rapidos = { recebiveis: null, pagar: null, bancos: null, falhas: ["bloco-rapido"] };
+    }
+    try {
+      pesados = modo === "completo" ? await etapaCompleta() : await etapaIncremental(store, remigrarOS);
+    } catch (e) {
+      console.warn("mubi-cache: bloco pesado falhou inteiro:", e?.message || e);
+      pesados = { orcamentos: null, ordens: null, falhas: ["bloco-pesado"] };
+    }
     const dados = { ...rapidos, ...pesados };
+
+    // Se NADA veio de nenhum bloco, e falha total: nao carimba sucesso.
+    const veioAlgo =
+      dados.recebiveis != null ||
+      dados.pagar != null ||
+      dados.bancos != null ||
+      dados.orcamentos != null ||
+      dados.ordens != null;
+    if (!veioAlgo) {
+      throw new Error(
+        `Mubisys indisponivel: ${[...(rapidos.falhas || []), ...(pesados.falhas || [])].join(", ") || "sem detalhe"}`
+      );
+    }
+
     // So migrou de verdade se a varredura completa rodou ou a remigracao de OS
     // terminou sem cair no fallback leve.
-    const migrouOS = modo === "completo" || pesados.remigrouOS === true;
+    const migrouOS = (modo === "completo" || pesados.remigrouOS === true) && dados.ordens != null;
 
     // 2) DSO do dia + acumula historico real (um ponto por dia, ultimos 180).
     // Sem recebiveis novos, mantem o DSO anterior em vez de gravar um numero
