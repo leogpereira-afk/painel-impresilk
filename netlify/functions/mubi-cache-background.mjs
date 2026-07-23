@@ -211,21 +211,46 @@ async function etapaRapidos() {
 
   // Recursos independentes: em paralelo. Em serie, so esta etapa ja comia
   // metade do orcamento de tempo da Function.
+  //
+  // TOLERANTE A FALHA POR FONTE. Antes era Promise.all cru: um timeout do
+  // Mubisys em UMA fonte derrubava o ciclo inteiro e NADA era gravado -- foi o
+  // que congelou o painel por 8 horas em 2026-07-22 ("contas-pagar: timeout de
+  // 280s"). Agora cada fonte que falha devolve null, o ciclo segue com as
+  // outras, e quem gravou por ultimo mantem o valor anterior daquela fonte.
+  const falhas = [];
+  const tentar = async (nome, promessa) => {
+    try {
+      return await promessa;
+    } catch (e) {
+      console.warn(`mubi-cache: fonte "${nome}" falhou:`, e?.message || e);
+      falhas.push(nome);
+      return null;
+    }
+  };
+
   const [vencidos, pendentes, pagPend, pagVenc, fixa, cartao, folha, bancosBrutos] =
     await Promise.all([
-      mubiGetTudo("contas-receber", { ...jRecVencido, status: "VENCIDO" }),
-      mubiGetTudo("contas-receber", { ...jRec, status: "PENDENTE" }),
-      mubiGetTudo("contas-pagar", { ...jPag, status: "PENDENTE" }),
-      mubiGetTudo("contas-pagar", { ...jPag, status: "VENCIDO" }),
-      mubiGetTudo("contas-pagar-provisao/despesa-fixa", jPag),
-      mubiGetTudo("contas-pagar-provisao/cartao-credito", jPag),
-      mubiGetTudo("contas-pagar-provisao/folha-pagamento", jPag),
-      mubiGetTudo("conta-bancaria"),
+      tentar("receber-vencido", mubiGetTudo("contas-receber", { ...jRecVencido, status: "VENCIDO" })),
+      tentar("receber-pendente", mubiGetTudo("contas-receber", { ...jRec, status: "PENDENTE" })),
+      tentar("pagar-pendente", mubiGetTudo("contas-pagar", { ...jPag, status: "PENDENTE" })),
+      tentar("pagar-vencido", mubiGetTudo("contas-pagar", { ...jPag, status: "VENCIDO" })),
+      tentar("provisao-fixa", mubiGetTudo("contas-pagar-provisao/despesa-fixa", jPag)),
+      tentar("provisao-cartao", mubiGetTudo("contas-pagar-provisao/cartao-credito", jPag)),
+      tentar("provisao-folha", mubiGetTudo("contas-pagar-provisao/folha-pagamento", jPag)),
+      tentar("bancos", mubiGetTudo("conta-bancaria")),
     ]);
 
-  const recebiveis = dedup([...vencidos, ...pendentes].map(normRecebivel)).filter((r) => r.valor > 0);
+  // Uma fonte que falhou vira null (nao array vazio!): confundir os dois faria
+  // o painel gravar "zero contas a pagar" e o gestor achar que nao deve nada.
+  const recebOk = vencidos !== null && pendentes !== null;
+  const pagarOk = pagPend !== null && pagVenc !== null && fixa !== null && cartao !== null && folha !== null;
+  const bancosOk = bancosBrutos !== null;
 
-  const pagar = dedup(
+  const recebiveis = !recebOk
+    ? null
+    : dedup([...vencidos, ...pendentes].map(normRecebivel)).filter((r) => r.valor > 0);
+
+  const pagar = !pagarOk ? null : dedup(
     [
       ...pagPend.map(normPagar),
       ...pagVenc.map(normPagar),
@@ -236,7 +261,7 @@ async function etapaRapidos() {
     (x) => `${x.tipo}:${x.id}`
   ).filter((s) => s.valor > 0);
 
-  const bancos = bancosBrutos
+  const bancos = !bancosOk ? null : bancosBrutos
     .filter((b) => String(b.status || "").toLowerCase() === "ativo")
     .filter((b) => !/permuta/i.test(String(b.titulo || "")))
     .map((b, i) => ({
@@ -246,7 +271,7 @@ async function etapaRapidos() {
       saldo: num(b.valor_saldo),
     }));
 
-  return { recebiveis, pagar, bancos };
+  return { recebiveis, pagar, bancos, falhas };
 }
 
 // Chave de join produto->catalogo. O nome vem digitado nos dois lados, entao
@@ -394,25 +419,36 @@ export default async (req) => {
     const migrouOS = modo === "completo" || pesados.remigrouOS === true;
 
     // 2) DSO do dia + acumula historico real (um ponto por dia, ultimos 180).
-    const dso = calcDso(dados.recebiveis);
+    // Sem recebiveis novos, mantem o DSO anterior em vez de gravar um numero
+    // calculado sobre lista vazia (que daria 0 e mentiria na curva).
+    const dso = dados.recebiveis ? calcDso(dados.recebiveis) : (statusAnterior?.dso ?? 0);
     const histAntigo = (await store.get("cache_dso_hist", { type: "json" })) || [];
     const dia = diaBR();
     const dsoHist = [...histAntigo.filter((p) => p && p.dia !== dia), { dia, dso }].slice(-180);
 
     const contagens = {
-      recebiveis: dados.recebiveis.length,
-      pagar: dados.pagar.length,
-      bancos: dados.bancos.length,
-      orcamentos: dados.orcamentos.length,
-      ordens: dados.ordens.length,
+      recebiveis: dados.recebiveis?.length ?? "manteve",
+      pagar: dados.pagar?.length ?? "manteve",
+      bancos: dados.bancos?.length ?? "manteve",
+      orcamentos: dados.orcamentos?.length ?? "manteve",
+      ordens: dados.ordens?.length ?? "manteve",
     };
 
     // 3) Grava tudo de uma vez SO AGORA (janela minima de inconsistencia).
-    await store.setJSON("cache_recebiveis", dados.recebiveis);
-    await store.setJSON("cache_pagar", dados.pagar);
-    await store.setJSON("cache_bancos", dados.bancos);
-    await store.setJSON("cache_orcamentos", dados.orcamentos);
-    await store.setJSON("cache_ordens", dados.ordens);
+    //
+    // Fonte que falhou vem null e NAO e gravada: o valor anterior fica. Um dado
+    // de uma hora atras e util; um zero falso ("voce nao deve nada a ninguem")
+    // e pior que nao atualizar.
+    const gravarSeVeio = async (chave, valor) => {
+      if (valor === null || valor === undefined) return false;
+      await store.setJSON(chave, valor);
+      return true;
+    };
+    await gravarSeVeio("cache_recebiveis", dados.recebiveis);
+    await gravarSeVeio("cache_pagar", dados.pagar);
+    await gravarSeVeio("cache_bancos", dados.bancos);
+    await gravarSeVeio("cache_orcamentos", dados.orcamentos);
+    await gravarSeVeio("cache_ordens", dados.ordens);
     await store.setJSON("cache_dso_hist", dsoHist);
     await store.setJSON("cache_status", {
       em: new Date().toISOString(), // horario do ULTIMO sucesso (frescor real)
@@ -424,6 +460,10 @@ export default async (req) => {
       dso,
       duracaoMs: Date.now() - inicio,
       contagens,
+      // Ciclo parcial: algumas fontes falharam e mantiveram o valor anterior.
+      // ok:true porque o cache ESTA utilizavel -- mas o painel precisa saber.
+      fontesQueFalharam: pesados.falhas?.length ? pesados.falhas : rapidos.falhas || [],
+      parcial: !!(rapidos.falhas?.length || pesados.falhas?.length),
     });
 
     // Auto-provisiona o fluxo realizado mes a mes na primeira vez (ou se sumir).
