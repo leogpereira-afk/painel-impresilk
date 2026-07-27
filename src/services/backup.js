@@ -21,7 +21,8 @@ export const restaurarBackup = (backup, apagarAntes = false) =>
   chamar("restaurar", { backup, apagarAntes });
 export const statusBackup = () => chamar("status").then((r) => r.status);
 export const registrarManual = () => chamar("registrarManual").catch(() => {});
-export const enviarGithub = () => chamar("enviarGithub");
+// Roda o backup do HUB inteiro agora (painel + os 4 sistemas -> GitHub).
+export const backupHubAgora = () => chamar("backupAgora");
 
 // Baixa o backup como arquivo .json no computador do usuario.
 export async function baixarBackup() {

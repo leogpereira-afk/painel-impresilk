@@ -5,7 +5,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { KeyRound, UserPlus, Trash2, ShieldCheck, AlertTriangle, Check, Download, Upload } from "lucide-react";
 import { chamarAuth, getSessao } from "../lib/sessao.js";
-import { baixarBackup, restaurarBackup, lerArquivoBackup, statusBackup, enviarGithub } from "../services/backup.js";
+import { baixarBackup, restaurarBackup, lerArquivoBackup, statusBackup, backupHubAgora } from "../services/backup.js";
 import { Card, PageTitle, SectionTitle, Empty } from "../components/ui.jsx";
 
 // Espelha MODULOS de netlify/functions/auth.mjs. O servidor e quem valida.
@@ -360,18 +360,17 @@ export default function Acessos() {
   );
 }
 
-// "Ultimo backup: <data> as <hora> - <onde>". O painel inteiro aponta para ca.
-function UltimoBackup({ status }) {
-  if (!status?.em) {
-    return (
-      <p className="flex items-start gap-2 rounded-lg bg-warn-50 px-3 py-2 text-sm text-warn-700">
-        <AlertTriangle size={15} className="mt-0.5 shrink-0" />
-        Nenhum backup feito ainda. Baixe um agora ou configure o envio automatico.
-      </p>
-    );
-  }
-  const dt = new Date(status.em);
-  const quando = dt.toLocaleString("pt-BR", {
+const NOME_SISTEMA = {
+  painel: "Painel de Gestao",
+  pcp: "PCP / Instalacao",
+  brief: "Brief de Medicao",
+  rh: "RH",
+  dre: "DRE",
+};
+
+function quandoBR(iso) {
+  if (!iso) return null;
+  return new Date(iso).toLocaleString("pt-BR", {
     day: "2-digit",
     month: "2-digit",
     year: "numeric",
@@ -379,14 +378,52 @@ function UltimoBackup({ status }) {
     minute: "2-digit",
     timeZone: "America/Sao_Paulo",
   });
+}
+
+// Ultimo backup de CADA sistema, e onde esta salvo.
+function UltimoBackup({ status }) {
+  const sistemas = status?.sistemas || (status?.em ? { painel: status } : null);
+  if (!sistemas) {
+    return (
+      <p className="flex items-start gap-2 rounded-lg bg-warn-50 px-3 py-2 text-sm text-warn-700">
+        <AlertTriangle size={15} className="mt-0.5 shrink-0" />
+        Nenhum backup feito ainda. Rode o backup ou baixe uma copia agora.
+      </p>
+    );
+  }
+  const linhas = Object.entries(sistemas);
   return (
-    <p className="flex items-start gap-2 rounded-lg bg-ok-50 px-3 py-2 text-sm text-ok-700">
-      <ShieldCheck size={15} className="mt-0.5 shrink-0" />
-      <span>
-        Ultimo backup em <strong>{quando}</strong> — salvo em <strong>{status.destino}</strong>
-        {status.detalhe ? ` (${status.detalhe})` : ""}.
-      </span>
-    </p>
+    <div className="space-y-2">
+      <p className="text-sm text-slate-500">
+        Salvo no repositorio privado <strong>backups-impresilk</strong> no GitHub — um arquivo por
+        dia, por sistema (versionado). {status?.atualizadoEm && `Ultima rodada: ${quandoBR(status.atualizadoEm)}.`}
+      </p>
+      <div className="overflow-x-auto rounded-xl border" style={{ borderColor: "var(--hairline)" }}>
+        <table className="w-full min-w-[440px] border-collapse text-sm">
+          <tbody>
+            {linhas.map(([k, s]) => (
+              <tr key={k} className="border-t" style={{ borderColor: "var(--hairline)" }}>
+                <td className="px-3 py-2 font-display font-medium text-slate-800">
+                  {NOME_SISTEMA[k] || s.nome || k}
+                </td>
+                <td className="px-3 py-2 text-slate-500">{quandoBR(s.em) || "—"}</td>
+                <td className="px-3 py-2">
+                  {s.ok === false ? (
+                    <span className="chip-bad" title={s.erro || ""}>
+                      falhou
+                    </span>
+                  ) : (
+                    <span className="chip-ok">
+                      ok{typeof s.registros === "number" ? ` · ${s.registros} reg.` : ""}
+                    </span>
+                  )}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
   );
 }
 
@@ -418,17 +455,22 @@ function BackupDados() {
     }
   }
 
-  async function enviarAoGithub() {
+  async function rodarBackup() {
     setEnviando(true);
     setMsg(null);
     try {
-      const r = await enviarGithub();
-      if (r.github?.ok) {
-        setMsg({ tom: "ok", texto: `Enviado ao GitHub: ${r.github.repo} / ${r.github.caminho}.` });
-        lerStatus();
+      const r = await backupHubAgora();
+      const sis = r.sistemas || {};
+      const falharam = Object.entries(sis).filter(([, v]) => v.ok === false);
+      if (falharam.length === 0) {
+        setMsg({ tom: "ok", texto: `Backup do hub inteiro feito: ${Object.keys(sis).length} sistemas.` });
       } else {
-        setMsg({ tom: "erro", texto: r.github?.motivo || "Nao consegui enviar ao GitHub." });
+        setMsg({
+          tom: "erro",
+          texto: `Alguns falharam: ${falharam.map(([k, v]) => `${k} (${v.erro || "erro"})`).join(", ")}.`,
+        });
       }
+      lerStatus();
     } catch (e) {
       setMsg({ tom: "erro", texto: e.message });
     } finally {
@@ -483,9 +525,9 @@ function BackupDados() {
           {baixando ? "Preparando..." : "Baixar backup agora"}
         </button>
 
-        <button className="btn-outline" onClick={enviarAoGithub} disabled={enviando}>
+        <button className="btn-outline" onClick={rodarBackup} disabled={enviando}>
           <Upload size={16} strokeWidth={2.4} />
-          {enviando ? "Enviando..." : "Enviar ao GitHub agora"}
+          {enviando ? "Rodando..." : "Rodar backup do hub agora"}
         </button>
 
         <label className="btn-outline cursor-pointer">

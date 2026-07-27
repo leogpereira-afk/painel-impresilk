@@ -1,17 +1,21 @@
-// Backup e restauracao dos DADOS do painel.
+// Backup e restauracao dos DADOS de TODOS os sistemas da Impresilk.
 //
-// Faz um retrato do que e insubstituivel -- o que nao volta se o site sumir:
-//   config          regras do painel
-//   ov_rec / ov_orc  suas marcacoes (motivo, cobrado, baixa)
-//   ativo_* / arquivo_*  documentos, veiculos, maquinas E os PDFs anexados
-//   contas (store painel-auth)  usuarios, permissoes e o hash da senha
+// O painel e a capa, entao e ele quem orquestra o backup do Hub inteiro. Ele
+// guarda o proprio dado E PUXA os outros sistemas pelos endpoints que eles ja
+// tem (acao "list" + "getCfg"), sem tocar no codigo de nenhum deles -- decidido
+// no reconhecimento de 2026-07-27: os quatro (PCP, Brief, RH, DRE) expoem "list".
 //
-// NAO inclui cache_* de proposito: sao copia do Mubisys e se reconstroem
-// sozinhos. Um backup deve guardar o que nao se refaz, nao inchar com o que se
-// refaz sozinho.
+// O que entra: o que NAO volta se o site sumir.
+//   painel: config, marcacoes (ov_*), documentos+arquivos (ativo_/arquivo_),
+//           contas (painel-auth, com hash).
+//   outros: os registros estruturados de cada um + a config.
+// NAO entra: cache_* do painel (copia do Mubisys, se reconstroi) e as FOTOS dos
+// sistemas de campo (binarios grandes; ficam nos Blobs deles, que sao duraveis
+// -- um backup diario de fotos incharia o repositorio). Fotos = tarefa a parte.
 //
-// So a DIRECAO (master) exporta ou restaura -- o backup carrega o hash das
-// senhas de todos e as marcacoes financeiras. Nao e dado para circular.
+// So a DIRECAO (master) exporta/restaura pela tela. O disparo automatico (login)
+// usa o TOKEN do servidor. Destino: repositorio privado no GitHub, uma pasta por
+// sistema, um arquivo por dia (versionado).
 
 import { getStore, connectLambda } from "@netlify/blobs";
 import { verificarJwt } from "../lib/cripto.mjs";
@@ -23,7 +27,6 @@ const resposta = (body, status = 200) => ({
   body: JSON.stringify(body),
 });
 
-// So o master passa. (guarda.js exige sessao; aqui exigimos master.)
 async function exigirMaster(event) {
   const secret = process.env.JWT_SECRET;
   if (!secret) return { erro: resposta({ erro: "Login nao configurado." }, 503) };
@@ -56,8 +59,8 @@ async function listarChaves(store, filtro) {
   return out;
 }
 
-// Monta o retrato completo dos dados (reusado por exportar e enviarGithub).
-async function montarBackup(painel, auth) {
+// ------- backup do PROPRIO painel -------
+async function montarBackupPainel(painel, auth) {
   const chaves = await listarChaves(painel, ehChaveDeDados);
   const dados = {};
   await Promise.all(
@@ -72,32 +75,68 @@ async function montarBackup(painel, auth) {
       contas[k] = await auth.get(k, { type: "json" }).catch(() => null);
     })
   );
+  return { versao: VERSAO, sistema: "painel", exportadoEm: new Date().toISOString(), painel: dados, contas };
+}
+
+// ------- puxa um sistema externo pelos endpoints que ele ja tem -------
+// Registry em SISTEMAS_BACKUP (env, JSON): [{key,nome,url,fn,listKey,token}].
+function sistemasExternos() {
+  try {
+    return JSON.parse(process.env.SISTEMAS_BACKUP || "[]");
+  } catch {
+    return [];
+  }
+}
+
+async function chamarSistema(sys, body) {
+  const r = await fetch(`${sys.url}/.netlify/functions/${sys.fn}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "x-token": sys.token },
+    body: JSON.stringify(body),
+  });
+  if (!r.ok) throw new Error(`${sys.key}: HTTP ${r.status}`);
+  return r.json();
+}
+
+async function puxarSistema(sys) {
+  // Registros estruturados: "list" paginado por chave (after/nextAfter).
+  const registros = [];
+  let after = null;
+  let guarda = 0;
+  do {
+    const res = await chamarSistema(sys, after != null ? { action: "list", after } : { action: "list" });
+    const lote = res[sys.listKey] || res.registros || res.os || res.itens || [];
+    registros.push(...lote);
+    after = res.nextAfter ?? null;
+  } while (after != null && ++guarda < 300);
+
+  // Config (best-effort; nem todo sistema tem).
+  let cfg = null;
+  try {
+    cfg = (await chamarSistema(sys, { action: "getCfg" })).cfg ?? null;
+  } catch {}
+
   return {
     versao: VERSAO,
-    sistema: "painel",
+    sistema: sys.key,
+    nome: sys.nome,
     exportadoEm: new Date().toISOString(),
-    painel: dados,
-    contas,
+    registros,
+    cfg,
+    // Fotos NAO entram no backup diario (binarios grandes). Ficam nos Blobs do
+    // sistema; um export dedicado e tarefa a parte.
+    fotos: "nao incluidas neste backup",
   };
 }
 
-// Registra o ultimo backup para o painel poder exibir "salvo em ... as ...".
-async function registrar(painel, destino, detalhe) {
-  await painel
-    .setJSON("backup_status", { em: new Date().toISOString(), destino, detalhe: detalhe || "" })
-    .catch(() => {});
-}
-
-// Grava o backup num repositorio GitHub (um arquivo por dia, versionado).
-// Precisa de GITHUB_TOKEN (fine-grained, permissao Contents) e GITHUB_REPO
-// ("dono/repositorio") nas variaveis do Netlify.
-async function enviarParaGithub(backup) {
+// ------- GitHub: um arquivo por dia, por sistema -------
+async function enviarParaGithub(chaveSistema, backup) {
   const token = process.env.GITHUB_TOKEN;
-  const repo = process.env.GITHUB_REPO; // ex: "leogpereira-afk/backups-impresilk"
+  const repo = process.env.GITHUB_REPO;
   if (!token || !repo) return { ok: false, motivo: "GitHub nao configurado (falta GITHUB_TOKEN/GITHUB_REPO)" };
 
   const dia = backup.exportadoEm.slice(0, 10);
-  const caminho = `painel/${dia}.json`;
+  const caminho = `${chaveSistema}/${dia}.json`;
   const conteudo = Buffer.from(JSON.stringify(backup)).toString("base64");
   const url = `https://api.github.com/repos/${repo}/contents/${caminho}`;
   const cab = {
@@ -105,7 +144,6 @@ async function enviarParaGithub(backup) {
     Accept: "application/vnd.github+json",
     "User-Agent": "impresilk-painel-backup",
   };
-  // Se ja existe um arquivo desse dia, precisa do sha para sobrescrever.
   let sha;
   try {
     const r = await fetch(url, { headers: cab });
@@ -116,16 +154,58 @@ async function enviarParaGithub(backup) {
     method: "PUT",
     headers: cab,
     body: JSON.stringify({
-      message: `backup painel ${backup.exportadoEm}`,
+      message: `backup ${chaveSistema} ${backup.exportadoEm}`,
       content: conteudo,
       ...(sha ? { sha } : {}),
     }),
   });
   if (!r.ok) {
     const t = await r.text().catch(() => "");
-    return { ok: false, motivo: `GitHub respondeu ${r.status}: ${t.slice(0, 120)}` };
+    return { ok: false, motivo: `GitHub ${r.status}: ${t.slice(0, 100)}` };
   }
-  return { ok: true, caminho, repo };
+  return { ok: true, caminho };
+}
+
+// ------- backup do HUB INTEIRO -------
+// Cada sistema falha sozinho (um fora do ar nao derruba os outros). Devolve o
+// resultado por sistema, que vira o "ultimo backup" mostrado na tela.
+async function backupDoHub(painel, auth) {
+  const porSistema = {};
+  const agora = new Date().toISOString();
+
+  // 1) painel (dado local).
+  try {
+    const bkp = await montarBackupPainel(painel, auth);
+    const gh = await enviarParaGithub("painel", bkp);
+    porSistema.painel = {
+      em: agora,
+      ok: gh.ok,
+      registros: Object.keys(bkp.painel).length + Object.keys(bkp.contas).length,
+      erro: gh.ok ? null : gh.motivo,
+    };
+  } catch (e) {
+    porSistema.painel = { em: agora, ok: false, erro: String(e?.message || e) };
+  }
+
+  // 2) os outros, puxados por HTTP.
+  for (const sys of sistemasExternos()) {
+    try {
+      const bkp = await puxarSistema(sys);
+      const gh = await enviarParaGithub(sys.key, bkp);
+      porSistema[sys.key] = {
+        nome: sys.nome,
+        em: agora,
+        ok: gh.ok,
+        registros: bkp.registros.length,
+        erro: gh.ok ? null : gh.motivo,
+      };
+    } catch (e) {
+      porSistema[sys.key] = { nome: sys.nome, em: agora, ok: false, erro: String(e?.message || e) };
+    }
+  }
+
+  await painel.setJSON("backup_status", { atualizadoEm: agora, sistemas: porSistema }).catch(() => {});
+  return porSistema;
 }
 
 export const handler = async (event) => {
@@ -144,67 +224,59 @@ export const handler = async (event) => {
     return resposta({ erro: "json invalido" }, 400);
   }
 
-  // "status" e leitura leve: qualquer sessao pode ver quando foi o ultimo
-  // backup (nao expoe dado nenhum, so a data/hora e o destino).
+  // status: leitura leve (so data/hora e ok por sistema, nenhum dado).
   if (corpo.action === "status") {
     const st = await painel.get("backup_status", { type: "json" }).catch(() => null);
     return resposta({ ok: true, status: st });
   }
 
-  // "auto": disparo interno (on-use ou cron) com o TOKEN do servidor. Faz o
-  // envio para o GitHub sem exigir a sessao master -- e o sistema salvando a si.
+  // auto: disparo interno (login/cron) com o TOKEN do servidor. Gateado por
+  // tempo -- so roda se o ultimo backup passou de 20h.
   if (corpo.action === "auto") {
     if (!process.env.TOKEN || (event.headers["x-token"] || event.headers["X-Token"]) !== process.env.TOKEN) {
       return resposta({ erro: "nao autorizado" }, 401);
     }
     const st = await painel.get("backup_status", { type: "json" }).catch(() => null);
-    const horas = st?.em ? (Date.now() - new Date(st.em).getTime()) / 3600000 : Infinity;
+    const horas = st?.atualizadoEm ? (Date.now() - new Date(st.atualizadoEm).getTime()) / 3600000 : Infinity;
     if (horas < 20) return resposta({ ok: true, pulou: "backup recente" });
-    const backup = await montarBackup(painel, auth);
-    const gh = await enviarParaGithub(backup);
-    if (gh.ok) await registrar(painel, "GitHub", `${gh.repo} / ${gh.caminho}`);
-    return resposta({ ok: gh.ok, github: gh });
+    const r = await backupDoHub(painel, auth);
+    return resposta({ ok: true, sistemas: r });
   }
 
+  // Daqui para baixo exige a direcao.
   const g = await exigirMaster(event);
   if (g.erro) return g.erro;
 
   try {
     switch (corpo.action) {
-      // ---------------- exportar: monta o retrato completo ----------------
-      case "exportar": {
-        return resposta({ ok: true, backup: await montarBackup(painel, auth) });
-      }
+      // Baixar so o painel (arquivo local imediato).
+      case "exportar":
+        return resposta({ ok: true, backup: await montarBackupPainel(painel, auth) });
 
-      // ---------------- registrarManual: apos o download no navegador -------
       case "registrarManual": {
-        await registrar(painel, "Baixado no computador", "arquivo .json guardado pelo usuario");
+        const st = (await painel.get("backup_status", { type: "json" }).catch(() => null)) || { sistemas: {} };
+        st.atualizadoEm = new Date().toISOString();
+        st.sistemas = st.sistemas || {};
+        st.sistemas.painel = { em: st.atualizadoEm, ok: true, destino: "Baixado no computador" };
+        await painel.setJSON("backup_status", st);
         return resposta({ ok: true });
       }
 
-      // ---------------- enviarGithub: forcar o envio agora -----------------
-      case "enviarGithub": {
-        const backup = await montarBackup(painel, auth);
-        const gh = await enviarParaGithub(backup);
-        if (gh.ok) await registrar(painel, "GitHub", `${gh.repo} / ${gh.caminho}`);
-        return resposta({ ok: gh.ok, github: gh });
+      // Rodar o backup do HUB inteiro agora (painel + os 4 sistemas -> GitHub).
+      case "backupAgora": {
+        const r = await backupDoHub(painel, auth);
+        return resposta({ ok: true, sistemas: r });
       }
 
-      // ---------------- restaurar: grava tudo de volta ----------------
-      // MERGE por padrao (nao apaga o que existe hoje e nao esta no backup).
-      // Com apagarAntes=true, limpa as chaves de dados antes -- volta exatamente
-      // ao estado do backup.
       case "restaurar": {
         const bk = corpo.backup;
         if (!bk || bk.sistema !== "painel" || !bk.painel) {
-          return resposta({ erro: "Arquivo de backup invalido." }, 400);
+          return resposta({ erro: "Arquivo de backup invalido (so restauro o painel por aqui)." }, 400);
         }
-
         if (corpo.apagarAntes) {
           const atuais = await listarChaves(painel, ehChaveDeDados);
           await Promise.all(atuais.map((k) => painel.delete(k).catch(() => {})));
         }
-
         let gravou = 0;
         for (const [k, v] of Object.entries(bk.painel)) {
           if (!ehChaveDeDados(k) || v == null) continue;
