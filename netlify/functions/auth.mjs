@@ -39,6 +39,23 @@ const json = (corpo, status = 200) =>
 
 const usuarioMaster = () => normalizarUsuario(process.env.AUTH_MASTER_USUARIO || "leonardo");
 
+// Dispara o backup automatico (fire-and-forget). A funcao de backup gateia por
+// tempo -- se ja houve backup nas ultimas 20h, ela mesma ignora.
+function dispararBackupAuto() {
+  try {
+    const SEGREDO = process.env.TOKEN;
+    if (!SEGREDO) return;
+    const base = process.env.URL || "https://impresilk.netlify.app";
+    fetch(`${base}/.netlify/functions/backup`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-token": SEGREDO },
+      body: JSON.stringify({ action: "auto" }),
+    }).catch(() => {});
+  } catch {
+    /* nunca deixa o login falhar por causa do backup */
+  }
+}
+
 // Comparacao de strings em tempo constante (nao vaza o tamanho do acerto).
 function igual(a, b) {
   const x = String(a);
@@ -118,6 +135,9 @@ export default async (req) => {
           // enumerar quem existe ("Senha incorreta" so aparecia para usuario
           // valido). Confirmado atacando o sistema no ar em 2026-07-22.
           if (!ok) return json({ erro: ERRO_LOGIN }, 401);
+          // Backup diario piggyback no login (nao depende do cron, que ja
+          // falhou). A propria funcao ignora se ja fez backup nas ultimas 20h.
+          dispararBackupAuto();
           const token = await assinarJwt(
             { sub: master, nome: propria?.nome || "Direcao", master: true, perms: ["*"] },
             secret,
@@ -141,6 +161,7 @@ export default async (req) => {
           return json({ erro: ERRO_LOGIN }, 401);
         }
         const perms = conta.permissoes || [];
+        dispararBackupAuto(); // backup diario piggyback (gateado por tempo)
         const token = await assinarJwt(
           { sub: conta.usuario, nome: conta.nome, master: false, perms },
           secret,

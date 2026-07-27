@@ -3,8 +3,9 @@
 // esta e a tela que faltava para usa-las.
 
 import { useCallback, useEffect, useState } from "react";
-import { KeyRound, UserPlus, Trash2, ShieldCheck, AlertTriangle, Check } from "lucide-react";
+import { KeyRound, UserPlus, Trash2, ShieldCheck, AlertTriangle, Check, Download, Upload } from "lucide-react";
 import { chamarAuth, getSessao } from "../lib/sessao.js";
+import { baixarBackup, restaurarBackup, lerArquivoBackup, statusBackup, enviarGithub } from "../services/backup.js";
 import { Card, PageTitle, SectionTitle, Empty } from "../components/ui.jsx";
 
 // Espelha MODULOS de netlify/functions/auth.mjs. O servidor e quem valida.
@@ -351,8 +352,183 @@ export default function Acessos() {
               vencer (12 horas). Para tirar alguem na hora, troque a senha dele.
             </p>
           </Card>
+
+          <BackupDados />
         </>
       )}
     </div>
+  );
+}
+
+// "Ultimo backup: <data> as <hora> - <onde>". O painel inteiro aponta para ca.
+function UltimoBackup({ status }) {
+  if (!status?.em) {
+    return (
+      <p className="flex items-start gap-2 rounded-lg bg-warn-50 px-3 py-2 text-sm text-warn-700">
+        <AlertTriangle size={15} className="mt-0.5 shrink-0" />
+        Nenhum backup feito ainda. Baixe um agora ou configure o envio automatico.
+      </p>
+    );
+  }
+  const dt = new Date(status.em);
+  const quando = dt.toLocaleString("pt-BR", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    timeZone: "America/Sao_Paulo",
+  });
+  return (
+    <p className="flex items-start gap-2 rounded-lg bg-ok-50 px-3 py-2 text-sm text-ok-700">
+      <ShieldCheck size={15} className="mt-0.5 shrink-0" />
+      <span>
+        Ultimo backup em <strong>{quando}</strong> — salvo em <strong>{status.destino}</strong>
+        {status.detalhe ? ` (${status.detalhe})` : ""}.
+      </span>
+    </p>
+  );
+}
+
+// Backup dos dados do painel: baixar agora, restaurar de um arquivo.
+function BackupDados() {
+  const [baixando, setBaixando] = useState(false);
+  const [restaurando, setRestaurando] = useState(false);
+  const [enviando, setEnviando] = useState(false);
+  const [status, setStatus] = useState(null);
+  const [msg, setMsg] = useState(null);
+  const [pendente, setPendente] = useState(null); // backup lido, aguardando confirmacao
+
+  const lerStatus = () => statusBackup().then(setStatus).catch(() => {});
+  useEffect(() => {
+    lerStatus();
+  }, []);
+
+  async function baixar() {
+    setBaixando(true);
+    setMsg(null);
+    try {
+      const { nome, tamanho } = await baixarBackup();
+      setMsg({ tom: "ok", texto: `Backup baixado: ${nome} (${Math.round(tamanho / 1024)} KB). Guarde num lugar seguro.` });
+      lerStatus();
+    } catch (e) {
+      setMsg({ tom: "erro", texto: e.message });
+    } finally {
+      setBaixando(false);
+    }
+  }
+
+  async function enviarAoGithub() {
+    setEnviando(true);
+    setMsg(null);
+    try {
+      const r = await enviarGithub();
+      if (r.github?.ok) {
+        setMsg({ tom: "ok", texto: `Enviado ao GitHub: ${r.github.repo} / ${r.github.caminho}.` });
+        lerStatus();
+      } else {
+        setMsg({ tom: "erro", texto: r.github?.motivo || "Nao consegui enviar ao GitHub." });
+      }
+    } catch (e) {
+      setMsg({ tom: "erro", texto: e.message });
+    } finally {
+      setEnviando(false);
+    }
+  }
+
+  async function escolher(e) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    setMsg(null);
+    try {
+      const bk = await lerArquivoBackup(file);
+      if (bk.sistema !== "painel") throw new Error("Este arquivo nao e um backup do painel.");
+      const nItens = Object.keys(bk.painel || {}).length;
+      const nContas = Object.keys(bk.contas || {}).length;
+      setPendente({ bk, nItens, nContas });
+    } catch (err) {
+      setMsg({ tom: "erro", texto: err.message });
+    }
+  }
+
+  async function confirmarRestauro() {
+    setRestaurando(true);
+    setMsg(null);
+    try {
+      const r = await restaurarBackup(pendente.bk, false);
+      setMsg({ tom: "ok", texto: `Restaurado: ${r.gravou} registros e ${r.contas} contas. Recarregue a pagina para ver.` });
+      setPendente(null);
+    } catch (e) {
+      setMsg({ tom: "erro", texto: e.message });
+    } finally {
+      setRestaurando(false);
+    }
+  }
+
+  return (
+    <Card>
+      <SectionTitle
+        titulo="Backup dos dados"
+        sub="Um retrato dos dados do painel: regras, marcacoes, documentos e usuarios. Nao inclui os numeros do Mubisys, que se reconstroem sozinhos."
+      />
+
+      <div className="mb-4">
+        <UltimoBackup status={status} />
+      </div>
+
+      <div className="flex flex-wrap gap-2">
+        <button className="btn-primary" onClick={baixar} disabled={baixando}>
+          <Download size={16} strokeWidth={2.4} />
+          {baixando ? "Preparando..." : "Baixar backup agora"}
+        </button>
+
+        <button className="btn-outline" onClick={enviarAoGithub} disabled={enviando}>
+          <Upload size={16} strokeWidth={2.4} />
+          {enviando ? "Enviando..." : "Enviar ao GitHub agora"}
+        </button>
+
+        <label className="btn-outline cursor-pointer">
+          <Upload size={16} strokeWidth={2.4} />
+          Restaurar de um arquivo
+          <input type="file" accept="application/json,.json" className="hidden" onChange={escolher} />
+        </label>
+      </div>
+
+      {pendente && (
+        <div className="mt-4 rounded-xl border border-warn-200 bg-warn-50 p-4">
+          <p className="flex items-start gap-2 text-sm font-medium text-warn-700">
+            <AlertTriangle size={15} className="mt-0.5 shrink-0" />
+            Restaurar vai gravar {pendente.nItens} registros e {pendente.nContas} contas por cima
+            do que existe hoje. O que ja esta la e nao esta no backup continua. Confirma?
+          </p>
+          <div className="mt-3 flex gap-2">
+            <button className="btn-primary" onClick={confirmarRestauro} disabled={restaurando}>
+              {restaurando ? "Restaurando..." : "Sim, restaurar"}
+            </button>
+            <button className="btn-ghost" onClick={() => setPendente(null)}>
+              Cancelar
+            </button>
+          </div>
+        </div>
+      )}
+
+      {msg && (
+        <p
+          className={`mt-4 flex items-start gap-2 rounded-lg px-3 py-2 text-sm ${
+            msg.tom === "ok" ? "bg-ok-50 text-ok-700" : "bg-bad-50 text-bad-700"
+          }`}
+        >
+          {msg.tom === "ok" ? <Check size={15} className="mt-0.5 shrink-0" /> : <AlertTriangle size={15} className="mt-0.5 shrink-0" />}
+          {msg.texto}
+        </p>
+      )}
+
+      <p className="mt-4 flex items-start gap-2 rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-500">
+        <ShieldCheck size={14} className="mt-0.5 shrink-0" />
+        Este arquivo contem o hash das senhas e as marcacoes financeiras -- guarde num lugar
+        seguro e nao compartilhe.
+      </p>
+    </Card>
   );
 }
