@@ -7,6 +7,7 @@ import { KeyRound, UserPlus, Trash2, ShieldCheck, AlertTriangle, Check, Download
 import { chamarAuth, getSessao } from "../lib/sessao.js";
 import { baixarBackup, restaurarBackup, lerArquivoBackup, statusBackup, backupHubAgora } from "../services/backup.js";
 import { Card, PageTitle, SectionTitle, Empty } from "../components/ui.jsx";
+import { useApp } from "../config/store.jsx";
 
 // Espelha MODULOS de netlify/functions/auth.mjs. O servidor e quem valida.
 const MODULOS = [
@@ -17,7 +18,7 @@ const MODULOS = [
   { id: "configuracoes", nome: "Configuracoes", sub: "regras do painel e acessos" },
 ];
 
-const VAZIO = { usuario: "", nome: "", senha: "", permissoes: [] };
+const VAZIO = { usuario: "", nome: "", senha: "", permissoes: [], vendedorId: "" };
 
 function Aviso({ tom, children }) {
   if (!children) return null;
@@ -66,6 +67,7 @@ export default function Acessos() {
   }
 
   // --- contas (so a direcao)
+  const { config } = useApp();
   const [contas, setContas] = useState(null);
   const [form, setForm] = useState(VAZIO);
   const [msgConta, setMsgConta] = useState(null);
@@ -121,7 +123,14 @@ export default function Acessos() {
     }
   }
 
-  const editar = (c) => setForm({ usuario: c.usuario, nome: c.nome, senha: "", permissoes: c.permissoes || [] });
+  const editar = (c) =>
+    setForm({
+      usuario: c.usuario,
+      nome: c.nome,
+      senha: "",
+      permissoes: c.permissoes || [],
+      vendedorId: c.vendedorId || "",
+    });
 
   return (
     <div className="space-y-8">
@@ -270,6 +279,29 @@ export default function Acessos() {
                 </div>
               </div>
 
+              <div>
+                <label className="label" htmlFor="c-vend">
+                  Vendedor no Mubisys (opcional)
+                </label>
+                <input
+                  id="c-vend"
+                  className="input"
+                  list="lista-vendedores"
+                  value={form.vendedorId}
+                  onChange={(e) => setForm((f) => ({ ...f, vendedorId: e.target.value }))}
+                  placeholder="ex.: Jessica Sampaio"
+                />
+                <datalist id="lista-vendedores">
+                  {(config?.vendedores || []).map((v) => (
+                    <option key={v.id} value={v.id} />
+                  ))}
+                </datalist>
+                <p className="mt-1 text-xs text-slate-500">
+                  Ligando a conta a um vendedor, ele entra no painel e ja ve so as acoes dele. Em
+                  branco, a pessoa ve o time inteiro. O nome tem que ser igual ao do Mubisys.
+                </p>
+              </div>
+
               {msgConta && <Aviso tom={msgConta.tom}>{msgConta.texto}</Aviso>}
 
               <div className="flex flex-wrap items-center gap-2">
@@ -314,7 +346,14 @@ export default function Acessos() {
                         style={{ borderColor: "var(--hairline)" }}
                         onClick={() => editar(c)}
                       >
-                        <td className="td font-display font-medium text-slate-900">{c.nome}</td>
+                        <td className="td font-display font-medium text-slate-900">
+                          {c.nome}
+                          {c.vendedorId && (
+                            <span className="mt-0.5 block text-xs font-normal text-slate-500">
+                              ve as acoes de {c.vendedorId}
+                            </span>
+                          )}
+                        </td>
                         <td className="td text-slate-500">{c.usuario}</td>
                         <td className="td">
                           <span className="flex flex-wrap gap-1">

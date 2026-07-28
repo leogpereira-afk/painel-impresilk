@@ -47,15 +47,28 @@ export function getSessao() {
   }
 }
 
-export function entrar({ token, usuario, nome, permissoes, master }) {
+export function entrar({ token, usuario, nome, permissoes, master, vendedorId }) {
   try {
     localStorage.setItem(K_TOKEN, token);
     localStorage.setItem(
       K_SESSAO,
-      JSON.stringify({ usuario, nome, permissoes: permissoes || [], master: !!master, visto: Date.now() })
+      JSON.stringify({
+        usuario,
+        nome,
+        permissoes: permissoes || [],
+        master: !!master,
+        // Vendedor vinculado: quem tem entra e ja cai na propria fila de acoes.
+        vendedorId: vendedorId || "",
+        visto: Date.now(),
+      })
     );
   } catch {}
   avisar();
+}
+
+// Vendedor da pessoa logada ("" = direcao ou conta sem vinculo, ve todos).
+export function vendedorDaSessao(sessao = getSessao()) {
+  return sessao?.vendedorId || "";
 }
 
 export function sair() {

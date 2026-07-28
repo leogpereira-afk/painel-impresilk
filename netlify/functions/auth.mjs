@@ -71,6 +71,8 @@ const publica = (c) => ({
   usuario: c.usuario,
   nome: c.nome || c.usuario,
   permissoes: c.permissoes || [],
+  // Nome do vendedor no Mubisys. Quem tem vinculo entra e ja ve so a fila dele.
+  vendedorId: c.vendedorId || "",
   atualizadoEm: c.atualizadoEm,
 });
 
@@ -161,13 +163,21 @@ export default async (req) => {
           return json({ erro: ERRO_LOGIN }, 401);
         }
         const perms = conta.permissoes || [];
+        const vend = conta.vendedorId || "";
         dispararBackupAuto(); // backup diario piggyback (gateado por tempo)
         const token = await assinarJwt(
-          { sub: conta.usuario, nome: conta.nome, master: false, perms },
+          { sub: conta.usuario, nome: conta.nome, master: false, perms, vend },
           secret,
           EXP_SEG
         );
-        return json({ token, usuario: conta.usuario, nome: conta.nome, permissoes: perms, master: false });
+        return json({
+          token,
+          usuario: conta.usuario,
+          nome: conta.nome,
+          permissoes: perms,
+          master: false,
+          vendedorId: vend,
+        });
       }
 
       // ---------------- conferir o cracha (a tela chama no boot) ----------------
@@ -179,6 +189,7 @@ export default async (req) => {
           nome: s.nome || s.sub,
           permissoes: s.perms || [],
           master: s.master === true,
+          vendedorId: s.vend || "",
         });
       }
 
@@ -247,10 +258,15 @@ export default async (req) => {
           return json({ erro: "A senha precisa ter ao menos 6 caracteres." }, 400);
         }
         const reg = senha ? await hashSenha(senha) : { hash: atual.hash, salt: atual.salt, iter: atual.iter };
+        // Vinculo com o vendedor do Mubisys (o id la e o proprio nome). Campo
+        // ausente no corpo = mantem o que ja estava; string vazia = desliga.
+        const vendedorId =
+          body.vendedorId === undefined ? atual?.vendedorId || "" : String(body.vendedorId || "").trim();
         await contas.setJSON(usuario, {
           usuario,
           nome,
           permissoes,
+          vendedorId,
           ...reg,
           atualizadoEm: new Date().toISOString(),
         });

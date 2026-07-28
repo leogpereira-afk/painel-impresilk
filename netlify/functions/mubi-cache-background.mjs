@@ -63,6 +63,31 @@ const normProvisao = (categoria) => (s, i) => ({
   tipo: "provisao",
 });
 
+// Telefone pronto para o link do WhatsApp: so digitos, com o 55 na frente.
+// O ERP grava em formatos variados ("+5538988276091", "553884159655").
+function celularWa(bruto) {
+  const d = String(bruto || "").replace(/\D/g, "");
+  if (d.length < 10) return ""; // curto demais para ser um telefone util
+  return d.startsWith("55") ? d : `55${d}`;
+}
+
+// Melhor contato do cliente: o primeiro ativo que tenha celular. Sem isso o
+// vendedor nao tem como agir a partir da tela.
+function melhorContato(lista) {
+  const cs = Array.isArray(lista) ? lista : [];
+  const bom =
+    cs.find((c) => celularWa(c?.celular) && String(c?.status || "").toLowerCase() === "ativo") ||
+    cs.find((c) => celularWa(c?.celular)) ||
+    cs[0];
+  if (!bom) return { contatoNome: "", celular: "", email: "" };
+  return {
+    // O ERP as vezes guarda o nome com aspas e emoji no meio.
+    contatoNome: String(bom.nome_contato || "").replace(/["]/g, "").trim(),
+    celular: celularWa(bom.celular),
+    email: String(bom.email || "").trim(),
+  };
+}
+
 export function normOrcamento(o, i) {
   const s = String(o.status || "").toLowerCase();
   const situacao =
@@ -84,6 +109,7 @@ export function normOrcamento(o, i) {
     id: String(o.id ?? `orc-${i}`),
     numero: String(o.sequencial_orcamento || o.id || ""),
     cliente: String(o.cliente || "Cliente"),
+    clienteId: String(o.cliente_id ?? ""),
     vendedorId: vendedor,
     vendedorNome: vendedor,
     valor,
@@ -91,6 +117,19 @@ export function normOrcamento(o, i) {
     dataEnvio: String(o.data_cadastro || ""),
     dataFechamento: o.data_aprovacao || o.data_cancelamento || null,
     trabalho: String(o.nome_trabalho || ""),
+    // --- campos que o ERP ja tinha e o painel ignorava ---
+    // Margem: o que sobra de verdade. Faturamento alto com margem baixa nao e
+    // prioridade; sem isto a mesa de acao ordenaria pelo numero errado.
+    margem: num(o.valor_margem),
+    custo: num(o.valor_custo),
+    // Validade em dias a partir do cadastro: da a urgencia real do que esta na mesa.
+    validade: Math.round(num(o.validade)),
+    // Motivo da perda que o vendedor ja preencheu no ERP. Antes a direcao
+    // remarcava isto a mao no painel, um a um, para um dado que ja existia.
+    motivoErp: String(o.motivo_cancelamento || "").trim(),
+    // Ultimo toque no orcamento (melhor sinal de "parado" que a data de cadastro).
+    dataAtualizacao: String(o.data_atualizacao || ""),
+    ...melhorContato(o.cliente_contato),
   };
 }
 
@@ -314,14 +353,42 @@ async function etapaCompleta() {
 // com a mudanca faz o proximo ciclo se reconstruir sozinho.
 const VERSAO_NORM = 3;
 
-async function etapaIncremental(store, remigrarOS = false) {
+// Versao do normalizador de ORCAMENTO, contada a parte da de OS. Sao dois
+// normalizadores independentes: mexer num deles nao pode obrigar o outro a
+// remigrar o ano inteiro de graca (a API e lenta e o ciclo tem 15 min).
+//   1 = celular do contato, margem, custo, validade, motivo do ERP.
+const VERSAO_NORM_ORC = 1;
+
+async function etapaIncremental(store, remigrarOS = false, remigrarOrc = false) {
   const janela = { status: "TODOS", datainicial: hojeMais(-7), datafinal: hojeMais(0) };
 
+  // Orcamentos: normalmente so os ultimos 7 dias. Quando a normalizacao muda,
+  // rebusca o ano para o historico ganhar os campos novos -- mesma logica das
+  // OS abaixo, e igualmente resiliente: se estourar, cai no merge leve e a
+  // versao nao e carimbada, entao a proxima rodada tenta de novo.
   const orcAtual = (await store.get("cache_orcamentos", { type: "json" })) || [];
   const mapaOrc = new Map(orcAtual.map((o) => [o.id, o]));
-  for (const filtro of ["CADASTRO", "APROVACAO", "CANCELAMENTO"]) {
-    const brutos = await mubiGetTudo("orcamento", { ...janela, filtrodata: filtro }, 100);
-    brutos.map(normOrcamento).forEach((o) => mapaOrc.set(o.id, o));
+  let remigrouOrc = false;
+  if (remigrarOrc) {
+    try {
+      const brutos = await mubiGetTudo("orcamento", {
+        status: "TODOS",
+        filtrodata: "CADASTRO",
+        datainicial: `${new Date().getFullYear()}-01-01`,
+        datafinal: hojeMais(0),
+      });
+      mapaOrc.clear();
+      brutos.map(normOrcamento).forEach((o) => mapaOrc.set(o.id, o));
+      remigrouOrc = true;
+    } catch (e) {
+      console.warn("mubi-cache: remigracao de orcamentos falhou, seguindo com merge leve:", e?.message || e);
+    }
+  }
+  if (!remigrouOrc) {
+    for (const filtro of ["CADASTRO", "APROVACAO", "CANCELAMENTO"]) {
+      const brutos = await mubiGetTudo("orcamento", { ...janela, filtrodata: filtro }, 100);
+      brutos.map(normOrcamento).forEach((o) => mapaOrc.set(o.id, o));
+    }
   }
 
   const categoriaPorNome = await catalogoCategorias();
@@ -346,7 +413,7 @@ async function etapaIncremental(store, remigrarOS = false) {
       const ordens = osBrutas
         .map((os, i) => normOS(os, i, categoriaPorNome))
         .filter((o) => !o.cancelada);
-      return { orcamentos: [...mapaOrc.values()], ordens, remigrouOS: true };
+      return { orcamentos: [...mapaOrc.values()], ordens, remigrouOS: true, remigrouOrc };
     } catch (e) {
       console.warn("mubi-cache: remigracao de OS falhou, seguindo com merge leve:", e?.message || e);
     }
@@ -363,7 +430,7 @@ async function etapaIncremental(store, remigrarOS = false) {
     }
   }
 
-  return { orcamentos: [...mapaOrc.values()], ordens: [...mapaOS.values()] };
+  return { orcamentos: [...mapaOrc.values()], ordens: [...mapaOS.values()], remigrouOrc };
 }
 
 // ---------------------------------------------------------------- o trabalho
@@ -395,6 +462,12 @@ export default async (req) => {
       `mubi-cache: cache na versao ${statusAnterior?.versao ?? 0}, normalizador na ${VERSAO_NORM} -> remigrando OS do ano`
     );
   }
+  const remigrarOrc = (statusAnterior?.versaoOrc ?? 0) !== VERSAO_NORM_ORC;
+  if (remigrarOrc) {
+    console.log(
+      `mubi-cache: orcamentos na versao ${statusAnterior?.versaoOrc ?? 0}, normalizador na ${VERSAO_NORM_ORC} -> remigrando orcamentos do ano`
+    );
+  }
 
   // Trava anti-corrida: nao roda dois ciclos ao mesmo tempo (cron x noturno).
   const LOCK_MS = 14 * 60 * 1000;
@@ -424,7 +497,8 @@ export default async (req) => {
       rapidos = { recebiveis: null, pagar: null, bancos: null, falhas: ["bloco-rapido"] };
     }
     try {
-      pesados = modo === "completo" ? await etapaCompleta() : await etapaIncremental(store, remigrarOS);
+      pesados =
+        modo === "completo" ? await etapaCompleta() : await etapaIncremental(store, remigrarOS, remigrarOrc);
     } catch (e) {
       console.warn("mubi-cache: bloco pesado falhou inteiro:", e?.message || e);
       pesados = { orcamentos: null, ordens: null, falhas: ["bloco-pesado"] };
@@ -447,6 +521,7 @@ export default async (req) => {
     // So migrou de verdade se a varredura completa rodou ou a remigracao de OS
     // terminou sem cair no fallback leve.
     const migrouOS = (modo === "completo" || pesados.remigrouOS === true) && dados.ordens != null;
+    const migrouOrc = (modo === "completo" || pesados.remigrouOrc === true) && dados.orcamentos != null;
 
     // 2) DSO do dia + acumula historico real (um ponto por dia, ultimos 180).
     // Sem recebiveis novos, mantem o DSO anterior em vez de gravar um numero
@@ -487,6 +562,7 @@ export default async (req) => {
       // So carimba quando o historico de OS foi de fato renormalizado. Um
       // incremental comum (ou uma remigracao que caiu no fallback) so toca 7 dias.
       versao: migrouOS ? VERSAO_NORM : (statusAnterior?.versao ?? 0),
+      versaoOrc: migrouOrc ? VERSAO_NORM_ORC : (statusAnterior?.versaoOrc ?? 0),
       dso,
       duracaoMs: Date.now() - inicio,
       contagens,

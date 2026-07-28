@@ -167,6 +167,13 @@ textarea {
   .chip-bad {
     @apply chip bg-bad-50 text-bad-700;
   }
+  /* Chips que filtram (clicaveis): estado apagado e estado escolhido. */
+  .chip-btn {
+    @apply chip cursor-pointer transition-colors hover:bg-slate-200;
+  }
+  .chip-sel {
+    @apply chip cursor-pointer bg-brand-100 text-brand-700;
+  }
   .kpi-value {
     @apply font-display font-bold tabular-nums tracking-tight;
   }
@@ -285,6 +292,10 @@ html.dark ::-webkit-scrollbar-thumb {
 }
 
 .dark .chip { background-color: rgba(255, 255, 255, 0.07); color: #b6bfd2; }
+/* chip-btn/chip-sel usam @apply, entao o seletor .dark .chip nao os alcanca. */
+.dark .chip-btn { background-color: rgba(255, 255, 255, 0.07); color: #b6bfd2; }
+.dark .chip-btn:hover { background-color: rgba(255, 255, 255, 0.13); }
+.dark .chip-sel { background-color: rgba(112, 118, 240, 0.28); color: #c3c7fb; }
 .dark .label { color: #929cb3; }
 .dark .label-filtro { color: #7f8aa3; }
 .dark .filtro { background-color: rgba(255, 255, 255, 0.04); border-color: rgba(255, 255, 255, 0.14); color: #d3d9e8; }

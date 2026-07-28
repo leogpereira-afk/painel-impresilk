@@ -17,8 +17,11 @@ import {
   ChevronRight,
   Search,
   X,
+  MessageCircle,
+  CalendarClock,
 } from "lucide-react";
 import { useApp } from "../config/store.jsx";
+import { vendedorDaSessao } from "../lib/sessao.js";
 import { calcOrcamentos } from "../lib/calc/orcamentos.js";
 import { moeda, numero, pct, dataLonga, ymdLocal } from "../lib/format.js";
 import {
@@ -35,6 +38,207 @@ import {
   BotaoPDF,
   CabecalhoImpressao,
 } from "../components/ui.jsx";
+
+// ---------------------------------------------------------------- acoes do dia
+//
+// A fila de trabalho do vendedor. Uma linha por CLIENTE (quatro orcamentos da
+// mesma empresa sao uma ligacao so), ordenada por MARGEM em jogo -- nao por
+// faturamento, senao um orcamento gordo de margem fina fura a fila.
+//
+// Quem entra com conta ligada a um vendedor ja cai filtrado nele.
+
+const FILAS = [
+  { id: "todas", nome: "Tudo" },
+  { id: "vencido", nome: "Vencidos" },
+  { id: "recall", nome: "Compra futura" },
+  { id: "sem-retorno", nome: "Sem retorno" },
+];
+
+const SELO_FILA = {
+  vencido: { texto: "vencido", cls: "chip-bad" },
+  recall: { texto: "compra futura", cls: "chip-warn" },
+  "sem-retorno": { texto: "sem retorno", cls: "chip" },
+};
+
+// Primeiro nome do contato, para a mensagem no WhatsApp nao ficar robotica.
+const primeiroNome = (n) => String(n || "").trim().split(/\s+/)[0] || "";
+
+function linkWhats(g) {
+  if (!g.celular) return null;
+  const ola = primeiroNome(g.contatoNome) ? `Ola, ${primeiroNome(g.contatoNome)}! ` : "Ola! ";
+  const ref =
+    g.qtd === 1
+      ? `sobre o orcamento ${g.itens[0]?.numero || ""}`.trim()
+      : `sobre os orcamentos que enviamos`;
+  const texto = `${ola}Aqui e da Impresilk, ${ref}. Posso te ajudar a seguir com ele?`;
+  return `https://wa.me/${g.celular}?text=${encodeURIComponent(texto)}`;
+}
+
+function LinhaAcao({ g, onAgendar }) {
+  const [aberto, setAberto] = useState(false);
+  const [data, setData] = useState("");
+  const [nota, setNota] = useState("");
+  const [salvando, setSalvando] = useState(false);
+  const selo = SELO_FILA[g.fila] || SELO_FILA["sem-retorno"];
+  const wa = linkWhats(g);
+
+  async function agendar() {
+    if (!data) return;
+    setSalvando(true);
+    try {
+      await onAgendar(g, data, nota);
+      setAberto(false);
+      setNota("");
+    } finally {
+      setSalvando(false);
+    }
+  }
+
+  return (
+    <div className="border-t px-3 py-3" style={{ borderColor: "var(--hairline)" }}>
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="min-w-0 flex-1">
+          <p className="truncate font-display text-sm font-medium text-slate-900">{g.cliente}</p>
+          <p className="mt-0.5 text-xs text-slate-500">
+            <span className={selo.cls}>{selo.texto}</span>{" "}
+            {g.qtd > 1 ? `${g.qtd} orcamentos · ` : ""}
+            {g.vendedorNome} · {g.dias} dias
+            {g.contatoNome ? ` · ${g.contatoNome}` : ""}
+          </p>
+        </div>
+        <div className="text-right">
+          <p className="tnum text-sm font-medium text-slate-900">{moeda(g.valor)}</p>
+          <p className="tnum text-xs text-ok-700">margem {moeda(g.margem)}</p>
+        </div>
+        <div className="flex gap-2">
+          {wa ? (
+            <a className="btn-outline" href={wa} target="_blank" rel="noopener noreferrer">
+              <MessageCircle size={15} strokeWidth={2.4} />
+              Chamar
+            </a>
+          ) : (
+            <span className="text-xs text-slate-400">sem telefone</span>
+          )}
+          <button className="btn-outline" onClick={() => setAberto((v) => !v)}>
+            <CalendarClock size={15} strokeWidth={2.4} />
+            Retorno
+          </button>
+        </div>
+      </div>
+
+      {aberto && (
+        <div className="mt-3 flex flex-wrap items-end gap-2 rounded-xl bg-slate-50 p-3">
+          <div>
+            <label className="label" htmlFor={`d-${g.chave}`}>
+              Voltar a falar em
+            </label>
+            <input
+              id={`d-${g.chave}`}
+              type="date"
+              className="input"
+              value={data}
+              min={ymdLocal(new Date())}
+              onChange={(e) => setData(e.target.value)}
+            />
+          </div>
+          <div className="min-w-[180px] flex-1">
+            <label className="label" htmlFor={`n-${g.chave}`}>
+              Nota (opcional)
+            </label>
+            <input
+              id={`n-${g.chave}`}
+              className="input"
+              value={nota}
+              onChange={(e) => setNota(e.target.value)}
+              placeholder="ex.: pediu para ligar depois do dia 10"
+            />
+          </div>
+          <button className="btn-primary" onClick={agendar} disabled={!data || salvando}>
+            {salvando ? "Salvando..." : "Agendar"}
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function AcoesDoDia({ vm, vendedores, meuVendedor, onAgendar }) {
+  const [fila, setFila] = useState("todas");
+  // Conta ligada a um vendedor abre ja filtrada nele; a direcao ve o time todo.
+  const [vend, setVend] = useState(meuVendedor || "");
+
+  const lista = useMemo(
+    () =>
+      (vm.acoes || []).filter(
+        (g) => (fila === "todas" || g.fila === fila) && (!vend || g.vendedorId === vend)
+      ),
+    [vm.acoes, fila, vend]
+  );
+
+  const margemNaFila = lista.reduce((s, g) => s + g.margem, 0);
+  const contaFila = (id) =>
+    (vm.acoes || []).filter((g) => (id === "todas" || g.fila === id) && (!vend || g.vendedorId === vend))
+      .length;
+
+  return (
+    <Card>
+      <SectionTitle
+        titulo="Acoes do dia"
+        sub="Quem chamar hoje, do maior dinheiro em jogo para o menor. Agendar um retorno tira o cliente da fila ate a data marcada."
+      />
+
+      {/* Chips: vendedor (quem tem conta ligada nao troca) e fila */}
+      {!meuVendedor && (vendedores || []).length > 0 && (
+        <div className="mb-2 flex flex-wrap items-center gap-1.5">
+          <span className="mr-1 text-xs text-slate-500">Vendedor</span>
+          <button className={vend === "" ? "chip-sel" : "chip-btn"} onClick={() => setVend("")}>
+            Todos
+          </button>
+          {vendedores.map((v) => (
+            <button
+              key={v.vendedorId}
+              className={vend === v.vendedorId ? "chip-sel" : "chip-btn"}
+              onClick={() => setVend(v.vendedorId)}
+            >
+              {v.nome}
+            </button>
+          ))}
+        </div>
+      )}
+
+      <div className="mb-3 flex flex-wrap items-center gap-1.5">
+        <span className="mr-1 text-xs text-slate-500">Fila</span>
+        {FILAS.map((f) => (
+          <button
+            key={f.id}
+            className={fila === f.id ? "chip-sel" : "chip-btn"}
+            onClick={() => setFila(f.id)}
+          >
+            {f.nome} · {contaFila(f.id)}
+          </button>
+        ))}
+      </div>
+
+      {lista.length === 0 ? (
+        <Empty>
+          Nada na fila{vend ? " deste vendedor" : ""}. Tudo que estava vencido ou parado ja foi
+          tratado ou tem retorno agendado.
+        </Empty>
+      ) : (
+        <>
+          <p className="mb-1 text-sm text-slate-500">
+            {numero(lista.length)} clientes para chamar · {moeda(margemNaFila)} de margem em jogo
+          </p>
+          <div className="rounded-xl border" style={{ borderColor: "var(--hairline)" }}>
+            {lista.map((g) => (
+              <LinhaAcao key={g.chave} g={g} onAgendar={onAgendar} />
+            ))}
+          </div>
+        </>
+      )}
+    </Card>
+  );
+}
 
 // Normaliza para busca (sem acento, minusculo).
 const norm = (s) =>
@@ -72,6 +276,10 @@ export default function Orcamentos() {
     erro,
     recarregar,
   } = useApp();
+
+  // Vendedor vinculado a conta de quem entrou: a fila de acoes ja abre nele.
+  // Vazio para a direcao (ve o time todo) e para contas sem vinculo.
+  const meuVendedor = useMemo(() => vendedorDaSessao(), []);
 
   const [novoVendedor, setNovoVendedor] = useState("");
   // Filtros da lista mestra. Todos se combinam e viram selos removiveis.
@@ -124,7 +332,8 @@ export default function Orcamentos() {
       if (vendedorSel && o.vendedorId !== vendedorSel.id) return false;
       if (motivoSel) {
         if (o.situacao !== "perdido") return false;
-        if ((o.motivoPerdaId || "sem") !== motivoSel.chave) return false;
+        // A chave do motivo agora pode vir do texto do ERP, nao so do id manual.
+        if (o.motivoChave !== motivoSel.chave) return false;
       }
       if (q) {
         const alvo = norm(`${o.cliente} ${o.numero} ${o.vendedorNome} ${o.trabalho || ""}`);
@@ -178,13 +387,25 @@ export default function Orcamentos() {
   }
 
   function alternarMotivo(m) {
-    const chave = m.motivoId || "sem";
+    const chave = m.chave;
     setMotivoSel((atual) =>
       atual?.chave === chave ? null : { chave, id: m.motivoId, nome: m.nome }
     );
     setSituacao("perdido");
     setLimite(25);
     irParaLista();
+  }
+
+  // Agendar retorno: marca a data em TODOS os orcamentos daquele cliente. Quem
+  // ligou resolveu o cliente inteiro, nao um orcamento -- e o grupo some da fila
+  // ate a data. Vai para o ov_orc, que ja e gravado no Blobs e entra no backup.
+  async function agendarRetorno(g, data, nota) {
+    for (const it of g.itens) {
+      await setOverrideOrcamento(it.id, {
+        proximoToque: data,
+        ...(nota ? { nota } : {}),
+      });
+    }
   }
 
   function incluirVendedor() {
@@ -286,6 +507,16 @@ export default function Orcamentos() {
           icone={TrendingDown}
           ativo={situacao === "perdido"}
           onClick={() => alternarSituacao("perdido")}
+        />
+      </div>
+
+      {/* A fila de trabalho: o que fazer HOJE, antes de qualquer analise. */}
+      <div className="sem-impressao">
+        <AcoesDoDia
+          vm={vm}
+          vendedores={vm.porVendedor}
+          meuVendedor={meuVendedor}
+          onAgendar={agendarRetorno}
         />
       </div>
 
@@ -394,7 +625,7 @@ export default function Orcamentos() {
           <>
             <div className="space-y-2">
               {vm.porMotivoPerda.map((m, i) => {
-                const chave = m.motivoId || "sem";
+                const chave = m.chave;
                 const sel = motivoSel?.chave === chave;
                 return (
                   <button
