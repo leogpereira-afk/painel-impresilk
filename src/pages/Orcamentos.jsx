@@ -19,6 +19,7 @@ import {
   X,
   MessageCircle,
   CalendarClock,
+  XCircle,
 } from "lucide-react";
 import { useApp } from "../config/store.jsx";
 import { vendedorDaSessao } from "../lib/sessao.js";
@@ -74,11 +75,16 @@ function linkWhats(g) {
   return `https://wa.me/${g.celular}?text=${encodeURIComponent(texto)}`;
 }
 
-function LinhaAcao({ g, onAgendar }) {
+function LinhaAcao({ g, motivos, onAgendar, onPerder }) {
   const [aberto, setAberto] = useState(false);
   const [data, setData] = useState("");
   const [nota, setNota] = useState("");
   const [salvando, setSalvando] = useState(false);
+  // Baixa como perdido: comeca com todos os orcamentos do cliente marcados, mas
+  // da para desmarcar -- um cliente pode ter quatro orcamentos e so um morrer.
+  const [perdendo, setPerdendo] = useState(false);
+  const [escolhidos, setEscolhidos] = useState([]);
+  const [motivoBaixa, setMotivoBaixa] = useState("");
   const selo = SELO_FILA[g.fila] || SELO_FILA["sem-retorno"];
   const wa = linkWhats(g);
 
@@ -89,6 +95,24 @@ function LinhaAcao({ g, onAgendar }) {
       await onAgendar(g, data, nota);
       setAberto(false);
       setNota("");
+    } finally {
+      setSalvando(false);
+    }
+  }
+
+  function abrirPerder() {
+    setEscolhidos(g.itens.map((i) => i.id));
+    setMotivoBaixa("");
+    setPerdendo((v) => !v);
+    setAberto(false);
+  }
+
+  async function confirmarPerder() {
+    if (escolhidos.length === 0) return;
+    setSalvando(true);
+    try {
+      await onPerder(g, escolhidos, motivoBaixa);
+      setPerdendo(false);
     } finally {
       setSalvando(false);
     }
@@ -119,9 +143,20 @@ function LinhaAcao({ g, onAgendar }) {
           ) : (
             <span className="text-xs text-slate-400">sem telefone</span>
           )}
-          <button className="btn-outline" onClick={() => setAberto((v) => !v)}>
+          <button
+            className="btn-outline"
+            onClick={() => {
+              setAberto((v) => !v);
+              setPerdendo(false);
+            }}
+          >
             <CalendarClock size={15} strokeWidth={2.4} />
             Retorno
+          </button>
+          {/* Tira o orcamento da conta: some da fila e para de somar em "na mesa". */}
+          <button className="btn-outline" onClick={abrirPerder} title="Marcar como perdido">
+            <XCircle size={15} strokeWidth={2.4} />
+            Perdido
           </button>
         </div>
       </div>
@@ -158,11 +193,76 @@ function LinhaAcao({ g, onAgendar }) {
           </button>
         </div>
       )}
+
+      {perdendo && (
+        <div className="mt-3 rounded-xl bg-bad-50/60 p-3">
+          <p className="mb-2 text-sm text-slate-700">
+            {g.qtd === 1
+              ? "Dar baixa neste orcamento como perdido? Ele sai da fila e para de somar em Na mesa."
+              : "Quais orcamentos deste cliente foram perdidos? Os marcados saem da fila e param de somar em Na mesa."}
+          </p>
+          {g.qtd > 1 && (
+            <div className="mb-2 space-y-1">
+              {g.itens.map((it) => (
+                <label key={it.id} className="flex items-center gap-2 text-sm text-slate-700">
+                  <input
+                    type="checkbox"
+                    className="h-4 w-4 rounded border-slate-300 text-brand focus:ring-brand-200"
+                    checked={escolhidos.includes(it.id)}
+                    onChange={() =>
+                      setEscolhidos((prev) =>
+                        prev.includes(it.id) ? prev.filter((x) => x !== it.id) : [...prev, it.id]
+                      )
+                    }
+                  />
+                  <span className="tnum">
+                    {it.numero ? `n${it.numero} · ` : ""}
+                    {moeda(it.valor)}
+                  </span>
+                  <span className="text-slate-500">{it.trabalho || ""}</span>
+                </label>
+              ))}
+            </div>
+          )}
+          <div className="flex flex-wrap items-end gap-2">
+            <div>
+              <label className="label" htmlFor={`m-${g.chave}`}>
+                Motivo (opcional)
+              </label>
+              <select
+                id={`m-${g.chave}`}
+                className="input"
+                value={motivoBaixa}
+                onChange={(e) => setMotivoBaixa(e.target.value)}
+              >
+                <option value="">Nao informado</option>
+                {(motivos || []).map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {m.nome}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <button
+              className="btn-danger"
+              onClick={confirmarPerder}
+              disabled={escolhidos.length === 0 || salvando}
+            >
+              {salvando
+                ? "Salvando..."
+                : `Dar baixa${escolhidos.length > 1 ? ` (${escolhidos.length})` : ""}`}
+            </button>
+            <button className="btn-ghost" onClick={() => setPerdendo(false)}>
+              Cancelar
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
 
-function AcoesDoDia({ vm, vendedores, meuVendedor, onAgendar }) {
+function AcoesDoDia({ vm, vendedores, motivos, meuVendedor, onAgendar, onPerder }) {
   const [fila, setFila] = useState("todas");
   // Conta ligada a um vendedor abre ja filtrada nele; a direcao ve o time todo.
   const [vend, setVend] = useState(meuVendedor || "");
@@ -231,7 +331,13 @@ function AcoesDoDia({ vm, vendedores, meuVendedor, onAgendar }) {
           </p>
           <div className="rounded-xl border" style={{ borderColor: "var(--hairline)" }}>
             {lista.map((g) => (
-              <LinhaAcao key={g.chave} g={g} onAgendar={onAgendar} />
+              <LinhaAcao
+                key={g.chave}
+                g={g}
+                motivos={motivos}
+                onAgendar={onAgendar}
+                onPerder={onPerder}
+              />
             ))}
           </div>
         </>
@@ -271,6 +377,7 @@ export default function Orcamentos() {
     dados,
     overridesOrcamentos,
     setOverrideOrcamento,
+    setOverridesOrcamento,
     updateConfig,
     pronto,
     erro,
@@ -400,12 +507,29 @@ export default function Orcamentos() {
   // ligou resolveu o cliente inteiro, nao um orcamento -- e o grupo some da fila
   // ate a data. Vai para o ov_orc, que ja e gravado no Blobs e entra no backup.
   async function agendarRetorno(g, data, nota) {
+    // Um pedido so para todos os orcamentos do cliente. Em laco, cada merge
+    // releria o blob inteiro do servidor (leitura eventual do Blobs) e um
+    // sobrescreveria o outro -- cliente com 4 orcamentos perderia 3 datas.
+    const patch = {};
     for (const it of g.itens) {
-      await setOverrideOrcamento(it.id, {
-        proximoToque: data,
-        ...(nota ? { nota } : {}),
-      });
+      patch[it.id] = { proximoToque: data, ...(nota ? { nota } : {}) };
     }
+    await setOverridesOrcamento(patch);
+  }
+
+  // Baixa como perdido a partir da fila: o orcamento sai da mesa e para de somar
+  // em "Na mesa". Mesma marcacao da lista detalhada (situacao + dataBaixa), so
+  // que em lote e sem precisar cacar o orcamento na tabela.
+  async function marcarPerdidoNaFila(g, ids, motivoId) {
+    const patch = {};
+    for (const id of ids) {
+      patch[id] = {
+        situacao: "perdido",
+        dataBaixa: hojeISO(),
+        ...(motivoId ? { motivoPerdaId: motivoId } : {}),
+      };
+    }
+    await setOverridesOrcamento(patch);
   }
 
   function incluirVendedor() {
@@ -515,8 +639,10 @@ export default function Orcamentos() {
         <AcoesDoDia
           vm={vm}
           vendedores={vm.porVendedor}
+          motivos={motivos}
           meuVendedor={meuVendedor}
           onAgendar={agendarRetorno}
+          onPerder={marcarPerdidoNaFila}
         />
       </div>
 

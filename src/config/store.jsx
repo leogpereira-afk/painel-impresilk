@@ -197,6 +197,20 @@ export function AppProvider({ children }) {
       .mesclarOverrideOrcamento(id, patch)
       .catch((e) => console.warn("ov_orc: sync falhou:", e?.message || e));
   }, []);
+  // Varios orcamentos numa tacada (ex: agendar o retorno de um cliente que tem
+  // quatro orcamentos abertos). Um pedido so -- ver marcacoes.js para o porque.
+  const setOverridesOrcamento = useCallback((patch) => {
+    setOvOrc((prev) => {
+      const novo = { ...(prev || {}) };
+      for (const [id, campos] of Object.entries(patch)) {
+        novo[id] = { ...(novo[id] || {}), ...campos };
+      }
+      return novo;
+    });
+    return marcacoes
+      .mesclarOverridesOrcamento(patch)
+      .catch((e) => console.warn("ov_orc: sync falhou:", e?.message || e));
+  }, []);
 
   const valor = useMemo(
     () => ({
@@ -208,6 +222,7 @@ export function AppProvider({ children }) {
       overridesOrcamentos: overridesOrcamentos || {},
       setOverrideRecebivel,
       setOverrideOrcamento,
+      setOverridesOrcamento,
       dados,
       atualizadoEm,
       pronto: !!dados && !carregando,
@@ -224,6 +239,7 @@ export function AppProvider({ children }) {
       overridesOrcamentos,
       setOverrideRecebivel,
       setOverrideOrcamento,
+      setOverridesOrcamento,
       dados,
       atualizadoEm,
       carregando,

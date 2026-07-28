@@ -48,3 +48,11 @@ export function mesclarOverrideRecebivel(id, campos) {
 export function mesclarOverrideOrcamento(id, campos) {
   return chamar("merge", { chave: "ov_orc", patch: { [id]: campos } });
 }
+
+// Varios orcamentos de uma vez, num pedido SO. Nao trocar por um laco de
+// mesclarOverrideOrcamento: o servidor faz le-altera-grava do blob inteiro e a
+// leitura do Blobs e eventual, entao dois merges seguidos podem se atropelar e
+// um sobrescrever o outro (foi assim que o ativos.js perdeu dado em 2026-07).
+export function mesclarOverridesOrcamento(patch) {
+  return chamar("merge", { chave: "ov_orc", patch });
+}
