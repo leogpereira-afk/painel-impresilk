@@ -166,6 +166,28 @@ async function enviarParaGithub(chaveSistema, backup) {
   return { ok: true, caminho };
 }
 
+// ------- e-mail do backup (2a copia, fora do GitHub) -------
+// Dispara uma BACKGROUND function (ate 15 min), passando so o dia. Ela le os
+// arquivos ja salvos no GitHub e faz o POST no webhook do n8n, que manda o e-mail
+// com os anexos. Fica separada de proposito: o backup do hub ja roda perto do teto
+// de 26s da function normal, e montar+enviar ~2 MB de anexo aqui estouraria o
+// tempo. Se N8N_BACKUP_WEBHOOK nao existe, e-mail esta desligado e isto e no-op.
+async function dispararEmailBackup(dia, resumo) {
+  if (!process.env.N8N_BACKUP_WEBHOOK) return;
+  try {
+    const base = process.env.URL || "https://impresilk.netlify.app";
+    // Background function responde 202 na hora; o await custa ~nada e garante que
+    // a invocacao foi enfileirada antes de esta function congelar.
+    await fetch(`${base}/.netlify/functions/backup-email-background`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-token": process.env.TOKEN || "" },
+      body: JSON.stringify({ dia, resumo }),
+    });
+  } catch {
+    /* e-mail e secundario: nunca derruba o backup */
+  }
+}
+
 // ------- backup do HUB INTEIRO -------
 // Cada sistema falha sozinho (um fora do ar nao derruba os outros). Devolve o
 // resultado por sistema, que vira o "ultimo backup" mostrado na tela.
@@ -205,6 +227,9 @@ async function backupDoHub(painel, auth) {
   }
 
   await painel.setJSON("backup_status", { atualizadoEm: agora, sistemas: porSistema }).catch(() => {});
+  // 2a copia por e-mail (se configurado). A background function le do GitHub e
+  // manda pro n8n -- por isso disparamos DEPOIS de gravar no GitHub.
+  await dispararEmailBackup(agora.slice(0, 10), porSistema);
   return porSistema;
 }
 

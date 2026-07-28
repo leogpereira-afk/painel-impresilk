@@ -423,6 +423,21 @@ function UltimoBackup({ status }) {
           </tbody>
         </table>
       </div>
+      {status?.email && (
+        <p className="text-sm text-slate-500">
+          Segunda copia por e-mail (via n8n):{" "}
+          {status.email.ok ? (
+            <span className="chip-ok">
+              enviado{typeof status.email.enviados === "number" ? ` · ${status.email.enviados} arq.` : ""}
+              {status.email.em ? ` · ${quandoBR(status.email.em)}` : ""}
+            </span>
+          ) : (
+            <span className="chip-bad" title={status.email.erro || ""}>
+              nao enviado
+            </span>
+          )}
+        </p>
+      )}
     </div>
   );
 }
