@@ -346,6 +346,22 @@ function AcoesDoDia({ vm, vendedores, motivos, meuVendedor, onAgendar, onPerder 
   );
 }
 
+// Nomes por extenso para o seletor (MESES do format.js e abreviado, para grafico).
+const MESES_LONGOS = [
+  "Janeiro",
+  "Fevereiro",
+  "Marco",
+  "Abril",
+  "Maio",
+  "Junho",
+  "Julho",
+  "Agosto",
+  "Setembro",
+  "Outubro",
+  "Novembro",
+  "Dezembro",
+];
+
 // Normaliza para busca (sem acento, minusculo).
 const norm = (s) =>
   String(s || "")
@@ -391,7 +407,11 @@ export default function Orcamentos() {
   const [novoVendedor, setNovoVendedor] = useState("");
   // Filtros da lista mestra. Todos se combinam e viram selos removiveis.
   const [situacao, setSituacao] = useState("todos"); // todos|aberto|ganho|perdido|parado
-  const [periodo, setPeriodo] = useState("todos"); // "todos" | "AAAA-MM"
+  // Recorte de tempo da tela inteira (KPIs, fila, vendedores, motivos e lista).
+  // Aplica sobre a data de envio do orcamento; "dias parado" e "vencido"
+  // continuam contando ate hoje, senao um mes fechado nunca teria vencidos.
+  const [ano, setAno] = useState("todos");
+  const [mes, setMes] = useState("todos");
   const [busca, setBusca] = useState("");
   const [vendedorSel, setVendedorSel] = useState(null); // {id, nome}
   const [motivoSel, setMotivoSel] = useState(null); // {chave, id, nome}
@@ -425,10 +445,46 @@ export default function Orcamentos() {
     };
   }, []);
 
-  const vm = useMemo(
-    () => (dados ? calcOrcamentos(dados.orcamentos, overridesOrcamentos, config) : null),
-    [dados, overridesOrcamentos, config]
-  );
+  // Anos e meses que EXISTEM nos dados. Montar as opcoes a partir do que ha
+  // evita oferecer um periodo vazio -- o cache cobre so o ano corrente, entao
+  // uma lista fixa de anos mostraria opcoes que nunca trazem nada.
+  const periodosDisponiveis = useMemo(() => {
+    const anos = new Set();
+    const mesesPorAno = {};
+    for (const o of dados?.orcamentos || []) {
+      const d = String(o.dataEnvio || "").slice(0, 10);
+      if (d.length < 7) continue;
+      if (o.valor < (config.parametros.valorMinimoOrcamento || 0)) continue;
+      if (d < config.parametros.dataCorteOrcamentos) continue;
+      const a = d.slice(0, 4);
+      const m = d.slice(5, 7);
+      anos.add(a);
+      (mesesPorAno[a] = mesesPorAno[a] || new Set()).add(m);
+    }
+    return {
+      anos: [...anos].sort(),
+      mesesDoAno: (a) =>
+        a === "todos"
+          ? [...new Set(Object.values(mesesPorAno).flatMap((s) => [...s]))].sort()
+          : [...(mesesPorAno[a] || [])].sort(),
+    };
+  }, [dados, config.parametros.valorMinimoOrcamento, config.parametros.dataCorteOrcamentos]);
+
+  const vm = useMemo(() => {
+    if (!dados) return null;
+    // O recorte de tempo entra ANTES do calculo: assim os KPIs, a fila, a tabela
+    // de vendedores e os motivos falam todos do mesmo periodo.
+    const base =
+      ano === "todos" && mes === "todos"
+        ? dados.orcamentos
+        : dados.orcamentos.filter((o) => {
+            const d = String(o.dataEnvio || "").slice(0, 10);
+            if (ano !== "todos" && d.slice(0, 4) !== ano) return false;
+            if (mes !== "todos" && d.slice(5, 7) !== mes) return false;
+            return true;
+          });
+    return calcOrcamentos(base, overridesOrcamentos, config);
+  }, [dados, overridesOrcamentos, config, ano, mes]);
 
   const filtrados = useMemo(() => {
     if (!vm) return [];
@@ -559,6 +615,18 @@ export default function Orcamentos() {
     });
   }
 
+  // Trocar de ano pode deixar o mes escolhido sem dado nenhum (nem todo ano tem
+  // os doze meses). Nesse caso volta para "todos" em vez de mostrar tela vazia.
+  function trocarAno(a) {
+    setAno(a);
+    if (mes !== "todos" && !periodosDisponiveis.mesesDoAno(a).includes(mes)) setMes("todos");
+    setLimite(25);
+  }
+  function trocarMes(m) {
+    setMes(m);
+    setLimite(25);
+  }
+
   const opcoesSituacao = [
     { valor: "todos", rotulo: "Todos" },
     { valor: "aberto", rotulo: "Abertos" },
@@ -581,6 +649,50 @@ export default function Orcamentos() {
         acao={<BotaoPDF titulo="Gera um PDF da lista de orcamentos com o recorte atual" />}
       />
 
+      {/* Recorte de tempo: manda na tela inteira, da fila aos motivos. */}
+      <div className="sem-impressao -mt-4 flex flex-wrap items-center gap-2">
+        <span className="text-sm text-slate-500">Periodo</span>
+        <select
+          className="input w-auto"
+          value={ano}
+          onChange={(e) => trocarAno(e.target.value)}
+          aria-label="Ano"
+        >
+          <option value="todos">Todos os anos</option>
+          {periodosDisponiveis.anos.map((a) => (
+            <option key={a} value={a}>
+              {a}
+            </option>
+          ))}
+        </select>
+        <select
+          className="input w-auto"
+          value={mes}
+          onChange={(e) => trocarMes(e.target.value)}
+          aria-label="Mes"
+        >
+          <option value="todos">Ano inteiro</option>
+          {periodosDisponiveis.mesesDoAno(ano).map((m) => (
+            <option key={m} value={m}>
+              {MESES_LONGOS[Number(m) - 1]}
+            </option>
+          ))}
+        </select>
+        {(ano !== "todos" || mes !== "todos") && (
+          <button
+            className="btn-ghost"
+            onClick={() => {
+              setAno("todos");
+              setMes("todos");
+              setLimite(25);
+            }}
+          >
+            <X size={14} strokeWidth={2.4} />
+            Limpar periodo
+          </button>
+        )}
+      </div>
+
       <CabecalhoImpressao
         titulo="Impresilk - Orcamentos"
         linhas={[
@@ -590,7 +702,10 @@ export default function Orcamentos() {
           `Recorte: ${
             [
               situacao === "todos" ? "todos" : ROTULO_SITUACAO[situacao] || situacao,
-              periodo !== "todos" ? periodo : null,
+              // Recorte de tempo tambem vai para o papel, senao dois PDFs de
+              // meses diferentes sairiam identicos no cabecalho.
+              mes !== "todos" ? MESES_LONGOS[Number(mes) - 1] : null,
+              ano !== "todos" ? ano : null,
               // Faltavam estes dois: clicar num vendedor ou num motivo mudava a
               // lista e o papel continuava dizendo "todos".
               vendedorSel ? `vendedor ${vendedorSel.nome}` : null,
