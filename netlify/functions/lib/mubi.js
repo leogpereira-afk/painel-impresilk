@@ -73,6 +73,13 @@ async function mubiGetSemFila(caminho, query) {
           { fatal: true }
         );
       }
+      // 404 do Mubisys = "nenhum registro no filtro", NAO erro. Confirmado em
+      // 2026-07-31: contas-pagar?status=VENCIDO na janela de -30 dias devolve
+      // 404 {"error":"Nao encontrado"}, e a MESMA consulta desde 2015 devolve
+      // 201 com 9 titulos. Tratar isso como falha fazia o bloco inteiro de
+      // contas a pagar ser descartado -- e o painel parava de atualizar as
+      // contas a pagar em silencio sempre que nao houvesse vencido na janela.
+      if (resp.status === 404) return { data: [] };
       if (!resp.ok) {
         throw new Error(`Mubi ${caminho} respondeu ${resp.status}`);
       }
