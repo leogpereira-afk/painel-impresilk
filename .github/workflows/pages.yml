@@ -1,0 +1,52 @@
+name: Painel no GitHub Pages
+
+# TRANSICAO: publica da branch migracao-supabase, porque a main ainda e o
+# Netlify de producao -- apontar a main para o Supabase antes da virada
+# trocaria o backend do painel antigo por baixo dos usuarios. Na virada, o
+# gatilho passa para a main e o Netlify morre.
+on:
+  push:
+    branches: [migracao-supabase]
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+        env:
+          # No Pages o site vive em /painel-impresilk/. O vite.config le isto;
+          # o build do Netlify (sem a variavel) segue na raiz.
+          BASE_PATH: /painel-impresilk/
+      # SPA com BrowserRouter: refresh em rota interna vira 404 no Pages. O
+      # 404.html com o proprio app faz qualquer caminho carregar o painel.
+      - run: cp dist/index.html dist/404.html
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

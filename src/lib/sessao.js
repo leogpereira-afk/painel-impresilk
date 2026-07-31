@@ -8,6 +8,8 @@
 // menu e conforto, nao seguranca -- quem manda e o servidor, que confere o
 // cracha em toda chamada (netlify/functions/lib/guarda.js).
 
+import { API } from "./api.js";
+
 const K_TOKEN = "painel_auth_token";
 const K_SESSAO = "painel_auth_sessao";
 const INATIVIDADE_MS = 12 * 60 * 60 * 1000;
@@ -106,7 +108,7 @@ export async function comCracha(url, opcoes = {}) {
 }
 
 export async function login(usuario, senha) {
-  const resp = await fetch("/.netlify/functions/auth", {
+  const resp = await fetch(`${API}/painel-auth`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ action: "login", usuario, senha }),
@@ -118,7 +120,7 @@ export async function login(usuario, senha) {
 }
 
 export async function chamarAuth(action, dados = {}) {
-  const resp = await comCracha("/.netlify/functions/auth", {
+  const resp = await comCracha(`${API}/painel-auth`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ action, ...dados }),

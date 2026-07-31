@@ -3,6 +3,9 @@ import react from "@vitejs/plugin-react";
 
 // Netlify publica a pasta dist; as Functions ficam em netlify/functions.
 export default defineConfig({
+  // No GitHub Pages o site vive em /painel-impresilk/; no Netlify, na raiz.
+  // O workflow do Pages define BASE_PATH; sem ele, nada muda.
+  base: process.env.BASE_PATH || "/",
   plugins: [react()],
   server: { port: 5173, open: false },
   build: { outDir: "dist", sourcemap: false },
