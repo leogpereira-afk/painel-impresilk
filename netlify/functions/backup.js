@@ -80,6 +80,8 @@ async function montarBackupPainel(painel, auth) {
 
 // ------- puxa um sistema externo pelos endpoints que ele ja tem -------
 // Registry em SISTEMAS_BACKUP (env, JSON): [{key,nome,url,fn,listKey,token}].
+// "path" e opcional: quem nao esta mais no Netlify (o RH migrou para Edge
+// Functions do Supabase) informa o caminho completo em vez do "fn".
 function sistemasExternos() {
   try {
     return JSON.parse(process.env.SISTEMAS_BACKUP || "[]");
@@ -88,13 +90,20 @@ function sistemasExternos() {
   }
 }
 
+const enderecoDe = (sys) => `${sys.url}${sys.path || `/.netlify/functions/${sys.fn}`}`;
+
 async function chamarSistema(sys, body) {
-  const r = await fetch(`${sys.url}/.netlify/functions/${sys.fn}`, {
+  const r = await fetch(enderecoDe(sys), {
     method: "POST",
     headers: { "Content-Type": "application/json", "x-token": sys.token },
     body: JSON.stringify(body),
   });
-  if (!r.ok) throw new Error(`${sys.key}: HTTP ${r.status}`);
+  // Sem o corpo do erro, uma falha de backup vira so "HTTP 401" no log e
+  // ninguem descobre que era token errado, sistema fora do ar ou rota mudada.
+  if (!r.ok) {
+    const detalhe = await r.text().catch(() => "");
+    throw new Error(`${sys.key}: HTTP ${r.status} em ${enderecoDe(sys)}${detalhe ? ` — ${detalhe.slice(0, 160)}` : ""}`);
+  }
   return r.json();
 }
 
