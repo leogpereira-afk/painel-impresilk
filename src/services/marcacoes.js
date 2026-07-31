@@ -9,7 +9,9 @@
 
 import { comCracha } from "../lib/sessao.js";
 
-const BASE = "/.netlify/functions/config";
+import { API } from "../lib/api.js";
+
+const BASE = `${API}/painel-config`;
 
 async function chamar(action, corpo) {
   const resp = await comCracha(BASE, {

@@ -2,7 +2,9 @@
 
 import { comCracha } from "../lib/sessao.js";
 
-const BASE = "/.netlify/functions/ativos";
+import { API } from "../lib/api.js";
+
+const BASE = `${API}/painel-ativos`;
 
 async function chamar(action, dados = {}) {
   const resp = await comCracha(BASE, {

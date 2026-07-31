@@ -10,16 +10,20 @@ import { comCracha } from "../lib/sessao.js";
 // Mubisys via Netlify Functions. Religar (true) so para demonstracoes.
 export const MODO_DEMO = false;
 
-const BASE = "/.netlify/functions";
+import { API } from "../lib/api.js";
+
+// Os quatro modulos de leitura viraram UMA function (?modulo=).
+const BASE = `${API}/painel-dados`;
 
 // Frescor do cache e historico real de DSO, capturados das respostas.
 let _atualizadoEm = null;
 let _dsoHist = [];
 
 async function chamarFunction(nome, params = {}, tentativa = 1) {
-  const url = new URL(BASE + "/" + nome, window.location.origin);
+  const url = new URL(BASE);
+  url.searchParams.set("modulo", nome);
   Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v));
-  const resp = await comCracha(url.toString().replace(window.location.origin, ""));
+  const resp = await comCracha(url.toString());
   const body = await resp.json().catch(() => null);
   if (!resp.ok) {
     if (body?.preparando) {
