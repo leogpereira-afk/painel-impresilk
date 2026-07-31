@@ -227,7 +227,7 @@ function diasDesde(iso) {
 // contariam uma historia diferente do numero exibido ao lado.
 const CORTE_ATRASADOS = "2025-01-01";
 
-function calcDso(recebiveis) {
+export function calcDso(recebiveis) {
   const ativos = recebiveis.filter((r) => String(r.vencimento || "") >= CORTE_ATRASADOS);
   const base = ativos.length ? ativos : recebiveis;
   const tot = base.reduce((s, r) => s + (r.valor || 0), 0) || 1;
@@ -238,7 +238,7 @@ function calcDso(recebiveis) {
 // ---------------------------------------------------------------- etapas
 // (nenhuma etapa grava no Blobs; todas RETORNAM os dados montados)
 
-async function etapaRapidos() {
+export async function etapaRapidos() {
   // Recebiveis: PENDENTE olha a janela curta (o que esta por vencer), mas
   // VENCIDO precisa varrer TUDO. Com datainicial de -365 dias o painel escondia
   // 33 titulos / R$ 52 mil de calote antigo (medido em 2026-07-21) e o KPI
@@ -247,6 +247,11 @@ async function etapaRapidos() {
   const jRec = { filtrodata: "VENCIMENTO", datainicial: hojeMais(-365), datafinal: hojeMais(90) };
   const jRecVencido = { filtrodata: "VENCIMENTO", datainicial: "2015-01-01", datafinal: hojeMais(0) };
   const jPag = { filtrodata: "VENCIMENTO", datainicial: hojeMais(-30), datafinal: hojeMais(60) };
+  // Vencidos a PAGAR precisam varrer tudo, pelo mesmo motivo dos a receber: a
+  // janela de -30 dias escondia 9 titulos / R$ 3.276 em atraso, um deles de
+  // 2.174 dias (medido em 2026-07-31). A correcao foi feita nos recebiveis e
+  // nao aqui -- divida velha e a que mais precisa aparecer, dos dois lados.
+  const jPagVencido = { filtrodata: "VENCIMENTO", datainicial: "2015-01-01", datafinal: hojeMais(60) };
 
   // Recursos independentes: em paralelo. Em serie, so esta etapa ja comia
   // metade do orcamento de tempo da Function.
@@ -272,7 +277,7 @@ async function etapaRapidos() {
       tentar("receber-vencido", mubiGetTudo("contas-receber", { ...jRecVencido, status: "VENCIDO" })),
       tentar("receber-pendente", mubiGetTudo("contas-receber", { ...jRec, status: "PENDENTE" })),
       tentar("pagar-pendente", mubiGetTudo("contas-pagar", { ...jPag, status: "PENDENTE" })),
-      tentar("pagar-vencido", mubiGetTudo("contas-pagar", { ...jPag, status: "VENCIDO" })),
+      tentar("pagar-vencido", mubiGetTudo("contas-pagar", { ...jPagVencido, status: "VENCIDO" })),
       tentar("provisao-fixa", mubiGetTudo("contas-pagar-provisao/despesa-fixa", jPag)),
       tentar("provisao-cartao", mubiGetTudo("contas-pagar-provisao/cartao-credito", jPag)),
       tentar("provisao-folha", mubiGetTudo("contas-pagar-provisao/folha-pagamento", jPag)),
@@ -331,7 +336,7 @@ async function catalogoCategorias() {
   return new Map(catalogo.map((p) => [chaveProduto(p.nome), String(p.categoria || "").trim()]));
 }
 
-async function etapaCompleta() {
+export async function etapaCompleta() {
   const desde = `${new Date().getFullYear()}-01-01`;
   const janela = { status: "TODOS", filtrodata: "CADASTRO", datainicial: desde, datafinal: hojeMais(0) };
 
@@ -359,7 +364,7 @@ const VERSAO_NORM = 3;
 //   1 = celular do contato, margem, custo, validade, motivo do ERP.
 const VERSAO_NORM_ORC = 1;
 
-async function etapaIncremental(store, remigrarOS = false, remigrarOrc = false) {
+export async function etapaIncremental(store, remigrarOS = false, remigrarOrc = false) {
   const janela = { status: "TODOS", datainicial: hojeMais(-7), datafinal: hojeMais(0) };
 
   // Orcamentos: normalmente so os ultimos 7 dias. Quando a normalizacao muda,
