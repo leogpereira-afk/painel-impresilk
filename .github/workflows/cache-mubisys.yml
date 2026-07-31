@@ -1,0 +1,56 @@
+name: Cache do Mubisys
+
+# Substitui os crons do Netlify (mubi-cache-cron a cada 20 min e
+# mubi-cache-noturno as 06:00 UTC).
+#
+# POR QUE AQUI E NAO NO SUPABASE: a carga leva MINUTOS -- o Mubisys responde em
+# 25-40s por pagina. Edge Function morre em 150s. O Actions nao tem esse limite.
+#
+# O job NAO recebe a chave-mestra do banco: ele manda o resultado pronto para a
+# Edge Function painel-cache, que grava. O unico segredo aqui autoriza escrever
+# CACHE, que e descartavel e se reconstroi sozinho.
+on:
+  schedule:
+    # A cada 20 minutos: recarga leve (recebiveis, pagar, bancos + janela de 7
+    # dias de orcamentos/OS mesclada).
+    - cron: "*/20 * * * *"
+    # 06:00 UTC = 03:00 de Brasilia: recarga completa, quando o ERP esta livre.
+    - cron: "0 6 * * *"
+  workflow_dispatch:
+    inputs:
+      completo:
+        description: "Rodar carga completa (o ano inteiro)"
+        type: boolean
+        default: false
+
+concurrency:
+  # Uma carga por vez. Duas simultaneas so castigam a API do Mubisys e podem
+  # gravar uma por cima da outra.
+  group: cache-mubisys
+  cancel-in-progress: false
+
+jobs:
+  carregar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+
+      - name: Carregar
+        env:
+          PAINEL_TOKEN: ${{ secrets.PAINEL_TOKEN }}
+          MUBI_BASE_URL: ${{ secrets.MUBI_BASE_URL }}
+          MUBI_PUBLIC_KEY: ${{ secrets.MUBI_PUBLIC_KEY }}
+          MUBI_TOKEN: ${{ secrets.MUBI_TOKEN }}
+        run: |
+          # O cron das 06:00 e o botao manual com "completo" fazem a carga do ano.
+          if [ "${{ github.event.schedule }}" = "0 6 * * *" ] || [ "${{ inputs.completo }}" = "true" ]; then
+            node scripts/carregar-cache.mjs --completo
+          else
+            node scripts/carregar-cache.mjs
+          fi
