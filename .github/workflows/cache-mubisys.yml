@@ -9,6 +9,8 @@ name: Cache do Mubisys
 # O job NAO recebe a chave-mestra do banco: ele manda o resultado pronto para a
 # Edge Function painel-cache, que grava. O unico segredo aqui autoriza escrever
 # CACHE, que e descartavel e se reconstroi sozinho.
+# schedule re-registrado em 2026-07-31 22h25 UTC: o primeiro disparo agendado
+# nao veio em 90 min; regravar o arquivo na main forca o GitHub a re-registrar.
 on:
   schedule:
     # A cada 20 minutos: recarga leve (recebiveis, pagar, bancos + janela de 7
