@@ -164,9 +164,19 @@ Deno.serve(async (req: Request) => {
         const chave = normalizarUsuario(s.sub);
         const conta = await lerConta(chave);
         const ehMaster = s.master === true;
-        const confere = conta
-          ? await conferirSenha(atual, conta)
-          : ehMaster && !!MASTER_SENHA && igual(atual, MASTER_SENHA);
+
+        // Saida so para a DIRECAO ja logada: definir a senha sem lembrar a
+        // anterior. Quem esta com essa sessao na mao ja abre tudo no painel --
+        // inclusive backup e restauracao --, entao exigir a senha atual aqui
+        // protegeria pouco e travaria o dono do sistema para fora. Para as
+        // demais contas a senha atual continua obrigatoria: a direcao redefine
+        // a senha delas pela tela de acessos.
+        const semAtual = body.semSenhaAtual === true && ehMaster;
+        const confere = semAtual
+          ? true
+          : conta
+            ? await conferirSenha(atual, conta)
+            : ehMaster && !!MASTER_SENHA && igual(atual, MASTER_SENHA);
         if (!confere) return json({ erro: "Senha atual incorreta." }, 401);
 
         const reg = await hashSenha(nova);

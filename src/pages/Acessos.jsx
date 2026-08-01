@@ -58,6 +58,10 @@ export default function Acessos() {
   const [repetir, setRepetir] = useState("");
   const [msgSenha, setMsgSenha] = useState(null); // {tom, texto}
   const [salvandoSenha, setSalvandoSenha] = useState(false);
+  // A direcao, ja logada, pode definir a senha sem lembrar a anterior. Quem tem
+  // a sessao dela ja abre tudo no painel, entao a senha atual aqui protegeria
+  // pouco -- e sem esta saida a unica alternativa e mexer no cofre do Supabase.
+  const [semAtual, setSemAtual] = useState(false);
 
   async function trocarSenha(e) {
     e.preventDefault();
@@ -66,8 +70,13 @@ export default function Acessos() {
     if (nova !== repetir) return setMsgSenha({ tom: "erro", texto: "As duas senhas novas nao sao iguais." });
     setSalvandoSenha(true);
     try {
-      await chamarAuth("trocarMinhaSenha", { senhaAtual: atual, novaSenha: nova });
+      await chamarAuth("trocarMinhaSenha", {
+        senhaAtual: atual,
+        novaSenha: nova,
+        ...(semAtual && ehDirecao ? { semSenhaAtual: true } : {}),
+      });
       setMsgSenha({ tom: "ok", texto: "Senha trocada. Use a nova da proxima vez que entrar." });
+      setSemAtual(false);
       setAtual("");
       setNova("");
       setRepetir("");
@@ -170,20 +179,46 @@ export default function Acessos() {
           }
         />
         <form onSubmit={trocarSenha} className="grid max-w-md gap-4">
-          <div>
-            <label className="label" htmlFor="s-atual">
-              Senha atual
-            </label>
-            <input
-              id="s-atual"
-              type="password"
-              className="input"
-              value={atual}
-              onChange={(e) => setAtual(e.target.value)}
-              autoComplete="current-password"
-              required
-            />
-          </div>
+          {semAtual && ehDirecao ? (
+            <Aviso tom="aviso">
+              Definindo a senha sem a anterior. Isso so vale porque voce ja esta
+              logado como direcao.{" "}
+              <button
+                type="button"
+                className="underline"
+                onClick={() => setSemAtual(false)}
+              >
+                lembrei, quero digitar
+              </button>
+            </Aviso>
+          ) : (
+            <div>
+              <label className="label" htmlFor="s-atual">
+                Senha atual
+              </label>
+              <input
+                id="s-atual"
+                type="password"
+                className="input"
+                value={atual}
+                onChange={(e) => setAtual(e.target.value)}
+                autoComplete="current-password"
+                required
+              />
+              {ehDirecao && (
+                <button
+                  type="button"
+                  className="mt-1 text-xs text-slate-500 underline hover:text-slate-900"
+                  onClick={() => {
+                    setSemAtual(true);
+                    setAtual("");
+                  }}
+                >
+                  nao lembro minha senha atual
+                </button>
+              )}
+            </div>
+          )}
           <div>
             <label className="label" htmlFor="s-nova">
               Nova senha
