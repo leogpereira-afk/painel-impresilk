@@ -199,7 +199,12 @@ Deno.serve(async (req: Request) => {
           : [];
         if (!usuario) return json({ erro: "Informe o usuario." }, 400);
         if (usuario === MASTER_USUARIO) {
-          return json({ erro: "A conta da direcao e definida pelo ambiente (PAINEL_AUTH_MASTER_SENHA)." }, 400);
+          // Nao e limitacao, e desenho: a direcao ja entra e ja ve tudo, entao
+          // cadastra-la de novo criaria duas contas com o mesmo nome disputando
+          // o login. A senha dela se troca em "Minha senha", dentro do painel.
+          return json({
+            erro: "Essa e a conta da direcao: ela ja entra e ja enxerga tudo. Para trocar a senha dela, use 'Minha senha' no alto desta pagina.",
+          }, 400);
         }
 
         const atual = await lerConta(usuario);

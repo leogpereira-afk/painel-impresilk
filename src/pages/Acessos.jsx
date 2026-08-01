@@ -2,7 +2,7 @@
 // cada um ve. As acoes do servidor ja existiam em netlify/functions/auth.mjs;
 // esta e a tela que faltava para usa-las.
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { KeyRound, UserPlus, Trash2, ShieldCheck, AlertTriangle, Check, Download, Upload } from "lucide-react";
 import { chamarAuth, getSessao } from "../lib/sessao.js";
 import { baixarBackup, restaurarBackup, lerArquivoBackup, statusBackup, backupHubAgora } from "../services/backup.js";
@@ -36,9 +36,21 @@ function Aviso({ tom, children }) {
   );
 }
 
+const normalizarUsuario = (v) => String(v || "").trim().toLowerCase();
+
 export default function Acessos() {
   const sessao = getSessao();
   const ehDirecao = !!sessao?.master;
+  const meuUsuario = normalizarUsuario(sessao?.usuario);
+
+  // A conta da direcao nao mora na lista de acessos: ela e a dona do painel e
+  // enxerga tudo. Digitar o proprio usuario no cadastro e um caminho sem saida
+  // -- entao a tela desvia para "Minha senha", que e onde essa conta se troca.
+  const cartaoSenha = useRef(null);
+  const irParaMinhaSenha = useCallback(() => {
+    cartaoSenha.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+    setTimeout(() => document.getElementById("s-atual")?.focus(), 400);
+  }, []);
 
   // --- trocar a propria senha
   const [atual, setAtual] = useState("");
@@ -99,6 +111,14 @@ export default function Acessos() {
   async function salvarConta(e) {
     e.preventDefault();
     setMsgConta(null);
+    if (ehDirecao && normalizarUsuario(form.usuario) === meuUsuario) {
+      setMsgConta({
+        tom: "aviso",
+        texto: "Essa e a sua propria conta, a da direcao: ela ja enxerga tudo e nao precisa ser cadastrada. Para trocar a sua senha, use 'Minha senha' aqui em cima.",
+      });
+      irParaMinhaSenha();
+      return;
+    }
     setSalvandoConta(true);
     try {
       await chamarAuth("salvarConta", form);
@@ -140,10 +160,14 @@ export default function Acessos() {
       />
 
       {/* Minha senha -- todo mundo */}
-      <Card>
+      <Card ref={cartaoSenha}>
         <SectionTitle
           titulo="Minha senha"
-          sub="Troque quando quiser. Precisa da senha atual para ninguem tomar sua conta."
+          sub={
+            ehDirecao
+              ? "Troque quando quiser, aqui mesmo. A senha que voce definir aqui passa a valer no lugar da inicial -- e a definitiva nao fica escrita em configuracao nenhuma."
+              : "Troque quando quiser. Precisa da senha atual para ninguem tomar sua conta."
+          }
         />
         <form onSubmit={trocarSenha} className="grid max-w-md gap-4">
           <div>
@@ -219,6 +243,15 @@ export default function Acessos() {
                     placeholder="ex: camila"
                     required
                   />
+                  {normalizarUsuario(form.usuario) === meuUsuario && (
+                    <p className="mt-1 text-xs text-warn-700">
+                      Esse e voce. A direcao ja entra e ja ve tudo —{" "}
+                      <button type="button" className="underline" onClick={irParaMinhaSenha}>
+                        trocar minha senha
+                      </button>
+                      .
+                    </p>
+                  )}
                 </div>
                 <div>
                   <label className="label" htmlFor="c-nome">
@@ -323,10 +356,6 @@ export default function Acessos() {
             <SectionTitle titulo="Quem tem acesso" sub="Clique numa linha para editar." />
             {contas === null ? (
               <Empty>Carregando...</Empty>
-            ) : contas.length === 0 ? (
-              <Empty>
-                Ninguem cadastrado ainda. So a direcao entra, com a senha definida no Netlify.
-              </Empty>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full min-w-[560px] border-collapse">
@@ -339,6 +368,29 @@ export default function Acessos() {
                     </tr>
                   </thead>
                   <tbody>
+                    {/* A direcao nao esta na tabela de contas, mas esta no painel:
+                        omiti-la fazia parecer que a conta nao existe. */}
+                    <tr className="border-t" style={{ borderColor: "var(--hairline)" }}>
+                      <td className="td font-display font-medium text-slate-900">
+                        Direcao
+                        <span className="mt-0.5 block text-xs font-normal text-slate-500">
+                          voce · dona do painel
+                        </span>
+                      </td>
+                      <td className="td text-slate-500">{meuUsuario}</td>
+                      <td className="td">
+                        <span className="chip">tudo liberado</span>
+                      </td>
+                      <td className="td text-right">
+                        <button
+                          type="button"
+                          onClick={irParaMinhaSenha}
+                          className="text-xs text-slate-500 underline hover:text-slate-900"
+                        >
+                          trocar senha
+                        </button>
+                      </td>
+                    </tr>
                     {contas.map((c) => (
                       <tr
                         key={c.usuario}
@@ -383,6 +435,12 @@ export default function Acessos() {
                   </tbody>
                 </table>
               </div>
+            )}
+
+            {contas?.length === 0 && (
+              <p className="mt-3 text-sm text-slate-500">
+                Alem de voce, ninguem mais tem acesso ainda.
+              </p>
             )}
 
             <p className="mt-4 flex items-start gap-2 rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-500">
