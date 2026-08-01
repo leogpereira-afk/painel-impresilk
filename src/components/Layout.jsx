@@ -45,13 +45,14 @@ const NAV = [
 
 // Outros sistemas da Impresilk. Abrem em outra aba: o painel fica aberto atras.
 //
-// PCP aponta para pcpimpresilk (o endereco de producao documentado no kit de
-// sincronizacao) e NAO para impresilk-instalacao, que e a copia antiga.
+// Os enderecos sao os atalhos do dominio da empresa, que redirecionam para o
+// GitHub Pages. Passar pelo atalho e de proposito: se um sistema mudar de casa
+// de novo, muda so o redirecionamento -- nenhum link aqui dentro envelhece.
 const SISTEMAS = [
-  { rotulo: "DRE", icone: BarChart3, href: "https://impresilk-dre.netlify.app/" },
-  { rotulo: "RH", icone: Users, href: "https://impresilkrh.netlify.app/" },
-  { rotulo: "PCP", icone: ClipboardList, href: "https://pcpimpresilk.netlify.app/" },
-  { rotulo: "Brief de Medicao", icone: Ruler, href: "https://brief-impresilk.netlify.app/" },
+  { rotulo: "DRE", icone: BarChart3, href: "https://impresilk.com.br/dre" },
+  { rotulo: "RH", icone: Users, href: "https://impresilk.com.br/rh" },
+  { rotulo: "PCP", icone: ClipboardList, href: "https://impresilk.com.br/pcp" },
+  { rotulo: "Brief de Medicao", icone: Ruler, href: "https://impresilk.com.br/brief" },
 ];
 
 function useTema() {
