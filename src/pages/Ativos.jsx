@@ -89,7 +89,12 @@ export default function Ativos() {
   }, [carregar]);
 
   const hojeISO = ymdLocal(new Date());
-  const vm = useMemo(() => calcAtivos(itens || [], hojeISO), [itens, hojeISO]);
+  // Os itens de "marketing" (aba propria) moram na mesma colecao mas nao tem
+  // vencimento -- fora daqui, senao viram "sem data" nas estatisticas.
+  const vm = useMemo(
+    () => calcAtivos((itens || []).filter((x) => x.tipo !== "marketing"), hojeISO),
+    [itens, hojeISO]
+  );
 
   const daLente = useMemo(() => {
     const q = busca.trim().toLowerCase();

@@ -84,6 +84,7 @@ async function montarBackupPainel() {
       ov_orc: await linhasDe("ov_orc"),
       ativos: await linhasDe("ativo"),
       arquivosMeta: await linhasDe("arquivo"),
+      marketing: await linhasDe("marketing"),
       // Os BYTES dos arquivos ficam no bucket (duraveis); um backup diario
       // deles incharia o repositorio. Mesma decisao do original com as fotos.
     },
@@ -303,6 +304,8 @@ Deno.serve(async (req: Request) => {
         if (bk.versao >= 2) {
           mapas.push(["ov_rec", p.ov_rec ?? {}], ["ov_orc", p.ov_orc ?? {}],
                      ["ativo", p.ativos ?? {}], ["arquivo", p.arquivosMeta ?? {}]);
+          // Backups de antes da aba Marketing nao tem a chave; nada a restaurar.
+          if (p.marketing) mapas.push(["marketing", p.marketing]);
         } else {
           // v1: chaves de blob (ov_rec/ov_orc mapas; ativo_<id> soltos)
           mapas.push(["ov_rec", p.ov_rec ?? {}], ["ov_orc", p.ov_orc ?? {}]);

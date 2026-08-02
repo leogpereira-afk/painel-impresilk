@@ -35,7 +35,7 @@ const sb = createClient(SUPABASE_URL, SERVICE_KEY, { auth: { persistSession: fal
 
 // Modulos que podem ser liberados. "inicio" nao entra: e a porta de entrada e
 // fica sempre acessivel, senao a pessoa loga e cai numa tela sem lugar nenhum.
-const MODULOS = ["contas-atrasadas", "fluxo-caixa", "produtos", "orcamentos", "configuracoes"];
+const MODULOS = ["contas-atrasadas", "fluxo-caixa", "produtos", "orcamentos", "bancos", "marketing", "configuracoes"];
 
 // Mensagem UNICA para qualquer falha de login: usuario inexistente e senha
 // errada precisam ser indistinguiveis, senao da para descobrir quem tem acesso.

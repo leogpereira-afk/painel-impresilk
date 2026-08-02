@@ -34,6 +34,8 @@ import {
   HardHat,
   Building2,
   ChevronDown,
+  Landmark,
+  Megaphone,
 } from "lucide-react";
 import logoColor from "../assets/brand/logo-color.png";
 import logoWhite from "../assets/brand/logo-white.png";
@@ -50,6 +52,8 @@ const GESTAO = [
   { to: "/fluxo-caixa", rotulo: "Fluxo de Caixa", icone: Wallet, modulo: "fluxo-caixa" },
   { to: "/produtos", rotulo: "Produtos", icone: Package, modulo: "produtos" },
   { to: "/orcamentos", rotulo: "Orcamentos", icone: FileText, modulo: "orcamentos" },
+  { to: "/bancos", rotulo: "Bancos e Pix", icone: Landmark, modulo: "bancos" },
+  { to: "/marketing", rotulo: "Marketing", icone: Megaphone, modulo: "marketing" },
   { to: "/documentos", rotulo: "Documentos e ativos", icone: FileCheck2 },
 ];
 

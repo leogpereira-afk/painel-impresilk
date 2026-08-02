@@ -15,6 +15,8 @@ const MODULOS = [
   { id: "fluxo-caixa", nome: "Fluxo de Caixa", sub: "caixa, projecao e realizado" },
   { id: "produtos", nome: "Produtos", sub: "faturamento por produto e familia" },
   { id: "orcamentos", nome: "Orcamentos", sub: "funil e conversao do time" },
+  { id: "bancos", nome: "Bancos e Pix", sub: "contas, CNPJs e chaves de todas as empresas" },
+  { id: "marketing", nome: "Marketing", sub: "logomarcas, materiais e atalhos do Drive" },
   { id: "configuracoes", nome: "Configuracoes", sub: "regras do painel e acessos" },
 ];
 

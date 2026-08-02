@@ -18,6 +18,8 @@ import Configuracoes from "./pages/Configuracoes.jsx";
 import Login from "./pages/Login.jsx";
 import Acessos from "./pages/Acessos.jsx";
 import Ativos from "./pages/Ativos.jsx";
+import Bancos from "./pages/Bancos.jsx";
+import Marketing from "./pages/Marketing.jsx";
 import { getSessao, aoMudarSessao, podeAbrir } from "./lib/sessao.js";
 import { Card } from "./components/ui.jsx";
 
@@ -98,6 +100,22 @@ export default function App() {
         {/* Sem Restrito: qualquer pessoa logada precisa poder trocar a
             propria senha. A parte de administrar contas so aparece para a
             direcao, decidido dentro da propria tela. */}
+        <Route
+          path="/bancos"
+          element={
+            <Restrito modulo="bancos" sessao={sessao}>
+              <Bancos />
+            </Restrito>
+          }
+        />
+        <Route
+          path="/marketing"
+          element={
+            <Restrito modulo="marketing" sessao={sessao}>
+              <Marketing />
+            </Restrito>
+          }
+        />
         <Route path="/acessos" element={<Acessos />} />
         {/* Documentos/veiculos/maquinas nao sao dado financeiro: qualquer
             pessoa logada cuida deles (o servidor tambem so exige sessao). */}

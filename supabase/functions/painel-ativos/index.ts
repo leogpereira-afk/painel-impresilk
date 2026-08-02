@@ -28,7 +28,9 @@ const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const JWT_SECRET = Deno.env.get("PAINEL_JWT_SECRET") ?? "";
 const BUCKET = "painel-arquivos";
-const TIPOS = new Set(["documento", "veiculo", "maquina"]);
+// "marketing" nao tem vencimento: sao logomarcas e materiais de marca. Vive na
+// mesma colecao porque o mecanismo (item + arquivo) e identico.
+const TIPOS = new Set(["documento", "veiculo", "maquina", "marketing"]);
 const MAX_ARQUIVO = 4 * 1024 * 1024; // 4 MB em base64 (~3 MB de arquivo)
 
 const sb = createClient(SUPABASE_URL, SERVICE_KEY, { auth: { persistSession: false } });

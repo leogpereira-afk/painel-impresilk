@@ -31,7 +31,9 @@ const TOKEN = Deno.env.get("PAINEL_TOKEN") ?? "";
 
 const sb = createClient(SUPABASE_URL, SERVICE_KEY, { auth: { persistSession: false } });
 
-const OVERLAYS = new Set(["ov_rec", "ov_orc"]);
+// "marketing" guarda os atalhos do Drive da aba Marketing ({id: {nome, url}}).
+// Entra como overlay porque o mecanismo e o mesmo: mapa por id, merge sem corrida.
+const OVERLAYS = new Set(["ov_rec", "ov_orc", "marketing"]);
 // Diagnostico de cache pelo x-token (nomes sem o prefixo cache_ da era Blobs).
 const CACHES = new Set(["recebiveis", "pagar", "bancos", "orcamentos", "ordens", "dso_hist", "fluxo_mensal", "status"]);
 
