@@ -106,8 +106,15 @@ export default function Marketing() {
           arquivoNome: file.name,
           temArquivo: true,
         });
-        const base64 = await arquivoParaBase64(file);
-        await guardarArquivo(item.id, base64, file.type, file.name);
+        try {
+          const base64 = await arquivoParaBase64(file);
+          await guardarArquivo(item.id, base64, file.type, file.name);
+        } catch (e) {
+          // O item nasceu mas o arquivo nao subiu: desfaz, senao fica um cartao
+          // fantasma no proximo carregamento (e a retentativa criaria outro).
+          await removerAtivo(item.id).catch(() => {});
+          throw new Error(`O arquivo nao subiu (${e.message}). Nada foi guardado - tente de novo.`);
+        }
         setItens((l) => [...(l || []), item]);
         setNomeNovo("");
         if (inputArquivo.current) inputArquivo.current.value = "";

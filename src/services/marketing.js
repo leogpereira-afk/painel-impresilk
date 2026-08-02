@@ -1,8 +1,9 @@
 // Atalhos do Drive da aba Marketing. Moram no servidor (painel-config, chave
 // "marketing", mapa {id: {nome, url}}) para valerem em qualquer aparelho.
 //
-// Adicionar usa "merge" (uma linha por atalho: dois aparelhos nao se
-// atropelam); remover usa "set" com o mapa filtrado -- e raro e um só edita.
+// Adicionar usa "merge" e remover usa "removerId" -- os dois mexem em UMA
+// linha por vez. Remover via get+set do mapa inteiro reabria a corrida:
+// duas lixeiras clicadas rapido ressuscitavam o atalho da primeira.
 
 import { comCracha } from "../lib/sessao.js";
 import { API } from "../lib/api.js";
@@ -26,8 +27,5 @@ export const lerAtalhos = () =>
 export const salvarAtalho = (id, { nome, url }) =>
   chamar("merge", { chave: "marketing", patch: { [id]: { nome, url } } });
 
-export async function removerAtalho(id) {
-  const mapa = await lerAtalhos();
-  delete mapa[id];
-  return chamar("set", { chave: "marketing", valor: mapa });
-}
+export const removerAtalho = (id) =>
+  chamar("removerId", { chave: "marketing", id });

@@ -166,8 +166,25 @@ export default function Licitacoes() {
               })()),
         });
         if (file) {
-          const base64 = await arquivoParaBase64(file);
-          await guardarArquivo(item.id, base64, file.type, file.name);
+          try {
+            const base64 = await arquivoParaBase64(file);
+            await guardarArquivo(item.id, base64, file.type, file.name);
+          } catch (e) {
+            if (!form.id) {
+              // Cadastro novo cujo edital nao subiu: desfaz para nao deixar um
+              // item anunciando um anexo que nao existe.
+              await removerAtivo(item.id).catch(() => {});
+              throw new Error(`O edital nao subiu (${e.message}). O cadastro foi desfeito - tente de novo.`);
+            }
+            // Edicao: mantem o item, mas volta o anexo ao que era antes.
+            const atual = (itens || []).find((x) => x.id === form.id);
+            await salvarAtivo({
+              ...item,
+              arquivoNome: atual?.arquivoNome || "",
+              temArquivo: !!atual?.temArquivo,
+            }).catch(() => {});
+            throw new Error(`O edital novo nao subiu (${e.message}). O anexo anterior foi mantido.`);
+          }
         }
         setItens((l) => {
           const outros = (l || []).filter((x) => x.id !== item.id);

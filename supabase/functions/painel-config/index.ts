@@ -190,6 +190,21 @@ Deno.serve(async (req: Request) => {
         return resposta({ erro: "chave nao gravavel" }, 403);
       }
 
+      // Remocao por id: apaga UMA linha do overlay. Existe porque remover via
+      // get+set do mapa inteiro reabre a corrida que o merge-por-linha fechou
+      // (dois removedores simultaneos ressuscitavam o que o outro apagou).
+      case "removerId": {
+        const chave = String(corpo.chave ?? "");
+        const id = String(corpo.id ?? "");
+        if (!sessao) return resposta({ erro: "Entre no sistema.", semSessao: true }, 401);
+        if (!OVERLAYS.has(chave)) return resposta({ erro: "chave nao gravavel" }, 403);
+        if (!id) return resposta({ erro: "informe o id" }, 400);
+        const { error } = await sb.from("painel_registros").delete()
+          .eq("colecao", chave).eq("id", id);
+        if (error) throw new Error(error.message);
+        return resposta({ ok: true });
+      }
+
       default:
         return resposta({ erro: "acao desconhecida" }, 400);
     }
