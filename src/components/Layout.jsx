@@ -30,14 +30,22 @@ import {
   FileCheck2,
   LayoutGrid,
   Globe,
+  UserCircle,
+  HardHat,
+  Building2,
+  ChevronDown,
 } from "lucide-react";
 import logoColor from "../assets/brand/logo-color.png";
 import logoWhite from "../assets/brand/logo-white.png";
 import { useApp } from "../config/store.jsx";
 import { podeAbrir, sair } from "../lib/sessao.js";
 
-const NAV = [
-  { to: "/", rotulo: "Inicio", icone: Home, exato: true },
+// Inicio fica solto no topo; o resto vive dentro do grupo "Gestao", que abre e
+// fecha. Assim a lateral cabe numa tela de celular sem rolagem e os atalhos
+// para os outros sistemas ficam sempre visiveis.
+const INICIO = { to: "/", rotulo: "Inicio", icone: Home, exato: true };
+
+const GESTAO = [
   { to: "/contas-atrasadas", rotulo: "Contas Atrasadas", icone: AlertTriangle, modulo: "contas-atrasadas" },
   { to: "/fluxo-caixa", rotulo: "Fluxo de Caixa", icone: Wallet, modulo: "fluxo-caixa" },
   { to: "/produtos", rotulo: "Produtos", icone: Package, modulo: "produtos" },
@@ -57,6 +65,18 @@ const SISTEMAS = [
   { rotulo: "Brief de Medicao", icone: Ruler, href: "https://impresilk.com.br/brief" },
   { rotulo: "Capa dos sistemas", icone: LayoutGrid, href: "https://leogpereira-afk.github.io/" },
   { rotulo: "Site Impresilk", icone: Globe, href: "https://www.impresilk.com.br" },
+  // Painel pessoal do dono: so aparece para a direcao, nao e sistema da empresa.
+  { rotulo: "Central do Leo", icone: UserCircle, href: "https://leogpereira-afk.github.io/vida-leo/", soDirecao: true },
+];
+
+// Outra empresa do dono. Ficam num bloco separado no pe da lateral para nao se
+// misturarem com os sistemas da Impresilk -- e so a direcao enxerga.
+//
+// A Domo mudou de casa em 31/07: o endereco no Netlify hoje e so um aviso de
+// mudanca. O Diamond continua no Netlify.
+const DOMO = [
+  { rotulo: "Domo Construtora", icone: HardHat, href: "https://leogpereira-afk.github.io/domo/" },
+  { rotulo: "Diamond Vendas", icone: Building2, href: "https://diamond-vendas.netlify.app" },
 ];
 
 function useTema() {
@@ -105,7 +125,48 @@ function frescor(iso) {
   };
 }
 
+const CLASSE_ITEM =
+  "flex items-center gap-2.5 rounded-lg px-3 py-2 font-display text-sm font-medium transition-all";
+const CLASSE_TITULO =
+  "mb-1.5 mt-6 px-3 font-display text-xs font-semibold uppercase tracking-wide text-slate-400";
+
+// Link que sai do painel (abre em outra aba, com a setinha).
+function LinkExterno({ rotulo, icone: Icone, href }) {
+  return (
+    <a
+      href={href}
+      target="_blank"
+      rel="noopener noreferrer"
+      className={`group ${CLASSE_ITEM} text-slate-600 hover:bg-slate-100 hover:text-slate-900`}
+    >
+      <Icone size={17} strokeWidth={2.2} className="shrink-0" />
+      <span className="min-w-0 flex-1 truncate">{rotulo}</span>
+      <ArrowUpRight
+        size={14}
+        className="shrink-0 text-slate-300 transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5 group-hover:text-brand"
+      />
+    </a>
+  );
+}
+
 function ConteudoLateral({ aoNavegar, sessao }) {
+  const location = useLocation();
+  const itensGestao = GESTAO.filter((n) => !n.modulo || podeAbrir(n.modulo, sessao));
+  const dentroDaGestao = itensGestao.some((n) => location.pathname.startsWith(n.to));
+
+  // Lembra se o grupo fica aberto, por aparelho. Estando numa pagina de dentro,
+  // abre de qualquer jeito: esconder a pagina em que a pessoa esta seria mentir
+  // sobre onde ela esta.
+  const [gestaoAberta, setGestaoAberta] = useState(
+    () => localStorage.getItem("painel_gestao_aberta") === "sim"
+  );
+  useEffect(() => {
+    localStorage.setItem("painel_gestao_aberta", gestaoAberta ? "sim" : "nao");
+  }, [gestaoAberta]);
+  const mostrarGestao = gestaoAberta || dentroDaGestao;
+
+  const sistemas = SISTEMAS.filter((s) => !s.soDirecao || sessao?.master);
+
   return (
     <>
       <Link to="/" onClick={aoNavegar} className="flex items-center gap-2.5 px-3 py-1">
@@ -117,49 +178,93 @@ function ConteudoLateral({ aoNavegar, sessao }) {
       </p>
 
       <nav className="space-y-0.5">
-        {NAV.filter((n) => !n.modulo || podeAbrir(n.modulo, sessao)).map((n) => (
-          <NavLink
-            key={n.to}
-            to={n.to}
-            end={n.exato}
-            onClick={aoNavegar}
-            className={({ isActive }) =>
-              [
-                "flex items-center gap-2.5 rounded-lg px-3 py-2 font-display text-sm font-medium transition-all",
-                isActive
-                  ? "bg-brand/10 text-brand"
-                  : "text-slate-600 hover:bg-slate-100 hover:text-slate-900",
-              ].join(" ")
-            }
-          >
-            <n.icone size={17} strokeWidth={2.2} className="shrink-0" />
-            <span className="min-w-0 flex-1 truncate">{n.rotulo}</span>
-          </NavLink>
-        ))}
+        <NavLink
+          to={INICIO.to}
+          end
+          onClick={aoNavegar}
+          className={({ isActive }) =>
+            [
+              CLASSE_ITEM,
+              isActive ? "bg-brand/10 text-brand" : "text-slate-600 hover:bg-slate-100 hover:text-slate-900",
+            ].join(" ")
+          }
+        >
+          <INICIO.icone size={17} strokeWidth={2.2} className="shrink-0" />
+          <span className="min-w-0 flex-1 truncate">{INICIO.rotulo}</span>
+        </NavLink>
+
+        {itensGestao.length > 0 && (
+          <>
+            <button
+              type="button"
+              onClick={() => setGestaoAberta((v) => !v)}
+              aria-expanded={mostrarGestao}
+              aria-controls="grupo-gestao"
+              className={`w-full ${CLASSE_ITEM} text-slate-600 hover:bg-slate-100 hover:text-slate-900`}
+            >
+              <BarChart3 size={17} strokeWidth={2.2} className="shrink-0" />
+              <span className="min-w-0 flex-1 truncate text-left">Gestao</span>
+              <ChevronDown
+                size={15}
+                className={`shrink-0 text-slate-400 transition-transform ${mostrarGestao ? "rotate-180" : ""}`}
+              />
+            </button>
+
+            {mostrarGestao && (
+              <div id="grupo-gestao" className="space-y-0.5 pl-3">
+                {itensGestao.map((n) => (
+                  <NavLink
+                    key={n.to}
+                    to={n.to}
+                    onClick={aoNavegar}
+                    className={({ isActive }) =>
+                      [
+                        CLASSE_ITEM,
+                        isActive
+                          ? "bg-brand/10 text-brand"
+                          : "text-slate-600 hover:bg-slate-100 hover:text-slate-900",
+                      ].join(" ")
+                    }
+                  >
+                    <n.icone size={17} strokeWidth={2.2} className="shrink-0" />
+                    <span className="min-w-0 flex-1 truncate">{n.rotulo}</span>
+                  </NavLink>
+                ))}
+              </div>
+            )}
+          </>
+        )}
       </nav>
 
       {/* Outros sistemas: logo abaixo da navegacao, sempre a um clique. */}
-      <p className="mb-1.5 mt-6 px-3 font-display text-xs font-semibold uppercase tracking-wide text-slate-400">
-        Sistemas
-      </p>
+      <p className={CLASSE_TITULO}>Sistemas</p>
       <nav className="space-y-0.5">
-        {SISTEMAS.map((s) => (
-          <a
-            key={s.rotulo}
-            href={s.href}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="group flex items-center gap-2.5 rounded-lg px-3 py-2 font-display text-sm font-medium text-slate-600 transition-all hover:bg-slate-100 hover:text-slate-900"
-          >
-            <s.icone size={17} strokeWidth={2.2} className="shrink-0" />
-            <span className="min-w-0 flex-1 truncate">{s.rotulo}</span>
-            <ArrowUpRight
-              size={14}
-              className="shrink-0 text-slate-300 transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5 group-hover:text-brand"
-            />
-          </a>
+        {sistemas.map((s) => (
+          <LinkExterno key={s.rotulo} {...s} />
         ))}
+
+        <button
+          type="button"
+          onClick={sair}
+          className={`mt-1 w-full border-t pt-2.5 ${CLASSE_ITEM} text-slate-500 hover:bg-bad-50 hover:text-bad-700`}
+          style={{ borderColor: "var(--hairline)", borderRadius: 0 }}
+        >
+          <LogOut size={17} strokeWidth={2.2} className="shrink-0" />
+          <span className="min-w-0 flex-1 truncate text-left">Sair do painel</span>
+        </button>
       </nav>
+
+      {/* Domo: outra empresa do dono, so para a direcao. */}
+      {sessao?.master && (
+        <>
+          <p className={CLASSE_TITULO}>Domo</p>
+          <nav className="space-y-0.5">
+            {DOMO.map((s) => (
+              <LinkExterno key={s.rotulo} {...s} />
+            ))}
+          </nav>
+        </>
+      )}
 
       {/* Rodape: ajuste (nao rotina) e a identidade de quem esta logado. */}
       <div className="mt-auto space-y-0.5 pt-6">
@@ -213,14 +318,6 @@ function ConteudoLateral({ aoNavegar, sessao }) {
                 {sessao.master ? "Direcao" : "Acesso limitado"}
               </span>
             </span>
-            <button
-              onClick={sair}
-              className="grid h-8 w-8 shrink-0 place-items-center rounded-lg text-slate-400 transition-colors hover:bg-slate-100 hover:text-bad-700"
-              title="Sair do painel"
-              aria-label="Sair do painel"
-            >
-              <LogOut size={16} />
-            </button>
           </div>
         )}
       </div>
