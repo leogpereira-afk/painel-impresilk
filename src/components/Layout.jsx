@@ -28,6 +28,8 @@ import {
   RefreshCw,
   KeyRound,
   FileCheck2,
+  LayoutGrid,
+  Globe,
 } from "lucide-react";
 import logoColor from "../assets/brand/logo-color.png";
 import logoWhite from "../assets/brand/logo-white.png";
@@ -53,6 +55,8 @@ const SISTEMAS = [
   { rotulo: "RH", icone: Users, href: "https://impresilk.com.br/rh" },
   { rotulo: "PCP", icone: ClipboardList, href: "https://impresilk.com.br/pcp" },
   { rotulo: "Brief de Medicao", icone: Ruler, href: "https://impresilk.com.br/brief" },
+  { rotulo: "Capa dos sistemas", icone: LayoutGrid, href: "https://leogpereira-afk.github.io/" },
+  { rotulo: "Site Impresilk", icone: Globe, href: "https://www.impresilk.com.br" },
 ];
 
 function useTema() {
