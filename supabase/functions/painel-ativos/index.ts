@@ -28,9 +28,10 @@ const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const JWT_SECRET = Deno.env.get("PAINEL_JWT_SECRET") ?? "";
 const BUCKET = "painel-arquivos";
-// "marketing" nao tem vencimento: sao logomarcas e materiais de marca. Vive na
-// mesma colecao porque o mecanismo (item + arquivo) e identico.
-const TIPOS = new Set(["documento", "veiculo", "maquina", "marketing"]);
+// "marketing" (logomarcas) e "licitacao" (editais) nao tem a mecanica de
+// vencimento dos documentos, mas o esqueleto (item + arquivo anexo) e identico
+// -- por isso vivem na mesma colecao, cada um com a sua tela.
+const TIPOS = new Set(["documento", "veiculo", "maquina", "marketing", "licitacao"]);
 const MAX_ARQUIVO = 4 * 1024 * 1024; // 4 MB em base64 (~3 MB de arquivo)
 
 const sb = createClient(SUPABASE_URL, SERVICE_KEY, { auth: { persistSession: false } });
@@ -110,6 +111,13 @@ Deno.serve(async (req: Request) => {
           medidorProximo: Number(it.medidorProximo) || 0,
           unidadeMedidor: String(it.unidadeMedidor ?? "").trim(),
           observacao: String(it.observacao ?? "").trim(),
+          // Campos das licitacoes (vazios nos demais tipos): numero do edital,
+          // link do portal, hora da sessao, situacao e valor estimado.
+          edital: String(it.edital ?? "").trim(),
+          url: String(it.url ?? "").trim(),
+          hora: String(it.hora ?? "").trim(),
+          status: String(it.status ?? "").trim(),
+          valor: Number(it.valor) || 0,
           arquivoNome: String(it.arquivoNome ?? "").trim(),
           temArquivo: !!it.temArquivo,
           atualizadoEm: agora,

@@ -17,6 +17,7 @@ const MODULOS = [
   { id: "orcamentos", nome: "Orcamentos", sub: "funil e conversao do time" },
   { id: "bancos", nome: "Bancos e Pix", sub: "contas, CNPJs e chaves de todas as empresas" },
   { id: "marketing", nome: "Marketing", sub: "logomarcas, materiais e atalhos do Drive" },
+  { id: "licitacoes", nome: "Licitacoes", sub: "editais, prazos e sessoes" },
   { id: "configuracoes", nome: "Configuracoes", sub: "regras do painel e acessos" },
 ];
 

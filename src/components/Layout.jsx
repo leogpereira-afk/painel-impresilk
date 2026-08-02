@@ -36,6 +36,7 @@ import {
   ChevronDown,
   Landmark,
   Megaphone,
+  Gavel,
 } from "lucide-react";
 import logoColor from "../assets/brand/logo-color.png";
 import logoWhite from "../assets/brand/logo-white.png";
@@ -54,6 +55,7 @@ const GESTAO = [
   { to: "/orcamentos", rotulo: "Orcamentos", icone: FileText, modulo: "orcamentos" },
   { to: "/bancos", rotulo: "Bancos e Pix", icone: Landmark, modulo: "bancos" },
   { to: "/marketing", rotulo: "Marketing", icone: Megaphone, modulo: "marketing" },
+  { to: "/licitacoes", rotulo: "Licitacoes", icone: Gavel, modulo: "licitacoes" },
   { to: "/documentos", rotulo: "Documentos e ativos", icone: FileCheck2 },
 ];
 
