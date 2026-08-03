@@ -69,9 +69,7 @@ const SISTEMAS = [
   { rotulo: "DRE", icone: BarChart3, href: "https://impresilk.com.br/dre" },
   { rotulo: "RH", icone: Users, href: "https://impresilk.com.br/rh" },
   { rotulo: "PCP", icone: ClipboardList, href: "https://impresilk.com.br/pcp" },
-  // Compras aponta direto para o Pages ate o atalho impresilk.com.br/compras
-  // existir no WordPress — quando existir, trocar aqui para o atalho.
-  { rotulo: "Compras", icone: ShoppingCart, href: "https://leogpereira-afk.github.io/impresilk-compras/" },
+  { rotulo: "Compras", icone: ShoppingCart, href: "https://impresilk.com.br/compras" },
   { rotulo: "Brief de Medicao", icone: Ruler, href: "https://impresilk.com.br/brief" },
   { rotulo: "Capa dos sistemas", icone: LayoutGrid, href: "https://leogpereira-afk.github.io/" },
   { rotulo: "Site Impresilk", icone: Globe, href: "https://www.impresilk.com.br" },
