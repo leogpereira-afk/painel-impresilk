@@ -407,9 +407,13 @@ export default function Layout({ children, sessao }) {
 
   return (
     <div className="min-h-screen lg:flex">
-      {/* Lateral fixa no desktop */}
+      {/* Lateral fixa no desktop.
+          overflow-y-auto e obrigatorio junto com h-screen: sem ele, o que passa
+          do fim da tela fica inalcançavel (foi o que aconteceu quando a lateral
+          cresceu com as abas novas). overscroll-contain evita que a rolagem,
+          ao chegar no fim da lateral, continue na pagina de tras. */}
       <aside
-        className="sem-impressao hidden w-60 shrink-0 flex-col border-r bg-white px-3 py-4 lg:sticky lg:top-0 lg:flex lg:h-screen"
+        className="sem-impressao hidden w-60 shrink-0 flex-col border-r bg-white px-3 py-4 lg:sticky lg:top-0 lg:flex lg:h-screen lg:overflow-y-auto lg:overscroll-contain"
         style={{ borderColor: "var(--hairline)" }}
       >
         <ConteudoLateral sessao={sessao} />
