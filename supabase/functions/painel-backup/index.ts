@@ -114,11 +114,17 @@ function sistemasExternos(): any[] {
     }
   };
   const base = ler("SISTEMAS_BACKUP");
-  const extra = ler("SISTEMAS_BACKUP_EXTRA");
-  // Chave repetida: o EXTRA manda (é o mais novo, e é como se corrige um
-  // endereço errado sem mexer no registry grande).
+  // Generalização (03/08/2026, entrada do Pops): TODO secret cujo nome começa
+  // com SISTEMAS_BACKUP_ soma ao registry — cada sistema novo ganha o seu
+  // (SISTEMAS_BACKUP_EXTRA, SISTEMAS_BACKUP_POPS, ...) sem reescrever nem
+  // arriscar o token de ninguém. Ordem alfabética para o "quem manda" ser
+  // determinístico; chave repetida: o último (mais específico) vence.
+  const extras = Object.keys(Deno.env.toObject())
+    .filter((n) => n.startsWith("SISTEMAS_BACKUP_"))
+    .sort()
+    .flatMap((n) => ler(n));
   const porChave = new Map<string, any>();
-  for (const s of [...base, ...extra]) if (s && s.key) porChave.set(s.key, s);
+  for (const s of [...base, ...extras]) if (s && s.key) porChave.set(s.key, s);
   return [...porChave.values()];
 }
 
