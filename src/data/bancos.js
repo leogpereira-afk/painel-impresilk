@@ -1,9 +1,13 @@
-// Contas bancarias, CNPJs e chaves Pix -- para consulta e copia no dia a dia.
+// SEMENTE das contas bancarias. Isto aqui nao e mais a fonte da verdade: na
+// primeira abertura da aba Bancos e Pix a lista e plantada no servidor
+// (painel-config, chave "bancos") e de la em diante vale o que estiver la --
+// o painel passou a permitir cadastrar e editar contas pela tela.
 //
-// GEMEO: esta lista existe tambem no DRE (~/Projetos/impresilk-dre/app.js,
-// const BANCOS). Mudou uma conta? Atualizar NOS DOIS. Os dados sao fixos de
-// proposito: mudam poucas vezes por ano e a pagina precisa abrir na hora,
-// inclusive sem rede.
+// Mexer aqui so muda alguma coisa se o servidor estiver vazio.
+//
+// O DRE (~/Projetos/impresilk-dre/app.js, const BANCOS) ainda tem a copia FIXA
+// desta lista. Editou uma conta pelo painel? Ela NAO muda no DRE sozinha --
+// atualize la se quiser as duas telas iguais.
 
 export const BANCOS = [
   // Impresilk e Universo
