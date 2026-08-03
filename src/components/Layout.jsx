@@ -138,7 +138,46 @@ function frescor(iso) {
 const CLASSE_ITEM =
   "flex items-center gap-2.5 rounded-lg px-3 py-2 font-display text-sm font-medium transition-all";
 const CLASSE_TITULO =
-  "mb-1.5 mt-6 px-3 font-display text-xs font-semibold uppercase tracking-wide text-slate-400";
+  "mb-1.5 mt-6 flex w-full items-center gap-1.5 px-3 font-display text-xs font-semibold uppercase tracking-wide text-slate-400 transition-colors hover:text-slate-600";
+
+// Lembra, por aparelho, se um grupo da lateral fica aberto. Cada grupo tem a
+// sua chave: fechar Sistemas nao mexe em Domo.
+function useGrupo(id, padraoAberto) {
+  const chave = `painel_grupo_${id}`;
+  const [aberto, setAberto] = useState(() => {
+    try {
+      const s = localStorage.getItem(chave);
+      return s === null ? padraoAberto : s === "sim";
+    } catch {
+      return padraoAberto;
+    }
+  });
+  useEffect(() => {
+    try {
+      localStorage.setItem(chave, aberto ? "sim" : "nao");
+    } catch {}
+  }, [chave, aberto]);
+  return [aberto, () => setAberto((v) => !v)];
+}
+
+// Cabecalho de secao que abre e fecha (SISTEMAS, DOMO).
+function TituloRecolhivel({ id, titulo, aberto, alternar }) {
+  return (
+    <button
+      type="button"
+      onClick={alternar}
+      aria-expanded={aberto}
+      aria-controls={`grupo-${id}`}
+      className={CLASSE_TITULO}
+    >
+      <span className="min-w-0 flex-1 truncate text-left">{titulo}</span>
+      <ChevronDown
+        size={13}
+        className={`shrink-0 transition-transform ${aberto ? "" : "-rotate-90"}`}
+      />
+    </button>
+  );
+}
 
 // Link que sai do painel (abre em outra aba, com a setinha).
 function LinkExterno({ rotulo, icone: Icone, href }) {
@@ -164,15 +203,15 @@ function ConteudoLateral({ aoNavegar, sessao }) {
   const itensGestao = GESTAO.filter((n) => !n.modulo || podeAbrir(n.modulo, sessao));
   const dentroDaGestao = itensGestao.some((n) => location.pathname.startsWith(n.to));
 
-  // Lembra se o grupo fica aberto, por aparelho. Estando numa pagina de dentro,
-  // abre de qualquer jeito: esconder a pagina em que a pessoa esta seria mentir
-  // sobre onde ela esta.
-  const [gestaoAberta, setGestaoAberta] = useState(
-    () => localStorage.getItem("painel_gestao_aberta") === "sim"
-  );
-  useEffect(() => {
-    localStorage.setItem("painel_gestao_aberta", gestaoAberta ? "sim" : "nao");
-  }, [gestaoAberta]);
+  // Os tres grupos abrem e fecham, cada um lembrando a sua escolha. Gestao
+  // comeca fechada; Sistemas e Domo comecam abertos para nada sumir da tela de
+  // quem ja usava -- quem quiser a lateral enxuta fecha uma vez e fica assim.
+  //
+  // Estando numa pagina de dentro, Gestao abre de qualquer jeito: esconder a
+  // pagina em que a pessoa esta seria mentir sobre onde ela esta.
+  const [gestaoAberta, alternarGestao] = useGrupo("gestao", false);
+  const [sistemasAberto, alternarSistemas] = useGrupo("sistemas", true);
+  const [domoAberto, alternarDomo] = useGrupo("domo", true);
   const mostrarGestao = gestaoAberta || dentroDaGestao;
 
   const sistemas = SISTEMAS.filter((s) => !s.soDirecao || sessao?.master);
@@ -207,7 +246,7 @@ function ConteudoLateral({ aoNavegar, sessao }) {
           <>
             <button
               type="button"
-              onClick={() => setGestaoAberta((v) => !v)}
+              onClick={alternarGestao}
               aria-expanded={mostrarGestao}
               aria-controls="grupo-gestao"
               className={`w-full ${CLASSE_ITEM} text-slate-600 hover:bg-slate-100 hover:text-slate-900`}
@@ -247,32 +286,42 @@ function ConteudoLateral({ aoNavegar, sessao }) {
       </nav>
 
       {/* Outros sistemas: logo abaixo da navegacao, sempre a um clique. */}
-      <p className={CLASSE_TITULO}>Sistemas</p>
-      <nav className="space-y-0.5">
-        {sistemas.map((s) => (
-          <LinkExterno key={s.rotulo} {...s} />
-        ))}
+      <TituloRecolhivel
+        id="sistemas"
+        titulo="Sistemas"
+        aberto={sistemasAberto}
+        alternar={alternarSistemas}
+      />
+      {sistemasAberto && (
+        <nav id="grupo-sistemas" className="space-y-0.5">
+          {sistemas.map((s) => (
+            <LinkExterno key={s.rotulo} {...s} />
+          ))}
+        </nav>
+      )}
 
-        <button
-          type="button"
-          onClick={sair}
-          className={`mt-1 w-full border-t pt-2.5 ${CLASSE_ITEM} text-slate-500 hover:bg-bad-50 hover:text-bad-700`}
-          style={{ borderColor: "var(--hairline)", borderRadius: 0 }}
-        >
-          <LogOut size={17} strokeWidth={2.2} className="shrink-0" />
-          <span className="min-w-0 flex-1 truncate text-left">Sair do painel</span>
-        </button>
-      </nav>
+      {/* Sair fica FORA do grupo: com Sistemas fechado, ninguem acha a saida. */}
+      <button
+        type="button"
+        onClick={sair}
+        className={`mt-2 w-full border-t pt-2.5 ${CLASSE_ITEM} text-slate-500 hover:bg-bad-50 hover:text-bad-700`}
+        style={{ borderColor: "var(--hairline)", borderRadius: 0 }}
+      >
+        <LogOut size={17} strokeWidth={2.2} className="shrink-0" />
+        <span className="min-w-0 flex-1 truncate text-left">Sair do painel</span>
+      </button>
 
       {/* Domo: outra empresa do dono, so para a direcao. */}
       {sessao?.master && (
         <>
-          <p className={CLASSE_TITULO}>Domo</p>
-          <nav className="space-y-0.5">
-            {DOMO.map((s) => (
-              <LinkExterno key={s.rotulo} {...s} />
-            ))}
-          </nav>
+          <TituloRecolhivel id="domo" titulo="Domo" aberto={domoAberto} alternar={alternarDomo} />
+          {domoAberto && (
+            <nav id="grupo-domo" className="space-y-0.5">
+              {DOMO.map((s) => (
+                <LinkExterno key={s.rotulo} {...s} />
+              ))}
+            </nav>
+          )}
         </>
       )}
 
