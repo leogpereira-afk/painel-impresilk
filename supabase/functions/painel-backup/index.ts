@@ -96,11 +96,30 @@ async function montarBackupPainel() {
 // ---------------------------------------------------------------- sistemas externos
 
 function sistemasExternos(): any[] {
-  try {
-    return JSON.parse(Deno.env.get("SISTEMAS_BACKUP") ?? "[]");
-  } catch {
-    return [];
-  }
+  // Duas fontes, somadas. SISTEMAS_BACKUP é o registry histórico (um JSON com
+  // TODOS os sistemas e seus tokens); SISTEMAS_BACKUP_EXTRA existe para
+  // ACRESCENTAR um sistema novo sem reescrever aquele blob.
+  //
+  // Por que isso importa: a Management API devolve o valor dos secrets
+  // MASCARADO. Para incluir o Compras (03/08/2026) seria preciso reescrever o
+  // registry inteiro de memória — e um token digitado errado derrubaria em
+  // silêncio o backup de outro sistema. Somar é aditivo e reversível: apagar o
+  // EXTRA volta ao estado anterior sem tocar no que já funciona.
+  const ler = (nome: string): any[] => {
+    try {
+      const v = JSON.parse(Deno.env.get(nome) ?? "[]");
+      return Array.isArray(v) ? v : [];
+    } catch {
+      return [];
+    }
+  };
+  const base = ler("SISTEMAS_BACKUP");
+  const extra = ler("SISTEMAS_BACKUP_EXTRA");
+  // Chave repetida: o EXTRA manda (é o mais novo, e é como se corrige um
+  // endereço errado sem mexer no registry grande).
+  const porChave = new Map<string, any>();
+  for (const s of [...base, ...extra]) if (s && s.key) porChave.set(s.key, s);
+  return [...porChave.values()];
 }
 
 async function chamarSistema(sys: any, body: unknown) {
