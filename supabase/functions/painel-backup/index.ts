@@ -278,6 +278,20 @@ Deno.serve(async (req: Request) => {
     return resposta({ ok: true, status: await lerStatus() });
   }
 
+  // sistemas: diagnostico read-only -- QUAIS sistemas este backup enxerga hoje.
+  // Existe porque a Management API devolve os secrets MASCARADOS: sem isto, a
+  // unica forma de saber se um sistema novo entrou no registry era esperar a
+  // rodada da noite e ver se a pasta apareceu. Nao devolve token nenhum.
+  if (corpo.action === "sistemas") {
+    if (!TOKEN || req.headers.get("x-token") !== TOKEN) return resposta({ erro: "nao autorizado" }, 401);
+    const vistos = sistemasExternos().map((s: any) => ({
+      key: s.key, nome: s.nome ?? null, listKey: s.listKey ?? null,
+      url: s.fn ? `${s.url}/.netlify/functions/${s.fn}` : s.url,
+      temToken: !!s.token,
+    }));
+    return resposta({ ok: true, quantos: vistos.length, sistemas: vistos });
+  }
+
   // auto: disparo interno (pg_cron) com o token do servidor, gateado por 20h.
   if (corpo.action === "auto") {
     if (!TOKEN || req.headers.get("x-token") !== TOKEN) return resposta({ erro: "nao autorizado" }, 401);
