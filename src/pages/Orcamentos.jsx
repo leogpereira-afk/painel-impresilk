@@ -276,6 +276,17 @@ function AcoesDoDia({ vm, vendedores, motivos, meuVendedor, onAgendar, onPerder 
     [vm.acoes, fila, vend]
   );
 
+  /* O vinculo aponta para alguem que nao existe na base de vendedores?
+     `vendedores` e a lista da tela (vm.porVendedor). Ela ja vem cortada pelo
+     periodo escolhido e por `vendedoresOcultos`, entao um vendedor legitimo
+     pode faltar ali por dois motivos inocentes -- por isso o aviso so sai
+     quando a lista tem gente E o nome do vinculo nao esta em nenhuma delas.
+     Falso positivo aqui custa caro: acusaria a direcao de erro que nao houve. */
+  const vinculoOrfao =
+    !!meuVendedor &&
+    (vendedores || []).length > 0 &&
+    !vendedores.some((v) => v.vendedorId === meuVendedor);
+
   const margemNaFila = lista.reduce((s, g) => s + g.margem, 0);
   const contaFila = (id) =>
     (vm.acoes || []).filter((g) => (id === "todas" || g.fila === id) && (!vend || g.vendedorId === vend))
@@ -288,8 +299,14 @@ function AcoesDoDia({ vm, vendedores, motivos, meuVendedor, onAgendar, onPerder 
         sub="Quem chamar hoje, do maior dinheiro em jogo para o menor. Agendar um retorno tira o cliente da fila ate a data marcada."
       />
 
-      {/* Chips: vendedor (quem tem conta ligada nao troca) e fila */}
-      {!meuVendedor && (vendedores || []).length > 0 && (
+      {/* Chips de vendedor: o vinculo PRE-SELECIONA, nao esconde a troca.
+          Antes os chips so apareciam para quem NAO tinha vinculo -- quem tinha
+          ficava preso naquele nome, sem nenhum caminho de volta para "Todos".
+          E se o vinculo estivesse com um nome errado, a fila vinha vazia e a
+          tela nao dava nem o que clicar. Esconder isto nunca foi sigilo: a
+          mesma pagina ja mostra a lista mestra e o quadro "Por vendedor" do
+          time inteiro para quem tem a permissao de Orcamentos. Era foco. */}
+      {(vendedores || []).length > 0 && (
         <div className="mb-2 flex flex-wrap items-center gap-1.5">
           <span className="mr-1 text-xs text-slate-500">Vendedor</span>
           <button className={vend === "" ? "chip-sel" : "chip-btn"} onClick={() => setVend("")}>
@@ -305,6 +322,21 @@ function AcoesDoDia({ vm, vendedores, motivos, meuVendedor, onAgendar, onPerder 
             </button>
           ))}
         </div>
+      )}
+
+      {/* Vinculo que nao casa com NENHUM vendedor da base: a conta esta ligada a
+          um nome que nao existe (erro de digitacao antigo). Sem este aviso a
+          pessoa via so uma fila vazia e concluia que nao tinha nada a fazer.
+
+          O teste e contra a BASE de vendedores, nunca contra a fila do dia --
+          quem de fato zerou a fila tem zero itens em `vm.acoes` e levaria a
+          mesma acusacao, trocando uma frase mentirosa por outra. */}
+      {vinculoOrfao && (
+        <p className="mb-2 rounded-lg bg-warn-50 px-3 py-2 text-xs text-warn-800">
+          A sua conta esta ligada ao vendedor <b>{meuVendedor}</b>, que nao aparece nos orcamentos.
+          Provavelmente o nome esta escrito diferente do Mubisys — peca para a direcao corrigir em
+          Acessos. Enquanto isso, clique em <b>Todos</b> para ver a fila do time.
+        </p>
       )}
 
       <div className="mb-3 flex flex-wrap items-center gap-1.5">

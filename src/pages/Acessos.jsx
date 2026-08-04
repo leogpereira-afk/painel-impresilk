@@ -2,7 +2,7 @@
 // cada um ve. As acoes do servidor ja existiam em netlify/functions/auth.mjs;
 // esta e a tela que faltava para usa-las.
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { KeyRound, UserPlus, Trash2, ShieldCheck, AlertTriangle, Check, Download, Upload } from "lucide-react";
 import { chamarAuth, getSessao } from "../lib/sessao.js";
 import { baixarBackup, restaurarBackup, lerArquivoBackup, statusBackup, backupHubAgora } from "../services/backup.js";
@@ -93,7 +93,7 @@ export default function Acessos() {
   }
 
   // --- contas (so a direcao)
-  const { config } = useApp();
+  const { config, dados } = useApp();
   const [contas, setContas] = useState(null);
   const [form, setForm] = useState(VAZIO);
   const [msgConta, setMsgConta] = useState(null);
@@ -165,6 +165,74 @@ export default function Acessos() {
       permissoes: c.permissoes || [],
       vendedorId: c.vendedorId || "",
     });
+
+  /* Opcoes de vendedor: UNIAO de tres fontes, nesta ordem de confianca.
+
+     1. config.vendedores — a lista curada. E a fonte principal de proposito:
+        os dados crus tem lixo (nas 519 O.S. reais aparecem "Barbara
+        Vasconcelos" com 219 e "Barbara" com 1, de um lancamento manual);
+        montar o seletor so pelos dados poria duas Barbaras aqui, e escolher a
+        errada deixaria 219 O.S. de fora.
+     2. Os nomes vistos nos DADOS carregados — pega quem foi "ocultado" em
+        Orcamentos (retirarVendedor joga o nome em vendedoresOcultos e ele
+        sumia daqui, deixando o vinculo impossivel de fazer).
+     3. O valor JA GRAVADO nesta conta, mesmo que nao case com nada. Um <select>
+        cujo value nao existe entre as opcoes renderiza em branco, e o proximo
+        "Salvar acesso" gravaria "" -- apagando em silencio justamente o vinculo
+        torto que se quer enxergar. Ele entra marcado.
+
+     Nao usar SO os dados: `dados` e null enquanto carrega e vem vazio quando a
+     fonte falha (e a carga esta em 401 desde 03/08). O seletor nasceria so com
+     "sem vinculo" e a direcao ficaria sem como ligar ninguem. */
+  const opcoesVendedor = useMemo(() => {
+    const nomes = new Map();
+    for (const v of config?.vendedores || []) {
+      if (v?.id) nomes.set(v.id, { nome: v.id, desconhecido: false });
+    }
+    for (const o of dados?.ordens || []) {
+      if (o?.vendedor && !nomes.has(o.vendedor)) nomes.set(o.vendedor, { nome: o.vendedor, desconhecido: false });
+    }
+    const atual = String(form.vendedorId || "").trim();
+    if (atual && !nomes.has(atual)) nomes.set(atual, { nome: atual, desconhecido: true });
+    return [...nomes.values()].sort((a, b) => a.nome.localeCompare(b.nome));
+  }, [config, dados, form.vendedorId]);
+
+  const vendedorDesconhecido = opcoesVendedor.some((v) => v.desconhecido && v.nome === form.vendedorId);
+
+  /* Achar a conta pelo que foi DIGITADO, com a mesma regua do servidor
+     (minusculas, sem espaco nas pontas). Sem isso, escrever "Karen" mostrava
+     "Novo acesso" e mesmo assim sobrescrevia a conta "karen". */
+  const contaDigitada = useMemo(() => {
+    const alvo = normalizarUsuario(form.usuario);
+    if (!alvo) return null;
+    return (contas || []).find((c) => normalizarUsuario(c.usuario) === alvo) || null;
+  }, [contas, form.usuario]);
+
+  /* DIGITAR o usuario de uma conta que ja existe carrega os valores dela.
+     Antes, o caminho natural para "trocar a senha da Karen" -- digitar "karen"
+     no campo Usuario -- mandava o formulario VAZIO por cima: permissoes e
+     vinculo de vendedora zerados, sem nenhum aviso, porque salvarConta envia o
+     form inteiro e o servidor grava tudo. Clicar na linha da tabela funcionava;
+     digitar apagava.
+
+     `carregado` guarda o usuario ja carregado para nao reescrever o form a cada
+     tecla -- senao a pessoa nao conseguiria alterar nada do que acabou de vir. */
+  const carregado = useRef(null);
+  useEffect(() => {
+    const alvo = normalizarUsuario(form.usuario);
+    if (!alvo || !contaDigitada) {
+      if (!alvo) carregado.current = null;
+      return;
+    }
+    if (carregado.current === alvo) return;
+    carregado.current = alvo;
+    setForm((f) => ({
+      ...f,
+      nome: f.nome || contaDigitada.nome || "",
+      permissoes: contaDigitada.permissoes || [],
+      vendedorId: contaDigitada.vendedorId || "",
+    }));
+  }, [contaDigitada, form.usuario]);
 
   return (
     <div className="space-y-8">
@@ -356,23 +424,37 @@ export default function Acessos() {
                 <label className="label" htmlFor="c-vend">
                   Vendedor no Mubisys (opcional)
                 </label>
-                <input
+                {/* LISTA, nao texto livre. O campo era um input com datalist:
+                    a lista so sugeria. Como toda a comparacao a jusante e
+                    igualdade exata de string, escrever "Jessica Sampaio" com
+                    acento gravava numa boa e a pessoa entrava com a carteira
+                    vazia, sem nenhum aviso, para sempre. */}
+                <select
                   id="c-vend"
                   className="input"
-                  list="lista-vendedores"
                   value={form.vendedorId}
                   onChange={(e) => setForm((f) => ({ ...f, vendedorId: e.target.value }))}
-                  placeholder="ex.: Jessica Sampaio"
-                />
-                <datalist id="lista-vendedores">
-                  {(config?.vendedores || []).map((v) => (
-                    <option key={v.id} value={v.id} />
+                >
+                  <option value="">— sem vinculo (ve o time todo) —</option>
+                  {opcoesVendedor.map((v) => (
+                    <option key={v.nome} value={v.nome}>
+                      {v.nome}
+                      {v.desconhecido ? " (nao confere com o Mubisys)" : ""}
+                    </option>
                   ))}
-                </datalist>
+                </select>
                 <p className="mt-1 text-xs text-slate-500">
-                  Ligando a conta a um vendedor, ele entra no painel e ja ve so as acoes dele. Em
-                  branco, a pessoa ve o time inteiro. O nome tem que ser igual ao do Mubisys.
+                  Ligando a conta a um vendedor, ele entra no painel e a fila de acoes de Orcamentos
+                  ja abre na carteira dele. Em branco, a pessoa ve o time inteiro. Passa a valer no
+                  proximo login dela.
                 </p>
+                {vendedorDesconhecido && (
+                  <p className="mt-1 text-xs text-warn-700">
+                    O vinculo gravado ({form.vendedorId}) nao aparece entre os vendedores conhecidos.
+                    Provavelmente e erro de digitacao antigo — a carteira dessa pessoa vai vir vazia
+                    ate ser trocado por um nome da lista.
+                  </p>
+                )}
               </div>
 
               {msgConta && <Aviso tom={msgConta.tom}>{msgConta.texto}</Aviso>}

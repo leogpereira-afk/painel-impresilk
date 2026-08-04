@@ -244,7 +244,21 @@ Deno.serve(async (req: Request) => {
         const reg = senha
           ? await hashSenha(senha)
           : { hash: atual!.hash, salt: atual!.salt, iter: atual!.iter };
-        // Campo ausente no corpo = mantem o que ja estava; string vazia = desliga.
+        /* Campo ausente no corpo = mantem o que ja estava; string vazia = desliga.
+
+           CONTRATO COM A TELA: `salvarConta` e um UPSERT do registro INTEIRO --
+           quem chama tem de mandar `permissoes` e `vendedorId` com os valores
+           ATUAIS da conta, nao com o formulario em branco. Em 04/08/2026 isso
+           mordeu: digitar "karen" no campo Usuario (caminho natural para trocar
+           a senha dela) mandava o form vazio e zerava permissoes e vinculo sem
+           avisar. O conserto ficou na TELA, que agora carrega os valores da
+           conta assim que o usuario digitado casa com uma existente.
+
+           NAO transformamos "string vazia" em "manter" aqui de proposito: seria
+           tirar da direcao a unica forma de REMOVER uma permissao ou desligar um
+           vinculo -- trocar um footgun por uma trava. Se um dia outro cliente
+           chamar esta API, ele tem de respeitar o mesmo contrato, ou mandar o
+           campo ausente. */
         const vendedorId = body.vendedorId === undefined
           ? atual?.vendedor_id || ""
           : String(body.vendedorId || "").trim();
