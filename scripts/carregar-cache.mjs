@@ -171,10 +171,21 @@ async function main() {
 
   // DSO: sem recebiveis novos, mantem o anterior em vez de calcular sobre lista
   // vazia (que daria 0 e mentiria na curva).
-  const dso = rapidos.recebiveis ? calcDso(rapidos.recebiveis) : (anterior?.dso ?? 0);
-  const hist = (await ler("dso_hist")) ?? [];
-  const dia = new Date().toISOString().slice(0, 10);
-  await gravar("dso_hist", [...hist.filter((p) => p && p.dia !== dia), { dia, dso }].slice(-180));
+  /* Lista VAZIA nao serve de base para o DSO. `[]` e truthy, entao a condicao
+     antiga (`rapidos.recebiveis ?`) entrava no calcDso, que devolve 0 limpo
+     para lista vazia -- e esse 0 ia para a curva e para o status, virando o
+     "anterior" da rodada seguinte. Ou seja: a trava nova do servidor salvava os
+     recebiveis, mas o DSO era zerado do mesmo jeito por esta linha. */
+  const temBase = Array.isArray(rapidos.recebiveis) && rapidos.recebiveis.length > 0;
+  const dso = temBase ? calcDso(rapidos.recebiveis) : (anterior?.dso ?? 0);
+  if (!temBase) {
+    console.warn("   dso: sem base de recebiveis -- mantive o historico como estava");
+    recusados.push("dso-sem-base");
+  } else {
+    const hist = (await ler("dso_hist")) ?? [];
+    const dia = new Date().toISOString().slice(0, 10);
+    await gravar("dso_hist", [...hist.filter((p) => p && p.dia !== dia), { dia, dso }].slice(-180));
+  }
 
   const falhas = [...(rapidos.falhas ?? []), ...(pesados.falhas ?? []), ...recusados];
   await gravar("status", {

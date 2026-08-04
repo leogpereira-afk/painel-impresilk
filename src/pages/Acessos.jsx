@@ -221,16 +221,34 @@ export default function Acessos() {
   const carregado = useRef(null);
   useEffect(() => {
     const alvo = normalizarUsuario(form.usuario);
-    if (!alvo || !contaDigitada) {
-      if (!alvo) carregado.current = null;
+
+    /* O CASAMENTO SE DESFEZ: quem estava carregado saiu de cena (a direcao
+       apagou "karen" e digitou "camila"). Tem de LIMPAR, nao so parar de
+       carregar. Sem este ramo a conta nova nascia com as permissoes da
+       anterior -- e no caso da conta da direcao, que vem com ["*"] e nenhuma
+       caixa marcada na tela, com acesso total sem nada dizendo isso. Concessao
+       de permissao em silencio, na propria tela de controle de acesso. */
+    if (!contaDigitada) {
+      if (carregado.current !== null) {
+        carregado.current = null;
+        setForm((f) => ({ ...f, nome: "", permissoes: [], vendedorId: "" }));
+      }
       return;
     }
+
     if (carregado.current === alvo) return;
     carregado.current = alvo;
+    /* Substitui, nao mescla: trocar de uma conta existente para OUTRA tem de
+       trazer os dados da segunda inteiros. O `f.nome || ...` de antes grudava
+       o nome da primeira, e a segunda era salva com o nome errado. */
     setForm((f) => ({
       ...f,
-      nome: f.nome || contaDigitada.nome || "",
-      permissoes: contaDigitada.permissoes || [],
+      nome: contaDigitada.nome || "",
+      // A conta da direcao guarda ["*"] (curinga), que nao existe em MODULOS e
+      // por isso nao marca caixa nenhuma. Deixar entrar no form significaria
+      // reenviar acesso total sem a tela mostrar. Ela nem deveria ser editada
+      // por aqui -- o proprio cartao avisa "Esse e voce".
+      permissoes: (contaDigitada.permissoes || []).filter((p) => p !== "*"),
       vendedorId: contaDigitada.vendedorId || "",
     }));
   }, [contaDigitada, form.usuario]);
@@ -332,10 +350,15 @@ export default function Acessos() {
 
       {!ehDirecao ? null : (
         <>
-          {/* Cadastro de acesso */}
+          {/* Cadastro de acesso.
+              O titulo usa `contaDigitada`, a MESMA regua do servidor (caixa e
+              espaco normalizados). Com a comparacao crua de antes, digitar
+              "Karen" mostrava "Novo acesso" e mesmo assim gravava por cima da
+              conta "karen" -- o unico rotulo que diz se voce esta criando ou
+              editando mentia justamente no caminho que este conserto atende. */}
           <Card>
             <SectionTitle
-              titulo={form.usuario && contas?.some((c) => c.usuario === form.usuario) ? "Editar acesso" : "Novo acesso"}
+              titulo={contaDigitada ? "Editar acesso" : "Novo acesso"}
               sub="Marque o que a pessoa pode abrir. O que nao estiver marcado nao aparece no menu nem responde se ela digitar o endereco."
             />
             <form onSubmit={salvarConta} className="space-y-5">

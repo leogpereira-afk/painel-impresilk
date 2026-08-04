@@ -41,6 +41,9 @@ export function AppProvider({ children }) {
 
   const [dados, setDados] = useState(null);
   const [atualizadoEm, setAtualizadoEm] = useState(null);
+  // Funcao, nao objeto: guardada em estado para a troca de carga disparar novo
+  // render. `() => fn` porque useState trata funcao como inicializador.
+  const [frescorDe, setFrescorDe] = useState(() => () => null);
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState(null);
 
@@ -99,7 +102,12 @@ export function AppProvider({ children }) {
         catalogo: mubi.getProdutosCatalogo(ordens),
         dsoHist: mubi.getDsoHistorico(),
       });
+      /* `atualizadoEm` (o mais velho da carga) alimenta o chip GLOBAL do
+         cabecalho. `frescorDe` deixa cada tela perguntar pela fonte que ELA
+         usa: colapsar tudo num minimo unico faria Contas Atrasadas carimbar
+         "de ontem" porque `pagar` -- que ela nem le -- atrasou. */
       setAtualizadoEm(mubi.getUltimaAtualizacao());
+      setFrescorDe(() => mubi.getUltimaAtualizacao);
       // Semeia overrides na primeira carga (para o app ja nascer classificado).
       setOvRec((prev) => prev ?? mubi.getSeedOverridesRecebiveis());
       setOvOrc((prev) => prev ?? mubi.getSeedOverridesOrcamentos());
@@ -229,6 +237,7 @@ export function AppProvider({ children }) {
       setOverridesOrcamento,
       dados,
       atualizadoEm,
+      frescorDe,
       pronto: !!dados && !carregando,
       carregando,
       erro,
@@ -246,6 +255,7 @@ export function AppProvider({ children }) {
       setOverridesOrcamento,
       dados,
       atualizadoEm,
+      frescorDe,
       carregando,
       erro,
       recarregar,

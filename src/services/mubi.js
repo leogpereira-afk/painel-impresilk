@@ -32,16 +32,27 @@ const BASE = `${API}/painel-dados`;
    guardaria para sempre o carimbo mais velho ja visto, e o painel ficaria
    vermelho eternamente depois de um unico soluco. */
 let _atualizadoEm = null;
+let _porFonte = {};
 let _dsoHist = [];
 
 export function zerarFrescor() {
   _atualizadoEm = null;
+  _porFonte = {};
 }
 
-function registrarFrescor(iso) {
+/* Guarda o carimbo de CADA fonte, alem do minimo global.
+
+   O minimo sozinho nao serve para carimbar tela: `pagar` e a fonte mais fragil
+   que existe (depende de cinco consultas ao ERP), e se ela atrasar o minimo
+   global poria "dados de ontem" em cima de Contas Atrasadas, cujos recebiveis
+   podem ter vindo agora. Cada tela pergunta pela SUA fonte; o chip do cabecalho,
+   que e global, continua no minimo -- ali "o mais velho do que voce esta vendo"
+   e a leitura certa. */
+function registrarFrescor(fonte, iso) {
   if (!iso) return;
   const t = Date.parse(iso);
   if (Number.isNaN(t)) return;
+  if (fonte) _porFonte[fonte] = iso;
   if (!_atualizadoEm || t < Date.parse(_atualizadoEm)) _atualizadoEm = iso;
 }
 
@@ -63,15 +74,26 @@ async function chamarFunction(nome, params = {}, tentativa = 1) {
     throw new Error(body?.erro || `Function ${nome} respondeu ${resp.status}`);
   }
   if (body && typeof body === "object") {
-    registrarFrescor(body.atualizadoEm);
+    // A chave e o modulo + a parte: fluxo-caixa serve `pagar` e `bancos`, que
+    // sao fontes diferentes e podem envelhecer separado.
+    registrarFrescor(params.parte ? `${nome}:${params.parte}` : nome, body.atualizadoEm);
     if (Array.isArray(body.dsoHist)) _dsoHist = body.dsoHist;
   }
   return body;
 }
 
 // Horario do ultimo cache bem-sucedido (ISO) e historico real de DSO.
-export function getUltimaAtualizacao() {
-  return MODO_DEMO ? null : _atualizadoEm;
+/* Sem argumento: o carimbo mais velho da carga (para o chip global do
+   cabecalho). Com o nome da fonte: o carimbo DAQUELA fonte, para a tela nao
+   carimbar "de ontem" por causa de uma fonte que ela nem usa.
+
+   Cai no minimo global quando a fonte nao tem carimbo proprio -- e o que
+   acontece hoje, porque a Edge Function que manda carimbo por chave ainda nao
+   foi publicada. Antes e depois de publicar, a tela mostra algo verdadeiro. */
+export function getUltimaAtualizacao(fonte) {
+  if (MODO_DEMO) return null;
+  if (fonte && _porFonte[fonte]) return _porFonte[fonte];
+  return _atualizadoEm;
 }
 export function getDsoHistorico() {
   return MODO_DEMO ? [] : _dsoHist;

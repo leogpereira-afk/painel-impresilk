@@ -74,8 +74,12 @@ export default function ContasAtrasadas() {
     pronto,
     erro,
     recarregar,
-    atualizadoEm,
+    frescorDe,
   } = useApp();
+
+  // A fonte DESTA tela. Perguntar pelo minimo global carimbaria "de ontem" por
+  // causa de `pagar`, que esta tela nem le.
+  const atualizadoEm = frescorDe("contas-atrasadas");
 
   const [filtro, setFiltro] = useState("todos");
   const [diasMin, setDiasMin] = useState(30);

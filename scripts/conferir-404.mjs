@@ -31,7 +31,7 @@ globalThis.fetch = async () => {
   };
 };
 
-const { mubiGet } = await import("../netlify/functions/lib/mubi.js");
+const { mubiGet, mubiGetTudo } = await import("../netlify/functions/lib/mubi.js");
 
 const CASOS = [
   {
@@ -41,15 +41,34 @@ const CASOS = [
     chamadas: 2,
   },
   {
-    nome: "404 nas quatro tentativas: aí sim e vazio de verdade",
-    roteiro: [404, 404, 404, 404],
+    nome: "dois 404 concordando: aí sim e vazio de verdade",
+    roteiro: [404, 404],
     itens: 0,
+    chamadas: 2,
+  },
+  {
+    // UM 404 sozinho nao confirma nada. Se a rede cai antes de o servidor
+    // repetir o "nao encontrado", a resposta honesta e falhar -- falhando, o
+    // cache anterior e preservado; devolvendo vazio, ele e apagado. Entre errar
+    // para o lado de nao atualizar e errar para o lado de zerar, o primeiro.
+    nome: "UM 404 e depois a rede cai: explode (nao houve confirmacao)",
+    roteiro: [404, "erro-de-rede", "erro-de-rede", "erro-de-rede"],
+    excecao: true,
     chamadas: 4,
   },
   {
-    nome: "404 e depois a rede cai: vazio, sem derrubar o bloco inteiro",
-    roteiro: [404, "erro-de-rede", "erro-de-rede", "erro-de-rede"],
+    nome: "dois 404 e depois a rede cai: vazio (a confirmacao veio antes)",
+    roteiro: [404, 404],
     itens: 0,
+    chamadas: 2,
+  },
+  {
+    // O caso que passou batido na primeira versao: o 404 intermitente acontece
+    // quando o ERP esta degradado, que e quando tambem chovem 5xx. Aceitar
+    // vazio nessa mistura desligava a protecao justamente na hora que ela serve.
+    nome: "404 seguido de 5xx NAO vira vazio -- 5xx e o servidor dizendo que deu errado",
+    roteiro: [404, 500, 500, 500],
+    excecao: true,
     chamadas: 4,
   },
   {
@@ -61,6 +80,12 @@ const CASOS = [
   {
     nome: "erro de rede sem nenhum 404 continua explodindo (nao vira vazio)",
     roteiro: ["erro-de-rede"],
+    excecao: true,
+    chamadas: 4,
+  },
+  {
+    nome: "5xx sem nenhum 404 continua explodindo",
+    roteiro: [503],
     excecao: true,
     chamadas: 4,
   },
@@ -93,8 +118,50 @@ for (const caso of CASOS) {
   }
 }
 
+/* PAGINACAO — o buraco irmao. mubiGet devolver vazio para uma pagina do MEIO
+   fazia a pagina sumir dentro do Promise.all: a lista final vinha cheia, so que
+   menor, e nenhuma protecao pegava (a trava de lista vazia do servidor nao
+   dispara com lista cheia, e o status sai ok:true). Em producao seriam ~500
+   O.S. a menos, com "vendedor nao localizado" na tela e carimbo verde. */
+const paginado = (n, ultima) => ({
+  status: 201,
+  ok: true,
+  json: async () => ({
+    data: Array.from({ length: n }, (_, i) => ({ id: i })),
+    current_page: 1,
+    last_page: ultima,
+    per_page: 500,
+  }),
+});
+
+async function conferirPaginacao() {
+  // Pagina 1 cheia dizendo que ha 3 paginas; a pagina 3 responde 404 sempre.
+  let n = 0;
+  globalThis.fetch = async (url) => {
+    n++;
+    const page = Number(new URL(url).searchParams.get("page") || 1);
+    if (page === 3) return { status: 404, ok: false, json: async () => ({}) };
+    return paginado(500, 3);
+  };
+  try {
+    const r = await mubiGetTudo("ordem-servico", {}, 500);
+    console.error(`  FALHOU  pagina vazia no meio da paginacao trunca em silencio`);
+    console.error(`          devolveu ${r.length} itens sem excecao (esperado: excecao)`);
+    return 1;
+  } catch (e) {
+    const ok = e.truncou === true;
+    console.log(`${ok ? "  ok    " : "  FALHOU"}  pagina vazia no meio da paginacao EXPLODE em vez de truncar`);
+    if (!ok) console.error(`          erro sem marca truncou: ${e.message}`);
+    return ok ? 0 : 1;
+  } finally {
+    void n;
+  }
+}
+
+falhas += await conferirPaginacao();
+
 if (falhas) {
   console.error(`\n${falhas} caso(s) falharam: um 404 do ERP pode estar virando cache vazio.`);
   process.exit(1);
 }
-console.log(`\n${CASOS.length} casos ok -- 404 intermitente nao vira cache vazio.`);
+console.log(`\n${CASOS.length + 1} casos ok -- 404 intermitente nao vira cache vazio nem lista truncada.`);

@@ -20,17 +20,33 @@ Do `mubi-cache-background.mjs`, o que vale são as funções exportadas
 `handler` no fim do arquivo, que grava em Netlify Blobs, esse sim está morto —
 quem grava hoje é a Edge Function `painel-cache`.
 
-## MORTO — história, não código
+## MORTO, mas SUBSTITUÍDO
 
-`ativos.js`, `auth.mjs` (apagado), `backup.js`, `backup-email-background.js`,
-`config.js`, `contas-atrasadas.js`, `fluxo-caixa.js`, `orcamentos.js`,
-`produtos.js`, `mubi-cache-cron.js`, `mubi-cache-noturno.js`,
-`mubi-realizado-cron.js`, `mubi-realizado-background.mjs`.
+| Arquivo | Versão viva |
+|---|---|
+| `ativos.js` | `supabase/functions/painel-ativos` |
+| `auth.mjs` (já apagado) | `supabase/functions/painel-auth` |
+| `backup.js`, `backup-email-background.js` | `supabase/functions/painel-backup` |
+| `config.js` | `supabase/functions/painel-config` |
+| `contas-atrasadas.js`, `fluxo-caixa.js`, `orcamentos.js`, `produtos.js` | `supabase/functions/painel-dados?modulo=…` |
+| `mubi-cache-cron.js`, `mubi-cache-noturno.js` | workflow `.github/workflows/cache-mubisys.yml` |
+| `lib/guarda.js` | `supabase/functions/_shared` (só functions mortas o importam) |
 
-A versão viva de cada um está em `supabase/functions/painel-*`. **Não adicione
-regra nova neles**: ela não tem efeito, e a próxima pessoa perde tempo
-procurando por que a mudança "não pegou". Foi exatamente o que aconteceu com o
-tratamento de `vendedorId`, que existia nos dois lugares.
+**Não adicione regra nova neles**: ela não tem efeito, e a próxima pessoa perde
+tempo procurando por que a mudança "não pegou". Foi exatamente o que aconteceu
+com o tratamento de `vendedorId`, que existia nos dois lugares.
+
+## MORTO e SEM SUBSTITUTO — atenção
+
+`mubi-realizado-cron.js` e `mubi-realizado-background.mjs`.
+
+Estes **não migraram: simplesmente pararam**. Nada em `supabase/functions/` nem
+em `scripts/carregar-cache.mjs` calcula o realizado mês a mês, e a chave
+`fluxo_mensal` não é mais escrita por ninguém. O gráfico de realizado do Fluxo
+de Caixa está congelado no último valor gravado pelo stack Netlify.
+
+Isso é dívida em aberto, não faxina pendente. Quem for mexer no Fluxo precisa
+decidir: portar a carga do realizado, ou tirar o gráfico da tela.
 
 ## Por que não apagar tudo de uma vez
 

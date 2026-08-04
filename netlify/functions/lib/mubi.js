@@ -62,7 +62,9 @@ async function mubiGetSemFila(caminho, query) {
   // tentativas absorvem a piscada. Teto de 180s por pagina no total, para nao
   // acumular timeouts e estourar o limite de 15 min da background.
   let ultimoErro;
-  let viu404 = false;
+  let n404 = 0;
+  let ultimoFoi404 = false;
+  let ultimoFoiRede = false;
   const inicioChamada = Date.now();
   for (let tentativa = 1; tentativa <= 4; tentativa++) {
     const ctl = new AbortController();
@@ -97,31 +99,49 @@ async function mubiGetSemFila(caminho, query) {
       // que existiam 4 tentativas -- a correcao de 31/07 desligou justamente
       // essa protecao para o unico status que ela protegia. Um 404 na primeira
       // chamada da lista de O.S. do ano virava `ordens: []` gravado como
-      // SUCESSO, apagando o vinculo de vendedor da tela inteira. Agora 404 so
-      // vira "vazio" depois que as 4 tentativas concordarem.
+      // SUCESSO, apagando o vinculo de vendedor da tela inteira.
+      //
+      // A REGRA: vazio so quando DOIS 404 concordarem E o ultimo retorno tiver
+      // sido 404. "Um 404 em algum momento" nao basta -- o 404 intermitente
+      // acontece justamente quando o ERP esta degradado, que e quando tambem
+      // chovem 5xx e timeout. Aceitar vazio nessa mistura era desligar a
+      // protecao exatamente na hora em que ela serve.
       if (resp.status === 404) {
-        viu404 = true;
-        if (tentativa === 4 || Date.now() - inicioChamada > CAP_POR_PAGINA_MS) return { data: [] };
+        n404 += 1;
+        ultimoFoi404 = true;
+        // Estourou o teto de tempo com um 404 na mao: melhor o bloco falhar e
+        // o cache anterior ser preservado do que gravar zero.
+        if (Date.now() - inicioChamada > CAP_POR_PAGINA_MS) break;
+        if (n404 >= 2) return { data: [] };
         await new Promise((r) => setTimeout(r, ESPERA_MS * tentativa));
         continue;
       }
       if (!resp.ok) {
-        throw new Error(`Mubi ${caminho} respondeu ${resp.status}`);
+        // httpStatus marcado para o fallback saber distinguir "o servidor
+        // respondeu errado" de "a rede caiu".
+        throw Object.assign(new Error(`Mubi ${caminho} respondeu ${resp.status}`), {
+          httpStatus: resp.status,
+        });
       }
       return await resp.json();
     } catch (e) {
       clearTimeout(timer);
       if (e.fatal) throw e;
-      ultimoErro = e.name === "AbortError" ? new Error(`Mubi ${caminho}: timeout de ${TIMEOUT_MS / 1000}s`) : e;
+      ultimoFoi404 = false;
+      const foiTimeout = e.name === "AbortError";
+      ultimoErro = foiTimeout ? new Error(`Mubi ${caminho}: timeout de ${TIMEOUT_MS / 1000}s`) : e;
+      // Rede/timeout e uma coisa; 500/502/503 do ERP e outra. Um 5xx e resposta
+      // do servidor dizendo que deu errado -- nunca deve virar "nao ha nada".
+      ultimoFoiRede = foiTimeout || !e.httpStatus;
       if (Date.now() - inicioChamada > CAP_POR_PAGINA_MS) break; // nao insiste alem do cap por pagina
       if (tentativa < 4) await new Promise((r) => setTimeout(r, ESPERA_MS * tentativa));
     }
   }
-  // Esgotou por erro de rede/timeout DEPOIS de ja ter visto um 404: o recurso
-  // respondeu "nao encontrado" pelo menos uma vez, entao vazio e a leitura mais
-  // fiel do que temos -- e nao derruba o bloco inteiro por causa de uma piscada.
-  if (viu404) return { data: [] };
-  throw ultimoErro;
+  // Vazio so no caso que o comentario promete: dois 404 concordando, e o ultimo
+  // que se ouviu do servidor foi 404 (ou a rede caiu depois disso). 5xx e teto
+  // de tempo continuam explodindo, para o cache anterior ser preservado.
+  if (n404 >= 2 && (ultimoFoi404 || ultimoFoiRede)) return { data: [] };
+  throw ultimoErro || new Error(`Mubi ${caminho}: sem resposta utilizavel`);
 }
 
 // Extrai o array de itens de uma resposta (aceita array puro ou paginacao
@@ -197,6 +217,16 @@ export async function mubiGetTudo(caminho, query = {}, perPage = 500) {
     for (let page = 2; page <= GUARDA; page++) {
       const bruto = await mubiGet(caminho, { ...query, page, per_page: perPage });
       const arr = itens(bruto);
+      /* Aqui e pior que no ramo paginado: `ultimaPagina` devolve true para
+         pagina vazia, entao um 404 na pagina 2 encerrava o laco e devolvia SO a
+         pagina 1 -- sem erro nenhum. A pagina anterior veio CHEIA (senao o laco
+         ja teria parado), entao vazia agora e falha, nao fim de lista. */
+      if (!arr.length) {
+        throw Object.assign(
+          new Error(`Mubi ${caminho}: pagina ${page} voltou vazia depois de uma pagina cheia`),
+          { truncou: true },
+        );
+      }
       tudo.push(...arr);
       if (ultimaPagina(bruto, arr.length, perPage)) return tudo;
     }
@@ -218,7 +248,25 @@ export async function mubiGetTudo(caminho, query = {}, perPage = 500) {
   for (let p = 2; p <= pag.ultima; p++) restantes.push(p);
   const res = await Promise.all(
     restantes.map((page) =>
-      mubiGet(caminho, { ...query, page, per_page: perPage }).then((b) => itens(b))
+      mubiGet(caminho, { ...query, page, per_page: perPage }).then((b) => {
+        const arr = itens(b);
+        /* PAGINA DO MEIO VAZIA E FALHA, NAO FIM DE LISTA. O servidor acabou de
+           dizer que ha `pag.ultima` paginas: uma delas voltar sem item nenhum
+           so acontece se algo deu errado (o 404 que pisca, tipicamente). Sem
+           esta trava a pagina sumia dentro do Promise.all, a lista final vinha
+           CHEIA -- so que menor -- e nenhuma das protecoes pegava: a trava de
+           lista vazia do servidor nao dispara, e o status sai ok:true. Na
+           pratica: ~500 O.S. a menos, os titulos delas mostrando "vendedor nao
+           localizado" e o faturamento sumindo de Produtos, com carimbo verde.
+           Explodir preserva o cache anterior, que e o mal menor. */
+        if (!arr.length) {
+          throw Object.assign(
+            new Error(`Mubi ${caminho}: pagina ${page} de ${pag.ultima} voltou vazia`),
+            { truncou: true },
+          );
+        }
+        return arr;
+      })
     )
   );
   // Ordem preservada: Promise.all devolve na ordem de entrada, nao de conclusao.

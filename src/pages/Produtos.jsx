@@ -98,7 +98,8 @@ function TooltipMini({ active, payload, label, porFaturamento }) {
 }
 
 export default function Produtos() {
-  const { config, dados, pronto, erro, recarregar, atualizadoEm } = useApp();
+  const { config, dados, pronto, erro, recarregar, frescorDe } = useApp();
+  const atualizadoEm = frescorDe("produtos"); // O.S. sao a fonte desta tela
 
   const [dimensao, setDimensao] = useState("produto"); // produto | familia
   const [metrica, setMetrica] = useState("faturamento");

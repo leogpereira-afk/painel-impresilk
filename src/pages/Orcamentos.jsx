@@ -276,16 +276,22 @@ function AcoesDoDia({ vm, vendedores, motivos, meuVendedor, onAgendar, onPerder 
     [vm.acoes, fila, vend]
   );
 
-  /* O vinculo aponta para alguem que nao existe na base de vendedores?
-     `vendedores` e a lista da tela (vm.porVendedor). Ela ja vem cortada pelo
-     periodo escolhido e por `vendedoresOcultos`, entao um vendedor legitimo
-     pode faltar ali por dois motivos inocentes -- por isso o aviso so sai
-     quando a lista tem gente E o nome do vinculo nao esta em nenhuma delas.
-     Falso positivo aqui custa caro: acusaria a direcao de erro que nao houve. */
+  /* O vinculo aponta para alguem que nao existe?
+
+     NAO da para responder isso com `vendedores` (vm.porVendedor): ela vem
+     cortada pelo periodo escolhido E por config.vendedoresOcultos -- e
+     "Retirar vendedor" faz as duas coisas de uma vez. Uma vendedora legitima
+     que a direcao tenha retirado da lista some dali com a fila CHEIA, e o aviso
+     acusaria erro que nao existe.
+
+     A pergunta certa e mais simples e nao depende de nenhuma dessas listas: a
+     fila dela tem item? Se tem, o vinculo casa e nao ha o que avisar. Se nao
+     tem NENHUM item em `vm.acoes` inteiro (que nao e filtrado por ocultos nem
+     pelo chip), aí sim o nome nao bate com nada. */
   const vinculoOrfao =
     !!meuVendedor &&
-    (vendedores || []).length > 0 &&
-    !vendedores.some((v) => v.vendedorId === meuVendedor);
+    (vm.acoes || []).length > 0 &&
+    !(vm.acoes || []).some((g) => g.vendedorId === meuVendedor);
 
   const margemNaFila = lista.reduce((s, g) => s + g.margem, 0);
   const contaFila = (id) =>
@@ -431,8 +437,10 @@ export default function Orcamentos() {
     pronto,
     erro,
     recarregar,
-    atualizadoEm,
+    frescorDe,
   } = useApp();
+
+  const atualizadoEm = frescorDe("orcamentos");
 
   // Vendedor vinculado a conta de quem entrou: a fila de acoes ja abre nele.
   // Vazio para a direcao (ve o time todo) e para contas sem vinculo.

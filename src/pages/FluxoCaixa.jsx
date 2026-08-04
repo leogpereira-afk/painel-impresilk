@@ -71,7 +71,9 @@ const itemCasa = (item, q) =>
   !!q && norm(`${item.fornecedor || ""} ${item.descricao} ${item.categoria || ""}`).includes(q);
 
 export default function FluxoCaixa() {
-  const { config, dados, pronto, erro, recarregar, atualizadoEm } = useApp();
+  const { config, dados, pronto, erro, recarregar, frescorDe } = useApp();
+  // `pagar` e a fonte desta tela (o realizado mensal tem carimbo proprio).
+  const atualizadoEm = frescorDe("fluxo-caixa");
   const [modoEstresse, setModoEstresse] = useState(false);
   const [busca, setBusca] = useState("");
   const [filtroKpi, setFiltroKpi] = useState(null); // null | "abaixo" | "menor"
