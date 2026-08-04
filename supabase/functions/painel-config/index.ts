@@ -63,6 +63,19 @@ async function lerConfig(): Promise<any> {
   return data?.config ?? null;
 }
 
+// Existe conta com esse usuario? Devolve o nome para carimbar no item.
+// A direcao pode nao ter linha em painel_contas (enquanto usa a senha inicial
+// do ambiente), mas recebe compromisso como qualquer pessoa.
+const MASTER_USUARIO = (Deno.env.get("PAINEL_AUTH_MASTER_USUARIO") || "leonardo").trim().toLowerCase();
+async function pessoaValida(usuario: string): Promise<{ usuario: string; nome: string } | null> {
+  const u = String(usuario || "").trim().toLowerCase();
+  if (!u) return null;
+  const { data } = await sb.from("painel_contas").select("usuario, nome").eq("usuario", u).maybeSingle();
+  if (data) return { usuario: data.usuario, nome: data.nome || data.usuario };
+  if (u === MASTER_USUARIO) return { usuario: u, nome: "Direcao" };
+  return null;
+}
+
 // Mapa {id: campos} remontado das linhas — o formato que o cliente espera.
 async function lerOverlay(colecao: string, soDoDono?: string | null): Promise<Record<string, unknown>> {
   const out: Record<string, unknown> = {};
@@ -241,10 +254,29 @@ Deno.serve(async (req: Request) => {
             const { data } = await sb.from("painel_registros").select("registro")
               .eq("colecao", chave).eq("id", id).maybeSingle();
             const fundido: any = { ...(data?.registro ?? {}), ...((campos as object) ?? {}) };
-            // O dono e carimbado pelo SERVIDOR: mandar dono no corpo nao adianta.
             if (POR_DONO.has(chave)) {
-              fundido.dono = (data?.registro as any)?.dono ?? String(sessao?.sub ?? "");
-              fundido.donoNome = fundido.donoNome || sessao?.nome || fundido.dono;
+              const donoAtual = (data?.registro as any)?.dono ?? null;
+              const eu = String(sessao?.sub ?? "");
+              const pedido = (campos as any)?.dono ? String((campos as any).dono) : null;
+
+              // ENCAMINHAR. Quem chegou ate aqui ja passou pelo barraDono, entao
+              // ou e a direcao, ou o item e dela -- so falta conferir que a
+              // pessoa de destino existe de verdade (nome digitado errado
+              // sumiria com o compromisso: ninguem mais o veria).
+              if (pedido && pedido !== donoAtual) {
+                const destino = await pessoaValida(pedido);
+                if (!destino) return resposta({ erro: "Essa pessoa nao tem acesso ao painel." }, 400);
+                fundido.dono = destino.usuario;
+                fundido.donoNome = destino.nome;
+                fundido.encaminhadoPor = sessao?.nome || eu;
+                fundido.encaminhadoEm = new Date().toISOString();
+              } else {
+                // Sem encaminhamento, o dono e carimbado pelo servidor e nao
+                // muda: mandar dono no corpo nao rouba item de ninguem.
+                fundido.dono = donoAtual ?? eu;
+                fundido.donoNome =
+                  (data?.registro as any)?.donoNome || sessao?.nome || fundido.dono;
+              }
             }
             const { error } = await sb.from("painel_registros").upsert(
               { colecao: chave, id, registro: fundido, atualizado_em: new Date().toISOString() },
@@ -252,8 +284,9 @@ Deno.serve(async (req: Request) => {
             if (error) throw new Error(error.message);
           }
           // Devolve o mapa inteiro, como o original fazia (o cliente atualiza o
-          // estado local com ele).
-          return resposta({ ok: true, valor: await lerOverlay(chave) });
+          // estado local com ele). Depois de encaminhar, o item some da lista de
+          // quem passou -- e por isso que o cliente adota esta resposta.
+          return resposta({ ok: true, valor: await lerOverlay(chave, donoDaVez(chave)) });
         }
         return resposta({ erro: "chave nao gravavel" }, 403);
       }

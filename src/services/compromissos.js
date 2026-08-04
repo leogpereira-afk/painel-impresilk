@@ -27,3 +27,23 @@ export const salvarCompromisso = (id, dados) =>
 
 export const removerCompromisso = (id) =>
   chamar("removerId", { chave: "compromissos", id });
+
+// Encaminhar: manda o compromisso para outra pessoa. O servidor confere se ela
+// existe e carimba quem passou; depois disso o item sai da lista de quem
+// encaminhou (por isso a tela recarrega com a resposta).
+export const encaminharCompromisso = (id, paraUsuario) =>
+  chamar("merge", { chave: "compromissos", patch: { [id]: { dono: paraUsuario } } }).then(
+    (r) => r.valor || {}
+  );
+
+// Quem trabalha aqui (usuario + nome), para montar o "encaminhar para".
+export async function lerPessoas() {
+  const resp = await comCracha(`${API}/painel-auth`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ action: "listarPessoas" }),
+  });
+  const body = await resp.json().catch(() => null);
+  if (!resp.ok) throw new Error(body?.erro || "Nao consegui carregar a equipe.");
+  return body?.pessoas || [];
+}

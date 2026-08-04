@@ -24,8 +24,15 @@ import {
   FileText,
   HandCoins,
   CircleDot,
+  Forward,
 } from "lucide-react";
-import { lerCompromissos, salvarCompromisso, removerCompromisso } from "../services/compromissos.js";
+import {
+  lerCompromissos,
+  salvarCompromisso,
+  removerCompromisso,
+  encaminharCompromisso,
+  lerPessoas,
+} from "../services/compromissos.js";
 import { getSessao } from "../lib/sessao.js";
 import { dataCurta, diasEntre, ymdLocal } from "../lib/format.js";
 import { Card, PageTitle, SectionTitle, StatCard, Empty, CarregandoModulo } from "../components/ui.jsx";
@@ -80,6 +87,8 @@ export default function Compromissos() {
   const [salvando, setSalvando] = useState(false);
   const [dePessoa, setDePessoa] = useState(null); // filtro da direcao
   const [verFeitos, setVerFeitos] = useState(false);
+  const [equipe, setEquipe] = useState([]);
+  const [encaminhando, setEncaminhando] = useState(null); // id da linha aberta
   const cartaoForm = useRef(null);
   const hojeISO = ymdLocal(new Date());
 
@@ -88,6 +97,11 @@ export default function Compromissos() {
     lerCompromissos()
       .then((m) => vivo && setMapa(m))
       .catch((e) => vivo && setErro(e.message));
+    // A equipe e so para o "encaminhar". Se falhar, a tela continua
+    // funcionando -- so o encaminhamento fica indisponivel.
+    lerPessoas()
+      .then((p) => vivo && setEquipe(p))
+      .catch(() => {});
     return () => {
       vivo = false;
     };
@@ -184,6 +198,22 @@ export default function Compromissos() {
     }
   };
 
+  const encaminhar = async (c, paraUsuario) => {
+    setEncaminhando(null);
+    if (!paraUsuario || paraUsuario === c.dono) return;
+    const nome = equipe.find((p) => p.usuario === paraUsuario)?.nome || paraUsuario;
+    setAviso(null);
+    try {
+      const mapaNovo = await encaminharCompromisso(c.id, paraUsuario);
+      // A resposta ja vem no escopo de quem pediu: se voce nao e a direcao, o
+      // item encaminhado simplesmente sai da sua lista.
+      setMapa(mapaNovo);
+      setAviso({ tom: "ok", texto: `"${c.titulo}" foi para ${nome}.` });
+    } catch (err) {
+      setAviso({ tom: "erro", texto: err.message });
+    }
+  };
+
   const remover = async (c) => {
     if (!window.confirm(`Apagar "${c.titulo}"?`)) return;
     setAviso(null);
@@ -247,7 +277,15 @@ export default function Compromissos() {
             {c.titulo}
           </span>
           <span className="block truncate text-xs text-slate-500">
-            {[c.t.rotulo, c.cliente, ehDirecao && !dePessoa ? c.donoNome : null, c.obs]
+            {[
+              c.t.rotulo,
+              c.cliente,
+              ehDirecao && !dePessoa ? c.donoNome : null,
+              c.encaminhadoPor && c.encaminhadoPor !== c.donoNome
+                ? `veio de ${c.encaminhadoPor}`
+                : null,
+              c.obs,
+            ]
               .filter(Boolean)
               .join(" · ")}
           </span>
@@ -261,6 +299,39 @@ export default function Compromissos() {
         </span>
 
         <span className="flex shrink-0 items-center gap-0.5">
+          {encaminhando === c.id ? (
+            // Seletor no lugar do botao: escolher ja encaminha. E o gesto mais
+            // curto para "isso aqui e da fulana".
+            <select
+              autoFocus
+              className="input h-8 w-40 py-0 text-xs"
+              defaultValue=""
+              onChange={(e) => encaminhar(c, e.target.value)}
+              onBlur={() => setEncaminhando(null)}
+            >
+              <option value="" disabled>
+                Passar para...
+              </option>
+              {equipe
+                .filter((p) => p.usuario !== c.dono)
+                .map((p) => (
+                  <option key={p.usuario} value={p.usuario}>
+                    {p.nome}
+                  </option>
+                ))}
+            </select>
+          ) : (
+            equipe.length > 1 && (
+              <button
+                type="button"
+                onClick={() => setEncaminhando(c.id)}
+                className="grid h-8 w-8 place-items-center rounded-lg text-slate-500 hover:bg-slate-100 hover:text-brand"
+                title="Encaminhar para outra pessoa"
+              >
+                <Forward size={14} />
+              </button>
+            )
+          )}
           <button
             type="button"
             onClick={() => abrirForm(c)}

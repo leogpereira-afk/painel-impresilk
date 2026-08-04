@@ -192,6 +192,24 @@ Deno.serve(async (req: Request) => {
         return json({ ok: true });
       }
 
+      // Quem trabalha aqui -- so nome e usuario, para montar o "encaminhar para"
+      // dos compromissos. Qualquer pessoa logada pode ver: para passar uma
+      // tarefa para a colega e preciso saber que ela existe. NAO devolve hash,
+      // permissao nem vendedor: isso continua sendo coisa da direcao.
+      case "listarPessoas": {
+        const s = await sessaoDoPedido(req, JWT_SECRET);
+        if (!s) return json({ erro: "Entre no sistema.", semSessao: true }, 401);
+        const { data, error } = await sb.from("painel_contas").select("usuario, nome").order("nome");
+        if (error) throw new Error(error.message);
+        const pessoas = (data ?? []).map((c: any) => ({ usuario: c.usuario, nome: c.nome || c.usuario }));
+        // A direcao pode nao ter linha em painel_contas (enquanto usa a senha
+        // inicial do ambiente), mas existe e recebe compromisso como todo mundo.
+        if (!pessoas.some((p) => p.usuario === MASTER_USUARIO)) {
+          pessoas.unshift({ usuario: MASTER_USUARIO, nome: "Direcao" });
+        }
+        return json({ pessoas });
+      }
+
       case "listarContas": {
         if (!(await exigirMaster())) return json({ erro: "Apenas a direcao." }, 403);
         const { data, error } = await sb.from("painel_contas").select("*").order("usuario");
