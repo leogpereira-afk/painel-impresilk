@@ -392,24 +392,10 @@ export const GLOSSARIO = [
   // ---- impressao (pesquisa de 04/08) -------------------------------------
   {
     categoria: "Impressao",
-    termo: "Serigrafia (silk-screen)",
-    texto:
-      "Impressao com tela vazada: para cada cor se prepara uma tela e a tinta e empurrada com um rodo. No dia a dia todo mundo chama de 'silk'. Compensa quando e MUITA peca igual, com poucas cores e sem foto -- camiseta de uniforme, brinde, placa em serie.",
-    dica: "O preco sobe por COR, nao so por peca: cada cor a mais e uma tela a mais para preparar. Por isso peca unica, arte com foto ou degrade nao e caso de silk -- a preparacao vira o maior custo. E o preco por peca so cai se o cliente FECHAR tudo de uma vez; pedir em lotes repetidos paga a preparacao de novo a cada lote. Em troca a tinta e encorpada, cobre fundo escuro e dura muito.",
-  },
-  {
-    categoria: "Impressao",
     termo: "Sublimacao",
     texto:
-      "A arte e impressa num papel e a prensa quente transforma a tinta em gas, que entra na fibra do tecido. Usada em bandeira, wind banner, tecido de backdrop, camiseta e almofada. A cor fica DENTRO do pano: nao tem relevo, nao descasca e nao endurece.",
-    dica: "So funciona bem em tecido de poliester (ou com boa parte de poliester na composicao) e de cor clara -- em algodao a cor sai lavada ou nem aparece, e em tecido escuro nao aparece de jeito nenhum. Se o cliente levar o proprio tecido, confirme a composicao ANTES de fechar; a peca dele pode voltar praticamente em branco.",
-  },
-  {
-    categoria: "Impressao",
-    termo: "DTF (transfer para tecido)",
-    texto:
-      "Sigla de Direct To Film: a arte e impressa num filme com uma camada de branco por baixo, recebe po de cola e a prensa quente aplica no tecido. Serve para pouca quantidade e para qualquer cor de tecido, inclusive algodao e escuro, onde a sublimacao nao vai.",
-    dica: "Como e uma camada POR CIMA do pano, tem leve relevo e nao respira como a sublimacao -- arte muito grande nas costas incomoda quem veste. Entregue junto a orientacao de lavagem (do avesso e sem passar ferro em cima da estampa) e peca para esperar cerca de um dia antes da primeira lavagem: quase toda reclamacao de estampa soltando vem dai.",
+      "Jeito de imprimir TECIDO: a arte vai para um papel e a prensa quente transforma a tinta em gas, que entra na fibra. E assim que se produz bandeira, wind banner, fundo de palco e a tela tensionada do stand -- a cor fica dentro do pano, entao nao racha nem descasca com a dobra.",
+    dica: "So rende em tecido de poliester. E o tecido fica levemente translucido: se a peca vai ser vista dos dois lados ou contra a luz, combine antes o forro ou mude para lona dupla face.",
   },
   {
     categoria: "Impressao",
@@ -452,7 +438,7 @@ export const GLOSSARIO = [
     categoria: "Acabamento",
     termo: "Meio corte (kiss cut)",
     texto:
-      "Corte que atravessa so o adesivo e para no papel de tras, entao a peca continua presa na folha e o cliente destaca uma a uma. E o que permite cartela de adesivos, etiqueta em bloco e brinde promocional. Quando a lamina corta tudo, inclusive o papel de tras, chama-se corte total.",
+      "Corte que atravessa so o adesivo e para no papel de tras, entao a peca continua presa na folha e o cliente destaca uma a uma. E o que permite cartela de adesivos, etiqueta em bloco e adesivo de vitrine em serie. Quando a lamina corta tudo, inclusive o papel de tras, chama-se corte total.",
     dica: "Lamina apertada demais marca o papel de tras e a cartela rasga sozinha no transporte; lamina fraca demais e o cliente nao consegue descolar. Em tiragem grande, aprove uma amostra fisica antes de mandar rodar tudo.",
   },
   {
