@@ -60,6 +60,10 @@ export function AppProvider({ children }) {
     if (!getSessao()) return; // sem cracha nao adianta tentar
     setCarregando(true);
     setErro(null);
+    // O carimbo de frescor e o MAIS VELHO das fontes desta carga. Sem zerar,
+    // ele guardaria para sempre o mais velho ja visto e o painel ficaria
+    // vermelho para sempre depois de um unico soluco.
+    mubi.zerarFrescor();
 
     const semPermissao = (e) => /nao tem acesso|403/i.test(e?.message || "");
     const buscar = async (fn) => {

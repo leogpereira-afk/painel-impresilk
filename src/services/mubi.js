@@ -15,9 +15,35 @@ import { API } from "../lib/api.js";
 // Os quatro modulos de leitura viraram UMA function (?modulo=).
 const BASE = `${API}/painel-dados`;
 
-// Frescor do cache e historico real de DSO, capturados das respostas.
+/* Frescor do cache e historico real de DSO, capturados das respostas.
+
+   `_atualizadoEm` guarda o carimbo MAIS VELHO entre as fontes desta carga, nao
+   o da ultima resposta a chegar. O motivo: o servidor grava um carimbo novo em
+   todo ciclo em que ALGUMA fonte veio, e a fonte que falhou fica com o dado
+   velho e o carimbo novo -- uma carga parcial aparecia como verde. Quando o
+   servidor passa a mandar o carimbo de cada chave, o minimo e a unica leitura
+   honesta: "o mais velho do que voce esta vendo".
+
+   Com o servidor ANTIGO (que manda o mesmo carimbo global em todas as
+   respostas) o minimo da exatamente esse carimbo -- entao isto funciona antes e
+   depois de a Edge Function ser publicada.
+
+   `zerarFrescor()` e chamado no comeco de cada recarga: sem isso o minimo
+   guardaria para sempre o carimbo mais velho ja visto, e o painel ficaria
+   vermelho eternamente depois de um unico soluco. */
 let _atualizadoEm = null;
 let _dsoHist = [];
+
+export function zerarFrescor() {
+  _atualizadoEm = null;
+}
+
+function registrarFrescor(iso) {
+  if (!iso) return;
+  const t = Date.parse(iso);
+  if (Number.isNaN(t)) return;
+  if (!_atualizadoEm || t < Date.parse(_atualizadoEm)) _atualizadoEm = iso;
+}
 
 async function chamarFunction(nome, params = {}, tentativa = 1) {
   const url = new URL(BASE);
@@ -37,7 +63,7 @@ async function chamarFunction(nome, params = {}, tentativa = 1) {
     throw new Error(body?.erro || `Function ${nome} respondeu ${resp.status}`);
   }
   if (body && typeof body === "object") {
-    if (body.atualizadoEm) _atualizadoEm = body.atualizadoEm;
+    registrarFrescor(body.atualizadoEm);
     if (Array.isArray(body.dsoHist)) _dsoHist = body.dsoHist;
   }
   return body;

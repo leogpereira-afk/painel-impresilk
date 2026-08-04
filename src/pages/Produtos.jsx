@@ -43,6 +43,7 @@ import {
   ErroModulo,
   BotaoPDF,
   CabecalhoImpressao,
+  AvisoDadoParado,
 } from "../components/ui.jsx";
 
 const MARCA = "#3840E8";
@@ -97,7 +98,7 @@ function TooltipMini({ active, payload, label, porFaturamento }) {
 }
 
 export default function Produtos() {
-  const { config, dados, pronto, erro, recarregar } = useApp();
+  const { config, dados, pronto, erro, recarregar, atualizadoEm } = useApp();
 
   const [dimensao, setDimensao] = useState("produto"); // produto | familia
   const [metrica, setMetrica] = useState("faturamento");
@@ -233,7 +234,10 @@ export default function Produtos() {
         }
       />
 
+      <AvisoDadoParado atualizadoEm={atualizadoEm} />
+
       <CabecalhoImpressao
+        atualizadoEm={atualizadoEm}
         titulo={`Impresilk - ${ehFamilia ? "Familias" : "Produtos"} por faturamento`}
         linhas={[
           `Emitido em ${dataLonga(ymdLocal(new Date()))}${

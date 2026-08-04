@@ -46,6 +46,7 @@ import {
   ErroModulo,
   BotaoPDF,
   CabecalhoImpressao,
+  AvisoDadoParado,
 } from "../components/ui.jsx";
 
 const MARCA = "#3840E8";
@@ -70,7 +71,7 @@ const itemCasa = (item, q) =>
   !!q && norm(`${item.fornecedor || ""} ${item.descricao} ${item.categoria || ""}`).includes(q);
 
 export default function FluxoCaixa() {
-  const { config, dados, pronto, erro, recarregar } = useApp();
+  const { config, dados, pronto, erro, recarregar, atualizadoEm } = useApp();
   const [modoEstresse, setModoEstresse] = useState(false);
   const [busca, setBusca] = useState("");
   const [filtroKpi, setFiltroKpi] = useState(null); // null | "abaixo" | "menor"
@@ -277,7 +278,10 @@ export default function FluxoCaixa() {
         acao={<BotaoPDF titulo="Gera um PDF do fluxo (realizado do ano + projecao)" />}
       />
 
+      <AvisoDadoParado atualizadoEm={atualizadoEm} />
+
       <CabecalhoImpressao
+        atualizadoEm={atualizadoEm}
         titulo="Impresilk - Fluxo de Caixa"
         linhas={[
           `Emitido em ${dataLonga(ymdLocal(new Date()))}`,

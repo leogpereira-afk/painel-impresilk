@@ -45,6 +45,7 @@ import logoColor from "../assets/brand/logo-color.png";
 import logoWhite from "../assets/brand/logo-white.png";
 import { useApp } from "../config/store.jsx";
 import { podeAbrir, sair } from "../lib/sessao.js";
+import { frescor } from "../lib/frescor.js";
 
 // Inicio fica solto no topo; o resto vive dentro do grupo "Gestao", que abre e
 // fecha. Assim a lateral cabe numa tela de celular sem rolagem e os atalhos
@@ -111,32 +112,9 @@ function useTema() {
 // Motivo: em 2026-07-22 o cache congelou por 8 horas e o chip continuou dizendo
 // so "dados de 14:24" -- que parece recente. O dono percebeu pela conta que nao
 // batia, nao pelo painel. Um numero velho tem que se anunciar velho.
-function frescor(iso) {
-  if (!iso) return null;
-  const dt = new Date(iso);
-  if (isNaN(dt.getTime())) return null;
-  const idadeMin = Math.round((Date.now() - dt.getTime()) / 60000);
-  const hhmm = dt.toLocaleTimeString("pt-BR", {
-    hour: "2-digit",
-    minute: "2-digit",
-    timeZone: "America/Sao_Paulo",
-  });
-  const dia = dt.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", timeZone: "America/Sao_Paulo" });
-
-  let texto;
-  if (idadeMin < 60) texto = `dados de ${hhmm}`;
-  else if (idadeMin < 60 * 20) texto = `dados de ${hhmm} (ha ${Math.floor(idadeMin / 60)}h)`;
-  else texto = `dados de ${dia} as ${hhmm}`;
-
-  return {
-    hhmm,
-    texto,
-    velho: idadeMin > 40,
-    // Acima de 3 horas nao e "atrasado", e parado: o cron roda a cada 20 min.
-    parado: idadeMin > 180,
-    idadeMin,
-  };
-}
+// A conta mudou de casa: src/lib/frescor.js. Ela ganhou mais dois consumidores
+// (o aviso no corpo das telas de dinheiro e o cabecalho de impressao) e o limiar
+// de "parado" nao pode ser reescrito em cada um.
 
 const CLASSE_ITEM =
   "flex items-center gap-2.5 rounded-lg px-3 py-2 font-display text-sm font-medium transition-all";

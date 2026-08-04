@@ -61,6 +61,23 @@ const lerCache = async (chave: string) => {
   return data?.valor ?? null;
 };
 
+/* O MESMO valor, mais a data em que ELE foi gravado.
+   Funcao separada de proposito: mudar a forma de retorno do `lerCache` quebraria
+   em silencio tres chamadas (talvezAquecer le status.em; o fluxo mensal le
+   mensal.em; e `dsoHist` iria embrulhado, sendo que o front faz
+   `Array.isArray(body.dsoHist)` e descartaria a curva inteira sem erro nenhum).
+
+   POR QUE ISTO IMPORTA: os cinco modulos devolviam o carimbo GLOBAL, lido da
+   chave `status`, que ganha data nova em todo ciclo em que ALGUMA fonte veio.
+   A fonte que falhou ficava com o dado velho e o carimbo novo -- carga parcial
+   aparecia como verde. A coluna certa sempre existiu (`painel_cache
+   .atualizado_em`, escrita em todo upsert) e era descartada no `select`. */
+const lerCacheComData = async (chave: string): Promise<{ valor: any; em: string | null }> => {
+  const { data } = await sb
+    .from("painel_cache").select("valor, atualizado_em").eq("chave", chave).maybeSingle();
+  return { valor: data?.valor ?? null, em: data?.atualizado_em ?? null };
+};
+
 // Dispara a recarga se o cache estiver velho. Fire-and-forget: a leitura NUNCA
 // espera por isto -- quem abriu o painel quer o dado que ja existe, mesmo velho.
 function talvezAquecer(status: any) {
@@ -97,12 +114,14 @@ Deno.serve(async (req: Request) => {
       case "contas-atrasadas": {
         const g = await exigirSessao(req, "contas-atrasadas");
         if (g.resposta) return g.resposta;
-        const [dados, status, dsoHist] = await Promise.all([
-          lerCache("recebiveis"), lerCache("status"), lerCache("dso_hist"),
+        const [rec, status, dsoHist] = await Promise.all([
+          lerCacheComData("recebiveis"), lerCache("status"), lerCache("dso_hist"),
         ]);
         talvezAquecer(status);
-        if (!dados) return json(PRECISA_AQUECER, 503);
-        return json({ itens: dados, atualizadoEm: status?.em ?? null, dsoHist: dsoHist ?? [] });
+        if (!rec.valor) return json(PRECISA_AQUECER, 503);
+        // Carimbo DESTA chave, com o global como reserva (linha nunca tocada
+        // desde antes da coluna existir).
+        return json({ itens: rec.valor, atualizadoEm: rec.em ?? status?.em ?? null, dsoHist: dsoHist ?? [] });
       }
 
       case "fluxo-caixa": {
@@ -122,30 +141,30 @@ Deno.serve(async (req: Request) => {
           });
         }
 
-        const [dados, status] = await Promise.all([
-          lerCache(parte === "bancos" ? "bancos" : "pagar"), lerCache("status"),
+        const [fonte, status] = await Promise.all([
+          lerCacheComData(parte === "bancos" ? "bancos" : "pagar"), lerCache("status"),
         ]);
         talvezAquecer(status);
-        if (!dados) return json(PRECISA_AQUECER, 503);
-        return json({ itens: dados, atualizadoEm: status?.em ?? null });
+        if (!fonte.valor) return json(PRECISA_AQUECER, 503);
+        return json({ itens: fonte.valor, atualizadoEm: fonte.em ?? status?.em ?? null });
       }
 
       case "produtos": {
         const g = await exigirSessao(req, "produtos");
         if (g.resposta) return g.resposta;
-        const [dados, status] = await Promise.all([lerCache("ordens"), lerCache("status")]);
+        const [os, status] = await Promise.all([lerCacheComData("ordens"), lerCache("status")]);
         talvezAquecer(status);
-        if (!dados) return json(PRECISA_AQUECER, 503);
-        return json({ itens: dados, atualizadoEm: status?.em ?? null });
+        if (!os.valor) return json(PRECISA_AQUECER, 503);
+        return json({ itens: os.valor, atualizadoEm: os.em ?? status?.em ?? null });
       }
 
       case "orcamentos": {
         const g = await exigirSessao(req, "orcamentos");
         if (g.resposta) return g.resposta;
-        const [dados, status] = await Promise.all([lerCache("orcamentos"), lerCache("status")]);
+        const [orc, status] = await Promise.all([lerCacheComData("orcamentos"), lerCache("status")]);
         talvezAquecer(status);
-        if (!dados) return json(PRECISA_AQUECER, 503);
-        return json({ itens: dados, atualizadoEm: status?.em ?? null });
+        if (!orc.valor) return json(PRECISA_AQUECER, 503);
+        return json({ itens: orc.valor, atualizadoEm: orc.em ?? status?.em ?? null });
       }
 
       default:

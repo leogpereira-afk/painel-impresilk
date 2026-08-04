@@ -1,9 +1,13 @@
 // Vocabulario visual do painel. Todos os modulos compoem a partir daqui, para o
 // layout ficar consistente. Marca indigo, Poppins nos numeros, Spectral no corpo.
 
-import { forwardRef } from "react";
+import { forwardRef, useEffect, useState } from "react";
 import { clsx } from "clsx";
-import { ArrowDownRight, ArrowUpRight, Download, Minus } from "lucide-react";
+import { AlertTriangle, ArrowDownRight, ArrowUpRight, Download, Minus } from "lucide-react";
+// Recebe `atualizadoEm` por prop em vez de chamar useApp() aqui: ui.jsx e o
+// vocabulario visual e nao deve depender do store (o Layout ja importa os dois,
+// e a dependencia cruzada so espera um descuido para virar ciclo).
+import { frescor, idadeEmPalavras } from "../lib/frescor.js";
 
 // Botao "Baixar PDF": dispara a impressora do navegador (Salvar como PDF). Some
 // no proprio papel (.sem-impressao). A tela decide, via CSS de impressao, o que
@@ -24,7 +28,14 @@ export function BotaoPDF({ titulo = "Gera um PDF com o recorte que esta na tela"
 // Cabecalho que SO existe no papel: sem ele o PDF chega ao destinatario sem
 // dizer de quando e nem o que esta olhando. `linhas` sao as sublinhas de
 // contexto (emissao, recorte, total).
-export function CabecalhoImpressao({ titulo, linhas = [] }) {
+//
+// `atualizadoEm` e a data do DADO, que nao e a data da impressao. Sem ela o
+// papel dizia "Emitido em 04/08/2026" em cima de numeros de 03/08 as 10:44 --
+// e o unico lugar que sabia a idade do cache era o chip do cabecalho, que tem
+// a classe `sem-impressao` e portanto nao vai para a folha. Um PDF de cobranca
+// que sai da empresa nao pode carimbar hoje num numero de anteontem.
+export function CabecalhoImpressao({ titulo, linhas = [], atualizadoEm }) {
+  const f = frescor(atualizadoEm);
   return (
     <div className="apenas-impressao mb-3">
       <h1 style={{ fontSize: "14pt", fontWeight: 700, margin: 0 }}>{titulo}</h1>
@@ -33,6 +44,59 @@ export function CabecalhoImpressao({ titulo, linhas = [] }) {
           {l}
         </p>
       ))}
+      {f && (
+        <p style={{ fontSize: "9pt", margin: "2px 0 0" }}>
+          Dados do ERP de {f.quando}.
+        </p>
+      )}
+      {/* O sentido vai nas PALAVRAS, nao na cor: impressao em cinza mata o
+          vermelho, e a folha continua tendo de avisar. */}
+      {f?.parado && (
+        <p style={{ fontSize: "9pt", margin: "2px 0 0", fontWeight: 700, color: "#b91c1c" }}>
+          ATENCAO: a carga automatica do ERP esta parada ({idadeEmPalavras(f.idadeMin)}). Estes
+          numeros podem estar desatualizados.
+        </p>
+      )}
+    </div>
+  );
+}
+
+/* AVISO DE DADO PARADO — no corpo da pagina, junto do dinheiro.
+   Em 03-04/08/2026 o cache ficou 30 horas parado. O chip do cabecalho DISSE a
+   verdade e passou despercebido: ele tem 12px e mora no canto oposto ao numero
+   grande. Este bloco entra ACIMA dos indicadores, na largura da pagina, e so
+   aparece no estado `parado` (>3h) -- o "atrasado" de uma rodada perdida
+   continua sendo assunto do chip, para isto nao virar ruido diario.
+
+   Relogio proprio: a idade so muda com o tempo passando, nao com os dados. Sem
+   o tick, o aviso congelaria no mount e NAO apareceria justamente no caso que
+   ele existe para pegar -- o cache travando com a aba ja aberta. (O Layout
+   carrega um tick igual, pelo mesmo motivo, com comentario proprio.)
+
+   Vai para o papel de proposito: sem `sem-impressao`, o PDF de cobranca sai com
+   o alerta junto. */
+export function AvisoDadoParado({ atualizadoEm }) {
+  const [, tick] = useState(0);
+  useEffect(() => {
+    const t = setInterval(() => tick((n) => n + 1), 60000);
+    return () => clearInterval(t);
+  }, []);
+
+  const f = frescor(atualizadoEm);
+  if (!f || !f.parado) return null;
+
+  return (
+    <div className="mb-4 flex items-start gap-3 rounded-xl border border-bad-200 border-l-4 border-l-bad-600 bg-bad-50 px-4 py-3">
+      <AlertTriangle size={18} className="mt-0.5 shrink-0 text-bad-600" />
+      <div className="text-sm text-bad-700">
+        <p className="font-medium">
+          Estes numeros sao de {f.quando} ({idadeEmPalavras(f.idadeMin)}) — nao sao de agora.
+        </p>
+        <p className="mt-0.5 text-bad-600">
+          A carga automatica do ERP esta parada. O botao Sincronizar so rele o mesmo cache: enquanto
+          isso nao voltar, nao decida por estes valores.
+        </p>
+      </div>
     </div>
   );
 }

@@ -45,6 +45,7 @@ import {
   ErroModulo,
   BotaoPDF,
   CabecalhoImpressao,
+  AvisoDadoParado,
 } from "../components/ui.jsx";
 
 // Cor de barra por grupo de causa.
@@ -73,6 +74,7 @@ export default function ContasAtrasadas() {
     pronto,
     erro,
     recarregar,
+    atualizadoEm,
   } = useApp();
 
   const [filtro, setFiltro] = useState("todos");
@@ -264,6 +266,8 @@ export default function ContasAtrasadas() {
         descricao="Quem esta devendo, por que, e o que fazer agora. Clique nos numeros para filtrar a lista."
       />
 
+      <AvisoDadoParado atualizadoEm={atualizadoEm} />
+
       {/* KPIs: clicaveis, filtram a lista de titulos abaixo */}
       {/* Os KPIs sao filtros clicaveis: no papel viram cartoes mortos e ainda
           saem pela metade (os que nao tem clique nao sao botoes). O cabecalho
@@ -326,6 +330,7 @@ export default function ContasAtrasadas() {
       {/* Titulos: logo abaixo do painel de numeros */}
       <Card ref={titulosRef}>
         <CabecalhoImpressao
+          atualizadoEm={atualizadoEm}
           titulo="Impresilk - Contas a receber em atraso"
           linhas={[
             `Emitido em ${dataLonga(ymdLocal(new Date()))} · ${numero(titulosFiltrados.length)} titulos · ${moeda(somaFiltrada)}`,

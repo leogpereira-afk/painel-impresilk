@@ -38,6 +38,7 @@ import {
   ErroModulo,
   BotaoPDF,
   CabecalhoImpressao,
+  AvisoDadoParado,
 } from "../components/ui.jsx";
 
 // ---------------------------------------------------------------- acoes do dia
@@ -398,6 +399,7 @@ export default function Orcamentos() {
     pronto,
     erro,
     recarregar,
+    atualizadoEm,
   } = useApp();
 
   // Vendedor vinculado a conta de quem entrou: a fila de acoes ja abre nele.
@@ -649,6 +651,8 @@ export default function Orcamentos() {
         acao={<BotaoPDF titulo="Gera um PDF da lista de orcamentos com o recorte atual" />}
       />
 
+      <AvisoDadoParado atualizadoEm={atualizadoEm} />
+
       {/* Recorte de tempo: manda na tela inteira, da fila aos motivos. */}
       <div className="sem-impressao -mt-4 flex flex-wrap items-center gap-2">
         <span className="text-sm text-slate-500">Periodo</span>
@@ -694,6 +698,7 @@ export default function Orcamentos() {
       </div>
 
       <CabecalhoImpressao
+        atualizadoEm={atualizadoEm}
         titulo="Impresilk - Orcamentos"
         linhas={[
           `Emitido em ${dataLonga(ymdLocal(new Date()))} · ${numero(filtrados.length)} orcamentos · ${moeda(
