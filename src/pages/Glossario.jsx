@@ -280,7 +280,11 @@ export default function Glossario() {
 
       {grupos.length === 0 && (
         <Empty>
-          {busca.trim() ? `Nada com "${busca}".` : "Nenhum termo cadastrado ainda."}
+          {busca.trim()
+            ? `Nada com "${busca}".`
+            : filtro
+              ? `Nenhum termo em ${filtro}.`
+              : "Nenhum termo cadastrado ainda."}
         </Empty>
       )}
 
@@ -299,19 +303,21 @@ export default function Glossario() {
                   <h4 className="min-w-0 flex-1 font-display text-sm font-semibold text-slate-900">
                     {t.termo}
                   </h4>
-                  <span className="flex shrink-0 gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
+                  <span className="flex shrink-0 gap-0.5">
                     <button
                       type="button"
                       onClick={() => abrirForm(t)}
-                      className="grid h-7 w-7 place-items-center rounded-lg text-slate-300 hover:bg-slate-100 hover:text-slate-700"
+                      className="grid h-7 w-7 place-items-center rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-700"
                       title={`Editar ${t.termo}`}
                     >
                       <Pencil size={13} />
                     </button>
                     <button
                       type="button"
-                      onClick={() => remover(t)}
-                      className="grid h-7 w-7 place-items-center rounded-lg text-slate-300 hover:bg-bad-50 hover:text-bad-700"
+                      onClick={() => {
+                        if (window.confirm(`Remover "${t.termo}" do glossario?`)) remover(t);
+                      }}
+                      className="grid h-7 w-7 place-items-center rounded-lg text-slate-500 hover:bg-bad-50 hover:text-bad-700"
                       title={`Remover ${t.termo}`}
                     >
                       <Trash2 size={13} />

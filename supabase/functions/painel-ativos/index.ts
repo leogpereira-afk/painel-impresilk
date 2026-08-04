@@ -17,8 +17,10 @@
 // simultaneos se apagarem (aconteceu no primeiro teste da funcao). Uma linha
 // por item no Postgres da a mesma garantia, agora pelo banco.
 //
-// Permissao: qualquer pessoa logada le e escreve -- sao dados operacionais da
-// casa (nao financeiros), fora da lista de modulos. Igual ao original.
+// Permissao: documento/veiculo/maquina sao abertos a qualquer pessoa logada
+// (dados operacionais da casa, como no original). Os tipos que chegaram
+// depois -- marketing e licitacao -- exigem o modulo da tela deles, inclusive
+// nas acoes por id, onde o tipo e lido do registro gravado.
 // ============================================================================
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
@@ -66,6 +68,36 @@ Deno.serve(async (req: Request) => {
   if (!sessao) return resposta({ erro: "Entre no sistema.", semSessao: true }, 401);
   const quem = sessao.nome || sessao.sub || "alguem";
 
+  // Tres tipos moram nesta colecao mas pertencem a TELAS diferentes, com
+  // permissoes diferentes. Sem esta amarra, uma conta com acesso so a
+  // Orcamentos listava os editais e podia baixar e apagar arquivo deles --
+  // o modulo existia so no menu.
+  //
+  // documento/veiculo/maquina ficam sem modulo de proposito: a tela
+  // "Documentos e ativos" e aberta a qualquer pessoa logada (assim ja era).
+  const MODULO_DO_TIPO: Record<string, string> = {
+    marketing: "marketing",
+    licitacao: "licitacoes",
+  };
+  const perms: string[] = Array.isArray(sessao.perms) ? sessao.perms : [];
+  const podeTipo = (tipo: string) => {
+    const mod = MODULO_DO_TIPO[tipo];
+    if (!mod) return true;
+    return sessao.master === true || perms.includes("*") || perms.includes(mod);
+  };
+  // Le o tipo do item guardado -- as acoes por id (remover, arquivos) so
+  // recebem o id, entao a permissao depende do que esta gravado.
+  const tipoDoId = async (id: string): Promise<string | null> => {
+    const { data } = await sb.from("painel_registros").select("registro")
+      .eq("colecao", "ativo").eq("id", id).maybeSingle();
+    return (data?.registro as any)?.tipo ?? null;
+  };
+  const barraId = async (id: string) => {
+    const tipo = await tipoDoId(id);
+    if (tipo && !podeTipo(tipo)) return resposta({ erro: "Voce nao tem acesso a este modulo." }, 403);
+    return null;
+  };
+
   let corpo: any = {};
   try {
     corpo = await req.json();
@@ -85,13 +117,17 @@ Deno.serve(async (req: Request) => {
           itens.push(...(data ?? []).map((r: any) => r.registro));
           if ((data ?? []).length < PASSO) break;
         }
-        return resposta({ ok: true, itens });
+        // Filtra pelo que a sessao pode ver: a tela ja separava por tipo,
+        // mas o servidor mandava tudo -- inclusive editais e materiais de
+        // marca para quem nao tem esses modulos.
+        return resposta({ ok: true, itens: itens.filter((i: any) => podeTipo(i?.tipo)) });
       }
 
       case "salvar": {
         const it = corpo.item ?? {};
         const tipo = String(it.tipo ?? "");
         if (!TIPOS.has(tipo)) return resposta({ erro: "tipo invalido" }, 400);
+        if (!podeTipo(tipo)) return resposta({ erro: "Voce nao tem acesso a este modulo." }, 403);
         if (!String(it.nome ?? "").trim()) return resposta({ erro: "informe o nome" }, 400);
 
         const agora = new Date().toISOString();
@@ -136,6 +172,7 @@ Deno.serve(async (req: Request) => {
       case "remover": {
         const id = String(corpo.id ?? "");
         if (!id) return resposta({ erro: "id ausente" }, 400);
+        { const b = await barraId(id); if (b) return b; }
         await sb.from("painel_registros").delete().eq("colecao", "ativo").eq("id", id);
         // O arquivo vai junto: deixar orfao so ocupa espaco e guarda um
         // documento que o usuario mandou apagar.
@@ -148,6 +185,7 @@ Deno.serve(async (req: Request) => {
         const id = String(corpo.id ?? "");
         const base64 = String(corpo.base64 ?? "");
         if (!id || !base64) return resposta({ erro: "id e base64 obrigatorios" }, 400);
+        { const b = await barraId(id); if (b) return b; }
         if (base64.length > MAX_ARQUIVO) return resposta({ erro: "Arquivo muito grande (limite ~3 MB)." }, 413);
 
         const mime = String(corpo.mime ?? "application/pdf");
@@ -165,6 +203,7 @@ Deno.serve(async (req: Request) => {
 
       case "lerArquivo": {
         const id = String(corpo.id ?? "");
+        { const b = await barraId(id); if (b) return b; }
         const { data: meta } = await sb.from("painel_registros").select("registro")
           .eq("colecao", "arquivo").eq("id", id).maybeSingle();
         const { data: arq, error } = await sb.storage.from(BUCKET).download(id);

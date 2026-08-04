@@ -317,7 +317,7 @@ export default function Marketing() {
                   <button
                     type="button"
                     onClick={() => tirarLink(a.id)}
-                    className="grid h-7 w-7 shrink-0 place-items-center rounded-lg text-slate-300 hover:bg-bad-50 hover:text-bad-700"
+                    className="grid h-7 w-7 shrink-0 place-items-center rounded-lg text-slate-500 hover:bg-bad-50 hover:text-bad-700"
                     title={`Remover o atalho ${a.nome}`}
                   >
                     <Trash2 size={13} />

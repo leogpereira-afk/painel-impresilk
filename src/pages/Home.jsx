@@ -13,7 +13,7 @@ import { useNavigate } from "react-router-dom";
 import { AlertTriangle, ChevronRight } from "lucide-react";
 import { useApp } from "../config/store.jsx";
 import { listarAtivos } from "../services/ativos.js";
-import { calcAtivos } from "../lib/calc/ativos.js";
+import { calcAtivos, TIPOS } from "../lib/calc/ativos.js";
 import { ymdLocal } from "../lib/format.js";
 import { CarregandoModulo, ErroModulo } from "../components/ui.jsx";
 import logoColor from "../assets/brand/logo-color.png";
@@ -66,7 +66,11 @@ export default function Home() {
     listarAtivos()
       .then((itens) => {
         if (!vivo) return;
-        setCriticos(calcAtivos(itens, ymdLocal(new Date())).criticos.slice(0, 4));
+        // So documento/veiculo/maquina: marketing e licitacao moram na mesma
+        // colecao mas nao tem vencimento -- sem este filtro eles entravam aqui
+        // como "sem data" e empurravam o alvara de verdade para fora do aviso.
+        const doModulo = (itens || []).filter((x) => TIPOS[x.tipo]);
+        setCriticos(calcAtivos(doModulo, ymdLocal(new Date())).criticos.slice(0, 4));
       })
       .catch(() => {});
     return () => {

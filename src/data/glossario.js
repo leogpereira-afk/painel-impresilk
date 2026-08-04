@@ -46,7 +46,7 @@ export const GLOSSARIO = [
     termo: "Vinil de recorte",
     texto:
       "Vinil de cor solida, sem impressao, cortado no plotter. O resultado sai sem fundo: so a letra ou o simbolo colado na superficie.",
-    dica: "Barato e durabilissimo, mas so faz cores chapadas. Arte com degrade ou foto tem que ser impressa.",
+    dica: "So faz cor chapada -- arte com degrade ou foto tem que ser impressa. E a cor nao desbota como impressao, porque e do proprio filme; mas a vida util e do vinil: o monomerico (barato) dura poucos anos e so em superficie plana, o polimerico/cast aguanta mais e acompanha curva.",
   },
   {
     categoria: "Material",
@@ -60,13 +60,14 @@ export const GLOSSARIO = [
     termo: "ACM",
     texto:
       "Aluminio composto: duas chapas finas de aluminio com um miolo plastico. Fica perfeitamente plano, e leve e aguenta tempo -- por isso e o material padrao de fachada.",
-    dica: "O corte e a dobra sao feitos na chapa; mudanca de medida depois da chapa cortada vira chapa nova.",
+    dica: "O corte e a dobra sao feitos na chapa: mudanca de medida depois vira chapa nova. E confira o TIPO -- o ACM comum tem miolo de polietileno, que queima; obra publica, hospital e shopping costumam exigir o antichama (mineral), que custa mais.",
   },
   {
     categoria: "Material",
     termo: "PVC expandido",
     texto:
-      "Chapa plastica rigida e leve, facil de cortar. Boa para placa interna, sinalizacao e display que nao pega chuva.",
+      "Chapa plastica rigida e leve, facil de cortar. Nao absorve agua, entao vai bem ate em area umida -- o que ela nao suporta e sol e calor." +
+      " Boa para placa interna, sinalizacao e display.",
     dica: "Em area externa com sol forte ela empena com o tempo. Externo pede ACM.",
   },
   {
@@ -234,7 +235,7 @@ export const GLOSSARIO = [
     termo: "Envelopamento",
     texto:
       "Aplicacao de adesivo cobrindo o veiculo ou o movel, total ou parcialmente, mudando a aparencia sem pintura.",
-    dica: "Veiculo precisa estar limpo e sem amassado. Superficie ruim reprova a aplicacao, nao o material.",
+    dica: "Veiculo precisa estar limpo e sem amassado: superficie ruim reprova a aplicacao, nao o material. E se o envelopamento MUDA A COR do carro, a mudanca tem que ser registrada no Detran -- avise o cliente antes de fechar.",
   },
   {
     categoria: "Peca",
@@ -305,7 +306,7 @@ export const GLOSSARIO = [
     categoria: "Instalacao",
     termo: "Autorizacao da prefeitura",
     texto:
-      "Muitos municipios exigem licenca para instalar fachada, totem ou letreiro na via publica, com regras de tamanho.",
+      "Muitos municipios exigem licenca para qualquer anuncio visivel da rua -- inclusive na fachada do imovel do proprio cliente -- com regra de tamanho e de posicao.",
     dica: "Pergunte cedo. Peca pronta parada esperando licenca e prejuizo dos dois lados.",
   },
 ];

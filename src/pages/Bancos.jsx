@@ -155,6 +155,9 @@ export default function Bancos() {
   };
 
   const alternar = (nome, i) => {
+    // Durante a busca todos ficam abertos a forca; gravar aqui mudaria a
+    // preferencia sem efeito visivel e o grupo fecharia ao limpar a busca.
+    if (buscando) return;
     const novo = { ...abertos, [nome]: !estaAberto(nome, i) };
     setAbertos(novo);
     try {
@@ -465,7 +468,7 @@ export default function Bancos() {
                       <button
                         type="button"
                         onClick={() => abrirForm(b)}
-                        className="grid h-7 w-7 shrink-0 place-items-center rounded-lg text-slate-300 transition-colors hover:bg-slate-100 hover:text-slate-700"
+                        className="grid h-7 w-7 shrink-0 place-items-center rounded-lg text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700"
                         title={`Editar ${b.banco}`}
                       >
                         <Pencil size={13} />
@@ -473,7 +476,7 @@ export default function Bancos() {
                       <button
                         type="button"
                         onClick={() => remover(b)}
-                        className="grid h-7 w-7 shrink-0 place-items-center rounded-lg text-slate-300 transition-colors hover:bg-bad-50 hover:text-bad-700"
+                        className="grid h-7 w-7 shrink-0 place-items-center rounded-lg text-slate-500 transition-colors hover:bg-bad-50 hover:text-bad-700"
                         title={`Remover ${b.banco}`}
                       >
                         <Trash2 size={13} />
@@ -520,9 +523,9 @@ export default function Bancos() {
                       <button
                         type="button"
                         onClick={() => mandarNoWhats(b)}
-                        // ok-700 e nao ok-600: o tom mais claro com texto branco
-                        // fica em 3,4:1 de contraste, abaixo do legivel.
-                        className="flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-ok-700 px-3 py-2 font-display text-sm font-semibold text-white transition-colors hover:bg-ok-600"
+                        // ok-700, e o hover ESCURECE: voltar para ok-600 no hover
+                        // devolvia os 3,3:1 que este botao existe para evitar.
+                        className="flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-ok-700 px-3 py-2 font-display text-sm font-semibold text-white transition-all hover:brightness-90"
                         title="Abrir o WhatsApp com estes dados prontos"
                       >
                         <MessageCircle size={15} strokeWidth={2.4} />

@@ -26,7 +26,7 @@ import {
   arquivoParaBase64,
   abrirBase64,
 } from "../services/ativos.js";
-import { moedaCheia, dataCurta, diasEntre, ymdLocal } from "../lib/format.js";
+import { moedaCheia, dataCurta, diasEntre, ymdLocal, paraNumero, paraCampo } from "../lib/format.js";
 import { Card, PageTitle, SectionTitle, StatCard, Empty, CarregandoModulo } from "../components/ui.jsx";
 
 const MAX_BYTES = 3 * 1024 * 1024;
@@ -85,6 +85,7 @@ export default function Licitacoes() {
   const [form, setForm] = useState(VAZIA);
   const [salvando, setSalvando] = useState(false);
   const inputArquivo = useRef(null);
+  const cartaoForm = useRef(null);
   const hojeISO = ymdLocal(new Date());
 
   useEffect(() => {
@@ -117,7 +118,7 @@ export default function Licitacoes() {
     };
   }, [itens, hojeISO]);
 
-  const editar = (it) =>
+  const editar = (it) => {
     setForm({
       id: it.id,
       nome: it.nome || "",
@@ -127,10 +128,22 @@ export default function Licitacoes() {
       validade: it.validade || "",
       hora: it.hora || "",
       url: it.url || "",
-      valor: it.valor ? String(it.valor) : "",
+      // pt-BR, e nao String(numero): devolver "1500.5" fazia o parser tratar o
+      // ponto como milhar e o valor virava 15005 a cada edicao.
+      valor: paraCampo(it.valor),
       status: it.status || "avaliar",
       observacao: it.observacao || "",
     });
+    // Arquivo escolhido e nao enviado ficava no input e grudava no PROXIMO item
+    // editado -- trocando o edital de quem nao pediu.
+    if (inputArquivo.current) inputArquivo.current.value = "";
+    setTimeout(() => cartaoForm.current?.scrollIntoView({ behavior: "smooth", block: "center" }), 60);
+  };
+
+  const fecharForm = () => {
+    setForm(VAZIA);
+    if (inputArquivo.current) inputArquivo.current.value = "";
+  };
 
   const salvar = useCallback(
     async (e) => {
@@ -153,7 +166,7 @@ export default function Licitacoes() {
           validade: form.validade,
           hora: form.hora,
           url: form.url.trim() && !/^https?:\/\//i.test(form.url.trim()) ? "https://" + form.url.trim() : form.url.trim(),
-          valor: Number(String(form.valor).replace(/\./g, "").replace(",", ".")) || 0,
+          valor: paraNumero(form.valor),
           status: form.status,
           observacao: form.observacao.trim(),
           // Com arquivo novo, ele manda; sem, uma edicao reenvia o anexo que o
@@ -354,7 +367,7 @@ export default function Licitacoes() {
         )}
       </Card>
 
-      <Card>
+      <Card ref={cartaoForm}>
         <SectionTitle
           titulo={form.id ? "Editar licitacao" : "Nova licitacao"}
           sub="So o objeto e obrigatorio - de preferencia ja marque a data da sessao."
@@ -493,7 +506,7 @@ export default function Licitacoes() {
               {salvando ? "Salvando..." : form.id ? "Salvar alteracoes" : "Cadastrar licitacao"}
             </button>
             {form.id && (
-              <button type="button" className="btn-ghost" onClick={() => setForm(VAZIA)}>
+              <button type="button" className="btn-ghost" onClick={fecharForm}>
                 Cancelar edicao
               </button>
             )}

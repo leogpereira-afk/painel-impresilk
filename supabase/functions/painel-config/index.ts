@@ -81,10 +81,33 @@ Deno.serve(async (req: Request) => {
 
   const autenticado = !!TOKEN && req.headers.get("x-token") === TOKEN;
   const sessao = await sessaoDe(req);
-  const podeConfigurar =
+  const temModulo = (m: string) =>
     !!sessao &&
     (sessao.master === true ||
-      (Array.isArray(sessao.perms) && (sessao.perms.includes("*") || sessao.perms.includes("configuracoes"))));
+      (Array.isArray(sessao.perms) && (sessao.perms.includes("*") || sessao.perms.includes(m))));
+  const podeConfigurar = temModulo("configuracoes");
+
+  // As chaves novas sao CONTEUDO de um modulo (contas bancarias, materiais de
+  // marca, glossario), nao marcacao de titulo. Sem esta amarra, uma conta com
+  // acesso so a Orcamentos lia os CNPJs e as chaves Pix da empresa e apagava
+  // termo do glossario -- a permissao existia so na tela.
+  //
+  // ov_rec/ov_orc ficam de fora de proposito: sao as marcacoes que os modulos
+  // de contas e orcamentos ja usam, com o desenho antigo.
+  const MODULO_DA_CHAVE: Record<string, string> = {
+    bancos: "bancos",
+    marketing: "marketing",
+    glossario: "glossario",
+  };
+  const barraChave = (chave: string) => {
+    // Sem sessao, quem responde e o 401 de cada ramo: o cliente usa esse 401
+    // (com semSessao) para deslogar sozinho. Trocar por 403 aqui esconderia a
+    // sessao vencida atras de "voce nao tem acesso".
+    if (!sessao) return null;
+    const m = MODULO_DA_CHAVE[chave];
+    if (!m || temModulo(m)) return null;
+    return resposta({ erro: "Voce nao tem acesso a este modulo." }, 403);
+  };
 
   let corpo: any = {};
   try {
@@ -115,6 +138,8 @@ Deno.serve(async (req: Request) => {
           return resposta({ ok: true, chave, valor: await lerConfig() });
         }
         if (OVERLAYS.has(chave)) {
+          const barrado = barraChave(chave);
+          if (barrado) return barrado;
           if (!sessao) return resposta({ erro: "Entre no sistema.", semSessao: true }, 401);
           return resposta({ ok: true, chave, valor: await lerOverlay(chave) });
         }
@@ -135,6 +160,8 @@ Deno.serve(async (req: Request) => {
         }
 
         if (OVERLAYS.has(chave)) {
+          const barrado = barraChave(chave);
+          if (barrado) return barrado;
           // set substitui o overlay INTEIRO (o app usa para restaurar backup e
           // para limpar). Apagar as linhas e regravar e a traducao fiel disso.
           const mapa = corpo.valor && typeof corpo.valor === "object" ? corpo.valor : {};
@@ -175,6 +202,8 @@ Deno.serve(async (req: Request) => {
         }
 
         if (OVERLAYS.has(chave)) {
+          const barrado = barraChave(chave);
+          if (barrado) return barrado;
           for (const [id, campos] of Object.entries(patch)) {
             const { data } = await sb.from("painel_registros").select("registro")
               .eq("colecao", chave).eq("id", id).maybeSingle();
@@ -199,6 +228,8 @@ Deno.serve(async (req: Request) => {
         const id = String(corpo.id ?? "");
         if (!sessao) return resposta({ erro: "Entre no sistema.", semSessao: true }, 401);
         if (!OVERLAYS.has(chave)) return resposta({ erro: "chave nao gravavel" }, 403);
+        const barrado = barraChave(chave);
+        if (barrado) return barrado;
         if (!id) return resposta({ erro: "informe o id" }, 400);
         const { error } = await sb.from("painel_registros").delete()
           .eq("colecao", chave).eq("id", id);
