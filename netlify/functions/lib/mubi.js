@@ -1,3 +1,10 @@
+// ============================================================================
+// VIVO -- NAO APAGUE.
+//
+// Mora em netlify/functions/lib/, mas e importado por scripts/carregar-cache.mjs
+// (o que o workflow "Cache do Mubisys" roda em producao). E este arquivo que
+// fala com o ERP; sem ele nao ha carga.
+// ============================================================================
 // Helper compartilhado das Functions. Guarda as credenciais do Mubisys no
 // servidor e fala com o ERP (somente GET). Este arquivo NAO vira uma Function.
 //

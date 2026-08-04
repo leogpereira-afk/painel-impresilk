@@ -1,6 +1,7 @@
 // Acessos: trocar a propria senha e (para a direcao) definir quem entra e o que
-// cada um ve. As acoes do servidor ja existiam em netlify/functions/auth.mjs;
-// esta e a tela que faltava para usa-las.
+// cada um ve. As acoes do servidor moram em supabase/functions/painel-auth.
+// (Ate 08/2026 este comentario apontava para netlify/functions/auth.mjs, que ja
+// tinha sido migrado e foi apagado.)
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { KeyRound, UserPlus, Trash2, ShieldCheck, AlertTriangle, Check, Download, Upload } from "lucide-react";
@@ -9,7 +10,7 @@ import { baixarBackup, restaurarBackup, lerArquivoBackup, statusBackup, backupHu
 import { Card, PageTitle, SectionTitle, Empty } from "../components/ui.jsx";
 import { useApp } from "../config/store.jsx";
 
-// Espelha MODULOS de netlify/functions/auth.mjs. O servidor e quem valida.
+// Espelha MODULOS de supabase/functions/painel-auth. O servidor e quem valida.
 const MODULOS = [
   { id: "compromissos", nome: "Compromissos", sub: "a agenda de cada um -- cada pessoa ve so a dela" },
   { id: "contas-atrasadas", nome: "Contas Atrasadas", sub: "quem deve e a cobranca" },

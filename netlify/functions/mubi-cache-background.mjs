@@ -1,3 +1,19 @@
+// ============================================================================
+// VIVO -- NAO APAGUE.
+//
+// Apesar de morar em netlify/functions/, este arquivo NAO e uma function morta:
+// ele e importado por scripts/carregar-cache.mjs, que e o que o workflow
+// "Cache do Mubisys" roda em producao a cada 20 minutos. Sao ~600 linhas de
+// regra afinada no ar (janela de vencidos que escondia R$ 52 mil de calote,
+// rateio das unioes de itens que inflava 23% do faturamento, DSO com corte).
+// Apagar isto derruba a carga do painel inteiro -- e, como a carga ja quebrou
+// uma vez por outro motivo (401 do token), a quebra nova seria confundida com
+// aquela.
+//
+// Ficou aqui de proposito na migracao para o Supabase: Edge Function morre em
+// 150s e a carga leva MINUTOS. O que NAO vale mais e a parte de Netlify Blobs
+// abaixo (o handler); quem grava hoje e a Edge Function painel-cache.
+// ============================================================================
 // Trabalho pesado: busca dados do Mubisys e grava no Netlify Blobs; o painel le
 // esse cache instantaneamente. Dois modos (o Mubisys leva MINUTOS por pagina em
 // horario comercial, entao a recarga completa so roda de madrugada):
