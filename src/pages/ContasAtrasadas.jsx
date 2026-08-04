@@ -31,7 +31,6 @@ import {
   ReferenceLine,
 } from "recharts";
 import { useApp } from "../config/store.jsx";
-import { vendedorDaSessao } from "../lib/sessao.js";
 import { calcContasAtrasadas, agruparDividas } from "../lib/calc/contasAtrasadas.js";
 import { moeda, numero, dataLonga, dataCurta, rotuloMes, ymdLocal, MESES } from "../lib/format.js";
 import {
@@ -87,13 +86,11 @@ export default function ContasAtrasadas() {
   const [ordem, setOrdem] = useState("recentes"); // valor | recentes | antigos | atraso
   const [venceDe, setVenceDe] = useState(""); // periodo de vencimento (YYYY-MM-DD)
   const [venceAte, setVenceAte] = useState("");
-  // Conta ligada a um vendedor JA ABRE na carteira dele: quem entra vê primeiro
-  // o que é seu, sem precisar procurar o próprio nome na lista. O seletor
-  // continua ali e continua trocável — quem quiser olhar o time todo escolhe
-  // "Todos". (Em Orçamentos o seletor SOME quando há vínculo; aqui a decisão é
-  // outra, de propósito: cobrança se combina entre as pessoas o tempo todo.)
-  const meuVendedor = useMemo(() => vendedorDaSessao(), []);
-  const [vendedorSel, setVendedorSel] = useState(meuVendedor || ""); // carteira de um vendedor
+  // A tela abre em "Todos" para TODO MUNDO. Ja tentamos abrir na carteira de
+  // quem entrou (lendo o vendedor da sessao) e foi pior: nenhuma conta tem
+  // vendedor ligado, entao a pre-selecao nunca acontecia e so restava a
+  // aparencia de defeito. Quem quiser a propria carteira escolhe no seletor.
+  const [vendedorSel, setVendedorSel] = useState(""); // carteira de um vendedor
   const [anoSel, setAnoSel] = useState(""); // ano de vencimento (AAAA)
   const [mesSel, setMesSel] = useState(""); // mes de vencimento (01-12)
   const [visao, setVisao] = useState("mes"); // dash das dividas: ano | mes | cliente
@@ -214,17 +211,13 @@ export default function ContasAtrasadas() {
     { valor: "acima", rotulo: "Acima de X dias" },
   ];
 
-  /* Opcoes do seletor de vendedor. "Nao localizado" fica de fora (nao e pessoa),
-     e quem entrou aparece MESMO sem titulo atrasado no periodo — senao o campo
-     abriria em branco, parecendo defeito, quando a verdade e boa noticia: nao
-     ha nada atrasado na carteira dela. */
-  const opcoesVendedor = useMemo(() => {
-    const lista = (vm?.porVendedor || []).filter((v) => v.nome && v.nome !== "Nao localizado");
-    if (meuVendedor && !lista.some((v) => v.nome === meuVendedor)) {
-      return [{ nome: meuVendedor, qtd: 0 }, ...lista];
-    }
-    return lista;
-  }, [vm, meuVendedor]);
+  /* Opcoes do seletor de vendedor. "Nao localizado" fica de fora da lista: nao e
+     pessoa, e o titulo cuja O.S. nao casou com nenhuma venda. Quem quiser ver
+     esses tem o aviso logo abaixo da lista. */
+  const opcoesVendedor = useMemo(
+    () => (vm?.porVendedor || []).filter((v) => v.nome && v.nome !== "Nao localizado"),
+    [vm]
+  );
 
   const temFiltro =
     filtro !== "todos" ||
