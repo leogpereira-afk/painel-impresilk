@@ -132,14 +132,22 @@ export default function Compromissos() {
     });
     grupos.sort((a, b) => ORDEM_GRUPOS.indexOf(a.nome) - ORDEM_GRUPOS.indexOf(b.nome));
 
-    const pessoas = [...new Set(Object.values(mapa).map((c) => c.dono).filter(Boolean))].map((d) => ({
-      dono: d,
-      nome: Object.values(mapa).find((c) => c.dono === d)?.donoNome || d,
-    }));
+    // Contagem por pessoa: o chip da direcao mostra quantos cada uma tem EM
+    // ABERTO -- e o numero que responde "quem esta afogada?".
+    const pessoas = [...new Set(Object.values(mapa).map((c) => c.dono).filter(Boolean))].map((d) => {
+      const doDono = Object.values(mapa).filter((c) => c.dono === d);
+      return {
+        dono: d,
+        nome: doDono.find((c) => c.donoNome)?.donoNome || d,
+        emAberto: doDono.filter((c) => !c.feito).length,
+      };
+    });
 
     return {
       grupos,
       feitos,
+      emAberto: abertos.length,
+      concluidos: feitos.length,
       hoje: abertos.filter((c) => c.dias === 0).length,
       atrasados: abertos.filter((c) => c.dias !== null && c.dias < 0).length,
       semData: abertos.filter((c) => c.dias === null).length,
@@ -364,7 +372,14 @@ export default function Compromissos() {
         }
       />
 
-      <div className="grid gap-3 sm:grid-cols-3">
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <StatCard
+          rotulo="Em aberto"
+          valor={String(vm.emAberto)}
+          sub={vm.semData ? `${vm.semData} sem data marcada` : "tudo com data"}
+          tom={vm.emAberto ? "neutral" : "ok"}
+          icone={CircleDot}
+        />
         <StatCard
           rotulo="Atrasados"
           valor={String(vm.atrasados)}
@@ -380,11 +395,11 @@ export default function Compromissos() {
           icone={CalendarCheck}
         />
         <StatCard
-          rotulo="A resolver"
-          valor={String(vm.semData)}
-          sub="sem data marcada"
-          tom="neutral"
-          icone={CircleDot}
+          rotulo="Resolvidos"
+          valor={String(vm.concluidos)}
+          sub="ja concluidos"
+          tom={vm.concluidos ? "ok" : "neutral"}
+          icone={Check}
         />
       </div>
 
@@ -415,6 +430,7 @@ export default function Compromissos() {
                 }`}
               >
                 {p.nome}
+                {p.emAberto > 0 && <span className="ml-1 opacity-70">{p.emAberto}</span>}
               </button>
             ))}
           </>
