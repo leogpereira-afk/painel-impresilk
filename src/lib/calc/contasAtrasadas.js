@@ -13,8 +13,41 @@ import { proximaAcao } from "../recomendacao.js";
 // com quem a cobranca deve falar.
 //
 // Cobertura medida (2026-07-21): 167 dos 189 titulos em aberto. Os 22 sem
-// vendedor sao de OS de 2025 -- o cache so guarda o ano corrente. Por isso a
-// tela mostra "nao localizado" em vez de mentir um nome.
+// vendedor eram de OS de 2025, porque o cache so guardava o ano corrente --
+// corrigido em 08/2026: a carga completa passou a buscar O.S. desde a MESMA
+// data de corte da tela (CORTE_ATRASADOS, em mubi-cache-background.mjs).
+// Quando ainda assim nao houver par, a tela mostra "nao localizado" em vez de
+// mentir um nome.
+//
+// ------------------------------------------------------------------------
+// TRES CAMINHOS QUE PARECEM CONSERTO E NAO SAO. Medidos em 04/08/2026 contra
+// os dados reais (519 O.S. do PCP + config do Painel). Estao escritos aqui
+// para ninguem gastar o trabalho de novo:
+//
+// 1) "Usar o vendedor do PCP como segunda fonte." NAO RESOLVE: o PCP so tem
+//    registro de 21/06/2026 para frente, e a lacuna real e de O.S. de 2025 --
+//    cobertura ZERO justamente onde falta. Alem de ser um subconjunto (so O.S.
+//    que passam por instalacao).
+//
+// 2) "Normalizar acento e caixa do nome do vendedor." NAO E A CAUSA: 518 das
+//    519 O.S. batem EXATAMENTE (byte a byte) com a lista do config. A unica
+//    excecao e um registro digitado a mao no PCP que usou o apelido "Barbara"
+//    em vez de "Barbara Vasconcelos". Ganho maximo: 0,19%.
+//
+// 3) "Casar por cliente ou CNPJ quando o numero nao acha." PIOR QUE NAO TER:
+//    o CNPJ vem vazio em 99,8% dos registros, e 15 clientes (5,5%) sao
+//    atendidos por MAIS DE UMA vendedora -- eles concentram 93 das 519 O.S.
+//    E nao e passagem de carteira que uma regra de "mais recente" resolveria:
+//    os nomes se intercalam dia a dia dentro do mesmo mes (SOCIEDADE RURAL
+//    alterna Barbara/Jessica ao longo de todo junho). Um palpite por nome
+//    mandaria a cobranca para quem nao atendeu o cliente, sem nada na tela
+//    dizendo que e palpite -- e o recorte do seletor e o que vai para o PDF
+//    de cobranca.
+//
+// Se um dia entrar um palpite, ele tem de ser rotulado como palpite E ficar
+// fora de `porVendedor` (que alimenta o seletor e, por ele, o PDF), do mesmo
+// jeito que "Nao localizado" ja fica.
+// ------------------------------------------------------------------------
 function mapaVendedorPorOS(ordens) {
   const m = new Map();
   for (const o of ordens || []) {
