@@ -5,8 +5,8 @@
 // cartao -- ele abre o WhatsApp com a conta ja escrita e voce so escolhe para
 // quem mandar. Copiar valor a valor continua ali para preencher formulario.
 //
-// As contas vivem no servidor (painel-config, chave "bancos"); a lista de
-// src/data/bancos.js e so a semente da primeira abertura.
+// As contas vivem SO no servidor (painel-config, chave "bancos"), atras de
+// login e do modulo "bancos". Nada de conta bancaria no arquivo publico.
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -21,8 +21,7 @@ import {
   MessageCircle,
   AlertTriangle,
 } from "lucide-react";
-import { BANCOS as SEMENTE } from "../data/bancos.js";
-import { lerBancos, salvarBanco, salvarVarios, removerBanco } from "../services/bancos.js";
+import { lerBancos, salvarBanco, removerBanco } from "../services/bancos.js";
 import { Card, PageTitle, SectionTitle, Empty, CarregandoModulo } from "../components/ui.jsx";
 
 const ABERTOS_KEY = "painel_bancos_abertos";
@@ -94,18 +93,12 @@ export default function Bancos() {
 
   useEffect(() => {
     let vivo = true;
+    // As contas vem SO do servidor. Elas ja moraram no codigo como semente, e
+    // isso significava que qualquer pessoa na internet baixava o arquivo do
+    // painel e lia 19 contas, 9 CPF/CNPJ (inclusive o do dono) e 15 chaves Pix
+    // sem nenhum login. Plantada a semente, o arquivo virou so risco.
     lerBancos()
-      .then(async (m) => {
-        if (!vivo) return;
-        if (Object.keys(m).length > 0) return setMapa(m);
-        // Primeira abertura: leva as contas que estavam no codigo para o servidor.
-        const patch = {};
-        SEMENTE.forEach((b, i) => {
-          patch[`seed-${i + 1}`] = { ...b, ordem: i };
-        });
-        await salvarVarios(patch);
-        if (vivo) setMapa(patch);
-      })
+      .then((m) => vivo && setMapa(m))
       .catch((e) => vivo && setErro(e.message));
     return () => {
       vivo = false;
@@ -360,7 +353,7 @@ export default function Bancos() {
                 <input
                   id="b-doc"
                   className="input"
-                  placeholder="20.789.673/0001-80"
+                  placeholder="00.000.000/0000-00"
                   value={form.doc}
                   onChange={(e) => setForm((f) => ({ ...f, doc: e.target.value }))}
                 />

@@ -274,8 +274,16 @@ Deno.serve(async (req: Request) => {
     return resposta({ erro: "json invalido" }, 400);
   }
 
-  // status: leitura leve (data/hora e ok por sistema, nenhum dado).
+  // status: leitura leve (data/hora e ok por sistema). EXIGE SESSAO -- o
+  // cabecalho desta function sempre disse "status (qualquer sessao)", mas a
+  // trava nunca tinha sido escrita: qualquer um na internet recebia o
+  // inventario do Hub (quais sistemas existem, o nome e QUANTOS REGISTROS cada
+  // um tem). Isso e mapa da empresa para quem quiser atacar. O front ja mandava
+  // o cracha; so faltava conferir.
   if (corpo.action === "status") {
+    const m = String(req.headers.get("authorization") ?? "").match(/^Bearer\s+(.+)$/i);
+    const s = m && JWT_SECRET ? await verificarJwt(m[1], JWT_SECRET) : null;
+    if (!s) return resposta({ erro: "Entre no sistema.", semSessao: true }, 401);
     return resposta({ ok: true, status: await lerStatus() });
   }
 
