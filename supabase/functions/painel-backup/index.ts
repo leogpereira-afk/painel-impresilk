@@ -87,6 +87,7 @@ async function montarBackupPainel() {
       marketing: await linhasDe("marketing"),
       bancos: await linhasDe("bancos"),
       glossario: await linhasDe("glossario"),
+      compromissos: await linhasDe("compromissos"),
       // Os BYTES dos arquivos ficam no bucket (duraveis); um backup diario
       // deles incharia o repositorio. Mesma decisao do original com as fotos.
     },
@@ -364,6 +365,7 @@ Deno.serve(async (req: Request) => {
           if (p.marketing) mapas.push(["marketing", p.marketing]);
           if (p.bancos) mapas.push(["bancos", p.bancos]);
           if (p.glossario) mapas.push(["glossario", p.glossario]);
+          if (p.compromissos) mapas.push(["compromissos", p.compromissos]);
         } else {
           // v1: chaves de blob (ov_rec/ov_orc mapas; ativo_<id> soltos)
           mapas.push(["ov_rec", p.ov_rec ?? {}], ["ov_orc", p.ov_orc ?? {}]);

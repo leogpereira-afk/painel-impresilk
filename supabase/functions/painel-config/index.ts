@@ -34,7 +34,11 @@ const sb = createClient(SUPABASE_URL, SERVICE_KEY, { auth: { persistSession: fal
 // "marketing" guarda os atalhos do Drive; "bancos", as contas bancarias da aba
 // Bancos e Pix. Entram como overlay porque o mecanismo e o mesmo: mapa por id,
 // merge sem corrida.
-const OVERLAYS = new Set(["ov_rec", "ov_orc", "marketing", "bancos", "glossario"]);
+const OVERLAYS = new Set(["ov_rec", "ov_orc", "marketing", "bancos", "glossario", "compromissos"]);
+// Chaves em que cada pessoa so enxerga e mexe no que E DELA. A vendedora nao
+// pode ver a agenda da colega, e a direcao ve tudo. Isso e checado no
+// SERVIDOR: filtrar so na tela seria conforto, nao separacao.
+const POR_DONO = new Set(["compromissos"]);
 // Diagnostico de cache pelo x-token (nomes sem o prefixo cache_ da era Blobs).
 const CACHES = new Set(["recebiveis", "pagar", "bancos", "orcamentos", "ordens", "dso_hist", "fluxo_mensal", "status"]);
 
@@ -60,7 +64,7 @@ async function lerConfig(): Promise<any> {
 }
 
 // Mapa {id: campos} remontado das linhas — o formato que o cliente espera.
-async function lerOverlay(colecao: string): Promise<Record<string, unknown>> {
+async function lerOverlay(colecao: string, soDoDono?: string | null): Promise<Record<string, unknown>> {
   const out: Record<string, unknown> = {};
   const PASSO = 1000;
   for (let de = 0; ; de += PASSO) {
@@ -68,7 +72,11 @@ async function lerOverlay(colecao: string): Promise<Record<string, unknown>> {
       .from("painel_registros").select("id, registro")
       .eq("colecao", colecao).order("id").range(de, de + PASSO - 1);
     if (error) throw new Error(error.message);
-    for (const r of data ?? []) out[r.id] = r.registro;
+    for (const r of data ?? []) {
+      // Registro sem dono (vindo de backup antigo) so aparece para a direcao.
+      if (soDoDono != null && (r.registro as any)?.dono !== soDoDono) continue;
+      out[r.id] = r.registro;
+    }
     if ((data ?? []).length < PASSO) break;
   }
   return out;
@@ -109,6 +117,25 @@ Deno.serve(async (req: Request) => {
     return resposta({ erro: "Voce nao tem acesso a este modulo." }, 403);
   };
 
+  // Quem NAO e direcao so enxerga e mexe no que e dela nas chaves POR_DONO.
+  const ehDirecao = sessao?.master === true ||
+    (Array.isArray(sessao?.perms) && sessao.perms.includes("*"));
+  const donoDaVez = (chave: string) =>
+    POR_DONO.has(chave) && !ehDirecao ? String(sessao?.sub ?? "") : null;
+  // Mexer em linha de outra pessoa: barra. Linha que ainda nao existe passa
+  // (esta nascendo), e o dono correto e carimbado na gravacao.
+  const barraDono = async (chave: string, id: string) => {
+    const escopo = donoDaVez(chave);
+    if (!escopo) return null;
+    const { data } = await sb.from("painel_registros").select("registro")
+      .eq("colecao", chave).eq("id", id).maybeSingle();
+    const dono = (data?.registro as any)?.dono;
+    if (data && dono !== escopo) {
+      return resposta({ erro: "Este compromisso nao e seu." }, 403);
+    }
+    return null;
+  };
+
   let corpo: any = {};
   try {
     corpo = await req.json();
@@ -141,7 +168,7 @@ Deno.serve(async (req: Request) => {
           const barrado = barraChave(chave);
           if (barrado) return barrado;
           if (!sessao) return resposta({ erro: "Entre no sistema.", semSessao: true }, 401);
-          return resposta({ ok: true, chave, valor: await lerOverlay(chave) });
+          return resposta({ ok: true, chave, valor: await lerOverlay(chave, donoDaVez(chave)) });
         }
         return resposta({ erro: "chave invalida" }, 400);
       }
@@ -164,6 +191,10 @@ Deno.serve(async (req: Request) => {
           if (barrado) return barrado;
           // set substitui o overlay INTEIRO (o app usa para restaurar backup e
           // para limpar). Apagar as linhas e regravar e a traducao fiel disso.
+          // Em chave por dono isso apagaria a agenda das colegas: so a direcao.
+          if (POR_DONO.has(chave) && !ehDirecao) {
+            return resposta({ erro: "Voce nao pode substituir a lista inteira." }, 403);
+          }
           const mapa = corpo.valor && typeof corpo.valor === "object" ? corpo.valor : {};
           await sb.from("painel_registros").delete().eq("colecao", chave);
           const linhas = Object.entries(mapa).map(([id, registro]) => ({
@@ -205,9 +236,16 @@ Deno.serve(async (req: Request) => {
           const barrado = barraChave(chave);
           if (barrado) return barrado;
           for (const [id, campos] of Object.entries(patch)) {
+            const barradoDono = await barraDono(chave, id);
+            if (barradoDono) return barradoDono;
             const { data } = await sb.from("painel_registros").select("registro")
               .eq("colecao", chave).eq("id", id).maybeSingle();
-            const fundido = { ...(data?.registro ?? {}), ...((campos as object) ?? {}) };
+            const fundido: any = { ...(data?.registro ?? {}), ...((campos as object) ?? {}) };
+            // O dono e carimbado pelo SERVIDOR: mandar dono no corpo nao adianta.
+            if (POR_DONO.has(chave)) {
+              fundido.dono = (data?.registro as any)?.dono ?? String(sessao?.sub ?? "");
+              fundido.donoNome = fundido.donoNome || sessao?.nome || fundido.dono;
+            }
             const { error } = await sb.from("painel_registros").upsert(
               { colecao: chave, id, registro: fundido, atualizado_em: new Date().toISOString() },
               { onConflict: "colecao,id" });
@@ -231,6 +269,8 @@ Deno.serve(async (req: Request) => {
         const barrado = barraChave(chave);
         if (barrado) return barrado;
         if (!id) return resposta({ erro: "informe o id" }, 400);
+        const barradoDono = await barraDono(chave, id);
+        if (barradoDono) return barradoDono;
         const { error } = await sb.from("painel_registros").delete()
           .eq("colecao", chave).eq("id", id);
         if (error) throw new Error(error.message);

@@ -39,6 +39,7 @@ import {
   Gavel,
   ShoppingCart,
   BookOpen,
+  CalendarCheck,
 } from "lucide-react";
 import logoColor from "../assets/brand/logo-color.png";
 import logoWhite from "../assets/brand/logo-white.png";
@@ -51,6 +52,7 @@ import { podeAbrir, sair } from "../lib/sessao.js";
 const INICIO = { to: "/", rotulo: "Inicio", icone: Home, exato: true };
 
 const GESTAO = [
+  { to: "/compromissos", rotulo: "Compromissos", icone: CalendarCheck, modulo: "compromissos" },
   { to: "/contas-atrasadas", rotulo: "Contas Atrasadas", icone: AlertTriangle, modulo: "contas-atrasadas" },
   { to: "/fluxo-caixa", rotulo: "Fluxo de Caixa", icone: Wallet, modulo: "fluxo-caixa" },
   { to: "/produtos", rotulo: "Produtos", icone: Package, modulo: "produtos" },

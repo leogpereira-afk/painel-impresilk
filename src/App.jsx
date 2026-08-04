@@ -22,6 +22,7 @@ import Bancos from "./pages/Bancos.jsx";
 import Marketing from "./pages/Marketing.jsx";
 import Licitacoes from "./pages/Licitacoes.jsx";
 import Glossario from "./pages/Glossario.jsx";
+import Compromissos from "./pages/Compromissos.jsx";
 import { getSessao, aoMudarSessao, podeAbrir } from "./lib/sessao.js";
 import { Card } from "./components/ui.jsx";
 
@@ -123,6 +124,14 @@ export default function App() {
           element={
             <Restrito modulo="licitacoes" sessao={sessao}>
               <Licitacoes />
+            </Restrito>
+          }
+        />
+        <Route
+          path="/compromissos"
+          element={
+            <Restrito modulo="compromissos" sessao={sessao}>
+              <Compromissos />
             </Restrito>
           }
         />
