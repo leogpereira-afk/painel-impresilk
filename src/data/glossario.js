@@ -9,7 +9,7 @@
 // plantada no servidor (painel-config, chave "glossario") e de la em diante
 // vale o que estiver la -- da para editar, acrescentar e apagar pela tela.
 
-export const CATEGORIAS = ["Material", "Impressao", "Acabamento", "Peca", "Instalacao", "Arte e processo", "Comercial"];
+export const CATEGORIAS = ["Material", "Impressao", "Acabamento", "Peca", "Producao", "Instalacao", "Arte e processo", "Comercial"];
 
 export const GLOSSARIO = [
   // ---------------------------------------------------------------- materiais
@@ -833,5 +833,294 @@ export const GLOSSARIO = [
     texto:
       "Garantia cobre defeito de fabricacao ou de instalacao: solda que abre, adesivo que descola, LED que queima cedo. Vida util e outra coisa: e quanto tempo a peca aguenta sol e chuva antes de desbotar, e peca externa envelhece muito mais rapido que peca interna. Pela lei do consumidor, o cliente tem no minimo noventa dias para reclamar de defeito em servico ou produto duravel, contados da entrega ou do fim da instalacao (defeito escondido conta de quando aparece); prazo maior e cortesia da empresa e precisa estar por escrito.",
     dica: "Deixe registrado na proposta o que a garantia NAO cobre: vandalismo, temporal e vento forte, batida, lavagem com jato de alta pressao e mexida de terceiro. E explique na venda que desbotar com o tempo e desgaste normal de peca externa, nao defeito -- senao a cobranca chega no ano seguinte.",
+  },
+
+  // ---- material: a estrutura real da casa (04/08) ----------------------
+  {
+    categoria: "Material",
+    termo: "Poliondas (polipropileno alveolar)",
+    texto:
+      "Chapa plastica leve e barata com o miolo canelado, tipo papelao -- dai o nome onda. E o material de placa de campanha, sinalizacao temporaria, placa de imovel e cavalete de curta duracao, com adesivo impresso colado por cima ou, quando a chapa entra na nossa UV, impressao direta.",
+    dica: "Repare no sentido da onda: a chapa so tem rigidez no sentido do canal, entao placa grande com o canal deitado ondula e ilhos furados na direcao errada rasgam com o vento. Nao ofereca para fachada nem para nada que va ficar anos no sol -- a chapa vai ficando quebradica e o desenho do canal aparece na arte. Cliente que quer durar pede ACM. E antes de prometer impressao direta, confirme com a producao se a chapa entra na UV; se nao entrar, vai de adesivo colado e o preco muda.",
+  },
+  {
+    categoria: "Material",
+    termo: "Metalon (tubo de aco)",
+    texto:
+      "Tubo de aco de secao quadrada ou retangular, vendido em barra (a mais comum e a de 6 m). E o osso das nossas estruturas: quadro de fachada, pe de totem, suporte de letra caixa e armacao de painel, cortado e soldado no MIG aqui dentro.",
+    dica: "O que muda preco e resistencia e a espessura da parede, nao so a medida do tubo -- as comuns vao de 1,20 a 2,00 mm, e a mais fina nao serve para estrutura alta e exposta ao vento. Baixar a espessura para fechar preco vira problema de seguranca, nao economia. Metalon comum enferruja: peca externa exige fundo e pintura (ou metalon galvanizado), senao a ferrugem escorre e mancha a fachada do cliente.",
+  },
+  {
+    categoria: "Material",
+    termo: "Chapa de aco e chapa galvanizada",
+    texto:
+      "A chapa de aco carbono e a chapa lisa que vira base, tampa, reforco e corpo de caixa de luminoso, cortada no laser fibra. A galvanizada e a mesma chapa com banho de zinco, que segura a ferrugem por muito mais tempo.",
+    dica: "A protecao acaba onde a peca e cortada e soldada: o calor queima o zinco na borda, e e ali que a ferrugem comeca a aparecer. Tinta comum tambem nao gruda bem no zinco, entao galvanizada externa pede fundo proprio. Se o cliente quer peca metalica durando anos ao tempo, o combinado e galvanizada + fundo certo + pintura -- e isso tem preco, nao e a mesma coisa que 'so cortar a chapa'.",
+  },
+  {
+    categoria: "Material",
+    termo: "Aluminio liso (chapa de aluminio)",
+    texto:
+      "Chapa de aluminio inteirica, uma lamina so de metal -- diferente do ACM, que e um sanduiche com miolo plastico. Usada em lateral e fundo de letra caixa, tampa, caixa de luminoso e qualquer peca que nao pode enferrujar.",
+    dica: "Ele nao fica plano igual ACM: chapa fina de aluminio em area grande ondula como espelho torto e amassa facil no transporte e na instalacao. Regra pratica para nao errar no orcamento -- superficie grande e lisa e ACM; corpo de letra, peca dobrada e peca pequena e aluminio. Cliente que pede 'aluminio de verdade' numa fachada grande esta pedindo ondulacao.",
+  },
+  {
+    categoria: "Material",
+    termo: "Perfil de tension frame (quadro de tecido)",
+    texto:
+      "Perfil de aluminio com um canal que prende a borda do tecido impresso e deixa a arte esticada, sem ilhos e sem moldura por cima. E o que permite vender painel de tecido, backdrop e caixa de luz de tecido em que o proprio cliente troca a arte depois, sem obra.",
+    dica: "Medida do quadro e medida do tecido sao numeros diferentes: o tecido sai com sobra de borda e com o cordao de silicone na borda, senao nao entra no canal e nao estica. Confirme quem costura esse cordao e quanto tempo leva -- se for servico de fora, esse prazo costuma sumir do orcamento e estourar a entrega. Tecido cortado errado nao tem conserto, so reimpressao.",
+  },
+  {
+    categoria: "Material",
+    termo: "Perfil de fachada e perfil de sanca de LED",
+    texto:
+      "Perfis de aluminio de fechamento. O de fachada arremata a borda e resolve a emenda entre chapas de ACM; o de sanca aloja a fita de LED e cria a luz indireta em fachada, testeira e letreiro, quase sempre com um difusor leitoso na frente.",
+    dica: "Perfil vem em barra de comprimento fixo, entao fachada cheia de emenda e recorte gasta mais perfil e mais hora de montagem -- isso precisa estar no preco desde o orcamento. Na sanca, LED colado direto no aluminio sem difusor mostra os pontinhos acesos um a um; quando o cliente pede luz uniforme, quem entrega isso e o difusor mais a distancia certa entre o LED e a face.",
+  },
+  {
+    categoria: "Material",
+    termo: "Ferragem de porta (dobradica, fechadura, puxador)",
+    texto:
+      "E o conjunto que faz a porta de ACM abrir, fechar e trancar: dobradica ou pivo, fechadura, puxador e batente. A nossa celula de portas monta tudo aqui, mas a ferragem e comprada -- e e ela, mais que o ACM, que decide quanto tempo a porta aguenta uso pesado.",
+    dica: "Peso e movimento definem a escolha: porta grande de ACM em loja de muito fluxo acaba com dobradica barata e volta como garantia. Acerte no orcamento o acabamento (escovado, cromado, preto) e quem fornece a fechadura -- cliente que compra a dele por fora costuma trazer uma que nao encaixa na usinagem ja feita, e ai a folha tem que ser refeita por nossa conta.",
+  },
+  {
+    categoria: "Material",
+    termo: "Mola de porta (aerea e de piso)",
+    texto:
+      "Mecanismo que fecha a porta sozinha e devagar. A aerea fica no alto da folha e fica a vista; a de piso fica embutida no chao e some. Entra em porta de ACM e em entrada de loja com movimento.",
+    dica: "Mola de piso e obra: exige quebrar o piso e deixar a caixa embutida ANTES da instalacao. Se isso nao estiver combinado e orcado com quem toca a obra, a equipe chega no dia e volta sem instalar -- deslocamento perdido. A regulagem faz parte da entrega: mola mal regulada bate a porta e desalinha a folha, e a visita para acertar sai da nossa conta.",
+  },
+  {
+    categoria: "Material",
+    termo: "Fita de LED e modulo de LED (a diferenca)",
+    texto:
+      "Sao dois jeitos diferentes de acender a peca. A fita e uma tira continua de LEDs, boa para sanca, contorno e luz corrida rasa. O modulo e um bloquinho de dois ou tres LEDs com lente que espalha a luz, e e ele que vai dentro de letra caixa e caixa de luz, porque alcanca a face de longe sem manchar.",
+    dica: "Trocar modulo por fita para baixar preco sai caro: dentro da letra a fita deixa listra e sombra na face, o cliente reclama e a peca volta. Confira o IP (protecao contra agua) -- LED de uso interno em peca externa morre na primeira chuva. E se o cliente pedir para aproveitar o LED ou a fonte que ja estao la, deixe escrito no orcamento: material velho leva o novo junto e a cobranca vem para a gente.",
+  },
+  {
+    categoria: "Material",
+    termo: "Fundo (primer) e massa de preparo",
+    texto:
+      "Antes de pintar, a peca metalica e limpa e desengraxada, leva massa nas emendas de solda e recebe uma demao de fundo. O fundo e o que faz a tinta grudar e segura a ferrugem; a massa e o que some com a marca da solda.",
+    dica: "Esse preparo consome tempo de producao e nao aparece em foto nenhuma, mas e ele que decide se a pintura dura anos ou descasca cedo. Peca com muita solda a vista pede mais massa e mais lixa: se o cliente aperta o prazo, ou ele aceita a solda mais aparente ou aceita o prazo cheio -- e essa escolha e feita na hora de fechar, nao depois. Galvanizado e aluminio pedem fundo especifico; fundo errado descasca em placa.",
+  },
+  {
+    categoria: "Material",
+    termo: "Tinta PU (automotiva)",
+    texto:
+      "Tinta de poliuretano, da mesma familia da pintura de carro, aplicada e curada na nossa pintura antes da peca ir para a montagem. Segura cor e brilho no sol muito melhor que tinta comum -- e o que permite entregar letra, totem e fachada em cor exata com cara de fabrica.",
+    dica: "Cor tem que ser fechada por codigo (RAL ou codigo de montadora), nunca por 'aquele azul do logo': cor de impressao e cor de tinta nao batem sozinhas e a diferenca so aparece com a peca pronta. Combine tambem o brilho (fosco, acetinado ou brilhante) -- fosco marca dedo e e chato de limpar. Peca pintada ainda precisa de tempo de cura antes de embalar e viajar, e retoque feito na rua nunca fica igual ao da cabine: peca amassada na instalacao volta para a pintura.",
+  },
+
+  // ---- impressao: a estrutura real da casa (04/08) ---------------------
+  {
+    categoria: "Impressao",
+    termo: "DTF UV",
+    texto:
+      "Transfer adesivo impresso na maquina de DTF UV e aplicado em superficie RIGIDA: copo, caneca, garrafa, acrilico, metal, vidro, madeira, capa de caderno. Sai colorido, com relevo e brilho, e a aplicacao e a frio, sem forno e sem prensa. Nao confunda com o DTF de camiseta, que e transfer textil feito com po e prensa quente: e outro processo e outra maquina, confirme com a producao antes de prometer.",
+    dica: "Antes de fechar, pergunte de que material e a peca e como ela vai ser lavada: em silicone, plastico oleoso e superficie muito curva a adesao cai, e maquina de lavar louca e microondas comem o transfer. Peca uma ou duas pecas a mais do cliente, para teste de aplicacao e para reposicao.",
+  },
+
+  // ---- acabamento: a estrutura real da casa (04/08) --------------------
+  {
+    categoria: "Acabamento",
+    termo: "Gravacao a laser em brinde",
+    texto:
+      "Marcacao feita queimando a superficie do brinde no laser, sem tinta nenhuma: caneta, copo termico, chaveiro, tabua, garrafa de metal. E permanente, nao descasca e nao sai na lavagem, mas sai sempre no tom do proprio material.",
+    dica: "Gravacao nao tem cor: em metal a marca sai em tom fosco, em brinde pintado aparece a cor da base por baixo e em plastico pode derreter e cheirar. Nunca prometa logo colorido gravado a laser -- colorido em peca rigida e DTF UV. E grave uma peca do proprio lote como teste antes de rodar tudo, porque cada material reage de um jeito.",
+  },
+
+  // ---- peca: a estrutura real da casa (04/08) --------------------------
+  {
+    categoria: "Peca",
+    termo: "Porta de ACM",
+    texto:
+      "Porta feita aqui com chapa de ACM sobre estrutura de aluminio, usada em fachada de loja, sanitario e area comum quando o cliente quer a porta na mesma cor e no mesmo acabamento do revestimento. E celula propria da casa: a mesma chapa passa por corte, router, dobra e pintura, entao a porta sai igual a fachada, sem depender de porta pronta de fornecedor.",
+    dica: "Porta nao e placa: pergunte o vao ja acabado (com piso e batente colocados), o lado de abertura e o peso previsto antes de fechar. O vao real quase nunca sai do tamanho do desenho, entao medida tirada da planta vira porta com folga errada ou raspando no chao. Deixe escrito no orcamento se ferragem e vidro estao inclusos.",
+  },
+  {
+    categoria: "Peca",
+    termo: "Revestimento arquitetonico em ACM",
+    texto:
+      "Fachada, coluna ou parede revestida com chapas de ACM presas em estrutura de aluminio ou metalon, para deixar um predio antigo com cara de novo sem obra pesada. A Impresilk faz da chapa crua ate a instalacao: corte, rasgo e dobra, pintura da estrutura quando precisa e montagem no local.",
+    dica: "O preco fecha por m2 de fachada, mas quem manda no custo e o recorte: cada janela, pilar e quina vira sobra de chapa e mais hora de montagem. Peca foto e medida de cada face e confirme do que a parede e feita -- gesso, drywall ou alvenaria trincada nao seguram a estrutura e exigem reforco que ninguem colocou no orcamento.",
+  },
+
+  // ---- producao: a estrutura real da casa (04/08) ----------------------
+  {
+    categoria: "Producao",
+    termo: "Router CNC",
+    texto:
+      "Maquina de corte que usa uma fresa girando em alta rotacao para recortar chapas de ACM, acrilico, PVC, MDF e poliondas. Faz contorno de letra, logotipo vazado, furo e tambem o canal em V que permite dobrar o ACM. E o que permite a Impresilk cortar forma livre aqui dentro, sem molde e sem faca: o que o cliente desenhar em curva, a gente corta.",
+    dica: "A fresa tem diametro, entao canto interno vivo sai arredondado e traco muito fino nao se sustenta - em logo com serifa fina ou letra pequena, mostre isso ao cliente antes da aprovacao, nao depois da chapa cortada. E a maquina segue a linha de corte em vetor: arte que chega so como imagem volta para a arte-final e o prazo recomeca.",
+  },
+  {
+    categoria: "Producao",
+    termo: "Seccionadora",
+    texto:
+      "Serra que corta a chapa inteira em pedacos retos, no esquadro e na medida. E o primeiro passo do corte: a chapa chega no tamanho de fabrica e sai em tiras para o router, para a dobra ou para a celula de portas de ACM. Corte reto aqui e rapido e barato; forma curva, canto arredondado e vazado vao para o router ou para o laser.",
+    dica: "Ela so faz corte reto de ponta a ponta. Se o cliente pediu recorte interno ou canto arredondado, a peca passa por mais uma maquina e o prazo muda - confirme isso antes de prometer data. E toda peca sai de uma chapa de medida padrao: pedir a peca no tamanho exato da chapa nao da, porque a borda e a espessura do proprio corte comem material.",
+  },
+  {
+    categoria: "Producao",
+    termo: "Laser de fibra (corte de metal)",
+    texto:
+      "Laser que corta metal: aco, inox, galvanizado e aluminio. E o que permite a Impresilk fazer letra caixa de metal, estrutura, suporte e peca metalica vazada aqui dentro, sem depender de serralheiro de fora. O corte sai fino e no esquadro, com pouca rebarba, ja pronto para dobrar, soldar e pintar.",
+    dica: "Laser de fibra nao corta acrilico nem MDF - isso e do laser CO2. Feche material e espessura ainda no orcamento: inox escovado, aco pintado e galvanizado tem preco e prazo diferentes, e chapa mais grossa fica muito mais tempo na maquina. Prometer 'letra de metal' sem espessura definida e prometer um preco que voce ainda nao sabe.",
+  },
+  {
+    categoria: "Producao",
+    termo: "Laser CO2 (corte de acrilico)",
+    texto:
+      "Laser para material nao metalico: corta e grava acrilico, MDF, papel, couro e tecido. No acrilico ele deixa a borda lisa e transparente, com aspecto polido que nenhuma outra maquina entrega - por isso letra de acrilico, display, placa de mesa e sinalizacao interna saem daqui. Tambem grava, marcando a superficie sem atravessar.",
+    dica: "Nao prometa peca de metal por essa via, e PVC nao vai para o laser: queimando ele solta gas que ataca a maquina e a saude, PVC se corta no router. O corte tambem deixa tensao no acrilico - furo justo, parafuso apertado contra a peca ou cola errada fazem trincar dias depois, ja instalado. Sempre folga no furo.",
+  },
+  {
+    categoria: "Producao",
+    termo: "Solda de letra a laser",
+    texto:
+      "Solda que une as partes da letra de metal com um feixe fino, quase sem cordao aparente e sem empenar a chapa. E o acabamento premium: depois do polimento ou da pintura a junta some e a letra de inox fica com cara de peca unica. Vale em letra caixa metalica e em qualquer peca que o cliente vai ver de perto.",
+    dica: "O feixe nao preenche folga: as partes precisam chegar bem encostadas, e peca que veio com abertura no corte volta para ajuste e derruba o prazo. Como custa mais que a MIG, so venda esse acabamento onde a junta fica a vista - em estrutura escondida atras da fachada e dinheiro jogado fora.",
+  },
+  {
+    categoria: "Producao",
+    termo: "Solda MIG",
+    texto:
+      "Solda de arame, que deposita material na junta, usada na estrutura: quadro, mao francesa, suporte de totem e base de fachada. Aguenta perfil e chapa mais grossos e sai bem mais barata que a solda a laser. E o que segura a peca na parede e no vento.",
+    dica: "MIG deixa cordao aparente, respingo e pode empenar chapa fina - depois de pintada, a marca da solda aparece e a superficie fica ondulada. Se aquela face vai ficar a vista do cliente, ou vai para a solda a laser, ou entra tempo de lixa e massa na pintura. Isso se resolve no orcamento, nao na hora da montagem.",
+  },
+  {
+    categoria: "Producao",
+    termo: "Dobra de ACM (canal em V)",
+    texto:
+      "Para dobrar ACM a gente frisa um canal em V nas costas da chapa, deixando so a lamina de aluminio da frente, e entao dobra. E o que fecha a caixa e da o canto sem emenda aparente: bandeja de fachada, borda de porta de ACM, testeira e acabamento de pilar. Toda porta e todo revestimento da Impresilk passam por essa etapa.",
+    dica: "A dobra consome material: a medida do desenho nunca e a medida da chapa cortada, e quem faz essa conta e o projeto, nao o vendedor. E nao da para desdobrar e dobrar de novo - o aluminio trinca na quina e a peca vira sucata. Mudanca de medida depois do corte e chapa nova, nao ajuste.",
+  },
+  {
+    categoria: "Producao",
+    termo: "Carrinho de soldar lona (solda por ar quente)",
+    texto:
+      "Maquina que anda por cima da lona soprando ar quente e prensando com roldana, emendando duas lonas ou fechando a bainha. Diferente da solda de alta frequencia, que e uma prensa parada, o carrinho percorre a peca inteira - por isso da para entregar lona maior que a largura da impressora e bainha de qualquer comprimento. Fica no acabamento, junto com refile e ilhos.",
+    dica: "A emenda pede lona de PVC e uma faixa de sobreposicao, e ela aparece na peca: se logo ou texto cair em cima da linha, a imagem quebra ali - peca para a arte-final posicionar a emenda antes de imprimir. E emenda e o ponto que mais sofre no vento: em lona grande e exposta, combine reforco ja no fechamento do pedido.",
+  },
+  {
+    categoria: "Producao",
+    termo: "Prancha de producao",
+    texto:
+      "E o arquivo montado para a maquina, nao para o cliente: as pecas do pedido ja posicionadas na chapa ou na bobina, com linha de corte, sangria, marcas de registro e a O.S. identificada. E o que a producao recebe depois da arte aprovada, e ela pode juntar pedidos diferentes na mesma chapa para aproveitar material.",
+    dica: "O cliente aprova o layout; a producao roda a prancha. Depois que a prancha esta montada, mudar 'so o tamanho' obriga a remontar tudo, a peca perde a vez na fila e, se a chapa ja foi aberta, o material vira perda. Confirme medida final e quantidade antes de liberar para producao.",
+  },
+  {
+    categoria: "Producao",
+    termo: "Cabine de pintura",
+    texto:
+      "Ambiente fechado e com exaustao onde as pecas do corte e da metalurgia sao pintadas antes de virar letra, porta ou estrutura. O processo tem etapas fixas: limpar e desengraxar, lixar, aplicar primer, pintar na cor e deixar secar. E o que permite entregar peca em praticamente qualquer cor, fosca ou brilhante, inclusive na cor da marca do cliente.",
+    dica: "Secagem e cura tem tempo proprio e nao aceleram: peca pintada hoje nem sempre e montada hoje, e dia de umidade alta ou de muita poeira estraga a demao e obriga a refazer. Alem disso, a cor da marca em tinta nunca bate exatamente com a mesma cor impressa em adesivo ou lona - se as duas vao ficar lado a lado na mesma fachada, mostre amostra antes de fechar.",
+  },
+  {
+    categoria: "Producao",
+    termo: "As quatro linhas de producao",
+    texto:
+      "A casa nao produz tudo do mesmo jeito: sao quatro caminhos diferentes -- letra e projeto (corte e metalurgia, pintura, montagem, embarque e instalacao), arquitetonica (corte, dobra, pintura, portas de ACM e instalacao), impressos (impressao, recorte, acabamento e entrega) e brindes (DTF UV e gravacao, quase balcao). Antes de falar qualquer prazo, saiba por qual dessas linhas a peca vai passar.",
+    dica: "Prazo se mede pelo numero de setores que a peca atravessa, nao pelo tamanho nem pelo valor: um adesivo grande costuma sair antes de uma letra pequena. Pedido misto (letra + adesivo + brinde na mesma O.S.) anda no ritmo da parte mais lenta -- se o cliente precisa do adesivo antes, peca O.S. separada.",
+  },
+  {
+    categoria: "Producao",
+    termo: "Linha de letra e projeto",
+    texto:
+      "E a linha mais longa da casa: a peca passa por corte e metalurgia (seccionadora, router CNC, laser CO2 para acrilico e laser fibra para metal), depois pintura, depois montagem de letras (frente, corpo, LED e teste eletrico), embarque e instalacao. So passa para a etapa seguinte quando a anterior termina, e por isso letra caixa e luminoso nunca tem prazo de impresso.",
+    dica: "Pintura tem tempo de secagem e cura que ninguem acelera, e a peca so segue para a montagem depois disso. Cor especial pode ainda depender de tinta comprada fora: confirme a cor ANTES de prometer data, porque tinta encomendada no meio do caminho para a linha inteira.",
+  },
+  {
+    categoria: "Producao",
+    termo: "Linha arquitetonica (portas de ACM e revestimento)",
+    texto:
+      "Revestimento em ACM e porta de ACM seguem corte, dobra, pintura, celula de portas (montagem e ferragens) e instalacao. E uma linha que divide equipamento com as letras: usa a mesma seccionadora, o mesmo router e o mesmo setor de pintura.",
+    dica: "Porta e peca de medida unica: sobra ainda da para acertar, falta nao -- se a medida sair curta, refaz do zero, com chapa e mao de obra perdidas. Confirme vao, prumo, sentido de abertura e ferragem antes de liberar o corte, e avise o cliente que a medida que vale e a tirada no local, nao a da planta.",
+  },
+  {
+    categoria: "Producao",
+    termo: "Linha de impressos",
+    texto:
+      "Adesivo, lona e chapa impressa passam por impressao (Ampla, MyPrint ou UV), recorte (plotter de recorte ou router) e acabamento (solda de lona, refile, ilhos), e depois vao para entrega. E a linha mais curta mesmo quando a peca e enorme.",
+    dica: "O que costuma atrasar aqui nao e a impressora, e o acabamento -- e, com tinta solvente, a espera da tinta liberar antes de laminar ou soldar. Arte que chega errada (sem sangria, sem linha de corte, em baixa resolucao) volta para o arte-final e o pedido perde o lugar que ja tinha na fila da impressora.",
+  },
+  {
+    categoria: "Producao",
+    termo: "PCP e programacao",
+    texto:
+      "O PCP e quem programa as O.S.: define o que entra em cada setor e em que dia, dentro da capacidade real de cada maquina e equipe. O prazo que voce informa e o que o PCP consegue programar, e nao o tempo que a peca levaria se estivesse sozinha na fabrica.",
+    dica: "Nao prometa data sem passar pelo PCP: uma peca de poucas horas de trabalho pode so entrar na maquina dias depois, porque a fila esta cheia. Se o cliente tem data inegociavel (inauguracao, feira, evento), escreva isso na abertura da O.S. -- com aviso o PCP encaixa; em cima da hora, so tirando outro cliente do lugar.",
+  },
+  {
+    categoria: "Producao",
+    termo: "Gargalo e furo de fila",
+    texto:
+      "Alguns setores atendem mais de uma linha ao mesmo tempo: a pintura recebe peca da metalurgia e da arquitetonica, e a seccionadora e o router cortam tanto letra quanto porta de ACM. Quando um pedido urgente fura a fila em um desses setores, tudo que estava atras anda para tras.",
+    dica: "'Urgente' nao cria capacidade, so troca a ordem -- cada urgencia aceita atrasa um cliente que ja tinha data marcada, e amanha esse cliente e seu. Antes de pedir prioridade, pergunte a data real de uso: boa parte da urgencia e folga que o proprio cliente colocou.",
+  },
+  {
+    categoria: "Producao",
+    termo: "Embarque e desembarque",
+    texto:
+      "Embarque e o momento em que a expedicao confere a peca pronta, separa ferragem, fixacao e ferramenta e carrega o veiculo da equipe. Desembarque e a volta: o que sobrou retorna para o estoque e o que foi usado de verdade fecha o custo do trabalho.",
+    dica: "Equipe que sai sem a conferencia de embarque descobre a falta ja no alto da fachada -- faltou um perfil, a fonte, a ferragem -- e a viagem inteira se perde, com equipe parada e remarcacao com o cliente. Se o trabalho tem varias partes, deixe escrito na O.S. que ele so embarca completo, ou combine antes uma entrega em etapas.",
+  },
+  {
+    categoria: "Producao",
+    termo: "Checklist fotografico de conclusao",
+    texto:
+      "Toda instalacao encerra com um conjunto de fotos: a peca instalada, a fixacao, a ligacao eletrica quando existe e o local limpo. E o registro de que o servico foi entregue como combinado e no dia em que foi entregue.",
+    dica: "Sem foto, reclamacao futura vira palavra contra palavra -- risco na parede, luminoso torto, marquise trincada. Avise o cliente que a equipe fotografa o local tambem ANTES de comecar: dano que ja existia so se prova assim, e e essa foto que separa um reparo de cortesia de uma conta que nao era nossa.",
+  },
+
+  // ---- instalacao: a estrutura real da casa (04/08) --------------------
+  {
+    categoria: "Instalacao",
+    termo: "Junta e paginacao de chapas",
+    texto:
+      "Junta e o espaco proposital deixado entre uma chapa de ACM e outra, preenchido com silicone ou deixado aberto em sombra; paginacao e o desenho de como as chapas se distribuem na fachada. Serve para a chapa trabalhar com o calor e para disfarcar que nenhum predio e reto de verdade.",
+    dica: "Junta apertada demais deixa a chapa estufada quando bate sol, e junta torta e a primeira coisa que o cliente enxerga da calcada. Combine ainda na medicao a largura da junta e onde cai cada emenda; mudar a paginacao depois obriga a refazer o corte de todas as chapas.",
+  },
+  {
+    categoria: "Instalacao",
+    termo: "Projeto tecnico de estrutura",
+    texto:
+      "Desenho de como a peca se sustenta e se prende no lugar: tubos, mao francesa, chumbador, distribuicao de peso e o que a peca aguenta de vento. O setor de Projetos faz isso dentro de casa para fachada, porta, totem e painel grande, e esse desenho vira a lista de material que a metalurgia corta.",
+    dica: "Foto de rua nao mostra do que a parede e feita, e alvenaria, drywall, telha ou marquise mudam a fixacao e o preco. Sem alguem ver a base no local, o orcamento sai por chute: se o cliente recusar a visita tecnica, deixe escrito na proposta que estrutura e fixacao podem mudar depois da medicao.",
+  },
+
+  // ---- arte e processo: a estrutura real da casa (04/08) ---------------
+  {
+    categoria: "Arte e processo",
+    termo: "Memorial descritivo",
+    texto:
+      "Documento tecnico que descreve item por item do que a peca e feita e como sera instalada: materiais, espessuras, tipo de estrutura, fixacao, parte eletrica e acabamento. Shopping, prefeitura, condominio e construtora costumam exigir esse memorial junto do projeto para liberar a instalacao, e quem emite e o setor de Projetos.",
+    dica: "Pergunte na primeira visita se o local exige memorial: quem exige so autoriza a instalacao depois de analisar, e esse tempo de analise nao depende da gente -- precisa entrar no prazo combinado com o cliente. E o memorial descreve o que foi projetado: se o cliente mudar a peca depois, o documento tem que ser refeito e passar de novo pela aprovacao.",
+  },
+
+  // ---- comercial: a estrutura real da casa (04/08) ---------------------
+  {
+    categoria: "Comercial",
+    termo: "O.S. sem pendencia",
+    texto:
+      "E a ordem de servico que sai do comercial pronta para produzir: medida final conferida, material e cor definidos, texto e arte aprovados, quantidade, endereco e condicoes de instalacao e o combinado comercial fechado. E o que separa um pedido que anda de um pedido que fica indo e voltando.",
+    dica: "O.S. com campo em branco nao entra na fila -- volta para o vendedor, mas o cliente conta o prazo desde o dia em que fechou. As faltas mais caras sao medida 'aproximada', cor descrita por nome ('o azul do logo', sem codigo) e endereco de instalacao sem altura nem forma de acesso.",
+  },
+  {
+    categoria: "Comercial",
+    termo: "Centro de custo",
+    texto:
+      "E a etiqueta que diz de qual setor saiu cada gasto e cada hora de trabalho: corte, metalurgia, pintura, impressao, acabamento, instalacao. Amarrada a O.S., e o que mostra ao financeiro quanto o trabalho custou de verdade, e nao apenas por quanto ele foi vendido.",
+    dica: "Retrabalho, viagem repetida e material perdido caem no custo do mesmo trabalho, entao um pedido vendido com preco bom pode fechar no vermelho depois de duas voltas na obra. Registre toda alteracao de escopo na O.S. em vez de resolver 'por fora': o que nao entra no papel some do custo e reaparece no fechamento do mes.",
+  },
+  {
+    categoria: "Comercial",
+    termo: "Chamado de pos-venda",
+    texto:
+      "Depois da entrega, tudo que volta -- defeito, LED apagado, limpeza de fachada, ajuste, recompra -- entra como chamado no pos-venda e vira servico novo, com O.S. e lugar na programacao do PCP. Isso vale inclusive para o chamado de garantia.",
+    dica: "Nao prometa 'a gente passa la amanha': o chamado ocupa equipe, plataforma e agenda igual a uma instalacao nova. Ja na abertura, separe defeito de desgaste, uso indevido ou vandalismo -- tratar tudo como garantia queima equipe de graca e ensina o cliente a nunca contratar manutencao paga.",
   },
 ];
