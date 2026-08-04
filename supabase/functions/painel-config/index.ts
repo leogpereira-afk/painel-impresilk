@@ -39,6 +39,8 @@ const OVERLAYS = new Set(["ov_rec", "ov_orc", "marketing", "bancos", "glossario"
 // pode ver a agenda da colega, e a direcao ve tudo. Isso e checado no
 // SERVIDOR: filtrar so na tela seria conforto, nao separacao.
 const POR_DONO = new Set(["compromissos"]);
+// Modulo que o DESTINO de um encaminhamento precisa ter para receber.
+const MODULO_POR_DONO: Record<string, string> = { compromissos: "compromissos" };
 // Diagnostico de cache pelo x-token (nomes sem o prefixo cache_ da era Blobs).
 const CACHES = new Set(["recebiveis", "pagar", "bancos", "orcamentos", "ordens", "dso_hist", "fluxo_mensal", "status"]);
 
@@ -67,11 +69,23 @@ async function lerConfig(): Promise<any> {
 // A direcao pode nao ter linha em painel_contas (enquanto usa a senha inicial
 // do ambiente), mas recebe compromisso como qualquer pessoa.
 const MASTER_USUARIO = (Deno.env.get("PAINEL_AUTH_MASTER_USUARIO") || "leonardo").trim().toLowerCase();
-async function pessoaValida(usuario: string): Promise<{ usuario: string; nome: string } | null> {
+async function pessoaValida(
+  usuario: string,
+  moduloExigido?: string,
+): Promise<{ usuario: string; nome: string } | null> {
   const u = String(usuario || "").trim().toLowerCase();
   if (!u) return null;
-  const { data } = await sb.from("painel_contas").select("usuario, nome").eq("usuario", u).maybeSingle();
-  if (data) return { usuario: data.usuario, nome: data.nome || data.usuario };
+  const { data } = await sb.from("painel_contas")
+    .select("usuario, nome, permissoes").eq("usuario", u).maybeSingle();
+  if (data) {
+    // Existir nao basta: o destino precisa PODER ABRIR a tela, senao o item
+    // vira invisivel para todo mundo menos a direcao.
+    if (moduloExigido) {
+      const perms = Array.isArray(data.permissoes) ? data.permissoes : [];
+      if (!perms.includes("*") && !perms.includes(moduloExigido)) return null;
+    }
+    return { usuario: data.usuario, nome: data.nome || data.usuario };
+  }
   if (u === MASTER_USUARIO) return { usuario: u, nome: "Direcao" };
   return null;
 }
@@ -119,6 +133,7 @@ Deno.serve(async (req: Request) => {
     bancos: "bancos",
     marketing: "marketing",
     glossario: "glossario",
+    compromissos: "compromissos",
   };
   const barraChave = (chave: string) => {
     // Sem sessao, quem responde e o 401 de cada ramo: o cliente usa esse 401
@@ -264,8 +279,13 @@ Deno.serve(async (req: Request) => {
               // pessoa de destino existe de verdade (nome digitado errado
               // sumiria com o compromisso: ninguem mais o veria).
               if (pedido && pedido !== donoAtual) {
-                const destino = await pessoaValida(pedido);
-                if (!destino) return resposta({ erro: "Essa pessoa nao tem acesso ao painel." }, 400);
+                const destino = await pessoaValida(pedido, MODULO_POR_DONO[chave]);
+                if (!destino) {
+                  return resposta(
+                    { erro: "Essa pessoa nao tem essa tela liberada -- fale com a direcao." },
+                    400,
+                  );
+                }
                 fundido.dono = destino.usuario;
                 fundido.donoNome = destino.nome;
                 fundido.encaminhadoPor = sessao?.nome || eu;

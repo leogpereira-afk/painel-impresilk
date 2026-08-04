@@ -591,8 +591,10 @@ export default function Acessos() {
 
             <p className="mt-4 flex items-start gap-2 rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-500">
               <ShieldCheck size={14} className="mt-0.5 shrink-0" />
-              Remover o acesso impede novos logins, mas quem ja esta logado segue ate a sessao
-              vencer (12 horas). Para tirar alguem na hora, troque a senha dele.
+              Remover o acesso ou trocar a senha impede NOVOS logins. Quem ja esta com o painel
+              aberto continua ate a sessao vencer, em ate 12 horas -- nao existe corte imediato
+              hoje. Se precisar tirar alguem na hora, peca para ela sair do painel no aparelho
+              dela, e remova o acesso para ela nao conseguir entrar de novo.
             </p>
           </Card>
 

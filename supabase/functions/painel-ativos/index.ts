@@ -135,6 +135,20 @@ Deno.serve(async (req: Request) => {
         const { data: ant } = await sb.from("painel_registros").select("registro")
           .eq("colecao", "ativo").eq("id", id).maybeSingle();
 
+        // Conferir SO o tipo do corpo deixava a porta aberta: quem perdeu o
+        // modulo Licitacoes mandava o mesmo id com tipo "documento" e o edital
+        // trocava de gaveta -- passando a ser legivel por qualquer pessoa
+        // logada. O que vale e o tipo JA GRAVADO, e ele nao pode mudar.
+        const tipoGravado = (ant?.registro as any)?.tipo;
+        if (tipoGravado) {
+          if (!podeTipo(tipoGravado)) {
+            return resposta({ erro: "Voce nao tem acesso a este modulo." }, 403);
+          }
+          if (tipoGravado !== tipo) {
+            return resposta({ erro: "Nao da para mudar o tipo de um item ja cadastrado." }, 400);
+          }
+        }
+
         const limpo = {
           id, tipo,
           nome: String(it.nome).trim(),

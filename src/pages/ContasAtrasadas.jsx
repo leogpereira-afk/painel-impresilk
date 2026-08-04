@@ -75,6 +75,7 @@ export default function ContasAtrasadas() {
     erro,
     recarregar,
     frescorDe,
+    fontesNegadas = [],
   } = useApp();
 
   // A fonte DESTA tela. Perguntar pelo minimo global carimbaria "de ontem" por
@@ -115,6 +116,12 @@ export default function ContasAtrasadas() {
         : null,
     [dados, overridesRecebiveis, config]
   );
+
+  // O vendedor de cada titulo vem do mapa das O.S., que e servido pelo modulo
+  // Produtos. Quem nao tem esse modulo recebe 403 e a lista fica com TODOS os
+  // titulos sem vendedor -- entao a tela avisa em vez de deixar parecer que
+  // ninguem vendeu nada.
+  const semVendedor = fontesNegadas.includes("ordens");
 
   // Pedir um periodo (ano ou intervalo de datas) e o gesto que revela a divida
   // antiga. So o mes nao basta: "junho" sem ano nao e um pedido pelo passado.
@@ -271,6 +278,14 @@ export default function ContasAtrasadas() {
       />
 
       <AvisoDadoParado atualizadoEm={atualizadoEm} />
+
+      {semVendedor && (
+        <p className="flex items-start gap-2 rounded-lg bg-warn-50 px-3 py-2 text-sm text-warn-700">
+          <AlertTriangle size={15} className="mt-0.5 shrink-0" />
+          O vendedor de cada titulo vem do modulo Produtos, que nao esta liberado para voce --
+          por isso a coluna de vendedor aparece vazia. Os valores e as datas estao corretos.
+        </p>
+      )}
 
       {/* KPIs: clicaveis, filtram a lista de titulos abaixo */}
       {/* Os KPIs sao filtros clicaveis: no papel viram cartoes mortos e ainda

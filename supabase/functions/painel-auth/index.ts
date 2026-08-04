@@ -199,9 +199,17 @@ Deno.serve(async (req: Request) => {
       case "listarPessoas": {
         const s = await sessaoDoPedido(req, JWT_SECRET);
         if (!s) return json({ erro: "Entre no sistema.", semSessao: true }, 401);
-        const { data, error } = await sb.from("painel_contas").select("usuario, nome").order("nome");
+        const { data, error } = await sb.from("painel_contas")
+          .select("usuario, nome, permissoes").order("nome");
         if (error) throw new Error(error.message);
-        const pessoas = (data ?? []).map((c: any) => ({ usuario: c.usuario, nome: c.nome || c.usuario }));
+        // SO quem tem a agenda liberada. Mandar compromisso para quem nao tem o
+        // modulo fazia a tarefa sumir dos DOIS lados: saia da lista de quem
+        // passou e o destinatario nunca a via (o menu esconde e a rota recusa).
+        const temAgenda = (perms: any) =>
+          Array.isArray(perms) && (perms.includes("*") || perms.includes("compromissos"));
+        const pessoas = (data ?? [])
+          .filter((c: any) => temAgenda(c.permissoes))
+          .map((c: any) => ({ usuario: c.usuario, nome: c.nome || c.usuario }));
         // A direcao pode nao ter linha em painel_contas (enquanto usa a senha
         // inicial do ambiente), mas existe e recebe compromisso como todo mundo.
         if (!pessoas.some((p) => p.usuario === MASTER_USUARIO)) {

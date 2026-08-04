@@ -71,7 +71,7 @@ const itemCasa = (item, q) =>
   !!q && norm(`${item.fornecedor || ""} ${item.descricao} ${item.categoria || ""}`).includes(q);
 
 export default function FluxoCaixa() {
-  const { config, dados, pronto, erro, recarregar, frescorDe } = useApp();
+  const { config, dados, pronto, erro, recarregar, frescorDe , fontesNegadas = [] } = useApp();
   // `pagar` e a fonte desta tela (o realizado mensal tem carimbo proprio).
   const atualizadoEm = frescorDe("fluxo-caixa");
   const [modoEstresse, setModoEstresse] = useState(false);
@@ -125,16 +125,21 @@ export default function FluxoCaixa() {
     };
   }, []);
 
+  // Sem os recebiveis (a conta nao tem o modulo Contas Atrasadas), projetar
+  // seria mostrar 30 dias sem UMA entrada -- um caixa catastrofico apresentado
+  // como verdade. Melhor nao mostrar numero nenhum e dizer por que.
+  const semEntradas = fontesNegadas.includes("recebiveis");
+
   const base = useMemo(
     () =>
-      dados
+      dados && !semEntradas
         ? calcFluxoCaixa(
             { pagar: dados.pagar, recebiveis: dados.recebiveis, bancos: dados.bancos },
             config,
             { horizonte: 30 }
           )
         : null,
-    [dados, config]
+    [dados, config, semEntradas]
   );
 
   const estresse = useMemo(
@@ -210,6 +215,22 @@ export default function FluxoCaixa() {
   }, [vm, busca, filtroKpi]);
 
   if (erro) return <ErroModulo mensagem={erro} aoTentar={recarregar} />;
+  // Dizer POR QUE nao ha numero e melhor que girar para sempre -- e muito
+  // melhor que projetar o caixa sem as entradas.
+  if (semEntradas)
+    return (
+      <div className="space-y-6">
+        <PageTitle titulo="Fluxo de Caixa" descricao="Caixa de hoje e a projecao dos proximos dias." />
+        <Card className="flex items-start gap-2.5 text-sm text-warn-700">
+          <AlertTriangle size={17} className="mt-0.5 shrink-0" />
+          <span>
+            Esta projecao depende das contas a receber, e o seu acesso nao inclui esse modulo.
+            Sem elas o caixa apareceria sem nenhuma entrada -- um numero errado e assustador --,
+            entao preferimos nao mostrar. Fale com a direcao se precisar do Fluxo de Caixa.
+          </span>
+        </Card>
+      </div>
+    );
   if (!pronto || !vm || !base || !estresse) return <CarregandoModulo />;
 
   const k = vm.kpis;

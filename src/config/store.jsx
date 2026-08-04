@@ -59,6 +59,12 @@ export function AppProvider({ children }) {
   // Agora: quem nao tem permissao recebe lista vazia naquela fonte e o resto da
   // tela funciona. So vira erro de verdade se NENHUMA fonte responder (aí e
   // problema de rede/sessao, nao de permissao).
+  // Fonte NEGADA por permissao nao e fonte vazia. A diferenca importa: sem
+  // recebiveis, o Fluxo projetaria 30 dias sem UMA entrada e mostraria um
+  // caixa catastrofico como se fosse verdade; sem as O.S., Contas Atrasadas
+  // ficaria com todos os titulos sem vendedor. A tela precisa saber e avisar.
+  const [fontesNegadas, setFontesNegadas] = useState([]);
+
   const recarregar = useCallback(async () => {
     if (!getSessao()) return; // sem cracha nao adianta tentar
     setCarregando(true);
@@ -91,6 +97,14 @@ export function AppProvider({ children }) {
       if (todas.every((r) => !r.ok) && falhasReais.length) {
         throw falhasReais[0].erro;
       }
+
+      const negadas = [];
+      if (rRec.permissao) negadas.push("recebiveis");
+      if (rPag.permissao) negadas.push("pagar");
+      if (rBan.permissao) negadas.push("bancos");
+      if (rOrc.permissao) negadas.push("orcamentos");
+      if (rOrd.permissao) negadas.push("ordens");
+      setFontesNegadas(negadas);
 
       const ordens = rOrd.valor || [];
       setDados({
@@ -236,6 +250,7 @@ export function AppProvider({ children }) {
       setOverrideOrcamento,
       setOverridesOrcamento,
       dados,
+      fontesNegadas,
       atualizadoEm,
       frescorDe,
       pronto: !!dados && !carregando,
@@ -246,6 +261,7 @@ export function AppProvider({ children }) {
     }),
     [
       config,
+      fontesNegadas,
       updateConfig,
       resetarConfig,
       overridesRecebiveis,
