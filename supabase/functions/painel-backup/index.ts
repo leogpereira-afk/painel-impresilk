@@ -15,9 +15,9 @@
 // DISPARO: pg_cron diario chama {action:"auto"} com o x-token. No Netlify o
 // gatilho era piggyback no login, porque o cron de la ja congelou 11 horas; o
 // pg_cron daqui tem execucao comprovada, entao o agendamento volta a ser o
-// caminho normal. A trava de 20h continua: rodar duas vezes no dia nao repete.
+// caminho normal. A trava e por dia: rodar duas vezes no mesmo dia nao repete.
 //
-// Acoes: status (qualquer sessao) | auto (x-token, gate 20h) |
+// Acoes: status (qualquer sessao) | auto (x-token, um por dia) |
 //        exportar / registrarManual / backupAgora / restaurar (so a direcao).
 // ============================================================================
 
@@ -292,12 +292,27 @@ Deno.serve(async (req: Request) => {
     return resposta({ ok: true, quantos: vistos.length, sistemas: vistos });
   }
 
-  // auto: disparo interno (pg_cron) com o token do servidor, gateado por 20h.
+  // auto: disparo interno (pg_cron) com o token do servidor.
+  //
+  // A trava e por DIA, nao por horas. Com "20 horas" um backup manual no meio
+  // da tarde empurrava o automatico do dia seguinte para fora da janela: em
+  // 03/08 alguem rodou as 16h58, o cron das 08h40 do dia 04 viu 15h42 e pulou
+  // -- resultado, 40 horas sem backup e um "200 ok" que parecia sucesso.
+  //
+  // Um dia = um arquivo (<sistema>/<AAAA-MM-DD>.json), entao a pergunta certa
+  // e "ja existe o backup de hoje?". Se a ultima rodada do dia teve sistema com
+  // erro, deixa tentar de novo em vez de dar o dia por encerrado.
   if (corpo.action === "auto") {
     if (!TOKEN || req.headers.get("x-token") !== TOKEN) return resposta({ erro: "nao autorizado" }, 401);
     const st: any = await lerStatus();
-    const horas = st?.atualizadoEm ? (Date.now() - new Date(st.atualizadoEm).getTime()) / 3600000 : Infinity;
-    if (horas < 20) return resposta({ ok: true, pulou: "backup recente" });
+    const hoje = new Date().toISOString().slice(0, 10);
+    const diaDoUltimo = st?.atualizadoEm ? String(st.atualizadoEm).slice(0, 10) : null;
+    const sistemas = st?.sistemas ?? {};
+    const todosOk =
+      Object.keys(sistemas).length > 0 && Object.values(sistemas).every((s: any) => s?.ok);
+    if (diaDoUltimo === hoje && todosOk) {
+      return resposta({ ok: true, pulou: "ja tem backup de hoje" });
+    }
     return resposta({ ok: true, sistemas: await backupDoHub() });
   }
 
