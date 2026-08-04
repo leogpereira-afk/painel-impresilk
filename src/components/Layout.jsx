@@ -58,6 +58,7 @@ const GESTAO = [
   { to: "/bancos", rotulo: "Bancos e Pix", icone: Landmark, modulo: "bancos" },
   { to: "/marketing", rotulo: "Marketing", icone: Megaphone, modulo: "marketing" },
   { to: "/licitacoes", rotulo: "Licitacoes", icone: Gavel, modulo: "licitacoes" },
+  { to: "/glossario", rotulo: "Glossario", icone: BookOpen, modulo: "glossario" },
   { to: "/documentos", rotulo: "Documentos e ativos", icone: FileCheck2 },
 ];
 
