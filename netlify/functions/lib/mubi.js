@@ -25,6 +25,10 @@ export function mubiConfigurado() {
 // 206s; 120s (o valor antigo) abortava paginas validas e derrubava a etapa.
 // 280s cobre o pior caso observado sem deixar uma resposta pendurada travar a
 // background (cujo teto e 900s).
+// Espera entre tentativas (cresce: 1x, 2x, 3x). Configuravel so para o teste de
+// regressao (scripts/conferir-404.mjs) nao levar 33s na CI -- em producao a
+// variavel nao existe e o valor e o de sempre.
+const ESPERA_MS = Number(process.env.MUBI_ESPERA_MS) || 2500;
 const TIMEOUT_MS = 280000;
 const CAP_POR_PAGINA_MS = 300000;
 
@@ -51,6 +55,7 @@ async function mubiGetSemFila(caminho, query) {
   // tentativas absorvem a piscada. Teto de 180s por pagina no total, para nao
   // acumular timeouts e estourar o limite de 15 min da background.
   let ultimoErro;
+  let viu404 = false;
   const inicioChamada = Date.now();
   for (let tentativa = 1; tentativa <= 4; tentativa++) {
     const ctl = new AbortController();
@@ -79,7 +84,20 @@ async function mubiGetSemFila(caminho, query) {
       // 201 com 9 titulos. Tratar isso como falha fazia o bloco inteiro de
       // contas a pagar ser descartado -- e o painel parava de atualizar as
       // contas a pagar em silencio sempre que nao houvesse vencido na janela.
-      if (resp.status === 404) return { data: [] };
+      //
+      // MAS o 404 NAO ENCERRA A CHAMADA na primeira tentativa. O comentario la
+      // em cima diz que o Mubisys pisca 404 em recurso valido, e era por isso
+      // que existiam 4 tentativas -- a correcao de 31/07 desligou justamente
+      // essa protecao para o unico status que ela protegia. Um 404 na primeira
+      // chamada da lista de O.S. do ano virava `ordens: []` gravado como
+      // SUCESSO, apagando o vinculo de vendedor da tela inteira. Agora 404 so
+      // vira "vazio" depois que as 4 tentativas concordarem.
+      if (resp.status === 404) {
+        viu404 = true;
+        if (tentativa === 4 || Date.now() - inicioChamada > CAP_POR_PAGINA_MS) return { data: [] };
+        await new Promise((r) => setTimeout(r, ESPERA_MS * tentativa));
+        continue;
+      }
       if (!resp.ok) {
         throw new Error(`Mubi ${caminho} respondeu ${resp.status}`);
       }
@@ -89,9 +107,13 @@ async function mubiGetSemFila(caminho, query) {
       if (e.fatal) throw e;
       ultimoErro = e.name === "AbortError" ? new Error(`Mubi ${caminho}: timeout de ${TIMEOUT_MS / 1000}s`) : e;
       if (Date.now() - inicioChamada > CAP_POR_PAGINA_MS) break; // nao insiste alem do cap por pagina
-      if (tentativa < 4) await new Promise((r) => setTimeout(r, 2500 * tentativa));
+      if (tentativa < 4) await new Promise((r) => setTimeout(r, ESPERA_MS * tentativa));
     }
   }
+  // Esgotou por erro de rede/timeout DEPOIS de ja ter visto um 404: o recurso
+  // respondeu "nao encontrado" pelo menos uma vez, entao vazio e a leitura mais
+  // fiel do que temos -- e nao derruba o bloco inteiro por causa de uma piscada.
+  if (viu404) return { data: [] };
   throw ultimoErro;
 }
 

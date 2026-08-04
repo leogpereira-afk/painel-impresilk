@@ -225,7 +225,7 @@ function diasDesde(iso) {
 // .dataCorteAtrasados, padrao 2025-01-01). O cartao de DSO ja respeita o corte;
 // se a serie gravada aqui somasse tudo, a curva e a seta de tendencia
 // contariam uma historia diferente do numero exibido ao lado.
-const CORTE_ATRASADOS = "2025-01-01";
+export const CORTE_ATRASADOS = "2025-01-01";
 
 export function calcDso(recebiveis) {
   const ativos = recebiveis.filter((r) => String(r.vencimento || "") >= CORTE_ATRASADOS);
@@ -337,13 +337,27 @@ async function catalogoCategorias() {
 }
 
 export async function etapaCompleta() {
-  const desde = `${new Date().getFullYear()}-01-01`;
-  const janela = { status: "TODOS", filtrodata: "CADASTRO", datainicial: desde, datafinal: hojeMais(0) };
+  /* DUAS REGUAS PARA A MESMA TELA, agora uma so.
+     A tela trata como cobranca ATIVA tudo que vence a partir de CORTE_ATRASADOS
+     (2025-01-01). O cache buscava O.S. so a partir de 1o de janeiro do ano
+     CORRENTE -- entao um titulo de 2025, que a tela mostra e cobra, jamais
+     encontrava a O.S. dele e saia "vendedor nao localizado". Pior: em 1o de
+     janeiro a carga completa reconstruia o mapa so com as O.S. cadastradas no
+     ano novo (quase nenhuma), e o backlog de dezembro ficava sem vendedor para
+     sempre, porque nenhuma carga futura volta a buscar aquele periodo.
+
+     As O.S. seguem a mesma regua da tela. Os ORCAMENTOS continuam no ano
+     corrente: a tela de Orcamentos e do ano, e puxar dois anos de orcamento
+     multiplicaria por ~2 a parte mais lenta da carga sem ninguem usar. */
+  const desdeOS = CORTE_ATRASADOS;
+  const desdeOrc = `${new Date().getFullYear()}-01-01`;
+  const base = { status: "TODOS", filtrodata: "CADASTRO", datafinal: hojeMais(0) };
+  const janela = { ...base, datainicial: desdeOrc };
 
   const [orcBrutos, categoriaPorNome, osBrutas] = await Promise.all([
     mubiGetTudo("orcamento", janela),
     catalogoCategorias(),
-    mubiGetTudo("ordem-servico", janela),
+    mubiGetTudo("ordem-servico", { ...base, datainicial: desdeOS }),
   ]);
 
   const orcamentos = orcBrutos.map(normOrcamento);
@@ -412,7 +426,9 @@ export async function etapaIncremental(store, remigrarOS = false, remigrarOrc = 
       const osBrutas = await mubiGetTudo("ordem-servico", {
         status: "TODOS",
         filtrodata: "CADASTRO",
-        datainicial: `${new Date().getFullYear()}-01-01`,
+        // Mesma regua da tela (ver etapaCompleta): o ano corrente deixava
+        // titulo de 2025 sem vendedor para sempre.
+        datainicial: CORTE_ATRASADOS,
         datafinal: hojeMais(0),
       });
       const ordens = osBrutas

@@ -49,14 +49,32 @@ async function chamar(corpo) {
 
 const ler = async (chave) => (await chamar({ action: "ler", chave })).valor ?? null;
 
+/* Le distinguindo "a chave NAO EXISTE" de "a chave existe e esta vazia".
+   A diferenca decide se a carga leve pode mesclar: mesclar 7 dias por cima de
+   uma base que nunca existiu grava so esses 7 dias e apaga o resto do ano.
+   O servidor antigo nao manda `existe` -- nesse caso `existe` vem undefined e a
+   heuristica cai para "tem valor?", que e o comportamento de sempre. */
+async function lerComExistencia(chave) {
+  const r = await chamar({ action: "ler", chave });
+  return { valor: r.valor ?? null, existe: r.existe ?? r.valor != null };
+}
+
 // Grava so o que veio. null NAO grava -- e assim que uma fonte que falhou
 // preserva o valor anterior em vez de zerar o painel.
-async function gravar(chave, valor) {
+async function gravar(chave, valor, recusados) {
   if (valor === null || valor === undefined) {
     console.log(`   ${chave}: manteve o anterior (fonte falhou)`);
     return;
   }
   const r = await chamar({ chave, valor });
+  // O servidor recusa lista vazia por cima de lista cheia (404 do ERP e afins).
+  // Recusa e FALHA DE FONTE, nao sucesso -- registra para o status nao sair
+  // verde dizendo que gravou.
+  if (r.recusouVazio) {
+    console.warn(`   ${chave}: RECUSADO -- ${r.pulou}`);
+    recusados?.push(`vazio-recusado:${chave}`);
+    return;
+  }
   console.log(`   ${chave}: ${r.itens ?? "ok"}`);
 }
 
@@ -65,9 +83,31 @@ async function gravar(chave, valor) {
 async function janelaDe7Dias() {
   const janela = { status: "TODOS", datainicial: hojeMais(-7), datafinal: hojeMais(0) };
 
-  const [orcAtual, osAtual] = await Promise.all([ler("orcamentos"), ler("ordens")]);
-  const mapaOrc = new Map((orcAtual ?? []).map((o) => [o.id, o]));
-  const mapaOS = new Map((osAtual ?? []).map((o) => [o.id, o]));
+  const [orc, os] = await Promise.all([
+    lerComExistencia("orcamentos"), lerComExistencia("ordens"),
+  ]);
+
+  /* A carga leve ATUALIZA A PONTA de uma base que ja existe. Se a base nao
+     existe, mesclar 7 dias em cima do vazio nao e atualizar: e regravar a chave
+     com uma semana de dados e apagar o ano. Como isso roda a cada 20 minutos e
+     a carga completa so as 06:00, o estrago ficava consolidado o dia inteiro.
+
+     `null` devolvido aqui e o sinal de "fonte falhou": gravar() preserva o que
+     estava la e a chave entra em `falhas`, para o status nao sair verde.
+
+     Chave EXISTENTE e vazia nao entra nesta trava -- em 1o de janeiro `ordens`
+     comeca vazia de verdade, e recusar merge deixaria a tela sem O.S. ate o dia
+     seguinte. */
+  const faltando = [];
+  if (!orc.existe) faltando.push("orcamentos");
+  if (!os.existe) faltando.push("ordens");
+  if (faltando.length) {
+    console.warn(`   base ausente (${faltando.join(", ")}) -- pulando o merge, aguardando a carga completa`);
+    return { orcamentos: null, ordens: null, falhas: faltando.map((f) => `base-ausente:${f}`) };
+  }
+
+  const mapaOrc = new Map((orc.valor ?? []).map((o) => [o.id, o]));
+  const mapaOS = new Map((os.valor ?? []).map((o) => [o.id, o]));
 
   // Tres filtros de data: um orcamento aprovado hoje foi CADASTRADO ha meses e
   // nao apareceria numa janela so de cadastro.
@@ -122,11 +162,12 @@ async function main() {
   }
 
   console.log("gravando:");
-  await gravar("recebiveis", rapidos.recebiveis);
-  await gravar("pagar", rapidos.pagar);
-  await gravar("bancos", rapidos.bancos);
-  await gravar("orcamentos", pesados.orcamentos);
-  await gravar("ordens", pesados.ordens);
+  const recusados = [];
+  await gravar("recebiveis", rapidos.recebiveis, recusados);
+  await gravar("pagar", rapidos.pagar, recusados);
+  await gravar("bancos", rapidos.bancos, recusados);
+  await gravar("orcamentos", pesados.orcamentos, recusados);
+  await gravar("ordens", pesados.ordens, recusados);
 
   // DSO: sem recebiveis novos, mantem o anterior em vez de calcular sobre lista
   // vazia (que daria 0 e mentiria na curva).
@@ -135,7 +176,7 @@ async function main() {
   const dia = new Date().toISOString().slice(0, 10);
   await gravar("dso_hist", [...hist.filter((p) => p && p.dia !== dia), { dia, dso }].slice(-180));
 
-  const falhas = [...(rapidos.falhas ?? []), ...(pesados.falhas ?? [])];
+  const falhas = [...(rapidos.falhas ?? []), ...(pesados.falhas ?? []), ...recusados];
   await gravar("status", {
     em: new Date().toISOString(), // horario do ULTIMO sucesso (frescor real)
     ok: true,

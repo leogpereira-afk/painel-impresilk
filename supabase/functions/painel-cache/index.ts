@@ -39,6 +39,11 @@ const CHAVES = new Set([
   "fluxo_mensal", "status", "dso_hist", "lock",
 ]);
 
+// Chaves em que uma lista VAZIA quase nunca e a verdade -- e quando e, quem
+// grava manda `forcarVazio: true`. Ficam de fora `status` (objeto), `lock`,
+// `dso_hist` (a serie comeca vazia mesmo) e `fluxo_mensal` (projecao).
+const LISTAS_QUE_NAO_ESVAZIAM = new Set(["recebiveis", "pagar", "bancos", "orcamentos", "ordens"]);
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
   if (req.method !== "POST") return json({ erro: "use POST" }, 405);
@@ -58,11 +63,20 @@ Deno.serve(async (req: Request) => {
   if (body.action === "ler") {
     const chaveLida = String(body.chave ?? "status");
     if (!CHAVES.has(chaveLida)) return json({ erro: `chave nao permitida: ${chaveLida}` }, 400);
-    const { data } = await sb.from("painel_cache").select("valor").eq("chave", chaveLida).maybeSingle();
+    const { data, error } = await sb
+      .from("painel_cache").select("valor").eq("chave", chaveLida).maybeSingle();
+    // Erro de leitura NAO pode virar "nao tem nada gravado". Engolir o `error`
+    // fazia a carga incremental receber null, tratar como base vazia e regravar
+    // `ordens` so com a janela de 7 dias -- um soluco do banco apagava o ano
+    // inteiro de O.S., e o status ainda saia ok:true. 500 faz o script abortar
+    // e o cache ficar como estava.
+    if (error) return json({ erro: `falha ao ler ${chaveLida}: ${error.message}` }, 500);
     // "status" volta com o nome antigo para nao quebrar quem ja chama assim.
+    // `existe` distingue "chave nunca gravada" de "gravada com lista vazia" --
+    // a carga precisa dos dois separados para saber se pode mesclar.
     return chaveLida === "status"
-      ? json({ status: data?.valor ?? null })
-      : json({ chave: chaveLida, valor: data?.valor ?? null });
+      ? json({ status: data?.valor ?? null, existe: !!data })
+      : json({ chave: chaveLida, valor: data?.valor ?? null, existe: !!data });
   }
 
   const chave = String(body.chave ?? "");
@@ -72,6 +86,29 @@ Deno.serve(async (req: Request) => {
   // falso ("voce nao deve nada a ninguem") e pior que nao atualizar.
   if (body.valor === null || body.valor === undefined) {
     return json({ ok: true, pulou: "valor nulo -- manteve o anterior" });
+  }
+
+  // Mesma ideia, um degrau acima: LISTA VAZIA por cima de lista cheia tambem e
+  // quase sempre falha disfarcada de sucesso -- um 404 intermitente do ERP, uma
+  // consulta que voltou sem itens. A trava do `null` nao pegava isso, porque []
+  // e um valor legitimo. Recusa e devolve `pulou`, para o chamador registrar em
+  // fontesQueFalharam em vez de comemorar.
+  //
+  // `forcarVazio: true` continua permitindo zerar de proposito (o dia em que
+  // nao ha mesmo nenhum titulo). Sem essa saida, a trava viraria um bug novo em
+  // 1o de janeiro, quando `ordens` legitimamente comeca vazia.
+  if (LISTAS_QUE_NAO_ESVAZIAM.has(chave) && Array.isArray(body.valor) && body.valor.length === 0
+      && body.forcarVazio !== true) {
+    const { data: atual } = await sb
+      .from("painel_cache").select("valor").eq("chave", chave).maybeSingle();
+    const tinha = Array.isArray(atual?.valor) ? atual.valor.length : 0;
+    if (tinha > 0) {
+      return json({
+        ok: true,
+        pulou: `lista vazia por cima de ${tinha} itens -- manteve o anterior`,
+        recusouVazio: true,
+      });
+    }
   }
 
   const { error } = await sb.from("painel_cache").upsert(

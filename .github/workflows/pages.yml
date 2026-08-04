@@ -29,6 +29,9 @@ jobs:
       # -- e foi assim que uma tela branca subiu para producao com o job verde.
       # Roda antes do build para o deploy nem comecar quando quebra.
       - run: npm run lint
+      # Um 404 intermitente do ERP nao pode virar cache vazio gravado como
+      # sucesso. Roda em segundos, com fetch falso -- nao toca no Mubisys.
+      - run: node scripts/conferir-404.mjs
       - run: npm run build
         env:
           # No Pages o site vive em /painel-impresilk/. O vite.config le isto;
