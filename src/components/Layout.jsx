@@ -72,8 +72,7 @@ const SISTEMAS = [
   { rotulo: "PCP", icone: ClipboardList, href: "https://impresilk.com.br/pcp" },
   { rotulo: "Compras", icone: ShoppingCart, href: "https://impresilk.com.br/compras" },
   { rotulo: "Brief de Medicao", icone: Ruler, href: "https://impresilk.com.br/brief" },
-  // Endereco direto ate o atalho impresilk.com.br/pops ser criado no WordPress.
-  { rotulo: "Pops & Fabricacao", icone: BookOpen, href: "https://leogpereira-afk.github.io/pops-fabricacao/" },
+  { rotulo: "Pops & Fabricacao", icone: BookOpen, href: "https://impresilk.com.br/pops" },
   { rotulo: "Capa dos sistemas", icone: LayoutGrid, href: "https://leogpereira-afk.github.io/" },
   { rotulo: "Site Impresilk", icone: Globe, href: "https://www.impresilk.com.br" },
   // Painel pessoal do dono: so aparece para a direcao, nao e sistema da empresa.
