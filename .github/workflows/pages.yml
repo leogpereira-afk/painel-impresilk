@@ -25,6 +25,10 @@ jobs:
           node-version: 20
           cache: npm
       - run: npm ci
+      # As regras dos hooks do React. O build NAO enxerga hook depois de return
+      # -- e foi assim que uma tela branca subiu para producao com o job verde.
+      # Roda antes do build para o deploy nem comecar quando quebra.
+      - run: npm run lint
       - run: npm run build
         env:
           # No Pages o site vive em /painel-impresilk/. O vite.config le isto;
