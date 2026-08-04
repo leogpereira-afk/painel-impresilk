@@ -198,6 +198,19 @@ export default function ContasAtrasadas() {
     );
   }, [vm]);
 
+  /* Opcoes do seletor de vendedor. "Nao localizado" fica de fora da lista: nao e
+     pessoa, e o titulo cuja O.S. nao casou com nenhuma venda.
+
+     FICA ACIMA DOS RETURNS DE ERRO/CARREGANDO de proposito. Hook depois de um
+     return so roda em ALGUNS renders, e React conta hooks por posicao: na
+     primeira passagem (carregando) sao N, quando os dados chegam viram N+1 e o
+     React derruba a tela inteira com "Rendered more hooks than during the
+     previous render". Por isso o `vm?.` — aqui `vm` ainda pode ser null. */
+  const opcoesVendedor = useMemo(
+    () => (vm?.porVendedor || []).filter((v) => v.nome && v.nome !== "Nao localizado"),
+    [vm]
+  );
+
   if (erro) return <ErroModulo mensagem={erro} aoTentar={recarregar} />;
   if (!pronto || !vm) return <CarregandoModulo />;
 
@@ -210,14 +223,6 @@ export default function ContasAtrasadas() {
     { valor: "reincidentes", rotulo: "Reincidentes" },
     { valor: "acima", rotulo: "Acima de X dias" },
   ];
-
-  /* Opcoes do seletor de vendedor. "Nao localizado" fica de fora da lista: nao e
-     pessoa, e o titulo cuja O.S. nao casou com nenhuma venda. Quem quiser ver
-     esses tem o aviso logo abaixo da lista. */
-  const opcoesVendedor = useMemo(
-    () => (vm?.porVendedor || []).filter((v) => v.nome && v.nome !== "Nao localizado"),
-    [vm]
-  );
 
   const temFiltro =
     filtro !== "todos" ||
