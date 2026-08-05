@@ -34,7 +34,7 @@ const sb = createClient(SUPABASE_URL, SERVICE_KEY, { auth: { persistSession: fal
 // "marketing" guarda os atalhos do Drive; "bancos", as contas bancarias da aba
 // Bancos e Pix. Entram como overlay porque o mecanismo e o mesmo: mapa por id,
 // merge sem corrida.
-const OVERLAYS = new Set(["ov_rec", "ov_orc", "marketing", "bancos", "glossario", "compromissos", "manutencoes"]);
+const OVERLAYS = new Set(["ov_rec", "ov_orc", "marketing", "bancos", "glossario", "compromissos", "manutencoes", "patrimonio", "setores"]);
 // Chaves em que cada pessoa so enxerga e mexe no que E DELA. A vendedora nao
 // pode ver a agenda da colega, e a direcao ve tudo. Isso e checado no
 // SERVIDOR: filtrar so na tela seria conforto, nao separacao.
@@ -173,6 +173,9 @@ Deno.serve(async (req: Request) => {
     glossario: "glossario",
     compromissos: "compromissos",
     manutencoes: "manutencoes",
+    // Duas chaves, um modulo so: os setores existem para o patrimonio.
+    patrimonio: "patrimonio",
+    setores: "patrimonio",
   };
   const barraChave = (chave: string) => {
     // Sem sessao, quem responde e o 401 de cada ramo: o cliente usa esse 401
@@ -320,6 +323,30 @@ Deno.serve(async (req: Request) => {
             if (barradoDono) return barradoDono;
             const { data } = await sb.from("painel_registros").select("registro")
               .eq("colecao", chave).eq("id", id).maybeSingle();
+            // O CODIGO DA ETIQUETA E GERADO AQUI, nunca no cliente. Ele vai
+            // virar adesivo colado no bem: dois computadores cadastrando ao
+            // mesmo tempo com a mesma sequencia gerariam duas etiquetas iguais
+            // e o inventario passaria a mentir. Gerado uma vez, nunca muda --
+            // nem quando o bem troca de setor (o adesivo ja esta colado).
+            if (chave === "patrimonio" && !(campos as any)?.codigo) {
+              const jaTem = (data?.registro as any)?.codigo;
+              if (jaTem) {
+                (campos as any).codigo = jaTem;
+              } else {
+                const sigla = String((campos as any)?.setorSigla ?? "GER")
+                  .toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 4) || "GER";
+                const { data: irmaos } = await sb.from("painel_registros")
+                  .select("registro").eq("colecao", "patrimonio");
+                let maior = 0;
+                for (const r of irmaos ?? []) {
+                  const c = String((r.registro as any)?.codigo ?? "");
+                  const m = c.match(new RegExp(`^${sigla}-(\\d+)$`));
+                  if (m) maior = Math.max(maior, Number(m[1]) || 0);
+                }
+                (campos as any).codigo = `${sigla}-${String(maior + 1).padStart(3, "0")}`;
+              }
+            }
+
             // `historico` NUNCA vem do cliente: e o servidor que carimba autor
             // e hora. Sem isto, qualquer pessoa reescreveria a conversa inteira
             // -- inclusive apagando o que a colega escreveu.

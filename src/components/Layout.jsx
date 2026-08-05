@@ -35,6 +35,7 @@ import {
   Building2,
   ChevronDown,
   Wrench,
+  Tag,
   Landmark,
   Megaphone,
   Gavel,
@@ -64,6 +65,7 @@ const GESTAO = [
   { to: "/licitacoes", rotulo: "Licitacoes", icone: Gavel, modulo: "licitacoes" },
   { to: "/glossario", rotulo: "Glossario", icone: BookOpen, modulo: "glossario" },
   { to: "/manutencoes", rotulo: "Manutencoes", icone: Wrench, modulo: "manutencoes" },
+  { to: "/patrimonio", rotulo: "Patrimonio", icone: Tag, modulo: "patrimonio" },
   { to: "/documentos", rotulo: "Documentos e ativos", icone: FileCheck2 },
 ];
 

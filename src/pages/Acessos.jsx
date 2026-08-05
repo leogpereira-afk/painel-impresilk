@@ -22,6 +22,7 @@ const MODULOS = [
   { id: "licitacoes", nome: "Licitacoes", sub: "editais, prazos e sessoes" },
   { id: "glossario", nome: "Glossario", sub: "os termos de comunicacao visual explicados" },
   { id: "manutencoes", nome: "Manutencoes", sub: "carros, maquinas e predio: gasto e historico" },
+  { id: "patrimonio", nome: "Patrimonio", sub: "o que a empresa tem, por setor, com etiqueta e valor" },
   { id: "configuracoes", nome: "Configuracoes", sub: "motivos, regua de cobranca e parametros -- vale para todo mundo" },
 ];
 

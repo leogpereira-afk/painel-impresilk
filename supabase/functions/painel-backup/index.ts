@@ -97,6 +97,8 @@ async function montarBackupPainel() {
       glossario: await linhasDe("glossario"),
       compromissos: await linhasDe("compromissos"),
       manutencoes: await linhasDe("manutencoes"),
+      patrimonio: await linhasDe("patrimonio"),
+      setores: await linhasDe("setores"),
       // Os BYTES dos arquivos ficam no bucket (duraveis); um backup diario
       // deles incharia o repositorio. Mesma decisao do original com as fotos.
     },
@@ -255,6 +257,8 @@ async function backupDoHub() {
         Object.keys(bkp.painel.glossario).length +
         Object.keys(bkp.painel.compromissos).length +
         Object.keys(bkp.painel.manutencoes).length +
+        Object.keys(bkp.painel.patrimonio).length +
+        Object.keys(bkp.painel.setores).length +
         Object.keys(bkp.contas).length +
         (bkp.painel.config ? 1 : 0),
       erro: gh.ok ? null : (gh as any).motivo,
@@ -402,6 +406,8 @@ Deno.serve(async (req: Request) => {
           if (p.glossario) mapas.push(["glossario", p.glossario]);
           if (p.compromissos) mapas.push(["compromissos", p.compromissos]);
           if (p.manutencoes) mapas.push(["manutencoes", p.manutencoes]);
+          if (p.patrimonio) mapas.push(["patrimonio", p.patrimonio]);
+          if (p.setores) mapas.push(["setores", p.setores]);
         } else {
           // v1: chaves de blob (ov_rec/ov_orc mapas; ativo_<id> soltos)
           mapas.push(["ov_rec", p.ov_rec ?? {}], ["ov_orc", p.ov_orc ?? {}]);
