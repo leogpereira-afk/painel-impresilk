@@ -6,14 +6,14 @@ import { diasEntre } from "../format.js";
 
 export const SITUACOES = {
   no_rumo: { rotulo: "No rumo", chip: "chip-ok", ponto: "bg-ok-600" },
-  atencao: { rotulo: "Atencao", chip: "chip-warn", ponto: "bg-warn-600" },
+  atencao: { rotulo: "Atenção", chip: "chip-warn", ponto: "bg-warn-600" },
   travado: { rotulo: "Travado", chip: "chip-bad", ponto: "bg-bad-600" },
 };
 
 export const STATUS_TATICA = {
   aberta: { rotulo: "Aberta", chip: "chip" },
   em_andamento: { rotulo: "Em andamento", chip: "chip-warn" },
-  concluida: { rotulo: "Concluida", chip: "chip-ok" },
+  concluida: { rotulo: "Concluída", chip: "chip-ok" },
   cancelada: { rotulo: "Cancelada", chip: "chip" },
 };
 
@@ -100,7 +100,7 @@ export function pautaSugerida(reunioes, decisoes, tipo) {
   const doTipo = new Set((reunioes || []).filter((r) => r.tipo === tipo).map((r) => r.id));
   const abertas = (decisoes || []).filter((d) => doTipo.has(d.reuniao_id) && d.status === "aberta");
   if (!abertas.length) return "";
-  return "Pendentes das reunioes anteriores:\n" +
+  return "Pendentes das reuniões anteriores:\n" +
     abertas.map((d) => `- ${d.texto}` +
       (d.responsavel ? ` (${d.responsavel}` + (d.prazo ? `, ate ${d.prazo.split("-").reverse().join("/")}` : "") + ")" : "")
     ).join("\n");

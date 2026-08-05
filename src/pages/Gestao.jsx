@@ -1,19 +1,24 @@
-// Gestao: a tela de direcao da Impresilk. Cinco blocos num acordeao, na ordem
-// em que um sustenta o outro -- identidade, plano do ano, taticas de 90 dias,
-// atas e fechamento de ciclo.
+// Gestão: a tela de direção da Impresilk. Cinco blocos, na ordem em que um
+// sustenta o outro -- identidade, plano do ano, esquema tático, atas e
+// fechamento de ciclo -- escolhidos por ABAS no topo, um por vez.
 //
-// NAO e painel de producao nem lista de tarefa do dia: isso ja existe em
-// Compromissos e nos outros modulos. Aqui e decisao e direcao, e por isso a
-// tela abre no bloco 3 (o uso semanal) com o resto recolhido.
+// NÃO é painel de produção nem lista de tarefa do dia: isso já existe em
+// Compromissos e nos outros módulos. Aqui é decisão e direção, e por isso a
+// tela abre no esquema tático, que é o uso semanal.
 //
-// O que cada pessoa ve e decidido no SERVIDOR (painel-gestao): colaborador
-// recebe so a identidade, gestor recebe o plano e as taticas e apenas as atas
-// em que participou. A tela nao esconde cartao de dado que ela recebeu.
+// O que cada pessoa vê é decidido no SERVIDOR (painel-gestao): colaborador
+// recebe só a identidade, gestor recebe o plano e as táticas e apenas as atas
+// em que participou. A tela não esconde cartão de dado que ela recebeu.
+//
+// A EQUIPE vem do RH, ao vivo, e só com id, nome, área, cargo, gestor e se é
+// direção -- a ficha de lá tem
+// salário, CPF, endereço e perfil comportamental, e nada disso atravessa (ver
+// `equipeDoRH` na Edge Function).
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ChevronDown, Compass, Target, Swords, FileText, Flag, Plus, Pencil, Trash2,
-  Check, AlertTriangle, Lock,
+  Check, Lock, Users, Search,
 } from "lucide-react";
 import {
   lerGestao, salvarIdentidade, salvarValor, removerValor,
@@ -29,39 +34,267 @@ import { Card, PageTitle, Empty, CarregandoModulo, ErroModulo } from "../compone
 import EsquemaTatico from "../components/EsquemaTatico.jsx";
 
 const BLOCOS = [
-  { id: "identidade", titulo: "Identidade", sub: "missao, visao e valores", icone: Compass, padrao: false },
-  { id: "plano", titulo: "Planejamento do ano", sub: "tese, objetivos e indicadores", icone: Target, padrao: false },
-  { id: "tatico", titulo: "Esquema tatico 90 dias", sub: "o que esta sendo feito agora", icone: Swords, padrao: true },
-  { id: "atas", titulo: "Reunioes e atas", sub: "o que foi decidido e por quem", icone: FileText, padrao: false },
-  { id: "ciclo", titulo: "Fechamento de ciclo", sub: "planejado, realizado e desvio", icone: Flag, padrao: false },
+  { id: "identidade", titulo: "Identidade", sub: "missão, visão e valores", icone: Compass },
+  { id: "plano", titulo: "Planejamento do ano", sub: "tese, objetivos e indicadores", icone: Target },
+  { id: "tatico", titulo: "Esquema tático", sub: "o que está sendo feito agora, e por quem", icone: Swords },
+  { id: "atas", titulo: "Reuniões e atas", sub: "o que foi decidido e por quem", icone: FileText },
+  { id: "ciclo", titulo: "Fechamento de ciclo", sub: "planejado, realizado e desvio", icone: Flag },
 ];
+const BLOCO_PADRAO = "tatico";
 
 const TIPOS_REUNIAO = {
-  semanal_gestao: "Semanal de gestao",
+  semanal_gestao: "Semanal de gestão",
   mensal_resultado: "Mensal de resultado",
-  extraordinaria: "Extraordinaria",
+  extraordinaria: "Extraordinária",
 };
 
-function Acordeao({ bloco, aberto, alternar, destaque, children }) {
-  const Icone = bloco.icone;
+// Cinco sanfonas empilhadas viraram ABAS no topo: com todas fechadas a tela era
+// uma lista de títulos, e com duas abertas o que interessava ficava a três
+// rolagens de distância. Uma aba por vez, e o botão sempre à vista.
+//
+// Aba é <button>, não link: a página inteira é um módulo só e trocar de bloco
+// não é navegar. Quem chega por teclado percorre a fileira com Tab e escolhe
+// com Enter, que é o comportamento nativo.
+function Abas({ blocos, atual, aoTrocar, alertas }) {
   return (
-    <Card className={`p-0 ${destaque ? "ring-2 ring-warn-600" : ""}`}>
-      <button
-        type="button"
-        onClick={alternar}
-        aria-expanded={aberto}
-        className="flex w-full items-center gap-3 px-5 py-4 text-left"
-      >
-        <Icone size={18} strokeWidth={2.2} className="shrink-0 text-brand" />
-        <span className="min-w-0 flex-1">
-          <span className="block font-display text-base font-semibold text-slate-900">{bloco.titulo}</span>
-          <span className="block text-sm text-slate-500">{bloco.sub}</span>
-        </span>
-        {destaque && <span className="chip-warn shrink-0">precisa de atencao</span>}
-        <ChevronDown size={18} className={`shrink-0 text-slate-400 transition-transform ${aberto ? "" : "-rotate-90"}`} />
-      </button>
-      {aberto && <div className="border-t px-5 pb-5 pt-4" style={{ borderColor: "var(--hairline)" }}>{children}</div>}
-    </Card>
+    <div className="sem-impressao -mx-1 flex gap-1.5 overflow-x-auto px-1 pb-1">
+      {blocos.map((b) => {
+        const Icone = b.icone;
+        const ativo = b.id === atual;
+        return (
+          <button
+            key={b.id}
+            type="button"
+            onClick={() => aoTrocar(b.id)}
+            aria-pressed={ativo}
+            title={b.sub}
+            className={`flex shrink-0 items-center gap-2 rounded-xl border px-3.5 py-2.5 font-display text-sm font-medium transition-all ${
+              ativo
+                ? "border-brand bg-brand text-white shadow-sm"
+                : "bg-white text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+            }`}
+            style={ativo ? undefined : { borderColor: "var(--hairline)" }}
+          >
+            <Icone size={16} strokeWidth={2.2} className="shrink-0" />
+            <span className="whitespace-nowrap">{b.titulo}</span>
+            {/* O aviso do fechamento de ciclo tem de aparecer mesmo quando a aba
+                está fechada -- era o único motivo de a sanfona ter destaque. */}
+            {alertas?.[b.id] && (
+              <span
+                className={`h-2 w-2 shrink-0 rounded-full ${ativo ? "bg-white" : "bg-warn-600"}`}
+                title="precisa de atenção"
+              />
+            )}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+/* ── O TIME ───────────────────────────────────────────────────────────────── */
+//
+// Quem é a casa, por área, e o que cada um tem na mão. A pergunta que isto
+// responde é "onde cada um se encontra": quem está com o esquema tático na
+// mão, quem está atrasado e quem não recebeu nada.
+//
+// O nome liga por TEXTO (`tatica.responsavel` é campo livre e sempre foi), e
+// texto livre erra: "Jéssica", "jessica" e "Jessica " são a mesma pessoa. Por
+// isso a comparação é sem acento e sem caixa -- e quem foi digitado à mão e
+// não existe no RH aparece num grupo próprio em vez de sumir da conta.
+// Plural escrito por extenso. "5 tatica(s)" e o jeito de nao decidir o plural
+// -- e ninguem fala assim. A tela SABE o numero; escrever "(s)" e passar para o
+// leitor um trabalho que o codigo tinha como fazer.
+const plural = (n, um, muitos) => `${n} ${n === 1 ? um : muitos}`;
+
+const chaveNome = (s) =>
+  String(s ?? "").normalize("NFD").replace(/[̀-ͯ]/g, "").trim().toLowerCase();
+
+function montarTime(equipe, taticas, decisoes, hojeISO) {
+  const porPessoa = new Map();
+  const garantir = (nome, base) => {
+    const k = chaveNome(nome);
+    if (!k) return null;
+    if (!porPessoa.has(k)) {
+      porPessoa.set(k, {
+        chave: k, nome, area: "", cargo: "", doRH: false,
+        abertas: 0, atrasadas: 0, concluidas: 0, decisoesAbertas: 0, ...base,
+      });
+    }
+    return porPessoa.get(k);
+  };
+
+  for (const p of equipe || []) {
+    garantir(p.nome, { nome: p.nome, area: p.area || "", cargo: p.cargo || "", doRH: true });
+  }
+
+  for (const t of taticas || []) {
+    const p = garantir(t.responsavel);
+    if (!p) continue;
+    if (t.status === "concluida") p.concluidas += 1;
+    else if (t.status !== "cancelada") {
+      p.abertas += 1;
+      if (t.prazo && t.prazo < hojeISO) p.atrasadas += 1;
+    }
+  }
+  for (const d of decisoes || []) {
+    if (d.status !== "aberta") continue;
+    const p = garantir(d.responsavel);
+    if (p) p.decisoesAbertas += 1;
+  }
+
+  // Quem foi digitado à mão e não casou com o RH quase sempre é NOME PARCIAL:
+  // escrever "Pedro" no responsável não bate com "Pedro Henrique Golçalves
+  // Pereira". A tela sugere o provável -- mas SÓ quando há um único candidato.
+  // Cinco primeiros nomes se repetem na casa (Adriano, Guilherme, José, Pedro,
+  // Vinícius), e adivinhar entre dois seria atribuir trabalho à pessoa errada
+  // em silêncio, que é pior que não sugerir nada.
+  const doRH = [...porPessoa.values()].filter((p) => p.doRH);
+  for (const p of porPessoa.values()) {
+    if (p.doRH) continue;
+    const candidatos = doRH.filter(
+      (x) => x.chave.startsWith(p.chave + " ") || p.chave.startsWith(x.chave + " ")
+    );
+    if (candidatos.length === 1) p.talvez = candidatos[0].nome;
+    else if (candidatos.length > 1) p.ambiguo = candidatos.length;
+  }
+
+  const SEM_AREA = "Sem área no RH";
+  const FORA = "Não está no RH";
+  const grupos = new Map();
+  for (const p of porPessoa.values()) {
+    const g = !p.doRH ? FORA : p.area || SEM_AREA;
+    if (!grupos.has(g)) grupos.set(g, []);
+    grupos.get(g).push(p);
+  }
+
+  // Área com mais gente em cima; os dois baldes de exceção sempre por último --
+  // são pendência de cadastro, não seção do organograma.
+  const ordem = [...grupos.entries()]
+    .map(([area, pessoas]) => ({
+      area,
+      excecao: area === SEM_AREA || area === FORA,
+      pessoas: pessoas.sort((a, b) =>
+        (b.abertas + b.decisoesAbertas) - (a.abertas + a.decisoesAbertas) ||
+        a.nome.localeCompare(b.nome, "pt-BR")),
+      abertas: pessoas.reduce((s, x) => s + x.abertas, 0),
+      atrasadas: pessoas.reduce((s, x) => s + x.atrasadas, 0),
+    }))
+    .sort((a, b) => (a.excecao - b.excecao) || b.pessoas.length - a.pessoas.length ||
+      a.area.localeCompare(b.area, "pt-BR"));
+
+  const todas = [...porPessoa.values()];
+  return {
+    grupos: ordem,
+    total: todas.length,
+    doRH: todas.filter((p) => p.doRH).length,
+    semNada: todas.filter((p) => p.doRH && !p.abertas && !p.decisoesAbertas && !p.concluidas).length,
+    comAtraso: todas.filter((p) => p.atrasadas > 0).length,
+  };
+}
+
+function BlocoTime({ equipe, taticas, decisoes, hojeISO, filtro, aoFiltrar }) {
+  const [busca, setBusca] = useState("");
+  const time = useMemo(
+    () => montarTime(equipe, taticas, decisoes, hojeISO),
+    [equipe, taticas, decisoes, hojeISO]
+  );
+
+  const q = chaveNome(busca);
+  const grupos = q
+    ? time.grupos
+        .map((g) => ({ ...g, pessoas: g.pessoas.filter((p) => chaveNome(p.nome + " " + p.cargo).includes(q)) }))
+        .filter((g) => g.pessoas.length)
+    : time.grupos;
+
+  if (!time.total) {
+    return (
+      <Empty>
+        Ninguém aqui ainda. A equipe vem do RH — se a lista está vazia, é porque nenhum colaborador
+        ativo foi encontrado lá.
+      </Empty>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-slate-500">
+        <span><b className="text-slate-900">{numero(time.doRH)}</b> no RH</span>
+        {time.semNada > 0 && (
+          <span><b className="text-slate-900">{numero(time.semNada)}</b> sem nada na mão</span>
+        )}
+        {time.comAtraso > 0 && (
+          <span className="text-bad-700">
+            <b>{numero(time.comAtraso)}</b> com atraso
+          </span>
+        )}
+        {filtro && (
+          <button type="button" className="btn-ghost h-7 px-2 text-xs" onClick={() => aoFiltrar("")}>
+            <Check size={12} /> vendo só {filtro} — limpar
+          </button>
+        )}
+      </div>
+
+      <div className="sem-impressao relative max-w-xs">
+        <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+        <input className="input pl-9" value={busca} onChange={(e) => setBusca(e.target.value)}
+          placeholder="Buscar pessoa ou cargo" />
+      </div>
+
+      {grupos.length === 0 ? (
+        <Empty>{`Ninguém com "${busca}".`}</Empty>
+      ) : grupos.map((g) => (
+        <div key={g.area}>
+          <div className="mb-2 flex items-baseline gap-2">
+            <span className="font-display text-xs font-semibold uppercase tracking-wide text-slate-500">{g.area}</span>
+            <span className="text-xs text-slate-400">
+              {g.pessoas.length} {g.pessoas.length === 1 ? "pessoa" : "pessoas"}
+              {g.abertas ? ` · ${g.abertas} em andamento` : ""}
+            </span>
+          </div>
+          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+            {g.pessoas.map((p) => {
+              const marcado = chaveNome(filtro) === p.chave;
+              const nada = p.doRH && !p.abertas && !p.decisoesAbertas && !p.concluidas;
+              return (
+                <button
+                  key={p.chave}
+                  type="button"
+                  aria-pressed={marcado}
+                  // Tocar na pessoa filtra as táticas logo acima: é como se sai
+                  // de "quem é o time" para "o que exatamente ele tem".
+                  onClick={() => aoFiltrar(marcado ? "" : p.nome)}
+                  className={`rounded-xl border p-3 text-left transition-colors ${
+                    marcado ? "border-brand-300 bg-brand-50" : "bg-white hover:bg-slate-50"
+                  }`}
+                  style={marcado ? undefined : { borderColor: "var(--hairline)" }}
+                >
+                  {/* SÓ O NOME. O cargo saiu a pedido do dono: o cartão é para
+                      bater o olho e ver a carga, e uma segunda linha em cada um
+                      transformava o quadro num paredão de texto. O cargo continua
+                      na lista do campo "responsável", que é onde ele decide. */}
+                  <span className="block truncate font-display text-sm font-medium text-slate-900">{p.nome}</span>
+                  {/* Exceção: quando o nome não casou com o RH, dizer o porquê é
+                      a única forma de a pessoa arrumar. */}
+                  {(p.talvez || p.ambiguo) && (
+                    <span className="block truncate text-xs text-slate-400">
+                      {p.talvez ? `talvez seja ${p.talvez}` : `${p.ambiguo} pessoas começam assim`}
+                    </span>
+                  )}
+                  <span className="mt-2 flex flex-wrap items-center gap-1.5">
+                    {p.abertas > 0 && <span className="chip-warn">{p.abertas} em andamento</span>}
+                    {p.atrasadas > 0 && <span className="chip-bad">{p.atrasadas} atrasada{p.atrasadas > 1 ? "s" : ""}</span>}
+                    {p.decisoesAbertas > 0 && <span className="chip">{p.decisoesAbertas} de ata</span>}
+                    {p.concluidas > 0 && <span className="chip-ok">{p.concluidas} concluída{p.concluidas > 1 ? "s" : ""}</span>}
+                    {nada && <span className="text-xs text-slate-400">sem nada na mão</span>}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      ))}
+    </div>
   );
 }
 
@@ -85,7 +318,7 @@ function CartaoValor({ v, podeEditar, aoEditar, aoRemover }) {
           )}
           {v.comportamento_inaceitavel && (
             <p className="rounded-lg bg-bad-50 px-3 py-2 text-bad-700">
-              <b className="font-display">O que nao se aceita:</b> {v.comportamento_inaceitavel}
+              <b className="font-display">O que não se aceita:</b> {v.comportamento_inaceitavel}
             </p>
           )}
           {podeEditar && (
@@ -142,19 +375,19 @@ function BlocoIdentidade({ dados, podeEditar, aoRecarregar, aoAvisar }) {
     return (
       <form onSubmit={gravar} className="space-y-4">
         <div>
-          <label className="label" htmlFor="i-missao">Missao</label>
+          <label className="label" htmlFor="i-missao">Missão</label>
           <textarea id="i-missao" className="input min-h-[80px]" value={f.missao}
             onChange={(e) => setF((x) => ({ ...x, missao: e.target.value }))}
             placeholder="Por que a empresa existe" />
         </div>
         <div>
-          <label className="label" htmlFor="i-visao">Visao</label>
+          <label className="label" htmlFor="i-visao">Visão</label>
           <textarea id="i-visao" className="input min-h-[80px]" value={f.visao}
             onChange={(e) => setF((x) => ({ ...x, visao: e.target.value }))}
             placeholder="Onde a empresa quer chegar" />
         </div>
         <div className="max-w-xs">
-          <label className="label" htmlFor="i-prazo">Prazo da visao</label>
+          <label className="label" htmlFor="i-prazo">Prazo da visão</label>
           <input id="i-prazo" type="date" className="input" value={f.visaoPrazo || ""}
             onChange={(e) => setF((x) => ({ ...x, visaoPrazo: e.target.value }))} />
         </div>
@@ -172,21 +405,21 @@ function BlocoIdentidade({ dados, podeEditar, aoRecarregar, aoAvisar }) {
         <>
           {identidade.missao && (
             <div>
-              <p className="label">Missao</p>
+              <p className="label">Missão</p>
               <p className="text-lg leading-relaxed text-slate-800">{identidade.missao}</p>
             </div>
           )}
           {identidade.visao && (
             <div>
-              <p className="label">Visao{identidade.visao_prazo ? ` ate ${dataCurta(identidade.visao_prazo)}` : ""}</p>
+              <p className="label">Visão{identidade.visao_prazo ? ` até ${dataCurta(identidade.visao_prazo)}` : ""}</p>
               <p className="text-lg leading-relaxed text-slate-800">{identidade.visao}</p>
             </div>
           )}
         </>
       ) : (
         <Empty>
-          Missao e visao ainda nao foram escritas. Elas servem para decidir quando nao ha regra:
-          e o que sobra quando o manual nao cobre o caso.
+          Missão e visão ainda não foram escritas. Elas servem para decidir quando não há regra:
+          e o que sobra quando o manual não cobre o caso.
         </Empty>
       )}
 
@@ -232,7 +465,7 @@ function BlocoIdentidade({ dados, podeEditar, aoRecarregar, aoAvisar }) {
               onChange={(e) => setValor((x) => ({ ...x, comportamentoEsperado: e.target.value }))} />
           </div>
           <div>
-            <label className="label" htmlFor="v-ina">Comportamento inaceitavel</label>
+            <label className="label" htmlFor="v-ina">Comportamento inaceitável</label>
             <textarea id="v-ina" className="input" value={valor.comportamentoInaceitavel || ""}
               onChange={(e) => setValor((x) => ({ ...x, comportamentoInaceitavel: e.target.value }))} />
           </div>
@@ -247,7 +480,7 @@ function BlocoIdentidade({ dados, podeEditar, aoRecarregar, aoAvisar }) {
         {podeEditar && !valor && (
           <>
             <button type="button" className="btn-ghost h-8 px-2 text-xs" onClick={abrir}>
-              <Pencil size={13} /> Editar missao e visao
+              <Pencil size={13} /> Editar missão e visão
             </button>
             <button type="button" className="btn-ghost h-8 px-2 text-xs"
               onClick={() => setValor({ nome: "", significado: "", comportamentoEsperado: "", comportamentoInaceitavel: "", ordem: valores.length })}>
@@ -284,7 +517,7 @@ function BlocoPlano({ dados, podeEditar, aoRecarregar, aoAvisar }) {
   };
 
   if (!plano && !podeEditar) {
-    return <Empty>O plano do ano ainda nao foi montado pela diretoria.</Empty>;
+    return <Empty>O plano do ano ainda não foi montado pela diretoria.</Empty>;
   }
 
   return (
@@ -317,7 +550,7 @@ function BlocoPlano({ dados, podeEditar, aoRecarregar, aoAvisar }) {
         </div>
       )}
 
-      {!grupos.length && <Empty>Nenhum objetivo ainda. De tres a cinco bastam: mais que isso nao e foco, e lista.</Empty>}
+      {!grupos.length && <Empty>Nenhum objetivo ainda. De três a cinco bastam: mais que isso não é foco, é lista.</Empty>}
 
       {grupos.map((g) => {
         const sit = SITUACOES[g.situacao] || SITUACOES.no_rumo;
@@ -335,7 +568,7 @@ function BlocoPlano({ dados, podeEditar, aoRecarregar, aoAvisar }) {
                   </button>
                   <button type="button" className="grid h-7 w-7 place-items-center rounded-lg text-slate-500 hover:bg-bad-50 hover:text-bad-700"
                     onClick={async () => {
-                      if (!window.confirm(`Remover o objetivo "${g.titulo}"? As taticas dele ficam sem objetivo, nao sao apagadas.`)) return;
+                      if (!window.confirm(`Remover o objetivo "${g.titulo}"? As táticas dele ficam sem objetivo — não são apagadas.`)) return;
                       await removerObjetivo(g.id); await aoRecarregar();
                     }}>
                     <Trash2 size={13} />
@@ -344,8 +577,8 @@ function BlocoPlano({ dados, podeEditar, aoRecarregar, aoAvisar }) {
               )}
             </div>
             <p className="mb-3 text-xs text-slate-500">
-              {g.responsavel ? `Responsavel: ${g.responsavel} · ` : ""}
-              {g.abertas} tatica(s) em aberto · {g.concluidas} concluida(s)
+              {g.responsavel ? `Responsável: ${g.responsavel} · ` : ""}
+              {plural(g.abertas, "tática em aberto", "táticas em aberto")} · {plural(g.concluidas, "concluída", "concluídas")}
             </p>
 
             {g.indicadores.map((i) => {
@@ -405,12 +638,12 @@ function BlocoPlano({ dados, podeEditar, aoRecarregar, aoAvisar }) {
           </div>
           <div className="grid gap-3 sm:grid-cols-2">
             <div>
-              <label className="label" htmlFor="o-resp">Responsavel</label>
+              <label className="label" htmlFor="o-resp">Responsável</label>
               <input id="o-resp" className="input" value={obj.responsavel || ""}
                 onChange={(e) => setObj((x) => ({ ...x, responsavel: e.target.value }))} />
             </div>
             <div>
-              <label className="label" htmlFor="o-sit">Situacao</label>
+              <label className="label" htmlFor="o-sit">Situação</label>
               <select id="o-sit" className="input" value={obj.situacao}
                 onChange={(e) => setObj((x) => ({ ...x, situacao: e.target.value }))}>
                 {Object.entries(SITUACOES).map(([id, s]) => <option key={id} value={id}>{s.rotulo}</option>)}
@@ -514,7 +747,7 @@ function BlocoAtas({ dados, papel, aoRecarregar, aoAvisar }) {
         )}
 
         <div>
-          <label className="label" htmlFor="r-registro">Registro da reuniao</label>
+          <label className="label" htmlFor="r-registro">Registro da reunião</label>
           <textarea id="r-registro" className="input min-h-[120px]" defaultValue={r.registro} disabled={travada}
             onBlur={async (e) => {
               if (travada || e.target.value === r.registro) return;
@@ -524,20 +757,20 @@ function BlocoAtas({ dados, papel, aoRecarregar, aoAvisar }) {
         </div>
 
         <div>
-          <p className="label mb-2">Decisoes</p>
+          <p className="label mb-2">Decisões</p>
           {minhasDecisoes.length ? (
             <div className="space-y-2">
               {minhasDecisoes.map((d) => (
                 <div key={d.id} className="rounded-xl border p-3" style={{ borderColor: "var(--hairline)" }}>
                   <p className="text-sm text-slate-800">{d.texto}</p>
                   <p className="mt-1 text-xs text-slate-500">
-                    {[d.responsavel, d.prazo ? `ate ${dataCurta(d.prazo)}` : null].filter(Boolean).join(" · ") || "sem responsavel"}
-                    {taticas.some((t) => t.decisao_id === d.id) && " · virou tatica"}
+                    {[d.responsavel, d.prazo ? `até ${dataCurta(d.prazo)}` : null].filter(Boolean).join(" · ") || "sem responsável"}
+                    {taticas.some((t) => t.decisao_id === d.id) && " · virou tática"}
                   </p>
                 </div>
               ))}
             </div>
-          ) : <p className="text-sm text-slate-500">Nenhuma decisao registrada.</p>}
+          ) : <p className="text-sm text-slate-500">Nenhuma decisão registrada.</p>}
         </div>
 
         {!travada && (
@@ -556,7 +789,7 @@ function BlocoAtas({ dados, papel, aoRecarregar, aoAvisar }) {
                 </div>
                 <div className="grid gap-3 sm:grid-cols-2">
                   <div>
-                    <label className="label" htmlFor="d-resp">Responsavel</label>
+                    <label className="label" htmlFor="d-resp">Responsável</label>
                     <input id="d-resp" className="input" value={dec.responsavel}
                       onChange={(e) => setDec((x) => ({ ...x, responsavel: e.target.value }))} />
                   </div>
@@ -567,7 +800,7 @@ function BlocoAtas({ dados, papel, aoRecarregar, aoAvisar }) {
                   </div>
                 </div>
                 <div className="flex gap-2">
-                  <button className="btn-primary">Salvar decisao</button>
+                  <button className="btn-primary">Salvar decisão</button>
                   <button type="button" className="btn-ghost" onClick={() => setDec(null)}>Cancelar</button>
                 </div>
               </form>
@@ -575,7 +808,7 @@ function BlocoAtas({ dados, papel, aoRecarregar, aoAvisar }) {
               <div className="flex flex-wrap gap-2 border-t pt-3" style={{ borderColor: "var(--hairline)" }}>
                 <button type="button" className="btn-ghost h-9 px-3 text-sm"
                   onClick={() => setDec({ texto: "", responsavel: "", prazo: "" })}>
-                  <Plus size={14} /> Nova decisao
+                  <Plus size={14} /> Nova decisão
                 </button>
                 {/* R4: as decisoes viram taticas. O objetivo e perguntado aqui
                     porque R3 vale tambem para o que nasce de ata. */}
@@ -583,7 +816,7 @@ function BlocoAtas({ dados, papel, aoRecarregar, aoAvisar }) {
                 {papel === "diretoria" && (
                   <button type="button" className="btn-ghost h-9 px-3 text-sm"
                     onClick={async () => {
-                      if (!window.confirm("Aprovar esta ata? Depois disso ela nao pode mais ser alterada.")) return;
+                      if (!window.confirm("Aprovar esta ata? Depois disso ela não pode mais ser alterada.")) return;
                       try { await aprovarAta(r.id); await aoRecarregar(); aoAvisar({ tom: "ok", texto: "Ata aprovada." }); }
                       catch (err) { aoAvisar({ tom: "erro", texto: err.message }); }
                     }}>
@@ -602,7 +835,7 @@ function BlocoAtas({ dados, papel, aoRecarregar, aoAvisar }) {
     <div className="space-y-4">
       {cumpre.geral.total > 0 && (
         <div className="rounded-xl bg-slate-50 p-3">
-          <p className="label">Decisoes cumpridas no prazo</p>
+          <p className="label">Decisões cumpridas no prazo</p>
           <p className="font-display text-2xl font-bold text-slate-900">
             {cumpre.geral.pct}% <span className="text-sm font-normal text-slate-500">
               ({cumpre.geral.noPrazo} de {cumpre.geral.total})
@@ -641,11 +874,11 @@ function BlocoAtas({ dados, papel, aoRecarregar, aoAvisar }) {
             </div>
           </div>
           <div>
-            <label className="label" htmlFor="nr-part">Participantes (separados por virgula)</label>
+            <label className="label" htmlFor="nr-part">Participantes (separados por vírgula)</label>
             <input id="nr-part" className="input" value={nova.participantesTexto}
               onChange={(e) => setNova((x) => ({ ...x, participantesTexto: e.target.value }))} />
             <p className="mt-1 text-xs text-slate-500">
-              Quem nao esta aqui nao ve esta ata. A separacao e feita no servidor.
+              Quem não está aqui não vê esta ata. A separação é feita no servidor.
             </p>
           </div>
           <div>
@@ -653,11 +886,11 @@ function BlocoAtas({ dados, papel, aoRecarregar, aoAvisar }) {
             <textarea id="nr-pauta" className="input min-h-[100px]" value={nova.pauta}
               onChange={(e) => setNova((x) => ({ ...x, pauta: e.target.value }))} />
             <p className="mt-1 text-xs text-slate-500">
-              Ja veio preenchida com o que ficou em aberto nas reunioes anteriores deste mesmo tipo.
+              Já veio preenchida com o que ficou em aberto nas reuniões anteriores deste mesmo tipo.
             </p>
           </div>
           <div className="flex gap-2">
-            <button className="btn-primary">Criar reuniao</button>
+            <button className="btn-primary">Criar reunião</button>
             <button type="button" className="btn-ghost" onClick={() => setNova(null)}>Cancelar</button>
           </div>
         </form>
@@ -667,7 +900,7 @@ function BlocoAtas({ dados, papel, aoRecarregar, aoAvisar }) {
             tipo: "semanal_gestao", data: ymdLocal(new Date()), participantesTexto: "",
             pauta: pautaSugerida(reunioes, decisoes, "semanal_gestao"),
           })}>
-          <Plus size={15} strokeWidth={2.4} /> Nova reuniao
+          <Plus size={15} strokeWidth={2.4} /> Nova reunião
         </button>
       )}
 
@@ -692,7 +925,7 @@ function BlocoAtas({ dados, papel, aoRecarregar, aoAvisar }) {
           })}
         </div>
       ) : (
-        <Empty>Nenhuma reuniao registrada. A ata e o que faz a decisao sobreviver a semana.</Empty>
+        <Empty>Nenhuma reunião registrada. A ata e o que faz a decisão sobreviver a semana.</Empty>
       )}
     </div>
   );
@@ -706,14 +939,14 @@ function GerarAcoes({ reuniao, objetivos, aoRecarregar, aoAvisar }) {
   if (!escolhendo) {
     return (
       <button type="button" className="btn-ghost h-9 px-3 text-sm" onClick={() => setEscolhendo(true)}>
-        <Swords size={14} /> Gerar acoes
+        <Swords size={14} /> Gerar ações
       </button>
     );
   }
   return (
     <div className="w-full rounded-xl border p-3" style={{ borderColor: "var(--hairline)" }}>
       <p className="mb-2 text-sm text-slate-700">
-        As decisoes em aberto viram taticas. A qual objetivo do ano elas pertencem?
+        As decisões em aberto viram táticas. A qual objetivo do ano elas pertencem?
       </p>
       <div className="flex flex-wrap items-center gap-2">
         <select className="input h-9 w-auto py-0 text-sm" value={objetivoId} onChange={(e) => setObjetivoId(e.target.value)}>
@@ -728,8 +961,8 @@ function GerarAcoes({ reuniao, objetivos, aoRecarregar, aoAvisar }) {
               await aoRecarregar();
               aoAvisar({
                 tom: r.criadas ? "ok" : "aviso",
-                texto: r.criadas ? `${r.criadas} tatica(s) criada(s) a partir das decisoes.`
-                                 : "Nenhuma decisao nova para virar tatica.",
+                texto: r.criadas ? `${r.criadas} ${r.criadas === 1 ? "tática criada" : "táticas criadas"} a partir das decisões.`
+                                 : "Nenhuma decisão nova para virar tática.",
               });
             } catch (err) { aoAvisar({ tom: "erro", texto: err.message }); }
           }}>
@@ -752,14 +985,14 @@ function BlocoCiclo({ dados, podeEditar, hojeISO, aoRecarregar, aoAvisar }) {
   const naoConcluidas = taticas.filter((t) => t.status === "aberta" || t.status === "em_andamento");
   const decisoesPendentes = decisoes.filter((d) => d.status === "aberta");
 
-  if (!plano) return <Empty>Sem plano do ano, nao ha ciclo para fechar.</Empty>;
+  if (!plano) return <Empty>Sem plano do ano, não há ciclo para fechar.</Empty>;
 
   return (
     <div className="space-y-5">
       <div className={`rounded-xl p-3 text-sm ${alerta.destaque ? "bg-warn-50 text-warn-700" : "bg-slate-50 text-slate-600"}`}>
         {alerta.destaque
-          ? `Faltam ${alerta.dias} dia(s) para o fim do ${alerta.tipo === "anual" ? "ano" : "trimestre"}. Hora de fechar o ciclo.`
-          : `Proximo fechamento de trimestre em ${alerta.dias} dia(s).`}
+          ? `${alerta.dias === 0 ? "Hoje é o último dia" : `Faltam ${plural(alerta.dias, "dia", "dias")}`} para o fim do ${alerta.tipo === "anual" ? "ano" : "trimestre"}. Hora de fechar o ciclo.`
+          : `Próximo fechamento de trimestre em ${alerta.dias} ${alerta.dias === 1 ? "dia" : "dias"}.`}
       </div>
 
       {/* Tres colunas: planejado, realizado, desvio. Os dois primeiros vem do
@@ -767,21 +1000,27 @@ function BlocoCiclo({ dados, podeEditar, hojeISO, aoRecarregar, aoAvisar }) {
       <div className="grid gap-3 lg:grid-cols-3">
         <div className="rounded-xl border p-3" style={{ borderColor: "var(--hairline)" }}>
           <p className="label">Planejado</p>
-          <p className="mt-1 text-sm text-slate-700">{objetivos.length} objetivo(s)</p>
-          <p className="text-sm text-slate-700">{indicadores.length} indicador(es)</p>
-          <p className="text-sm text-slate-700">{taticas.length} tatica(s)</p>
+          <p className="mt-1 text-sm text-slate-700">{plural(objetivos.length, "objetivo", "objetivos")}</p>
+          <p className="text-sm text-slate-700">{plural(indicadores.length, "indicador", "indicadores")}</p>
+          <p className="text-sm text-slate-700">{plural(taticas.length, "tática", "táticas")}</p>
         </div>
         <div className="rounded-xl border p-3" style={{ borderColor: "var(--hairline)" }}>
           <p className="label">Realizado</p>
-          <p className="mt-1 text-sm text-ok-700">{concluidas.length} tatica(s) concluida(s)</p>
+          <p className="mt-1 text-sm text-ok-700">
+            {concluidas.length === 1 ? "1 tática concluída" : `${concluidas.length} táticas concluídas`}
+          </p>
           <p className="text-sm text-slate-700">
-            {indicadores.filter((i) => Number(i.atual) >= Number(i.meta) && Number(i.meta) > 0).length} indicador(es) na meta
+            {plural(indicadores.filter((i) => Number(i.atual) >= Number(i.meta) && Number(i.meta) > 0).length, "indicador na meta", "indicadores na meta")}
           </p>
         </div>
         <div className="rounded-xl border p-3" style={{ borderColor: "var(--hairline)" }}>
           <p className="label">Desvio</p>
-          <p className="mt-1 text-sm text-bad-700">{naoConcluidas.length} tatica(s) nao concluida(s)</p>
-          <p className="text-sm text-bad-700">{decisoesPendentes.length} decisao(oes) de ata pendente(s)</p>
+          <p className="mt-1 text-sm text-bad-700">
+            {naoConcluidas.length === 1 ? "1 tática não concluída" : `${naoConcluidas.length} táticas não concluídas`}
+          </p>
+          <p className="text-sm text-bad-700">
+            {decisoesPendentes.length === 1 ? "1 decisão de ata pendente" : `${decisoesPendentes.length} decisões de ata pendentes`}
+          </p>
         </div>
       </div>
 
@@ -808,7 +1047,7 @@ function BlocoCiclo({ dados, podeEditar, hojeISO, aoRecarregar, aoAvisar }) {
                 className={tipo === "anual" ? "btn-ghost" : "btn-primary"}
                 onClick={async () => {
                   const aviso = tipo === "anual"
-                    ? "Encerrar o ANO? O plano atual e congelado, um plano novo e criado e as taticas pendentes atravessam sem objetivo, para voce religar."
+                    ? "Encerrar o ANO? O plano atual é congelado, um plano novo é criado, e as táticas pendentes atravessam sem objetivo para você religar."
                     : "Fechar o trimestre? O retrato de hoje fica guardado e o plano do ano continua ativo.";
                   if (!window.confirm(aviso)) return;
                   try {
@@ -821,8 +1060,8 @@ function BlocoCiclo({ dados, podeEditar, hojeISO, aoRecarregar, aoAvisar }) {
                     aoAvisar({
                       tom: "ok",
                       texto: r.encerrouPlano
-                        ? `Ano encerrado. Plano novo criado; ${r.taticasQueAtravessaram} tatica(s) atravessaram.`
-                        : "Trimestre fechado e guardado no historico.",
+                        ? `Ano encerrado. Plano novo criado; ${r.taticasQueAtravessaram} ${r.taticasQueAtravessaram === 1 ? "tática atravessou" : "táticas atravessaram"}.`
+                        : "Trimestre fechado e guardado no histórico.",
                     });
                   } catch (err) { aoAvisar({ tom: "erro", texto: err.message }); }
                 }}>
@@ -850,7 +1089,7 @@ function BlocoCiclo({ dados, podeEditar, hojeISO, aoRecarregar, aoAvisar }) {
                   {c.desvios && <p className="text-slate-700"><b>Desvios:</b> {c.desvios}</p>}
                   {c.aprendizados && <p className="text-slate-700"><b>Aprendizados:</b> {c.aprendizados}</p>}
                   <p className="mt-1 text-xs text-slate-400">
-                    congelado com {(c.snapshot_planejado?.taticas || []).length} tatica(s) ·
+                    congelado com {plural((c.snapshot_planejado?.taticas || []).length, "tática", "táticas")} ·
                     {" "}{dataLonga(String(c.criado_em).slice(0, 10))}
                   </p>
                 </div>
@@ -868,8 +1107,15 @@ export default function Gestao() {
   const [dados, setDados] = useState(null);
   const [erro, setErro] = useState(null);
   const [aviso, setAviso] = useState(null);
-  const [abertos, setAbertos] = useState(() =>
-    Object.fromEntries(BLOCOS.map((b) => [b.id, b.padrao])));
+  // Aba escolhida. A preferência gravada por pessoa continua valendo: o bloco
+  // que ela deixou aberto vira a aba que abre. Sem isso, quem usa a tela toda
+  // semana pelo esquema tático voltaria ao padrão a cada visita.
+  const [aba, setAba] = useState(BLOCO_PADRAO);
+  // Dentro do esquema tático: as táticas ou o quadro do time.
+  const [verTime, setVerTime] = useState(false);
+  const [pessoaFiltro, setPessoaFiltro] = useState("");
+  const primeiraCarga = useRef(true);
+  const abaAnterior = useRef(BLOCO_PADRAO);
   const hojeISO = ymdLocal(new Date());
 
   const carregar = useCallback(async () => {
@@ -877,22 +1123,33 @@ export default function Gestao() {
       const d = await lerGestao();
       setDados(d);
       setErro(null);
-      // A escolha de cada pessoa vence o padrao; bloco nunca visitado fica no
-      // padrao (tatico aberto, resto recolhido).
-      if (d.preferencias && Object.keys(d.preferencias).length) {
-        setAbertos((a) => ({ ...a, ...d.preferencias }));
+      // SÓ NA PRIMEIRA CARGA. `carregar()` roda de novo a cada gravação (salvar
+      // uma tática, aprovar uma ata), e reaplicar a preferência ali jogava a
+      // pessoa para outra aba no meio do trabalho -- o servidor ainda não sabe
+      // da aba que ela acabou de escolher.
+      if (primeiraCarga.current && d.preferencias && Object.keys(d.preferencias).length) {
+        const marcado = BLOCOS.filter((b) => d.preferencias[b.id]);
+        // O formato antigo marcava VÁRIAS (era acordeão). Com mais de uma
+        // marcada não dá para saber qual era a última usada: fica no padrão.
+        if (marcado.length === 1) setAba(marcado[0].id);
       }
+      primeiraCarga.current = false;
     } catch (e) { setErro(e.message); }
   }, []);
 
   useEffect(() => { carregar(); }, [carregar]);
 
-  const alterna = (id) => {
-    setAbertos((a) => {
-      const novo = { ...a, [id]: !a[id] };
-      gravarPreferencia(id, novo[id]);
-      return novo;
-    });
+  const trocarAba = (id) => {
+    setAba(id);
+    // UMA gravação por toque, e só a da aba escolhida. Gravar as cinco (quatro
+    // desmarcando) disparava cinco requisições em paralelo, sem ordem garantida
+    // entre elas -- duas podiam terminar marcadas e a próxima visita abriria na
+    // errada. A limpeza das outras é feita na LEITURA, que ignora preferência
+    // ambígua e cai no padrão.
+    gravarPreferencia(id, true);
+    BLOCOS.filter((b) => b.id !== id && b.id === abaAnterior.current)
+      .forEach((b) => gravarPreferencia(b.id, false));
+    abaAnterior.current = id;
   };
 
   if (erro) return <ErroModulo mensagem={erro} aoTentar={carregar} />;
@@ -907,7 +1164,7 @@ export default function Gestao() {
   if (papel === "colaborador") {
     return (
       <div className="space-y-6">
-        <PageTitle titulo="Gestao" descricao="A identidade da Impresilk: por que existimos e o que nao se negocia." />
+        <PageTitle titulo="Gestão" descricao="A identidade da Impresilk: por que existimos e o que não se negocia." />
         <Card>
           <BlocoIdentidade dados={dados} podeEditar={false} aoRecarregar={carregar} aoAvisar={setAviso} />
         </Card>
@@ -915,22 +1172,73 @@ export default function Gestao() {
     );
   }
 
+  const equipe = dados.equipe || [];
+  const blocoAtual = BLOCOS.find((b) => b.id === aba) || BLOCOS[0];
+
   const conteudo = {
     identidade: <BlocoIdentidade dados={dados} podeEditar={ehDiretoria} aoRecarregar={carregar} aoAvisar={setAviso} />,
     plano: <BlocoPlano dados={dados} podeEditar={ehDiretoria} aoRecarregar={carregar} aoAvisar={setAviso} />,
     tatico: (
-      <EsquemaTatico
-        taticas={dados.taticas}
-        objetivos={dados.objetivos}
-        escopo="empresa"
-        empresaId={dados.empresaId}
-        mostrarVinculoObjetivo
-        permitirCriar
-        permitirEditar
-        hojeISO={hojeISO}
-        aoSalvar={async (t) => { await salvarTatica(t); await carregar(); }}
-        aoRemover={async (id) => { await removerTatica(id); await carregar(); }}
-      />
+      <div className="space-y-4">
+        {/* Duas leituras do mesmo bloco: "o que está sendo feito" e "quem está
+            com o quê". Escolher uma pessoa no quadro filtra a lista de táticas
+            -- é o caminho de "quem é o time" para "o que ele tem na mão". */}
+        <div className="sem-impressao inline-flex rounded-xl border bg-white p-1"
+             style={{ borderColor: "var(--hairline)" }}>
+          {[
+            { id: false, rotulo: "Táticas", icone: Swords },
+            { id: true, rotulo: "Time", icone: Users },
+          ].map((v) => {
+            const Ic = v.icone;
+            return (
+              <button
+                key={String(v.id)}
+                type="button"
+                aria-pressed={verTime === v.id}
+                onClick={() => setVerTime(v.id)}
+                className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 font-display text-sm font-medium transition-colors ${
+                  verTime === v.id ? "bg-brand text-white" : "text-slate-600 hover:bg-slate-50"
+                }`}
+              >
+                <Ic size={15} strokeWidth={2.2} />
+                {v.rotulo}
+              </button>
+            );
+          })}
+        </div>
+
+        {verTime ? (
+          <BlocoTime
+            equipe={equipe}
+            taticas={dados.taticas}
+            decisoes={dados.decisoes}
+            hojeISO={hojeISO}
+            filtro={pessoaFiltro}
+            aoFiltrar={(nome) => {
+              setPessoaFiltro(nome);
+              // Escolher a pessoa leva de volta às táticas dela: ficar no quadro
+              // depois de filtrar não mostraria o resultado do próprio toque.
+              if (nome) setVerTime(false);
+            }}
+          />
+        ) : (
+          <EsquemaTatico
+            taticas={dados.taticas}
+            objetivos={dados.objetivos}
+            escopo="empresa"
+            empresaId={dados.empresaId}
+            mostrarVinculoObjetivo
+            permitirCriar
+            permitirEditar
+            pessoas={equipe}
+            respFiltrado={pessoaFiltro}
+            aoFiltrarResp={setPessoaFiltro}
+            hojeISO={hojeISO}
+            aoSalvar={async (t) => { await salvarTatica(t); await carregar(); }}
+            aoRemover={async (id) => { await removerTatica(id); await carregar(); }}
+          />
+        )}
+      </div>
     ),
     atas: <BlocoAtas dados={dados} papel={papel} aoRecarregar={carregar} aoAvisar={setAviso} />,
     ciclo: <BlocoCiclo dados={dados} podeEditar={ehDiretoria} hojeISO={hojeISO} aoRecarregar={carregar} aoAvisar={setAviso} />,
@@ -939,8 +1247,15 @@ export default function Gestao() {
   return (
     <div className="space-y-4">
       <PageTitle
-        titulo="Gestao"
-        descricao="Identidade, plano do ano, o que esta sendo feito agora e o que ficou decidido. Nao e painel de producao: e direcao."
+        titulo="Gestão"
+        descricao="Identidade, plano do ano, o que está sendo feito agora e o que ficou decidido. Não é painel de produção: é direção."
+      />
+
+      <Abas
+        blocos={BLOCOS}
+        atual={aba}
+        aoTrocar={trocarAba}
+        alertas={{ ciclo: alerta.destaque }}
       />
 
       {aviso && (
@@ -952,12 +1267,20 @@ export default function Gestao() {
         </p>
       )}
 
-      {BLOCOS.map((b) => (
-        <Acordeao key={b.id} bloco={b} aberto={!!abertos[b.id]} alternar={() => alterna(b.id)}
-          destaque={b.id === "ciclo" && alerta.destaque}>
-          {conteudo[b.id]}
-        </Acordeao>
-      ))}
+      <Card className={aba === "ciclo" && alerta.destaque ? "ring-2 ring-warn-600" : ""}>
+        <div className="mb-4 flex flex-wrap items-baseline gap-x-3 gap-y-1">
+          <h2 className="font-display text-base font-semibold text-slate-900">{blocoAtual.titulo}</h2>
+          <p className="text-sm text-slate-500">{blocoAtual.sub}</p>
+          {aba === "ciclo" && alerta.destaque && (
+            <span className="chip-warn">
+              {alerta.dias <= 0
+                ? `fecha hoje o ciclo ${alerta.tipo}`
+                : `faltam ${alerta.dias} ${alerta.dias === 1 ? "dia" : "dias"} para fechar o ciclo ${alerta.tipo}`}
+            </span>
+          )}
+        </div>
+        {conteudo[aba]}
+      </Card>
     </div>
   );
 }

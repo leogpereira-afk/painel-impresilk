@@ -27,6 +27,13 @@ const VAZIA = {
   id: "", titulo: "", responsavel: "", prazo: "", status: "aberta", objetivoId: "",
 };
 
+// "Jéssica", "jessica" e "Jessica " são a mesma pessoa. O campo `responsavel` é
+// texto livre desde sempre e a lista do RH vem acentuada -- comparar cru fazia
+// o filtro por pessoa devolver lista vazia.
+const semAcento = (v) =>
+  String(v ?? "").normalize("NFD").replace(/[̀-ͯ]/g, "").trim().toLowerCase();
+const mesmaPessoa = (a, b) => semAcento(a) === semAcento(b);
+
 // Formulario em componente proprio, no escopo do modulo: com ele dentro do pai,
 // cada tecla digitada remontaria a arvore e o campo perderia o foco.
 function Formulario({ inicial, objetivos, exigeObjetivo, pessoas, salvando, aoSalvar, aoFechar }) {
@@ -38,8 +45,8 @@ function Formulario({ inicial, objetivos, exigeObjetivo, pessoas, salvando, aoSa
     if (!f.titulo.trim()) return setErro("Escreva o que precisa ser feito.");
     if (exigeObjetivo && !f.objetivoId) {
       return setErro(
-        "Toda tatica da empresa precisa estar ligada a um objetivo do ano. " +
-        "Se nenhum serve, o que voce quer fazer ainda nao virou plano."
+        "Toda tática da empresa precisa estar ligada a um objetivo do ano. " +
+        "Se nenhum serve, o que você quer fazer ainda não virou plano."
       );
     }
     setErro("");
@@ -53,7 +60,7 @@ function Formulario({ inicial, objetivos, exigeObjetivo, pessoas, salvando, aoSa
           <label className="label" htmlFor="t-titulo">O que precisa ser feito</label>
           <input id="t-titulo" className="input" value={f.titulo} autoFocus
             onChange={(e) => setF((x) => ({ ...x, titulo: e.target.value }))}
-            placeholder="ex.: Fechar contrato de manutencao das maquinas" />
+            placeholder="ex.: Fechar contrato de manutenção das máquinas" />
         </div>
         {exigeObjetivo && (
           <div className="sm:col-span-2">
@@ -66,11 +73,20 @@ function Formulario({ inicial, objetivos, exigeObjetivo, pessoas, salvando, aoSa
           </div>
         )}
         <div>
-          <label className="label" htmlFor="t-resp">Responsavel</label>
+          <label className="label" htmlFor="t-resp">Responsável</label>
+          {/* A lista vem do RH. Continua sendo campo de TEXTO, não select: dá
+              para responsabilizar quem não está no RH (um fornecedor, um sócio)
+              sem que a tela trave. Só o NOME, a pedido do dono. */}
           <input id="t-resp" className="input" list="gestao-pessoas" value={f.responsavel}
+            placeholder={pessoas.length ? "escolha na lista ou digite" : "quem vai tocar isso"}
             onChange={(e) => setF((x) => ({ ...x, responsavel: e.target.value }))} />
           <datalist id="gestao-pessoas">
-            {pessoas.map((p) => <option key={p} value={p} />)}
+            {pessoas.map((p, i) => {
+              const nome = typeof p === "string" ? p : p.nome;
+              // key com o índice junto: dois colaboradores de mesmo nome não
+              // podem derrubar a lista com key repetida.
+              return <option key={`${nome}-${i}`} value={nome} />;
+            })}
           </datalist>
         </div>
         <div className="grid grid-cols-2 gap-3">
@@ -80,7 +96,7 @@ function Formulario({ inicial, objetivos, exigeObjetivo, pessoas, salvando, aoSa
               onChange={(e) => setF((x) => ({ ...x, prazo: e.target.value }))} />
           </div>
           <div>
-            <label className="label" htmlFor="t-status">Situacao</label>
+            <label className="label" htmlFor="t-status">Situação</label>
             <select id="t-status" className="input" value={f.status}
               onChange={(e) => setF((x) => ({ ...x, status: e.target.value }))}>
               {Object.entries(STATUS_TATICA).map(([id, s]) => (
@@ -93,7 +109,7 @@ function Formulario({ inicial, objetivos, exigeObjetivo, pessoas, salvando, aoSa
       {erro && <p className="mt-2 rounded-lg bg-bad-50 px-3 py-2 text-sm text-bad-700">{erro}</p>}
       <div className="mt-3 flex flex-wrap gap-2">
         <button className="btn-primary" disabled={salvando}>
-          {salvando ? "Salvando..." : f.id ? "Salvar" : "Criar tatica"}
+          {salvando ? "Salvando..." : f.id ? "Salvar" : "Criar tática"}
         </button>
         <button type="button" className="btn-ghost" onClick={aoFechar}>Cancelar</button>
       </div>
@@ -110,7 +126,7 @@ function Linha({ t, hojeISO, permitirEditar, aoConcluir, aoEditar, aoRemover }) 
       style={{ borderColor: "var(--hairline)" }}>
       {permitirEditar && (
         <button type="button" onClick={() => aoConcluir(t)}
-          title={feita ? "Reabrir" : "Marcar como concluida"}
+          title={feita ? "Reabrir" : "Marcar como concluída"}
           className={`grid h-8 w-8 shrink-0 place-items-center rounded-lg border transition-colors ${
             feita ? "border-ok-600 bg-ok-600 text-white" : "text-slate-400 hover:border-ok-600 hover:text-ok-700"
           }`}
@@ -129,7 +145,7 @@ function Linha({ t, hojeISO, permitirEditar, aoConcluir, aoEditar, aoRemover }) 
       {/* Tatica que nasceu de decisao de ata leva marca: quem abre a tela sabe
           que aquilo foi combinado numa reuniao, nao inventado depois. */}
       {t.origem === "ata" && (
-        <span className="chip inline-flex shrink-0 items-center gap-1" title="Veio de uma decisao de ata">
+        <span className="chip inline-flex shrink-0 items-center gap-1" title="Veio de uma decisão de ata">
           <FileText size={12} /> ata
         </span>
       )}
@@ -163,20 +179,30 @@ export default function EsquemaTatico({
   hojeISO,
   aoSalvar,
   aoRemover,
+  // Filtro por responsavel CONTROLADO de fora quando vem par: e assim que
+  // tocar numa pessoa no quadro do time filtra esta lista. Sem os dois, o
+  // componente segue com o estado dele -- a Central do Leo nao passa nada.
+  respFiltrado,
+  aoFiltrarResp,
 }) {
   const [form, setForm] = useState(null);
   const [salvando, setSalvando] = useState(false);
   const [fStatus, setFStatus] = useState("");
-  const [fResp, setFResp] = useState("");
+  const [respInterno, setRespInterno] = useState("");
+  const controlado = typeof aoFiltrarResp === "function";
+  const fResp = controlado ? (respFiltrado || "") : respInterno;
+  const setFResp = controlado ? aoFiltrarResp : setRespInterno;
 
+  // Quem aparece no FILTRO: só quem realmente tem tática. Encher o filtro com
+  // as 39 pessoas do RH faria a maioria das opções não devolver nada.
   const responsaveis = useMemo(
-    () => [...new Set(taticas.map((t) => t.responsavel).filter(Boolean))].sort(),
+    () => [...new Set(taticas.map((t) => t.responsavel).filter(Boolean))].sort((a, b) => a.localeCompare(b, "pt-BR")),
     [taticas]
   );
 
   const visiveis = useMemo(
     () => taticas.filter((t) =>
-      (!fStatus || t.status === fStatus) && (!fResp || t.responsavel === fResp)),
+      (!fStatus || t.status === fStatus) && (!fResp || mesmaPessoa(t.responsavel, fResp))),
     [taticas, fStatus, fResp]
   );
 
@@ -226,18 +252,24 @@ export default function EsquemaTatico({
       <div className="mb-3 flex flex-wrap items-center gap-2">
         {permitirCriar && !form && (
           <button type="button" className="btn-primary" onClick={() => setForm({ ...VAZIA })}>
-            <Plus size={15} strokeWidth={2.4} /> Nova tatica
+            <Plus size={15} strokeWidth={2.4} /> Nova tática
           </button>
         )}
         <span className="ml-auto flex flex-wrap items-center gap-2">
           <Filter size={14} className="text-slate-400" />
           <select className="input h-9 w-auto py-0 text-sm" value={fStatus} onChange={(e) => setFStatus(e.target.value)}>
-            <option value="">Todas as situacoes</option>
+            <option value="">Todas as situações</option>
             {Object.entries(STATUS_TATICA).map(([id, s]) => <option key={id} value={id}>{s.rotulo}</option>)}
           </select>
-          {responsaveis.length > 1 && (
+          {(responsaveis.length > 1 || fResp) && (
             <select className="input h-9 w-auto py-0 text-sm" value={fResp} onChange={(e) => setFResp(e.target.value)}>
               <option value="">Todo mundo</option>
+              {/* O nome escolhido no quadro do time pode nao estar na lista (a
+                  pessoa ainda nao tem tatica nenhuma). Sem esta opcao, o select
+                  mostrava "Todo mundo" enquanto a lista estava filtrada. */}
+              {!responsaveis.some((r) => mesmaPessoa(r, fResp)) && fResp && (
+                <option value={fResp}>{fResp}</option>
+              )}
               {responsaveis.map((r) => <option key={r} value={r}>{r}</option>)}
             </select>
           )}
@@ -259,8 +291,8 @@ export default function EsquemaTatico({
       {!visiveis.length && (
         <Empty>
           {taticas.length
-            ? "Nenhuma tatica com esse filtro."
-            : "Nenhuma tatica ainda. Comece pelo objetivo do ano e quebre em passos de 90 dias."}
+            ? "Nenhuma tática com esse filtro."
+            : "Nenhuma tática ainda. Comece pelo objetivo do ano e quebre em passos de 90 dias."}
         </Empty>
       )}
 
@@ -270,7 +302,7 @@ export default function EsquemaTatico({
               <p className="mb-2 font-display text-sm font-semibold text-slate-700">
                 {g.titulo}
                 <span className="ml-2 text-xs font-normal text-slate-500">
-                  {g.abertas} em aberto · {g.concluidas} concluidas
+                  {g.abertas} em aberto · {g.concluidas} {g.concluidas === 1 ? "concluída" : "concluídas"}
                 </span>
               </p>
               <div className="space-y-2">
