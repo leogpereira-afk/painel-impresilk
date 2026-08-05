@@ -38,6 +38,52 @@ const BUCKET = "painel-arquivos";
 // historico de manutencao e quanto ja custou. Por isso ele NAO aparece na tela
 // de Documentos e ativos (que gira em torno de validade) e sim em Manutencoes.
 const TIPOS = new Set(["documento", "veiculo", "maquina", "marketing", "licitacao", "predial"]);
+
+// FICHA TECNICA por familia -- a "especificacao" que a tela de Manutencoes pede
+// ao cadastrar. Lista FECHADA e por tipo: sem isso, o objeto vira depositario de
+// qualquer chave que um cliente resolva mandar, e um registro que hoje tem 20
+// campos passa a ter tamanho imprevisivel (a listagem traz TODOS os itens de uma
+// vez -- lixo aqui pesa em toda abertura da tela).
+//
+// Espelhado em src/lib/calc/manutencoes.js (ESPEC_CAMPOS). Mexeu la, mexe aqui.
+const ESPEC_PERMITIDA: Record<string, string[]> = {
+  veiculo: ["placa", "marcaModelo", "ano", "cor", "combustivel", "renavam", "chassi"],
+  maquina: ["fabricante", "modelo", "numeroSerie", "ano", "setor", "potencia"],
+  predial: ["local", "marcaModelo", "quantidade", "instalacao"],
+};
+const ESPEC_MAX = 120; // caracteres por campo: e ficha, nao observacao
+
+// Igual ao resto do `limpo`: chave ausente MANTEM o que ja estava gravado,
+// string vazia limpa. Se o corpo nao traz `especificacao` nenhuma (formulario
+// antigo, outra tela), a ficha inteira fica intacta.
+function limparEspec(tipo: string, vindo: unknown, antes: unknown) {
+  const permitidas = ESPEC_PERMITIDA[tipo];
+  if (!permitidas) return {};                       // documento/marketing/licitacao nao tem ficha
+  const anterior = (antes ?? {}) as Record<string, unknown>;
+  if (vindo === undefined || vindo === null) {
+    // Mantem so o que continua permitido para este tipo.
+    const so: Record<string, string> = {};
+    for (const k of permitidas) {
+      const v = String(anterior[k] ?? "").trim();
+      if (v) so[k] = v.slice(0, ESPEC_MAX);
+    }
+    return so;
+  }
+  // Corpo malformado (string, array, numero) NAO pode apagar a ficha que ja
+  // esta gravada: seria perder dado por causa de um cliente com defeito. Trata
+  // igual a "nao veio" -- mantem o que estava.
+  if (typeof vindo !== "object" || Array.isArray(vindo)) {
+    return limparEspec(tipo, undefined, antes);
+  }
+  const dado = vindo as Record<string, unknown>;
+  const out: Record<string, string> = {};
+  for (const k of permitidas) {
+    const bruto = k in dado ? dado[k] : anterior[k];
+    const v = String(bruto ?? "").trim().slice(0, ESPEC_MAX);
+    if (v) out[k] = v;                              // campo vazio nao ocupa espaco no registro
+  }
+  return out;
+}
 const MAX_ARQUIVO = 4 * 1024 * 1024; // 4 MB em base64 (~3 MB de arquivo)
 
 const sb = createClient(SUPABASE_URL, SERVICE_KEY, { auth: { persistSession: false } });
@@ -165,33 +211,57 @@ Deno.serve(async (req: Request) => {
           }
         }
 
+        // O QUE NAO VEIO NO CORPO FICA COMO ESTAVA.
+        //
+        // Antes, `limpo` era montado so a partir de `it`: campo ausente virava
+        // "" ou 0. Isso funcionava enquanto UM formulario mandava o registro
+        // inteiro. Agora Manutencoes tambem cadastra veiculo e maquina, e o
+        // formulario de la nao tem os campos de documento -- salvar um carro
+        // por ali zerava validade (IPVA), emissao, medidor e ate o anexo do
+        // CRLV, sem aviso e sem erro. Quem descobre e quem procura o documento.
+        //
+        // A regra fica no SERVIDOR, nao em "lembrar de espalhar ...item no
+        // cliente": e o unico lugar por onde todos os formularios passam.
+        // `undefined` (chave ausente) = mantem; "" explicito = limpa.
+        const a = (ant?.registro ?? {}) as Record<string, unknown>;
+        const txt = (v: unknown, antes: unknown) =>
+          String((v ?? antes ?? "") as string).trim();
+        const numOu = (v: unknown, antes: unknown) =>
+          v === undefined ? (Number(antes) || 0) : (Number(v) || 0);
+
         const limpo = {
           id, tipo,
           nome: String(it.nome).trim(),
-          categoria: String(it.categoria ?? "").trim(),
-          identificacao: String(it.identificacao ?? "").trim(),
-          responsavel: String(it.responsavel ?? "").trim(),
-          emissao: String(it.emissao ?? ""),
-          validade: String(it.validade ?? ""),
-          medidorAtual: Number(it.medidorAtual) || 0,
-          medidorProximo: Number(it.medidorProximo) || 0,
-          unidadeMedidor: String(it.unidadeMedidor ?? "").trim(),
-          observacao: String(it.observacao ?? "").trim(),
+          categoria: txt(it.categoria, a.categoria),
+          identificacao: txt(it.identificacao, a.identificacao),
+          responsavel: txt(it.responsavel, a.responsavel),
+          emissao: it.emissao === undefined ? String(a.emissao ?? "") : String(it.emissao ?? ""),
+          validade: it.validade === undefined ? String(a.validade ?? "") : String(it.validade ?? ""),
+          medidorAtual: numOu(it.medidorAtual, a.medidorAtual),
+          medidorProximo: numOu(it.medidorProximo, a.medidorProximo),
+          unidadeMedidor: txt(it.unidadeMedidor, a.unidadeMedidor),
+          observacao: txt(it.observacao, a.observacao),
+          // Ficha tecnica por familia: placa/ano do carro, numero de serie da
+          // maquina, local da camera. Objeto proprio para nao espalhar sete
+          // campos vazios no shape que tambem serve documento e licitacao.
+          especificacao: limparEspec(tipo, it.especificacao, a.especificacao),
           // Campos das licitacoes (vazios nos demais tipos): numero do edital,
           // link do portal, hora da sessao, situacao e valor estimado.
-          edital: String(it.edital ?? "").trim(),
-          url: String(it.url ?? "").trim(),
-          hora: String(it.hora ?? "").trim(),
-          status: String(it.status ?? "").trim(),
-          valor: Number(it.valor) || 0,
-          arquivoNome: String(it.arquivoNome ?? "").trim(),
+          edital: txt(it.edital, a.edital),
+          url: txt(it.url, a.url),
+          hora: txt(it.hora, a.hora),
+          status: txt(it.status, a.status),
+          valor: numOu(it.valor, a.valor),
+          arquivoNome: txt(it.arquivoNome, a.arquivoNome),
           // Miniatura (data URL pequena) para a tela de Marketing nao precisar
           // baixar a logomarca INTEIRA -- ate 3 MB cada -- so para desenhar um
           // quadradinho de 96 px. Fica no proprio registro, entao vem junto com
           // a listagem, sem nenhuma ida extra ao servidor. O corte em 40 mil
           // caracteres (~30 KB) e o teto: acima disso nao e mais miniatura.
-          miniatura: String(it.miniatura ?? "").slice(0, 40000),
-          temArquivo: !!it.temArquivo,
+          miniatura: it.miniatura === undefined
+            ? String(a.miniatura ?? "")
+            : String(it.miniatura ?? "").slice(0, 40000),
+          temArquivo: it.temArquivo === undefined ? !!a.temArquivo : !!it.temArquivo,
           atualizadoEm: agora,
           atualizadoPor: quem,
           criadoEm: ant?.registro?.criadoEm || agora,
