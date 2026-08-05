@@ -40,16 +40,24 @@ for fn in "${FUNCOES[@]}"; do
   [ -f "$fn/index.ts" ] || { echo "$fn: nao existe em supabase/functions"; falhou=1; continue; }
 
   # _shared/cripto.ts sobe junto de quem importa (login e conferencia de cracha).
-  args=(-F "file=@$fn/index.ts;filename=index.ts")
+  # O nome do arquivo tem de ser o CAMINHO RELATIVO que o import usa
+  # ("../_shared/cripto.ts"), senao o bundle nao resolve e a function sobe morta.
+  args=(-F "file=@$fn/index.ts;filename=index.ts;type=application/typescript")
   if grep -q "_shared/cripto.ts" "$fn/index.ts"; then
-    args+=(-F "file=@_shared/cripto.ts;filename=../_shared/cripto.ts")
+    args+=(-F "file=@_shared/cripto.ts;filename=../_shared/cripto.ts;type=application/typescript")
   fi
 
+  # POST /functions/deploy com uma parte `metadata` em JSON. O caminho antigo
+  # (PATCH /functions/<slug> com os campos na query string) responde
+  # "Cannot read properties of undefined" desde agosto/2026 -- e o erro nao diz
+  # nada sobre o que mudou, entao fica registrado aqui.
+  #
   # verify_jwt=false de proposito: quem confere o cracha e a propria function,
   # com o PAINEL_JWT_SECRET. O gateway do Supabase nao conhece esse cracha.
-  resp=$(curl -sS -X PATCH \
-    "https://api.supabase.com/v1/projects/$REF/functions/$fn?slug=$fn&name=$fn&verify_jwt=false&entrypoint_path=index.ts" \
+  resp=$(curl -sS -X POST \
+    "https://api.supabase.com/v1/projects/$REF/functions/deploy?slug=$fn" \
     -H "Authorization: Bearer $TOKEN" \
+    -F "metadata={\"entrypoint_path\":\"index.ts\",\"name\":\"$fn\",\"verify_jwt\":false};type=application/json" \
     "${args[@]}") || { echo "$fn: falhou a chamada"; falhou=1; continue; }
 
   echo "$resp" | FN="$fn" python3 -c "
