@@ -49,6 +49,76 @@ const resposta = (body: unknown, status = 200) =>
   });
 
 const texto = (v: unknown, max = 4000) => String(v ?? "").trim().slice(0, max);
+
+// ── QUEM E A EQUIPE (lido do RH, nunca copiado) ───────────────────────────
+//
+// O esquema tatico precisa saber quem existe na casa: digitar o nome do
+// responsavel a mao gera "Jessica", "jessica" e "Jéssica" como tres pessoas
+// diferentes, e o quadro por setor nunca fecha.
+//
+// A ficha do RH (colecao 'colaboradores') tem salario, CPF, endereco, conjuge,
+// perfil comportamental, risco de saida e potencial. NADA DISSO ATRAVESSA:
+// daqui saem so nome, area, cargo e gestor. A lista de campos e por INCLUSAO,
+// nunca "o registro menos alguns" -- campo novo no RH nao pode vazar sozinho
+// por esquecimento.
+//
+// Nao ha copia: e leitura ao vivo da mesma tabela que o RH grava. Um espelho
+// precisaria de sincronizacao e envelheceria calado.
+async function equipeDoRH() {
+  // PROJETA no banco em vez de trazer o registro inteiro. As 91 fichas somam
+  // ~496 kB (29 delas com `fotoDataUrl` em base64, ate 20 kB cada) e nada disso
+  // e usado aqui. Alem do peso a cada abertura da tela, o que nao entra na
+  // memoria da function nao pode vazar por log nem por dump de erro.
+  const COLUNAS = "pid:registro->>id, nome:registro->>nome, areaId:registro->>areaId," +
+    " cargoId:registro->>cargoId, cargoLivre:registro->>cargoLivre, setor:registro->>setor," +
+    " gestorId:registro->>gestorId, ehDirecao:registro->>ehDirecao," +
+    " saiu:registro->>dataDesligamento";
+  let linhas: any[] | null = null;
+  const proj = await sb.from("registros").select(COLUNAS).eq("colecao", "colaboradores");
+  if (!proj.error && (proj.data ?? []).some((r: any) => r?.nome)) {
+    linhas = (proj.data ?? []).map((r: any) => ({
+      id: r.pid, nome: r.nome, areaId: r.areaId, cargoId: r.cargoId,
+      cargoLivre: r.cargoLivre, setor: r.setor, gestorId: r.gestorId,
+      ehDirecao: r.ehDirecao === "true" || r.ehDirecao === true,
+      dataDesligamento: r.saiu,
+    }));
+  } else {
+    // Rede de seguranca. Cai aqui por ERRO da projecao ou -- o caso traicoeiro --
+    // quando ela e ACEITA mas devolve linhas sem `nome`: aí nao ha erro nenhum e
+    // a tela ficaria com a equipe vazia sem ninguem entender por que.
+    console.warn("[gestao] projecao nao serviu, lendo o registro inteiro:",
+      proj.error?.message ?? "sem nome nas linhas");
+    const { data } = await sb.from("registros").select("registro").eq("colecao", "colaboradores");
+    linhas = (data ?? []).map((l: any) => l.registro ?? {});
+  }
+  if (!linhas?.length) return [];
+
+  // `areaId` e `cargoId` sao referencias: sem resolver, 27 das 39 pessoas
+  // ficariam "(sem area)" -- o campo `setor` em texto so esta preenchido em 12.
+  const nomePor = async (colecao: string) => {
+    const proj = await sb.from("registros").select("id, nome:registro->>nome").eq("colecao", colecao);
+    if (!proj.error) return new Map((proj.data ?? []).map((r: any) => [r.id, texto(r.nome, 80)]));
+    const { data } = await sb.from("registros").select("id, registro").eq("colecao", colecao);
+    return new Map((data ?? []).map((r: any) => [r.id, texto(r.registro?.nome, 80)]));
+  };
+  const [areas, cargos] = await Promise.all([nomePor("areas"), nomePor("cargos")]);
+
+  // `linhas` ja vem PLANA dos dois caminhos (projetado e fallback).
+  return linhas
+    .filter((r: any) => !texto(r.dataDesligamento))          // so quem esta na casa
+    .map((r: any) => ({
+      id: texto(r.id, 60),
+      nome: texto(r.nome, 90),
+      // area resolvida > setor em texto > nada. "Sem area" e um estado honesto:
+      // inventar "Producao" para quem nao tem cadastro esconderia o buraco.
+      area: areas.get(texto(r.areaId)) || texto(r.setor, 60) || "",
+      cargo: cargos.get(texto(r.cargoId)) || texto(r.cargoLivre, 80) || "",
+      gestorId: texto(r.gestorId, 60),
+      direcao: r.ehDirecao === true || r.ehDirecao === "true",
+    }))
+    .filter((p: any) => p.nome)
+    .sort((a: any, b: any) => a.nome.localeCompare(b.nome, "pt-BR"));
+}
 const dataOuNulo = (v: unknown) => {
   const s = String(v ?? "").slice(0, 10);
   return /^\d{4}-\d{2}-\d{2}$/.test(s) ? s : null;
@@ -156,6 +226,12 @@ Deno.serve(async (req: Request) => {
         const { data: prefs } = await sb.from("gestao_preferencia_ui")
           .select("bloco, aberto").eq("usuario", usuario);
 
+        // A equipe vai junto no MESMO pedido: uma chamada a mais faria o quadro
+        // do time aparecer depois da tela, pulando na cara de quem ja estava
+        // lendo. Falha em silencio -- gestao sem a lista do RH continua
+        // funcionando com o nome digitado a mao.
+        const equipe = await equipeDoRH().catch(() => []);
+
         return resposta({
           ok: true,
           papel: ehDiretoria ? "diretoria" : "gestor",
@@ -164,6 +240,7 @@ Deno.serve(async (req: Request) => {
           plano, objetivos: objetivos ?? [], indicadores: indicadores ?? [],
           taticas: taticas ?? [], reunioes, decisoes: decisoes ?? [],
           ciclos: ciclos ?? [],
+          equipe,
           preferencias: Object.fromEntries((prefs ?? []).map((p: any) => [p.bloco, p.aberto])),
         });
       }
