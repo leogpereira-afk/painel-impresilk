@@ -35,9 +35,13 @@ const RECEBER = [
   // 5) Alguns registros usam data_credito em vez de data_pagamento.
   { pagamentos: [{ data_credito: "2026-03-01", valor: 700 }] },
 ];
+// As saidas levam centro de custo: e por ele que a tela de Manutencoes acha o
+// gasto de manutencao no ERP (nao ha placa nem numero de pedido no titulo).
 const PAGAR = [
-  { pagamentos: [{ data_pagamento: "2026-01-15", valor: 400 }] },
-  { pagamentos: [{ data_pagamento: "2026-02-15", valor: 100 }] },
+  { centro_custo: "Manutencao de Veiculos", pagamentos: [{ data_pagamento: "2026-01-15", valor: 400 }] },
+  { centro_custo: "2.02 Administrativo", pagamentos: [{ data_pagamento: "2026-02-15", valor: 100 }] },
+  // Titulo SEM centro de custo: nao pode derrubar a etapa nem virar categoria "".
+  { pagamentos: [{ data_pagamento: "2026-02-20", valor: 50 }] },
 ];
 
 globalThis.fetch = async (url) => {
@@ -51,6 +55,7 @@ const { etapaRealizado } = await import("../netlify/functions/mubi-cache-backgro
 const r = await etapaRealizado(ANO, null);
 const ent = r.valor?.anos?.[ANO]?.entradas ?? {};
 const sai = r.valor?.anos?.[ANO]?.saidas ?? {};
+const cats = r.valor?.anos?.[ANO]?.saidasPorCategoria ?? {};
 
 const CASOS = [
   ["parcela de janeiro entra em janeiro", ent["2026-01"], 1300],   // 1000 + 300
@@ -58,7 +63,12 @@ const CASOS = [
   ["data_credito tambem conta", ent["2026-03"], 700],
   ["pagamento de 2025 NAO entra em 2026", ent["2025-12"], undefined],
   ["saidas de janeiro", sai["2026-01"], 400],
-  ["saidas de fevereiro", sai["2026-02"], 100],
+  ["saidas de fevereiro", sai["2026-02"], 150],
+  // Manutencoes le daqui. Sem estes casos, quebrar a agregacao por centro de
+  // custo passava verde na CI e a tela mostrava R$ 0 sem ninguem notar.
+  ["centro de custo de manutencao separado", cats["Manutencao de Veiculos"]?.["2026-01"], 400],
+  ["centro de custo que nao e manutencao continua la", cats["2.02 Administrativo"]?.["2026-02"], 100],
+  ["titulo sem centro de custo nao vira categoria vazia", cats[""], undefined],
 ];
 
 let falhas = 0;

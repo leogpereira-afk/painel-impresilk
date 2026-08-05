@@ -394,6 +394,33 @@ function acumularPagamentos(destino, titulos, ano) {
   }
 }
 
+/* Mesma varredura, agora guardando TAMBEM o centro de custo.
+   O ERP nao diz "esta nota e do carro X" -- nao ha placa, nem patrimonio, nem
+   numero de pedido no contas-pagar. Mas ele diz em QUE CONTA o pagamento foi
+   lancado (`centro_custo`, o mesmo campo que vira `categoria` no resto do
+   painel), e "Manutencao de Veiculos" e uma dessas contas na Impresilk.
+   Isso nao casa titulo com lancamento -- nao da, e fingir que da produziria
+   numero errado. Serve para outra coisa, que e o que interessa: comparar o que
+   foi DIGITADO na tela com o que de fato SAIU do caixa naquele mes. */
+function acumularPorCategoria(destino, titulos, ano) {
+  for (const t of titulos) {
+    const cat = String(t.centro_custo || t.tipo || "").trim();
+    if (!cat) continue;
+    const pagamentos =
+      Array.isArray(t.pagamentos) && t.pagamentos.length
+        ? t.pagamentos
+        : t.data_pagamento
+          ? [{ data_pagamento: t.data_pagamento, valor: t.valor_pagamento }]
+          : [];
+    for (const p of pagamentos) {
+      const mes = mesDe(p.data_pagamento || p.data_credito);
+      if (!mes || !mes.startsWith(String(ano))) continue;
+      if (!destino[cat]) destino[cat] = {};
+      destino[cat][mes] = (destino[cat][mes] || 0) + (num(p.valor) || 0);
+    }
+  }
+}
+
 async function realizadoDoAno(ano) {
   const janela = {
     status: "PAGO",
@@ -409,7 +436,15 @@ async function realizadoDoAno(ano) {
   const saidas = {};
   acumularPagamentos(entradas, receber, ano);
   acumularPagamentos(saidas, pagar, ano);
-  return { entradas, saidas, contagens: { receber: receber.length, pagar: pagar.length } };
+  // So das SAIDAS: categoria de conta a receber e cliente, nao despesa.
+  const saidasPorCategoria = {};
+  acumularPorCategoria(saidasPorCategoria, pagar, ano);
+  return {
+    entradas,
+    saidas,
+    saidasPorCategoria,
+    contagens: { receber: receber.length, pagar: pagar.length },
+  };
 }
 
 /**
@@ -429,7 +464,11 @@ export async function etapaRealizado(anoBase = new Date().getUTCFullYear(), ante
   for (const ano of anos) {
     try {
       const r = await realizadoDoAno(ano);
-      porAno[ano] = { entradas: r.entradas, saidas: r.saidas };
+      porAno[ano] = {
+        entradas: r.entradas,
+        saidas: r.saidas,
+        saidasPorCategoria: r.saidasPorCategoria,
+      };
       contagens[ano] = r.contagens;
     } catch (e) {
       // Um ano que falhou nao pode derrubar o outro: o ano anterior muda pouco
