@@ -3,7 +3,7 @@
 // grava so os dela, a direcao ve todos. O "dono" e carimbado pelo servidor --
 // mandar dono no corpo nao muda nada.
 
-import { comCracha } from "../lib/sessao.js";
+import { comCracha, mensagemDoStatus } from "../lib/sessao.js";
 import { API } from "../lib/api.js";
 
 const BASE = `${API}/painel-config`;
@@ -15,15 +15,19 @@ async function chamar(action, corpo) {
     body: JSON.stringify({ action, ...corpo }),
   });
   const body = await resp.json().catch(() => null);
-  if (!resp.ok) throw new Error(body?.erro || `Nao consegui falar com o servidor (${resp.status}).`);
+  if (!resp.ok) throw new Error(body?.erro || mensagemDoStatus(resp.status));
   return body;
 }
 
 export const lerCompromissos = () =>
   chamar("get", { chave: "compromissos" }).then((r) => r.valor || {});
 
+// Devolve o MAPA que o servidor gravou, no escopo de quem pediu -- e nao o que
+// a tela imaginou. E o servidor que carimba dono/donoNome e que decide o que
+// esta pessoa enxerga; montar o item no cliente fazia o compromisso recem-criado
+// aparecer sem dono (e o "passar para..." oferecia a propria pessoa).
 export const salvarCompromisso = (id, dados) =>
-  chamar("merge", { chave: "compromissos", patch: { [id]: dados } });
+  chamar("merge", { chave: "compromissos", patch: { [id]: dados } }).then((r) => r.valor || {});
 
 export const removerCompromisso = (id) =>
   chamar("removerId", { chave: "compromissos", id });

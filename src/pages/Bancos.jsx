@@ -22,7 +22,7 @@ import {
   AlertTriangle,
 } from "lucide-react";
 import { lerBancos, salvarBanco, removerBanco } from "../services/bancos.js";
-import { Card, PageTitle, SectionTitle, Empty, CarregandoModulo } from "../components/ui.jsx";
+import { Card, PageTitle, SectionTitle, CarregandoModulo } from "../components/ui.jsx";
 
 const ABERTOS_KEY = "painel_bancos_abertos";
 

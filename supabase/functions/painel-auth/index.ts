@@ -42,6 +42,18 @@ const MODULOS = ["contas-atrasadas", "fluxo-caixa", "produtos", "orcamentos", "b
 // (Confirmado atacando o sistema no ar em 2026-07-22.)
 const ERRO_LOGIN = "Usuario ou senha incorretos.";
 
+// Registro de mentira, so para GASTAR o mesmo tempo quando o usuario nao
+// existe. Sem isso a mensagem era igual mas o RELOGIO nao: conta inexistente
+// respondia em milissegundos (nem chega a calcular hash) e conta real levava os
+// ~100 ms do PBKDF2 de 120 mil voltas -- da para listar quem trabalha aqui so
+// cronometrando. O salt e fixo e publico de proposito: ele nao protege nada,
+// so faz a conta demorar.
+const CONTA_FANTASMA = {
+  hash: "0".repeat(64),
+  salt: "00112233445566778899aabbccddeeff",
+  iter: 120000,
+};
+
 const CORS = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-token",
@@ -133,7 +145,10 @@ Deno.serve(async (req: Request) => {
         }
 
         const conta = await lerConta(usuario);
-        if (!conta || !(await conferirSenha(senha, conta))) return json({ erro: ERRO_LOGIN }, 401);
+        // Confere SEMPRE, mesmo sem conta: o tempo de resposta tem de ser o
+        // mesmo nos dois casos (ver CONTA_FANTASMA).
+        const senhaOk = await conferirSenha(senha, conta ?? CONTA_FANTASMA);
+        if (!conta || !senhaOk) return json({ erro: ERRO_LOGIN }, 401);
         const perms = conta.permissoes || [];
         const vend = conta.vendedor_id || "";
         const token = await assinarJwt(
@@ -146,7 +161,7 @@ Deno.serve(async (req: Request) => {
 
       case "eu": {
         const s = await sessaoDoPedido(req, JWT_SECRET);
-        if (!s) return json({ erro: "Sessao invalida ou expirada." }, 401);
+        if (!s) return json({ erro: "Sessao invalida ou expirada.", semSessao: true }, 401);
         return json({
           usuario: s.sub, nome: s.nome || s.sub,
           permissoes: s.perms || [], master: s.master === true, vendedorId: s.vend || "",
@@ -156,7 +171,10 @@ Deno.serve(async (req: Request) => {
       // Exige a senha atual: um cracha roubado nao pode tomar a conta.
       case "trocarMinhaSenha": {
         const s = await sessaoDoPedido(req, JWT_SECRET);
-        if (!s?.sub) return json({ erro: "Entre no sistema para trocar sua senha." }, 401);
+        // semSessao: true e o sinal que o cliente usa para deslogar e mostrar
+        // "sua sessao expirou". Sem ele, quem passou das 12 horas do cracha
+        // ficava preso numa tela de erro que nao dizia o que fazer.
+        if (!s?.sub) return json({ erro: "Sua sessao expirou. Entre de novo para trocar a senha.", semSessao: true }, 401);
         const atual = String(body.senhaAtual || "");
         const nova = String(body.novaSenha || "");
         if (nova.length < 6) return json({ erro: "A nova senha precisa ter ao menos 6 caracteres." }, 400);

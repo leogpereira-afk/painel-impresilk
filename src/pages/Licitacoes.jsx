@@ -86,7 +86,10 @@ export default function Licitacoes() {
   const [salvando, setSalvando] = useState(false);
   const inputArquivo = useRef(null);
   const cartaoForm = useRef(null);
-  const hojeISO = ymdLocal(new Date());
+  // O dia em ESTADO, nao no render: numa tela de prazo de edital, a aba
+  // esquecida aberta de um dia para o outro continuava dizendo "amanha" para a
+  // sessao que era HOJE. Refeito toda vez que a aba volta ao primeiro plano.
+  const [hojeISO, setHojeISO] = useState(() => ymdLocal(new Date()));
 
   useEffect(() => {
     let vivo = true;
@@ -95,6 +98,18 @@ export default function Licitacoes() {
       .catch((e) => vivo && setErro(e.message));
     return () => {
       vivo = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    const aoVoltar = () => {
+      if (document.visibilityState === "visible") setHojeISO(ymdLocal(new Date()));
+    };
+    document.addEventListener("visibilitychange", aoVoltar);
+    window.addEventListener("focus", aoVoltar);
+    return () => {
+      document.removeEventListener("visibilitychange", aoVoltar);
+      window.removeEventListener("focus", aoVoltar);
     };
   }, []);
 

@@ -1,6 +1,6 @@
 // Acesso a documentos/veiculos/maquinas. Toda chamada leva o cracha.
 
-import { comCracha } from "../lib/sessao.js";
+import { comCracha, mensagemDoStatus } from "../lib/sessao.js";
 
 import { API } from "../lib/api.js";
 
@@ -13,7 +13,7 @@ async function chamar(action, dados = {}) {
     body: JSON.stringify({ action, ...dados }),
   });
   const corpo = await resp.json().catch(() => null);
-  if (!resp.ok) throw new Error(corpo?.erro || "Falha na operacao.");
+  if (!resp.ok) throw new Error(corpo?.erro || mensagemDoStatus(resp.status));
   return corpo;
 }
 

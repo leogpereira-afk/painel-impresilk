@@ -24,7 +24,6 @@ import {
   Line,
   BarChart,
   Bar,
-  Cell,
   Legend,
   XAxis,
   YAxis,
@@ -466,10 +465,12 @@ export default function FluxoCaixa() {
                   barGap={2}
                 >
                   <CartesianGrid strokeDasharray="3 3" stroke="#eef1f6" vertical={false} />
-                  <XAxis dataKey="mes" tick={{ fontSize: 12 }} tickLine={false} axisLine={false} />
+                  {/* fill explicito: sem ele o recharts usa o cinza escuro dele e os
+                      meses somem no tema escuro. Os outros graficos ja tinham. */}
+                  <XAxis dataKey="mes" tick={{ fill: "#94a3b8", fontSize: 12 }} tickLine={false} axisLine={false} />
                   <YAxis
                     tickFormatter={(v) => moeda(v)}
-                    tick={{ fontSize: 11 }}
+                    tick={{ fill: "#94a3b8", fontSize: 11 }}
                     tickLine={false}
                     axisLine={false}
                     width={64}

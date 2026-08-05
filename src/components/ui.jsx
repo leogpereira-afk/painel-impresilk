@@ -162,12 +162,16 @@ export function TrendArrow({ tendencia }) {
 
 export function SectionTitle({ titulo, sub, acao, className }) {
   return (
-    <div className={clsx("mb-4 flex items-end justify-between gap-3", className)}>
-      <div>
+    // flex-wrap: no celular a acao (em geral um Segmented com 4 ou 5 opcoes)
+    // nao cabe ao lado do titulo. Sem quebrar, ela empurrava a largura e a
+    // PAGINA INTEIRA passava a rolar de lado. Quebrando, ela desce para a
+    // linha de baixo e rola sozinha se ainda for larga demais.
+    <div className={clsx("mb-4 flex flex-wrap items-end justify-between gap-3", className)}>
+      <div className="min-w-0">
         <h2 className="font-display text-lg font-semibold text-slate-900">{titulo}</h2>
         {sub && <p className="mt-0.5 text-sm text-slate-500">{sub}</p>}
       </div>
-      {acao}
+      {acao && <div className="min-w-0 max-w-full overflow-x-auto">{acao}</div>}
     </div>
   );
 }
@@ -213,7 +217,12 @@ export function Segmented({ opcoes, valor, onChange, className }) {
       {opcoes.map((o) => (
         <button
           key={o.valor}
+          type="button"
           onClick={() => onChange(o.valor)}
+          // A opcao escolhida so se distinguia pela COR. Quem usa leitor de
+          // tela (ou nao enxerga a diferenca de contraste) ouvia tres botoes
+          // iguais; aria-pressed diz qual esta ligado.
+          aria-pressed={valor === o.valor}
           className={clsx(
             "rounded-lg px-3 py-1.5 font-display text-sm font-medium transition-all",
             valor === o.valor ? "bg-brand text-white shadow-sm" : "text-slate-600 hover:bg-slate-100"

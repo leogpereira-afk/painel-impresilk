@@ -13,7 +13,6 @@ import {
   Check,
   Trash2,
   Pencil,
-  Undo2,
   AlertTriangle,
   ChevronDown,
   Users,
@@ -71,7 +70,10 @@ function prazo(dias) {
   if (dias === 0) return { texto: "HOJE", chip: "chip-bad", peso: 0, grupo: "Hoje" };
   if (dias === 1) return { texto: "amanha", chip: "chip-warn", peso: 1, grupo: "Amanha" };
   if (dias <= 7) return { texto: `em ${dias} dias`, chip: "chip-warn", peso: dias, grupo: "Proximos 7 dias" };
-  return { texto: dataCurta(null) ? `em ${dias} dias` : "", chip: "chip", peso: dias, grupo: "Mais para frente" };
+  // Sim, `em N dias` tambem aqui: a condicao que existia antes (dataCurta(null))
+  // e sempre falsa, entao tudo marcado para daqui a mais de uma semana aparecia
+  // com uma etiqueta cinza VAZIA do lado da data.
+  return { texto: `em ${dias} dias`, chip: "chip", peso: dias, grupo: "Mais para frente" };
 }
 
 const ORDEM_GRUPOS = ["Atrasados", "Hoje", "Amanha", "Proximos 7 dias", "Mais para frente", "Sem data marcada"];
@@ -89,8 +91,23 @@ export default function Compromissos() {
   const [verFeitos, setVerFeitos] = useState(false);
   const [equipe, setEquipe] = useState([]);
   const [encaminhando, setEncaminhando] = useState(null); // id da linha aberta
+  // Item sem dono so acontece em registro antigo (anterior ao carimbo do
+  // servidor). Nesse caso o dono e quem esta vendo -- e o servidor so mostra o
+  // que e dela. Sem isso, o "passar para..." oferecia a PROPRIA pessoa.
+  const donoDe = (c) => c.dono ?? sessao?.usuario ?? "";
   const cartaoForm = useRef(null);
-  const hojeISO = ymdLocal(new Date());
+  // "Hoje" precisa ser ESTADO, nao um calculo do render: esta e uma tela que
+  // fica aberta. A vendedora deixa o painel no computador e volta no dia
+  // seguinte -- com o dia congelado, o compromisso de hoje continuava
+  // aparecendo como "amanha" e o atrasado nao virava atrasado.
+  const [hojeISO, setHojeISO] = useState(() => ymdLocal(new Date()));
+
+  const recarregar = useCallback(() => {
+    setHojeISO(ymdLocal(new Date()));
+    lerCompromissos()
+      .then(setMapa)
+      .catch((e) => setErro(e.message));
+  }, []);
 
   useEffect(() => {
     let vivo = true;
@@ -106,6 +123,21 @@ export default function Compromissos() {
       vivo = false;
     };
   }, []);
+
+  // Voltou para a aba: refaz a conta do dia e busca o que chegou enquanto ela
+  // estava em outro lugar (um compromisso encaminhado por uma colega, por
+  // exemplo, so aparecia depois de recarregar a pagina na mao).
+  useEffect(() => {
+    const aoVoltar = () => {
+      if (document.visibilityState === "visible") recarregar();
+    };
+    document.addEventListener("visibilitychange", aoVoltar);
+    window.addEventListener("focus", aoVoltar);
+    return () => {
+      document.removeEventListener("visibilitychange", aoVoltar);
+      window.removeEventListener("focus", aoVoltar);
+    };
+  }, [recarregar]);
 
   const vm = useMemo(() => {
     if (!mapa) return { grupos: [], feitos: [], hoje: 0, atrasados: 0, semData: 0, pessoas: [] };
@@ -155,7 +187,20 @@ export default function Compromissos() {
     };
   }, [mapa, hojeISO, dePessoa]);
 
+  // Tem texto digitado que ainda nao foi salvo? Comparar com o item de origem
+  // (ou com o formulario vazio) e o unico jeito de saber -- e sem isso um
+  // clique no lapis de outra linha apagava o que a pessoa estava escrevendo,
+  // sem perguntar nada.
+  const formSujo = () => {
+    if (!form) return false;
+    const base = form.id ? { ...VAZIO, ...(mapa?.[form.id] ?? {}), id: form.id } : VAZIO;
+    return ["titulo", "tipo", "cliente", "data", "hora", "obs"].some(
+      (k) => String(form[k] ?? "") !== String(base[k] ?? "")
+    );
+  };
+
   const abrirForm = (c) => {
+    if (formSujo() && !window.confirm("Voce tem um compromisso pela metade. Descartar o que escreveu?")) return;
     setAviso(null);
     setForm(c ? { ...VAZIO, ...c } : { ...VAZIO });
     setTimeout(() => cartaoForm.current?.scrollIntoView({ behavior: "smooth", block: "center" }), 60);
@@ -168,7 +213,12 @@ export default function Compromissos() {
       if (!form.titulo.trim()) return setAviso({ tom: "erro", texto: "Escreva o que precisa ser feito." });
       setSalvando(true);
       try {
-        const id = form.id || `cp-${Date.now()}`;
+        // Id com o usuario e um sufixo aleatorio: `cp-<milissegundo>` sozinho e
+        // compartilhado por toda a equipe -- duas pessoas cadastrando no mesmo
+        // instante caiam na MESMA linha, e o servidor recusava a segunda por
+        // ser de outro dono.
+        const novo = !form.id;
+        const id = form.id || `cp-${sessao?.usuario || "eu"}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
         const dados = {
           titulo: form.titulo.trim(),
           tipo: form.tipo,
@@ -176,12 +226,17 @@ export default function Compromissos() {
           data: form.data,
           hora: form.hora,
           obs: form.obs.trim(),
-          feito: !!form.feito,
-          feitoEm: form.feitoEm || "",
           criadoEm: form.criadoEm || new Date().toISOString(),
+          // feito/feitoEm NAO entram aqui de proposito: quem manda neles e o
+          // botao de concluir. Mandando-os, salvar uma edicao aberta antes de
+          // concluir o item DESFAZIA o "concluir" feito no meio do caminho.
+          ...(novo ? { feito: false, feitoEm: "" } : {}),
         };
-        await salvarCompromisso(id, dados);
-        setMapa((m) => ({ ...(m || {}), [id]: { ...(m?.[id] || {}), ...dados } }));
+        const mapaNovo = await salvarCompromisso(id, dados);
+        setMapa(mapaNovo);
+        // A direcao filtrando por uma pessoa e cadastrando um compromisso
+        // proprio: sem isto o item nascia e sumia da tela no mesmo instante.
+        if (novo && dePessoa && mapaNovo?.[id]?.dono !== dePessoa) setDePessoa(null);
         setForm(null);
         setAviso({ tom: "ok", texto: "Compromisso salvo." });
       } catch (err) {
@@ -190,7 +245,7 @@ export default function Compromissos() {
         setSalvando(false);
       }
     },
-    [form]
+    [form, dePessoa, sessao]
   );
 
   const alternarFeito = async (c) => {
@@ -208,8 +263,12 @@ export default function Compromissos() {
 
   const encaminhar = async (c, paraUsuario) => {
     setEncaminhando(null);
-    if (!paraUsuario || paraUsuario === c.dono) return;
+    if (!paraUsuario || paraUsuario === donoDe(c)) return;
     const nome = equipe.find((p) => p.usuario === paraUsuario)?.nome || paraUsuario;
+    // Passar adiante e definitivo para quem passou: o item sai da lista dela e
+    // nao ha botao de trazer de volta. Uma pergunta antes evita o "cliquei sem
+    // querer e o compromisso sumiu".
+    if (!window.confirm(`Passar "${c.titulo}" para ${nome}? Ele sai da sua lista.`)) return;
     setAviso(null);
     try {
       const mapaNovo = await encaminharCompromisso(c.id, paraUsuario);
@@ -321,7 +380,7 @@ export default function Compromissos() {
                 Passar para...
               </option>
               {equipe
-                .filter((p) => p.usuario !== c.dono)
+                .filter((p) => p.usuario !== donoDe(c))
                 .map((p) => (
                   <option key={p.usuario} value={p.usuario}>
                     {p.nome}

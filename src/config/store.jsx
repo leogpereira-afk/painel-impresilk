@@ -185,7 +185,25 @@ export function AppProvider({ children }) {
   }, [overridesOrcamentos]);
 
   // Mutadores. Cada um atualiza o estado na hora (UI otimista) e sincroniza com
-  // o Blobs em segundo plano; erro de rede so vira aviso, nunca perde o clique.
+  // o servidor em segundo plano; erro de rede nunca perde o clique.
+  //
+  // MAS NAO PODE FICAR SO NO CONSOLE. Ate 04/08/2026 a falha de sincronizacao
+  // ia para console.warn: a tela dizia "salvo", a nuvem nunca recebia, e a
+  // pessoa so descobria no dia seguinte, ao ver o painel de outro computador
+  // sem a alteracao. Agora a falha vira um aviso na tela (ver Layout).
+  const [falhaSync, setFalhaSync] = useState(null);
+  const aoFalhar = useCallback(
+    (oque) => (e) => {
+      console.warn(`${oque}: sync falhou:`, e?.message || e);
+      setFalhaSync({
+        oque,
+        texto:
+          "A alteracao aparece aqui, mas NAO chegou ao servidor. " +
+          "Confira a internet e refaca; em outro computador ela ainda nao existe.",
+      });
+    },
+    []
+  );
   const updateConfig = useCallback(
     (fn) => {
       setConfig((c) => {
@@ -196,33 +214,33 @@ export function AppProvider({ children }) {
         if (marcacoesProntas) {
           marcacoes
             .salvarConfig(novo)
-            .catch((e) => console.warn("config: sync falhou:", e?.message || e));
+            .catch(aoFalhar("config"));
         } else {
           console.warn("config: alteracao so local -- as regras da nuvem ainda nao chegaram");
         }
         return novo;
       });
     },
-    [marcacoesProntas]
+    [marcacoesProntas, aoFalhar]
   );
   const resetarConfig = useCallback(() => {
     const padrao = structuredClone(CONFIG_PADRAO);
     setConfig(padrao);
-    marcacoes.salvarConfig(padrao).catch((e) => console.warn("config: sync falhou:", e?.message || e));
-  }, []);
+    marcacoes.salvarConfig(padrao).catch(aoFalhar("config"));
+  }, [aoFalhar]);
 
   const setOverrideRecebivel = useCallback((id, patch) => {
     setOvRec((prev) => ({ ...(prev || {}), [id]: { ...(prev?.[id] || {}), ...patch } }));
     marcacoes
       .mesclarOverrideRecebivel(id, patch)
-      .catch((e) => console.warn("ov_rec: sync falhou:", e?.message || e));
-  }, []);
+      .catch(aoFalhar("ov_rec"));
+  }, [aoFalhar]);
   const setOverrideOrcamento = useCallback((id, patch) => {
     setOvOrc((prev) => ({ ...(prev || {}), [id]: { ...(prev?.[id] || {}), ...patch } }));
     marcacoes
       .mesclarOverrideOrcamento(id, patch)
-      .catch((e) => console.warn("ov_orc: sync falhou:", e?.message || e));
-  }, []);
+      .catch(aoFalhar("ov_orc"));
+  }, [aoFalhar]);
   // Varios orcamentos numa tacada (ex: agendar o retorno de um cliente que tem
   // quatro orcamentos abertos). Um pedido so -- ver marcacoes.js para o porque.
   const setOverridesOrcamento = useCallback((patch) => {
@@ -235,8 +253,8 @@ export function AppProvider({ children }) {
     });
     return marcacoes
       .mesclarOverridesOrcamento(patch)
-      .catch((e) => console.warn("ov_orc: sync falhou:", e?.message || e));
-  }, []);
+      .catch(aoFalhar("ov_orc"));
+  }, [aoFalhar]);
 
   const valor = useMemo(
     () => ({
@@ -251,6 +269,8 @@ export function AppProvider({ children }) {
       setOverridesOrcamento,
       dados,
       fontesNegadas,
+      falhaSync,
+      limparFalhaSync: () => setFalhaSync(null),
       atualizadoEm,
       frescorDe,
       pronto: !!dados && !carregando,
@@ -262,6 +282,7 @@ export function AppProvider({ children }) {
     [
       config,
       fontesNegadas,
+      falhaSync,
       updateConfig,
       resetarConfig,
       overridesRecebiveis,

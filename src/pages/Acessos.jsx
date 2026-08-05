@@ -21,7 +21,7 @@ const MODULOS = [
   { id: "marketing", nome: "Marketing", sub: "logomarcas, materiais e atalhos do Drive" },
   { id: "licitacoes", nome: "Licitacoes", sub: "editais, prazos e sessoes" },
   { id: "glossario", nome: "Glossario", sub: "os termos de comunicacao visual explicados" },
-  { id: "configuracoes", nome: "Configuracoes", sub: "regras do painel e acessos" },
+  { id: "configuracoes", nome: "Configuracoes", sub: "motivos, regua de cobranca e parametros -- vale para todo mundo" },
 ];
 
 const VAZIO = { usuario: "", nome: "", senha: "", permissoes: [], vendedorId: "" };
@@ -255,9 +255,16 @@ export default function Acessos() {
 
   return (
     <div className="space-y-8">
+      {/* O titulo acompanha o menu da lateral: para quem nao e direcao, a tela
+          e so a troca da propria senha, e chamar isso de "Acessos" dava a
+          entender que dava para liberar modulo por aqui. */}
       <PageTitle
-        titulo="Acessos"
-        descricao="Sua senha e, para a direcao, quem entra no painel e o que cada um enxerga."
+        titulo={ehDirecao ? "Acessos" : "Minha senha"}
+        descricao={
+          ehDirecao
+            ? "Sua senha e quem entra no painel, com o que cada um enxerga."
+            : "Troque a sua senha de entrada no painel."
+        }
       />
 
       {/* Minha senha -- todo mundo */}
@@ -759,7 +766,18 @@ function BackupDados() {
     setMsg(null);
     try {
       const r = await restaurarBackup(pendente.bk, false);
-      setMsg({ tom: "ok", texto: `Restaurado: ${r.gravou} registros e ${r.contas} contas. Recarregue a pagina para ver.` });
+      // Contas que NAO existiam mais e voltaram do arquivo. Um restauro traz
+      // tudo de volta, inclusive quem foi desligado depois do backup -- com a
+      // senha antiga funcionando. Isso tem de aparecer na cara, nao no log.
+      const voltaram = Array.isArray(r.ressuscitadas) ? r.ressuscitadas : [];
+      setMsg({
+        tom: voltaram.length ? "aviso" : "ok",
+        texto:
+          `Restaurado: ${r.gravou} registros e ${r.contas} contas. Recarregue a pagina para ver.` +
+          (voltaram.length
+            ? ` ATENCAO: ${voltaram.join(", ")} ${voltaram.length === 1 ? "voltou" : "voltaram"} do arquivo com a senha antiga. Se nao deve mais entrar, remova a conta aqui embaixo.`
+            : ""),
+      });
       setPendente(null);
     } catch (e) {
       setMsg({ tom: "erro", texto: e.message });
@@ -818,7 +836,11 @@ function BackupDados() {
       {msg && (
         <p
           className={`mt-4 flex items-start gap-2 rounded-lg px-3 py-2 text-sm ${
-            msg.tom === "ok" ? "bg-ok-50 text-ok-700" : "bg-bad-50 text-bad-700"
+            msg.tom === "ok"
+              ? "bg-ok-50 text-ok-700"
+              : msg.tom === "aviso"
+                ? "bg-warn-50 text-warn-700"
+                : "bg-bad-50 text-bad-700"
           }`}
         >
           {msg.tom === "ok" ? <Check size={15} className="mt-0.5 shrink-0" /> : <AlertTriangle size={15} className="mt-0.5 shrink-0" />}

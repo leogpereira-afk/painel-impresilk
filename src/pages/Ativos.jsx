@@ -28,7 +28,7 @@ import {
   abrirBase64,
 } from "../services/ativos.js";
 import { calcAtivos, TIPOS, CATEGORIAS } from "../lib/calc/ativos.js";
-import { dataLonga, numero, ymdLocal } from "../lib/format.js";
+import { dataLonga, numero, paraCampo, paraNumero, ymdLocal } from "../lib/format.js";
 import {
   Card,
   PageTitle,
@@ -112,12 +112,41 @@ export default function Ativos() {
     e.preventDefault();
     setSalvando(true);
     setMsg(null);
+    // Barra ANTES de gravar. O limite do servidor e ~3 MB (4 MB ja em base64) e
+    // ele so responde depois de a foto inteira subir: sem esta conferencia, a
+    // pessoa esperava o upload longo para ler "arquivo muito grande" -- e o
+    // item ja tinha sido cadastrado sem anexo.
+    if (arquivo && arquivo.size > 3 * 1024 * 1024) {
+      setSalvando(false);
+      return setMsg({
+        tom: "erro",
+        texto: `"${arquivo.name}" tem ${(arquivo.size / 1024 / 1024).toFixed(1)} MB. O limite e 3 MB -- mande o PDF ou reduza a foto.`,
+      });
+    }
     try {
-      const item = await salvarAtivo({ ...form, temArquivo: !!arquivo || !!form.temArquivo });
+      const base = {
+        ...form,
+        medidorAtual: paraNumero(form.medidorAtual),
+        medidorProximo: paraNumero(form.medidorProximo),
+      };
+      const item = await salvarAtivo({ ...base, temArquivo: !!arquivo || !!form.temArquivo });
       if (arquivo) {
-        const b64 = await arquivoParaBase64(arquivo);
-        await guardarArquivo(item.id, b64, arquivo.type, arquivo.name);
-        await salvarAtivo({ ...item, temArquivo: true, arquivoNome: arquivo.name });
+        try {
+          const b64 = await arquivoParaBase64(arquivo);
+          await guardarArquivo(item.id, b64, arquivo.type, arquivo.name);
+          await salvarAtivo({ ...item, temArquivo: true, arquivoNome: arquivo.name });
+        } catch (errArq) {
+          // Cadastro e anexo sao duas idas ao servidor. Falhando a segunda, o
+          // item ficava la dizendo que TEM arquivo -- e tentar de novo criava
+          // outro. Item novo volta atras; edicao so avisa (o item ja existia e
+          // tem historico, apagar seria pior que o erro).
+          if (!form.id) await removerAtivo(item.id).catch(() => {});
+          throw new Error(
+            form.id
+              ? `Salvei os dados, mas o arquivo nao subiu: ${errArq.message}`
+              : `Nao consegui subir o arquivo (${errArq.message}). Nada foi cadastrado -- tente de novo.`
+          );
+        }
       }
       setMsg({ tom: "ok", texto: `${item.nome} salvo.` });
       setForm(null);
@@ -153,6 +182,13 @@ export default function Ativos() {
       await removerAtivo(item.id);
       setMsg({ tom: "aviso", texto: `${item.nome} removido.` });
       setItens((atuais) => (atuais || []).filter((x) => x.id !== item.id));
+      // Formulario aberto no item que acabou de ser apagado: salvar dali
+      // RESSUSCITARIA o registro -- so que sem o arquivo, que ja se foi junto.
+      // (O servidor tambem recusa desde 04/08; fechar aqui evita o erro.)
+      if (form?.id === item.id) {
+        setForm(null);
+        setArquivo(null);
+      }
     } catch (err) {
       setMsg({ tom: "erro", texto: err.message });
     }
@@ -209,8 +245,9 @@ export default function Ativos() {
           <form onSubmit={salvar} className="space-y-4">
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
               <div>
-                <label className="label">Nome</label>
+                <label className="label" htmlFor="a-nome">Nome</label>
                 <input
+                  id="a-nome"
                   className="input"
                   value={form.nome}
                   onChange={(e) => setForm((f) => ({ ...f, nome: e.target.value }))}
@@ -219,8 +256,9 @@ export default function Ativos() {
                 />
               </div>
               <div>
-                <label className="label">Categoria</label>
+                <label className="label" htmlFor="a-categoria">Categoria</label>
                 <input
+                  id="a-categoria"
                   className="input"
                   list="cats"
                   value={form.categoria}
@@ -234,50 +272,77 @@ export default function Ativos() {
                 </datalist>
               </div>
               <div>
-                <label className="label">
+                <label className="label" htmlFor="a-identificacao">
                   {form.tipo === "veiculo" ? "Placa" : form.tipo === "maquina" ? "Patrimonio" : "Numero do documento"}
                 </label>
                 <input
+                  id="a-identificacao"
                   className="input"
                   value={form.identificacao}
                   onChange={(e) => setForm((f) => ({ ...f, identificacao: e.target.value }))}
                 />
               </div>
               <div>
-                <label className="label">Emissao</label>
-                <input type="date" className="input" value={form.emissao} onChange={(e) => setForm((f) => ({ ...f, emissao: e.target.value }))} />
+                <label className="label" htmlFor="a-emissao">Emissao</label>
+                <input
+                  id="a-emissao" type="date" className="input" value={form.emissao} onChange={(e) => setForm((f) => ({ ...f, emissao: e.target.value }))} />
               </div>
               <div>
-                <label className="label">Validade / proxima acao</label>
-                <input type="date" className="input" value={form.validade} onChange={(e) => setForm((f) => ({ ...f, validade: e.target.value }))} />
+                <label className="label" htmlFor="a-validade">Validade / proxima acao</label>
+                <input
+                  id="a-validade" type="date" className="input" value={form.validade} onChange={(e) => setForm((f) => ({ ...f, validade: e.target.value }))} />
               </div>
               <div>
-                <label className="label">Responsavel</label>
-                <input className="input" value={form.responsavel} onChange={(e) => setForm((f) => ({ ...f, responsavel: e.target.value }))} placeholder="quem cuida disso" />
+                <label className="label" htmlFor="a-responsavel">Responsavel</label>
+                <input
+                  id="a-responsavel" className="input" value={form.responsavel} onChange={(e) => setForm((f) => ({ ...f, responsavel: e.target.value }))} placeholder="quem cuida disso" />
               </div>
 
+              {/* Km/horas em campo de TEXTO, nao type="number": quem digita
+                  "90.000" (o jeito brasileiro) num input numerico entrega
+                  "90.000" ao navegador, que le como noventa -- ou como valor
+                  invalido e devolve string vazia. paraNumero/paraCampo fazem a
+                  ida e a volta, igual as Licitacoes. */}
               {ehVeicMaq && (
                 <>
                   <div>
-                    <label className="label">{form.unidadeMedidor === "km" ? "Km atual" : "Horas atuais"}</label>
-                    <input type="number" className="input" value={form.medidorAtual} onChange={(e) => setForm((f) => ({ ...f, medidorAtual: e.target.value }))} />
+                    <label className="label" htmlFor="a-medidor">{form.unidadeMedidor === "km" ? "Km atual" : "Horas atuais"}</label>
+                    <input
+                      id="a-medidor"
+                      inputMode="decimal"
+                      className="input"
+                      value={form.medidorAtual}
+                      onChange={(e) => setForm((f) => ({ ...f, medidorAtual: e.target.value }))}
+                      onBlur={(e) => setForm((f) => ({ ...f, medidorAtual: paraCampo(paraNumero(e.target.value)) }))}
+                      placeholder={form.unidadeMedidor === "km" ? "ex: 90.000" : "ex: 1.200"}
+                    />
                   </div>
                   <div>
-                    <label className="label">Proxima manutencao em</label>
-                    <input type="number" className="input" value={form.medidorProximo} onChange={(e) => setForm((f) => ({ ...f, medidorProximo: e.target.value }))} placeholder={form.unidadeMedidor === "km" ? "ex: 90000" : "ex: 1200"} />
+                    <label className="label" htmlFor="a-proximo">Proxima manutencao em</label>
+                    <input
+                      id="a-proximo"
+                      inputMode="decimal"
+                      className="input"
+                      value={form.medidorProximo}
+                      onChange={(e) => setForm((f) => ({ ...f, medidorProximo: e.target.value }))}
+                      onBlur={(e) => setForm((f) => ({ ...f, medidorProximo: paraCampo(paraNumero(e.target.value)) }))}
+                      placeholder={form.unidadeMedidor === "km" ? "ex: 95.000" : "ex: 1.500"}
+                    />
                   </div>
                 </>
               )}
             </div>
 
             <div>
-              <label className="label">Observacao</label>
-              <input className="input" value={form.observacao} onChange={(e) => setForm((f) => ({ ...f, observacao: e.target.value }))} placeholder="onde renovar, orgao, telefone do contato..." />
+              <label className="label" htmlFor="a-observacao">Observacao</label>
+              <input
+                  id="a-observacao" className="input" value={form.observacao} onChange={(e) => setForm((f) => ({ ...f, observacao: e.target.value }))} placeholder="onde renovar, orgao, telefone do contato..." />
             </div>
 
             <div>
-              <label className="label">Arquivo (PDF ou imagem, ate ~3 MB)</label>
+              <label className="label" htmlFor="a-arquivo">Arquivo (PDF ou imagem, ate ~3 MB)</label>
               <input
+                id="a-arquivo"
                 type="file"
                 accept="application/pdf,image/*"
                 onChange={(e) => setArquivo(e.target.files?.[0] || null)}
@@ -363,7 +428,7 @@ export default function Ativos() {
                         <Download size={15} />
                       </button>
                     )}
-                    <button onClick={() => { setForm({ ...it, medidorAtual: it.medidorAtual || "", medidorProximo: it.medidorProximo || "" }); setArquivo(null); }} className="rounded-lg px-2 py-1 font-display text-sm text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-800">
+                    <button onClick={() => { setForm({ ...it, medidorAtual: paraCampo(it.medidorAtual), medidorProximo: paraCampo(it.medidorProximo) }); setArquivo(null); }} className="rounded-lg px-2 py-1 font-display text-sm text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-800">
                       Editar
                     </button>
                     <button onClick={() => apagar(it)} className="grid h-8 w-8 place-items-center rounded-lg text-slate-400 transition-colors hover:bg-bad-50 hover:text-bad-700" title="Remover" aria-label={`Remover ${it.nome}`}>

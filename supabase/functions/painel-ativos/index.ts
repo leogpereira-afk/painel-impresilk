@@ -139,6 +139,17 @@ Deno.serve(async (req: Request) => {
         // modulo Licitacoes mandava o mesmo id com tipo "documento" e o edital
         // trocava de gaveta -- passando a ser legivel por qualquer pessoa
         // logada. O que vale e o tipo JA GRAVADO, e ele nao pode mudar.
+        // Mandou id de um item que nao existe mais = alguem apagou enquanto o
+        // formulario estava aberto. Gravar aqui RESSUSCITARIA o registro -- so
+        // que sem o arquivo, que ja foi removido do bucket junto. Melhor recusar
+        // e mandar cadastrar de novo. (Item novo nunca chega com id: quem gera
+        // e esta funcao, logo acima.)
+        if (it.id && !ant) {
+          return resposta({
+            erro: "Este item foi apagado por alguem enquanto voce editava. Cadastre de novo se ainda precisar dele.",
+          }, 409);
+        }
+
         const tipoGravado = (ant?.registro as any)?.tipo;
         if (tipoGravado) {
           if (!podeTipo(tipoGravado)) {
@@ -169,6 +180,12 @@ Deno.serve(async (req: Request) => {
           status: String(it.status ?? "").trim(),
           valor: Number(it.valor) || 0,
           arquivoNome: String(it.arquivoNome ?? "").trim(),
+          // Miniatura (data URL pequena) para a tela de Marketing nao precisar
+          // baixar a logomarca INTEIRA -- ate 3 MB cada -- so para desenhar um
+          // quadradinho de 96 px. Fica no proprio registro, entao vem junto com
+          // a listagem, sem nenhuma ida extra ao servidor. O corte em 40 mil
+          // caracteres (~30 KB) e o teto: acima disso nao e mais miniatura.
+          miniatura: String(it.miniatura ?? "").slice(0, 40000),
           temArquivo: !!it.temArquivo,
           atualizadoEm: agora,
           atualizadoPor: quem,
@@ -199,7 +216,13 @@ Deno.serve(async (req: Request) => {
         const id = String(corpo.id ?? "");
         const base64 = String(corpo.base64 ?? "");
         if (!id || !base64) return resposta({ erro: "id e base64 obrigatorios" }, 400);
-        { const b = await barraId(id); if (b) return b; }
+        // O arquivo e anexo de alguem: sem item, ele fica no bucket sem nenhuma
+        // tela que o liste, apague ou saiba que existe. Todas as telas cadastram
+        // o item primeiro e so entao mandam o arquivo -- id sem item aqui e
+        // sinal de que o cadastro falhou (ou de chamada torta).
+        const tipoDono = await tipoDoId(id);
+        if (!tipoDono) return resposta({ erro: "Cadastre o item antes de anexar o arquivo." }, 400);
+        if (!podeTipo(tipoDono)) return resposta({ erro: "Voce nao tem acesso a este modulo." }, 403);
         if (base64.length > MAX_ARQUIVO) return resposta({ erro: "Arquivo muito grande (limite ~3 MB)." }, 413);
 
         const mime = String(corpo.mime ?? "application/pdf");

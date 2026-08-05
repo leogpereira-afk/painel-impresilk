@@ -22,7 +22,7 @@ import {
   XCircle,
 } from "lucide-react";
 import { useApp } from "../config/store.jsx";
-import { vendedorDaSessao } from "../lib/sessao.js";
+import { getSessao, podeAbrir, vendedorDaSessao } from "../lib/sessao.js";
 import { calcOrcamentos } from "../lib/calc/orcamentos.js";
 import { moeda, numero, pct, dataLonga, ymdLocal } from "../lib/format.js";
 import {
@@ -445,6 +445,9 @@ export default function Orcamentos() {
   // Vendedor vinculado a conta de quem entrou: a fila de acoes ja abre nele.
   // Vazio para a direcao (ve o time todo) e para contas sem vinculo.
   const meuVendedor = useMemo(() => vendedorDaSessao(), []);
+  // A equipe de vendas mora na config global -- e quem grava config e quem tem
+  // o modulo Configuracoes. O mesmo podeAbrir que o menu ja usa.
+  const podeConfigurar = useMemo(() => podeAbrir("configuracoes", getSessao()), []);
 
   const [novoVendedor, setNovoVendedor] = useState("");
   // Filtros da lista mestra. Todos se combinam e viram selos removiveis.
@@ -813,22 +816,28 @@ export default function Orcamentos() {
           sub="Quem esta convertendo. Clique numa linha para ver os orcamentos do vendedor. Ajuste a equipe abaixo, a tabela recalcula na hora."
         />
 
-        <div className="sem-impressao mb-4 flex flex-wrap items-center gap-2">
-          <input
-            className="input max-w-xs"
-            placeholder="Nome do vendedor"
-            aria-label="Nome do vendedor"
-            value={novoVendedor}
-            onChange={(e) => setNovoVendedor(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") incluirVendedor();
-            }}
-          />
-          <button className="btn-primary" onClick={incluirVendedor} disabled={!novoVendedor.trim()}>
-            <Plus size={16} strokeWidth={2.4} />
-            Incluir
-          </button>
-        </div>
+        {/* Mexer na equipe e GRAVAR CONFIG, e config so a direcao grava. Para
+            quem nao tem esse modulo, o servidor responde 403 e a tela dizia que
+            tinha salvo: a vendedora incluia o proprio nome, via a linha
+            aparecer e ela sumia no F5. Sem o controle nao ha promessa falsa. */}
+        {podeConfigurar && (
+          <div className="sem-impressao mb-4 flex flex-wrap items-center gap-2">
+            <input
+              className="input max-w-xs"
+              placeholder="Nome do vendedor"
+              aria-label="Nome do vendedor"
+              value={novoVendedor}
+              onChange={(e) => setNovoVendedor(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") incluirVendedor();
+              }}
+            />
+            <button className="btn-primary" onClick={incluirVendedor} disabled={!novoVendedor.trim()}>
+              <Plus size={16} strokeWidth={2.4} />
+              Incluir
+            </button>
+          </div>
+        )}
 
         {vm.porVendedor.length === 0 ? (
           <Empty>Nenhum vendedor cadastrado.</Empty>
@@ -881,13 +890,15 @@ export default function Orcamentos() {
                         {semDados ? "-" : pct(v.conversao)}
                       </td>
                       <td className="td text-right" onClick={(e) => e.stopPropagation()}>
-                        <button
-                          className="btn-ghost btn-danger inline-flex h-8 w-8 items-center justify-center p-0"
-                          title={"Retirar " + v.nome}
-                          onClick={() => retirarVendedor(v.vendedorId)}
-                        >
-                          <Trash2 size={16} strokeWidth={2.2} />
-                        </button>
+                        {podeConfigurar && (
+                          <button
+                            className="btn-ghost btn-danger inline-flex h-8 w-8 items-center justify-center p-0"
+                            title={"Retirar " + v.nome}
+                            onClick={() => retirarVendedor(v.vendedorId)}
+                          >
+                            <Trash2 size={16} strokeWidth={2.2} />
+                          </button>
+                        )}
                       </td>
                     </tr>
                   );

@@ -33,6 +33,42 @@ const MAX_BYTES = 3 * 1024 * 1024; // o servidor barra ~4 MB de base64 (~3 MB re
 
 const ehImagem = (nome) => /\.(png|jpe?g|gif|webp|svg)$/i.test(String(nome || ""));
 
+// Encolhe uma imagem para uma data URL de ~200 px. E o que fica GRAVADO no
+// registro do material: assim a lista de logomarcas nao precisa baixar
+// megabytes de PNG so para desenhar o quadradinho de 96 px do cartao.
+// SVG nao passa por canvas (e vetor, ja e pequeno): vai inteiro.
+async function miniaturaDe(file) {
+  try {
+    if (!file || !file.type?.startsWith("image/")) return "";
+    if (/svg/i.test(file.type)) return "";
+    const url = URL.createObjectURL(file);
+    try {
+      const img = await new Promise((ok, falha) => {
+        const i = new Image();
+        i.onload = () => ok(i);
+        i.onerror = falha;
+        i.src = url;
+      });
+      const lado = 200;
+      const escala = Math.min(1, lado / Math.max(img.width || lado, img.height || lado));
+      const c = document.createElement("canvas");
+      c.width = Math.max(1, Math.round((img.width || lado) * escala));
+      c.height = Math.max(1, Math.round((img.height || lado) * escala));
+      const ctx = c.getContext("2d");
+      // Fundo branco: PNG com transparencia vira preto no JPEG.
+      ctx.fillStyle = "#ffffff";
+      ctx.fillRect(0, 0, c.width, c.height);
+      ctx.drawImage(img, 0, 0, c.width, c.height);
+      const dataUrl = c.toDataURL("image/jpeg", 0.72);
+      return dataUrl.length > 40000 ? "" : dataUrl;
+    } finally {
+      URL.revokeObjectURL(url);
+    }
+  } catch {
+    return ""; // miniatura e conforto: falhou, a tela cai no jeito antigo
+  }
+}
+
 export default function Marketing() {
   const [itens, setItens] = useState(null);
   const [atalhos, setAtalhos] = useState(null);
@@ -56,19 +92,30 @@ export default function Marketing() {
     };
   }, []);
 
-  // Busca as miniaturas das imagens uma a uma, sem travar a lista.
+  // Material cadastrado ANTES da miniatura gravada: baixa o arquivo uma unica
+  // vez, encolhe e GUARDA a miniatura no registro. Da proxima vez que alguem
+  // abrir a aba, ela ja vem na listagem e nao ha download nenhum. O material
+  // novo nem passa por aqui (a miniatura nasce no envio).
   useEffect(() => {
     if (!itens) return;
     let vivo = true;
     (async () => {
       for (const it of itens) {
-        if (!it.temArquivo || !ehImagem(it.arquivoNome) || thumbs[it.id]) continue;
+        if (!it.temArquivo || !ehImagem(it.arquivoNome)) continue;
+        if (it.miniatura || thumbs[it.id]) continue;
         try {
           const r = await lerArquivo(it.id);
           if (!vivo) return;
-          if (r?.base64) {
-            setThumbs((t) => ({ ...t, [it.id]: `data:${r.mime || "image/png"};base64,${r.base64}` }));
-          }
+          if (!r?.base64) continue;
+          const dataUrl = `data:${r.mime || "image/png"};base64,${r.base64}`;
+          setThumbs((t) => ({ ...t, [it.id]: dataUrl }));
+          // Reduz e persiste, para nao repetir o download amanha.
+          const blob = await (await fetch(dataUrl)).blob();
+          const mini = await miniaturaDe(new File([blob], it.arquivoNome, { type: blob.type }));
+          if (!vivo || !mini) continue;
+          const salvo = await salvarAtivo({ ...it, miniatura: mini });
+          if (!vivo) return;
+          setItens((l) => (l || []).map((x) => (x.id === it.id ? { ...x, miniatura: salvo?.miniatura || mini } : x)));
         } catch {
           /* miniatura e conforto; o download continua disponivel */
         }
@@ -105,6 +152,9 @@ export default function Marketing() {
           nome,
           arquivoNome: file.name,
           temArquivo: true,
+          // Encolhida AQUI, uma vez, no envio. Antes a tela baixava o arquivo
+          // inteiro de cada material toda vez que alguem abria a aba.
+          miniatura: await miniaturaDe(file),
         });
         try {
           const base64 = await arquivoParaBase64(file);
@@ -242,8 +292,8 @@ export default function Marketing() {
                   style={{ borderColor: "var(--hairline)" }}
                 >
                   <div className="grid h-28 place-items-center bg-slate-50 dark:bg-slate-800/40">
-                    {thumbs[it.id] ? (
-                      <img src={thumbs[it.id]} alt={it.nome} className="max-h-24 max-w-[85%] object-contain" />
+                    {it.miniatura || thumbs[it.id] ? (
+                      <img src={it.miniatura || thumbs[it.id]} alt={it.nome} className="max-h-24 max-w-[85%] object-contain" />
                     ) : ehImagem(it.arquivoNome) ? (
                       <ImageIcon size={26} className="text-slate-300" />
                     ) : (

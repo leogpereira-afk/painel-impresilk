@@ -190,7 +190,20 @@ Deno.serve(async (req: Request) => {
 
         if (chave === "config") {
           if (!sessao) return resposta({ erro: "Entre no sistema.", semSessao: true }, 401);
-          return resposta({ ok: true, chave, valor: await lerConfig() });
+          // A config e uma so, mas nem tudo nela e para todo mundo. Motivos,
+          // regua de cobranca e nomes de vendedor sao vocabulario das telas --
+          // quem abre Orcamentos precisa deles. Ja `parametros` e dinheiro da
+          // casa (colchao minimo de caixa, saldo inicial, valor minimo de
+          // orcamento): quem nao abre nenhuma tela financeira nao tem por que
+          // receber esses numeros. O cliente completa com os padroes dele.
+          const cfg = await lerConfig();
+          const veDinheiro = ["fluxo-caixa", "contas-atrasadas", "orcamentos", "produtos", "configuracoes"]
+            .some((m) => temModulo(m));
+          if (cfg && !veDinheiro) {
+            const { parametros: _fora, ...resto } = cfg as any;
+            return resposta({ ok: true, chave, valor: resto });
+          }
+          return resposta({ ok: true, chave, valor: cfg });
         }
         if (OVERLAYS.has(chave)) {
           const barrado = barraChave(chave);

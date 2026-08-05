@@ -4,7 +4,7 @@
 
 import { useState } from "react";
 import { LogIn, User, Eye, EyeOff, AlertTriangle } from "lucide-react";
-import { login } from "../lib/sessao.js";
+import { login, motivoSaida } from "../lib/sessao.js";
 import logoColor from "../assets/brand/logo-color.png";
 import logoWhite from "../assets/brand/logo-white.png";
 
@@ -29,6 +29,9 @@ export default function Login({ aoEntrar }) {
   const [senha, setSenha] = useState("");
   const [verSenha, setVerSenha] = useState(false);
   const [erro, setErro] = useState("");
+  // Lido UMA vez na montagem: motivoSaida() ja apaga a mensagem ao ler, entao
+  // ela nao pode ficar dentro do render.
+  const [motivo] = useState(motivoSaida);
   const [enviando, setEnviando] = useState(false);
 
   async function enviar(e) {
@@ -133,6 +136,16 @@ export default function Login({ aoEntrar }) {
                   </button>
                 </div>
               </div>
+
+              {/* Por que a pessoa voltou para o login. Vem de sair(motivo) e
+                  so aparece uma vez -- ate 04/08/2026 o cracha vencia no meio
+                  do trabalho e a tela virava esta aqui, calada. */}
+              {!erro && motivo && (
+                <p className="flex items-start gap-2 rounded-lg bg-warn-50 px-3 py-2 text-sm text-warn-700">
+                  <AlertTriangle size={15} className="mt-0.5 shrink-0" />
+                  {motivo}
+                </p>
+              )}
 
               {erro && (
                 <p className="flex items-start gap-2 rounded-lg bg-bad-50 px-3 py-2 text-sm text-bad-700">

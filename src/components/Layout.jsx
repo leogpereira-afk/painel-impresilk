@@ -188,12 +188,19 @@ function ConteudoLateral({ aoNavegar, sessao }) {
   // comeca fechada; Sistemas e Domo comecam abertos para nada sumir da tela de
   // quem ja usava -- quem quiser a lateral enxuta fecha uma vez e fica assim.
   //
-  // Estando numa pagina de dentro, Gestao abre de qualquer jeito: esconder a
-  // pagina em que a pessoa esta seria mentir sobre onde ela esta.
-  const [gestaoAberta, alternarGestao] = useGrupo("gestao", false);
+  // Estando numa pagina de dentro, Gestao ja NASCE aberta -- mas o clique
+  // manda. Antes o "abre de qualquer jeito" era um OU no render, e o resultado
+  // e que dentro de Bancos ou Compromissos a seta descia e nao acontecia nada:
+  // o grupo se recusava a fechar justamente onde a lista e mais comprida.
+  const [gestaoAberta, alternarGestao] = useGrupo("gestao", dentroDaGestao);
   const [sistemasAberto, alternarSistemas] = useGrupo("sistemas", true);
   const [domoAberto, alternarDomo] = useGrupo("domo", true);
-  const mostrarGestao = gestaoAberta || dentroDaGestao;
+  const mostrarGestao = gestaoAberta;
+  // Fechado e estando numa pagina de dentro, o item ATUAL continua a vista:
+  // esconder a pagina em que a pessoa esta seria mentir sobre onde ela esta.
+  const itensAMostrar = mostrarGestao
+    ? itensGestao
+    : itensGestao.filter((n) => location.pathname.startsWith(n.to));
 
   const sistemas = SISTEMAS.filter((s) => !s.soDirecao || sessao?.master);
 
@@ -240,9 +247,9 @@ function ConteudoLateral({ aoNavegar, sessao }) {
               />
             </button>
 
-            {mostrarGestao && (
+            {itensAMostrar.length > 0 && (
               <div id="grupo-gestao" className="space-y-0.5 pl-3">
-                {itensGestao.map((n) => (
+                {itensAMostrar.map((n) => (
                   <NavLink
                     key={n.to}
                     to={n.to}
@@ -369,7 +376,7 @@ export default function Layout({ children, sessao }) {
   const location = useLocation();
   const navigate = useNavigate();
   const [escuro, alternarTema] = useTema();
-  const { modoDemo, atualizadoEm, recarregar, carregando } = useApp();
+  const { modoDemo, atualizadoEm, recarregar, carregando, falhaSync, limparFalhaSync } = useApp();
   const [menuAberto, setMenuAberto] = useState(false);
   const naHome = location.pathname === "/";
   const f = modoDemo ? null : frescor(atualizadoEm);
@@ -490,6 +497,25 @@ export default function Layout({ children, sessao }) {
             </div>
           </div>
         </header>
+
+        {/* A alteracao apareceu na tela mas NAO chegou ao servidor. Isso tem
+            de ficar visivel: e a diferenca entre "salvei" e "achei que salvei".
+            Fica ate a pessoa fechar. */}
+        {falhaSync && (
+          <div className="sem-impressao mx-auto mt-4 max-w-6xl px-4 sm:px-6">
+            <p className="flex items-start gap-2 rounded-lg bg-bad-50 px-3 py-2 text-sm text-bad-700">
+              <AlertTriangle size={15} className="mt-0.5 shrink-0" />
+              <span className="min-w-0 flex-1">{falhaSync.texto}</span>
+              <button
+                type="button"
+                onClick={limparFalhaSync}
+                className="shrink-0 font-display text-xs font-semibold underline"
+              >
+                Fechar
+              </button>
+            </p>
+          </div>
+        )}
 
         <main className="mx-auto max-w-6xl animate-fade-in px-4 py-6 sm:px-6 sm:py-8">
           {children}

@@ -8,7 +8,7 @@
 // vezes e ver tres frases diferentes faria o painel parecer instavel. O indice
 // vem do dia do ano, entao e a mesma o dia inteiro, em qualquer aparelho.
 
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { AlertTriangle, ChevronRight } from "lucide-react";
 import { useApp } from "../config/store.jsx";
@@ -121,8 +121,12 @@ export default function Home() {
         </button>
       )}
 
+      {/* No celular NAO existe menu ao lado: a lateral vira o botao de tres
+          tracos no alto. Mandar "olhe ao lado" para quem esta no telefone e
+          mandar olhar para o nada. */}
       <p className="mt-8 text-sm text-slate-400">
-        Escolha um modulo no menu ao lado para comecar.
+        <span className="lg:hidden">Toque no menu, no alto a esquerda, para escolher um modulo.</span>
+        <span className="hidden lg:inline">Escolha um modulo no menu ao lado para comecar.</span>
       </p>
     </div>
   );

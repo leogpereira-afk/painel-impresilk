@@ -6,14 +6,35 @@
 //
 // IMPORTANTE: nada aqui autoriza coisa alguma de verdade. Esconder um item do
 // menu e conforto, nao seguranca -- quem manda e o servidor, que confere o
-// cracha em toda chamada (supabase/functions/_compartilhado, usado por cada
+// cracha em toda chamada (supabase/functions/_shared/cripto.ts, usado por cada
 // painel-*; o antigo netlify/functions/lib/guarda.js nao roda mais).
 
 import { API } from "./api.js";
 
 const K_TOKEN = "painel_auth_token";
 const K_SESSAO = "painel_auth_sessao";
+// Por que a pessoa foi parar na tela de login. Sem isso, o cracha vencia no
+// meio do trabalho, a tela virava Login sem uma palavra e a impressao era de
+// que o sistema tinha derrubado ela por conta propria.
+const K_MOTIVO = "painel_auth_motivo";
 const INATIVIDADE_MS = 12 * 60 * 60 * 1000;
+
+// Frase unica para queda de rede -- usada aqui e nos services.
+export const SEM_REDE =
+  "Nao consegui falar com o servidor. Confira a internet e tente de novo.";
+
+// Ultimo recurso: o servidor respondeu erro mas nao mandou frase nenhuma.
+// Antes vazava "config respondeu 500" para a tela -- nome de function e numero
+// de protocolo nao dizem nada para quem esta trabalhando.
+export function mensagemDoStatus(status) {
+  if (status === 401) return "Sua sessao expirou. Entre de novo.";
+  if (status === 403) return "Voce nao tem acesso a esta parte do painel.";
+  if (status === 404) return "Nao encontrei esse registro (talvez alguem tenha apagado).";
+  if (status === 409) return "Alguem mexeu neste registro antes de voce. Recarregue a pagina.";
+  if (status === 413) return "Arquivo grande demais.";
+  if (status >= 500) return "O servidor falhou agora. Tente de novo em instantes.";
+  return "Nao consegui concluir. Tente de novo.";
+}
 
 const ouvintes = new Set();
 const avisar = () => ouvintes.forEach((fn) => fn());
@@ -39,7 +60,7 @@ export function getSessao() {
     if (!s?.usuario) return null;
     const visto = typeof s.visto === "number" ? s.visto : Date.now();
     if (Date.now() - visto > INATIVIDADE_MS) {
-      sair();
+      sair("Voce ficou muito tempo sem usar o painel. Entre de novo.");
       return null;
     }
     // Cada leitura renova: quem esta usando nao e deslogado no meio do trabalho.
@@ -74,12 +95,26 @@ export function vendedorDaSessao(sessao = getSessao()) {
   return sessao?.vendedorId || "";
 }
 
-export function sair() {
+export function sair(motivo = "") {
   try {
     localStorage.removeItem(K_TOKEN);
     localStorage.removeItem(K_SESSAO);
+    if (motivo) localStorage.setItem(K_MOTIVO, motivo);
+    else localStorage.removeItem(K_MOTIVO);
   } catch {}
   avisar();
+}
+
+// Le e JA APAGA o motivo: a frase aparece uma vez, na volta para o login, e nao
+// fica assombrando quem entrar depois no mesmo computador.
+export function motivoSaida() {
+  try {
+    const m = localStorage.getItem(K_MOTIVO);
+    if (m) localStorage.removeItem(K_MOTIVO);
+    return m || "";
+  } catch {
+    return "";
+  }
 }
 
 // Modulo liberado? "inicio" e sempre, senao a pessoa entra e nao tem onde ficar.
@@ -97,11 +132,19 @@ export async function comCracha(url, opcoes = {}) {
   const token = getToken();
   const headers = { ...(opcoes.headers || {}) };
   if (token) headers.Authorization = `Bearer ${token}`;
-  const resp = await fetch(url, { ...opcoes, headers });
+  let resp;
+  try {
+    resp = await fetch(url, { ...opcoes, headers });
+  } catch {
+    // fetch so lanca quando a rede falha (o navegador escreve "Failed to
+    // fetch", em ingles). Vendedora na rua com sinal ruim cai aqui o tempo
+    // todo; a frase precisa dizer o que fazer.
+    throw new Error(SEM_REDE);
+  }
   if (resp.status === 401) {
     const corpo = await resp.clone().json().catch(() => null);
     if (corpo?.semSessao) {
-      sair();
+      sair("Sua sessao expirou (o cracha vale 12 horas). Entre de novo para continuar.");
       throw new Error("Sua sessao expirou. Entre de novo.");
     }
   }
@@ -109,11 +152,16 @@ export async function comCracha(url, opcoes = {}) {
 }
 
 export async function login(usuario, senha) {
-  const resp = await fetch(`${API}/painel-auth`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ action: "login", usuario, senha }),
-  });
+  let resp;
+  try {
+    resp = await fetch(`${API}/painel-auth`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "login", usuario, senha }),
+    });
+  } catch {
+    throw new Error(SEM_REDE);
+  }
   const corpo = await resp.json().catch(() => null);
   if (!resp.ok) throw new Error(corpo?.erro || "Nao consegui entrar. Tente de novo.");
   entrar(corpo);

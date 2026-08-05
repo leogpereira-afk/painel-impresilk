@@ -45,6 +45,14 @@ const resposta = (body: unknown, status = 200) =>
     headers: { ...CORS, "Content-Type": "application/json", "Cache-Control": "no-store" },
   });
 
+// O "dia" do backup e o dia de QUEM TRABALHA aqui, nao o de Greenwich. Com o
+// dia em UTC, tudo que a equipe faz depois das 21h (00h em Londres) ja cai no
+// arquivo do dia seguinte -- e a rodada da manha, vendo o mesmo dia UTC, pula.
+// Uma pasta por dia so faz sentido se o dia for o de Montes Claros.
+const diaSP = (d: Date | string = new Date()): string =>
+  new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" })
+    .format(typeof d === "string" ? new Date(d) : d);
+
 // ---------------------------------------------------------------- leitura local
 
 async function linhasDe(colecao: string): Promise<Record<string, unknown>> {
@@ -168,7 +176,7 @@ async function puxarSistema(sys: any) {
 
 async function enviarParaGithub(chaveSistema: string, backup: any) {
   if (!GH_TOKEN || !GH_REPO) return { ok: false, motivo: "GitHub nao configurado (falta GITHUB_TOKEN/GITHUB_REPO)" };
-  const dia = backup.exportadoEm.slice(0, 10);
+  const dia = diaSP(backup.exportadoEm);
   const caminho = `${chaveSistema}/${dia}.json`;
   // base64 em BLOCOS: espalhar um array grande em String.fromCharCode(...)
   // estoura a pilha -- e um backup de sistema (RH ~900 KB) e grande.
@@ -233,8 +241,19 @@ async function backupDoHub() {
     const gh = await enviarParaGithub("painel", bkp);
     porSistema.painel = {
       em: agora, ok: gh.ok,
-      registros: Object.keys(bkp.painel.ov_rec).length + Object.keys(bkp.painel.ov_orc).length +
-        Object.keys(bkp.painel.ativos).length + Object.keys(bkp.contas).length +
+      // Conta TUDO o que foi salvo. Ficou parado nas quatro colecoes originais
+      // enquanto o backup ja levava mais quatro: a direcao abria a tela, via
+      // "132 registros" e nao tinha como saber se as abas novas entraram.
+      registros:
+        Object.keys(bkp.painel.ov_rec).length +
+        Object.keys(bkp.painel.ov_orc).length +
+        Object.keys(bkp.painel.ativos).length +
+        Object.keys(bkp.painel.arquivosMeta).length +
+        Object.keys(bkp.painel.marketing).length +
+        Object.keys(bkp.painel.bancos).length +
+        Object.keys(bkp.painel.glossario).length +
+        Object.keys(bkp.painel.compromissos).length +
+        Object.keys(bkp.contas).length +
         (bkp.painel.config ? 1 : 0),
       erro: gh.ok ? null : (gh as any).motivo,
     };
@@ -257,7 +276,7 @@ async function backupDoHub() {
     }
   }
 
-  await gravarStatus({ atualizadoEm: agora, sistemas: porSistema });
+  await gravarStatus({ atualizadoEm: agora, dia: diaSP(agora), sistemas: porSistema });
   return porSistema;
 }
 
@@ -314,8 +333,11 @@ Deno.serve(async (req: Request) => {
   if (corpo.action === "auto") {
     if (!TOKEN || req.headers.get("x-token") !== TOKEN) return resposta({ erro: "nao autorizado" }, 401);
     const st: any = await lerStatus();
-    const hoje = new Date().toISOString().slice(0, 10);
-    const diaDoUltimo = st?.atualizadoEm ? String(st.atualizadoEm).slice(0, 10) : null;
+    // Mesmo calendario do nome do arquivo (America/Sao_Paulo): senao a trava
+    // fala de um dia e a pasta de outro. `st.dia` e gravado a partir de agosto
+    // de 2026; status antigo cai no calculo pelo carimbo de hora.
+    const hoje = diaSP();
+    const diaDoUltimo = st?.dia ?? (st?.atualizadoEm ? diaSP(String(st.atualizadoEm)) : null);
     const sistemas = st?.sistemas ?? {};
     const todosOk =
       Object.keys(sistemas).length > 0 && Object.values(sistemas).every((s: any) => s?.ok);
@@ -340,6 +362,9 @@ Deno.serve(async (req: Request) => {
       case "registrarManual": {
         const st: any = (await lerStatus()) ?? { sistemas: {} };
         st.atualizadoEm = new Date().toISOString();
+        // De proposito NAO mexe em st.dia: baixar o arquivo no computador nao
+        // e o backup do dia na nuvem, e nao pode fazer a rodada automatica
+        // achar que o dia ja esta resolvido.
         st.sistemas = st.sistemas ?? {};
         st.sistemas.painel = { em: st.atualizadoEm, ok: true, destino: "Baixado no computador" };
         await gravarStatus(st);
@@ -392,18 +417,27 @@ Deno.serve(async (req: Request) => {
             gravou++;
           }
         }
+        // Quem NAO existe mais hoje volta a existir -- e isso e o certo num
+        // restauro de verdade (o caso ruim e a tabela ter sido apagada). O que
+        // nao pode e voltar CALADO: quem foi desligado depois do backup entra
+        // de novo com a senha e as permissoes antigas. Entao avisa quem voltou.
+        const { data: hojeRaw } = await sb.from("painel_contas").select("usuario");
+        const existiam = new Set((hojeRaw ?? []).map((c: any) => c.usuario));
+        const ressuscitadas: string[] = [];
         let contas = 0;
         for (const [u, c] of Object.entries(bk.contas ?? {}) as [string, any][]) {
           if (!c?.hash) continue;
+          const usuario = c.usuario ?? u;
+          if (!existiam.has(usuario)) ressuscitadas.push(c.nome || usuario);
           await sb.from("painel_contas").upsert({
-            usuario: c.usuario ?? u, nome: c.nome ?? u,
+            usuario, nome: c.nome ?? u,
             permissoes: c.permissoes ?? [], vendedor_id: c.vendedorId ?? "",
             hash: c.hash, salt: c.salt, iter: c.iter ?? 120000,
             atualizado_em: new Date().toISOString(),
           }, { onConflict: "usuario" });
           contas++;
         }
-        return resposta({ ok: true, gravou, contas });
+        return resposta({ ok: true, gravou, contas, ressuscitadas });
       }
 
       default:

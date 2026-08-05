@@ -75,6 +75,13 @@ textarea {
   border-radius: 6px;
 }
 
+/* No tema escuro o indigo cheio quase desaparece sobre o fundo grafite: quem
+   navega pelo teclado perdia de vista onde estava. Mesmo tom rebaixado que o
+   texto de marca ja usa no escuro. */
+html.dark :focus-visible {
+  outline-color: #9ba1f6;
+}
+
 @layer base {
   h1,
   h2,

@@ -5,7 +5,7 @@
 // linha por vez. Remover via get+set do mapa inteiro reabria a corrida:
 // duas lixeiras clicadas rapido ressuscitavam o atalho da primeira.
 
-import { comCracha } from "../lib/sessao.js";
+import { comCracha, mensagemDoStatus } from "../lib/sessao.js";
 import { API } from "../lib/api.js";
 
 const BASE = `${API}/painel-config`;
@@ -17,7 +17,7 @@ async function chamar(action, corpo) {
     body: JSON.stringify({ action, ...corpo }),
   });
   const body = await resp.json().catch(() => null);
-  if (!resp.ok) throw new Error(body?.erro || `config respondeu ${resp.status}`);
+  if (!resp.ok) throw new Error(body?.erro || mensagemDoStatus(resp.status));
   return body;
 }
 
