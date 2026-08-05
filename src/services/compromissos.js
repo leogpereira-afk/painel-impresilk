@@ -33,12 +33,53 @@ export const removerCompromisso = (id) =>
   chamar("removerId", { chave: "compromissos", id });
 
 // Encaminhar: manda o compromisso para outra pessoa. O servidor confere se ela
-// existe e carimba quem passou; depois disso o item sai da lista de quem
-// encaminhou (por isso a tela recarrega com a resposta).
-export const encaminharCompromisso = (id, paraUsuario) =>
-  chamar("merge", { chave: "compromissos", patch: { [id]: { dono: paraUsuario } } }).then(
-    (r) => r.valor || {}
-  );
+// existe, carimba a passagem NO HISTORICO e devolve o mapa no escopo de quem
+// pediu -- depois disso o item sai da lista de quem encaminhou.
+//
+// `recado` e opcional e vira a primeira linha que a pessoa de destino le.
+export const encaminharCompromisso = (id, paraUsuario, recado = "") =>
+  chamar("merge", {
+    chave: "compromissos",
+    patch: { [id]: { dono: paraUsuario, ...(recado ? { recado } : {}) } },
+  }).then((r) => r.valor || {});
+
+// Recado na conversa, com anexo opcional. Quem carimba autor e hora e o
+// servidor: aqui so vai o que a pessoa escreveu.
+export const mandarRecado = (id, { texto = "", arquivo = null } = {}) =>
+  chamar("evento", {
+    chave: "compromissos",
+    id,
+    texto,
+    ...(arquivo ? { base64: arquivo.base64, nome: arquivo.nome, mime: arquivo.mime } : {}),
+  }).then((r) => r.valor || {});
+
+export const lerAnexo = (id, chaveArquivo) =>
+  chamar("lerArquivo", { chave: "compromissos", id, arquivo: chaveArquivo });
+
+// Arquivo -> base64 PURO (sem o prefixo "data:"): e o contrato do servidor,
+// que faz atob() direto. Mesmo formato do painel-ativos.
+export const arquivoParaBase64 = (file) =>
+  new Promise((ok, falha) => {
+    const r = new FileReader();
+    r.onload = () => ok(String(r.result).split(",")[1] || "");
+    r.onerror = () => falha(new Error("Nao consegui ler o arquivo."));
+    r.readAsDataURL(file);
+  });
+
+// Abre o anexo numa aba nova (ou baixa, conforme o tipo).
+export function abrirBase64(base64, mime, nome) {
+  const bin = atob(base64);
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  const url = URL.createObjectURL(new Blob([bytes], { type: mime || "application/octet-stream" }));
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = nome || "anexo";
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 30000);
+}
 
 // Quem trabalha aqui (usuario + nome), para montar o "encaminhar para".
 export async function lerPessoas() {

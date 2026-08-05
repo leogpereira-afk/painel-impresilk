@@ -44,6 +44,44 @@ const MODULO_POR_DONO: Record<string, string> = { compromissos: "compromissos" }
 // Diagnostico de cache pelo x-token (nomes sem o prefixo cache_ da era Blobs).
 const CACHES = new Set(["recebiveis", "pagar", "bancos", "orcamentos", "ordens", "dso_hist", "fluxo_mensal", "status"]);
 
+// ---------------------------------------------------------------- conversa
+//
+// O compromisso nao e so uma linha de agenda: ele PASSA DE MAO. A Barbara
+// levanta a medicao, manda para a Karen fazer o orcamento, volta para a
+// Barbara fechar. Sem registro, quem recebe nao sabe o que ja foi feito -- e
+// quem passou nao sabe o que aconteceu depois.
+//
+// O historico mora DENTRO do proprio registro (campo `historico`), nao numa
+// colecao de auditoria separada. Duas razoes:
+//   1. e a conversa DAQUELA tarefa: separada, ela vira log que ninguem le;
+//   2. um log externo com o conteudo dos campos e porta dos fundos do RBAC --
+//      ja passamos por isso no RH. Dentro do registro, quem pode ver o
+//      compromisso ve a conversa, e quem nao pode nao ve nem uma coisa nem a
+//      outra. A regra de acesso e uma so.
+//
+// Quem escreve no historico e o SERVIDOR, sempre: o cliente manda o texto, e
+// quem carimba autor e hora e esta funcao. Cliente que mande `historico` no
+// corpo tem o campo ignorado (ver `merge`).
+const MAX_ARQUIVO = 4 * 1024 * 1024; // ~3 MB reais depois do base64
+const BUCKET = "painel-arquivos";
+const MAX_HISTORICO = 200; // conversa longa demais vira registro gigante
+
+type Evento = {
+  em: string;
+  quem: string;
+  quemNome: string;
+  tipo: "criou" | "passou" | "recado" | "concluiu" | "reabriu";
+  texto?: string;
+  para?: string;
+  paraNome?: string;
+  arquivo?: { chave: string; nome: string; mime: string };
+};
+
+const comEvento = (registro: any, ev: Evento) => {
+  const antes: Evento[] = Array.isArray(registro?.historico) ? registro.historico : [];
+  return [...antes, ev].slice(-MAX_HISTORICO);
+};
+
 const CORS = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-token",
@@ -281,11 +319,18 @@ Deno.serve(async (req: Request) => {
             if (barradoDono) return barradoDono;
             const { data } = await sb.from("painel_registros").select("registro")
               .eq("colecao", chave).eq("id", id).maybeSingle();
-            const fundido: any = { ...(data?.registro ?? {}), ...((campos as object) ?? {}) };
+            // `historico` NUNCA vem do cliente: e o servidor que carimba autor
+            // e hora. Sem isto, qualquer pessoa reescreveria a conversa inteira
+            // -- inclusive apagando o que a colega escreveu.
+            const { historico: _naoVemDoCliente, ...camposLimpos } = (campos as any) ?? {};
+            const fundido: any = { ...(data?.registro ?? {}), ...camposLimpos };
             if (POR_DONO.has(chave)) {
               const donoAtual = (data?.registro as any)?.dono ?? null;
               const eu = String(sessao?.sub ?? "");
+              const euNome = String(sessao?.nome || eu);
               const pedido = (campos as any)?.dono ? String((campos as any).dono) : null;
+              const agora = new Date().toISOString();
+              const base = { em: agora, quem: eu, quemNome: euNome };
 
               // ENCAMINHAR. Quem chegou ate aqui ja passou pelo barraDono, entao
               // ou e a direcao, ou o item e dela -- so falta conferir que a
@@ -302,14 +347,37 @@ Deno.serve(async (req: Request) => {
                 fundido.dono = destino.usuario;
                 fundido.donoNome = destino.nome;
                 fundido.encaminhadoPor = sessao?.nome || eu;
-                fundido.encaminhadoEm = new Date().toISOString();
+                fundido.encaminhadoEm = agora;
+                // A ida fica registrada na propria conversa: quem recebe abre
+                // e ve de onde veio, e se voltar depois a linha do tempo mostra
+                // o caminho inteiro (era o `encaminhadoPor`, que so guardava a
+                // ULTIMA passagem e apagava as anteriores).
+                fundido.historico = comEvento(data?.registro, {
+                  ...base, tipo: "passou",
+                  para: destino.usuario, paraNome: destino.nome,
+                  texto: String((campos as any)?.recado ?? "").trim().slice(0, 2000) || undefined,
+                });
               } else {
                 // Sem encaminhamento, o dono e carimbado pelo servidor e nao
                 // muda: mandar dono no corpo nao rouba item de ninguem.
                 fundido.dono = donoAtual ?? eu;
                 fundido.donoNome =
                   (data?.registro as any)?.donoNome || sessao?.nome || fundido.dono;
+
+                if (!data) {
+                  // Nascimento do compromisso: a conversa comeca com quem criou.
+                  fundido.historico = [{ ...base, tipo: "criou" as const }];
+                } else if (
+                  (campos as any)?.feito !== undefined &&
+                  !!(campos as any).feito !== !!(data.registro as any)?.feito
+                ) {
+                  fundido.historico = comEvento(data.registro, {
+                    ...base, tipo: (campos as any).feito ? "concluiu" : "reabriu",
+                  });
+                }
               }
+              // `recado` e instrucao de chamada, nao campo do registro.
+              delete fundido.recado;
             }
             const { error } = await sb.from("painel_registros").upsert(
               { colecao: chave, id, registro: fundido, atualizado_em: new Date().toISOString() },
@@ -322,6 +390,99 @@ Deno.serve(async (req: Request) => {
           return resposta({ ok: true, valor: await lerOverlay(chave, donoDaVez(chave)) });
         }
         return resposta({ erro: "chave nao gravavel" }, 403);
+      }
+
+      // Recado na conversa do compromisso, com anexo opcional (foto da medicao,
+      // PDF do orcamento, croqui). O texto e o autor vao para o `historico` do
+      // proprio registro; os BYTES vao para o bucket, porque um PDF dentro do
+      // JSON incharia a linha e viajaria em TODA leitura da agenda.
+      //
+      // Acao propria em vez de um campo do merge: assim o append e atomico do
+      // lado do servidor (le, acrescenta, grava) e duas pessoas escrevendo ao
+      // mesmo tempo nao apagam o recado uma da outra.
+      case "evento": {
+        const chave = String(corpo.chave ?? "");
+        const id = String(corpo.id ?? "");
+        if (!sessao) return resposta({ erro: "Entre no sistema.", semSessao: true }, 401);
+        if (!POR_DONO.has(chave)) return resposta({ erro: "chave sem conversa" }, 400);
+        const barrado = barraChave(chave);
+        if (barrado) return barrado;
+        if (!id) return resposta({ erro: "informe o id" }, 400);
+        const barradoDono = await barraDono(chave, id);
+        if (barradoDono) return barradoDono;
+
+        const { data } = await sb.from("painel_registros").select("registro")
+          .eq("colecao", chave).eq("id", id).maybeSingle();
+        if (!data) return resposta({ erro: "Este compromisso nao existe mais." }, 404);
+
+        const texto = String(corpo.texto ?? "").trim().slice(0, 2000);
+        const base64 = String(corpo.base64 ?? "");
+        if (!texto && !base64) return resposta({ erro: "Escreva algo ou anexe um arquivo." }, 400);
+        if (base64.length > MAX_ARQUIVO) {
+          return resposta({ erro: "Arquivo muito grande (limite ~3 MB)." }, 413);
+        }
+
+        let arquivo: Evento["arquivo"];
+        if (base64) {
+          // Chave por compromisso E por evento: trocar de anexo nao apaga o
+          // anterior, e a conversa antiga continua abrindo o arquivo dela.
+          const nomeArq = String(corpo.nome ?? "anexo");
+          const chaveArq = `conversa/${id}/${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+          const bytes = Uint8Array.from(atob(base64), (c) => c.charCodeAt(0));
+          const mime = String(corpo.mime ?? "application/octet-stream");
+          const { error } = await sb.storage.from(BUCKET)
+            .upload(chaveArq, bytes, { contentType: mime, upsert: false });
+          if (error) throw new Error("upload: " + error.message);
+          arquivo = { chave: chaveArq, nome: nomeArq, mime };
+        }
+
+        const registro: any = {
+          ...(data.registro as any),
+          historico: comEvento(data.registro, {
+            em: new Date().toISOString(),
+            quem: String(sessao.sub ?? ""),
+            quemNome: String(sessao.nome || sessao.sub || ""),
+            tipo: "recado",
+            ...(texto ? { texto } : {}),
+            ...(arquivo ? { arquivo } : {}),
+          }),
+        };
+        const { error } = await sb.from("painel_registros").upsert(
+          { colecao: chave, id, registro, atualizado_em: new Date().toISOString() },
+          { onConflict: "colecao,id" });
+        if (error) throw new Error(error.message);
+        return resposta({ ok: true, valor: await lerOverlay(chave, donoDaVez(chave)) });
+      }
+
+      // Baixar um anexo da conversa. A permissao e a MESMA do compromisso: a
+      // chave do arquivo tem de estar no historico do registro que a pessoa
+      // pode abrir -- pedir uma chave de outro compromisso nao adianta.
+      case "lerArquivo": {
+        const chave = String(corpo.chave ?? "");
+        const id = String(corpo.id ?? "");
+        const arquivoChave = String(corpo.arquivo ?? "");
+        if (!sessao) return resposta({ erro: "Entre no sistema.", semSessao: true }, 401);
+        if (!POR_DONO.has(chave)) return resposta({ erro: "chave sem conversa" }, 400);
+        const barrado = barraChave(chave);
+        if (barrado) return barrado;
+        const barradoDono = await barraDono(chave, id);
+        if (barradoDono) return barradoDono;
+
+        const { data } = await sb.from("painel_registros").select("registro")
+          .eq("colecao", chave).eq("id", id).maybeSingle();
+        const hist: any[] = Array.isArray((data?.registro as any)?.historico)
+          ? (data!.registro as any).historico : [];
+        const ev = hist.find((e) => e?.arquivo?.chave === arquivoChave);
+        if (!ev) return resposta({ erro: "arquivo nao encontrado" }, 404);
+
+        const { data: arq, error } = await sb.storage.from(BUCKET).download(arquivoChave);
+        if (error || !arq) return resposta({ erro: "arquivo nao encontrado" }, 404);
+        const buf = new Uint8Array(await arq.arrayBuffer());
+        let s = "";
+        const BLOCO = 0x8000;
+        for (let i = 0; i < buf.length; i += BLOCO) s += String.fromCharCode(...buf.subarray(i, i + BLOCO));
+        // base64 PURO, sem prefixo data: -- mesmo contrato do painel-ativos.
+        return resposta({ ok: true, base64: btoa(s), mime: ev.arquivo.mime, nome: ev.arquivo.nome });
       }
 
       // Remocao por id: apaga UMA linha do overlay. Existe porque remover via
@@ -337,6 +498,17 @@ Deno.serve(async (req: Request) => {
         if (!id) return resposta({ erro: "informe o id" }, 400);
         const barradoDono = await barraDono(chave, id);
         if (barradoDono) return barradoDono;
+        // Os anexos da conversa vao junto: sem isto ficam bytes no bucket que
+        // nenhuma tela lista, ninguem apaga e ninguem sabe que existem (foi o
+        // que aconteceu com os arquivos dos ativos ate 04/08).
+        if (POR_DONO.has(chave)) {
+          const { data } = await sb.from("painel_registros").select("registro")
+            .eq("colecao", chave).eq("id", id).maybeSingle();
+          const hist: any[] = Array.isArray((data?.registro as any)?.historico)
+            ? (data!.registro as any).historico : [];
+          const chaves = hist.map((e) => e?.arquivo?.chave).filter(Boolean);
+          if (chaves.length) await sb.storage.from(BUCKET).remove(chaves).catch(() => {});
+        }
         const { error } = await sb.from("painel_registros").delete()
           .eq("colecao", chave).eq("id", id);
         if (error) throw new Error(error.message);
