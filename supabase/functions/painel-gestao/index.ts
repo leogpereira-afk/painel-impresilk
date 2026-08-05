@@ -71,7 +71,7 @@ async function equipeDoRH() {
   // memoria da function nao pode vazar por log nem por dump de erro.
   const COLUNAS = "pid:registro->>id, nome:registro->>nome, areaId:registro->>areaId," +
     " cargoId:registro->>cargoId, cargoLivre:registro->>cargoLivre, setor:registro->>setor," +
-    " gestorId:registro->>gestorId, ehDirecao:registro->>ehDirecao," +
+    " gestorId:registro->>gestorId, ehDirecao:registro->>ehDirecao, statusId:registro->>statusId," +
     " saiu:registro->>dataDesligamento";
   let linhas: any[] | null = null;
   const proj = await sb.from("registros").select(COLUNAS).eq("colecao", "colaboradores");
@@ -80,6 +80,7 @@ async function equipeDoRH() {
       id: r.pid, nome: r.nome, areaId: r.areaId, cargoId: r.cargoId,
       cargoLivre: r.cargoLivre, setor: r.setor, gestorId: r.gestorId,
       ehDirecao: r.ehDirecao === "true" || r.ehDirecao === true,
+      statusId: r.statusId,
       dataDesligamento: r.saiu,
     }));
   } else {
@@ -103,9 +104,23 @@ async function equipeDoRH() {
   };
   const [areas, cargos] = await Promise.all([nomePor("areas"), nomePor("cargos")]);
 
+  // QUEM ESTA NA CASA: a regra e a do proprio RH, `noQuadro()` em
+  // rh/src/lib/dominio.ts -- statusId diferente de "inativo" E sem data de
+  // desligamento. Conferir so a DATA (como eu fazia) e mais frouxo, porque o RH
+  // so preenche a data quando a ficha tem admissao: cinco ex-funcionarios estao
+  // como "inativo" com data em branco (Dermeval Vieira (2), José Adilando,
+  // Paulo Alves Cordeiro, Anderson Ribeiro Rocha e Guilherme) e voltavam para o
+  // quadro como gente da casa. O caso do "Guilherme" e o pior: a ficha tem so o
+  // primeiro nome, entao uma tatica com responsavel "Guilherme" casava EXATO e
+  // ficava pendurada num ex-funcionario.
+  //
+  // Duas regras para "esta na casa" a dois cliques de distancia e como o RH ja
+  // se queimou (o comentario de `noQuadro` conta a historia). Esta segue a de la.
+  const naCasa = (r: any) => texto(r.statusId) !== "inativo" && !texto(r.dataDesligamento);
+
   // `linhas` ja vem PLANA dos dois caminhos (projetado e fallback).
   return linhas
-    .filter((r: any) => !texto(r.dataDesligamento))          // so quem esta na casa
+    .filter(naCasa)
     .map((r: any) => ({
       id: texto(r.id, 60),
       nome: texto(r.nome, 90),

@@ -155,8 +155,14 @@ function montarTime(equipe, taticas, decisoes, hojeISO) {
     const candidatos = doRH.filter(
       (x) => x.chave.startsWith(p.chave + " ") || p.chave.startsWith(x.chave + " ")
     );
-    if (candidatos.length === 1) p.talvez = candidatos[0].nome;
-    else if (candidatos.length > 1) p.ambiguo = candidatos.length;
+    if (candidatos.length === 1) {
+      p.talvez = candidatos[0].nome;
+      // A pessoa do RH apontada NÃO pode sair como "sem nada na mão": a tela
+      // acabou de dizer, no cartão de cima, que aquele trabalho provavelmente é
+      // dela. Duas afirmações contrárias na mesma tela e quem lê acha que o
+      // gerente está ocioso.
+      candidatos[0].citadoComo = p.nome;
+    } else if (candidatos.length > 1) p.ambiguo = candidatos.length;
   }
 
   const SEM_AREA = "Sem área no RH";
@@ -188,7 +194,7 @@ function montarTime(equipe, taticas, decisoes, hojeISO) {
     grupos: ordem,
     total: todas.length,
     doRH: todas.filter((p) => p.doRH).length,
-    semNada: todas.filter((p) => p.doRH && !p.abertas && !p.decisoesAbertas && !p.concluidas).length,
+    semNada: todas.filter((p) => p.doRH && !p.abertas && !p.decisoesAbertas && !p.concluidas && !p.citadoComo).length,
     comAtraso: todas.filter((p) => p.atrasadas > 0).length,
   };
 }
@@ -203,7 +209,13 @@ function BlocoTime({ equipe, taticas, decisoes, hojeISO, filtro, aoFiltrar }) {
   const q = chaveNome(busca);
   const grupos = q
     ? time.grupos
-        .map((g) => ({ ...g, pessoas: g.pessoas.filter((p) => chaveNome(p.nome + " " + p.cargo).includes(q)) }))
+        .map((g) => {
+          const pessoas = g.pessoas.filter((p) => chaveNome(p.nome + " " + p.cargo).includes(q));
+          // `abertas` também tem de encolher: com a busca ativa o cabeçalho dizia
+          // "1 pessoa · 14 em andamento" (as 14 do setor inteiro) ao lado de um
+          // cartão que mostrava 2. Quem lê atribui as 14 a essa pessoa.
+          return { ...g, pessoas, abertas: pessoas.reduce((n, p) => n + p.abertas, 0) };
+        })
         .filter((g) => g.pessoas.length)
     : time.grupos;
 
@@ -249,13 +261,15 @@ function BlocoTime({ equipe, taticas, decisoes, hojeISO, filtro, aoFiltrar }) {
             <span className="font-display text-xs font-semibold uppercase tracking-wide text-slate-500">{g.area}</span>
             <span className="text-xs text-slate-400">
               {g.pessoas.length} {g.pessoas.length === 1 ? "pessoa" : "pessoas"}
-              {g.abertas ? ` · ${g.abertas} em andamento` : ""}
+              {g.abertas ? ` · ${g.abertas} em aberto` : ""}
             </span>
           </div>
           <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
             {g.pessoas.map((p) => {
               const marcado = chaveNome(filtro) === p.chave;
-              const nada = p.doRH && !p.abertas && !p.decisoesAbertas && !p.concluidas;
+              // "Sem nada na mão" só quando é verdade de ponta a ponta: quem foi
+              // citado por nome parcial tem trabalho, e o cartão diz isso logo acima.
+              const nada = p.doRH && !p.abertas && !p.decisoesAbertas && !p.concluidas && !p.citadoComo;
               return (
                 <button
                   key={p.chave}
@@ -276,13 +290,17 @@ function BlocoTime({ equipe, taticas, decisoes, hojeISO, filtro, aoFiltrar }) {
                   <span className="block truncate font-display text-sm font-medium text-slate-900">{p.nome}</span>
                   {/* Exceção: quando o nome não casou com o RH, dizer o porquê é
                       a única forma de a pessoa arrumar. */}
-                  {(p.talvez || p.ambiguo) && (
+                  {(p.talvez || p.ambiguo || p.citadoComo) && (
                     <span className="block truncate text-xs text-slate-400">
-                      {p.talvez ? `talvez seja ${p.talvez}` : `${p.ambiguo} pessoas começam assim`}
+                      {p.talvez
+                        ? `talvez seja ${p.talvez}`
+                        : p.ambiguo
+                          ? `${p.ambiguo} pessoas começam assim`
+                          : `há trabalho lançado como "${p.citadoComo}"`}
                     </span>
                   )}
                   <span className="mt-2 flex flex-wrap items-center gap-1.5">
-                    {p.abertas > 0 && <span className="chip-warn">{p.abertas} em andamento</span>}
+                    {p.abertas > 0 && <span className="chip-warn">{p.abertas} em aberto</span>}
                     {p.atrasadas > 0 && <span className="chip-bad">{p.atrasadas} atrasada{p.atrasadas > 1 ? "s" : ""}</span>}
                     {p.decisoesAbertas > 0 && <span className="chip">{p.decisoesAbertas} de ata</span>}
                     {p.concluidas > 0 && <span className="chip-ok">{p.concluidas} concluída{p.concluidas > 1 ? "s" : ""}</span>}
@@ -925,7 +943,7 @@ function BlocoAtas({ dados, papel, aoRecarregar, aoAvisar }) {
           })}
         </div>
       ) : (
-        <Empty>Nenhuma reunião registrada. A ata e o que faz a decisão sobreviver a semana.</Empty>
+        <Empty>Nenhuma reunião registrada. A ata é o que faz a decisão sobreviver à semana.</Empty>
       )}
     </div>
   );
@@ -1207,7 +1225,11 @@ export default function Gestao() {
           })}
         </div>
 
-        {verTime ? (
+        {/* Os DOIS ficam montados, e um esconde. Trocar por ternário desmontava
+            o EsquemaTatico e levava junto o formulário aberto: o caminho que a
+            própria tela sugere -- começar a tática, ir ver quem está livre,
+            voltar -- apagava o que já tinha sido digitado, sem perguntar. */}
+        <div className={verTime ? "" : "hidden"}>
           <BlocoTime
             equipe={equipe}
             taticas={dados.taticas}
@@ -1221,7 +1243,8 @@ export default function Gestao() {
               if (nome) setVerTime(false);
             }}
           />
-        ) : (
+        </div>
+        <div className={verTime ? "hidden" : ""}>
           <EsquemaTatico
             taticas={dados.taticas}
             objetivos={dados.objetivos}
@@ -1237,7 +1260,7 @@ export default function Gestao() {
             aoSalvar={async (t) => { await salvarTatica(t); await carregar(); }}
             aoRemover={async (id) => { await removerTatica(id); await carregar(); }}
           />
-        )}
+        </div>
       </div>
     ),
     atas: <BlocoAtas dados={dados} papel={papel} aoRecarregar={carregar} aoAvisar={setAviso} />,

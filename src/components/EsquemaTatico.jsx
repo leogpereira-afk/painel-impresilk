@@ -264,10 +264,13 @@ export default function EsquemaTatico({
           {(responsaveis.length > 1 || fResp) && (
             <select className="input h-9 w-auto py-0 text-sm" value={fResp} onChange={(e) => setFResp(e.target.value)}>
               <option value="">Todo mundo</option>
-              {/* O nome escolhido no quadro do time pode nao estar na lista (a
-                  pessoa ainda nao tem tatica nenhuma). Sem esta opcao, o select
-                  mostrava "Todo mundo" enquanto a lista estava filtrada. */}
-              {!responsaveis.some((r) => mesmaPessoa(r, fResp)) && fResp && (
+              {/* O nome escolhido no quadro do time pode nao estar na lista -- ou
+                  estar com OUTRA grafia. A comparacao frouxa serve para filtrar,
+                  mas o <select> do DOM casa a option por igualdade EXATA: se a
+                  tatica diz "jessica souza" e o quadro manda "Jéssica Souza", sem
+                  esta option o campo aparece VAZIO ao lado de uma lista filtrada.
+                  Por isso o teste aqui e `includes`, nao `mesmaPessoa`. */}
+              {fResp && !responsaveis.includes(fResp) && (
                 <option value={fResp}>{fResp}</option>
               )}
               {responsaveis.map((r) => <option key={r} value={r}>{r}</option>)}
