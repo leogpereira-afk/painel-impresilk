@@ -12,6 +12,7 @@ import { useApp } from "../config/store.jsx";
 
 // Espelha MODULOS de supabase/functions/painel-auth. O servidor e quem valida.
 const MODULOS = [
+  { id: "gestao", nome: "Gestao", sub: "identidade, plano do ano, taticas e atas -- a tela de direcao" },
   { id: "compromissos", nome: "Compromissos", sub: "a agenda de cada um -- cada pessoa ve so a dela" },
   { id: "contas-atrasadas", nome: "Contas Atrasadas", sub: "quem deve e a cobranca" },
   { id: "fluxo-caixa", nome: "Fluxo de Caixa", sub: "caixa, projecao e realizado" },

@@ -42,6 +42,7 @@ import {
   ShoppingCart,
   BookOpen,
   CalendarCheck,
+  Compass,
 } from "lucide-react";
 import logoColor from "../assets/brand/logo-color.png";
 import logoWhite from "../assets/brand/logo-white.png";
@@ -55,6 +56,7 @@ import { frescor } from "../lib/frescor.js";
 const INICIO = { to: "/", rotulo: "Inicio", icone: Home, exato: true };
 
 const GESTAO = [
+  { to: "/gestao", rotulo: "Gestao", icone: Compass, modulo: "gestao" },
   { to: "/compromissos", rotulo: "Compromissos", icone: CalendarCheck, modulo: "compromissos" },
   { to: "/contas-atrasadas", rotulo: "Contas Atrasadas", icone: AlertTriangle, modulo: "contas-atrasadas" },
   { to: "/fluxo-caixa", rotulo: "Fluxo de Caixa", icone: Wallet, modulo: "fluxo-caixa" },

@@ -23,6 +23,7 @@ import Marketing from "./pages/Marketing.jsx";
 import Licitacoes from "./pages/Licitacoes.jsx";
 import Glossario from "./pages/Glossario.jsx";
 import Compromissos from "./pages/Compromissos.jsx";
+import Gestao from "./pages/Gestao.jsx";
 import Manutencoes from "./pages/Manutencoes.jsx";
 import Patrimonio from "./pages/Patrimonio.jsx";
 import { getSessao, aoMudarSessao, podeAbrir } from "./lib/sessao.js";
@@ -134,6 +135,14 @@ export default function App() {
           element={
             <Restrito modulo="compromissos" sessao={sessao}>
               <Compromissos />
+            </Restrito>
+          }
+        />
+        <Route
+          path="/gestao"
+          element={
+            <Restrito modulo="gestao" sessao={sessao}>
+              <Gestao />
             </Restrito>
           }
         />
