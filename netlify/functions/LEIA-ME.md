@@ -36,17 +36,19 @@ quem grava hoje é a Edge Function `painel-cache`.
 tempo procurando por que a mudança "não pegou". Foi exatamente o que aconteceu
 com o tratamento de `vendedorId`, que existia nos dois lugares.
 
-## MORTO e SEM SUBSTITUTO — atenção
+## MORTO, portado em 04/08/2026
 
 `mubi-realizado-cron.js` e `mubi-realizado-background.mjs`.
 
-Estes **não migraram: simplesmente pararam**. Nada em `supabase/functions/` nem
-em `scripts/carregar-cache.mjs` calcula o realizado mês a mês, e a chave
-`fluxo_mensal` não é mais escrita por ninguém. O gráfico de realizado do Fluxo
-de Caixa está congelado no último valor gravado pelo stack Netlify.
+Estes ficaram **parados** por um tempo depois da migração: nada calculava o
+realizado mês a mês e a chave `fluxo_mensal` não era escrita por ninguém, então
+o gráfico do Fluxo de Caixa congelou no último valor do stack Netlify.
 
-Isso é dívida em aberto, não faxina pendente. Quem for mexer no Fluxo precisa
-decidir: portar a carga do realizado, ou tirar o gráfico da tela.
+A lógica foi portada para `etapaRealizado()` em `mubi-cache-background.mjs`, e
+roda pelo modo `--realizado` do `scripts/carregar-cache.mjs` (cron das 07:00
+UTC, corrida separada da completa das 06:00). **A sutileza das parcelas veio
+junto** — o valor real de cada pagamento está em `pagamentos[]`, não no
+`valor_pagamento` do topo, que às vezes vem zerado.
 
 ## Por que não apagar tudo de uma vez
 

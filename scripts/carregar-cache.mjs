@@ -24,14 +24,23 @@
 // ============================================================================
 
 import {
-  etapaRapidos, etapaCompleta, calcDso, normOrcamento, normOS, chaveProduto,
+  etapaRapidos, etapaCompleta, etapaRealizado, calcDso, normOrcamento, normOS, chaveProduto,
 } from "../netlify/functions/mubi-cache-background.mjs";
 import { mubiGetTudo, mubiConfigurado, hojeMais } from "../netlify/functions/lib/mubi.js";
 
 const FN = process.env.PAINEL_CACHE_URL
   || "https://heveemylixartyijxewh.supabase.co/functions/v1/painel-cache";
 const TOKEN = process.env.PAINEL_TOKEN;
-const MODO = process.argv.includes("--completo") ? "completo" : "incremental";
+/* Tres modos:
+   incremental — a cada 20 min: recebiveis/pagar/bancos + janela de 7 dias.
+   completo    — de madrugada: o ano de orcamentos e dois anos de O.S.
+   realizado   — de madrugada, em corrida PROPRIA: o fluxo mes a mes do que ja
+                 foi pago. Fica separado porque sao ~11 paginas por ano por
+                 endpoint e a completa ja leva ~25 min; juntas encostariam no
+                 teto de 45 min do job. */
+const MODO = process.argv.includes("--realizado") ? "realizado"
+  : process.argv.includes("--completo") ? "completo"
+  : "incremental";
 
 if (!TOKEN) { console.error("PAINEL_TOKEN ausente"); process.exit(1); }
 if (!mubiConfigurado()) { console.error("Mubisys nao configurado (MUBI_*)"); process.exit(1); }
@@ -132,7 +141,34 @@ async function janelaDe7Dias() {
   return { orcamentos: [...mapaOrc.values()], ordens: [...mapaOS.values()] };
 }
 
+/* CARGA DO REALIZADO — corrida propria, so o fluxo mes a mes.
+   Nao toca em mais nada: se falhar, o painel inteiro segue com o cache de
+   sempre e so o grafico do Fluxo fica com o valor anterior. */
+async function cargaDoRealizado() {
+  const inicio = Date.now();
+  console.log("carga do realizado mes a mes");
+
+  const atual = await ler("fluxo_mensal");
+  const r = await etapaRealizado(new Date().getUTCFullYear(), atual);
+
+  if (!r.valor) {
+    console.error("nenhum ano do realizado veio. Cache anterior preservado.");
+    process.exit(1);
+  }
+
+  console.log("gravando:");
+  await gravar("fluxo_mensal", r.valor);
+  const anos = r.valor.disponiveis.join(", ");
+  const total = Object.values(r.valor.contagens || {})
+    .reduce((s, c) => s + (c.receber || 0) + (c.pagar || 0), 0);
+  console.log(`   anos no grafico: ${anos} | ${total} titulos pagos lidos nesta corrida`);
+  if (r.falhas.length) console.warn(`   falhas: ${r.falhas.join(", ")}`);
+  console.log(`pronto em ${Math.round((Date.now() - inicio) / 1000)}s`);
+}
+
 async function main() {
+  if (MODO === "realizado") return cargaDoRealizado();
+
   const inicio = Date.now();
   console.log(`carga do cache (${MODO})`);
 

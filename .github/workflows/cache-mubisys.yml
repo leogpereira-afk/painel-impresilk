@@ -18,10 +18,18 @@ on:
     - cron: "*/20 * * * *"
     # 06:00 UTC = 03:00 de Brasilia: recarga completa, quando o ERP esta livre.
     - cron: "0 6 * * *"
+    # 07:00 UTC: o fluxo REALIZADO mes a mes, em corrida separada. Depois da
+    # completa (que leva ~25 min) e nao junto dela: somadas encostariam no teto
+    # de 45 min do job. O historico mensal muda pouco; uma vez por dia basta.
+    - cron: "0 7 * * *"
   workflow_dispatch:
     inputs:
       completo:
         description: "Rodar carga completa (o ano inteiro)"
+        type: boolean
+        default: false
+      realizado:
+        description: "Rodar so o fluxo realizado mes a mes"
         type: boolean
         default: false
 
@@ -50,8 +58,12 @@ jobs:
           MUBI_PUBLIC_KEY: ${{ secrets.MUBI_PUBLIC_KEY }}
           MUBI_TOKEN: ${{ secrets.MUBI_TOKEN }}
         run: |
-          # O cron das 06:00 e o botao manual com "completo" fazem a carga do ano.
-          if [ "${{ github.event.schedule }}" = "0 6 * * *" ] || [ "${{ inputs.completo }}" = "true" ]; then
+          # O cron das 07:00 (e o botao "realizado") fazem SO o fluxo mes a mes.
+          # O cron das 06:00 e o botao "completo" fazem a carga do ano.
+          # Qualquer outro disparo e a recarga leve.
+          if [ "${{ github.event.schedule }}" = "0 7 * * *" ] || [ "${{ inputs.realizado }}" = "true" ]; then
+            node scripts/carregar-cache.mjs --realizado
+          elif [ "${{ github.event.schedule }}" = "0 6 * * *" ] || [ "${{ inputs.completo }}" = "true" ]; then
             node scripts/carregar-cache.mjs --completo
           else
             node scripts/carregar-cache.mjs

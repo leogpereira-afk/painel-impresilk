@@ -32,6 +32,9 @@ jobs:
       # Um 404 intermitente do ERP nao pode virar cache vazio gravado como
       # sucesso. Roda em segundos, com fetch falso -- nao toca no Mubisys.
       - run: node scripts/conferir-404.mjs
+      # O realizado tem de somar por PARCELA: o campo do topo perde as parcelas
+      # e as vezes vem zerado. Grafico congelado nao da erro, so para de andar.
+      - run: node scripts/conferir-realizado.mjs
       - run: npm run build
         env:
           # No Pages o site vive em /painel-impresilk/. O vite.config le isto;

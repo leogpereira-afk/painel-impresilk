@@ -352,6 +352,106 @@ async function catalogoCategorias() {
   return new Map(catalogo.map((p) => [chaveProduto(p.nome), String(p.categoria || "").trim()]));
 }
 
+// ---------------------------------------------------------------------------
+// FLUXO REALIZADO MES A MES: o que de fato ENTROU (contas-receber PAGO) e SAIU
+// (contas-pagar PAGO), agrupado pelo mes do PAGAMENTO.
+//
+// Portado de mubi-realizado-background.mjs (Netlify), que parou de rodar na
+// migracao e deixou o grafico do Fluxo congelado no ultimo valor gravado. A
+// logica e a mesma, palavra por palavra -- inclusive a sutileza abaixo, que
+// custou uma conferencia inteira contra o ERP para ser descoberta.
+//
+// SUTILEZA DAS PARCELAS: um titulo pode ser pago em PARCELAS, em datas (e
+// meses) diferentes. O valor real de cada pagamento esta no array
+// `pagamentos[]`, cada um com sua `data_pagamento` e seu `valor`. Somar o campo
+// do topo (`valor_pagamento`) perderia as parcelas -- e as vezes ele vem
+// zerado. Por isso a agregacao percorre `pagamentos[]`. Validado contra 2026
+// (1.550 receber + 3.081 pagar pagos): fecha.
+//
+// Fica SEPARADO da carga completa de proposito: sao ~11 paginas por ano por
+// endpoint, e a completa ja leva ~25 min. Juntar os dois num ciclo so encostaria
+// no teto de 45 min do job. O historico mensal muda pouco: uma vez por dia basta.
+// ---------------------------------------------------------------------------
+
+/** Quantos anos para tras trazer, alem do corrente, para permitir comparar. */
+export const ANOS_REALIZADO_ATRAS = 1;
+
+const mesDe = (s) => (s ? String(s).slice(0, 7) : null); // "AAAA-MM"
+
+function acumularPagamentos(destino, titulos, ano) {
+  for (const t of titulos) {
+    const pagamentos =
+      Array.isArray(t.pagamentos) && t.pagamentos.length
+        ? t.pagamentos
+        : t.data_pagamento
+          ? [{ data_pagamento: t.data_pagamento, valor: t.valor_pagamento }]
+          : [];
+    for (const p of pagamentos) {
+      const mes = mesDe(p.data_pagamento || p.data_credito);
+      if (!mes || !mes.startsWith(String(ano))) continue;
+      destino[mes] = (destino[mes] || 0) + (num(p.valor) || 0);
+    }
+  }
+}
+
+async function realizadoDoAno(ano) {
+  const janela = {
+    status: "PAGO",
+    filtrodata: "PAGAMENTO",
+    datainicial: `${ano}-01-01`,
+    datafinal: `${ano}-12-31`,
+  };
+  const [receber, pagar] = await Promise.all([
+    mubiGetTudo("contas-receber", janela),
+    mubiGetTudo("contas-pagar", janela),
+  ]);
+  const entradas = {};
+  const saidas = {};
+  acumularPagamentos(entradas, receber, ano);
+  acumularPagamentos(saidas, pagar, ano);
+  return { entradas, saidas, contagens: { receber: receber.length, pagar: pagar.length } };
+}
+
+/**
+ * Realizado dos anos pedidos. `anterior` e o que ja esta gravado: os anos novos
+ * entram POR CIMA, sem apagar anos que outra corrida tenha trazido.
+ *
+ * Devolve null se NENHUM ano vier -- o gravador preserva o anterior em vez de
+ * substituir o grafico por um objeto vazio.
+ */
+export async function etapaRealizado(anoBase = new Date().getUTCFullYear(), anterior = null) {
+  const anos = [];
+  for (let a = anoBase; a > anoBase - 1 - ANOS_REALIZADO_ATRAS; a--) anos.push(a);
+
+  const porAno = {};
+  const contagens = {};
+  const falhas = [];
+  for (const ano of anos) {
+    try {
+      const r = await realizadoDoAno(ano);
+      porAno[ano] = { entradas: r.entradas, saidas: r.saidas };
+      contagens[ano] = r.contagens;
+    } catch (e) {
+      // Um ano que falhou nao pode derrubar o outro: o ano anterior muda pouco
+      // e ja esta gravado; o corrente e o que interessa hoje.
+      console.warn(`realizado ${ano} falhou:`, e?.message || e);
+      falhas.push(`realizado:${ano}`);
+    }
+  }
+  if (!Object.keys(porAno).length) return { valor: null, falhas };
+
+  const anosMescla = { ...(anterior?.anos || {}), ...porAno };
+  return {
+    valor: {
+      em: new Date().toISOString(),
+      anos: anosMescla,
+      disponiveis: Object.keys(anosMescla).map(Number).sort((a, b) => b - a),
+      contagens,
+    },
+    falhas,
+  };
+}
+
 export async function etapaCompleta() {
   /* DUAS REGUAS PARA A MESMA TELA, agora uma so.
      A tela trata como cobranca ATIVA tudo que vence a partir de CORTE_ATRASADOS
