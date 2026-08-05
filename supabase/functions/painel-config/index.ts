@@ -34,7 +34,7 @@ const sb = createClient(SUPABASE_URL, SERVICE_KEY, { auth: { persistSession: fal
 // "marketing" guarda os atalhos do Drive; "bancos", as contas bancarias da aba
 // Bancos e Pix. Entram como overlay porque o mecanismo e o mesmo: mapa por id,
 // merge sem corrida.
-const OVERLAYS = new Set(["ov_rec", "ov_orc", "marketing", "bancos", "glossario", "compromissos"]);
+const OVERLAYS = new Set(["ov_rec", "ov_orc", "marketing", "bancos", "glossario", "compromissos", "manutencoes"]);
 // Chaves em que cada pessoa so enxerga e mexe no que E DELA. A vendedora nao
 // pode ver a agenda da colega, e a direcao ve tudo. Isso e checado no
 // SERVIDOR: filtrar so na tela seria conforto, nao separacao.
@@ -172,6 +172,7 @@ Deno.serve(async (req: Request) => {
     marketing: "marketing",
     glossario: "glossario",
     compromissos: "compromissos",
+    manutencoes: "manutencoes",
   };
   const barraChave = (chave: string) => {
     // Sem sessao, quem responde e o 401 de cada ramo: o cliente usa esse 401

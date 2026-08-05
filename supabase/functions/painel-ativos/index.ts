@@ -33,7 +33,11 @@ const BUCKET = "painel-arquivos";
 // "marketing" (logomarcas) e "licitacao" (editais) nao tem a mecanica de
 // vencimento dos documentos, mas o esqueleto (item + arquivo anexo) e identico
 // -- por isso vivem na mesma colecao, cada um com a sua tela.
-const TIPOS = new Set(["documento", "veiculo", "maquina", "marketing", "licitacao"]);
+// "predial" e o predio em si: cameras, ar condicionado, eletrica, hidraulica,
+// portoes, alarme. Nao vence como documento -- o que interessa nele e o
+// historico de manutencao e quanto ja custou. Por isso ele NAO aparece na tela
+// de Documentos e ativos (que gira em torno de validade) e sim em Manutencoes.
+const TIPOS = new Set(["documento", "veiculo", "maquina", "marketing", "licitacao", "predial"]);
 const MAX_ARQUIVO = 4 * 1024 * 1024; // 4 MB em base64 (~3 MB de arquivo)
 
 const sb = createClient(SUPABASE_URL, SERVICE_KEY, { auth: { persistSession: false } });
@@ -78,6 +82,7 @@ Deno.serve(async (req: Request) => {
   const MODULO_DO_TIPO: Record<string, string> = {
     marketing: "marketing",
     licitacao: "licitacoes",
+    predial: "manutencoes",
   };
   const perms: string[] = Array.isArray(sessao.perms) ? sessao.perms : [];
   const podeTipo = (tipo: string) => {

@@ -34,6 +34,7 @@ import {
   HardHat,
   Building2,
   ChevronDown,
+  Wrench,
   Landmark,
   Megaphone,
   Gavel,
@@ -62,6 +63,7 @@ const GESTAO = [
   { to: "/marketing", rotulo: "Marketing", icone: Megaphone, modulo: "marketing" },
   { to: "/licitacoes", rotulo: "Licitacoes", icone: Gavel, modulo: "licitacoes" },
   { to: "/glossario", rotulo: "Glossario", icone: BookOpen, modulo: "glossario" },
+  { to: "/manutencoes", rotulo: "Manutencoes", icone: Wrench, modulo: "manutencoes" },
   { to: "/documentos", rotulo: "Documentos e ativos", icone: FileCheck2 },
 ];
 

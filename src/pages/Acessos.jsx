@@ -21,6 +21,7 @@ const MODULOS = [
   { id: "marketing", nome: "Marketing", sub: "logomarcas, materiais e atalhos do Drive" },
   { id: "licitacoes", nome: "Licitacoes", sub: "editais, prazos e sessoes" },
   { id: "glossario", nome: "Glossario", sub: "os termos de comunicacao visual explicados" },
+  { id: "manutencoes", nome: "Manutencoes", sub: "carros, maquinas e predio: gasto e historico" },
   { id: "configuracoes", nome: "Configuracoes", sub: "motivos, regua de cobranca e parametros -- vale para todo mundo" },
 ];
 

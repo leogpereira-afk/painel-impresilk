@@ -23,6 +23,7 @@ import Marketing from "./pages/Marketing.jsx";
 import Licitacoes from "./pages/Licitacoes.jsx";
 import Glossario from "./pages/Glossario.jsx";
 import Compromissos from "./pages/Compromissos.jsx";
+import Manutencoes from "./pages/Manutencoes.jsx";
 import { getSessao, aoMudarSessao, podeAbrir } from "./lib/sessao.js";
 import { Card } from "./components/ui.jsx";
 
@@ -132,6 +133,14 @@ export default function App() {
           element={
             <Restrito modulo="compromissos" sessao={sessao}>
               <Compromissos />
+            </Restrito>
+          }
+        />
+        <Route
+          path="/manutencoes"
+          element={
+            <Restrito modulo="manutencoes" sessao={sessao}>
+              <Manutencoes />
             </Restrito>
           }
         />
