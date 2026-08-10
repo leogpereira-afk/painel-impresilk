@@ -10,6 +10,7 @@
 // painel-*; o antigo netlify/functions/lib/guarda.js nao roda mais).
 
 import { API } from "./api.js";
+import { entradaUnica, limparCrachas } from "./entradaUnica.js";
 
 const K_TOKEN = "painel_auth_token";
 const K_SESSAO = "painel_auth_sessao";
@@ -99,6 +100,9 @@ export function sair(motivo = "") {
   try {
     localStorage.removeItem(K_TOKEN);
     localStorage.removeItem(K_SESSAO);
+    // Sair do painel tira TAMBEM os crachas que ele plantou. Sem isto, sair no
+    // computador da recepcao deixaria o PCP e o Brief abertos para o proximo.
+    limparCrachas();
     if (motivo) localStorage.setItem(K_MOTIVO, motivo);
     else localStorage.removeItem(K_MOTIVO);
   } catch {}
@@ -151,7 +155,28 @@ export async function comCracha(url, opcoes = {}) {
   return resp;
 }
 
+// Entrar no painel. DUAS PORTAS, nesta ordem:
+//
+//  1. a entrada unica (acesso-entrar), que alem de deixar entrar aqui ja planta
+//     o cracha dos outros sistemas -- e o que faz "entrei uma vez, abro todos";
+//  2. o login antigo (painel-auth), para quem ainda nao foi consolidado.
+//
+// A segunda porta continua de pe de proposito. Virar tudo de uma vez deixaria
+// alguem do lado de fora sem ter a quem recorrer, num sistema que so a direcao
+// sabe consertar.
 export async function login(usuario, senha) {
+  try {
+    const doPainel = await entradaUnica(usuario, senha);
+    if (doPainel?.token) {
+      entrar(doPainel);
+      return doPainel;
+    }
+  } catch (e) {
+    // Rede caida cai aqui; senha errada nao (a entrada unica devolve null e
+    // deixa a porta antiga dar a palavra final).
+    if (e instanceof TypeError) throw new Error(SEM_REDE);
+  }
+
   let resp;
   try {
     resp = await fetch(`${API}/painel-auth`, {

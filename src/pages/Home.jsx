@@ -16,6 +16,7 @@ import { listarAtivos } from "../services/ativos.js";
 import { calcAtivos, TIPOS } from "../lib/calc/ativos.js";
 import { ymdLocal } from "../lib/format.js";
 import { CarregandoModulo, ErroModulo } from "../components/ui.jsx";
+import MeusSistemas from "../components/MeusSistemas.jsx";
 import logoColor from "../assets/brand/logo-color.png";
 import logoWhite from "../assets/brand/logo-white.png";
 
@@ -124,6 +125,8 @@ export default function Home() {
       {/* No celular NAO existe menu ao lado: a lateral vira o botao de tres
           tracos no alto. Mandar "olhe ao lado" para quem esta no telefone e
           mandar olhar para o nada. */}
+      <MeusSistemas />
+
       <p className="mt-8 text-sm text-slate-400">
         <span className="lg:hidden">Toque no menu, no alto a esquerda, para escolher um módulo.</span>
         <span className="hidden lg:inline">Escolha um módulo no menu ao lado para começar.</span>
