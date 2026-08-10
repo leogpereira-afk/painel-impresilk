@@ -214,7 +214,7 @@ export default function Produtos() {
     <div className="space-y-8">
       <PageTitle
         titulo="Produtos"
-        descricao="O que mais fatura e para onde a tendencia aponta. Clique nos numeros para filtrar o ranking."
+        descricao="O que mais fatura e para onde a tendência aponta. Clique nos números para filtrar o ranking."
         acao={
           <div className="flex items-center gap-2">
             <Segmented
@@ -262,8 +262,8 @@ export default function Produtos() {
       {/* Explica a leitura da familia: um produto pode vender e o segmento nao. */}
       {ehFamilia && (
         <p className="-mt-4 text-sm text-slate-500">
-          Faturamento por familia (o segmento do cadastro do Mubisys). Serve para ver se o
-          segmento inteiro sustenta, e nao so um produto dentro dele.
+          Faturamento por família (o segmento do cadastro do Mubisys). Serve para ver se o
+          segmento inteiro sustenta, e não só um produto dentro dele.
         </p>
       )}
 
@@ -313,7 +313,7 @@ export default function Produtos() {
             </span>
             <div>
               <p className="font-display font-semibold text-bad-700">
-                Atencao: {ehFamilia ? "a familia lider" : "o produto lider"} em faturamento ({lider.nome}) esta em queda (
+                Atenção: {ehFamilia ? "a família lider" : "o produto lider"} em faturamento ({lider.nome}) esta em queda (
                 {lider.varFat}% desde janeiro).
               </p>
               <p className="mt-1 text-sm text-slate-600">
@@ -331,7 +331,7 @@ export default function Produtos() {
             </span>
             <div>
               <p className="font-display font-semibold text-ok-700">
-                Lider saudavel: {lider.nome} segue no topo
+                Lider saudável: {lider.nome} segue no topo
                 {lider.varFat == null
                   ? " (produto novo, sem base em janeiro para comparar)."
                   : ` (${lider.varFat >= 0 ? "+" : ""}${lider.varFat}% desde janeiro).`}
@@ -350,8 +350,8 @@ export default function Produtos() {
           titulo="Ranking"
           sub={
             porFaturamento
-              ? `Ordenado por faturamento no ano. Clique n${ehFamilia ? "a familia" : "o produto"} para ver o detalhe.`
-              : `Ordenado por volume no ano. Clique n${ehFamilia ? "a familia" : "o produto"} para ver o detalhe.`
+              ? `Ordenado por faturamento no ano. Clique n${ehFamilia ? "a família" : "o produto"} para ver o detalhe.`
+              : `Ordenado por volume no ano. Clique n${ehFamilia ? "a família" : "o produto"} para ver o detalhe.`
           }
           acao={
             <Segmented
@@ -379,9 +379,9 @@ export default function Produtos() {
                   setBusca(e.target.value);
                   setLimite(LOTE);
                 }}
-                placeholder={ehFamilia ? "Buscar familia" : "Buscar produto"}
+                placeholder={ehFamilia ? "Buscar família" : "Buscar produto"}
                 className="input pl-9"
-                aria-label={ehFamilia ? "Buscar familia" : "Buscar produto"}
+                aria-label={ehFamilia ? "Buscar família" : "Buscar produto"}
               />
             </div>
 
@@ -446,7 +446,7 @@ export default function Produtos() {
           </div>
 
           {listaOrdenada.length === 0 ? (
-            <Empty>Nenhum{ehFamilia ? "a familia" : " produto"} com movimento no periodo.</Empty>
+            <Empty>Nenhum{ehFamilia ? "a família" : " produto"} com movimento no período.</Empty>
           ) : listaFiltrada.length === 0 ? (
             <Empty>
               Nenhum produto neste filtro.
@@ -499,7 +499,7 @@ export default function Produtos() {
                                 className={`chip shrink-0 transition-colors hover:bg-slate-200 ${categoria === r.categoria ? "ring-1 ring-brand" : ""}`}
                                 aria-pressed={categoria === r.categoria}
                                 onClick={() => alternarCategoria(r.categoria)}
-                                title="Filtrar por esta familia"
+                                title="Filtrar por esta família"
                               >
                                 {r.categoria}
                               </button>
@@ -510,7 +510,7 @@ export default function Produtos() {
                           {r.balde && (
                             <span
                               className="chip-warn shrink-0"
-                              title="Itens sem produto cadastrado no Mubisys (frete, servicos avulsos). Nao e um produto nem um segmento."
+                              title="Itens sem produto cadastrado no Mubisys (frete, serviços avulsos). Não e um produto nem um segmento."
                             >
                               sem cadastro
                             </span>
@@ -550,7 +550,7 @@ export default function Produtos() {
                           <Detalhe rotulo="Faturamento no ano" valor={moeda(r.faturamento)} />
                           <Detalhe rotulo="Volume no ano" valor={`${numero(r.volume)} un`} />
                           <Detalhe
-                            rotulo="Participacao no faturamento"
+                            rotulo="Participação no faturamento"
                             valor={
                               dim.totalFaturamento > 0
                                 ? pct((r.faturamento / dim.totalFaturamento) * 100, 1)
@@ -558,15 +558,15 @@ export default function Produtos() {
                             }
                           />
                           <Detalhe
-                            rotulo="Faturamento: janeiro x ultimo mes fechado"
+                            rotulo="Faturamento: janeiro x último mês fechado"
                             valor={`${moeda(r.fatJaneiro)} para ${moeda(r.fatAtual)}`}
                           />
                           <Detalhe
-                            rotulo="Volume: janeiro x ultimo mes fechado"
+                            rotulo="Volume: janeiro x último mês fechado"
                             valor={`${numero(r.volJaneiro)} un para ${numero(r.volAtual)} un`}
                           />
                           <Detalhe
-                            rotulo="Variacao desde janeiro"
+                            rotulo="Variação desde janeiro"
                             valor={
                               porFaturamento
                                 ? r.varFat == null
@@ -618,8 +618,8 @@ export default function Produtos() {
                         >
                           <p className="label mb-1">
                             {porFaturamento
-                              ? "Faturamento mes a mes"
-                              : "Volume mes a mes"}
+                              ? "Faturamento mês a mês"
+                              : "Volume mês a mês"}
                           </p>
                           {r.serie.length >= 2 ? (
                             <div style={{ width: "100%", height: 140 }}>
@@ -661,7 +661,7 @@ export default function Produtos() {
                               </ResponsiveContainer>
                             </div>
                           ) : (
-                            <Empty>Ainda nao ha meses fechados suficientes para a serie.</Empty>
+                            <Empty>Ainda não ha meses fechados suficientes para a série.</Empty>
                           )}
                         </div>
                       </div>
@@ -686,12 +686,12 @@ export default function Produtos() {
       {/* Tendencia mes a mes */}
       <section>
         <SectionTitle
-          titulo="Tendencia mes a mes"
+          titulo="Tendência mês a mês"
           sub="Maior alta contra maior queda desde janeiro"
         />
         <Card>
           {dim.chartData.length === 0 || !dim.maiorAlta || !dim.maiorQueda ? (
-            <Empty>Sem historico suficiente para desenhar a tendencia.</Empty>
+            <Empty>Sem histórico suficiente para desenhar a tendência.</Empty>
           ) : (
             <>
               <div className="mb-4 grid gap-3 sm:grid-cols-2">

@@ -204,7 +204,7 @@ export default function Ativos() {
     <div className="space-y-8">
       <PageTitle
         titulo="Documentos e ativos"
-        descricao="O que vence e precisa ser renovado: certidoes da empresa, manutencao dos veiculos e das maquinas."
+        descricao="O que vence e precisa ser renovado: certidões da empresa, manutenção dos veículos e das máquinas."
         acao={
           <button className="btn-primary" onClick={() => setForm(vazio(tipo))}>
             <Plus size={16} strokeWidth={2.4} />
@@ -214,10 +214,10 @@ export default function Ativos() {
       />
 
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <StatCard rotulo="Vencidos" valor={numero(k.vencidos)} sub="precisam de acao hoje" tom={k.vencidos ? "bad" : "ok"} icone={AlertTriangle} />
-        <StatCard rotulo="Vencem em 30 dias" valor={numero(k.urgentes)} sub="renovar ja" tom={k.urgentes ? "warn" : "ok"} icone={AlertTriangle} />
-        <StatCard rotulo="Cadastrados" valor={numero(k.total)} sub="documentos, veiculos e maquinas" tom="neutral" icone={FileCheck2} />
-        <StatCard rotulo="Sem data" valor={numero(k.semControle)} sub="ninguem sera avisado" tom={k.semControle ? "warn" : "ok"} icone={AlertTriangle} />
+        <StatCard rotulo="Vencidos" valor={numero(k.vencidos)} sub="precisam de ação hoje" tom={k.vencidos ? "bad" : "ok"} icone={AlertTriangle} />
+        <StatCard rotulo="Vencem em 30 dias" valor={numero(k.urgentes)} sub="renovar já" tom={k.urgentes ? "warn" : "ok"} icone={AlertTriangle} />
+        <StatCard rotulo="Cadastrados" valor={numero(k.total)} sub="documentos, veículos e máquinas" tom="neutral" icone={FileCheck2} />
+        <StatCard rotulo="Sem data" valor={numero(k.semControle)} sub="ninguém será avisado" tom={k.semControle ? "warn" : "ok"} icone={AlertTriangle} />
       </div>
 
       {msg && (
@@ -273,7 +273,7 @@ export default function Ativos() {
               </div>
               <div>
                 <label className="label" htmlFor="a-identificacao">
-                  {form.tipo === "veiculo" ? "Placa" : form.tipo === "maquina" ? "Patrimonio" : "Numero do documento"}
+                  {form.tipo === "veiculo" ? "Placa" : form.tipo === "maquina" ? "Patrimônio" : "Número do documento"}
                 </label>
                 <input
                   id="a-identificacao"
@@ -283,17 +283,17 @@ export default function Ativos() {
                 />
               </div>
               <div>
-                <label className="label" htmlFor="a-emissao">Emissao</label>
+                <label className="label" htmlFor="a-emissao">Emissão</label>
                 <input
                   id="a-emissao" type="date" className="input" value={form.emissao} onChange={(e) => setForm((f) => ({ ...f, emissao: e.target.value }))} />
               </div>
               <div>
-                <label className="label" htmlFor="a-validade">Validade / proxima acao</label>
+                <label className="label" htmlFor="a-validade">Validade / próxima ação</label>
                 <input
                   id="a-validade" type="date" className="input" value={form.validade} onChange={(e) => setForm((f) => ({ ...f, validade: e.target.value }))} />
               </div>
               <div>
-                <label className="label" htmlFor="a-responsavel">Responsavel</label>
+                <label className="label" htmlFor="a-responsavel">Responsável</label>
                 <input
                   id="a-responsavel" className="input" value={form.responsavel} onChange={(e) => setForm((f) => ({ ...f, responsavel: e.target.value }))} placeholder="quem cuida disso" />
               </div>
@@ -318,7 +318,7 @@ export default function Ativos() {
                     />
                   </div>
                   <div>
-                    <label className="label" htmlFor="a-proximo">Proxima manutencao em</label>
+                    <label className="label" htmlFor="a-proximo">Próxima manutenção em</label>
                     <input
                       id="a-proximo"
                       inputMode="decimal"
@@ -334,13 +334,13 @@ export default function Ativos() {
             </div>
 
             <div>
-              <label className="label" htmlFor="a-observacao">Observacao</label>
+              <label className="label" htmlFor="a-observacao">Observação</label>
               <input
-                  id="a-observacao" className="input" value={form.observacao} onChange={(e) => setForm((f) => ({ ...f, observacao: e.target.value }))} placeholder="onde renovar, orgao, telefone do contato..." />
+                  id="a-observacao" className="input" value={form.observacao} onChange={(e) => setForm((f) => ({ ...f, observacao: e.target.value }))} placeholder="onde renovar, órgão, telefone do contato..." />
             </div>
 
             <div>
-              <label className="label" htmlFor="a-arquivo">Arquivo (PDF ou imagem, ate ~3 MB)</label>
+              <label className="label" htmlFor="a-arquivo">Arquivo (PDF ou imagem, até ~3 MB)</label>
               <input
                 id="a-arquivo"
                 type="file"
@@ -350,7 +350,7 @@ export default function Ativos() {
               />
               {form.temArquivo && !arquivo && (
                 <p className="mt-1 text-xs text-slate-500">
-                  Ja tem arquivo guardado ({form.arquivoNome || "documento"}). Escolher outro substitui.
+                  Já tem arquivo guardado ({form.arquivoNome || "documento"}). Escolher outro substitui.
                 </p>
               )}
             </div>
@@ -381,7 +381,7 @@ export default function Ativos() {
 
         <div className="sem-impressao mb-4 relative max-w-sm">
           <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-          <input className="input pl-9" value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar por nome, categoria ou responsavel" />
+          <input className="input pl-9" value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar por nome, categoria ou responsável" />
         </div>
 
         {daLente.length === 0 ? (

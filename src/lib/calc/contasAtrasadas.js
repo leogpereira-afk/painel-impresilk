@@ -215,7 +215,7 @@ export function calcContasAtrasadas(recebiveis, overrides, config, dsoHist = [],
   // Inclui a fatia sem classificacao para as barras fecharem 100%.
   const porOrigem = [...porOrigemBase];
   if (semClass > 0) {
-    porOrigem.push({ grupo: "sem", nome: "Sem classificacao", valor: semClass, pct: naoClassPct });
+    porOrigem.push({ grupo: "sem", nome: "Sem classificação", valor: semClass, pct: naoClassPct });
   }
   porOrigem.sort((a, b) => b.valor - a.valor);
 
@@ -346,7 +346,7 @@ function montarFrentes(atrasados, config) {
   return [
     {
       chave: "interna",
-      titulo: "Destrave o que e seu",
+      titulo: "Destrave o que é seu",
       descricao: "Atrasos causados por falha interna. Resolva antes de cobrar o cliente.",
       soma: s(internos),
       qtd: internos.length,
@@ -367,7 +367,7 @@ function montarFrentes(atrasados, config) {
     {
       chave: "sem-resposta",
       titulo: "Escale os sem resposta",
-      descricao: `Sem contato ha mais de ${diasEscala} dias. Suba o nivel da cobranca.`,
+      descricao: `Sem contato ha mais de ${diasEscala} dias. Suba o nível da cobrança.`,
       soma: s(semResposta),
       qtd: semResposta.length,
       prazo: "hoje",
@@ -376,8 +376,8 @@ function montarFrentes(atrasados, config) {
     },
     {
       chave: "esquecimento",
-      titulo: "Deixe a regua trabalhar",
-      descricao: "Esquecimento simples. Um lembrete automatico resolve.",
+      titulo: "Deixe a régua trabalhar",
+      descricao: "Esquecimento simples. Um lembrete automático resolve.",
       soma: s(esquecimento),
       qtd: esquecimento.length,
       prazo: "automatico",

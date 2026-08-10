@@ -126,7 +126,7 @@ function LinhaAcao({ g, motivos, onAgendar, onPerder }) {
           <p className="truncate font-display text-sm font-medium text-slate-900">{g.cliente}</p>
           <p className="mt-0.5 text-xs text-slate-500">
             <span className={selo.cls}>{selo.texto}</span>{" "}
-            {g.qtd > 1 ? `${g.qtd} orcamentos · ` : ""}
+            {g.qtd > 1 ? `${g.qtd} orçamentos · ` : ""}
             {g.vendedorNome} · {g.dias} dias
             {g.contatoNome ? ` · ${g.contatoNome}` : ""}
           </p>
@@ -199,8 +199,8 @@ function LinhaAcao({ g, motivos, onAgendar, onPerder }) {
         <div className="mt-3 rounded-xl bg-bad-50/60 p-3">
           <p className="mb-2 text-sm text-slate-700">
             {g.qtd === 1
-              ? "Dar baixa neste orcamento como perdido? Ele sai da fila e para de somar em Na mesa."
-              : "Quais orcamentos deste cliente foram perdidos? Os marcados saem da fila e param de somar em Na mesa."}
+              ? "Dar baixa neste orçamento como perdido? Ele sai da fila e para de somar em Na mesa."
+              : "Quais orçamentos deste cliente foram perdidos? Os marcados saem da fila e param de somar em Na mesa."}
           </p>
           {g.qtd > 1 && (
             <div className="mb-2 space-y-1">
@@ -236,7 +236,7 @@ function LinhaAcao({ g, motivos, onAgendar, onPerder }) {
                 value={motivoBaixa}
                 onChange={(e) => setMotivoBaixa(e.target.value)}
               >
-                <option value="">Nao informado</option>
+                <option value="">Não informado</option>
                 {(motivos || []).map((m) => (
                   <option key={m.id} value={m.id}>
                     {m.nome}
@@ -301,8 +301,8 @@ function AcoesDoDia({ vm, vendedores, motivos, meuVendedor, onAgendar, onPerder 
   return (
     <Card>
       <SectionTitle
-        titulo="Acoes do dia"
-        sub="Quem chamar hoje, do maior dinheiro em jogo para o menor. Agendar um retorno tira o cliente da fila ate a data marcada."
+        titulo="Ações do dia"
+        sub="Quem chamar hoje, do maior dinheiro em jogo para o menor. Agendar um retorno tira o cliente da fila até a data marcada."
       />
 
       {/* Chips de vendedor: o vinculo PRE-SELECIONA, nao esconde a troca.
@@ -339,8 +339,8 @@ function AcoesDoDia({ vm, vendedores, motivos, meuVendedor, onAgendar, onPerder 
           mesma acusacao, trocando uma frase mentirosa por outra. */}
       {vinculoOrfao && (
         <p className="mb-2 rounded-lg bg-warn-50 px-3 py-2 text-xs text-warn-800">
-          A sua conta esta ligada ao vendedor <b>{meuVendedor}</b>, que nao aparece nos orcamentos.
-          Provavelmente o nome esta escrito diferente do Mubisys — peca para a direcao corrigir em
+          A sua conta esta ligada ao vendedor <b>{meuVendedor}</b>, que não aparece nos orçamentos.
+          Provavelmente o nome esta escrito diferente do Mubisys — peça para a direção corrigir em
           Acessos. Enquanto isso, clique em <b>Todos</b> para ver a fila do time.
         </p>
       )}
@@ -360,7 +360,7 @@ function AcoesDoDia({ vm, vendedores, motivos, meuVendedor, onAgendar, onPerder 
 
       {lista.length === 0 ? (
         <Empty>
-          Nada na fila{vend ? " deste vendedor" : ""}. Tudo que estava vencido ou parado ja foi
+          Nada na fila{vend ? " deste vendedor" : ""}. Tudo que estava vencido ou parado já foi
           tratado ou tem retorno agendado.
         </Empty>
       ) : (
@@ -683,22 +683,22 @@ export default function Orcamentos() {
   return (
     <div className="space-y-8">
       <PageTitle
-        titulo="Orcamentos"
+        titulo="Orçamentos"
         descricao={
           "Acima de " +
           moeda(config.parametros.valorMinimoOrcamento) +
           ", desde " +
           dataLongaCorte(config.parametros.dataCorteOrcamentos) +
-          ". Clique nos numeros para filtrar a lista."
+          ". Clique nos números para filtrar a lista."
         }
-        acao={<BotaoPDF titulo="Gera um PDF da lista de orcamentos com o recorte atual" />}
+        acao={<BotaoPDF titulo="Gera um PDF da lista de orçamentos com o recorte atual" />}
       />
 
       <AvisoDadoParado atualizadoEm={atualizadoEm} />
 
       {/* Recorte de tempo: manda na tela inteira, da fila aos motivos. */}
       <div className="sem-impressao -mt-4 flex flex-wrap items-center gap-2">
-        <span className="text-sm text-slate-500">Periodo</span>
+        <span className="text-sm text-slate-500">Período</span>
         <select
           className="input w-auto"
           value={ano}
@@ -716,7 +716,7 @@ export default function Orcamentos() {
           className="input w-auto"
           value={mes}
           onChange={(e) => trocarMes(e.target.value)}
-          aria-label="Mes"
+          aria-label="Mês"
         >
           <option value="todos">Ano inteiro</option>
           {periodosDisponiveis.mesesDoAno(ano).map((m) => (
@@ -735,14 +735,14 @@ export default function Orcamentos() {
             }}
           >
             <X size={14} strokeWidth={2.4} />
-            Limpar periodo
+            Limpar período
           </button>
         )}
       </div>
 
       <CabecalhoImpressao
         atualizadoEm={atualizadoEm}
-        titulo="Impresilk - Orcamentos"
+        titulo="Impresilk - Orçamentos"
         linhas={[
           `Emitido em ${dataLonga(ymdLocal(new Date()))} · ${numero(filtrados.length)} orcamentos · ${moeda(
             filtrados.reduce((s, o) => s + (o.valor || 0), 0)
@@ -771,14 +771,14 @@ export default function Orcamentos() {
         <StatCard
           rotulo="Na mesa"
           valor={moeda(k.naMesaValor)}
-          sub={numero(k.naMesaQtd) + " orcamentos aguardando"}
+          sub={numero(k.naMesaQtd) + " orçamentos aguardando"}
           tom="brand"
           icone={FileText}
           ativo={situacao === "aberto"}
           onClick={() => alternarSituacao("aberto")}
         />
         <StatCard
-          rotulo="Conversao do time"
+          rotulo="Conversão do time"
           valor={pct(k.conversao)}
           sub={numero(k.ganhosQtd) + " ganhos, " + numero(k.perdidosQtd) + " perdidos"}
           tom={k.conversao >= 40 ? "ok" : "warn"}
@@ -787,9 +787,9 @@ export default function Orcamentos() {
           onClick={() => alternarSituacao("ganho")}
         />
         <StatCard
-          rotulo="Valor perdido no periodo"
+          rotulo="Valor perdido no período"
           valor={moeda(k.valorPerdido)}
-          sub={numero(k.perdidosQtd) + " orcamentos que nao fecharam"}
+          sub={numero(k.perdidosQtd) + " orçamentos que não fecharam"}
           tom="bad"
           icone={TrendingDown}
           ativo={situacao === "perdido"}
@@ -813,7 +813,7 @@ export default function Orcamentos() {
       <Card>
         <SectionTitle
           titulo="Por vendedor"
-          sub="Quem esta convertendo. Clique numa linha para ver os orcamentos do vendedor. Ajuste a equipe abaixo, a tabela recalcula na hora."
+          sub="Quem esta convertendo. Clique numa linha para ver os orçamentos do vendedor. Ajuste a equipe abaixo, a tabela recalcula na hora."
         />
 
         {/* Mexer na equipe e GRAVAR CONFIG, e config so a direcao grava. Para
@@ -847,11 +847,11 @@ export default function Orcamentos() {
               <thead>
                 <tr>
                   <th className="th text-left">Vendedor</th>
-                  <th className="th text-right">Orcamentos</th>
+                  <th className="th text-right">Orçamentos</th>
                   <th className="th text-right">Valor</th>
                   <th className="th text-right">Ganhos</th>
                   <th className="th text-right">Perdidos</th>
-                  <th className="th text-right">Conversao</th>
+                  <th className="th text-right">Conversão</th>
                   <th className="th text-right"></th>
                 </tr>
               </thead>
@@ -913,11 +913,11 @@ export default function Orcamentos() {
       <Card>
         <SectionTitle
           titulo="Por que perdemos"
-          sub="O valor deixado na mesa, por motivo. Clique num motivo para ver os orcamentos."
+          sub="O valor deixado na mesa, por motivo. Clique num motivo para ver os orçamentos."
         />
 
         {vm.porMotivoPerda.length === 0 ? (
-          <Empty>Nenhuma perda registrada no periodo.</Empty>
+          <Empty>Nenhuma perda registrada no período.</Empty>
         ) : (
           <>
             <div className="space-y-2">
@@ -938,7 +938,7 @@ export default function Orcamentos() {
                       valorTexto={moeda(m.valor)}
                       pct={maiorMotivo ? (m.valor / maiorMotivo) * 100 : 0}
                       tom={i === 0 ? "bad" : "warn"}
-                      sub={numero(m.qtd) + (m.qtd === 1 ? " orcamento" : " orcamentos")}
+                      sub={numero(m.qtd) + (m.qtd === 1 ? " orçamento" : " orçamentos")}
                     />
                   </button>
                 );
@@ -958,8 +958,8 @@ export default function Orcamentos() {
       {/* Lista mestra: busca, situacao, selos e linhas expansiveis */}
       <Card ref={listaRef}>
         <SectionTitle
-          titulo="Orcamentos"
-          sub="Clique na linha para ver os detalhes. Nos perdidos, marque o motivo para afinar a analise."
+          titulo="Orçamentos"
+          sub="Clique na linha para ver os detalhes. Nos perdidos, marque o motivo para afinar a análise."
           acao={<Segmented opcoes={opcoesSituacao} valor={situacao} onChange={setSituacao} />}
         />
 
@@ -973,9 +973,9 @@ export default function Orcamentos() {
               type="search"
               value={busca}
               onChange={(e) => setBusca(e.target.value)}
-              placeholder="Buscar cliente, numero, vendedor ou trabalho"
+              placeholder="Buscar cliente, número, vendedor ou trabalho"
               className="input pl-9"
-              aria-label="Buscar orcamento por cliente, numero, vendedor ou trabalho"
+              aria-label="Buscar orçamento por cliente, número, vendedor ou trabalho"
             />
           </div>
 
@@ -991,7 +991,7 @@ export default function Orcamentos() {
           <span>
             Mostrando{" "}
             <strong className="tnum text-slate-900">{numero(filtrados.length)}</strong> de{" "}
-            {numero(vm.lista.length)} orcamentos
+            {numero(vm.lista.length)} orçamentos
             {filtrados.length > 0 && (
               <>
                 {" "}
@@ -1030,7 +1030,7 @@ export default function Orcamentos() {
                     <th className="th text-left">Cliente</th>
                     <th className="th text-left">Vendedor</th>
                     <th className="th text-right">Valor</th>
-                    <th className="th text-left">Situacao</th>
+                    <th className="th text-left">Situação</th>
                     <th className="th text-right">Dias</th>
                     <th className="th text-left">Motivo da perda</th>
                   </tr>
@@ -1068,7 +1068,7 @@ export default function Orcamentos() {
                               {o.parado && <span className="chip-warn shrink-0">parado</span>}
                             </div>
                             <p className="mt-0.5 pl-6 text-xs text-slate-500">
-                              Orcamento {o.numero}
+                              Orçamento {o.numero}
                               {o.trabalho ? `, ${o.trabalho}` : ""}
                             </p>
                           </td>
@@ -1101,7 +1101,7 @@ export default function Orcamentos() {
                             {o.situacao === "perdido" ? (
                               <select
                                 className="select"
-                                aria-label={"Motivo da perda do orcamento " + o.numero}
+                                aria-label={"Motivo da perda do orçamento " + o.numero}
                                 value={o.motivoPerdaId || ""}
                                 onChange={(e) =>
                                   setOverrideOrcamento(o.id, {
@@ -1109,7 +1109,7 @@ export default function Orcamentos() {
                                   })
                                 }
                               >
-                                <option value="">Motivo nao informado</option>
+                                <option value="">Motivo não informado</option>
                                 {motivos.map((m) => (
                                   <option key={m.id} value={m.id}>
                                     {m.nome}
@@ -1125,7 +1125,7 @@ export default function Orcamentos() {
                                 o gestor classificar. */}
                             {o.situacao === "perdido" && (
                               <span className="apenas-impressao">
-                                {o.motivoPerdaNome || "nao informado"}
+                                {o.motivoPerdaNome || "não informado"}
                               </span>
                             )}
                           </td>
@@ -1140,11 +1140,11 @@ export default function Orcamentos() {
                               >
                                 <dl className="grid gap-x-6 gap-y-3 sm:grid-cols-3">
                                   <Detalhe rotulo="Cliente" valor={o.cliente} />
-                                  <Detalhe rotulo="Orcamento" valor={String(o.numero || "-")} />
+                                  <Detalhe rotulo="Orçamento" valor={String(o.numero || "-")} />
                                   <Detalhe rotulo="Vendedor" valor={o.vendedorNome} />
                                   <Detalhe rotulo="Valor" valor={moeda(o.valor)} />
                                   <Detalhe
-                                    rotulo="Situacao"
+                                    rotulo="Situação"
                                     valor={ROTULO_SITUACAO[o.situacao] || o.situacao}
                                   />
                                   <Detalhe
@@ -1219,7 +1219,7 @@ export default function Orcamentos() {
                                     {o.situacao === "perdido" && (
                                       <select
                                         className="select ml-auto"
-                                        aria-label={"Motivo da perda do orcamento " + o.numero}
+                                        aria-label={"Motivo da perda do orçamento " + o.numero}
                                         value={o.motivoPerdaId || ""}
                                         onChange={(e) =>
                                           setOverrideOrcamento(o.id, {
@@ -1227,7 +1227,7 @@ export default function Orcamentos() {
                                           })
                                         }
                                       >
-                                        <option value="">Motivo nao informado</option>
+                                        <option value="">Motivo não informado</option>
                                         {motivos.map((m) => (
                                           <option key={m.id} value={m.id}>
                                             {m.nome}
@@ -1261,7 +1261,7 @@ export default function Orcamentos() {
           </>
         ) : (
           <Empty>
-            Nenhum orcamento neste filtro.
+            Nenhum orçamento neste filtro.
             {temFiltro && (
               <button className="btn-ghost ml-2" onClick={limparTudo}>
                 Limpar filtros

@@ -51,7 +51,7 @@ const STATUS = {
   enviada: { rotulo: "Proposta enviada", chip: "chip", vivo: true },
   ganha: { rotulo: "Ganha", chip: "chip-ok", vivo: false },
   perdida: { rotulo: "Perdida", chip: "chip-bad", vivo: false },
-  fora: { rotulo: "Nao participei", chip: "chip", vivo: false },
+  fora: { rotulo: "Não participei", chip: "chip", vivo: false },
 };
 
 const VAZIA = {
@@ -164,7 +164,7 @@ export default function Licitacoes() {
     async (e) => {
       e.preventDefault();
       setAviso(null);
-      if (!form.nome.trim()) return setAviso({ tom: "erro", texto: "De um nome ao objeto da licitacao." });
+      if (!form.nome.trim()) return setAviso({ tom: "erro", texto: "Dê um nome ao objeto da licitação." });
       const file = inputArquivo.current?.files?.[0];
       if (file && file.size > MAX_BYTES) {
         return setAviso({ tom: "erro", texto: "Edital acima de 3 MB - guarde no Drive e cole o link no campo do portal." });
@@ -255,7 +255,7 @@ export default function Licitacoes() {
   if (erro) {
     return (
       <div className="space-y-6">
-        <PageTitle titulo="Licitacoes" descricao="Editais, prazos e sessoes." />
+        <PageTitle titulo="Licitações" descricao="Editais, prazos e sessões." />
         <Card className="flex items-start gap-2 text-sm text-bad-700">
           <AlertTriangle size={16} className="mt-0.5 shrink-0" />
           {erro}
@@ -299,7 +299,7 @@ export default function Licitacoes() {
             target="_blank"
             rel="noopener noreferrer"
             className="grid h-8 w-8 place-items-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-brand"
-            title="Abrir o portal da licitacao"
+            title="Abrir o portal da licitação"
           >
             <ArrowUpRight size={15} />
           </a>
@@ -337,13 +337,13 @@ export default function Licitacoes() {
   return (
     <div className="space-y-8">
       <PageTitle
-        titulo="Licitacoes"
-        descricao="Os editais na mesa, com o dia da sessao na frente para ninguem perder prazo."
+        titulo="Licitações"
+        descricao="Os editais na mesa, com o dia da sessão na frente para ninguém perder prazo."
       />
 
       <div className="grid gap-3 sm:grid-cols-3">
         <StatCard
-          rotulo="Proxima sessao"
+          rotulo="Próxima sessão"
           valor={vm.proxima ? `${dataCurta(vm.proxima.validade)}${vm.proxima.hora ? ` ${vm.proxima.hora}` : ""}` : "—"}
           sub={vm.proxima ? vm.proxima.nome : "nenhuma marcada"}
           tom={vm.proxima && vm.proxima.dias <= 2 ? "bad" : vm.proxima && vm.proxima.dias <= 7 ? "warn" : "neutral"}
@@ -352,11 +352,11 @@ export default function Licitacoes() {
         <StatCard
           rotulo="Na mesa"
           valor={String(vm.naMesa.length)}
-          sub={vm.atrasadas ? `${vm.atrasadas} com a data passada - atualize a situacao` : "avaliando, participando ou aguardando"}
+          sub={vm.atrasadas ? `${vm.atrasadas} com a data passada - atualize a situação` : "avaliando, participando ou aguardando"}
           tom={vm.atrasadas ? "bad" : "neutral"}
           icone={Gavel}
         />
-        <StatCard rotulo="Ganhas" valor={String(vm.ganhas)} sub="historico de vitorias" tom={vm.ganhas ? "ok" : "neutral"} icone={Trophy} />
+        <StatCard rotulo="Ganhas" valor={String(vm.ganhas)} sub="histórico de vitorias" tom={vm.ganhas ? "ok" : "neutral"} icone={Trophy} />
       </div>
 
       {aviso && (
@@ -372,7 +372,7 @@ export default function Licitacoes() {
       <Card>
         <SectionTitle titulo="Na mesa" sub="Ordenado pelo que vence primeiro." />
         {vm.naMesa.length === 0 ? (
-          <Empty>Nenhuma licitacao na mesa. Cadastre a primeira abaixo.</Empty>
+          <Empty>Nenhuma licitação na mesa. Cadastre a primeira abaixo.</Empty>
         ) : (
           <div className="space-y-2.5">
             {vm.naMesa.map((it) => (
@@ -384,8 +384,8 @@ export default function Licitacoes() {
 
       <Card ref={cartaoForm}>
         <SectionTitle
-          titulo={form.id ? "Editar licitacao" : "Nova licitacao"}
-          sub="So o objeto e obrigatorio - de preferencia ja marque a data da sessao."
+          titulo={form.id ? "Editar licitação" : "Nova licitação"}
+          sub="Só o objeto é obrigatório - de preferência já marque a data da sessão."
         />
         <form onSubmit={salvar} className="space-y-4">
           <div className="grid gap-4 sm:grid-cols-2">
@@ -394,14 +394,14 @@ export default function Licitacoes() {
               <input
                 id="l-nome"
                 className="input"
-                placeholder="ex.: Comunicacao visual das escolas municipais"
+                placeholder="ex.: Comunicação visual das escolas municipais"
                 value={form.nome}
                 onChange={(e) => setForm((f) => ({ ...f, nome: e.target.value }))}
                 required
               />
             </div>
             <div>
-              <label className="label" htmlFor="l-orgao">Orgao</label>
+              <label className="label" htmlFor="l-orgao">Órgão</label>
               <input
                 id="l-orgao"
                 className="input"
@@ -416,7 +416,7 @@ export default function Licitacoes() {
                 id="l-mod"
                 className="input"
                 list="lista-modalidades"
-                placeholder="ex.: Pregao Eletronico"
+                placeholder="ex.: Pregão Eletrônico"
                 value={form.categoria}
                 onChange={(e) => setForm((f) => ({ ...f, categoria: e.target.value }))}
               />
@@ -427,7 +427,7 @@ export default function Licitacoes() {
               </datalist>
             </div>
             <div>
-              <label className="label" htmlFor="l-edital">Numero do edital</label>
+              <label className="label" htmlFor="l-edital">Número do edital</label>
               <input
                 id="l-edital"
                 className="input"
@@ -438,7 +438,7 @@ export default function Licitacoes() {
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="label" htmlFor="l-data">Dia da sessao</label>
+                <label className="label" htmlFor="l-data">Dia da sessão</label>
                 <input
                   id="l-data"
                   type="date"
@@ -480,7 +480,7 @@ export default function Licitacoes() {
               />
             </div>
             <div>
-              <label className="label" htmlFor="l-status">Situacao</label>
+              <label className="label" htmlFor="l-status">Situação</label>
               <select
                 id="l-status"
                 className="input"
@@ -495,17 +495,17 @@ export default function Licitacoes() {
               </select>
             </div>
             <div className="sm:col-span-2">
-              <label className="label" htmlFor="l-obs">Observacoes</label>
+              <label className="label" htmlFor="l-obs">Observações</label>
               <textarea
                 id="l-obs"
                 className="input min-h-16"
-                placeholder="garantia exigida, visita tecnica, documentos que faltam..."
+                placeholder="garantia exigida, visita técnica, documentos que faltam..."
                 value={form.observacao}
                 onChange={(e) => setForm((f) => ({ ...f, observacao: e.target.value }))}
               />
             </div>
             <div className="sm:col-span-2">
-              <label className="label" htmlFor="l-arq">Edital (PDF ate 3 MB)</label>
+              <label className="label" htmlFor="l-arq">Edital (PDF até 3 MB)</label>
               <input
                 id="l-arq"
                 ref={inputArquivo}
@@ -518,11 +518,11 @@ export default function Licitacoes() {
           <div className="flex flex-wrap items-center gap-2">
             <button className="btn-primary" disabled={salvando}>
               {form.id ? <Upload size={15} strokeWidth={2.4} /> : <Plus size={15} strokeWidth={2.4} />}
-              {salvando ? "Salvando..." : form.id ? "Salvar alteracoes" : "Cadastrar licitacao"}
+              {salvando ? "Salvando..." : form.id ? "Salvar alterações" : "Cadastrar licitação"}
             </button>
             {form.id && (
               <button type="button" className="btn-ghost" onClick={fecharForm}>
-                Cancelar edicao
+                Cancelar edição
               </button>
             )}
           </div>

@@ -76,8 +76,8 @@ function FormBem({ inicial, setores, salvando, aoSalvar, aoFechar }) {
         titulo={f.id ? `Editar ${f.codigo || "bem"}` : "Novo bem"}
         sub={
           f.id
-            ? "O codigo da etiqueta nao muda -- ele ja esta colado no bem."
-            : "O codigo da etiqueta e gerado ao salvar, com a sigla do setor."
+            ? "O código da etiqueta não muda -- ele já esta colado no bem."
+            : "O código da etiqueta é gerado ao salvar, com a sigla do setor."
         }
         acao={
           <button className="btn-ghost" onClick={aoFechar}>
@@ -125,7 +125,7 @@ function FormBem({ inicial, setores, salvando, aoSalvar, aoFechar }) {
           </div>
 
           <div>
-            <label className="label" htmlFor="b-situacao">Situacao</label>
+            <label className="label" htmlFor="b-situacao">Situação</label>
             <select id="b-situacao" className="input" value={f.situacao} onChange={trocar("situacao")}>
               {Object.entries(SITUACOES).map(([id, s]) => (
                 <option key={id} value={id}>
@@ -136,11 +136,11 @@ function FormBem({ inicial, setores, salvando, aoSalvar, aoFechar }) {
           </div>
 
           <div className="sm:col-span-2 lg:col-span-3">
-            <label className="label" htmlFor="b-descricao">Descricao tecnica</label>
+            <label className="label" htmlFor="b-descricao">Descrição técnica</label>
             <input
               id="b-descricao"
               className="input"
-              placeholder="marca, modelo, numero de serie, capacidade, cor..."
+              placeholder="marca, modelo, número de série, capacidade, cor..."
               value={f.descricaoTecnica}
               onChange={trocar("descricaoTecnica")}
             />
@@ -151,11 +151,11 @@ function FormBem({ inicial, setores, salvando, aoSalvar, aoFechar }) {
 
           <div>
             <label className="label" htmlFor="b-nf">Nota fiscal</label>
-            <input id="b-nf" className="input" placeholder="numero da NF" value={f.nf} onChange={trocar("nf")} />
+            <input id="b-nf" className="input" placeholder="número da NF" value={f.nf} onChange={trocar("nf")} />
           </div>
 
           <div>
-            <label className="label" htmlFor="b-data">Data de aquisicao</label>
+            <label className="label" htmlFor="b-data">Data de aquisição</label>
             <input id="b-data" type="date" className="input" value={f.dataAquisicao} onChange={trocar("dataAquisicao")} />
           </div>
 
@@ -174,11 +174,11 @@ function FormBem({ inicial, setores, salvando, aoSalvar, aoFechar }) {
           </div>
 
           <div className="sm:col-span-2 lg:col-span-3">
-            <label className="label" htmlFor="b-obs">Observacao</label>
+            <label className="label" htmlFor="b-obs">Observação</label>
             <input
               id="b-obs"
               className="input"
-              placeholder="garantia ate, fornecedor, com quem esta..."
+              placeholder="garantia até, fornecedor, com quem esta..."
               value={f.observacao}
               onChange={trocar("observacao")}
             />
@@ -187,7 +187,7 @@ function FormBem({ inicial, setores, salvando, aoSalvar, aoFechar }) {
 
         <div className="flex flex-wrap items-center gap-2">
           <button className="btn-primary" disabled={salvando}>
-            {salvando ? "Salvando..." : f.id ? "Salvar alteracoes" : "Cadastrar e gerar etiqueta"}
+            {salvando ? "Salvando..." : f.id ? "Salvar alterações" : "Cadastrar e gerar etiqueta"}
           </button>
           <button type="button" className="btn-ghost" onClick={aoFechar}>
             Cancelar
@@ -205,7 +205,7 @@ function FormSetor({ inicial, salvando, aoSalvar, aoFechar }) {
     <Card>
       <SectionTitle
         titulo={f.id ? `Editar setor ${f.sigla}` : "Novo setor"}
-        sub="A sigla vai na etiqueta (PRD-001). Curta: etiqueta comprida nao cabe na lateral da maquina."
+        sub="A sigla vai na etiqueta (PRD-001). Curta: etiqueta comprida não cabe na lateral da máquina."
         acao={
           <button className="btn-ghost" onClick={aoFechar}>
             <X size={15} /> Fechar
@@ -232,15 +232,15 @@ function FormSetor({ inicial, salvando, aoSalvar, aoFechar }) {
               required
               disabled={!!f.id}
             />
-            {f.id && <p className="mt-1 text-xs text-slate-500">A sigla nao muda: ela ja esta nas etiquetas coladas.</p>}
+            {f.id && <p className="mt-1 text-xs text-slate-500">A sigla não muda: ela já esta nas etiquetas coladas.</p>}
           </div>
           <div>
             <label className="label" htmlFor="s-nome">Nome do setor</label>
-            <input id="s-nome" className="input" placeholder="ex: Producao" value={f.nome} onChange={trocar("nome")} required />
+            <input id="s-nome" className="input" placeholder="ex: Produção" value={f.nome} onChange={trocar("nome")} required />
           </div>
           <div>
-            <label className="label" htmlFor="s-area">Area (opcional)</label>
-            <input id="s-area" className="input" placeholder="ex: Operacoes" value={f.area} onChange={trocar("area")} />
+            <label className="label" htmlFor="s-area">Área (opcional)</label>
+            <input id="s-area" className="input" placeholder="ex: Operações" value={f.area} onChange={trocar("area")} />
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -268,7 +268,7 @@ function FolhaEtiquetas({ bens, aoVoltar }) {
     <div className="space-y-4">
       <div className="sem-impressao flex flex-wrap items-center gap-2">
         <button className="btn-ghost" onClick={aoVoltar}>
-          <X size={15} /> Voltar para o patrimonio
+          <X size={15} /> Voltar para o patrimônio
         </button>
         <button className="btn-primary" onClick={() => window.print()}>
           <Printer size={15} strokeWidth={2.4} /> Imprimir de novo
@@ -406,7 +406,7 @@ export default function Patrimonio() {
   async function apagarBem(b) {
     if (
       !window.confirm(
-        `Apagar ${b.codigo} (${b.nomeGenerico})?\n\nSe o bem saiu da empresa (vendido, sucateado, roubado), o certo e mudar a situacao para "Baixado" em vez de apagar -- assim ele sai do inventario mas continua no historico.`
+        `Apagar ${b.codigo} (${b.nomeGenerico})?\n\nSe o bem saiu da empresa (vendido, sucateado, roubado), o certo e mudar a situação para "Baixado" em vez de apagar -- assim ele sai do inventário mas continua no histórico.`
       )
     )
       return;
@@ -425,9 +425,9 @@ export default function Patrimonio() {
   }
 
   async function gravarSetor(f) {
-    if (!f.sigla || !f.nome.trim()) return setMsg({ tom: "erro", texto: "Sigla e nome sao obrigatorios." });
+    if (!f.sigla || !f.nome.trim()) return setMsg({ tom: "erro", texto: "Sigla e nome são obrigatórios." });
     const repetida = vm.setores.some((s) => s.sigla === f.sigla && s.id !== f.id);
-    if (repetida) return setMsg({ tom: "erro", texto: `Ja existe um setor com a sigla ${f.sigla}.` });
+    if (repetida) return setMsg({ tom: "erro", texto: `Já existe um setor com a sigla ${f.sigla}.` });
     setSalvando(true);
     setMsg(null);
     try {
@@ -447,7 +447,7 @@ export default function Patrimonio() {
     if (quantos) {
       return setMsg({
         tom: "erro",
-        texto: `${s.sigla} tem ${quantos} ${quantos === 1 ? "bem" : "bens"}. Mova os bens para outro setor antes de remover -- senao eles ficam sem lugar e somem do inventario por setor.`,
+        texto: `${s.sigla} tem ${quantos} ${quantos === 1 ? "bem" : "bens"}. Mova os bens para outro setor antes de remover -- senão eles ficam sem lugar e somem do inventário por setor.`,
       });
     }
     if (!window.confirm(`Remover o setor ${s.sigla} — ${s.nome}?`)) return;
@@ -490,7 +490,7 @@ export default function Patrimonio() {
   return (
     <div className="space-y-8">
       <PageTitle
-        titulo="Patrimonio"
+        titulo="Patrimônio"
         descricao="O que a empresa tem, em que setor esta e quanto custou. Cada bem com a sua etiqueta."
         acao={
           <div className="flex flex-wrap gap-2">
@@ -513,7 +513,7 @@ export default function Patrimonio() {
         <StatCard
           rotulo="Sem nota"
           valor={numero(k.semNota)}
-          sub={k.semNota ? "faltou o numero da NF" : "todos com nota"}
+          sub={k.semNota ? "faltou o número da NF" : "todos com nota"}
           tom={k.semNota ? "warn" : "ok"}
           icone={AlertTriangle}
         />
@@ -556,7 +556,7 @@ export default function Patrimonio() {
         <Card>
           <SectionTitle
             titulo="Comece pelos setores"
-            sub="A sigla do setor forma o codigo da etiqueta (PRD-001). Sem setor nao da para cadastrar bem."
+            sub="A sigla do setor forma o código da etiqueta (PRD-001). Sem setor não da para cadastrar bem."
           />
           <div className="flex flex-wrap gap-2">
             <button className="btn-primary" onClick={semear} disabled={salvando}>
@@ -564,7 +564,7 @@ export default function Patrimonio() {
               Cadastrar os {SETORES_PADRAO.length} setores da Impresilk
             </button>
             <button className="btn-ghost" onClick={() => abrirSetor()}>
-              <Plus size={16} /> Criar um setor na mao
+              <Plus size={16} /> Criar um setor na mão
             </button>
           </div>
         </Card>
@@ -574,7 +574,7 @@ export default function Patrimonio() {
         <Card>
           <SectionTitle
             titulo="Setores"
-            sub="A sigla vai na etiqueta e nao muda depois de criada."
+            sub="A sigla vai na etiqueta e não muda depois de criada."
             acao={
               <button className="btn-ghost" onClick={() => abrirSetor()}>
                 <Plus size={15} /> Novo setor
@@ -587,7 +587,7 @@ export default function Patrimonio() {
                 <tr>
                   <th className="th text-left">Sigla</th>
                   <th className="th text-left">Setor</th>
-                  <th className="th text-left">Area</th>
+                  <th className="th text-left">Área</th>
                   <th className="th text-right">Bens</th>
                   <th className="th text-right">Valor</th>
                   <th className="th text-right"></th>
@@ -654,13 +654,13 @@ export default function Patrimonio() {
       <Card>
         <SectionTitle
           titulo="Bens"
-          sub="Ordenados pelo codigo. Marque os que quiser e imprima as etiquetas."
+          sub="Ordenados pelo código. Marque os que quiser e imprima as etiquetas."
           acao={
             <button
               className="btn-ghost"
               onClick={() => setEtiquetas(visiveis)}
               disabled={!visiveis.length}
-              title="Abre a folha de etiquetas dos bens que estao na lista"
+              title="Abre a folha de etiquetas dos bens que estão na lista"
             >
               <Printer size={15} strokeWidth={2.2} />
               Etiquetas ({visiveis.length})
@@ -675,7 +675,7 @@ export default function Patrimonio() {
               className="input pl-9"
               value={busca}
               onChange={(e) => setBusca(e.target.value)}
-              placeholder="Buscar por etiqueta, nome, NF ou descricao"
+              placeholder="Buscar por etiqueta, nome, NF ou descrição"
             />
           </div>
           <select className="input h-9 w-auto py-0" value={setorFiltro} onChange={(e) => setSetorFiltro(e.target.value)}>
@@ -701,7 +701,7 @@ export default function Patrimonio() {
           <Empty>
             {busca.trim() || setorFiltro
               ? "Nenhum bem com esse filtro."
-              : "Nenhum bem cadastrado ainda. Use 'Novo bem' para comecar o inventario."}
+              : "Nenhum bem cadastrado ainda. Use 'Novo bem' para começar o inventário."}
           </Empty>
         ) : (
           <div className="overflow-x-auto">
@@ -712,7 +712,7 @@ export default function Patrimonio() {
                   <th className="th text-left">Bem</th>
                   <th className="th text-left">Setor</th>
                   <th className="th text-left">NF</th>
-                  <th className="th text-left">Aquisicao</th>
+                  <th className="th text-left">Aquisição</th>
                   <th className="th text-right">Valor</th>
                   <th className="th text-right"></th>
                 </tr>
@@ -726,13 +726,13 @@ export default function Patrimonio() {
                       <td className="td">
                         <span className="inline-flex items-center gap-1.5 font-display font-semibold tabular-nums text-slate-900">
                           <Tag size={13} className="shrink-0 text-slate-400" />
-                          {b.codigo || "sem codigo"}
+                          {b.codigo || "sem código"}
                         </span>
                       </td>
                       <td className="td">
                         <span className="block text-slate-900">{b.nomeGenerico}</span>
                         <span className="block text-xs text-slate-500">
-                          {b.descricaoTecnica || "sem descricao tecnica"}
+                          {b.descricaoTecnica || "sem descrição técnica"}
                         </span>
                       </td>
                       <td className="td">
@@ -755,7 +755,7 @@ export default function Patrimonio() {
                             type="button"
                             onClick={() => setEtiquetas([b])}
                             className="grid h-8 w-8 place-items-center rounded-lg text-slate-500 hover:bg-slate-100 hover:text-brand"
-                            title="Imprimir so esta etiqueta"
+                            title="Imprimir só esta etiqueta"
                           >
                             <Printer size={14} />
                           </button>
@@ -787,9 +787,9 @@ export default function Patrimonio() {
 
         {vm.semSetor.length > 0 && (
           <p className="mt-4 rounded-lg bg-warn-50 px-3 py-2 text-sm text-warn-700">
-            {vm.semSetor.length} {vm.semSetor.length === 1 ? "bem esta" : "bens estao"} sem setor valido
+            {vm.semSetor.length} {vm.semSetor.length === 1 ? "bem esta" : "bens estão"} sem setor válido
             (o setor foi removido). Edite {vm.semSetor.length === 1 ? "ele" : "eles"} e escolha um setor,
-            senao {vm.semSetor.length === 1 ? "ele nao aparece" : "eles nao aparecem"} no inventario por setor.
+            senão {vm.semSetor.length === 1 ? "ele não aparece" : "eles não aparecem"} no inventário por setor.
           </p>
         )}
       </Card>

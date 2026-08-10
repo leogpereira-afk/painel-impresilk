@@ -12,19 +12,19 @@ import { useApp } from "../config/store.jsx";
 
 // Espelha MODULOS de supabase/functions/painel-auth. O servidor e quem valida.
 const MODULOS = [
-  { id: "gestao", nome: "Gestao", sub: "identidade, plano do ano, taticas e atas -- a tela de direcao" },
-  { id: "compromissos", nome: "Compromissos", sub: "a agenda de cada um -- cada pessoa ve so a dela" },
-  { id: "contas-atrasadas", nome: "Contas Atrasadas", sub: "quem deve e a cobranca" },
-  { id: "fluxo-caixa", nome: "Fluxo de Caixa", sub: "caixa, projecao e realizado" },
-  { id: "produtos", nome: "Produtos", sub: "faturamento por produto e familia" },
-  { id: "orcamentos", nome: "Orcamentos", sub: "funil e conversao do time" },
+  { id: "gestao", nome: "Gestao", sub: "identidade, plano do ano, taticas e atas -- a tela de direção" },
+  { id: "compromissos", nome: "Compromissos", sub: "a agenda de cada um -- cada pessoa ve só a dela" },
+  { id: "contas-atrasadas", nome: "Contas Atrasadas", sub: "quem deve e a cobrança" },
+  { id: "fluxo-caixa", nome: "Fluxo de Caixa", sub: "caixa, projeção e realizado" },
+  { id: "produtos", nome: "Produtos", sub: "faturamento por produto e família" },
+  { id: "orcamentos", nome: "Orcamentos", sub: "funil e conversão do time" },
   { id: "bancos", nome: "Bancos e Pix", sub: "contas, CNPJs e chaves de todas as empresas" },
   { id: "marketing", nome: "Marketing", sub: "logomarcas, materiais e atalhos do Drive" },
-  { id: "licitacoes", nome: "Licitacoes", sub: "editais, prazos e sessoes" },
-  { id: "glossario", nome: "Glossario", sub: "os termos de comunicacao visual explicados" },
-  { id: "manutencoes", nome: "Manutencoes", sub: "carros, maquinas e predio: gasto e historico" },
+  { id: "licitacoes", nome: "Licitacoes", sub: "editais, prazos e sessões" },
+  { id: "glossario", nome: "Glossario", sub: "os termos de comunicação visual explicados" },
+  { id: "manutencoes", nome: "Manutencoes", sub: "carros, máquinas e prédio: gasto e histórico" },
   { id: "patrimonio", nome: "Patrimonio", sub: "o que a empresa tem, por setor, com etiqueta e valor" },
-  { id: "configuracoes", nome: "Configuracoes", sub: "motivos, regua de cobranca e parametros -- vale para todo mundo" },
+  { id: "configuracoes", nome: "Configuracoes", sub: "motivos, régua de cobrança e parametros -- vale para todo mundo" },
 ];
 
 const VAZIO = { usuario: "", nome: "", senha: "", permissoes: [], vendedorId: "" };
@@ -76,7 +76,7 @@ export default function Acessos() {
     e.preventDefault();
     setMsgSenha(null);
     if (nova.length < 6) return setMsgSenha({ tom: "erro", texto: "A nova senha precisa ter ao menos 6 caracteres." });
-    if (nova !== repetir) return setMsgSenha({ tom: "erro", texto: "As duas senhas novas nao sao iguais." });
+    if (nova !== repetir) return setMsgSenha({ tom: "erro", texto: "As duas senhas novas não são iguais." });
     setSalvandoSenha(true);
     try {
       await chamarAuth("trocarMinhaSenha", {
@@ -84,7 +84,7 @@ export default function Acessos() {
         novaSenha: nova,
         ...(semAtual && ehDirecao ? { semSenhaAtual: true } : {}),
       });
-      setMsgSenha({ tom: "ok", texto: "Senha trocada. Use a nova da proxima vez que entrar." });
+      setMsgSenha({ tom: "ok", texto: "Senha trocada. Use a nova da próxima vez que entrar." });
       setSemAtual(false);
       setAtual("");
       setNova("");
@@ -132,7 +132,7 @@ export default function Acessos() {
     if (ehDirecao && normalizarUsuario(form.usuario) === meuUsuario) {
       setMsgConta({
         tom: "aviso",
-        texto: "Essa e a sua propria conta, a da direcao: ela ja enxerga tudo e nao precisa ser cadastrada. Para trocar a sua senha, use 'Minha senha' aqui em cima.",
+        texto: "Essa e a sua própria conta, a da direção: ela já enxerga tudo e não precisa ser cadastrada. Para trocar a sua senha, use 'Minha senha' aqui em cima.",
       });
       irParaMinhaSenha();
       return;
@@ -276,15 +276,15 @@ export default function Acessos() {
           titulo="Minha senha"
           sub={
             ehDirecao
-              ? "Troque quando quiser, aqui mesmo. A senha que voce definir aqui passa a valer no lugar da inicial -- e a definitiva nao fica escrita em configuracao nenhuma."
-              : "Troque quando quiser. Precisa da senha atual para ninguem tomar sua conta."
+              ? "Troque quando quiser, aqui mesmo. A senha que você definir aqui passa a valer no lugar da inicial -- e a definitiva não fica escrita em configuração nenhuma."
+              : "Troque quando quiser. Precisa da senha atual para ninguém tomar sua conta."
           }
         />
         <form onSubmit={trocarSenha} className="grid max-w-md gap-4">
           {semAtual && ehDirecao ? (
             <Aviso tom="aviso">
-              Definindo a senha sem a anterior. Isso so vale porque voce ja esta
-              logado como direcao.{" "}
+              Definindo a senha sem a anterior. Isso só vale porque você já esta
+              logado como direção.{" "}
               <button
                 type="button"
                 className="underline"
@@ -316,7 +316,7 @@ export default function Acessos() {
                     setAtual("");
                   }}
                 >
-                  nao lembro minha senha atual
+                  não lembro minha senha atual
                 </button>
               )}
             </div>
@@ -369,13 +369,13 @@ export default function Acessos() {
           <Card>
             <SectionTitle
               titulo={contaDigitada ? "Editar acesso" : "Novo acesso"}
-              sub="Marque o que a pessoa pode abrir. O que nao estiver marcado nao aparece no menu nem responde se ela digitar o endereco."
+              sub="Marque o que a pessoa pode abrir. O que não estiver marcado não aparece no menu nem responde se ela digitar o endereço."
             />
             <form onSubmit={salvarConta} className="space-y-5">
               <div className="grid gap-4 sm:grid-cols-3">
                 <div>
                   <label className="label" htmlFor="c-usuario">
-                    Usuario (para entrar)
+                    Usuário (para entrar)
                   </label>
                   <input
                     id="c-usuario"
@@ -387,7 +387,7 @@ export default function Acessos() {
                   />
                   {normalizarUsuario(form.usuario) === meuUsuario && (
                     <p className="mt-1 text-xs text-warn-700">
-                      Esse e voce. A direcao ja entra e ja ve tudo —{" "}
+                      Esse e você. A direção já entra e já ve tudo —{" "}
                       <button type="button" className="underline" onClick={irParaMinhaSenha}>
                         trocar minha senha
                       </button>
@@ -417,7 +417,7 @@ export default function Acessos() {
                     className="input"
                     value={form.senha}
                     onChange={(e) => setForm((f) => ({ ...f, senha: e.target.value }))}
-                    placeholder="em branco = mantem a atual"
+                    placeholder="em branco = mantém a atual"
                     autoComplete="new-password"
                   />
                 </div>
@@ -469,24 +469,24 @@ export default function Acessos() {
                   value={form.vendedorId}
                   onChange={(e) => setForm((f) => ({ ...f, vendedorId: e.target.value }))}
                 >
-                  <option value="">— sem vinculo (ve o time todo) —</option>
+                  <option value="">— sem vínculo (ve o time todo) —</option>
                   {opcoesVendedor.map((v) => (
                     <option key={v.nome} value={v.nome}>
                       {v.nome}
-                      {v.desconhecido ? " (nao confere com o Mubisys)" : ""}
+                      {v.desconhecido ? " (não confere com o Mubisys)" : ""}
                     </option>
                   ))}
                 </select>
                 <p className="mt-1 text-xs text-slate-500">
-                  Ligando a conta a um vendedor, ele entra no painel e a fila de acoes de Orcamentos
-                  ja abre na carteira dele. Em branco, a pessoa ve o time inteiro. Passa a valer no
-                  proximo login dela.
+                  Ligando a conta a um vendedor, ele entra no painel e a fila de ações de Orçamentos
+                  já abre na carteira dele. Em branco, a pessoa ve o time inteiro. Passa a valer no
+                  próximo login dela.
                 </p>
                 {vendedorDesconhecido && (
                   <p className="mt-1 text-xs text-warn-700">
-                    O vinculo gravado ({form.vendedorId}) nao aparece entre os vendedores conhecidos.
-                    Provavelmente e erro de digitacao antigo — a carteira dessa pessoa vai vir vazia
-                    ate ser trocado por um nome da lista.
+                    O vínculo gravado ({form.vendedorId}) não aparece entre os vendedores conhecidos.
+                    Provavelmente e erro de digitação antigo — a carteira dessa pessoa vai vir vazia
+                    até ser trocado por um nome da lista.
                   </p>
                 )}
               </div>
@@ -518,9 +518,9 @@ export default function Acessos() {
                   <thead>
                     <tr>
                       <th className="th text-left">Pessoa</th>
-                      <th className="th text-left">Usuario</th>
+                      <th className="th text-left">Usuário</th>
                       <th className="th text-left">Pode abrir</th>
-                      <th className="th text-right">Acao</th>
+                      <th className="th text-right">Ação</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -528,9 +528,9 @@ export default function Acessos() {
                         omiti-la fazia parecer que a conta nao existe. */}
                     <tr className="border-t" style={{ borderColor: "var(--hairline)" }}>
                       <td className="td font-display font-medium text-slate-900">
-                        Direcao
+                        Direção
                         <span className="mt-0.5 block text-xs font-normal text-slate-500">
-                          voce · dona do painel
+                          você · dona do painel
                         </span>
                       </td>
                       <td className="td text-slate-500">{meuUsuario}</td>
@@ -558,7 +558,7 @@ export default function Acessos() {
                           {c.nome}
                           {c.vendedorId && (
                             <span className="mt-0.5 block text-xs font-normal text-slate-500">
-                              ve as acoes de {c.vendedorId}
+                              ve as ações de {c.vendedorId}
                             </span>
                           )}
                         </td>
@@ -595,16 +595,16 @@ export default function Acessos() {
 
             {contas?.length === 0 && (
               <p className="mt-3 text-sm text-slate-500">
-                Alem de voce, ninguem mais tem acesso ainda.
+                Além de você, ninguém mais tem acesso ainda.
               </p>
             )}
 
             <p className="mt-4 flex items-start gap-2 rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-500">
               <ShieldCheck size={14} className="mt-0.5 shrink-0" />
-              Remover o acesso ou trocar a senha impede NOVOS logins. Quem ja esta com o painel
-              aberto continua ate a sessao vencer, em ate 12 horas -- nao existe corte imediato
-              hoje. Se precisar tirar alguem na hora, peca para ela sair do painel no aparelho
-              dela, e remova o acesso para ela nao conseguir entrar de novo.
+              Remover o acesso ou trocar a senha impede NOVOS logins. Quem já esta com o painel
+              aberto continua até a sessão vencer, em até 12 horas -- não existe corte imediato
+              hoje. Se precisar tirar alguém na hora, peça para ela sair do painel no aparelho
+              dela, e remova o acesso para ela não conseguir entrar de novo.
             </p>
           </Card>
 
@@ -650,8 +650,8 @@ function UltimoBackup({ status }) {
   return (
     <div className="space-y-2">
       <p className="text-sm text-slate-500">
-        Salvo no repositorio privado <strong>backups-impresilk</strong> no GitHub — um arquivo por
-        dia, por sistema (versionado). {status?.atualizadoEm && `Ultima rodada: ${quandoBR(status.atualizadoEm)}.`}
+        Salvo no repositório privado <strong>backups-impresilk</strong> no GitHub — um arquivo por
+        dia, por sistema (versionado). {status?.atualizadoEm && `Última rodada: ${quandoBR(status.atualizadoEm)}.`}
       </p>
       <div className="overflow-x-auto rounded-xl border" style={{ borderColor: "var(--hairline)" }}>
         <table className="w-full min-w-[440px] border-collapse text-sm">
@@ -688,7 +688,7 @@ function UltimoBackup({ status }) {
             </span>
           ) : (
             <span className="chip-bad" title={status.email.erro || ""}>
-              nao enviado
+              não enviado
             </span>
           )}
         </p>
@@ -793,7 +793,7 @@ function BackupDados() {
     <Card>
       <SectionTitle
         titulo="Backup dos dados"
-        sub="Um retrato dos dados do painel: regras, marcacoes, documentos e usuarios. Nao inclui os numeros do Mubisys, que se reconstroem sozinhos."
+        sub="Um retrato dos dados do painel: regras, marcações, documentos e usuários. Não inclui os números do Mubisys, que se reconstroem sozinhos."
       />
 
       <div className="mb-4">
@@ -823,7 +823,7 @@ function BackupDados() {
           <p className="flex items-start gap-2 text-sm font-medium text-warn-700">
             <AlertTriangle size={15} className="mt-0.5 shrink-0" />
             Restaurar vai gravar {pendente.nItens} registros e {pendente.nContas} contas por cima
-            do que existe hoje. O que ja esta la e nao esta no backup continua. Confirma?
+            do que existe hoje. O que já esta la e não esta no backup continua. Confirma?
           </p>
           <div className="mt-3 flex gap-2">
             <button className="btn-primary" onClick={confirmarRestauro} disabled={restaurando}>
@@ -853,8 +853,8 @@ function BackupDados() {
 
       <p className="mt-4 flex items-start gap-2 rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-500">
         <ShieldCheck size={14} className="mt-0.5 shrink-0" />
-        Este arquivo contem o hash das senhas e as marcacoes financeiras -- guarde num lugar
-        seguro e nao compartilhe.
+        Este arquivo contém o hash das senhas e as marcações financeiras -- guarde num lugar
+        seguro e não compartilhe.
       </p>
     </Card>
   );

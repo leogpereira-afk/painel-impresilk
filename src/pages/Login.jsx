@@ -66,14 +66,14 @@ export default function Login({ aoEntrar }) {
         <img src={logoWhite} alt="Impresilk" className="h-9 w-auto max-w-[190px] object-contain" />
         <div>
           <h1 className="max-w-md font-display text-4xl font-bold leading-tight tracking-tight">
-            A gestao da Impresilk, num lugar so.
+            A gestão da Impresilk, num lugar só.
           </h1>
           <p className="mt-4 max-w-md leading-relaxed text-white/70">
-            Contas a receber, caixa, produtos e orcamentos, com os numeros do ERP atualizados
+            Contas a receber, caixa, produtos e orçamentos, com os números do ERP atualizados
             sozinhos. Cada pessoa ve o que precisa para o seu trabalho.
           </p>
         </div>
-        <p className="text-sm text-white/50">Impresilk Solucoes Visuais · Montes Claros/MG</p>
+        <p className="text-sm text-white/50">Impresilk Soluções Visuais · Montes Claros/MG</p>
       </div>
 
       {/* Lado do formulario */}
@@ -86,12 +86,12 @@ export default function Login({ aoEntrar }) {
             <h2 className="mt-6 font-display text-xl font-semibold text-slate-900">
               Acessar o painel
             </h2>
-            <p className="mt-1 text-sm text-slate-500">Informe seu usuario e sua senha.</p>
+            <p className="mt-1 text-sm text-slate-500">Informe seu usuário e sua senha.</p>
 
             <form onSubmit={enviar} className="mt-6 space-y-4">
               <div>
                 <label className="label" htmlFor="usuario">
-                  Usuario
+                  Usuário
                 </label>
                 <div className="relative">
                   <User
@@ -103,7 +103,7 @@ export default function Login({ aoEntrar }) {
                     className="input pl-9"
                     value={usuario}
                     onChange={(e) => setUsuario(e.target.value)}
-                    placeholder="Seu usuario"
+                    placeholder="Seu usuário"
                     autoComplete="username"
                     autoFocus
                     required
@@ -161,7 +161,7 @@ export default function Login({ aoEntrar }) {
                   onChange={(e) => setLembrar(e.target.checked)}
                   className="h-4 w-4 rounded border-slate-300 text-brand focus:ring-brand-200"
                 />
-                Lembrar meu usuario neste aparelho
+                Lembrar meu usuário neste aparelho
               </label>
 
               <button type="submit" className="btn-primary w-full" disabled={enviando}>
@@ -172,7 +172,7 @@ export default function Login({ aoEntrar }) {
           </div>
 
           <p className="mt-4 px-1 text-center text-xs text-slate-400">
-            Esqueceu a senha? Fale com a direcao para redefinir.
+            Esqueceu a senha? Fale com a direção para redefinir.
           </p>
         </div>
       </div>

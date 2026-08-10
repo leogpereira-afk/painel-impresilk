@@ -83,7 +83,7 @@ export default function Glossario() {
       e.preventDefault();
       setAviso(null);
       if (!form.termo.trim() || !form.texto.trim()) {
-        return setAviso({ tom: "erro", texto: "O termo e a explicacao sao obrigatorios." });
+        return setAviso({ tom: "erro", texto: "O termo e a explicação são obrigatórios." });
       }
       setSalvando(true);
       try {
@@ -128,7 +128,7 @@ export default function Glossario() {
   if (erro) {
     return (
       <div className="space-y-6">
-        <PageTitle titulo="Glossario" descricao="Os termos de comunicacao visual explicados." />
+        <PageTitle titulo="Glossário" descricao="Os termos de comunicação visual explicados." />
         <Card className="flex items-start gap-2 text-sm text-bad-700">
           <AlertTriangle size={16} className="mt-0.5 shrink-0" />
           {erro}
@@ -143,8 +143,8 @@ export default function Glossario() {
   return (
     <div className="space-y-6">
       <PageTitle
-        titulo="Glossario"
-        descricao="O que e cada material, acabamento e peca de comunicacao visual -- e o que avisar ao cliente antes de vender."
+        titulo="Glossário"
+        descricao="O que e cada material, acabamento e peça de comunicação visual -- e o que avisar ao cliente antes de vender."
       />
 
       <div className="flex flex-wrap items-center gap-3">
@@ -152,7 +152,7 @@ export default function Glossario() {
           <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
           <input
             className="input pl-9 pr-9"
-            placeholder="Buscar termo (lona, ACM, ilhos, sangria...)"
+            placeholder="Buscar termo (lona, ACM, ilhós, sangria...)"
             value={busca}
             onChange={(e) => setBusca(e.target.value)}
           />
@@ -214,7 +214,7 @@ export default function Glossario() {
         <Card ref={cartaoForm}>
           <SectionTitle
             titulo={form.id ? "Editar termo" : "Novo termo"}
-            sub="A dica e opcional -- use para o aviso que evita retrabalho."
+            sub="A dica é opcional -- use para o aviso que evita retrabalho."
           />
           <form onSubmit={salvar} className="space-y-4">
             <div className="grid gap-4 sm:grid-cols-3">
@@ -246,7 +246,7 @@ export default function Glossario() {
               </div>
             </div>
             <div>
-              <label className="label" htmlFor="g-texto">Explicacao</label>
+              <label className="label" htmlFor="g-texto">Explicação</label>
               <textarea
                 id="g-texto"
                 className="input min-h-20"
@@ -261,14 +261,14 @@ export default function Glossario() {
               <textarea
                 id="g-dica"
                 className="input min-h-16"
-                placeholder="O que avisar antes de fechar, para nao virar retrabalho."
+                placeholder="O que avisar antes de fechar, para não virar retrabalho."
                 value={form.dica}
                 onChange={(e) => setForm((f) => ({ ...f, dica: e.target.value }))}
               />
             </div>
             <div className="flex flex-wrap items-center gap-2">
               <button className="btn-primary" disabled={salvando}>
-                {salvando ? "Salvando..." : form.id ? "Salvar alteracoes" : "Cadastrar termo"}
+                {salvando ? "Salvando..." : form.id ? "Salvar alterações" : "Cadastrar termo"}
               </button>
               <button type="button" className="btn-ghost" onClick={() => setForm(null)}>
                 Cancelar
@@ -315,7 +315,7 @@ export default function Glossario() {
                     <button
                       type="button"
                       onClick={() => {
-                        if (window.confirm(`Remover "${t.termo}" do glossario?`)) remover(t);
+                        if (window.confirm(`Remover "${t.termo}" do glossário?`)) remover(t);
                       }}
                       className="grid h-7 w-7 place-items-center rounded-lg text-slate-500 hover:bg-bad-50 hover:text-bad-700"
                       title={`Remover ${t.termo}`}

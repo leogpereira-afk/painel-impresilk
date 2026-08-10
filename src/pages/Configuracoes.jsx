@@ -36,7 +36,7 @@ const TAGS_MOTIVO = [
   { valor: "semContato", rotulo: "Sem contato" },
   { valor: "esquecimento", rotulo: "Esquecimento" },
   { valor: "disputa", rotulo: "Disputa" },
-  { valor: "nfNaoEnviada", rotulo: "NF nao enviada" },
+  { valor: "nfNaoEnviada", rotulo: "NF não enviada" },
 ];
 
 export default function Configuracoes() {
@@ -61,11 +61,11 @@ export default function Configuracoes() {
   return (
     <div className="space-y-8">
       <PageTitle
-        titulo="Configuracoes"
-        descricao="Todas as regras do painel vivem aqui. Cada mudanca recalcula os modulos na hora."
+        titulo="Configurações"
+        descricao="Todas as regras do painel vivem aqui. Cada mudança recalcula os módulos na hora."
         acao={
           <button className="btn-outline" onClick={resetarConfig}>
-            Restaurar padrao
+            Restaurar padrão
           </button>
         }
       />
@@ -74,10 +74,10 @@ export default function Configuracoes() {
       <Card>
         <SectionTitle
           titulo="Parametros gerais"
-          sub="Os limites e metas que alimentam os alertas dos modulos."
+          sub="Os limites e metas que alimentam os alertas dos módulos."
         />
         <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-          <Campo rotulo="Colchao minimo de caixa (R$)">
+          <Campo rotulo="Colchão mínimo de caixa (R$)">
             <input
               type="number"
               className="input tnum"
@@ -101,7 +101,7 @@ export default function Configuracoes() {
               onChange={setParamNum("dsoAlerta")}
             />
           </Campo>
-          <Campo rotulo="Valor minimo de orcamento (R$)">
+          <Campo rotulo="Valor mínimo de orçamento (R$)">
             <input
               type="number"
               className="input tnum"
@@ -110,8 +110,8 @@ export default function Configuracoes() {
             />
           </Campo>
           <Campo
-            rotulo="Data de corte dos orcamentos"
-            dica="Considera orcamentos a partir desta data."
+            rotulo="Data de corte dos orçamentos"
+            dica="Considera orçamentos a partir desta data."
           >
             <input
               type="date"
@@ -123,7 +123,7 @@ export default function Configuracoes() {
               onChange={(e) => setParam("dataCorteOrcamentos", e.target.value)}
             />
           </Campo>
-          <Campo rotulo="Orcamento parado apos (dias)">
+          <Campo rotulo="Orçamento parado após (dias)">
             <input
               type="number"
               className="input tnum"
@@ -132,7 +132,7 @@ export default function Configuracoes() {
             />
           </Campo>
           <Campo
-            rotulo="Vira escalada apos (dias)"
+            rotulo="Vira escalada após (dias)"
             dica="Sem contato acima disso vira escalada."
           >
             <input
@@ -181,7 +181,7 @@ export default function Configuracoes() {
       <Card>
         <SectionTitle
           titulo="Motivos de atraso"
-          sub="A causa de cada titulo em aberto. O grupo define se a falha e sua ou do cliente."
+          sub="A causa de cada título em aberto. O grupo define se a falha é sua ou do cliente."
         />
 
         {/* Renomear os tres grupos de causa (o id nao muda, so o nome). */}
@@ -288,8 +288,8 @@ export default function Configuracoes() {
       {/* 4. Regua de cobranca e proxima acao */}
       <Card>
         <SectionTitle
-          titulo="Regua de cobranca e proxima acao"
-          sub="A acao sugerida cresce conforme os dias de atraso."
+          titulo="Régua de cobrança e próxima ação"
+          sub="A ação sugerida cresce conforme os dias de atraso."
         />
 
         <div className="space-y-3">
@@ -299,7 +299,7 @@ export default function Configuracoes() {
               className="grid grid-cols-1 gap-3 sm:grid-cols-[10rem_1fr_auto] sm:items-center"
             >
               <div>
-                <span className="label sm:hidden">Ate quantos dias</span>
+                <span className="label sm:hidden">Até quantos dias</span>
                 <div className="flex items-center gap-2">
                   <input
                     type="number"
@@ -318,7 +318,7 @@ export default function Configuracoes() {
               <input
                 className="input"
                 value={f.acao}
-                placeholder="Acao sugerida"
+                placeholder="Ação sugerida"
                 onChange={(e) =>
                   updateConfig((c) => {
                     c.reguaCobranca[i].acao = e.target.value;
@@ -355,11 +355,11 @@ export default function Configuracoes() {
         <div className="mt-6 border-t pt-6" style={{ borderColor: "var(--hairline)" }}>
           <SectionTitle
             titulo="Regras por motivo"
-            sub="Sobrepoem a regua quando o motivo do titulo casa."
+            sub="Sobrepõem a régua quando o motivo do título casa."
           />
           <p className="mb-4 flex items-start gap-2 rounded-lg bg-brand/5 px-3 py-2 text-sm text-slate-600">
             <Info size={16} className="mt-0.5 shrink-0 text-brand" strokeWidth={2.2} />
-            A regra por motivo sempre vence a regua de dias.
+            A regra por motivo sempre vence a régua de dias.
           </p>
 
           <div className="space-y-3">
@@ -387,7 +387,7 @@ export default function Configuracoes() {
                 <input
                   className="input"
                   value={r.acao}
-                  placeholder="Acao que vence a regua"
+                  placeholder="Ação que vence a régua"
                   onChange={(e) =>
                     updateConfig((c) => {
                       c.regrasPorMotivo[i].acao = e.target.value;
@@ -430,11 +430,11 @@ export default function Configuracoes() {
       <Card>
         <SectionTitle
           titulo="Faixas de idade dos atrasos"
-          sub="Os limites em dias que agrupam os titulos por tempo de atraso."
+          sub="Os limites em dias que agrupam os títulos por tempo de atraso."
         />
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
           {config.faixasIdade.map((v, i) => (
-            <Campo key={i} rotulo={`Faixa ${i + 1} (ate dias)`}>
+            <Campo key={i} rotulo={`Faixa ${i + 1} (até dias)`}>
               <input
                 type="number"
                 className="input tnum"
@@ -459,7 +459,7 @@ export default function Configuracoes() {
       <Card>
         <SectionTitle
           titulo="Vendedores"
-          sub="O time que aparece no funil de orcamentos."
+          sub="O time que aparece no funil de orçamentos."
         />
         <div className="grid gap-3 sm:grid-cols-2">
           {config.vendedores.map((v, i) => (
@@ -507,8 +507,8 @@ export default function Configuracoes() {
       {/* 7. Motivos de perda de orcamento */}
       <Card>
         <SectionTitle
-          titulo="Motivos de perda de orcamento"
-          sub="As razoes possiveis quando um orcamento nao fecha."
+          titulo="Motivos de perda de orçamento"
+          sub="As razões possíveis quando um orçamento não fecha."
         />
         <div className="grid gap-3 sm:grid-cols-2">
           {config.motivosPerda.map((m, i) => (

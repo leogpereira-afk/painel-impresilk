@@ -141,7 +141,7 @@ export default function Marketing() {
       if (file.size > MAX_BYTES) {
         return setAviso({
           tom: "erro",
-          texto: "Arquivo acima de 3 MB. Coisas grandes vao para o Drive - use os atalhos ao lado.",
+          texto: "Arquivo acima de 3 MB. Coisas grandes vão para o Drive - use os atalhos ao lado.",
         });
       }
       setSubindo(true);
@@ -209,7 +209,7 @@ export default function Marketing() {
     setAviso(null);
     const nome = nomeLink.trim();
     let url = urlLink.trim();
-    if (!nome || !url) return setAviso({ tom: "erro", texto: "De um nome e cole o endereco do Drive." });
+    if (!nome || !url) return setAviso({ tom: "erro", texto: "Dê um nome e cole o endereço do Drive." });
     if (!/^https?:\/\//i.test(url)) url = "https://" + url;
     setSalvandoLink(true);
     try {
@@ -278,7 +278,7 @@ export default function Marketing() {
         <Card>
           <SectionTitle
             titulo="Logomarcas e materiais"
-            sub="Ate 3 MB por arquivo - logos, papel timbrado, assinaturas de e-mail."
+            sub="Até 3 MB por arquivo - logos, papel timbrado, assinaturas de e-mail."
           />
 
           {itens.length === 0 ? (
@@ -346,7 +346,7 @@ export default function Marketing() {
 
         {/* Atalhos do Drive */}
         <Card className="h-fit">
-          <SectionTitle titulo="Atalhos do Drive" sub="Videos, campanhas e pastas grandes." />
+          <SectionTitle titulo="Atalhos do Drive" sub="Vídeos, campanhas e pastas grandes." />
 
           {listaAtalhos.length === 0 ? (
             <Empty>Nenhum atalho ainda.</Empty>
@@ -386,7 +386,7 @@ export default function Marketing() {
             />
             <input
               className="input"
-              placeholder="Endereco no Drive"
+              placeholder="Endereço no Drive"
               value={urlLink}
               onChange={(e) => setUrlLink(e.target.value)}
             />

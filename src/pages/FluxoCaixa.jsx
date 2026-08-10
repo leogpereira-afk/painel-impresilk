@@ -219,13 +219,13 @@ export default function FluxoCaixa() {
   if (semEntradas)
     return (
       <div className="space-y-6">
-        <PageTitle titulo="Fluxo de Caixa" descricao="Caixa de hoje e a projecao dos proximos dias." />
+        <PageTitle titulo="Fluxo de Caixa" descricao="Caixa de hoje e a projeção dos próximos dias." />
         <Card className="flex items-start gap-2.5 text-sm text-warn-700">
           <AlertTriangle size={17} className="mt-0.5 shrink-0" />
           <span>
-            Esta projecao depende das contas a receber, e o seu acesso nao inclui esse modulo.
-            Sem elas o caixa apareceria sem nenhuma entrada -- um numero errado e assustador --,
-            entao preferimos nao mostrar. Fale com a direcao se precisar do Fluxo de Caixa.
+            Esta projeção depende das contas a receber, e o seu acesso não inclui esse módulo.
+            Sem elas o caixa apareceria sem nenhuma entrada -- um número errado e assustador --,
+            então preferimos não mostrar. Fale com a direção se precisar do Fluxo de Caixa.
           </span>
         </Card>
       </div>
@@ -296,8 +296,8 @@ export default function FluxoCaixa() {
     <div className="space-y-8">
       <PageTitle
         titulo="Fluxo de Caixa"
-        descricao="Projecao dos proximos 30 dias com a regra D-1. Clique nos numeros para filtrar o calendario."
-        acao={<BotaoPDF titulo="Gera um PDF do fluxo (realizado do ano + projecao)" />}
+        descricao="Projeção dos próximos 30 dias com a regra D-1. Clique nos números para filtrar o calendário."
+        acao={<BotaoPDF titulo="Gera um PDF do fluxo (realizado do ano + projeção)" />}
       />
 
       <AvisoDadoParado atualizadoEm={atualizadoEm} />
@@ -328,9 +328,9 @@ export default function FluxoCaixa() {
           onClick={() => alternarFiltro("menor")}
         />
         <StatCard
-          rotulo="Dias abaixo do colchao"
+          rotulo="Dias abaixo do colchão"
           valor={numero(k.diasAbaixo)}
-          sub={"colchao " + moeda(colchao)}
+          sub={"colchão " + moeda(colchao)}
           tom={k.diasAbaixo > 0 ? "warn" : "ok"}
           icone={AlertTriangle}
           ativo={filtroKpi === "abaixo"}
@@ -356,7 +356,7 @@ export default function FluxoCaixa() {
                 Saldo de hoje por conta
               </h2>
               <p className="mt-0.5 text-sm text-slate-500">
-                Composicao do saldo inicial da projecao.
+                Composição do saldo inicial da projeção.
               </p>
             </div>
             <button className="btn-ghost" onClick={() => setVerBancos(false)}>
@@ -377,7 +377,7 @@ export default function FluxoCaixa() {
                         {b.banco}
                       </p>
                       <p className="mt-0.5 text-xs text-slate-500">
-                        {b.conta || "conta nao informada"}
+                        {b.conta || "conta não informada"}
                       </p>
                     </div>
                     {b.saldo < 0 ? (
@@ -403,7 +403,7 @@ export default function FluxoCaixa() {
           ) : (
             <Empty>
               Nenhuma conta bancaria integrada. O saldo inicial de{" "}
-              {moeda(base.saldoInicial)} vem do valor manual de Configuracoes.
+              {moeda(base.saldoInicial)} vem do valor manual de Configurações.
             </Empty>
           )}
         </Card>
@@ -414,10 +414,10 @@ export default function FluxoCaixa() {
         <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
           <div>
             <h2 className="font-display text-lg font-semibold text-slate-900">
-              Realizado mes a mes
+              Realizado mês a mês
             </h2>
             <p className="mt-0.5 text-sm text-slate-500">
-              O que de fato entrou e saiu do caixa em cada mes (contas pagas). Escolha o ano.
+              O que de fato entrou e saiu do caixa em cada mês (contas pagas). Escolha o ano.
             </p>
           </div>
           {mensal?.disponiveis?.length > 0 && (
@@ -443,8 +443,8 @@ export default function FluxoCaixa() {
 
         {!(mensal?.disponiveis?.length > 0) || !serieMensal ? (
           <Empty>
-            O historico mensal esta sendo montado (roda uma vez por dia de madrugada, e na
-            primeira vez logo apos a atualizacao). Volte daqui a pouco.
+            O histórico mensal esta sendo montado (roda uma vez por dia de madrugada, e na
+            primeira vez logo após a atualização). Volte daqui a pouco.
           </Empty>
         ) : !serieMensal.temAlgum ? (
           <Empty>Nenhuma conta paga registrada em {anoSel}.</Empty>
@@ -491,7 +491,7 @@ export default function FluxoCaixa() {
               <table className="w-full min-w-[520px] border-collapse text-sm">
                 <thead>
                   <tr className="border-b text-left" style={{ borderColor: "var(--hairline)" }}>
-                    <th className="label py-2">Mes</th>
+                    <th className="label py-2">Mês</th>
                     <th className="label py-2 text-right">Entrou</th>
                     <th className="label py-2 text-right">Saiu</th>
                     <th className="label py-2 text-right">Saldo</th>
@@ -507,7 +507,7 @@ export default function FluxoCaixa() {
                           {m.mes}
                           {m.corrente && (
                             <span className="ml-2 text-xs font-normal text-slate-400">
-                              (mes atual, parcial)
+                              (mês atual, parcial)
                             </span>
                           )}
                         </td>
@@ -540,7 +540,7 @@ export default function FluxoCaixa() {
                 className="mt-4 flex flex-wrap items-center gap-x-6 gap-y-1 rounded-xl border border-dashed p-3 text-sm"
                 style={{ borderColor: "rgba(56,64,232,0.35)" }}
               >
-                <span className="label mb-0 text-brand">Previsto (proximos 30 dias)</span>
+                <span className="label mb-0 text-brand">Previsto (próximos 30 dias)</span>
                 <span className="text-slate-600">
                   entra <strong className="tnum text-ok-700">{moeda(serieMensal.previsto.entradas)}</strong>
                 </span>
@@ -555,7 +555,7 @@ export default function FluxoCaixa() {
                     {moeda(serieMensal.previsto.saldo)}
                   </strong>
                 </span>
-                <span className="text-xs text-slate-400">detalhe dia a dia no calendario abaixo</span>
+                <span className="text-xs text-slate-400">detalhe dia a dia no calendário abaixo</span>
               </div>
             )}
           </>
@@ -572,9 +572,9 @@ export default function FluxoCaixa() {
             <h2 className="font-display text-lg font-semibold text-slate-900">Regra D-1</h2>
             <p className="mt-1 max-w-2xl text-slate-600">
               O dinheiro precisa estar em caixa um dia antes do vencimento. Por isso a
-              projecao reserva cada saida na vespera do vencimento, e conta a entrada so
-              na data prevista (nunca antes). Contas que ja venceram e seguem em aberto
-              entram hoje, nao somem da conta.
+              projeção reserva cada saída na véspera do vencimento, e conta a entrada só
+              na data prevista (nunca antes). Contas que já venceram e seguem em aberto
+              entram hoje, não somem da conta.
             </p>
           </div>
         </div>
@@ -597,9 +597,9 @@ export default function FluxoCaixa() {
                 Teste de estresse
               </h2>
               <p className="mt-1 max-w-xl text-slate-600">
-                Zera os recebiveis de clientes que ja tem titulo vencido. Sao{" "}
+                Zera os recebíveis de clientes que já tem título vencido. São{" "}
                 <span className="font-semibold text-slate-900">{numero(qtdIncertos)}</span>{" "}
-                {qtdIncertos === 1 ? "recebivel incerto" : "recebiveis incertos"}, somando{" "}
+                {qtdIncertos === 1 ? "recebível incerto" : "recebíveis incertos"}, somando{" "}
                 <span className="font-semibold text-slate-900">{moeda(valorIncertos)}</span>.
               </p>
             </div>
@@ -615,13 +615,13 @@ export default function FluxoCaixa() {
         {qtdIncertos === 0 ? (
           <div className="mt-4">
             <StatusLine tom="ok">
-              Nenhum recebivel incerto, o cenario nao muda no estresse.
+              Nenhum recebível incerto, o cenário não muda no estresse.
             </StatusLine>
           </div>
         ) : (
           <div className="mt-5 grid gap-4 sm:grid-cols-2">
             <div className="rounded-xl border p-4" style={{ borderColor: "var(--hairline)" }}>
-              <p className="label mb-1">Menor saldo, cenario normal</p>
+              <p className="label mb-1">Menor saldo, cenário normal</p>
               <p className="kpi-value text-2xl text-slate-900">{moeda(menorNormal)}</p>
             </div>
             <div
@@ -630,7 +630,7 @@ export default function FluxoCaixa() {
                 borderColor: modoEstresse ? "rgba(220,38,38,0.28)" : "var(--hairline)",
               }}
             >
-              <p className="label mb-1">Menor saldo, cenario de estresse</p>
+              <p className="label mb-1">Menor saldo, cenário de estresse</p>
               <p
                 className={
                   "kpi-value text-2xl " +
@@ -647,12 +647,12 @@ export default function FluxoCaixa() {
           <div className="mt-4">
             {impacto > 0 ? (
               <StatusLine tom="bad">
-                Sem esses recebiveis, o menor saldo cai {moeda(impacto)}
-                {menorEstresse < colchao ? ", furando o colchao." : "."}
+                Sem esses recebíveis, o menor saldo cai {moeda(impacto)}
+                {menorEstresse < colchao ? ", furando o colchão." : "."}
               </StatusLine>
             ) : (
               <StatusLine tom="ok">
-                Mesmo sem esses recebiveis, o menor saldo se mantem.
+                Mesmo sem esses recebíveis, o menor saldo se mantém.
               </StatusLine>
             )}
           </div>
@@ -663,7 +663,7 @@ export default function FluxoCaixa() {
       <Card>
         <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
           <div>
-            <h2 className="font-display text-lg font-semibold text-slate-900">Projecao diaria</h2>
+            <h2 className="font-display text-lg font-semibold text-slate-900">Projeção diária</h2>
             <p className="mt-0.5 text-sm text-slate-500">Saldo ao fim de cada dia.</p>
           </div>
           <div className="flex flex-wrap items-center gap-4 text-xs font-medium text-slate-600">
@@ -689,7 +689,7 @@ export default function FluxoCaixa() {
                   backgroundImage: `repeating-linear-gradient(90deg, ${AMBAR} 0 4px, transparent 4px 7px)`,
                 }}
               />
-              Colchao
+              Colchão
             </span>
           </div>
         </div>
@@ -760,17 +760,17 @@ export default function FluxoCaixa() {
       <Card ref={calendarioRef}>
         <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
           <div>
-            <h2 className="font-display text-lg font-semibold text-slate-900">Calendario</h2>
+            <h2 className="font-display text-lg font-semibold text-slate-900">Calendário</h2>
             <p className="mt-0.5 text-sm text-slate-500">
               {modoEstresse
-                ? "Cenario de estresse, sem os recebiveis incertos. Clique no dia para ver o que cai nele."
-                : "Entradas, saidas e saldo dia a dia. Clique no dia para ver o que cai nele."}
+                ? "Cenário de estresse, sem os recebíveis incertos. Clique no dia para ver o que cai nele."
+                : "Entradas, saídas e saldo dia a dia. Clique no dia para ver o que cai nele."}
             </p>
           </div>
           <StatusLine tom={abaixoDoColchao ? "bad" : "ok"}>
             {k.diasAbaixo > 0
-              ? `${numero(k.diasAbaixo)} ${k.diasAbaixo === 1 ? "dia abaixo" : "dias abaixo"} do colchao`
-              : "Nenhum dia abaixo do colchao"}
+              ? `${numero(k.diasAbaixo)} ${k.diasAbaixo === 1 ? "dia abaixo" : "dias abaixo"} do colchão`
+              : "Nenhum dia abaixo do colchão"}
           </StatusLine>
         </div>
 
@@ -790,7 +790,7 @@ export default function FluxoCaixa() {
               }}
               placeholder="Buscar cliente, fornecedor ou categoria"
               className="input pl-9"
-              aria-label="Buscar lancamento"
+              aria-label="Buscar lançamento"
             />
           </div>
 
@@ -818,7 +818,7 @@ export default function FluxoCaixa() {
           </span>
           {filtroKpi === "abaixo" && (
             <button className="chip chip-warn" onClick={() => setFiltroKpi(null)}>
-              so dias abaixo do colchao <X size={12} />
+              só dias abaixo do colchão <X size={12} />
             </button>
           )}
           {filtroKpi === "menor" && (
@@ -835,7 +835,7 @@ export default function FluxoCaixa() {
 
         {diasFiltrados.length === 0 ? (
           <Empty>
-            {temFiltro ? "Nenhum dia neste filtro." : "Sem projecao para o periodo."}
+            {temFiltro ? "Nenhum dia neste filtro." : "Sem projeção para o período."}
             {temFiltro && (
               <button className="btn-ghost ml-2" onClick={limparTudo}>
                 Limpar filtros
@@ -941,7 +941,7 @@ export default function FluxoCaixa() {
 
                                 {vazio ? (
                                   <p className="text-sm text-slate-500">
-                                    Sem lancamentos neste dia. O saldo segue em{" "}
+                                    Sem lançamentos neste dia. O saldo segue em{" "}
                                     <span className="tnum font-semibold text-slate-900">
                                       {moeda(linha.saldo)}
                                     </span>
@@ -974,7 +974,7 @@ export default function FluxoCaixa() {
                                       q={q}
                                     />
                                     <Lado
-                                      titulo="Saidas"
+                                      titulo="Saídas"
                                       icone={ArrowUpCircle}
                                       tom="bad"
                                       total={linha.saida}
@@ -989,7 +989,7 @@ export default function FluxoCaixa() {
                                             <p className="mt-0.5 truncate text-xs text-slate-500">
                                               {i.fornecedor ? `${i.descricao} · ` : ""}
                                               {i.categoria || "sem categoria"}
-                                              {i.tipo === "provisao" ? " · provisao" : ""}
+                                              {i.tipo === "provisao" ? " · provisão" : ""}
                                             </p>
                                             {i.vencida && (
                                               <span className="chip chip-bad mt-1">

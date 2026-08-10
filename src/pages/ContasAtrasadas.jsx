@@ -274,7 +274,7 @@ export default function ContasAtrasadas() {
     <div className="space-y-8">
       <PageTitle
         titulo="Contas Atrasadas"
-        descricao="Quem esta devendo, por que, e o que fazer agora. Clique nos numeros para filtrar a lista."
+        descricao="Quem esta devendo, por que, e o que fazer agora. Clique nos números para filtrar a lista."
       />
 
       <AvisoDadoParado atualizadoEm={atualizadoEm} />
@@ -282,8 +282,8 @@ export default function ContasAtrasadas() {
       {semVendedor && (
         <p className="flex items-start gap-2 rounded-lg bg-warn-50 px-3 py-2 text-sm text-warn-700">
           <AlertTriangle size={15} className="mt-0.5 shrink-0" />
-          O vendedor de cada titulo vem do modulo Produtos, que nao esta liberado para voce --
-          por isso a coluna de vendedor aparece vazia. Os valores e as datas estao corretos.
+          O vendedor de cada título vem do módulo Produtos, que não esta liberado para você --
+          por isso a coluna de vendedor aparece vazia. Os valores e as datas estão corretos.
         </p>
       )}
 
@@ -295,7 +295,7 @@ export default function ContasAtrasadas() {
         <StatCard
           rotulo="Total atrasado"
           valor={moeda(k.totalAtrasado)}
-          sub={`${numero(k.qtd)} titulos em aberto`}
+          sub={`${numero(k.qtd)} títulos em aberto`}
           tom="brand"
           icone={AlertTriangle}
           ativo={!temFiltro}
@@ -305,7 +305,7 @@ export default function ContasAtrasadas() {
           }}
         />
         <StatCard
-          rotulo="Pendentes de cobranca"
+          rotulo="Pendentes de cobrança"
           valor={numero(k.pendentesQtd)}
           sub={moeda(k.pendentesValor)}
           tom="warn"
@@ -363,8 +363,8 @@ export default function ContasAtrasadas() {
 
         <SectionTitle
           className="sem-impressao"
-          titulo="Titulos"
-          sub="Clique na linha para ver os detalhes. Classifique o motivo e marque o que ja foi cobrado."
+          titulo="Títulos"
+          sub="Clique na linha para ver os detalhes. Classifique o motivo e marque o que já foi cobrado."
           acao={<BotaoPDF titulo="Gera um PDF com exatamente o recorte que esta na tela" />}
         />
 
@@ -455,7 +455,7 @@ export default function ContasAtrasadas() {
               </select>
 
               <label className="label-filtro ml-1" htmlFor="mes-titulos">
-                Mes
+                Mês
               </label>
               <select
                 id="mes-titulos"
@@ -492,7 +492,7 @@ export default function ContasAtrasadas() {
                 value={venceAte}
                 onChange={(e) => setVenceAte(e.target.value)}
                 className={`filtro ${venceAte ? "filtro-ativo" : ""}`}
-                aria-label="Vencimento ate"
+                aria-label="Vencimento até"
               />
             </div>
 
@@ -556,7 +556,7 @@ export default function ContasAtrasadas() {
         <div className="sem-impressao mb-3 flex flex-wrap items-center gap-2 text-sm text-slate-500">
           <span>
             Mostrando <strong className="tnum text-slate-900">{numero(titulosFiltrados.length)}</strong>{" "}
-            de {numero(pediuPeriodo ? vm.titulos.length : vm.qtdAtivos)} titulos
+            de {numero(pediuPeriodo ? vm.titulos.length : vm.qtdAtivos)} títulos
             {titulosFiltrados.length > 0 && (
               <>
                 {" "}
@@ -577,7 +577,7 @@ export default function ContasAtrasadas() {
                 setVenceAte("");
               }}
             >
-              vencimento: {venceDe ? dataCurta(venceDe) : "inicio"} a{" "}
+              vencimento: {venceDe ? dataCurta(venceDe) : "início"} a{" "}
               {venceAte ? dataCurta(venceAte) : "hoje"} <X size={12} />
             </button>
           )}
@@ -595,7 +595,7 @@ export default function ContasAtrasadas() {
                 onClick={() => setAnoSel(vm.antigas.anos[vm.antigas.anos.length - 1])}
                 title={`Ver a divida de ${vm.antigas.anos.join(", ")}`}
               >
-                + {numero(vm.antigas.qtd)} titulos antigos ({moeda(vm.antigas.valor)}) fora da soma
+                + {numero(vm.antigas.qtd)} títulos antigos ({moeda(vm.antigas.valor)}) fora da soma
               </button>
             ))}
         </div>
@@ -609,8 +609,8 @@ export default function ContasAtrasadas() {
                   <th className="th text-right">Valor</th>
                   <th className="th text-right">Atraso</th>
                   <th className="th text-left">Motivo</th>
-                  <th className="th text-left">Proxima acao</th>
-                  <th className="th text-right">Acao</th>
+                  <th className="th text-left">Próxima ação</th>
+                  <th className="th text-right">Ação</th>
                 </tr>
               </thead>
               <tbody>
@@ -662,13 +662,13 @@ export default function ContasAtrasadas() {
                                   );
                                 }}
                                 className="inline-flex items-center gap-1 rounded-full bg-brand-50 px-2 py-0.5 font-medium text-brand-700 transition-colors hover:bg-brand-100"
-                                title={`Ver so os titulos de ${t.vendedor}`}
+                                title={`Ver só os títulos de ${t.vendedor}`}
                               >
                                 <User size={11} strokeWidth={2.4} />
                                 {t.vendedor}
                               </button>
                             ) : (
-                              <span className="text-slate-400">· vendedor nao localizado</span>
+                              <span className="text-slate-400">· vendedor não localizado</span>
                             )}
                             {/* O chip acima e um <button> e some na impressao;
                                 sem isto o vendedor -- o dado que faz o PDF de
@@ -756,13 +756,13 @@ export default function ContasAtrasadas() {
                               <dl className="grid gap-x-6 gap-y-3 sm:grid-cols-3">
                                 <Detalhe rotulo="CNPJ / CPF" valor={t.cnpj || "nao informado"} />
                                 <Detalhe rotulo="Nota fiscal" valor={t.nf || "sem NF"} />
-                                <Detalhe rotulo="Ordem de servico" valor={t.os || "sem OS"} />
+                                <Detalhe rotulo="Ordem de serviço" valor={t.os || "sem OS"} />
                                 <Detalhe
                                   rotulo={t.vendedores.length > 1 ? "Vendedores" : "Vendedor"}
                                   valor={t.vendedor || "nao localizado (OS de outro ano)"}
                                 />
                                 <Detalhe
-                                  rotulo="Emissao"
+                                  rotulo="Emissão"
                                   valor={t.emissao ? dataLonga(t.emissao) : "nao informada"}
                                 />
                                 <Detalhe
@@ -770,10 +770,10 @@ export default function ContasAtrasadas() {
                                   valor={t.vencimento ? dataLonga(t.vencimento) : "nao informado"}
                                 />
                                 <Detalhe rotulo="Atraso" valor={`${numero(t.dias)} dias`} />
-                                <Detalhe rotulo="Classificacao" valor={t.grupoNome} />
+                                <Detalhe rotulo="Classificação" valor={t.grupoNome} />
                                 <Detalhe rotulo="Motivo" valor={t.motivoNome} />
                                 <Detalhe
-                                  rotulo="Situacao"
+                                  rotulo="Situação"
                                   valor={t.cobrado ? "ja cobrado" : "pendente de cobranca"}
                                 />
                               </dl>
@@ -781,7 +781,7 @@ export default function ContasAtrasadas() {
                                 className="mt-3 border-t pt-3"
                                 style={{ borderColor: "var(--hairline)" }}
                               >
-                                <p className="label mb-1">Proxima acao sugerida</p>
+                                <p className="label mb-1">Próxima ação sugerida</p>
                                 <p className="flex items-center gap-2 text-sm text-slate-700">
                                   <Phone size={14} strokeWidth={2.2} className="text-brand" />
                                   {t.proximaAcao}
@@ -799,7 +799,7 @@ export default function ContasAtrasadas() {
           </div>
         ) : (
           <Empty>
-            Nenhum titulo neste filtro.
+            Nenhum título neste filtro.
             {temFiltro && (
               <button className="btn-ghost ml-2" onClick={limparTudo}>
                 Limpar filtros
@@ -815,14 +815,14 @@ export default function ContasAtrasadas() {
       <Card>
         <SectionTitle
           titulo="Onde esta a divida"
-          sub={`${numero(titulosFiltrados.length)} titulos no recorte atual - ${moeda(
+          sub={`${numero(titulosFiltrados.length)} títulos no recorte atual - ${moeda(
             somaFiltrada
           )}. Clique numa barra para filtrar.`}
           acao={
             <Segmented
               opcoes={[
                 { valor: "ano", rotulo: "Por ano" },
-                { valor: "mes", rotulo: "Por mes" },
+                { valor: "mes", rotulo: "Por mês" },
                 { valor: "cliente", rotulo: "Por cliente" },
               ]}
               valor={visao}
@@ -869,7 +869,7 @@ export default function ContasAtrasadas() {
                     valorTexto={moeda(x.valor)}
                     pct={Math.round((x.valor / maior) * 100)}
                     tom={x.dias >= 90 ? "bad" : x.dias >= 30 ? "warn" : "brand"}
-                    sub={`${numero(x.qtd)} ${x.qtd === 1 ? "titulo" : "titulos"} - atraso ate ${numero(x.dias)} dias`}
+                    sub={`${numero(x.qtd)} ${x.qtd === 1 ? "título" : "títulos"} - atraso até ${numero(x.dias)} dias`}
                   />
                 </button>
               ));
@@ -881,7 +881,7 @@ export default function ContasAtrasadas() {
             )}
           </div>
         ) : (
-          <Empty>Nenhum titulo no recorte atual.</Empty>
+          <Empty>Nenhum título no recorte atual.</Empty>
         )}
       </Card>
 
@@ -899,7 +899,7 @@ export default function ContasAtrasadas() {
                   <th className="th text-left">#</th>
                   <th className="th text-left">Cliente</th>
                   <th className="th text-right">Devendo</th>
-                  <th className="th text-right">Titulos</th>
+                  <th className="th text-right">Títulos</th>
                   <th className="th text-right">Maior atraso</th>
                   <th className="th text-left">Vendedor</th>
                 </tr>
@@ -921,7 +921,7 @@ export default function ContasAtrasadas() {
                         setBusca(c.chave);
                         irParaTitulos();
                       }}
-                      title={`Ver os titulos de ${c.chave}`}
+                      title={`Ver os títulos de ${c.chave}`}
                     >
                       <td className="td tnum text-slate-400">{i + 1}</td>
                       <td className="td font-display font-medium text-slate-900">{c.chave}</td>
@@ -943,7 +943,7 @@ export default function ContasAtrasadas() {
                         </span>
                       </td>
                       <td className="td text-sm text-slate-600">
-                        {vends.length ? vends.join(", ") : "nao localizado"}
+                        {vends.length ? vends.join(", ") : "não localizado"}
                       </td>
                     </tr>
                   );
@@ -959,8 +959,8 @@ export default function ContasAtrasadas() {
       {/* Por que estao atrasados */}
       <Card>
         <SectionTitle
-          titulo="Por que estao atrasados"
-          sub="Distribuicao do valor por origem da causa."
+          titulo="Por que estão atrasados"
+          sub="Distribuição do valor por origem da causa."
         />
         {vm.porOrigem.some((o) => o.valor > 0) ? (
           <div className="space-y-4">
@@ -988,7 +988,7 @@ export default function ContasAtrasadas() {
       {/* Padroes por motivo */}
       <Card>
         <SectionTitle
-          titulo="Padroes por motivo"
+          titulo="Padrões por motivo"
           sub="O que mais trava o recebimento, por valor."
         />
         {vm.porMotivo.length ? (
@@ -1000,7 +1000,7 @@ export default function ContasAtrasadas() {
                 valorTexto={moeda(m.valor)}
                 pct={k.totalAtrasado ? Math.round((m.valor / k.totalAtrasado) * 100) : 0}
                 tom={tomDoGrupo(m.grupo)}
-                sub={`${numero(m.qtd)} ${m.qtd === 1 ? "titulo" : "titulos"}`}
+                sub={`${numero(m.qtd)} ${m.qtd === 1 ? "título" : "títulos"}`}
               />
             ))}
           </div>
@@ -1013,7 +1013,7 @@ export default function ContasAtrasadas() {
       <Card>
         <SectionTitle
           titulo="Idade dos atrasos"
-          sub="Quanto mais velho o atraso, mais dificil recuperar. Clique numa faixa para ver os titulos."
+          sub="Quanto mais velho o atraso, mais difícil recuperar. Clique numa faixa para ver os títulos."
         />
         {vm.idade.some((f) => f.qtd > 0) ? (
           <div className="space-y-2">
@@ -1038,22 +1038,22 @@ export default function ContasAtrasadas() {
                     valorTexto={moeda(f.valor)}
                     pct={Math.round((f.valor / maxValor) * 100)}
                     tom={f.alto ? "bad" : "brand"}
-                    sub={`${numero(f.qtd)} ${f.qtd === 1 ? "titulo" : "titulos"}`}
+                    sub={`${numero(f.qtd)} ${f.qtd === 1 ? "título" : "títulos"}`}
                   />
                 </button>
               );
             })}
           </div>
         ) : (
-          <Empty>Nenhum titulo atrasado.</Empty>
+          <Empty>Nenhum título atrasado.</Empty>
         )}
       </Card>
 
       {/* Plano de acao */}
       <section>
         <SectionTitle
-          titulo="Plano de acao"
-          sub="Quatro frentes, cada uma com um proximo passo claro."
+          titulo="Plano de ação"
+          sub="Quatro frentes, cada uma com um próximo passo claro."
         />
         <div className="grid gap-4 sm:grid-cols-2">
           {vm.frentes.map((f) => {
@@ -1078,7 +1078,7 @@ export default function ContasAtrasadas() {
                     <div className="mt-4 flex items-end gap-2">
                       <span className="kpi-value text-2xl text-slate-900">{moeda(f.soma)}</span>
                       <span className="mb-1 text-sm text-slate-500">
-                        {numero(f.qtd)} {f.qtd === 1 ? "titulo" : "titulos"}
+                        {numero(f.qtd)} {f.qtd === 1 ? "título" : "títulos"}
                       </span>
                     </div>
                     {f.clientes.length > 0 && (
@@ -1092,7 +1092,7 @@ export default function ContasAtrasadas() {
                               setBusca(c);
                               irParaTitulos();
                             }}
-                            title="Ver os titulos deste cliente"
+                            title="Ver os títulos deste cliente"
                           >
                             {c}
                           </button>
@@ -1120,7 +1120,7 @@ export default function ContasAtrasadas() {
       <Card>
         <SectionTitle
           titulo="Cobrar hoje"
-          sub="Os pendentes de maior valor, com a acao sugerida."
+          sub="Os pendentes de maior valor, com a ação sugerida."
         />
         {vm.cobrarHoje.length ? (
           <ul className="divide-y" style={{ borderColor: "var(--hairline)" }}>
@@ -1138,7 +1138,7 @@ export default function ContasAtrasadas() {
                       setExpandido(c.id);
                       irParaTitulos();
                     }}
-                    title="Ver este titulo na lista"
+                    title="Ver este título na lista"
                   >
                     {c.cliente}
                   </button>
@@ -1155,7 +1155,7 @@ export default function ContasAtrasadas() {
             ))}
           </ul>
         ) : (
-          <Empty>Nenhuma cobranca pendente. Tudo em dia.</Empty>
+          <Empty>Nenhuma cobrança pendente. Tudo em dia.</Empty>
         )}
       </Card>
 
@@ -1208,7 +1208,7 @@ export default function ContasAtrasadas() {
         <Card>
           <SectionTitle titulo="Curva do DSO" sub="Prazo medio de recebimento ao longo do tempo." />
           <Empty>
-            O historico de DSO comeca a ser registrado agora, um ponto por dia. A curva aparece
+            O histórico de DSO começa a ser registrado agora, um ponto por dia. A curva aparece
             assim que houver alguns dias acumulados.
           </Empty>
         </Card>

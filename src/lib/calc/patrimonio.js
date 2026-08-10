@@ -19,28 +19,28 @@ import { diasEntre } from "../format.js";
 // A sigla e curta de proposito -- ela vira adesivo, e etiqueta comprida nao
 // cabe no lado de uma maquina nem sobrevive a limpeza.
 export const SETORES_PADRAO = [
-  { sigla: "DIR", nome: "Direcao", area: "Apoio e Gestao" },
+  { sigla: "DIR", nome: "Direção", area: "Apoio e Gestão" },
   { sigla: "COM", nome: "Comercial", area: "Mercado e Vendas" },
   { sigla: "MKT", nome: "Marketing", area: "Mercado e Vendas" },
   { sigla: "POS", nome: "Pos-venda", area: "Mercado e Vendas" },
-  { sigla: "DES", nome: "Design de criacao", area: "Criacao e Engenharia" },
-  { sigla: "ART", nome: "Arte-final e pre-impressao", area: "Criacao e Engenharia" },
-  { sigla: "PRJ", nome: "Projetos tecnicos", area: "Criacao e Engenharia" },
-  { sigla: "PCP", nome: "PCP e Expedicao", area: "Operacoes" },
-  { sigla: "ALM", nome: "Compras e almoxarifado", area: "Operacoes" },
-  { sigla: "IMP", nome: "Impressao digital e recorte", area: "Operacoes" },
-  { sigla: "DTF", nome: "DTF UV e brindes", area: "Operacoes" },
-  { sigla: "COR", nome: "Corte de chapas e usinagem", area: "Operacoes" },
-  { sigla: "MET", nome: "Metalurgia", area: "Operacoes" },
-  { sigla: "PIN", nome: "Pintura", area: "Operacoes" },
-  { sigla: "MON", nome: "Montagem de letras", area: "Operacoes" },
-  { sigla: "ACM", nome: "Portas de ACM", area: "Operacoes" },
-  { sigla: "ACB", nome: "Acabamento", area: "Operacoes" },
-  { sigla: "INS", nome: "Instalacao de placas", area: "Operacoes" },
-  { sigla: "FIN", nome: "Financeiro", area: "Apoio e Gestao" },
-  { sigla: "RHU", nome: "RH e DP", area: "Apoio e Gestao" },
-  { sigla: "TIC", nome: "TI e sistemas", area: "Apoio e Gestao" },
-  { sigla: "MNT", nome: "Manutencao", area: "Apoio e Gestao" },
+  { sigla: "DES", nome: "Design de criação", area: "Criação e Engenharia" },
+  { sigla: "ART", nome: "Arte-final e pre-impressão", area: "Criação e Engenharia" },
+  { sigla: "PRJ", nome: "Projetos tecnicos", area: "Criação e Engenharia" },
+  { sigla: "PCP", nome: "PCP e Expedição", area: "Operações" },
+  { sigla: "ALM", nome: "Compras e almoxarifado", area: "Operações" },
+  { sigla: "IMP", nome: "Impressão digital e recorte", area: "Operações" },
+  { sigla: "DTF", nome: "DTF UV e brindes", area: "Operações" },
+  { sigla: "COR", nome: "Corte de chapas e usinagem", area: "Operações" },
+  { sigla: "MET", nome: "Metalurgia", area: "Operações" },
+  { sigla: "PIN", nome: "Pintura", area: "Operações" },
+  { sigla: "MON", nome: "Montagem de letras", area: "Operações" },
+  { sigla: "ACM", nome: "Portas de ACM", area: "Operações" },
+  { sigla: "ACB", nome: "Acabamento", area: "Operações" },
+  { sigla: "INS", nome: "Instalação de placas", area: "Operações" },
+  { sigla: "FIN", nome: "Financeiro", area: "Apoio e Gestão" },
+  { sigla: "RHU", nome: "RH e DP", area: "Apoio e Gestão" },
+  { sigla: "TIC", nome: "TI e sistemas", area: "Apoio e Gestão" },
+  { sigla: "MNT", nome: "Manutenção", area: "Apoio e Gestão" },
 ];
 
 // Situacao do bem. "baixado" existe para nao APAGAR o que saiu: um bem
@@ -49,7 +49,7 @@ export const SETORES_PADRAO = [
 export const SITUACOES = {
   uso: { rotulo: "Em uso", chip: "chip-ok" },
   reserva: { rotulo: "De reserva", chip: "chip" },
-  manutencao: { rotulo: "Em manutencao", chip: "chip-warn" },
+  manutencao: { rotulo: "Em manutenção", chip: "chip-warn" },
   baixado: { rotulo: "Baixado", chip: "chip-bad" },
 };
 

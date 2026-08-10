@@ -47,11 +47,11 @@ import { Card, PageTitle, SectionTitle, StatCard, Empty, CarregandoModulo } from
 // antes de a pessoa ler o titulo.
 const TIPOS = {
   visita: { rotulo: "Visita", icone: Users, cor: "text-brand" },
-  medicao: { rotulo: "Medicao", icone: Ruler, cor: "text-brand" },
-  retorno: { rotulo: "Retorno de orcamento", icone: Phone, cor: "text-warn-700" },
+  medicao: { rotulo: "Medição", icone: Ruler, cor: "text-brand" },
+  retorno: { rotulo: "Retorno de orçamento", icone: Phone, cor: "text-warn-700" },
   entrega: { rotulo: "Entrega", icone: Truck, cor: "text-ok-700" },
-  instalacao: { rotulo: "Instalacao", icone: Wrench, cor: "text-ok-700" },
-  cobranca: { rotulo: "Cobranca", icone: HandCoins, cor: "text-bad-700" },
+  instalacao: { rotulo: "Instalação", icone: Wrench, cor: "text-ok-700" },
+  cobranca: { rotulo: "Cobrança", icone: HandCoins, cor: "text-bad-700" },
   documento: { rotulo: "Documento / arte", icone: FileText, cor: "text-slate-500" },
   outro: { rotulo: "Outro", icone: CircleDot, cor: "text-slate-500" },
 };
@@ -126,7 +126,7 @@ function Conversa({ c, sessao, enviando, aoEnviar, aoBaixar, aoWhatsApp }) {
             {blocos.map((b, i) => (
               <div key={i} className={`flex flex-col ${meu(b.quem) ? "items-end" : "items-start"}`}>
                 <span className="mb-1 font-display text-xs font-semibold text-slate-500">
-                  {meu(b.quem) ? "Voce" : b.nome}
+                  {meu(b.quem) ? "Você" : b.nome}
                 </span>
                 <div className="max-w-[85%] space-y-1">
                   {b.eventos.map((ev, j) => (
@@ -210,7 +210,7 @@ function Compositor({ enviando, aoEnviar }) {
         <label
           className="inline-flex h-9 shrink-0 cursor-pointer items-center gap-1.5 rounded-lg border px-3 font-display text-xs font-medium text-slate-600 hover:bg-slate-100"
           style={{ borderColor: "var(--hairline)" }}
-          title="Anexar foto ou PDF (ate 3 MB)"
+          title="Anexar foto ou PDF (até 3 MB)"
         >
           <Paperclip size={14} />
           {arquivo ? "1 arquivo" : "Anexar"}
@@ -522,7 +522,7 @@ export default function Compromissos() {
   };
 
   const abrirForm = (c) => {
-    if (formSujo() && !window.confirm("Voce tem um compromisso pela metade. Descartar o que escreveu?")) return;
+    if (formSujo() && !window.confirm("Você tem um compromisso pela metade. Descartar o que escreveu?")) return;
     setAviso(null);
     setForm(c ? { ...VAZIO, ...c } : { ...VAZIO });
     setTimeout(() => cartaoForm.current?.scrollIntoView({ behavior: "smooth", block: "center" }), 60);
@@ -673,7 +673,7 @@ export default function Compromissos() {
       });
     } catch (err) {
       // AbortError = a pessoa fechou a folha de compartilhamento. Nao e erro.
-      if (err?.name !== "AbortError") setAviso({ tom: "erro", texto: "Nao consegui montar o PDF da conversa." });
+      if (err?.name !== "AbortError") setAviso({ tom: "erro", texto: "Não consegui montar o PDF da conversa." });
     }
   };
 
@@ -704,7 +704,7 @@ export default function Compromissos() {
   if (erro) {
     return (
       <div className="space-y-6">
-        <PageTitle titulo="Compromissos" descricao="O que voce tem para fazer e resolver." />
+        <PageTitle titulo="Compromissos" descricao="O que você tem para fazer e resolver." />
         <Card className="flex items-start gap-2 text-sm text-bad-700">
           <AlertTriangle size={16} className="mt-0.5 shrink-0" />
           {erro}
@@ -721,8 +721,8 @@ export default function Compromissos() {
         titulo="Compromissos"
         descricao={
           ehDirecao
-            ? "A agenda da equipe: visitas, medicoes, retornos e o que ficou para resolver."
-            : "Suas visitas, medicoes, retornos e o que voce tem para resolver. So voce ve esta lista."
+            ? "A agenda da equipe: visitas, medições, retornos e o que ficou para resolver."
+            : "Suas visitas, medições, retornos e o que você tem para resolver. Só você ve esta lista."
         }
       />
 
@@ -751,7 +751,7 @@ export default function Compromissos() {
         <StatCard
           rotulo="Resolvidos"
           valor={String(vm.concluidos)}
-          sub="ja concluidos"
+          sub="já concluidos"
           tom={vm.concluidos ? "ok" : "neutral"}
           icone={Check}
         />
@@ -805,7 +805,7 @@ export default function Compromissos() {
         <Card ref={cartaoForm}>
           <SectionTitle
             titulo={form.id ? "Editar compromisso" : "Novo compromisso"}
-            sub="So o titulo e obrigatorio. Sem data, ele entra em 'A resolver'."
+            sub="Só o título é obrigatório. Sem data, ele entra em 'A resolver'."
           />
           <form onSubmit={salvar} className="space-y-4">
             <div className="grid gap-4 sm:grid-cols-2">
@@ -840,7 +840,7 @@ export default function Compromissos() {
                 <input
                   id="c-cliente"
                   className="input"
-                  placeholder="ex.: Padaria Sao Jose"
+                  placeholder="ex.: Padaria São Jose"
                   value={form.cliente}
                   onChange={(e) => setForm((f) => ({ ...f, cliente: e.target.value }))}
                 />
@@ -868,11 +868,11 @@ export default function Compromissos() {
                 </div>
               </div>
               <div>
-                <label className="label" htmlFor="c-obs">Observacao</label>
+                <label className="label" htmlFor="c-obs">Observação</label>
                 <input
                   id="c-obs"
                   className="input"
-                  placeholder="endereco, telefone, o que levar..."
+                  placeholder="endereço, telefone, o que levar..."
                   value={form.obs}
                   onChange={(e) => setForm((f) => ({ ...f, obs: e.target.value }))}
                 />
@@ -880,7 +880,7 @@ export default function Compromissos() {
             </div>
             <div className="flex flex-wrap items-center gap-2">
               <button className="btn-primary" disabled={salvando}>
-                {salvando ? "Salvando..." : form.id ? "Salvar alteracoes" : "Cadastrar"}
+                {salvando ? "Salvando..." : form.id ? "Salvar alterações" : "Cadastrar"}
               </button>
               <button type="button" className="btn-ghost" onClick={() => setForm(null)}>
                 Cancelar
@@ -894,7 +894,7 @@ export default function Compromissos() {
         <Card>
           <Empty>
             Nada em aberto{dePessoa ? " para esta pessoa" : ""}. Use &quot;Novo compromisso&quot; para
-            anotar uma visita, uma medicao ou algo a resolver.
+            anotar uma visita, uma medição ou algo a resolver.
           </Empty>
         </Card>
       ) : (

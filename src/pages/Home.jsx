@@ -103,8 +103,8 @@ export default function Home() {
             <AlertTriangle size={16} className="shrink-0 text-warn-700" />
             <span className="flex-1 font-display text-sm font-semibold text-slate-900">
               {criticos.length === 1
-                ? "1 documento ou manutencao precisa de atencao"
-                : `${criticos.length} documentos ou manutencoes precisam de atencao`}
+                ? "1 documento ou manutenção precisa de atenção"
+                : `${criticos.length} documentos ou manutenções precisam de atenção`}
             </span>
             <ChevronRight size={16} className="shrink-0 text-slate-300" />
           </span>
@@ -125,8 +125,8 @@ export default function Home() {
           tracos no alto. Mandar "olhe ao lado" para quem esta no telefone e
           mandar olhar para o nada. */}
       <p className="mt-8 text-sm text-slate-400">
-        <span className="lg:hidden">Toque no menu, no alto a esquerda, para escolher um modulo.</span>
-        <span className="hidden lg:inline">Escolha um modulo no menu ao lado para comecar.</span>
+        <span className="lg:hidden">Toque no menu, no alto a esquerda, para escolher um módulo.</span>
+        <span className="hidden lg:inline">Escolha um módulo no menu ao lado para começar.</span>
       </p>
     </div>
   );

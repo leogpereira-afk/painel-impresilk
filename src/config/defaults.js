@@ -30,25 +30,25 @@ export const CONFIG_PADRAO = {
   // Cada motivo aponta para um grupo. A tag liga o motivo a uma frente de acao.
   // tags: "semContato" | "esquecimento" | "disputa" | "nfNaoEnviada" | null
   motivosAtraso: [
-    { id: "arte", nome: "Aguardando aprovacao de arte", grupo: "interna", tag: null },
-    { id: "refacao", nome: "Refacao ou retrabalho", grupo: "interna", tag: null },
+    { id: "arte", nome: "Aguardando aprovação de arte", grupo: "interna", tag: null },
+    { id: "refacao", nome: "Refação ou retrabalho", grupo: "interna", tag: null },
     { id: "erro-pedido", nome: "Erro no pedido", grupo: "interna", tag: null },
-    { id: "nf", nome: "NF nao enviada", grupo: "processo", tag: "nfNaoEnviada" },
-    { id: "boleto", nome: "Boleto nao recebido", grupo: "processo", tag: null },
-    { id: "instalacao", nome: "Aguardando medicao ou instalacao", grupo: "processo", tag: null },
+    { id: "nf", nome: "NF não enviada", grupo: "processo", tag: "nfNaoEnviada" },
+    { id: "boleto", nome: "Boleto não recebido", grupo: "processo", tag: null },
+    { id: "instalacao", nome: "Aguardando medição ou instalação", grupo: "processo", tag: null },
     { id: "verba", nome: "Cliente sem verba", grupo: "cliente", tag: null },
     { id: "disputa", nome: "Disputa de valor", grupo: "cliente", tag: "disputa" },
     { id: "esquecimento", nome: "Esquecimento do cliente", grupo: "cliente", tag: "esquecimento" },
-    { id: "sem-contato", nome: "Nao responde", grupo: "cliente", tag: "semContato" },
+    { id: "sem-contato", nome: "Não responde", grupo: "cliente", tag: "semContato" },
   ],
 
   // Regua de cobranca por faixa de dias. Primeira faixa cujo limite cobre os dias vence.
   reguaCobranca: [
     { ateDias: 7, acao: "Lembrete cordial por WhatsApp" },
     { ateDias: 15, acao: "Ligar e confirmar data de pagamento" },
-    { ateDias: 30, acao: "Cobranca formal por e-mail com o boleto" },
+    { ateDias: 30, acao: "Cobrança formal por e-mail com o boleto" },
     { ateDias: 60, acao: "Negociar parcelamento e registrar o acordo" },
-    { ateDias: 99999, acao: "Escalar para cobranca juridica" },
+    { ateDias: 99999, acao: "Escalar para cobrança jurídica" },
   ],
 
   // Regras que sobrepoem a regua por motivo (o motor sempre prioriza estas).
@@ -70,9 +70,9 @@ export const CONFIG_PADRAO = {
   ],
 
   motivosPerda: [
-    { id: "preco", nome: "Preco" },
+    { id: "preco", nome: "Preço" },
     { id: "prazo", nome: "Prazo de entrega" },
-    { id: "concorrencia", nome: "Foi para a concorrencia" },
+    { id: "concorrencia", nome: "Foi para a concorrência" },
     { id: "sem-retorno", nome: "Cliente sumiu" },
     { id: "cancelado", nome: "Projeto cancelado" },
     { id: "escopo", nome: "Escopo mudou" },

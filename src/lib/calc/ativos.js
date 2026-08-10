@@ -9,8 +9,8 @@ import { diasEntre } from "../format.js";
 
 export const TIPOS = {
   documento: { rotulo: "Documentos", singular: "Documento" },
-  veiculo: { rotulo: "Veiculos", singular: "Veiculo" },
-  maquina: { rotulo: "Maquinas", singular: "Maquina" },
+  veiculo: { rotulo: "Veículos", singular: "Veículo" },
+  maquina: { rotulo: "Máquinas", singular: "Máquina" },
 };
 
 // Categorias sugeridas -- os documentos que sempre pedem, e as manutencoes que

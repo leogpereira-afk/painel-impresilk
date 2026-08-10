@@ -53,21 +53,21 @@ import { frescor } from "../lib/frescor.js";
 // Inicio fica solto no topo; o resto vive dentro do grupo "Gestao", que abre e
 // fecha. Assim a lateral cabe numa tela de celular sem rolagem e os atalhos
 // para os outros sistemas ficam sempre visiveis.
-const INICIO = { to: "/", rotulo: "Inicio", icone: Home, exato: true };
+const INICIO = { to: "/", rotulo: "Início", icone: Home, exato: true };
 
 const GESTAO = [
-  { to: "/gestao", rotulo: "Gestao", icone: Compass, modulo: "gestao" },
+  { to: "/gestao", rotulo: "Gestão", icone: Compass, modulo: "gestao" },
   { to: "/compromissos", rotulo: "Compromissos", icone: CalendarCheck, modulo: "compromissos" },
   { to: "/contas-atrasadas", rotulo: "Contas Atrasadas", icone: AlertTriangle, modulo: "contas-atrasadas" },
   { to: "/fluxo-caixa", rotulo: "Fluxo de Caixa", icone: Wallet, modulo: "fluxo-caixa" },
   { to: "/produtos", rotulo: "Produtos", icone: Package, modulo: "produtos" },
-  { to: "/orcamentos", rotulo: "Orcamentos", icone: FileText, modulo: "orcamentos" },
+  { to: "/orcamentos", rotulo: "Orçamentos", icone: FileText, modulo: "orcamentos" },
   { to: "/bancos", rotulo: "Bancos e Pix", icone: Landmark, modulo: "bancos" },
   { to: "/marketing", rotulo: "Marketing", icone: Megaphone, modulo: "marketing" },
-  { to: "/licitacoes", rotulo: "Licitacoes", icone: Gavel, modulo: "licitacoes" },
-  { to: "/glossario", rotulo: "Glossario", icone: BookOpen, modulo: "glossario" },
+  { to: "/licitacoes", rotulo: "Licitações", icone: Gavel, modulo: "licitacoes" },
+  { to: "/glossario", rotulo: "Glossário", icone: BookOpen, modulo: "glossario" },
   { to: "/manutencoes", rotulo: "Manutenções", icone: Wrench, modulo: "manutencoes" },
-  { to: "/patrimonio", rotulo: "Patrimonio", icone: Tag, modulo: "patrimonio" },
+  { to: "/patrimonio", rotulo: "Patrimônio", icone: Tag, modulo: "patrimonio" },
   { to: "/documentos", rotulo: "Documentos e ativos", icone: FileCheck2 },
 ];
 
@@ -81,8 +81,8 @@ const SISTEMAS = [
   { rotulo: "RH", icone: Users, href: "https://impresilk.com.br/rh" },
   { rotulo: "PCP", icone: ClipboardList, href: "https://impresilk.com.br/pcp" },
   { rotulo: "Compras", icone: ShoppingCart, href: "https://impresilk.com.br/compras" },
-  { rotulo: "Brief de Medicao", icone: Ruler, href: "https://impresilk.com.br/brief" },
-  { rotulo: "Pops & Fabricacao", icone: BookOpen, href: "https://impresilk.com.br/pops" },
+  { rotulo: "Brief de Medição", icone: Ruler, href: "https://impresilk.com.br/brief" },
+  { rotulo: "Pops & Fabricação", icone: BookOpen, href: "https://impresilk.com.br/pops" },
   { rotulo: "Capa dos sistemas", icone: LayoutGrid, href: "https://leogpereira-afk.github.io/" },
   { rotulo: "Site Impresilk", icone: Globe, href: "https://www.impresilk.com.br" },
   // Painel pessoal do dono: so aparece para a direcao, nao e sistema da empresa.
@@ -217,7 +217,7 @@ function ConteudoLateral({ aoNavegar, sessao }) {
         <img src={logoWhite} alt="Impresilk" className="hidden h-7 w-auto dark:block" />
       </Link>
       <p className="mb-4 mt-2 px-3 font-display text-xs font-semibold uppercase tracking-wide text-slate-400">
-        Painel de Gestao
+        Painel de Gestão
       </p>
 
       <nav className="space-y-0.5">
@@ -246,7 +246,7 @@ function ConteudoLateral({ aoNavegar, sessao }) {
               className={`w-full ${CLASSE_ITEM} text-slate-600 hover:bg-slate-100 hover:text-slate-900`}
             >
               <BarChart3 size={17} strokeWidth={2.2} className="shrink-0" />
-              <span className="min-w-0 flex-1 truncate text-left">Gestao</span>
+              <span className="min-w-0 flex-1 truncate text-left">Gestão</span>
               <ChevronDown
                 size={15}
                 className={`shrink-0 text-slate-400 transition-transform ${mostrarGestao ? "rotate-180" : ""}`}
@@ -337,7 +337,7 @@ function ConteudoLateral({ aoNavegar, sessao }) {
           {sessao?.master ? "Acessos" : "Minha senha"}
         </NavLink>
 
-        {podeAbrir("configuracoes", sessao) && (
+        {podeAbrir("configurações", sessao) && (
           <NavLink
             to="/configuracoes"
             onClick={aoNavegar}
@@ -351,7 +351,7 @@ function ConteudoLateral({ aoNavegar, sessao }) {
             }
           >
             <Settings size={17} strokeWidth={2.2} className="shrink-0" />
-            Configuracoes
+            Configurações
           </NavLink>
         )}
 
@@ -368,7 +368,7 @@ function ConteudoLateral({ aoNavegar, sessao }) {
                 {sessao.nome || sessao.usuario}
               </span>
               <span className="block text-xs text-slate-400">
-                {sessao.master ? "Direcao" : "Acesso limitado"}
+                {sessao.master ? "Direção" : "Acesso limitado"}
               </span>
             </span>
           </div>
@@ -470,11 +470,11 @@ export default function Layout({ children, sessao }) {
             </div>
 
             <div className="flex shrink-0 items-center gap-2">
-              {modoDemo && <span className="chip-warn hidden sm:inline-flex">Modo demonstracao</span>}
+              {modoDemo && <span className="chip-warn hidden sm:inline-flex">Modo demonstração</span>}
               {f && (
                 <span
                   className={`inline-flex items-center gap-1.5 ${f.parado ? "chip-bad" : f.velho ? "chip-warn" : "chip"}`}
-                  title={`Dados do cache do Mubisys, ${f.idadeMin} min atras`}
+                  title={`Dados do cache do Mubisys, ${f.idadeMin} min atrás`}
                 >
                   <Clock size={13} />
                   {f.texto}
@@ -529,7 +529,7 @@ export default function Layout({ children, sessao }) {
 
         <footer className="sem-impressao mx-auto max-w-6xl px-4 pb-8 pt-4 sm:px-6">
           <p className="text-center text-xs text-slate-400">
-            Impresilk Solucoes Visuais · Painel de Gestao · dados do ERP Mubi (somente leitura)
+            Impresilk Soluções Visuais · Painel de Gestão · dados do ERP Mubi (somente leitura)
           </p>
         </footer>
       </div>

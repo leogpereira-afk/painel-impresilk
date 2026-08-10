@@ -149,7 +149,7 @@ export function linhasDaConversa(c) {
   linhas.push({ texto: ficha });
   if (c.obs) quebrar(`Observacao: ${c.obs}`).forEach((t) => linhas.push({ texto: t }));
   linhas.push({ texto: "" });
-  linhas.push({ texto: "HISTORICO", negrito: true });
+  linhas.push({ texto: "HISTÓRICO", negrito: true });
   linhas.push({ texto: "" });
 
   const hist = Array.isArray(c.historico) ? c.historico : [];

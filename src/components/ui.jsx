@@ -53,8 +53,8 @@ export function CabecalhoImpressao({ titulo, linhas = [], atualizadoEm }) {
           vermelho, e a folha continua tendo de avisar. */}
       {f?.parado && (
         <p style={{ fontSize: "9pt", margin: "2px 0 0", fontWeight: 700, color: "#b91c1c" }}>
-          ATENCAO: a carga automatica do ERP esta parada ({idadeEmPalavras(f.idadeMin)}). Estes
-          numeros podem estar desatualizados.
+          ATENÇÃO: a carga automática do ERP esta parada ({idadeEmPalavras(f.idadeMin)}). Estes
+          números podem estar desatualizados.
         </p>
       )}
     </div>
@@ -90,11 +90,11 @@ export function AvisoDadoParado({ atualizadoEm }) {
       <AlertTriangle size={18} className="mt-0.5 shrink-0 text-bad-600" />
       <div className="text-sm text-bad-700">
         <p className="font-medium">
-          Estes numeros sao de {f.quando} ({idadeEmPalavras(f.idadeMin)}) — nao sao de agora.
+          Estes números são de {f.quando} ({idadeEmPalavras(f.idadeMin)}) — não são de agora.
         </p>
         <p className="mt-0.5 text-bad-600">
-          A carga automatica do ERP esta parada. O botao Sincronizar so rele o mesmo cache: enquanto
-          isso nao voltar, nao decida por estes valores.
+          A carga automática do ERP esta parada. O botão Sincronizar só rele o mesmo cache: enquanto
+          isso não voltar, não decida por estes valores.
         </p>
       </div>
     </div>
@@ -297,7 +297,7 @@ export function CarregandoModulo() {
 export function ErroModulo({ mensagem, aoTentar }) {
   return (
     <Card className="text-center">
-      <p className="font-display text-lg font-semibold text-bad-700">Nao foi possivel carregar</p>
+      <p className="font-display text-lg font-semibold text-bad-700">Não foi possível carregar</p>
       <p className="mt-1 text-sm text-slate-500">{mensagem}</p>
       {aoTentar && (
         <button onClick={aoTentar} className="btn-primary mx-auto mt-4">

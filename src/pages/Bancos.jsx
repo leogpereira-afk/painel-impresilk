@@ -196,7 +196,7 @@ export default function Bancos() {
       e.preventDefault();
       setAviso(null);
       if (!form.banco.trim() || !form.titular.trim()) {
-        return setAviso({ tom: "erro", texto: "Banco e titular sao obrigatorios." });
+        return setAviso({ tom: "erro", texto: "Banco e titular são obrigatórios." });
       }
       setSalvando(true);
       try {
@@ -263,7 +263,7 @@ export default function Bancos() {
     <div className="space-y-6">
       <PageTitle
         titulo="Bancos e Pix"
-        descricao="Alguem pediu os dados? Mande no WhatsApp em dois cliques. Ou clique em qualquer valor para copiar."
+        descricao="Alguém pediu os dados? Mande no WhatsApp em dois cliques. Ou clique em qualquer valor para copiar."
       />
 
       <div className="flex flex-wrap items-center gap-3">
@@ -306,7 +306,7 @@ export default function Bancos() {
         <Card ref={cartaoForm}>
           <SectionTitle
             titulo={form.id ? "Editar conta" : "Nova conta"}
-            sub="Deixe a chave Pix em branco e escolha 'Conta e agencia' quando nao houver chave."
+            sub="Deixe a chave Pix em branco e escolha 'Conta e agência' quando não houver chave."
           />
           <form onSubmit={salvar} className="space-y-4">
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -359,7 +359,7 @@ export default function Bancos() {
                 />
               </div>
               <div>
-                <label className="label" htmlFor="b-ag">Agencia</label>
+                <label className="label" htmlFor="b-ag">Agência</label>
                 <input
                   id="b-ag"
                   className="input"
@@ -396,7 +396,7 @@ export default function Bancos() {
                 <input
                   id="b-pix"
                   className="input"
-                  placeholder="deixe em branco se a conta nao tem chave"
+                  placeholder="deixe em branco se a conta não tem chave"
                   value={form.pix}
                   onChange={(e) => setForm((f) => ({ ...f, pix: e.target.value }))}
                 />
@@ -405,7 +405,7 @@ export default function Bancos() {
 
             <div className="flex flex-wrap items-center gap-2">
               <button className="btn-primary" disabled={salvando}>
-                {salvando ? "Salvando..." : form.id ? "Salvar alteracoes" : "Cadastrar conta"}
+                {salvando ? "Salvando..." : form.id ? "Salvar alterações" : "Cadastrar conta"}
               </button>
               <button type="button" className="btn-ghost" onClick={() => setForm(null)}>
                 Cancelar
@@ -484,7 +484,7 @@ export default function Bancos() {
                         aoCopiar={() => copiar(b.doc, `${b.id}-doc`)}
                       />
                       <Valor
-                        rotulo="Agencia"
+                        rotulo="Agência"
                         valor={b.agencia}
                         copiado={copiado === `${b.id}-ag`}
                         aoCopiar={() => copiar(b.agencia, `${b.id}-ag`)}
