@@ -9,6 +9,7 @@ import { chamarAuth, getSessao } from "../lib/sessao.js";
 import { baixarBackup, restaurarBackup, lerArquivoBackup, statusBackup, backupHubAgora } from "../services/backup.js";
 import { Card, PageTitle, SectionTitle, Empty } from "../components/ui.jsx";
 import { useApp } from "../config/store.jsx";
+import AcessoUnico from "../components/AcessoUnico.jsx";
 
 // Espelha MODULOS de supabase/functions/painel-auth. O servidor e quem valida.
 const MODULOS = [
@@ -607,6 +608,12 @@ export default function Acessos() {
               dela, e remova o acesso para ela não conseguir entrar de novo.
             </p>
           </Card>
+
+          {/* Quem entra nos SETE sistemas. Fica DEPOIS da lista de contas do
+              painel de propósito: aquela lista manda no login de hoje, esta
+              prepara a virada -- e a ordem na tela ajuda a não confundir as
+              duas. */}
+          <AcessoUnico aoAvisar={setMsgConta} />
 
           <BackupDados />
         </>
