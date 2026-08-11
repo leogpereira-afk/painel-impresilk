@@ -408,6 +408,32 @@ export default function ContasAtrasadas() {
             </div>
           </div>
 
+          {/* O QUE VENCE NA SEMANA — a ligação que evita o atraso inteiro.
+              O dado já vinha carregado (o cache traz pendentes a 90 dias) e era
+              descartado no cálculo. O número que importa não é o total: é
+              quanto disso é de cliente que JÁ está devendo. Esse é quem não
+              deveria receber trabalho novo sem uma conversa. */}
+          {vm.aVencer?.qtd > 0 && (
+            <div
+              className="flex flex-wrap items-center gap-x-4 gap-y-1 rounded-xl border px-3 py-2.5"
+              style={{ borderColor: "var(--hairline)" }}
+            >
+              <span className="font-display text-sm font-semibold text-slate-800">
+                Vence nos próximos 7 dias
+              </span>
+              <span className="text-sm text-slate-600">
+                {numero(vm.aVencer.qtd)} título(s) ·{" "}
+                <strong className="tabular-nums text-slate-900">{moeda(vm.aVencer.valor)}</strong>
+              </span>
+              {vm.aVencer.deQuemJaDeve > 0 && (
+                <span className="chip-bad">
+                  {numero(vm.aVencer.deQuemJaDeve)} de quem já está devendo ·{" "}
+                  {moeda(vm.aVencer.valorDeQuemJaDeve)}
+                </span>
+              )}
+            </div>
+          )}
+
           {/* A CARTEIRA DE CADA VENDEDOR, A UM CLIQUE.
               O filtro por vendedor já existia — dentro de um seletor, escondido
               atrás de outro filtro. Cobrar é conversa por pessoa ("Barbara, o

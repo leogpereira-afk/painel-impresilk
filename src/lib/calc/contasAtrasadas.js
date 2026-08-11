@@ -118,11 +118,32 @@ export function calcContasAtrasadas(recebiveis, overrides, config, dsoHist = [],
     // So conta para reincidencia o que esta DENTRO do corte. Antes, um cliente
     // com um atraso hoje e um calote de 2022 vinha marcado como reincidente --
     // com base num titulo que a tela jura ter tirado de todos os numeros.
+    /* REINCIDENTE É QUEM ATRASA DE NOVO, NÃO QUEM PARCELOU.
+       Contando TÍTULOS, uma nota fiscal parcelada em três vezes com as três
+       parcelas vencidas marcava o cliente de vermelho e o mandava para a frente
+       "renegocie os crônicos" — propondo parcelamento a quem já parcelou.
+       Contando NOTAS distintas, três parcelas da mesma NF valem uma. */
     if (dias > 0 && !ehAntiga(r.vencimento)) {
-      vencidosPorCliente[chaveCliente] = (vencidosPorCliente[chaveCliente] || 0) + 1;
+      const nfs = (vencidosPorCliente[chaveCliente] ||= new Set());
+      nfs.add(String(r.nf || r.id));
     }
     return { ...r, dias, chaveCliente };
   });
+
+  /* O QUE VENCE NA SEMANA JÁ ESTÁ AQUI, E ERA JOGADO FORA.
+     O cache traz os títulos pendentes até 90 dias à frente; a linha abaixo
+     (`dias > 0`) descartava tudo que ainda não venceu. Um telefonema dois dias
+     ANTES do vencimento evita o atraso inteiro — e o caso mais caro é o cliente
+     que já está devendo e tem mais um vencendo sexta: é quem não deveria
+     receber trabalho novo sem uma conversa. */
+  const aVencer = abertos
+    .filter((r) => r.dias <= 0 && r.dias >= -7)
+    .map((r) => ({
+      ...r,
+      diasAte: -r.dias,
+      jaDeve: (vencidosPorCliente[r.chaveCliente]?.size || 0) > 0,
+    }))
+    .sort((a, b) => a.diasAte - b.diasAte);
 
   const todosAtrasados = abertos
     .filter((r) => r.dias > 0)
@@ -155,7 +176,7 @@ export function calcContasAtrasadas(recebiveis, overrides, config, dsoHist = [],
            rende, e até aqui ela não existia na tela. */
         cobradoHa: ov.cobradoEm ? diasEntre(ov.cobradoEm, hojeISO) : null,
         observacao: ov.observacao || "",
-        reincidente: (vencidosPorCliente[r.chaveCliente] || 0) > 1,
+        reincidente: (vencidosPorCliente[r.chaveCliente]?.size || 0) > 1,
         antiga: ehAntiga(r.vencimento),
         proximaAcao: proximaAcao(ov.motivoId, r.dias, config),
       };
@@ -275,6 +296,15 @@ export function calcContasAtrasadas(recebiveis, overrides, config, dsoHist = [],
   const porVendedor = Object.values(porVendedorMapa).sort((a, b) => b.valor - a.valor);
 
   return {
+    /* Vence nos próximos 7 dias: quantidade, valor e quantos são de quem JÁ
+       está devendo -- esse cruzamento é o que vira ligação preventiva. */
+    aVencer: {
+      lista: aVencer,
+      qtd: aVencer.length,
+      valor: aVencer.reduce((s2, r) => s2 + (r.valor || 0), 0),
+      deQuemJaDeve: aVencer.filter((r) => r.jaDeve).length,
+      valorDeQuemJaDeve: aVencer.filter((r) => r.jaDeve).reduce((s2, r) => s2 + (r.valor || 0), 0),
+    },
     // Inclui as antigas (marcadas com `antiga`); a tela as esconde por padrao.
     titulos: todosAtrasados,
     qtdAtivos: atrasados.length,
