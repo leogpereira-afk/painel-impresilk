@@ -777,14 +777,37 @@ export default function ContasAtrasadas() {
                               mao: ja falei com este cliente ou nao? */}
                           {!t.cobrado && <span className="apenas-impressao">a cobrar</span>}
                           {t.cobrado ? (
-                            <span className="chip chip-ok inline-flex items-center gap-1">
-                              <CheckCircle2 size={13} strokeWidth={2.4} />
-                              Cobrado
+                            /* CARIMBO COM DATA E COM VOLTA.
+                               Antes era um chip morto: sem data, sem desfazer em
+                               lugar nenhum do app, e a linha sumia no instante do
+                               clique quando o filtro "Pendentes" estava ligado —
+                               a lista pulava e o clique seguinte caía no cliente
+                               errado. Agora diz HÁ QUANTO TEMPO foi cobrado, que
+                               é o que separa "acabei de falar" de "falei há 20
+                               dias e não pagou". */
+                            <span className="inline-flex items-center gap-1.5">
+                              <span className="chip chip-ok inline-flex items-center gap-1">
+                                <CheckCircle2 size={13} strokeWidth={2.4} />
+                                {t.cobradoHa == null
+                                  ? "Cobrado"
+                                  : t.cobradoHa === 0
+                                    ? "Cobrado hoje"
+                                    : `Cobrado há ${t.cobradoHa}d`}
+                              </span>
+                              <button
+                                className="sem-impressao text-xs text-slate-400 underline underline-offset-2 hover:text-slate-700"
+                                onClick={() => setOverrideRecebivel(t.id, { cobrado: false, cobradoEm: "" })}
+                                title="Desmarcar"
+                              >
+                                desfazer
+                              </button>
                             </span>
                           ) : (
                             <button
                               className="sem-impressao inline-flex h-8 items-center gap-1.5 rounded-lg border border-transparent px-2.5 font-display text-sm font-medium text-slate-500 transition-all duration-150 hover:border-brand-200 hover:bg-brand-50 hover:text-brand-700"
-                              onClick={() => setOverrideRecebivel(t.id, { cobrado: true })}
+                              onClick={() =>
+                                setOverrideRecebivel(t.id, { cobrado: true, cobradoEm: ymdLocal(new Date()) })
+                              }
                             >
                               <CheckCircle2 size={14} strokeWidth={2.2} />
                               Marcar cobrado

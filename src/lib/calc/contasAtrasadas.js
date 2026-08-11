@@ -148,6 +148,12 @@ export function calcContasAtrasadas(recebiveis, overrides, config, dsoHist = [],
         grupoNome: motivo ? grupoNome(motivo.grupo) : "Sem classificacao",
         tag: motivo?.tag || null,
         cobrado: !!ov.cobrado,
+        /* HÁ QUANTOS DIAS foi cobrado. `null` = marcado antes de existir data
+           (as marcações antigas não têm), e a tela diz só "Cobrado".
+           É esta conta que separa "acabei de falar com ele" de "falei há vinte
+           dias e o dinheiro não entrou" -- a segunda é a cobrança que mais
+           rende, e até aqui ela não existia na tela. */
+        cobradoHa: ov.cobradoEm ? diasEntre(ov.cobradoEm, hojeISO) : null,
         observacao: ov.observacao || "",
         reincidente: (vencidosPorCliente[r.chaveCliente] || 0) > 1,
         antiga: ehAntiga(r.vencimento),

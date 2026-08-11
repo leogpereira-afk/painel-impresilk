@@ -768,11 +768,22 @@ export default function Orcamentos() {
 
       {/* KPIs: clicaveis, filtram a lista -- viram cartoes mortos no papel */}
       <div className="sem-impressao grid grid-cols-1 gap-4 sm:grid-cols-3">
+        {/* OS CARTÕES FALAM DE FECHAMENTO, NÃO DE ESTOQUE.
+            "Na mesa" era um saldo parado; o que decide o dia é quanto DAQUILO
+            já venceu — proposta vencida não é fila, é perda em curso. E a
+            conversão em porcentagem não paga conta: ao lado dela vai o dinheiro
+            ganho contra o que esteve em jogo. Nenhum número novo foi calculado:
+            `vencidosValor`, `margemEmRisco` e `ganhosValor` já saíam do calc
+            (lib/calc/orcamentos.js:267-278) e a tela os ignorava. */}
         <StatCard
           rotulo="Na mesa"
           valor={moeda(k.naMesaValor)}
-          sub={numero(k.naMesaQtd) + " orçamentos aguardando"}
-          tom="brand"
+          sub={
+            k.vencidosQtd
+              ? `${numero(k.naMesaQtd)} aguardando · ${numero(k.vencidosQtd)} já venceram (${moeda(k.vencidosValor)})`
+              : `${numero(k.naMesaQtd)} aguardando · ${moeda(k.margemEmRisco)} de margem em jogo`
+          }
+          tom={k.vencidosQtd ? "warn" : "brand"}
           icone={FileText}
           ativo={situacao === "aberto"}
           onClick={() => alternarSituacao("aberto")}
@@ -780,7 +791,7 @@ export default function Orcamentos() {
         <StatCard
           rotulo="Conversão do time"
           valor={pct(k.conversao)}
-          sub={numero(k.ganhosQtd) + " ganhos, " + numero(k.perdidosQtd) + " perdidos"}
+          sub={`${moeda(k.ganhosValor)} fechados de ${moeda(k.ganhosValor + k.valorPerdido)} decididos`}
           tom={k.conversao >= 40 ? "ok" : "warn"}
           icone={Percent}
           ativo={situacao === "ganho"}
@@ -789,7 +800,14 @@ export default function Orcamentos() {
         <StatCard
           rotulo="Valor perdido no período"
           valor={moeda(k.valorPerdido)}
-          sub={numero(k.perdidosQtd) + " orçamentos que não fecharam"}
+          sub={
+            // `motivoLider` é o OBJETO do motivo (porMotivoPerda[0]), não o
+            // texto: interpolar ele direto imprimiria [object Object] na tela,
+            // com lint e build verdes.
+            vm.motivoLider?.nome
+              ? `${numero(k.perdidosQtd)} não fecharam · o campeão é "${vm.motivoLider.nome}"`
+              : `${numero(k.perdidosQtd)} orçamentos que não fecharam`
+          }
           tom="bad"
           icone={TrendingDown}
           ativo={situacao === "perdido"}

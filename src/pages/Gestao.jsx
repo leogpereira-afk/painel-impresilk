@@ -735,7 +735,17 @@ function BlocoAtas({ dados, papel, aoRecarregar, aoAvisar }) {
   const criar = async (e) => {
     e.preventDefault();
     try {
-      const criada = await salvarReuniao(nova);
+      /* O CAMPO ERA DIGITADO E JOGADO FORA.
+         A tela guardava `participantesTexto` e mandava o objeto inteiro; o
+         servidor lê `participantes` (painel-gestao/index.ts:460) e gravava `[]`.
+         Como o gestor só enxerga ata em que o nome dele consta (:185-196),
+         NENHUMA ata chegava a ninguém — e o texto embaixo do campo prometia
+         justamente o contrário. */
+      const participantes = String(nova.participantesTexto || "")
+        .split(",")
+        .map((p) => p.trim())
+        .filter(Boolean);
+      const criada = await salvarReuniao({ ...nova, participantes });
       setNova(null); setAberta(criada.id); await aoRecarregar();
     } catch (err) { aoAvisar({ tom: "erro", texto: err.message }); }
   };
