@@ -29,7 +29,7 @@ import {
 import {
   SITUACOES, porObjetivo, alertaDeCiclo, cumprimentoDecisoes, pautaSugerida,
 } from "../lib/calc/gestao.js";
-import { dataCurta, dataLonga, ymdLocal, numero } from "../lib/format.js";
+import { dataCurta, dataLonga, ymdLocal, numero, diasEntre } from "../lib/format.js";
 import { Card, PageTitle, Empty, CarregandoModulo, ErroModulo } from "../components/ui.jsx";
 import EsquemaTatico from "../components/EsquemaTatico.jsx";
 
@@ -109,6 +109,89 @@ const plural = (n, um, muitos) => `${n} ${n === 1 ? um : muitos}`;
 
 const chaveNome = (s) =>
   String(s ?? "").normalize("NFD").replace(/[̀-ͯ]/g, "").trim().toLowerCase();
+
+/* ============================================================ COMO ESTAMOS
+   A faixa de saúde: uma linha, quatro respostas, cor por situação.
+   Cada número leva para a aba onde ele se resolve -- número que não leva a
+   lugar nenhum vira enfeite, e a tela volta a ser um relatório.
+
+   Vem do que os produtos de OKR aprenderam: o executivo não abre a ferramenta
+   para navegar, abre para saber se está no rumo. Se a resposta exige clicar em
+   cinco abas, ele para de abrir.
+   ========================================================================= */
+function Pino({ rotulo, valor, sub, tom, aoClicar }) {
+  const cor =
+    tom === "bad" ? "text-bad-700" : tom === "warn" ? "text-warn-700"
+      : tom === "ok" ? "text-ok-700" : "text-slate-900";
+  return (
+    <button
+      type="button"
+      onClick={aoClicar}
+      className="min-w-[8rem] flex-1 rounded-xl border px-3 py-2 text-left transition-colors hover:bg-slate-50"
+      style={{ borderColor: "var(--hairline)" }}
+    >
+      <span className="label block">{rotulo}</span>
+      <span className={`font-display text-xl font-bold ${cor}`}>{valor}</span>
+      <span className="block text-xs text-slate-500">{sub}</span>
+    </button>
+  );
+}
+
+function Saude({ dados, hojeISO, aoIr }) {
+  const objetivos = dados?.objetivos || [];
+  const taticas = dados?.taticas || [];
+  const decisoes = dados?.decisoes || [];
+  const reunioes = dados?.reunioes || [];
+
+  const abertas = taticas.filter((t) => t.status !== "concluida");
+  const atrasadas = abertas.filter((t) => t.prazo && t.prazo < hojeISO).length;
+  const semDono = abertas.filter((t) => !t.responsavel).length;
+  const decisoesAbertas = decisoes.filter((d) => d.status === "aberta").length;
+  const ultima = reunioes.map((r) => r.data).filter(Boolean).sort().pop() || "";
+  const diasSemReuniao = ultima ? diasEntre(ultima, hojeISO) : null;
+
+  // Sem plano do ano, a faixa não tem o que dizer: a tela abre no convite.
+  if (!objetivos.length && !taticas.length && !reunioes.length) return null;
+
+  return (
+    <div className="flex flex-wrap gap-2">
+      <Pino
+        rotulo="Objetivos do ano"
+        valor={objetivos.length || "—"}
+        sub={objetivos.length ? "no plano" : "nenhum escrito"}
+        tom={objetivos.length ? "neutral" : "warn"}
+        aoClicar={() => aoIr("plano")}
+      />
+      <Pino
+        rotulo="Táticas atrasadas"
+        valor={atrasadas}
+        sub={`${abertas.length} em andamento`}
+        tom={atrasadas ? "bad" : "ok"}
+        aoClicar={() => aoIr("tatico")}
+      />
+      <Pino
+        rotulo="Sem dono"
+        valor={semDono}
+        sub={semDono ? "ninguém assumiu" : "todas com responsável"}
+        tom={semDono ? "warn" : "ok"}
+        aoClicar={() => aoIr("tatico")}
+      />
+      <Pino
+        rotulo="Decisões em aberto"
+        valor={decisoesAbertas}
+        sub={
+          diasSemReuniao == null
+            ? "nenhuma reunião ainda"
+            : diasSemReuniao <= 0
+              ? "reunião hoje"
+              : `última reunião há ${diasSemReuniao} dias`
+        }
+        tom={diasSemReuniao != null && diasSemReuniao > 14 ? "warn" : decisoesAbertas ? "neutral" : "ok"}
+        aoClicar={() => aoIr("atas")}
+      />
+    </div>
+  );
+}
 
 function montarTime(equipe, taticas, decisoes, hojeISO) {
   const porPessoa = new Map();
@@ -1299,6 +1382,14 @@ export default function Gestao() {
         titulo="Gestão"
         descricao="Identidade, plano do ano, o que está sendo feito agora e o que ficou decidido. Não é painel de produção: é direção."
       />
+
+      {/* COMO ESTAMOS — a resposta antes das abas.
+          As abas mostram uma fatia por vez, e quem dirige abre esta tela para
+          responder UMA pergunta: estamos no rumo? Hoje isso exigia visitar as
+          cinco abas e montar a resposta de cabeça. É o padrão que os produtos
+          de OKR convergiram: a saúde no topo, cor por situação, e o detalhe
+          atrás de um clique — não o contrário. */}
+      <Saude dados={dados} hojeISO={hojeISO} aoIr={trocarAba} />
 
       <Abas
         blocos={BLOCOS}
