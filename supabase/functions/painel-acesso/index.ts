@@ -82,7 +82,21 @@ async function chamarEquipe(corpo: Record<string, unknown>) {
     body: JSON.stringify(corpo),
   });
   const b = await r.json().catch(() => null);
-  return { ok: r.ok && b?.ok !== false, erro: b?.erro ?? (r.ok ? "" : `HTTP ${r.status}`) };
+  // `descartados` = modulo pedido que a equipe-auth nao conhece. Ela ja filtrava
+  // isso em silencio: a caixa era marcada, a resposta vinha {ok:true} e a pessoa
+  // nao ganhava acesso nenhum. Aqui vira ERRO, com o nome do que caiu.
+  // `descartados` = modulo pedido que a equipe-auth nao conhece. Recusar tudo
+  // seria mentira ao contrario: os validos JA foram gravados la, e a tabela
+  // daqui ficaria para tras. Entao a escrita vale, e o aviso sobe junto.
+  const perdidos: string[] = Array.isArray(b?.descartados) ? b.descartados : [];
+  return {
+    ok: r.ok && b?.ok !== false,
+    erro: b?.erro ?? (r.ok ? "" : `HTTP ${r.status}`),
+    aviso: perdidos.length
+      ? `O servidor nao conhece: ${perdidos.join(", ")} — esses NAO foram concedidos.`
+      : "",
+    descartados: perdidos,
+  };
 }
 
 // No RH a chave da conta e o NOME COMPLETO da pessoa: perfis.usuario e casado
@@ -362,16 +376,20 @@ Deno.serve(async (req: Request) => {
         });
         if (!r.ok) return resposta({ erro: r.erro || "Nao consegui dar esse acesso." }, 400);
 
+        // Guarda o que de fato foi aceito la, nao o que foi pedido: gravar o
+        // pedido inteiro faria esta tabela afirmar um acesso que nao existe.
+        const pedidas = Array.isArray(p.permissoes) ? p.permissoes : [];
+        const aceitas = pedidas.filter((x: string) => !(r.descartados ?? []).includes(x));
         const { error } = await sb.from("acesso_papel").upsert({
           conta_id: id,
           sistema,
           papel: texto(p.papel, 40),
-          permissoes: Array.isArray(p.permissoes) ? p.permissoes : [],
+          permissoes: aceitas,
           vendedor_id: texto(p.vendedorId, 120),
           ativo: p.ativo !== false,
         }, { onConflict: "conta_id,sistema" });
         if (error) throw new Error(error.message);
-        return resposta({ ok: true, senha: senha || undefined });
+        return resposta({ ok: true, senha: senha || undefined, aviso: r.aviso || undefined });
       }
 
       case "removerPapel": {

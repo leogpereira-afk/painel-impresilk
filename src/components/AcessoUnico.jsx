@@ -231,7 +231,10 @@ function Conta({ c, sistemas, colaboradores, aoMudar, aoAvisar, aoSenha }) {
 
   const trocarModulos = async (permissoes) => {
     try {
-      await salvarPapel({ usuario: c.usuario, sistema: "painel", papel: "", permissoes });
+      const r = await salvarPapel({ usuario: c.usuario, sistema: "painel", papel: "", permissoes });
+      // Modulo que o servidor nao conhece era descartado calado: a caixa ficava
+      // marcada e a pessoa nao ganhava nada.
+      if (r?.aviso) aoAvisar({ tom: "erro", texto: r.aviso });
       await aoMudar();
     } catch (err) { aoAvisar({ tom: "erro", texto: err.message }); }
   };
