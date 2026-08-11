@@ -67,6 +67,9 @@ const VAZIA = { usuario: "", nome: "", tipo: "pessoa", colaborador: "" };
 function NovaPessoa({ sistemas, aoCriar, aoCancelar }) {
   const [f, setF] = useState(VAZIA);
   const [papeis, setPapeis] = useState({});
+  // O Painel nao tem papel: tem lista de partes. Sem escolher aqui, a pessoa
+  // nascia com acesso a NADA dentro do painel -- entrava e nao via tela nenhuma.
+  const [modulos, setModulos] = useState([]);
   const [salvando, setSalvando] = useState(false);
 
   const alternar = (sis) =>
@@ -81,7 +84,9 @@ function NovaPessoa({ sistemas, aoCriar, aoCancelar }) {
     e.preventDefault();
     setSalvando(true);
     try {
-      await aoCriar(f, Object.entries(papeis).map(([sistema, papel]) => ({ sistema, papel })));
+      await aoCriar(f, Object.entries(papeis).map(([sistema, papel]) => ({
+        sistema, papel, ...(sistema === "painel" ? { permissoes: modulos } : {}),
+      })));
     } finally {
       setSalvando(false);
     }
@@ -135,6 +140,11 @@ function NovaPessoa({ sistemas, aoCriar, aoCancelar }) {
                   onChange={(e) => setPapeis((p) => ({ ...p, [sis]: e.target.value }))}>
                   {PAPEIS[sis].map((o) => <option key={o} value={o}>{o}</option>)}
                 </select>
+              )}
+              {papeis[sis] !== undefined && sis === "painel" && (
+                <div className="w-full">
+                  <ModulosDoPainel permissoes={modulos} aoMudar={setModulos} />
+                </div>
               )}
             </div>
           ))}
