@@ -250,10 +250,49 @@ function Compositor({ enviando, aoEnviar }) {
   );
 }
 
+// As datas do remarcar rápido. Local, nunca UTC: `new Date().toISOString()`
+// devolve o dia de AMANHÃ depois das 21h aqui, e o compromisso nasceria um dia
+// à frente sem ninguém entender.
+function maisDias(n) {
+  const d = new Date();
+  d.setDate(d.getDate() + n);
+  return ymdLocal(d);
+}
+function proximaSegunda() {
+  const d = new Date();
+  // 1 = segunda. Se hoje já é segunda, vai para a semana que vem.
+  d.setDate(d.getDate() + ((8 - d.getDay()) % 7 || 7));
+  return ymdLocal(d);
+}
+
 function Linha({ c, sessao, ehDirecao, dePessoa, equipe, encaminhando, setEncaminhando,
+                 remarcando, setRemarcando,
                  conversaAberta, setConversaAberta, enviando, acoes }) {
   const donoDe = (x) => x.dono ?? sessao?.usuario ?? "";
     const Icone = c.t.icone;
+
+    // O último evento da conversa, resumido para caber numa linha.
+    const hist = Array.isArray(c.historico) ? c.historico : [];
+    const ult = hist[hist.length - 1];
+    const diasSemNovidade = ult?.em ? diasEntre(String(ult.em).slice(0, 10), ymdLocal(new Date())) : null;
+    const ultimaNovidade = ult
+      ? {
+          quem: ult.quemNome || ult.quem || "alguém",
+          quando:
+            diasSemNovidade == null ? "" : diasSemNovidade <= 0 ? "hoje" : `há ${diasSemNovidade}d`,
+          texto: String(ult.texto || "").trim().slice(0, 90),
+        }
+      : null;
+    /* O aviso de parado só vale onde ele quer dizer alguma coisa: um
+       compromisso marcado para daqui a duas semanas está parado por desenho.
+       Em Atrasados e Sem data, parado é problema. */
+    const paradoHa =
+      !c.feito &&
+      (c.pz.grupo === "Atrasados" || c.pz.grupo === "Sem data marcada") &&
+      diasSemNovidade != null &&
+      diasSemNovidade >= 3
+        ? diasSemNovidade
+        : null;
     const quantos = Array.isArray(c.historico)
       ? c.historico.filter((e) => e.tipo === "recado" || e.tipo === "passou").length
       : 0;
@@ -303,13 +342,67 @@ function Linha({ c, sessao, ehDirecao, dePessoa, equipe, encaminhando, setEncami
               .filter(Boolean)
               .join(" · ")}
           </span>
+
+          {/* ANDANDO OU PARADO — a pergunta que a linha não respondia.
+              Para saber se um atrasado está esperando o cliente ou se ninguém
+              tocou nele, era preciso abrir a conversa de cada um: a linha só
+              mostrava a QUANTIDADE de recados, que não distingue "falei ontem"
+              de "cinco recados em março". O último evento já veio no mesmo
+              carregamento; era só mostrar. */}
+          {ultimaNovidade && (
+            <span className="block truncate text-xs text-slate-400">
+              <span className="font-medium text-slate-500">{ultimaNovidade.quem}</span>
+              {ultimaNovidade.quando ? `, ${ultimaNovidade.quando}` : ""}
+              {ultimaNovidade.texto ? `: ${ultimaNovidade.texto}` : ""}
+            </span>
+          )}
+          {paradoHa != null && (
+            <span className="chip-warn mt-1 inline-block">sem novidade há {paradoHa} dias</span>
+          )}
         </span>
 
         <span className="shrink-0 text-right">
-          {!c.feito && <span className={`${c.pz.chip} whitespace-nowrap`}>{c.pz.texto}</span>}
-          <span className="mt-0.5 block text-xs tabular-nums text-slate-500">
-            {c.data ? `${dataCurta(c.data)}${c.hora ? ` as ${c.hora}` : ""}` : "sem data"}
-          </span>
+          {remarcando === c.id ? (
+            /* Seletor no LUGAR da etiqueta — o mesmo gesto do encaminhar logo
+               ao lado: escolher já remarca, sem formulário e sem perder o
+               lugar na lista. */
+            <select
+              autoFocus
+              className="input h-8 w-36 py-0 text-xs"
+              defaultValue=""
+              onChange={(e) => {
+                const v = e.target.value;
+                if (!v) return;
+                setRemarcando(null);
+                if (v === "escolher") return acoes.abrirForm(c);
+                acoes.remarcar(c, v);
+              }}
+              onBlur={() => setRemarcando(null)}
+            >
+              <option value="" disabled>Remarcar para...</option>
+              <option value={maisDias(0)}>Hoje</option>
+              <option value={maisDias(1)}>Amanhã</option>
+              <option value={proximaSegunda()}>Segunda</option>
+              <option value={maisDias(7)}>Daqui a 7 dias</option>
+              <option value="escolher">Escolher data...</option>
+            </select>
+          ) : (
+            <>
+              {!c.feito && (
+                <button
+                  type="button"
+                  onClick={() => setRemarcando(c.id)}
+                  title="Remarcar"
+                  className={`${c.pz.chip} whitespace-nowrap transition-opacity hover:opacity-75`}
+                >
+                  {c.pz.texto}
+                </button>
+              )}
+              <span className="mt-0.5 block text-xs tabular-nums text-slate-500">
+                {c.data ? `${dataCurta(c.data)}${c.hora ? ` as ${c.hora}` : ""}` : "sem data"}
+              </span>
+            </>
+          )}
         </span>
 
         <span className="flex shrink-0 items-center gap-0.5">
@@ -411,6 +504,7 @@ export default function Compromissos() {
   const [verFeitos, setVerFeitos] = useState(false);
   const [equipe, setEquipe] = useState([]);
   const [encaminhando, setEncaminhando] = useState(null); // id da linha aberta
+  const [remarcando, setRemarcando] = useState(null);     // id da linha remarcando
   const [conversaAberta, setConversaAberta] = useState(null); // id da conversa expandida
   const [enviando, setEnviando] = useState(null); // id do recado em envio
   // Item sem dono so acontece em registro antigo (anterior ao carimbo do
@@ -470,7 +564,22 @@ export default function Compromissos() {
       })
       .filter((c) => !dePessoa || c.dono === dePessoa);
 
-    const abertos = todos.filter((c) => !c.feito).sort((a, b) => a.pz.peso - b.pz.peso);
+    /* O DIA SAI NA ORDEM DO RELÓGIO.
+       A hora era cadastrada, aparecia na linha e não ordenava nada: dentro de
+       "Hoje" todo item tem peso 0, o sort empatava e a ordem que sobrava era a
+       de chegada. Quem abre a tela de manhã lê de cima para baixo e a lista
+       mandava ele para a reunião das 15h antes da visita das 8h.
+       Sem hora vai para o fim do dia ("99:99"), que é onde ela cabe: é o que
+       não tem hora marcada. */
+    const horaDe = (c) => String(c.hora || "99:99");
+    const abertos = todos
+      .filter((c) => !c.feito)
+      .sort(
+        (a, b) =>
+          a.pz.peso - b.pz.peso ||
+          horaDe(a).localeCompare(horaDe(b)) ||
+          String(a.criadoEm || "").localeCompare(String(b.criadoEm || ""))
+      );
     const feitos = todos
       .filter((c) => c.feito)
       .sort((a, b) => String(b.feitoEm || "").localeCompare(String(a.feitoEm || "")));
@@ -490,12 +599,22 @@ export default function Compromissos() {
     // ABERTO -- e o numero que responde "quem esta afogada?".
     const pessoas = [...new Set(Object.values(mapa).map((c) => c.dono).filter(Boolean))].map((d) => {
       const doDono = Object.values(mapa).filter((c) => c.dono === d);
+      /* O CHIP CONTAVA VOLUME, NÃO PROBLEMA.
+         "12 em aberto" não responde "quem está afogada?": pode ser doze visitas
+         agendadas para o mês, tudo sob controle. Quem responde é o ATRASADO.
+         Agora o chip mostra os dois — atrasados em vermelho, total ao lado — e
+         a lista vem ordenada por atrasado primeiro. */
+      const abertos = doDono.filter((c) => !c.feito);
+      const atrasados = abertos.filter(
+        (c) => c.data && diasEntre(ymdLocal(new Date()), c.data) < 0
+      ).length;
       return {
         dono: d,
         nome: doDono.find((c) => c.donoNome)?.donoNome || d,
-        emAberto: doDono.filter((c) => !c.feito).length,
+        emAberto: abertos.length,
+        atrasados,
       };
-    });
+    }).sort((a, b) => b.atrasados - a.atrasados || b.emAberto - a.emAberto);
 
     return {
       grupos,
@@ -695,8 +814,26 @@ export default function Compromissos() {
 
   // Um objeto so com o que a Linha chama de volta. useMemo nao e otimizacao
   // aqui: sem ele, o objeto muda a cada render e as linhas remontam junto.
+  /* REMARCAR EM UM TOQUE.
+     Adiar é o gesto mais repetido da manhã: o que ficou de ontem vira hoje ou
+     amanhã. Só existia pelo lápis, que abre o formulário no topo e rola a
+     página até ele — e depois a pessoa tem de procurar onde estava na lista.
+     Enquanto adiar custa isso, ninguém adia, e a agenda de verdade continua no
+     papel. Grava só a data, otimista, com volta se o servidor recusar. */
+  const remarcar = async (c, novaData) => {
+    setAviso(null);
+    const antes = c.data || "";
+    setMapa((m) => ({ ...(m || {}), [c.id]: { ...m[c.id], data: novaData } }));
+    try {
+      await salvarCompromisso(c.id, { data: novaData });
+    } catch (err) {
+      setMapa((m) => ({ ...(m || {}), [c.id]: { ...m[c.id], data: antes } }));
+      setAviso({ tom: "erro", texto: err.message });
+    }
+  };
+
   const acoes = useMemo(
-    () => ({ alternarFeito, abrirForm, remover, encaminhar, enviarRecado, baixarAnexo, mandarWhatsApp }),
+    () => ({ alternarFeito, abrirForm, remover, encaminhar, enviarRecado, baixarAnexo, mandarWhatsApp, remarcar }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [mapa, form, equipe, dePessoa, sessao]
   );
@@ -784,7 +921,19 @@ export default function Compromissos() {
                 }`}
               >
                 {p.nome}
-                {p.emAberto > 0 && <span className="ml-1 opacity-70">{p.emAberto}</span>}
+                {/* Atrasados primeiro, em vermelho: é o número que responde
+                    "quem está afogada?". O total em aberto fica ao lado, em
+                    cinza — ele conta volume, não problema. */}
+                {p.atrasados > 0 && (
+                  <span className={`ml-1.5 ${dePessoa === p.dono ? "text-white" : "text-bad-700"}`}>
+                    {p.atrasados}
+                  </span>
+                )}
+                {p.emAberto > 0 && (
+                  <span className="ml-1 opacity-60">
+                    {p.atrasados > 0 ? "/" : ""}{p.emAberto}
+                  </span>
+                )}
               </button>
             ))}
           </>
@@ -915,6 +1064,8 @@ export default function Compromissos() {
                   equipe={equipe}
                   encaminhando={encaminhando}
                   setEncaminhando={setEncaminhando}
+                  remarcando={remarcando}
+                  setRemarcando={setRemarcando}
                   conversaAberta={conversaAberta}
                   setConversaAberta={setConversaAberta}
                   enviando={enviando === c.id}
@@ -955,6 +1106,8 @@ export default function Compromissos() {
                   equipe={equipe}
                   encaminhando={encaminhando}
                   setEncaminhando={setEncaminhando}
+                  remarcando={remarcando}
+                  setRemarcando={setRemarcando}
                   conversaAberta={conversaAberta}
                   setConversaAberta={setConversaAberta}
                   enviando={enviando === c.id}
