@@ -220,6 +220,12 @@ function quandoBR(iso) {
 }
 
 // Ultimo backup de CADA sistema, e onde esta salvo.
+// Quantas horas desde o ultimo backup gravado.
+function horasDesde(iso) {
+  const t = Date.parse(iso || "");
+  return Number.isFinite(t) ? (Date.now() - t) / 36e5 : Infinity;
+}
+
 function UltimoBackup({ status }) {
   const sistemas = status?.sistemas || (status?.em ? { painel: status } : null);
   if (!sistemas) {
@@ -231,8 +237,24 @@ function UltimoBackup({ status }) {
     );
   }
   const linhas = Object.entries(sistemas);
+  /* O DISPARO DIÁRIO É CEGO: quem chama não lê a resposta, então uma noite
+     inteira pode passar sem gravar nada e nada muda de cor. Aqui a própria data
+     denuncia: passou de 36h, o aviso aparece. É o único lugar onde a direção
+     olharia. */
+  const maisVelho = Math.max(...linhas.map(([, sx]) => horasDesde(sx.em)));
+  const atrasado = maisVelho > 36;
   return (
     <div className="space-y-2">
+      {atrasado && (
+        <p className="flex items-start gap-2 rounded-lg bg-bad-50 px-3 py-2 text-sm text-bad-700">
+          <AlertTriangle size={15} className="mt-0.5 shrink-0" />
+          <span>
+            <b className="font-display">Backup atrasado.</b> O mais velho tem{" "}
+            {Number.isFinite(maisVelho) ? `${Math.round(maisVelho)} horas` : "data desconhecida"} —
+            o normal é rodar todo dia. Clique em “Rodar backup do hub agora” e veja se ele reclama.
+          </span>
+        </p>
+      )}
       <p className="text-sm text-slate-500">
         Salvo no repositório privado <strong>backups-impresilk</strong> no GitHub — um arquivo por
         dia, por sistema (versionado). {status?.atualizadoEm && `Última rodada: ${quandoBR(status.atualizadoEm)}.`}
@@ -406,8 +428,13 @@ function BackupDados() {
         <div className="mt-4 rounded-xl border border-warn-200 bg-warn-50 p-4">
           <p className="flex items-start gap-2 text-sm font-medium text-warn-700">
             <AlertTriangle size={15} className="mt-0.5 shrink-0" />
-            Restaurar vai gravar {pendente.nItens} registros e {pendente.nContas} contas por cima
-            do que existe hoje. O que já esta la e não esta no backup continua. Confirma?
+            Restaurar vai gravar {pendente.nItens} coleções e {pendente.nContas} contas por cima
+            do que existe hoje. O que já está lá e não está no backup continua.
+            <span className="mt-1 block font-normal">
+              <b>Cuidado com os acessos:</b> as contas voltam com a <b>senha e as permissões do dia
+              do backup</b>. Quem trocou de senha depois volta para a antiga; quem você desligou ou
+              rebaixou desde então <b>volta a entrar</b>. Confira a lista de acessos logo depois.
+            </span>
           </p>
           <div className="mt-3 flex gap-2">
             <button className="btn-primary" onClick={confirmarRestauro} disabled={restaurando}>

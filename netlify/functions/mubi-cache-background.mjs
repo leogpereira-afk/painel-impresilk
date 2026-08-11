@@ -347,6 +347,10 @@ export const chaveProduto = (nome) =>
 
 async function catalogoCategorias() {
   const catalogo = await mubiGetTudo("produto");
+  // Lista vazia nao e catalogo: o ERP pode responder 200 com [] e, seguindo,
+  // TODO item do ano viraria "Fora do catalogo". Melhor a carga completa falhar
+  // alto e o cache de ontem continuar valendo.
+  if (!catalogo.length) throw new Error("catalogo de produtos veio vazio");
   // Guarda a categoria CRUA (pode ser ""). Quem decide o rotulo e o normOS:
   // categoria vazia no ERP e produto fora do catalogo sao problemas diferentes.
   return new Map(catalogo.map((p) => [chaveProduto(p.nome), String(p.categoria || "").trim()]));
