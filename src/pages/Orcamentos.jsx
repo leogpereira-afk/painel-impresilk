@@ -894,11 +894,19 @@ export default function Orcamentos() {
             <table className="w-full min-w-[640px] border-collapse">
               <thead>
                 <tr>
+                  {/* MARGEM E "SEM RETORNO" — o calc já somava as duas e a
+                      tabela ignorava. Faturamento e lucro são rankings
+                      diferentes: o campeão de valor pode ser o último em
+                      margem. E "sem retorno" é o argumento da conversa
+                      individual — a casa já sabe que 76% das perdas é
+                      follow-up, não preço. */}
                   <th className="th text-left">Vendedor</th>
                   <th className="th text-right">Orçamentos</th>
                   <th className="th text-right">Valor</th>
                   <th className="th text-right">Ganhos</th>
+                  <th className="th text-right">Margem ganha</th>
                   <th className="th text-right">Perdidos</th>
+                  <th className="th text-right">Sem retorno</th>
                   <th className="th text-right">Conversão</th>
                   <th className="th text-right"></th>
                 </tr>
@@ -933,7 +941,14 @@ export default function Orcamentos() {
                       <td className="td tnum text-right">{numero(v.qtd)}</td>
                       <td className="td tnum text-right">{moeda(v.valor)}</td>
                       <td className="td tnum text-right text-ok-700">{numero(v.ganhos)}</td>
+                      <td className="td tnum text-right text-ok-700">{moeda(v.margemGanha)}</td>
                       <td className="td tnum text-right text-bad-700">{numero(v.perdidos)}</td>
+                      <td
+                        className="td tnum text-right text-warn-700"
+                        title="Perdidos por falta de retorno — o que se resolve com follow-up, não com desconto"
+                      >
+                        {v.semRetorno ? numero(v.semRetorno) : "—"}
+                      </td>
                       <td className={"td tnum text-right font-semibold " + corConv}>
                         {semDados ? "-" : pct(v.conversao)}
                       </td>
@@ -1157,7 +1172,19 @@ export default function Orcamentos() {
                                   })
                                 }
                               >
-                                <option value="">Motivo não informado</option>
+                                {/* O ERP manda o motivo em TEXTO, sem id. O
+                                    seletor casa por `motivoPerdaId`, que só
+                                    existe quando alguém classificou À MÃO — e
+                                    o vazio vinha rotulado "não informado"
+                                    mesmo quando o motivo estava lá, vindo do
+                                    ERP. O gestor concluía que o time não
+                                    classifica e saía reclassificando à mão
+                                    dado que já existia. */}
+                                <option value="">
+                                  {o.motivoPerdaNome
+                                    ? `${o.motivoPerdaNome} (do sistema)`
+                                    : "Motivo não informado"}
+                                </option>
                                 {motivos.map((m) => (
                                   <option key={m.id} value={m.id}>
                                     {m.nome}
