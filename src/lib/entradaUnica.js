@@ -94,6 +94,13 @@ export async function entradaUnica(usuario, senha) {
   const corpo = await resp.json().catch(() => null);
   if (!corpo?.ok) return null;
 
+  /* PLANTAR SO DEPOIS DE SABER QUE ELA ENTRA NO PAINEL.
+     Antes os crachas dos outros cinco eram gravados aqui e a funcao so
+     devolvia `null` na linha seguinte quando faltava o painel -- o login
+     falhava, a tela dizia "senha incorreta", e a pessoa saia dali com acesso
+     plantado aos outros sistemas no computador. */
+  if (!corpo.crachas?.painel) return null;
+
   const plantados = plantarCrachas(corpo.crachas);
   try {
     // O RH nao ganha cracha nosso (la o cracha e a sessao do Supabase Auth), mas

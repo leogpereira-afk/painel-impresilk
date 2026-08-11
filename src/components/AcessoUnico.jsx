@@ -185,21 +185,35 @@ function ModulosDoPainel({ permissoes, aoMudar }) {
   // Descarta na LEITURA o que nao existe mais (fluxo-caixa, produtos). Sem isto,
   // marcar qualquer caixa reenviaria o id aposentado junto e a tela levaria um
   // aviso de erro por causa de um dado velho que ela mesma carregou.
-  const atuais = somenteValidos(permissoes);
+  const doServidor = somenteValidos(permissoes);
+
+  /* ESTADO LOCAL, senao dois cliques seguidos perdem o primeiro.
+     Cada clique montava a lista nova a partir da prop, que so muda quando o
+     servidor responde e a lista inteira recarrega. Marcando duas caixas rapido,
+     a segunda partia da lista ANTIGA e apagava a primeira -- e a tela mostrava
+     o resultado errado como se fosse o certo. */
+  const [local, setLocal] = useState(null);
+  const atuais = local ?? doServidor;
+  // Quando o servidor responde, ele passa a mandar de novo.
+  useEffect(() => { setLocal(null); }, [permissoes]);
+
   const total = atuais.includes("*");
+  const aplicar = (lista) => { setLocal(lista); aoMudar(lista); };
   const marcar = (id) =>
-    aoMudar(atuais.includes(id) ? atuais.filter((x) => x !== id) : [...atuais, id]);
+    aplicar(atuais.includes(id) ? atuais.filter((x) => x !== id) : [...atuais, id]);
 
   return (
     <div className="mt-2 rounded-lg bg-slate-50 p-3">
       <label className="flex cursor-pointer items-start gap-2 text-sm">
         <input type="checkbox" checked={total}
-          onChange={() => aoMudar(total ? [] : ["*"])}
+          onChange={() => aplicar(total ? [] : ["*"])}
           className="mt-0.5 h-4 w-4 rounded border-slate-300 text-brand focus:ring-brand-200" />
         <span>
           <b className="font-display">Acesso total</b>
           <span className="block text-xs text-slate-500">
-            tudo o que existe no painel, inclusive o que vier depois
+            tudo o que existe no painel, inclusive o que vier depois — e mais:
+            quem tem isto <b>cadastra e tira o acesso de todo mundo, nos sete sistemas</b>,
+            por esta mesma tela. É o poder da direção.
           </span>
         </span>
       </label>
@@ -268,6 +282,10 @@ function Conta({ c, sistemas, colaboradores, aoMudar, aoAvisar, aoSenha }) {
   };
 
   const trocarModulos = async (permissoes) => {
+    if (permissoes.includes("*") &&
+        !confirm(`Dar ACESSO TOTAL a ${c.nome || c.usuario}?\n\nAlém de ver tudo no painel, ela passa a cadastrar e tirar o acesso de qualquer pessoa, nos sete sistemas.`)) {
+      return;
+    }
     try {
       const r = await salvarPapel({ usuario: c.usuario, sistema: "painel", papel: "", permissoes });
       // Modulo que o servidor nao conhece era descartado calado: a caixa ficava

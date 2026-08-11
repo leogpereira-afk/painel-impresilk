@@ -138,11 +138,17 @@ async function janelaDe7Dias() {
      mentir com cara de verdade (foi o bug do balde "Outros", R$609 mil).
      Entao a classificacao e reconstruida a partir do que ja esta no cache. */
   let categoriaPorNome = new Map();
+  let catalogoOk = true;
   try {
     const catalogo = await mubiGetTudo("produto");
+    // LISTA VAZIA NAO E CATALOGO. O ERP pode responder 200 com [] (janela de
+    // manutencao, filtro que mudou); seguir com o mapa vazio faria TODO item
+    // virar "Fora do catalogo" -- sem excecao nenhuma para o try pegar.
+    if (!catalogo.length) throw new Error("catalogo veio vazio");
     categoriaPorNome = new Map(
       catalogo.map((p) => [chaveProduto(p.nome), String(p.categoria || "").trim()]));
   } catch (e) {
+    catalogoOk = false;
     console.warn("catalogo de produtos indisponivel:", e?.message || e);
     for (const o of mapaOS.values()) {
       for (const it of o.itens ?? []) {
@@ -161,6 +167,22 @@ async function janelaDe7Dias() {
     console.warn(`classificando por ${categoriaPorNome.size} produtos ja conhecidos`);
   }
 
+  /* SEM CATALOGO, NAO SE INVENTA CLASSIFICACAO NOVA.
+     A base reconstruida so conhece o que ja passou por aqui. Produto NOVO nao
+     esta nela e viraria "Fora do catalogo" -- e esse rotulo seria GRAVADO,
+     virando a base da rodada seguinte: o erro se cimenta e nunca mais sai
+     sozinho. Enquanto o ERP nao volta, item desconhecido fica com a
+     classificacao que a O.S. ja tinha (ou sem nenhuma), nunca com a sentinela. */
+  const guardarCategoria = catalogoOk ? null : (o) => {
+    const antes = mapaOS.get(o.id);
+    for (const it of o.itens ?? []) {
+      if (it.categoria !== FORA_CATALOGO) continue;
+      const igual = (antes?.itens ?? []).find((x) => x.produto === it.produto);
+      it.categoria = igual?.categoria ?? "";
+    }
+    return o;
+  };
+
   /* As O.S. tambem sao isoladas: falha aqui nao pode descartar os orcamentos
      que ja estao prontos na mao. */
   try {
@@ -169,7 +191,7 @@ async function janelaDe7Dias() {
       for (const [i, bruto] of brutos.entries()) {
         const o = normOS(bruto, i, categoriaPorNome);
         if (o.cancelada) mapaOS.delete(o.id);
-        else mapaOS.set(o.id, o);
+        else mapaOS.set(o.id, guardarCategoria ? guardarCategoria(o) : o);
       }
     }
   } catch (e) {
@@ -177,7 +199,14 @@ async function janelaDe7Dias() {
     return { orcamentos: [...mapaOrc.values()], ordens: null, falhas: ["ordens"] };
   }
 
-  return { orcamentos: [...mapaOrc.values()], ordens: [...mapaOS.values()] };
+  // `falhas` sobe junto: sem isso a rodada terminava em "sucesso" limpo, e nada
+  // na tela nem no log dizia que o painel estava rodando com a classificacao
+  // velha. Foi assim que quatro dias passaram sem ninguem ver.
+  return {
+    orcamentos: [...mapaOrc.values()],
+    ordens: [...mapaOS.values()],
+    ...(catalogoOk ? {} : { falhas: ["catalogo-do-erp-fora"] }),
+  };
 }
 
 /* CARGA DO REALIZADO — corrida propria, so o fluxo mes a mes.

@@ -137,7 +137,14 @@ function sistemasExternos(): any[] {
     .sort()
     .flatMap((n) => ler(n));
   const porChave = new Map<string, any>();
-  for (const s of [...base, ...extras]) if (s && s.key) porChave.set(s.key, s);
+  let ignorados = 0;
+  for (const s of [...base, ...extras]) {
+    if (s && s.key) porChave.set(s.key, s);
+    else ignorados++;
+  }
+  // Entrada sem `key` era descartada calada -- um JSON digitado errado fazia um
+  // sistema inteiro sumir do backup e nada mudava na tela.
+  if (ignorados) console.error(`[painel-backup] ${ignorados} entrada(s) do registry sem "key" — sistema fora do backup`);
   return [...porChave.values()];
 }
 
@@ -146,10 +153,14 @@ async function chamarSistema(sys: any, body: unknown) {
   // /.netlify/functions/, entao o registry traz o endpoint inteiro em `url`
   // quando `fn` estiver vazio).
   const alvo = sys.fn ? `${sys.url}/.netlify/functions/${sys.fn}` : sys.url;
+  // TETO DE TEMPO POR CHAMADA. Sem ele, um sistema pendurado segurava a corrida
+  // inteira ate a function morrer -- e os outros cinco ficavam sem backup
+  // naquele dia, sem nada dizendo por que.
   const r = await fetch(alvo, {
     method: "POST",
     headers: { "Content-Type": "application/json", "x-token": sys.token },
     body: JSON.stringify(body),
+    signal: AbortSignal.timeout(20_000),
   });
   if (!r.ok) throw new Error(`${sys.key}: HTTP ${r.status}`);
   return r.json();
@@ -158,12 +169,18 @@ async function chamarSistema(sys: any, body: unknown) {
 async function puxarSistema(sys: any) {
   const registros: unknown[] = [];
   let after: unknown = null;
-  for (let guarda = 0; guarda < 300; guarda++) {
+  let truncado = false;
+  let guarda = 0;
+  for (; guarda < 300; guarda++) {
     const res = await chamarSistema(sys, after != null ? { action: "list", after } : { action: "list" });
     registros.push(...(res[sys.listKey] || res.registros || res.os || res.itens || []));
     after = res.nextAfter ?? null;
     if (after == null) break;
   }
+  // Bateu no teto de paginas e ainda havia mais: o backup esta INCOMPLETO.
+  // Antes isso saia como um backup normal -- e so no dia de precisar dele
+  // alguem descobriria que faltava metade.
+  if (after != null) truncado = true;
   let cfg = null;
   try {
     cfg = (await chamarSistema(sys, { action: "getCfg" })).cfg ?? null;
@@ -172,6 +189,7 @@ async function puxarSistema(sys: any) {
     versao: VERSAO, sistema: sys.key, nome: sys.nome,
     exportadoEm: new Date().toISOString(), registros, cfg,
     fotos: "nao incluidas neste backup",
+    ...(truncado ? { incompleto: true, motivo: `parou em ${guarda} paginas` } : {}),
   };
 }
 

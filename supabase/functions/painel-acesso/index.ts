@@ -146,10 +146,16 @@ async function jaExisteNoSistema(conta: any, sistema: string): Promise<boolean> 
 // Senha temporaria legivel: quem recebe consegue digitar sem errar, e ela morre
 // na primeira entrada (a equipe-auth marca trocar_senha).
 const PALAVRAS = ["pedra", "verde", "chuva", "campo", "vento", "folha", "porta",
-  "praia", "monte", "peixe", "trilho", "barro", "vidro", "fogo"];
+  "praia", "monte", "peixe", "trilho", "barro", "vidro", "fogo", "areia", "nuvem",
+  "raiz", "galho", "prego", "tinta", "lona", "placa", "risco", "molde", "corte",
+  "serra", "regua", "farol", "ilha", "ponte", "muro", "telha"];
+// Tres palavras de 32 + tres digitos: ~35 bits, contra os ~17 de antes (duas de
+// 14 + tres digitos). A senha e temporaria, mas quem a recebe pode demorar dias
+// para trocar -- e adivinhavel nesse meio-tempo e adivinhavel de verdade.
 function senhaTemporaria() {
-  const n = crypto.getRandomValues(new Uint32Array(3));
-  return `${PALAVRAS[n[0] % PALAVRAS.length]}-${PALAVRAS[n[1] % PALAVRAS.length]}-${100 + (n[2] % 900)}`;
+  const n = crypto.getRandomValues(new Uint32Array(4));
+  const p = (i: number) => PALAVRAS[n[i] % PALAVRAS.length];
+  return `${p(0)}-${p(1)}-${p(2)}-${100 + (n[3] % 900)}`;
 }
 
 // Os sete sistemas da casa. Lista fechada: sistema digitado errado viraria uma
@@ -250,8 +256,18 @@ Deno.serve(async (req: Request) => {
         if (!/^[a-z0-9._-]+$/.test(usuario)) {
           return resposta({ erro: "O usuario aceita so letras sem acento, numeros, ponto, hifen e sublinhado." }, 400);
         }
-        const { data: existe } = await sb.from("acesso_conta").select("id").eq("usuario", usuario).maybeSingle();
-        if (existe) return resposta({ erro: "Ja existe alguem com esse usuario." }, 409);
+        /* Retentativa: se a criacao anterior gravou a conta e falhou em TODOS os
+           sistemas, a pessoa ficou sem acesso nenhum e o segundo "Criar" batia
+           em "ja existe" -- sem caminho para consertar pela tela. Conta sem
+           papel nenhum e um cadastro pela metade: da para retomar. */
+        const { data: existe } = await sb.from("acesso_conta")
+          .select("id").eq("usuario", usuario).maybeSingle();
+        if (existe) {
+          const { count } = await sb.from("acesso_papel")
+            .select("sistema", { count: "exact", head: true }).eq("conta_id", existe.id);
+          if ((count ?? 0) > 0) return resposta({ erro: "Ja existe alguem com esse usuario." }, 409);
+          await sb.from("acesso_conta").delete().eq("id", existe.id);
+        }
 
         const senha = texto(corpo.senha, 80) || senhaTemporaria();
         if (senha.length < 6) return resposta({ erro: "A senha precisa ter ao menos 6 caracteres." }, 400);
@@ -289,11 +305,15 @@ Deno.serve(async (req: Request) => {
           });
           if (!r.ok) { recusados.push({ sistema, erro: r.erro || "nao consegui" }); continue; }
           entraram.push(sistema);
+          // O ACEITO, nao o pedido: guardar o pedido faria esta tabela afirmar
+          // um modulo que o servidor descartou.
+          const pedidas = Array.isArray(p.permissoes) ? p.permissoes : [];
           await sb.from("acesso_papel").upsert({
             conta_id: nova.id, sistema, papel: texto(p.papel, 40),
-            permissoes: Array.isArray(p.permissoes) ? p.permissoes : [],
+            permissoes: pedidas.filter((x: string) => !(r.descartados ?? []).includes(x)),
             vendedor_id: texto(p.vendedorId, 120), ativo: true,
           }, { onConflict: "conta_id,sistema" });
+          if (r.aviso) recusados.push({ sistema, erro: r.aviso });
         }
         // A senha volta UMA vez, para a tela mostrar e a direcao passar adiante.
         // Ela nao fica guardada em lugar nenhum legivel.
@@ -392,12 +412,19 @@ Deno.serve(async (req: Request) => {
         // pedido inteiro faria esta tabela afirmar um acesso que nao existe.
         const pedidas = Array.isArray(p.permissoes) ? p.permissoes : [];
         const aceitas = pedidas.filter((x: string) => !(r.descartados ?? []).includes(x));
+        // vendedorId AUSENTE mantem o que esta gravado. Toda gravacao de papel
+        // mandava "" e apagava o vinculo da vendedora -- e nenhuma tela grava
+        // ele de volta, entao ela perdia a propria fila de acoes em silencio.
+        const { data: papelAntes } = await sb.from("acesso_papel")
+          .select("vendedor_id").eq("conta_id", id).eq("sistema", sistema).maybeSingle();
         const { error } = await sb.from("acesso_papel").upsert({
           conta_id: id,
           sistema,
           papel: texto(p.papel, 40),
           permissoes: aceitas,
-          vendedor_id: texto(p.vendedorId, 120),
+          vendedor_id: p.vendedorId === undefined
+            ? (papelAntes?.vendedor_id ?? "")
+            : texto(p.vendedorId, 120),
           ativo: p.ativo !== false,
         }, { onConflict: "conta_id,sistema" });
         if (error) throw new Error(error.message);
@@ -413,6 +440,10 @@ Deno.serve(async (req: Request) => {
         // Tira do sistema de verdade primeiro. A equipe-auth recusa quando isso
         // deixaria o sistema sem nenhuma conta de gestao -- e essa recusa tem
         // de chegar na tela, nao ser engolida.
+        // Vale para os SETE, inclusive rh e painel: a equipe-auth tem handler
+        // proprio para os dois (rhRemover apaga o usuario do Auth e a linha de
+        // perfis; painelRemover apaga de painel_contas). Pular isso apagava a
+        // linha SO daqui e devolvia {ok:true} -- a pessoa continuava entrando.
         if (await jaExisteNoSistema(conta, sistema)) {
           const r = await chamarEquipe({
             acao: "removerConta", sistema, usuario: alvoNoSistema(conta, sistema),
