@@ -25,6 +25,7 @@
 
 import {
   etapaRapidos, etapaCompleta, etapaRealizado, calcDso, normOrcamento, normOS, chaveProduto,
+  SEM_CATEGORIA, FORA_CATALOGO,
 } from "../netlify/functions/mubi-cache-background.mjs";
 import { mubiGetTudo, mubiConfigurado, hojeMais } from "../netlify/functions/lib/mubi.js";
 
@@ -125,17 +126,55 @@ async function janelaDe7Dias() {
     brutos.map(normOrcamento).forEach((o) => mapaOrc.set(o.id, o));
   }
 
-  const catalogo = await mubiGetTudo("produto");
-  const categoriaPorNome = new Map(
-    catalogo.map((p) => [chaveProduto(p.nome), String(p.categoria || "").trim()]));
+  /* O CATALOGO PODE CAIR SEM LEVAR O RESTO JUNTO.
+     Em 06/08/2026 o endpoint `produto` do Mubisys passou a responder 500. Como
+     esta chamada estava solta, a excecao derrubava o bloco pesado INTEIRO --
+     inclusive os orcamentos, que ja tinham vindo e nao dependem de catalogo
+     nenhum. Resultado: quatro dias de painel com dado velho, e toda rodada
+     terminando em "success", porque o script preserva o cache anterior e sai 0.
 
-  for (const filtro of ["CADASTRO", "APROVACAO", "CANCELAMENTO"]) {
-    const brutos = await mubiGetTudo("ordem-servico", { ...janela, filtrodata: filtro }, 100);
-    for (const [i, bruto] of brutos.entries()) {
-      const o = normOS(bruto, i, categoriaPorNome);
-      if (o.cancelada) mapaOS.delete(o.id);
-      else mapaOS.set(o.id, o);
+     E nao basta seguir com o catalogo vazio: `itemProduto` marca como
+     "Fora do catalogo" todo nome que nao achar, e a tela de Produtos passaria a
+     mentir com cara de verdade (foi o bug do balde "Outros", R$609 mil).
+     Entao a classificacao e reconstruida a partir do que ja esta no cache. */
+  let categoriaPorNome = new Map();
+  try {
+    const catalogo = await mubiGetTudo("produto");
+    categoriaPorNome = new Map(
+      catalogo.map((p) => [chaveProduto(p.nome), String(p.categoria || "").trim()]));
+  } catch (e) {
+    console.warn("catalogo de produtos indisponivel:", e?.message || e);
+    for (const o of mapaOS.values()) {
+      for (const it of o.itens ?? []) {
+        const cat = String(it.categoria || "");
+        // Sentinelas nao sao classificacao: cimenta-las faria o erro virar dado.
+        if (!cat || cat === SEM_CATEGORIA || cat === FORA_CATALOGO) continue;
+        categoriaPorNome.set(chaveProduto(it.produto), cat);
+      }
     }
+    if (categoriaPorNome.size === 0) {
+      // Sem catalogo e sem base anterior, mexer nas O.S. so estragaria. Os
+      // orcamentos seguem: nunca dependeram do catalogo.
+      console.warn("sem base para classificar: O.S. mantidas como estao");
+      return { orcamentos: [...mapaOrc.values()], ordens: null, falhas: ["catalogo-indisponivel"] };
+    }
+    console.warn(`classificando por ${categoriaPorNome.size} produtos ja conhecidos`);
+  }
+
+  /* As O.S. tambem sao isoladas: falha aqui nao pode descartar os orcamentos
+     que ja estao prontos na mao. */
+  try {
+    for (const filtro of ["CADASTRO", "APROVACAO", "CANCELAMENTO"]) {
+      const brutos = await mubiGetTudo("ordem-servico", { ...janela, filtrodata: filtro }, 100);
+      for (const [i, bruto] of brutos.entries()) {
+        const o = normOS(bruto, i, categoriaPorNome);
+        if (o.cancelada) mapaOS.delete(o.id);
+        else mapaOS.set(o.id, o);
+      }
+    }
+  } catch (e) {
+    console.warn("ordens de servico falharam:", e?.message || e);
+    return { orcamentos: [...mapaOrc.values()], ordens: null, falhas: ["ordens"] };
   }
 
   return { orcamentos: [...mapaOrc.values()], ordens: [...mapaOS.values()] };
