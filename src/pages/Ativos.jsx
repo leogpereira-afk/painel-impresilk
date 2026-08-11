@@ -9,6 +9,7 @@ import {
   FileCheck2,
   Car,
   Cog,
+  ShieldCheck,
   Plus,
   Trash2,
   Upload,
@@ -28,7 +29,7 @@ import {
   abrirBase64,
 } from "../services/ativos.js";
 import { calcAtivos, TIPOS, CATEGORIAS } from "../lib/calc/ativos.js";
-import { dataLonga, numero, paraCampo, paraNumero, ymdLocal } from "../lib/format.js";
+import { dataLonga, moeda, numero, paraCampo, paraNumero, ymdLocal } from "../lib/format.js";
 import {
   Card,
   PageTitle,
@@ -40,7 +41,7 @@ import {
   Segmented,
 } from "../components/ui.jsx";
 
-const ICONE = { documento: FileCheck2, veiculo: Car, maquina: Cog };
+const ICONE = { documento: FileCheck2, veiculo: Car, maquina: Cog, seguro: ShieldCheck };
 
 const TOM = {
   vencido: { chip: "chip-bad", barra: "bg-bad-600", texto: "text-bad-700" },
@@ -61,6 +62,11 @@ const vazio = (tipo) => ({
   medidorAtual: "",
   medidorProximo: "",
   unidadeMedidor: tipo === "veiculo" ? "km" : "horas",
+  // Apolice: `identificacao` guarda o numero dela, `responsavel` o corretor,
+  // `emissao`/`validade` a vigencia. Estes dois sao so dela.
+  seguradora: "",
+  valorSegurado: "",
+  valor: "",
   observacao: "",
 });
 
@@ -69,6 +75,10 @@ export default function Ativos() {
   const [erro, setErro] = useState(null);
   const [tipo, setTipo] = useState("documento");
   const [busca, setBusca] = useState("");
+  /* OS CARTÕES VIRAM RECORTE. "Vencidos: 3" era um número que não virava
+     lista: para achar os 3 era conferir item por item, e eles podiam estar em
+     qualquer uma das lentes. Clicar filtra e mostra em qual lente estão. */
+  const [recorte, setRecorte] = useState(null); // "vencido" | "urgente" | "sem" | null
   const [form, setForm] = useState(null); // null = formulario fechado
   const [arquivo, setArquivo] = useState(null);
   const [salvando, setSalvando] = useState(false);
@@ -101,12 +111,42 @@ export default function Ativos() {
     const q = busca.trim().toLowerCase();
     return vm.lista
       .filter((x) => x.tipo === tipo)
+      .filter((x) => !recorte || x.sit.nivel === recorte)
       .filter((x) =>
         !q
           ? true
-          : `${x.nome} ${x.categoria} ${x.identificacao} ${x.responsavel}`.toLowerCase().includes(q)
+          : `${x.nome} ${x.categoria} ${x.identificacao} ${x.responsavel} ${x.seguradora || ""}`
+              .toLowerCase()
+              .includes(q)
       );
-  }, [vm, tipo, busca]);
+  }, [vm, tipo, busca, recorte]);
+
+  // Quantos do recorte em CADA lente. O cartão conta a casa inteira e a lista
+  // mostra uma lente só: sem isto, clicar em "Vencidos: 3" estando em
+  // Documentos podia esvaziar a tela -- os 3 estavam nos Veículos.
+  const ondeEstao = useMemo(() => {
+    if (!recorte) return [];
+    return Object.keys(TIPOS)
+      .map((t) => ({
+        tipo: t,
+        rotulo: TIPOS[t].rotulo,
+        quantos: vm.lista.filter((x) => x.tipo === t && x.sit.nivel === recorte).length,
+      }))
+      .filter((x) => x.quantos > 0);
+  }, [vm, recorte]);
+
+  // Prêmio e importância segurada da carteira -- as duas perguntas que se faz
+  // sobre seguro depois de "vence quando".
+  const carteira = useMemo(() => {
+    const apolices = vm.lista.filter((x) => x.tipo === "seguro" && x.sit.nivel !== "vencido");
+    return {
+      quantas: apolices.length,
+      premio: apolices.reduce((t, x) => t + (Number(x.valor) || 0), 0),
+      segurado: apolices.reduce((t, x) => t + (Number(x.valorSegurado) || 0), 0),
+    };
+  }, [vm]);
+
+  const recortar = (nivel) => setRecorte((r) => (r === nivel ? null : nivel));
 
   async function salvar(e) {
     e.preventDefault();
@@ -128,6 +168,8 @@ export default function Ativos() {
         ...form,
         medidorAtual: paraNumero(form.medidorAtual),
         medidorProximo: paraNumero(form.medidorProximo),
+        valor: paraNumero(form.valor),
+        valorSegurado: paraNumero(form.valorSegurado),
       };
       const item = await salvarAtivo({ ...base, temArquivo: !!arquivo || !!form.temArquivo });
       if (arquivo) {
@@ -213,11 +255,33 @@ export default function Ativos() {
         }
       />
 
+      {/* Os cartões recortam a lista. "Cadastrados" é o botão de voltar: ele
+          limpa o recorte em vez de aplicar um. */}
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <StatCard rotulo="Vencidos" valor={numero(k.vencidos)} sub="precisam de ação hoje" tom={k.vencidos ? "bad" : "ok"} icone={AlertTriangle} />
-        <StatCard rotulo="Vencem em 30 dias" valor={numero(k.urgentes)} sub="renovar já" tom={k.urgentes ? "warn" : "ok"} icone={AlertTriangle} />
-        <StatCard rotulo="Cadastrados" valor={numero(k.total)} sub="documentos, veículos e máquinas" tom="neutral" icone={FileCheck2} />
-        <StatCard rotulo="Sem data" valor={numero(k.semControle)} sub="ninguém será avisado" tom={k.semControle ? "warn" : "ok"} icone={AlertTriangle} />
+        <StatCard
+          rotulo="Vencidos" valor={numero(k.vencidos)} sub={k.vencidos ? "precisam de ação hoje" : "nada vencido"}
+          tom={k.vencidos ? "bad" : "ok"} icone={AlertTriangle}
+          ativo={recorte === "vencido"}
+          onClick={k.vencidos ? () => recortar("vencido") : undefined}
+        />
+        <StatCard
+          rotulo="Vencem em 30 dias" valor={numero(k.urgentes)} sub={k.urgentes ? "renovar já" : "nada vencendo"}
+          tom={k.urgentes ? "warn" : "ok"} icone={AlertTriangle}
+          ativo={recorte === "urgente"}
+          onClick={k.urgentes ? () => recortar("urgente") : undefined}
+        />
+        <StatCard
+          rotulo="Cadastrados" valor={numero(k.total)} sub="documentos, veículos, máquinas e seguros"
+          tom="neutral" icone={FileCheck2}
+          ativo={!recorte}
+          onClick={recorte ? () => setRecorte(null) : undefined}
+        />
+        <StatCard
+          rotulo="Sem data" valor={numero(k.semControle)} sub={k.semControle ? "ninguém será avisado" : "todos com data"}
+          tom={k.semControle ? "warn" : "ok"} icone={AlertTriangle}
+          ativo={recorte === "sem"}
+          onClick={k.semControle ? () => recortar("sem") : undefined}
+        />
       </div>
 
       {msg && (
@@ -273,7 +337,13 @@ export default function Ativos() {
               </div>
               <div>
                 <label className="label" htmlFor="a-identificacao">
-                  {form.tipo === "veiculo" ? "Placa" : form.tipo === "maquina" ? "Patrimônio" : "Número do documento"}
+                  {form.tipo === "veiculo"
+                    ? "Placa"
+                    : form.tipo === "maquina"
+                      ? "Patrimônio"
+                      : form.tipo === "seguro"
+                        ? "Número da apólice"
+                        : "Número do documento"}
                 </label>
                 <input
                   id="a-identificacao"
@@ -283,19 +353,25 @@ export default function Ativos() {
                 />
               </div>
               <div>
-                <label className="label" htmlFor="a-emissao">Emissão</label>
+                <label className="label" htmlFor="a-emissao">
+                  {form.tipo === "seguro" ? "Início da vigência" : "Emissão"}
+                </label>
                 <input
                   id="a-emissao" type="date" className="input" value={form.emissao} onChange={(e) => setForm((f) => ({ ...f, emissao: e.target.value }))} />
               </div>
               <div>
-                <label className="label" htmlFor="a-validade">Validade / próxima ação</label>
+                <label className="label" htmlFor="a-validade">
+                  {form.tipo === "seguro" ? "Fim da vigência" : "Validade / próxima ação"}
+                </label>
                 <input
                   id="a-validade" type="date" className="input" value={form.validade} onChange={(e) => setForm((f) => ({ ...f, validade: e.target.value }))} />
               </div>
               <div>
-                <label className="label" htmlFor="a-responsavel">Responsável</label>
+                <label className="label" htmlFor="a-responsavel">
+                  {form.tipo === "seguro" ? "Corretor" : "Responsável"}
+                </label>
                 <input
-                  id="a-responsavel" className="input" value={form.responsavel} onChange={(e) => setForm((f) => ({ ...f, responsavel: e.target.value }))} placeholder="quem cuida disso" />
+                  id="a-responsavel" className="input" value={form.responsavel} onChange={(e) => setForm((f) => ({ ...f, responsavel: e.target.value }))} placeholder={form.tipo === "seguro" ? "corretor e telefone" : "quem cuida disso"} />
               </div>
 
               {/* Km/horas em campo de TEXTO, nao type="number": quem digita
@@ -303,6 +379,49 @@ export default function Ativos() {
                   "90.000" ao navegador, que le como noventa -- ou como valor
                   invalido e devolve string vazia. paraNumero/paraCampo fazem a
                   ida e a volta, igual as Licitacoes. */}
+              {/* Dinheiro em campo de TEXTO: "12.500,00" num input numérico
+                  volta vazio ou vira doze e meio. */}
+              {form.tipo === "seguro" && (
+                <>
+                  <div>
+                    <label className="label" htmlFor="a-seguradora">Seguradora</label>
+                    <input
+                      id="a-seguradora"
+                      className="input"
+                      value={form.seguradora || ""}
+                      onChange={(e) => setForm((f) => ({ ...f, seguradora: e.target.value }))}
+                      placeholder="ex: Porto Seguro, Tokio Marine"
+                    />
+                  </div>
+                  <div>
+                    <label className="label" htmlFor="a-segurado">Valor segurado (R$)</label>
+                    <input
+                      id="a-segurado"
+                      inputMode="decimal"
+                      className="input"
+                      value={form.valorSegurado ?? ""}
+                      onChange={(e) => setForm((f) => ({ ...f, valorSegurado: e.target.value }))}
+                      onBlur={(e) => setForm((f) => ({ ...f, valorSegurado: paraCampo(paraNumero(e.target.value)) }))}
+                      placeholder="ex: 250.000,00"
+                    />
+                    <p className="mt-1 text-xs text-slate-500">Quanto a apólice cobre.</p>
+                  </div>
+                  <div>
+                    <label className="label" htmlFor="a-premio">Prêmio (R$ no ano)</label>
+                    <input
+                      id="a-premio"
+                      inputMode="decimal"
+                      className="input"
+                      value={form.valor ?? ""}
+                      onChange={(e) => setForm((f) => ({ ...f, valor: e.target.value }))}
+                      onBlur={(e) => setForm((f) => ({ ...f, valor: paraCampo(paraNumero(e.target.value)) }))}
+                      placeholder="ex: 3.480,00"
+                    />
+                    <p className="mt-1 text-xs text-slate-500">O que a empresa paga por ela.</p>
+                  </div>
+                </>
+              )}
+
               {ehVeicMaq && (
                 <>
                   <div>
@@ -336,11 +455,13 @@ export default function Ativos() {
             <div>
               <label className="label" htmlFor="a-observacao">Observação</label>
               <input
-                  id="a-observacao" className="input" value={form.observacao} onChange={(e) => setForm((f) => ({ ...f, observacao: e.target.value }))} placeholder="onde renovar, órgão, telefone do contato..." />
+                  id="a-observacao" className="input" value={form.observacao} onChange={(e) => setForm((f) => ({ ...f, observacao: e.target.value }))} placeholder={form.tipo === "seguro" ? "o que cobre, franquia, número do sinistro..." : "onde renovar, órgão, telefone do contato..."} />
             </div>
 
             <div>
-              <label className="label" htmlFor="a-arquivo">Arquivo (PDF ou imagem, até ~3 MB)</label>
+              <label className="label" htmlFor="a-arquivo">
+                {form.tipo === "seguro" ? "Apólice em PDF (até ~3 MB)" : "Arquivo (PDF ou imagem, até ~3 MB)"}
+              </label>
               <input
                 id="a-arquivo"
                 type="file"
@@ -379,12 +500,56 @@ export default function Ativos() {
           }
         />
 
+        {recorte && (
+          <div className="sem-impressao mb-3 flex flex-wrap items-center gap-2 rounded-lg bg-brand-50 px-3 py-2 text-sm text-brand-700">
+            <span>
+              {recorte === "vencido" ? "Vencidos" : recorte === "urgente" ? "Vencendo em 30 dias" : "Sem data"}:
+            </span>
+            {ondeEstao.map((o) => (
+              <button
+                key={o.tipo}
+                onClick={() => setTipo(o.tipo)}
+                aria-pressed={tipo === o.tipo}
+                className={`rounded-full px-2.5 py-0.5 font-display text-xs transition-colors ${
+                  tipo === o.tipo ? "bg-brand text-white" : "bg-white text-brand-700 hover:bg-brand-100"
+                }`}
+              >
+                {o.rotulo} {o.quantos}
+              </button>
+            ))}
+            <button className="btn-ghost !py-1 !px-2 text-xs" onClick={() => setRecorte(null)}>
+              <X size={13} /> ver todos
+            </button>
+          </div>
+        )}
+
+        {/* A carteira de seguros: prêmio e cobertura só fazem sentido somados. */}
+        {tipo === "seguro" && carteira.quantas > 0 && !recorte && (
+          <div className="mb-3 flex flex-wrap items-center gap-x-5 gap-y-1 rounded-lg bg-slate-50 px-3 py-2 text-sm text-slate-600">
+            <span>
+              <b className="text-slate-900">{numero(carteira.quantas)}</b>{" "}
+              {carteira.quantas === 1 ? "apólice vigente" : "apólices vigentes"}
+            </span>
+            <span>
+              cobrem <b className="text-slate-900">{moeda(carteira.segurado)}</b>
+            </span>
+            <span>
+              custam <b className="text-slate-900">{moeda(carteira.premio)}</b> no ano
+            </span>
+          </div>
+        )}
+
         <div className="sem-impressao mb-4 relative max-w-sm">
           <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-          <input className="input pl-9" value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar por nome, categoria ou responsável" />
+          <input className="input pl-9" value={busca} onChange={(e) => setBusca(e.target.value)} placeholder={tipo === "seguro" ? "Buscar por seguradora, ramo ou apólice" : "Buscar por nome, categoria ou responsável"} />
         </div>
 
-        {daLente.length === 0 ? (
+        {daLente.length === 0 && recorte ? (
+          <Empty>
+            Nada aqui em {TIPOS[tipo].rotulo.toLowerCase()}
+            {ondeEstao.length ? ` -- veja em ${ondeEstao.map((o) => o.rotulo.toLowerCase()).join(", ")}.` : "."}
+          </Empty>
+        ) : daLente.length === 0 ? (
           <Empty>
             Nenhum {TIPOS[tipo].singular.toLowerCase()} cadastrado ainda.{" "}
             <button className="btn-ghost ml-1" onClick={() => setForm(vazio(tipo))}>
@@ -413,7 +578,20 @@ export default function Ativos() {
                       {it.identificacao && <span className="ml-2 font-normal text-slate-400">{it.identificacao}</span>}
                     </p>
                     <p className="mt-0.5 text-xs text-slate-500">
-                      {[it.categoria, it.responsavel && `resp. ${it.responsavel}`, it.validade && `validade ${dataLonga(it.validade)}`]
+                      {(it.tipo === "seguro"
+                        ? [
+                            it.seguradora,
+                            it.categoria,
+                            it.valorSegurado ? `cobre ${moeda(it.valorSegurado)}` : null,
+                            it.valor ? `${moeda(it.valor)}/ano` : null,
+                            it.validade && `vigência até ${dataLonga(it.validade)}`,
+                          ]
+                        : [
+                            it.categoria,
+                            it.responsavel && `resp. ${it.responsavel}`,
+                            it.validade && `validade ${dataLonga(it.validade)}`,
+                          ]
+                      )
                         .filter(Boolean)
                         .join(" · ") || "sem detalhes"}
                     </p>
@@ -428,7 +606,7 @@ export default function Ativos() {
                         <Download size={15} />
                       </button>
                     )}
-                    <button onClick={() => { setForm({ ...it, medidorAtual: paraCampo(it.medidorAtual), medidorProximo: paraCampo(it.medidorProximo) }); setArquivo(null); }} className="rounded-lg px-2 py-1 font-display text-sm text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-800">
+                    <button onClick={() => { setForm({ ...it, medidorAtual: paraCampo(it.medidorAtual), medidorProximo: paraCampo(it.medidorProximo), valor: paraCampo(it.valor), valorSegurado: paraCampo(it.valorSegurado) }); setArquivo(null); }} className="rounded-lg px-2 py-1 font-display text-sm text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-800">
                       Editar
                     </button>
                     <button onClick={() => apagar(it)} className="grid h-8 w-8 place-items-center rounded-lg text-slate-400 transition-colors hover:bg-bad-50 hover:text-bad-700" title="Remover" aria-label={`Remover ${it.nome}`}>

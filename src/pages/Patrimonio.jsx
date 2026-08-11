@@ -305,6 +305,10 @@ export default function Patrimonio() {
   const [busca, setBusca] = useState("");
   const [setorFiltro, setSetorFiltro] = useState("");
   const [verBaixados, setVerBaixados] = useState(false);
+  /* OS CARTÕES VIRAM RECORTE. "Sem nota: 14" era um número que não virava
+     lista: para achar os 14 era caçar na tabela. Clicar filtra, clicar de novo
+     volta -- o mesmo gesto das outras telas. */
+  const [recorte, setRecorte] = useState(null); // "semNota" | "semValor" | null
   const [formBem, setFormBem] = useState(null);
   const [formSetor, setFormSetor] = useState(null);
   const [salvando, setSalvando] = useState(false);
@@ -346,8 +350,14 @@ export default function Patrimonio() {
           : `${b.codigo} ${b.nomeGenerico} ${b.descricaoTecnica} ${b.nf} ${b.observacao}`
               .toLowerCase()
               .includes(q)
+      )
+      // O recorte dos cartões: "sem nota" e "sem valor" viram lista.
+      .filter((b) =>
+        recorte === "semNota" ? !String(b.nf || "").trim()
+          : recorte === "semValor" ? !b.valor
+            : true
       );
-  }, [vm, busca, setorFiltro, verBaixados]);
+  }, [vm, busca, setorFiltro, verBaixados, recorte]);
 
   const rolar = () =>
     setTimeout(() => topoForm.current?.scrollIntoView({ behavior: "smooth", block: "center" }), 60);
@@ -513,6 +523,8 @@ export default function Patrimonio() {
             mentindo PARA BAIXO sem nada avisando. "Soma do que foi pago" sem
             dizer quantos itens não têm valor é meia verdade. */}
         <StatCard rotulo="Valor total" valor={moeda(k.valor)}
+          ativo={recorte === "semValor"}
+          onClick={k.semValor ? () => setRecorte((r) => (r === "semValor" ? null : "semValor")) : undefined}
           sub={k.semValor ? `soma do que foi pago · ${k.semValor} item(ns) sem valor` : "soma do que foi pago"}
           tom={k.semValor ? "warn" : "neutral"} icone={Wallet} />
         <StatCard rotulo="Comprados no ano" valor={moeda(k.noAno)} sub={`${numero(k.compradosNoAno)} ${k.compradosNoAno === 1 ? "bem" : "bens"}`} tom="neutral" icone={Coins} />
@@ -522,6 +534,8 @@ export default function Patrimonio() {
           sub={k.semNota ? "faltou o número da NF" : "todos com nota"}
           tom={k.semNota ? "warn" : "ok"}
           icone={AlertTriangle}
+          ativo={recorte === "semNota"}
+          onClick={k.semNota ? () => setRecorte((r) => (r === "semNota" ? null : "semNota")) : undefined}
         />
       </div>
 

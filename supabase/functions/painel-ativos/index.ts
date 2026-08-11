@@ -37,7 +37,10 @@ const BUCKET = "painel-arquivos";
 // portoes, alarme. Nao vence como documento -- o que interessa nele e o
 // historico de manutencao e quanto ja custou. Por isso ele NAO aparece na tela
 // de Documentos e ativos (que gira em torno de validade) e sim em Manutencoes.
-const TIPOS = new Set(["documento", "veiculo", "maquina", "marketing", "licitacao", "predial"]);
+// "seguro" e a apolice: vence como documento (por isso mora na tela de
+// Documentos e ativos, e a Home avisa antes), mas carrega duas coisas que
+// documento nao tem -- a seguradora e a importancia segurada.
+const TIPOS = new Set(["documento", "veiculo", "maquina", "marketing", "licitacao", "predial", "seguro"]);
 
 // FICHA TECNICA por familia -- a "especificacao" que a tela de Manutencoes pede
 // ao cadastrar. Lista FECHADA e por tipo: sem isso, o objeto vira depositario de
@@ -252,6 +255,12 @@ Deno.serve(async (req: Request) => {
           hora: txt(it.hora, a.hora),
           status: txt(it.status, a.status),
           valor: numOu(it.valor, a.valor),
+          // Apolices: `identificacao` ja e o numero da apolice, `responsavel` o
+          // corretor, `emissao`/`validade` a vigencia e `valor` o premio anual.
+          // Sobram dois campos proprios -- de quem e a apolice e quanto ela
+          // cobre. Vazios nos demais tipos.
+          seguradora: txt(it.seguradora, a.seguradora),
+          valorSegurado: numOu(it.valorSegurado, a.valorSegurado),
           arquivoNome: txt(it.arquivoNome, a.arquivoNome),
           // Miniatura (data URL pequena) para a tela de Marketing nao precisar
           // baixar a logomarca INTEIRA -- ate 3 MB cada -- so para desenhar um

@@ -421,8 +421,42 @@ export default function Bancos() {
         </p>
       )}
 
+      {/* AS EMPRESAS VIRAM CARTÕES.
+          Cada grupo era uma faixa da largura da tela, com o nome à esquerda e
+          um vazio enorme no meio: cinco empresas viravam cinco telas de
+          rolagem, e abrir a certa era mirar numa setinha. Em cartão, elas cabem
+          numa olhada e o clique é no cartão inteiro. */}
+      {grupos.length > 1 && (
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {grupos.map((g, i) => {
+            const aberto = estaAberto(g.nome, i);
+            return (
+              <button
+                key={`card-${g.nome}`}
+                type="button"
+                onClick={() => alternar(g.nome, i)}
+                aria-pressed={aberto}
+                className={`rounded-xl border px-4 py-3 text-left transition-all ${
+                  aberto
+                    ? "border-brand bg-brand text-white shadow-sm"
+                    : "bg-white hover:border-brand-300 hover:shadow-sm"
+                }`}
+                style={aberto ? undefined : { borderColor: "var(--hairline)" }}
+              >
+                <span className="block truncate font-display text-sm font-semibold">{g.nome}</span>
+                <span className={`block text-xs ${aberto ? "text-white/75" : "text-slate-500"}`}>
+                  {g.itens.length} {g.itens.length === 1 ? "conta" : "contas"}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      )}
+
       {grupos.map((g, i) => {
         const aberto = estaAberto(g.nome, i);
+        // Fechado não ocupa espaço: quem escolhe é o cartão lá em cima.
+        if (!aberto) return null;
         return (
           <Card key={g.nome} className="p-0">
             <button

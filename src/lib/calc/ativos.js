@@ -11,6 +11,9 @@ export const TIPOS = {
   documento: { rotulo: "Documentos", singular: "Documento" },
   veiculo: { rotulo: "Veículos", singular: "Veículo" },
   maquina: { rotulo: "Máquinas", singular: "Máquina" },
+  // A apolice e a quarta lente: vence como documento e o aviso vale o mesmo --
+  // seguro vencido so e descoberto no dia do sinistro.
+  seguro: { rotulo: "Seguros", singular: "Seguro" },
 };
 
 // Categorias sugeridas -- os documentos que sempre pedem, e as manutencoes que
@@ -46,6 +49,17 @@ export const CATEGORIAS = {
     "Contrato de assistencia",
     "Troca de peca",
     "Seguro",
+  ],
+  // O ramo da apolice -- e o que muda o que ela cobre e quem aciona.
+  seguro: [
+    "Frota (veiculos)",
+    "Empresarial / predial",
+    "Equipamentos",
+    "Responsabilidade civil",
+    "Vida em grupo",
+    "Transporte de carga",
+    "Riscos diversos",
+    "Incendio",
   ],
 };
 

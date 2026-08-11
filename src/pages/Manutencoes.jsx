@@ -778,6 +778,10 @@ export default function Manutencoes() {
   const [erro, setErro] = useState(null);
   const [msg, setMsg] = useState(null);
   const [familia, setFamilia] = useState("tudo");
+  /* OS CARTÕES VIRAM RECORTE. "Atrasadas: 4" era um número que não virava
+     lista -- para achar as 4 era rolar a tabela conferindo etiqueta por
+     etiqueta. Clicar filtra, clicar de novo volta. */
+  const [recorte, setRecorte] = useState(null); // "vencida" | "sem" | null
   const [busca, setBusca] = useState("");
   // "itens" (o que existe e quanto já custou) x "historico" (quanto saiu em
   // cada mês de cada ano). São duas perguntas diferentes na mesma tela.
@@ -857,13 +861,14 @@ export default function Manutencoes() {
               `${i.nome} ${i.categoria} ${i.identificacao} ${i.responsavel} ${resumoEspec(i).join(" ")}`
             ).includes(q)
       )
+      .filter((i) => !recorte || i.sit.nivel === recorte)
       // Atrasado primeiro; depois o que mais consumiu em 12 meses.
       .sort((a, b) => {
         const peso = { vencida: 0, perto: 1, ok: 2, sem: 3 };
         const d = peso[a.sit.nivel] - peso[b.sit.nivel];
         return d !== 0 ? d : b.doze - a.doze;
       });
-  }, [vm, familia, busca]);
+  }, [vm, familia, busca, recorte]);
 
   // Gasto por ano e por mês. Sai de `vm.lancamentos` (a lista crua) e não da
   // `lista` por item, para que lançamento de item retirado continue contado --
@@ -1105,6 +1110,15 @@ export default function Manutencoes() {
     }
   }
 
+  // Recortar pela lista só faz sentido na aba dos itens: clicar em "Atrasadas"
+  // estando no histórico tinha de trocar de aba sozinho, senão o clique não
+  // mudava nada na tela.
+  function verNaLista(nivel) {
+    setAba("itens");
+    setRecorte((r) => (r === nivel && aba === "itens" ? null : nivel));
+    if (familia !== "tudo") setFamilia("tudo");
+  }
+
   if (erro && !itens?.length) return <ErroModulo mensagem={erro} aoTentar={carregar} />;
   if (itens === null || mapa === null) return <CarregandoModulo />;
 
@@ -1130,12 +1144,24 @@ export default function Manutencoes() {
       />
 
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+        {/* Os dois de dinheiro levam ao histórico (onde o gasto se abre mês a
+            mês); os dois de contagem recortam a lista aqui embaixo. */}
         <StatCard
           rotulo="Gasto no mês"
           valor={moeda(k.gastoMes)}
-          sub="somando tudo o que foi lançado"
+          sub={k.gastoMes ? "ver mês a mês" : "somando tudo o que foi lançado"}
           tom="neutral"
           icone={Coins}
+          ativo={aba === "historico" && mesAberto === hojeISO.slice(0, 7)}
+          onClick={
+            k.gastoMes
+              ? () => {
+                  setAba("historico");
+                  setAnoHist(hojeISO.slice(0, 4));
+                  setMesAberto(hojeISO.slice(0, 7));
+                }
+              : undefined
+          }
         />
         <StatCard
           rotulo="Gasto no ano"
@@ -1143,6 +1169,16 @@ export default function Manutencoes() {
           sub={`${numero(k.lancamentosAno)} ${k.lancamentosAno === 1 ? "serviço" : "serviços"}`}
           tom="neutral"
           icone={Wrench}
+          ativo={aba === "historico" && anoTela === hojeISO.slice(0, 4) && mesAberto == null}
+          onClick={
+            k.gastoAno
+              ? () => {
+                  setAba("historico");
+                  setAnoHist(hojeISO.slice(0, 4));
+                  setMesAberto(null);
+                }
+              : undefined
+          }
         />
         <StatCard
           rotulo="Atrasadas"
@@ -1150,6 +1186,8 @@ export default function Manutencoes() {
           sub={k.atrasadas ? (k.atrasadas === 1 ? "passou da data prevista" : "passaram da data prevista") : "nada atrasado"}
           tom={k.atrasadas ? "bad" : "ok"}
           icone={AlertTriangle}
+          ativo={aba === "itens" && recorte === "vencida"}
+          onClick={k.atrasadas ? () => verNaLista("vencida") : undefined}
         />
         <StatCard
           rotulo="Itens"
@@ -1157,6 +1195,8 @@ export default function Manutencoes() {
           sub={k.semPrevisao ? `${k.semPrevisao} sem próxima data` : k.itens ? "todos com previsão" : "nenhum cadastrado"}
           tom="neutral"
           icone={CalendarClock}
+          ativo={aba === "itens" && recorte === "sem"}
+          onClick={k.semPrevisao ? () => verNaLista("sem") : undefined}
         />
       </div>
 
@@ -1263,6 +1303,20 @@ export default function Manutencoes() {
           }
         />
 
+        {/* O recorte veio de um cartão lá em cima; sem esta faixa a lista fica
+            curta "sem motivo" -- e a saída tem de estar do lado do resultado. */}
+        {recorte && (
+          <div className="sem-impressao mb-3 flex flex-wrap items-center gap-2 rounded-lg bg-brand-50 px-3 py-2 text-sm text-brand-700">
+            <span>
+              Mostrando só {recorte === "vencida" ? "o que está atrasado" : "o que está sem próxima data"} —{" "}
+              {visiveis.length} {visiveis.length === 1 ? "item" : "itens"}.
+            </span>
+            <button className="btn-ghost !py-1 !px-2 text-xs" onClick={() => setRecorte(null)}>
+              <X size={13} /> ver todos
+            </button>
+          </div>
+        )}
+
         <div className="sem-impressao mb-4 relative max-w-sm">
           <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
           <input
@@ -1275,7 +1329,9 @@ export default function Manutencoes() {
 
         {visiveis.length === 0 ? (
           <Empty>
-            {busca.trim()
+            {recorte
+              ? `Nada ${recorte === "vencida" ? "atrasado" : "sem próxima data"} com esse filtro.`
+              : busca.trim()
               ? `Nada com "${busca}".`
               : familia !== "tudo"
                 ? `Nenhum item em ${FAMILIAS[familia].rotulo.toLowerCase()}${
