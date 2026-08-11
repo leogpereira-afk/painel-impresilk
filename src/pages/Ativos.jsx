@@ -240,7 +240,10 @@ export default function Ativos() {
   if (itens === null) return <CarregandoModulo />;
 
   const k = vm.kpis;
-  const ehVeicMaq = tipo !== "documento";
+  // Km/horas é de veículo e máquina, e quem manda é o tipo DO ITEM aberto --
+  // não a lente. Escrito como "!== documento", a lente Seguros trouxe os
+  // campos de medidor para dentro do formulário da apólice.
+  const ehVeicMaq = form?.tipo === "veiculo" || form?.tipo === "maquina";
 
   return (
     <div className="space-y-8">

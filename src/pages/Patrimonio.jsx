@@ -688,6 +688,20 @@ export default function Patrimonio() {
           }
         />
 
+        {/* Saída do recorte ao lado do resultado: a lista encurta e o motivo
+            está lá em cima, num cartão que pode nem estar na tela. */}
+        {recorte && (
+          <div className="sem-impressao mb-3 flex flex-wrap items-center gap-2 rounded-lg bg-brand-50 px-3 py-2 text-sm text-brand-700">
+            <span>
+              Mostrando só o que está {recorte === "semNota" ? "sem nota fiscal" : "sem valor"} —{" "}
+              {visiveis.length} {visiveis.length === 1 ? "bem" : "bens"}.
+            </span>
+            <button className="btn-ghost !py-1 !px-2 text-xs" onClick={() => setRecorte(null)}>
+              <X size={13} /> ver todos
+            </button>
+          </div>
+        )}
+
         <div className="sem-impressao mb-4 flex flex-wrap items-center gap-3">
           <div className="relative min-w-0 flex-1 sm:max-w-xs">
             <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
@@ -719,7 +733,9 @@ export default function Patrimonio() {
 
         {visiveis.length === 0 ? (
           <Empty>
-            {busca.trim() || setorFiltro
+            {recorte
+              ? `Nenhum bem ${recorte === "semNota" ? "sem nota" : "sem valor"} com esse filtro.`
+              : busca.trim() || setorFiltro
               ? "Nenhum bem com esse filtro."
               : "Nenhum bem cadastrado ainda. Use 'Novo bem' para começar o inventário."}
           </Empty>
