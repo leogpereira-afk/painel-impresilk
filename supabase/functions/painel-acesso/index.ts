@@ -92,6 +92,15 @@ async function chamarEquipe(corpo: Record<string, unknown>) {
 const alvoNoSistema = (conta: any, sistema: string) =>
   sistema === "rh" ? texto(conta.colaborador, 160) : texto(conta.usuario, 60);
 
+// O painel nao tem papel: tem lista de modulos. A equipe-auth so entende
+// "acesso total" pelo papel literal "tudo" (painelSalvar), entao a estrela da
+// lista de permissoes e traduzida aqui. Mandar "" com ["*"] gravaria uma lista
+// vazia: o filtro de modulos descarta a estrela, calado.
+const papelNoSistema = (sistema: string, papel: unknown, permissoes: unknown[]) =>
+  sistema === "painel"
+    ? (Array.isArray(permissoes) && permissoes.includes("*") ? "tudo" : "")
+    : texto(papel, 40);
+
 // A pessoa JA tem conta naquele sistema? Ler para decidir e legitimo -- o que
 // esta function nao faz e ESCREVER as regras dos outros. Isto decide so uma
 // coisa: se e preciso inventar uma senha (conta nova) ou nao (conta que ja
@@ -247,7 +256,7 @@ Deno.serve(async (req: Request) => {
             sistema,
             usuario: alvoNoSistema(linha, sistema),
             nome: linha.nome,
-            papel: sistema === "painel" ? "" : texto(p.papel, 40),
+            papel: papelNoSistema(sistema, p.papel, p.permissoes ?? []),
             permissoes: Array.isArray(p.permissoes) ? p.permissoes : [],
             senha,
             temporaria: true,
@@ -280,7 +289,7 @@ Deno.serve(async (req: Request) => {
           const r = await chamarEquipe({
             acao: "salvarConta", sistema: p.sistema,
             usuario: alvoNoSistema(conta, p.sistema), nome: conta.nome,
-            papel: p.sistema === "painel" ? "" : p.papel,
+            papel: papelNoSistema(p.sistema, p.papel, p.permissoes ?? []),
             permissoes: p.permissoes ?? [], senha, temporaria: true,
           });
           if (r.ok) trocados.push(p.sistema);
@@ -347,7 +356,7 @@ Deno.serve(async (req: Request) => {
         const r = await chamarEquipe({
           acao: "salvarConta", sistema,
           usuario: alvoNoSistema(conta, sistema), nome: conta.nome,
-          papel: sistema === "painel" ? "" : texto(p.papel, 40),
+          papel: papelNoSistema(sistema, p.papel, p.permissoes ?? []),
           permissoes: Array.isArray(p.permissoes) ? p.permissoes : [],
           ...(senha ? { senha, temporaria: true } : {}),
         });

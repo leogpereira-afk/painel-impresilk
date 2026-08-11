@@ -16,6 +16,7 @@ import {
   criarPessoa, definirSenha, desativar,
 } from "../services/acesso.js";
 import { Card, SectionTitle, Empty } from "./ui.jsx";
+import { MODULOS, COM_DINHEIRO } from "../lib/modulos.js";
 
 const NOME_SISTEMA = {
   painel: "Painel", rh: "RH", pcp: "PCP", brief: "Brief",
@@ -153,6 +154,54 @@ function NovaPessoa({ sistemas, aoCriar, aoCancelar }) {
   );
 }
 
+// O que a pessoa enxerga DENTRO do painel. Ficava numa segunda tela, que
+// repetia usuario, nome e senha -- duas listas de conta na mesma pagina, cada
+// uma mandando num pedaco. Agora e aqui, no cartao da propria pessoa.
+function ModulosDoPainel({ permissoes, aoMudar }) {
+  const total = permissoes.includes("*");
+  const marcar = (id) =>
+    aoMudar(permissoes.includes(id) ? permissoes.filter((x) => x !== id) : [...permissoes, id]);
+
+  return (
+    <div className="mt-2 rounded-lg bg-slate-50 p-3">
+      <label className="flex cursor-pointer items-start gap-2 text-sm">
+        <input type="checkbox" checked={total}
+          onChange={() => aoMudar(total ? [] : ["*"])}
+          className="mt-0.5 h-4 w-4 rounded border-slate-300 text-brand focus:ring-brand-200" />
+        <span>
+          <b className="font-display">Acesso total</b>
+          <span className="block text-xs text-slate-500">
+            tudo o que existe no painel, inclusive o que vier depois
+          </span>
+        </span>
+      </label>
+
+      {!total && (
+        <div className="mt-3 grid gap-x-4 gap-y-2 sm:grid-cols-2">
+          {MODULOS.map((m) => (
+            <label key={m.id} className="flex cursor-pointer items-start gap-2 text-sm">
+              <input type="checkbox" checked={permissoes.includes(m.id)}
+                onChange={() => marcar(m.id)}
+                className="mt-0.5 h-4 w-4 rounded border-slate-300 text-brand focus:ring-brand-200" />
+              <span className="min-w-0">
+                {m.nome}
+                {COM_DINHEIRO.has(m.id) && (
+                  <span className="ml-1 text-[11px] text-warn-700">R$</span>
+                )}
+                <span className="block text-xs leading-tight text-slate-500">{m.sub}</span>
+              </span>
+            </label>
+          ))}
+        </div>
+      )}
+      <p className="mt-2 text-[11px] text-slate-400">
+        O que não estiver marcado não aparece no menu nem responde se a pessoa digitar o endereço.
+        <span className="ml-1 text-warn-700">R$</span> = mostra dinheiro.
+      </p>
+    </div>
+  );
+}
+
 function Conta({ c, sistemas, colaboradores, aoMudar, aoAvisar, aoSenha }) {
   const [aberta, setAberta] = useState(false);
   const [f, setF] = useState(null);
@@ -176,6 +225,13 @@ function Conta({ c, sistemas, colaboradores, aoMudar, aoAvisar, aoSenha }) {
     try {
       if (tem) await removerPapel(c.usuario, sis);
       else await salvarPapel({ usuario: c.usuario, sistema: sis, papel: (PAPEIS[sis] || [])[0] || "" });
+      await aoMudar();
+    } catch (err) { aoAvisar({ tom: "erro", texto: err.message }); }
+  };
+
+  const trocarModulos = async (permissoes) => {
+    try {
+      await salvarPapel({ usuario: c.usuario, sistema: "painel", papel: "", permissoes });
       await aoMudar();
     } catch (err) { aoAvisar({ tom: "erro", texto: err.message }); }
   };
@@ -307,10 +363,18 @@ function Conta({ c, sistemas, colaboradores, aoMudar, aoAvisar, aoSenha }) {
                     )}
                     {p && sis === "painel" && (
                       <span className="text-xs text-slate-500">
-                        {(p.permissoes || []).length
-                          ? `${p.permissoes.length} módulo(s) — ajuste na lista de contas acima`
-                          : "sem módulo"}
+                        {(p.permissoes || []).includes("*")
+                          ? "acesso total"
+                          : `${(p.permissoes || []).length} de ${MODULOS.length} partes`}
                       </span>
+                    )}
+                    {p && sis === "painel" && (
+                      <div className="w-full">
+                        <ModulosDoPainel
+                          permissoes={p.permissoes || []}
+                          aoMudar={(perms) => trocarModulos(perms)}
+                        />
+                      </div>
                     )}
                   </div>
                 );

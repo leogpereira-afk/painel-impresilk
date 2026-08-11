@@ -3,32 +3,14 @@
 // (Ate 08/2026 este comentario apontava para netlify/functions/auth.mjs, que ja
 // tinha sido migrado e foi apagado.)
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { KeyRound, UserPlus, Trash2, ShieldCheck, AlertTriangle, Check, Download, Upload } from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
+import { KeyRound, ShieldCheck, AlertTriangle, Check, Download, Upload } from "lucide-react";
 import { chamarAuth, getSessao } from "../lib/sessao.js";
 import { baixarBackup, restaurarBackup, lerArquivoBackup, statusBackup, backupHubAgora } from "../services/backup.js";
-import { Card, PageTitle, SectionTitle, Empty } from "../components/ui.jsx";
+import { Card, PageTitle, SectionTitle } from "../components/ui.jsx";
 import { useApp } from "../config/store.jsx";
 import AcessoUnico from "../components/AcessoUnico.jsx";
 
-// Espelha MODULOS de supabase/functions/painel-auth. O servidor e quem valida.
-const MODULOS = [
-  { id: "gestao", nome: "Gestao", sub: "identidade, plano do ano, taticas e atas -- a tela de direção" },
-  { id: "compromissos", nome: "Compromissos", sub: "a agenda de cada um -- cada pessoa ve só a dela" },
-  { id: "contas-atrasadas", nome: "Contas Atrasadas", sub: "quem deve e a cobrança" },
-  { id: "fluxo-caixa", nome: "Fluxo de Caixa", sub: "caixa, projeção e realizado" },
-  { id: "produtos", nome: "Produtos", sub: "faturamento por produto e família" },
-  { id: "orcamentos", nome: "Orcamentos", sub: "funil e conversão do time" },
-  { id: "bancos", nome: "Bancos e Pix", sub: "contas, CNPJs e chaves de todas as empresas" },
-  { id: "marketing", nome: "Marketing", sub: "logomarcas, materiais e atalhos do Drive" },
-  { id: "licitacoes", nome: "Licitacoes", sub: "editais, prazos e sessões" },
-  { id: "glossario", nome: "Glossario", sub: "os termos de comunicação visual explicados" },
-  { id: "manutencoes", nome: "Manutencoes", sub: "carros, máquinas e prédio: gasto e histórico" },
-  { id: "patrimonio", nome: "Patrimonio", sub: "o que a empresa tem, por setor, com etiqueta e valor" },
-  { id: "configuracoes", nome: "Configuracoes", sub: "motivos, régua de cobrança e parametros -- vale para todo mundo" },
-];
-
-const VAZIO = { usuario: "", nome: "", senha: "", permissoes: [], vendedorId: "" };
 
 function Aviso({ tom, children }) {
   if (!children) return null;
@@ -46,21 +28,14 @@ function Aviso({ tom, children }) {
   );
 }
 
-const normalizarUsuario = (v) => String(v || "").trim().toLowerCase();
 
 export default function Acessos() {
   const sessao = getSessao();
   const ehDirecao = !!sessao?.master;
-  const meuUsuario = normalizarUsuario(sessao?.usuario);
 
   // A conta da direcao nao mora na lista de acessos: ela e a dona do painel e
   // enxerga tudo. Digitar o proprio usuario no cadastro e um caminho sem saida
   // -- entao a tela desvia para "Minha senha", que e onde essa conta se troca.
-  const cartaoSenha = useRef(null);
-  const irParaMinhaSenha = useCallback(() => {
-    cartaoSenha.current?.scrollIntoView({ behavior: "smooth", block: "center" });
-    setTimeout(() => document.getElementById("s-atual")?.focus(), 400);
-  }, []);
 
   // --- trocar a propria senha
   const [atual, setAtual] = useState("");
@@ -97,165 +72,10 @@ export default function Acessos() {
     }
   }
 
-  // --- contas (so a direcao)
+  // A direcao precisa do config/dados so para a lista de vendedores do cartao
+  // de cada pessoa (dentro de AcessoUnico) e para o backup.
   const { config, dados } = useApp();
-  const [contas, setContas] = useState(null);
-  const [form, setForm] = useState(VAZIO);
   const [msgConta, setMsgConta] = useState(null);
-  const [salvandoConta, setSalvandoConta] = useState(false);
-
-  const carregar = useCallback(async () => {
-    if (!ehDirecao) return;
-    try {
-      const r = await chamarAuth("listarContas");
-      setContas(r.contas || []);
-    } catch (err) {
-      setMsgConta({ tom: "erro", texto: err.message });
-      setContas([]);
-    }
-  }, [ehDirecao]);
-
-  useEffect(() => {
-    carregar();
-  }, [carregar]);
-
-  const alternarModulo = (id) =>
-    setForm((f) => ({
-      ...f,
-      permissoes: f.permissoes.includes(id)
-        ? f.permissoes.filter((x) => x !== id)
-        : [...f.permissoes, id],
-    }));
-
-  async function salvarConta(e) {
-    e.preventDefault();
-    setMsgConta(null);
-    if (ehDirecao && normalizarUsuario(form.usuario) === meuUsuario) {
-      setMsgConta({
-        tom: "aviso",
-        texto: "Essa e a sua própria conta, a da direção: ela já enxerga tudo e não precisa ser cadastrada. Para trocar a sua senha, use 'Minha senha' aqui em cima.",
-      });
-      irParaMinhaSenha();
-      return;
-    }
-    setSalvandoConta(true);
-    try {
-      await chamarAuth("salvarConta", form);
-      setMsgConta({ tom: "ok", texto: `Acesso de ${form.nome || form.usuario} salvo.` });
-      setForm(VAZIO);
-      carregar();
-    } catch (err) {
-      setMsgConta({ tom: "erro", texto: err.message });
-    } finally {
-      setSalvandoConta(false);
-    }
-  }
-
-  async function remover(usuario) {
-    setMsgConta(null);
-    try {
-      await chamarAuth("removerConta", { usuario });
-      setMsgConta({ tom: "aviso", texto: `Acesso de ${usuario} removido.` });
-      carregar();
-    } catch (err) {
-      setMsgConta({ tom: "erro", texto: err.message });
-    }
-  }
-
-  const editar = (c) =>
-    setForm({
-      usuario: c.usuario,
-      nome: c.nome,
-      senha: "",
-      permissoes: c.permissoes || [],
-      vendedorId: c.vendedorId || "",
-    });
-
-  /* Opcoes de vendedor: UNIAO de tres fontes, nesta ordem de confianca.
-
-     1. config.vendedores — a lista curada. E a fonte principal de proposito:
-        os dados crus tem lixo (nas 519 O.S. reais aparecem "Barbara
-        Vasconcelos" com 219 e "Barbara" com 1, de um lancamento manual);
-        montar o seletor so pelos dados poria duas Barbaras aqui, e escolher a
-        errada deixaria 219 O.S. de fora.
-     2. Os nomes vistos nos DADOS carregados — pega quem foi "ocultado" em
-        Orcamentos (retirarVendedor joga o nome em vendedoresOcultos e ele
-        sumia daqui, deixando o vinculo impossivel de fazer).
-     3. O valor JA GRAVADO nesta conta, mesmo que nao case com nada. Um <select>
-        cujo value nao existe entre as opcoes renderiza em branco, e o proximo
-        "Salvar acesso" gravaria "" -- apagando em silencio justamente o vinculo
-        torto que se quer enxergar. Ele entra marcado.
-
-     Nao usar SO os dados: `dados` e null enquanto carrega e vem vazio quando a
-     fonte falha (e a carga esta em 401 desde 03/08). O seletor nasceria so com
-     "sem vinculo" e a direcao ficaria sem como ligar ninguem. */
-  const opcoesVendedor = useMemo(() => {
-    const nomes = new Map();
-    for (const v of config?.vendedores || []) {
-      if (v?.id) nomes.set(v.id, { nome: v.id, desconhecido: false });
-    }
-    for (const o of dados?.ordens || []) {
-      if (o?.vendedor && !nomes.has(o.vendedor)) nomes.set(o.vendedor, { nome: o.vendedor, desconhecido: false });
-    }
-    const atual = String(form.vendedorId || "").trim();
-    if (atual && !nomes.has(atual)) nomes.set(atual, { nome: atual, desconhecido: true });
-    return [...nomes.values()].sort((a, b) => a.nome.localeCompare(b.nome));
-  }, [config, dados, form.vendedorId]);
-
-  const vendedorDesconhecido = opcoesVendedor.some((v) => v.desconhecido && v.nome === form.vendedorId);
-
-  /* Achar a conta pelo que foi DIGITADO, com a mesma regua do servidor
-     (minusculas, sem espaco nas pontas). Sem isso, escrever "Karen" mostrava
-     "Novo acesso" e mesmo assim sobrescrevia a conta "karen". */
-  const contaDigitada = useMemo(() => {
-    const alvo = normalizarUsuario(form.usuario);
-    if (!alvo) return null;
-    return (contas || []).find((c) => normalizarUsuario(c.usuario) === alvo) || null;
-  }, [contas, form.usuario]);
-
-  /* DIGITAR o usuario de uma conta que ja existe carrega os valores dela.
-     Antes, o caminho natural para "trocar a senha da Karen" -- digitar "karen"
-     no campo Usuario -- mandava o formulario VAZIO por cima: permissoes e
-     vinculo de vendedora zerados, sem nenhum aviso, porque salvarConta envia o
-     form inteiro e o servidor grava tudo. Clicar na linha da tabela funcionava;
-     digitar apagava.
-
-     `carregado` guarda o usuario ja carregado para nao reescrever o form a cada
-     tecla -- senao a pessoa nao conseguiria alterar nada do que acabou de vir. */
-  const carregado = useRef(null);
-  useEffect(() => {
-    const alvo = normalizarUsuario(form.usuario);
-
-    /* O CASAMENTO SE DESFEZ: quem estava carregado saiu de cena (a direcao
-       apagou "karen" e digitou "camila"). Tem de LIMPAR, nao so parar de
-       carregar. Sem este ramo a conta nova nascia com as permissoes da
-       anterior -- e no caso da conta da direcao, que vem com ["*"] e nenhuma
-       caixa marcada na tela, com acesso total sem nada dizendo isso. Concessao
-       de permissao em silencio, na propria tela de controle de acesso. */
-    if (!contaDigitada) {
-      if (carregado.current !== null) {
-        carregado.current = null;
-        setForm((f) => ({ ...f, nome: "", permissoes: [], vendedorId: "" }));
-      }
-      return;
-    }
-
-    if (carregado.current === alvo) return;
-    carregado.current = alvo;
-    /* Substitui, nao mescla: trocar de uma conta existente para OUTRA tem de
-       trazer os dados da segunda inteiros. O `f.nome || ...` de antes grudava
-       o nome da primeira, e a segunda era salva com o nome errado. */
-    setForm((f) => ({
-      ...f,
-      nome: contaDigitada.nome || "",
-      // A conta da direcao guarda ["*"] (curinga), que nao existe em MODULOS e
-      // por isso nao marca caixa nenhuma. Deixar entrar no form significaria
-      // reenviar acesso total sem a tela mostrar. Ela nem deveria ser editada
-      // por aqui -- o proprio cartao avisa "Esse e voce".
-      permissoes: (contaDigitada.permissoes || []).filter((p) => p !== "*"),
-      vendedorId: contaDigitada.vendedorId || "",
-    }));
-  }, [contaDigitada, form.usuario]);
 
   return (
     <div className="space-y-8">
@@ -272,7 +92,7 @@ export default function Acessos() {
       />
 
       {/* Minha senha -- todo mundo */}
-      <Card ref={cartaoSenha}>
+      <Card>
         <SectionTitle
           titulo="Minha senha"
           sub={
@@ -361,258 +181,15 @@ export default function Acessos() {
 
       {!ehDirecao ? null : (
         <>
-          {/* Cadastro de acesso.
-              O titulo usa `contaDigitada`, a MESMA regua do servidor (caixa e
-              espaco normalizados). Com a comparacao crua de antes, digitar
-              "Karen" mostrava "Novo acesso" e mesmo assim gravava por cima da
-              conta "karen" -- o unico rotulo que diz se voce esta criando ou
-              editando mentia justamente no caminho que este conserto atende. */}
-          <Card>
-            <SectionTitle
-              titulo={contaDigitada ? "Editar acesso" : "Novo acesso"}
-              sub="Marque o que a pessoa pode abrir. O que não estiver marcado não aparece no menu nem responde se ela digitar o endereço."
-            />
-            <form onSubmit={salvarConta} className="space-y-5">
-              <div className="grid gap-4 sm:grid-cols-3">
-                <div>
-                  <label className="label" htmlFor="c-usuario">
-                    Usuário (para entrar)
-                  </label>
-                  <input
-                    id="c-usuario"
-                    className="input"
-                    value={form.usuario}
-                    onChange={(e) => setForm((f) => ({ ...f, usuario: e.target.value }))}
-                    placeholder="ex: camila"
-                    required
-                  />
-                  {normalizarUsuario(form.usuario) === meuUsuario && (
-                    <p className="mt-1 text-xs text-warn-700">
-                      Esse e você. A direção já entra e já ve tudo —{" "}
-                      <button type="button" className="underline" onClick={irParaMinhaSenha}>
-                        trocar minha senha
-                      </button>
-                      .
-                    </p>
-                  )}
-                </div>
-                <div>
-                  <label className="label" htmlFor="c-nome">
-                    Nome
-                  </label>
-                  <input
-                    id="c-nome"
-                    className="input"
-                    value={form.nome}
-                    onChange={(e) => setForm((f) => ({ ...f, nome: e.target.value }))}
-                    placeholder="ex: Camila Souza"
-                  />
-                </div>
-                <div>
-                  <label className="label" htmlFor="c-senha">
-                    Senha
-                  </label>
-                  <input
-                    id="c-senha"
-                    type="password"
-                    className="input"
-                    value={form.senha}
-                    onChange={(e) => setForm((f) => ({ ...f, senha: e.target.value }))}
-                    placeholder="em branco = mantém a atual"
-                    autoComplete="new-password"
-                  />
-                </div>
-              </div>
+          {msgConta && <Aviso tom={msgConta.tom}>{msgConta.texto}</Aviso>}
 
-              <div>
-                <p className="label mb-2">O que esta pessoa pode abrir</p>
-                <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-                  {MODULOS.map((m) => {
-                    const marcado = form.permissoes.includes(m.id);
-                    return (
-                      <label
-                        key={m.id}
-                        className={`flex cursor-pointer items-start gap-2.5 rounded-xl border p-3 transition-all ${
-                          marcado ? "border-brand-300 bg-brand-50/60" : "hover:bg-slate-50"
-                        }`}
-                        style={marcado ? undefined : { borderColor: "var(--hairline)" }}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={marcado}
-                          onChange={() => alternarModulo(m.id)}
-                          className="mt-0.5 h-4 w-4 rounded border-slate-300 text-brand focus:ring-brand-200"
-                        />
-                        <span className="min-w-0">
-                          <span className="block font-display text-sm font-medium text-slate-900">
-                            {m.nome}
-                          </span>
-                          <span className="block text-xs text-slate-500">{m.sub}</span>
-                        </span>
-                      </label>
-                    );
-                  })}
-                </div>
-              </div>
-
-              <div>
-                <label className="label" htmlFor="c-vend">
-                  Vendedor no Mubisys (opcional)
-                </label>
-                {/* LISTA, nao texto livre. O campo era um input com datalist:
-                    a lista so sugeria. Como toda a comparacao a jusante e
-                    igualdade exata de string, escrever "Jessica Sampaio" com
-                    acento gravava numa boa e a pessoa entrava com a carteira
-                    vazia, sem nenhum aviso, para sempre. */}
-                <select
-                  id="c-vend"
-                  className="input"
-                  value={form.vendedorId}
-                  onChange={(e) => setForm((f) => ({ ...f, vendedorId: e.target.value }))}
-                >
-                  <option value="">— sem vínculo (ve o time todo) —</option>
-                  {opcoesVendedor.map((v) => (
-                    <option key={v.nome} value={v.nome}>
-                      {v.nome}
-                      {v.desconhecido ? " (não confere com o Mubisys)" : ""}
-                    </option>
-                  ))}
-                </select>
-                <p className="mt-1 text-xs text-slate-500">
-                  Ligando a conta a um vendedor, ele entra no painel e a fila de ações de Orçamentos
-                  já abre na carteira dele. Em branco, a pessoa ve o time inteiro. Passa a valer no
-                  próximo login dela.
-                </p>
-                {vendedorDesconhecido && (
-                  <p className="mt-1 text-xs text-warn-700">
-                    O vínculo gravado ({form.vendedorId}) não aparece entre os vendedores conhecidos.
-                    Provavelmente e erro de digitação antigo — a carteira dessa pessoa vai vir vazia
-                    até ser trocado por um nome da lista.
-                  </p>
-                )}
-              </div>
-
-              {msgConta && <Aviso tom={msgConta.tom}>{msgConta.texto}</Aviso>}
-
-              <div className="flex flex-wrap items-center gap-2">
-                <button className="btn-primary" disabled={salvandoConta}>
-                  <UserPlus size={16} strokeWidth={2.4} />
-                  {salvandoConta ? "Salvando..." : "Salvar acesso"}
-                </button>
-                {form.usuario && (
-                  <button type="button" className="btn-ghost" onClick={() => setForm(VAZIO)}>
-                    Limpar
-                  </button>
-                )}
-              </div>
-            </form>
-          </Card>
-
-          {/* Quem tem acesso hoje */}
-          <Card>
-            <SectionTitle titulo="Quem tem acesso" sub="Clique numa linha para editar." />
-            {contas === null ? (
-              <Empty>Carregando...</Empty>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full min-w-[560px] border-collapse">
-                  <thead>
-                    <tr>
-                      <th className="th text-left">Pessoa</th>
-                      <th className="th text-left">Usuário</th>
-                      <th className="th text-left">Pode abrir</th>
-                      <th className="th text-right">Ação</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {/* A direcao nao esta na tabela de contas, mas esta no painel:
-                        omiti-la fazia parecer que a conta nao existe. */}
-                    <tr className="border-t" style={{ borderColor: "var(--hairline)" }}>
-                      <td className="td font-display font-medium text-slate-900">
-                        Direção
-                        <span className="mt-0.5 block text-xs font-normal text-slate-500">
-                          você · dona do painel
-                        </span>
-                      </td>
-                      <td className="td text-slate-500">{meuUsuario}</td>
-                      <td className="td">
-                        <span className="chip">tudo liberado</span>
-                      </td>
-                      <td className="td text-right">
-                        <button
-                          type="button"
-                          onClick={irParaMinhaSenha}
-                          className="text-xs text-slate-500 underline hover:text-slate-900"
-                        >
-                          trocar senha
-                        </button>
-                      </td>
-                    </tr>
-                    {contas.map((c) => (
-                      <tr
-                        key={c.usuario}
-                        className="cursor-pointer border-t transition-colors hover:bg-slate-50"
-                        style={{ borderColor: "var(--hairline)" }}
-                        onClick={() => editar(c)}
-                      >
-                        <td className="td font-display font-medium text-slate-900">
-                          {c.nome}
-                          {c.vendedorId && (
-                            <span className="mt-0.5 block text-xs font-normal text-slate-500">
-                              ve as ações de {c.vendedorId}
-                            </span>
-                          )}
-                        </td>
-                        <td className="td text-slate-500">{c.usuario}</td>
-                        <td className="td">
-                          <span className="flex flex-wrap gap-1">
-                            {(c.permissoes || []).length === 0 ? (
-                              <span className="text-sm text-slate-400">nada liberado</span>
-                            ) : (
-                              (c.permissoes || []).map((p) => (
-                                <span key={p} className="chip">
-                                  {MODULOS.find((m) => m.id === p)?.nome || p}
-                                </span>
-                              ))
-                            )}
-                          </span>
-                        </td>
-                        <td className="td text-right" onClick={(e) => e.stopPropagation()}>
-                          <button
-                            onClick={() => remover(c.usuario)}
-                            className="grid h-8 w-8 place-items-center rounded-lg text-slate-400 transition-colors hover:bg-bad-50 hover:text-bad-700"
-                            title={`Remover o acesso de ${c.nome}`}
-                            aria-label={`Remover o acesso de ${c.nome}`}
-                          >
-                            <Trash2 size={15} />
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-
-            {contas?.length === 0 && (
-              <p className="mt-3 text-sm text-slate-500">
-                Além de você, ninguém mais tem acesso ainda.
-              </p>
-            )}
-
-            <p className="mt-4 flex items-start gap-2 rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-500">
-              <ShieldCheck size={14} className="mt-0.5 shrink-0" />
-              Remover o acesso ou trocar a senha impede NOVOS logins. Quem já esta com o painel
-              aberto continua até a sessão vencer, em até 12 horas -- não existe corte imediato
-              hoje. Se precisar tirar alguém na hora, peça para ela sair do painel no aparelho
-              dela, e remova o acesso para ela não conseguir entrar de novo.
-            </p>
-          </Card>
-
-          {/* Quem entra nos SETE sistemas. Fica DEPOIS da lista de contas do
-              painel de propósito: aquela lista manda no login de hoje, esta
-              prepara a virada -- e a ordem na tela ajuda a não confundir as
-              duas. */}
+          {/* UMA lista de gente, so.
+              Havia duas nesta pagina: um formulario "Novo/Editar acesso" com
+              usuario, nome e senha, e uma tabela "Quem tem acesso" -- as duas
+              mandando so no Painel -- e logo abaixo esta, que manda nos SETE.
+              Tres blocos pedindo as mesmas coisas, e nenhum deles dizendo qual
+              valia. Os dois primeiros sairam: o que eles faziam (modulos do
+              painel, senha, remover) agora esta dentro do cartao da pessoa. */}
           <AcessoUnico aoAvisar={setMsgConta} />
 
           <BackupDados />

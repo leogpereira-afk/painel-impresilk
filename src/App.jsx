@@ -11,8 +11,6 @@ import { Lock } from "lucide-react";
 import Layout from "./components/Layout.jsx";
 import Home from "./pages/Home.jsx";
 import ContasAtrasadas from "./pages/ContasAtrasadas.jsx";
-import FluxoCaixa from "./pages/FluxoCaixa.jsx";
-import Produtos from "./pages/Produtos.jsx";
 import Orcamentos from "./pages/Orcamentos.jsx";
 import Configuracoes from "./pages/Configuracoes.jsx";
 import Login from "./pages/Login.jsx";
@@ -68,22 +66,6 @@ export default function App() {
           element={
             <Restrito modulo="contas-atrasadas" sessao={sessao}>
               <ContasAtrasadas />
-            </Restrito>
-          }
-        />
-        <Route
-          path="/fluxo-caixa"
-          element={
-            <Restrito modulo="fluxo-caixa" sessao={sessao}>
-              <FluxoCaixa />
-            </Restrito>
-          }
-        />
-        <Route
-          path="/produtos"
-          element={
-            <Restrito modulo="produtos" sessao={sessao}>
-              <Produtos />
             </Restrito>
           }
         />

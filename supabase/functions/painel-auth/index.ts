@@ -35,7 +35,12 @@ const sb = createClient(SUPABASE_URL, SERVICE_KEY, { auth: { persistSession: fal
 
 // Modulos que podem ser liberados. "inicio" nao entra: e a porta de entrada e
 // fica sempre acessivel, senao a pessoa loga e cai numa tela sem lugar nenhum.
-const MODULOS = ["contas-atrasadas", "fluxo-caixa", "produtos", "orcamentos", "bancos", "marketing", "licitacoes", "glossario", "compromissos", "manutencoes", "patrimonio", "configuracoes"];
+// A tela de Acessos so consegue conceder o que estiver AQUI: salvarConta filtra
+// a lista recebida por esta constante, em silencio. "gestao" ficou de fora
+// quando a tela de direcao nasceu -- marcar a caixa, salvar e receber {ok:true}
+// nao concedia nada, e nao havia como perceber. Modulo novo entra nos DOIS
+// lugares (aqui e em src/lib/modulos.js) ou nao entra em nenhum.
+const MODULOS = ["gestao", "contas-atrasadas", "fluxo-caixa", "produtos", "orcamentos", "bancos", "marketing", "licitacoes", "glossario", "compromissos", "manutencoes", "patrimonio", "configuracoes"];
 
 // Mensagem UNICA para qualquer falha de login: usuario inexistente e senha
 // errada precisam ser indistinguiveis, senao da para descobrir quem tem acesso.
