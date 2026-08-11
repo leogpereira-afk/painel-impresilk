@@ -127,8 +127,15 @@ async function jaExisteNoSistema(conta: any, sistema: string): Promise<boolean> 
     return !!data;
   }
   if (sistema === "rh") {
+    // `perfis.usuario` e o nome NORMALIZADO (sem acento) pelo RH. Comparar com
+    // .toLowerCase() sozinho fazia "Barbara Patrícia" nunca bater com
+    // "barbara patricia": a function achava que a conta nao existia, mandava
+    // senha nova junto e a equipe-auth TROCAVA a senha do RH da pessoa a cada
+    // mudanca de papel.
+    const alvoRh = alvo.normalize("NFKD").replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase().replace(/\s+/g, " ").trim();
     const { data } = await sb.from("perfis").select("user_id")
-      .eq("usuario", alvo.toLowerCase()).maybeSingle();
+      .eq("usuario", alvoRh).maybeSingle();
     return !!data;
   }
   const { data } = await sb.from("equipe_contas").select("usuario")
