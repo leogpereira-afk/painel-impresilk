@@ -26,7 +26,6 @@ import {
   RefreshCw,
   KeyRound,
   FileCheck2,
-  Globe,
   UserCircle,
   HardHat,
   Building2,
@@ -78,7 +77,6 @@ const SISTEMAS = [
   { rotulo: "Compras", icone: ShoppingCart, href: "https://impresilk.com.br/compras" },
   { rotulo: "Brief de Medição", icone: Ruler, href: "https://impresilk.com.br/brief" },
   { rotulo: "Pops & Fabricação", icone: BookOpen, href: "https://impresilk.com.br/pops" },
-  { rotulo: "Site Impresilk", icone: Globe, href: "https://www.impresilk.com.br" },
   // Painel pessoal do dono: so aparece para a direcao, nao e sistema da empresa.
   { rotulo: "Central do Leo", icone: UserCircle, href: "https://leogpereira-afk.github.io/vida-leo/", soDirecao: true },
 ];
