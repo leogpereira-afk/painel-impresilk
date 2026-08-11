@@ -24,6 +24,7 @@ import {
 import { useApp } from "../config/store.jsx";
 import { getSessao, podeAbrir, vendedorDaSessao } from "../lib/sessao.js";
 import { calcOrcamentos } from "../lib/calc/orcamentos.js";
+import { salvarCompromisso } from "../services/compromissos.js";
 import { moeda, numero, pct, dataLonga, ymdLocal } from "../lib/format.js";
 import {
   Card,
@@ -616,6 +617,35 @@ export default function Orcamentos() {
       patch[it.id] = { proximoToque: data, ...(nota ? { nota } : {}) };
     }
     await setOverridesOrcamento(patch);
+
+    /* O RETORNO AGENDADO AQUI TEM DE APARECER NA AGENDA.
+       Antes a data virava `proximoToque` da marcacao do orcamento e morria
+       aqui: quem agendou nao via em Compromissos, e a agenda da manha ficava
+       sem justamente o retorno que a pessoa acabou de prometer. Agora vira um
+       compromisso de verdade, com o telefone junto para dar para ligar da
+       propria linha.
+       Falhar aqui NAO derruba o agendamento: o proximoToque ja foi gravado, e
+       perder o compromisso e menos ruim do que a tela dizer que nao agendou
+       quando agendou. */
+    try {
+      // O id é gerado AQUI: `salvarCompromisso` monta `patch: { [id]: dados }`,
+      // então id vazio criaria uma chave "" em vez de um registro novo. Mesmo
+      // formato que a tela de Compromissos usa.
+      // `getSessao()`, não `sessao`: esta tela não tem essa variável, e o erro
+      // cairia dentro do try abaixo — o compromisso não nasceria e ninguém
+      // saberia por quê.
+      const idNovo = `cp-${getSessao()?.usuario || "eu"}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+      await salvarCompromisso(idNovo, {
+        titulo: `Retorno — ${g.cliente}`,
+        tipo: "retorno",
+        cliente: g.cliente,
+        data,
+        telefone: g.celular || "",
+        obs: nota || `${g.qtd} orçamento(s) na mesa`,
+      });
+    } catch (e) {
+      console.warn("[orcamentos] retorno agendado, mas sem compromisso:", e?.message || e);
+    }
   }
 
   // Baixa como perdido a partir da fila: o orcamento sai da mesa e para de somar

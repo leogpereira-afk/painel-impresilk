@@ -63,6 +63,7 @@ const VAZIO = {
   cliente: "",
   data: "",
   hora: "",
+  telefone: "",
   obs: "",
   feito: false,
 };
@@ -286,6 +287,8 @@ function Linha({ c, sessao, ehDirecao, dePessoa, equipe, encaminhando, setEncami
     /* O aviso de parado só vale onde ele quer dizer alguma coisa: um
        compromisso marcado para daqui a duas semanas está parado por desenho.
        Em Atrasados e Sem data, parado é problema. */
+    // Só dígitos: o campo aceita "(38) 99999-0000" e o link precisa de número.
+    const telDigitos = String(c.telefone || "").replace(/\D/g, "");
     const paradoHa =
       !c.feito &&
       (c.pz.grupo === "Atrasados" || c.pz.grupo === "Sem data marcada") &&
@@ -406,6 +409,29 @@ function Linha({ c, sessao, ehDirecao, dePessoa, equipe, encaminhando, setEncami
         </span>
 
         <span className="flex shrink-0 items-center gap-0.5">
+          {/* Ligar e WhatsApp direto da linha: é onde o compromisso vira ação.
+              Só aparecem quando há telefone -- botão que não liga para lugar
+              nenhum é pior do que a falta dele. */}
+          {telDigitos && (
+            <>
+              <a
+                href={`tel:${telDigitos}`}
+                title={`Ligar para ${c.cliente || "o cliente"}`}
+                className="grid h-8 w-8 place-items-center rounded-lg text-slate-400 transition-colors hover:bg-slate-100 hover:text-brand"
+              >
+                <Phone size={15} strokeWidth={2.2} />
+              </a>
+              <a
+                href={`https://wa.me/55${telDigitos}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                title="Abrir no WhatsApp"
+                className="grid h-8 w-8 place-items-center rounded-lg text-slate-400 transition-colors hover:bg-ok-50 hover:text-ok-700"
+              >
+                <MessageCircle size={15} strokeWidth={2.2} />
+              </a>
+            </>
+          )}
           {/* A conversa e o coracao da coisa: e onde fica o que ja foi feito e
               o que falta. Botao com rotulo (nao so icone) e com o numero de
               recados, para dar vontade de abrir. */}
@@ -1017,11 +1043,27 @@ export default function Compromissos() {
                 </div>
               </div>
               <div>
+                {/* TELEFONE TEM LUGAR PRÓPRIO.
+                    Retorno de orçamento, cobrança e visita terminam em falar
+                    com o cliente, e o telefone só cabia dentro da observação,
+                    em texto livre -- de onde ninguém liga: é copiar, sair da
+                    tela, colar. Com campo próprio, a linha ganha os botões. */}
+                <label className="label" htmlFor="c-tel">Telefone do cliente</label>
+                <input
+                  id="c-tel"
+                  className="input"
+                  inputMode="tel"
+                  placeholder="(38) 99999-0000"
+                  value={form.telefone || ""}
+                  onChange={(e) => setForm((f) => ({ ...f, telefone: e.target.value }))}
+                />
+              </div>
+              <div>
                 <label className="label" htmlFor="c-obs">Observação</label>
                 <input
                   id="c-obs"
                   className="input"
-                  placeholder="endereço, telefone, o que levar..."
+                  placeholder="endereço, o que levar..."
                   value={form.obs}
                   onChange={(e) => setForm((f) => ({ ...f, obs: e.target.value }))}
                 />
