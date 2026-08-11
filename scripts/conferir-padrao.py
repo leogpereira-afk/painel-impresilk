@@ -38,6 +38,9 @@ PORTAS = {
     "brief": ("brief-sync", "medidor", "list"),
     "pcp": ("pcp-sync", "montagem", "list"),
     "dre": ("dre-sync", "equipe", "list"),
+    # A Central do Léo: app pessoal, mas porta padrão como as outras. A leitura
+    # dela é GET, não POST — o conferidor trata isso abaixo.
+    "central": ("leo-sync", "dono", None),
     # o Compras tem gate duplo (token público do fornecedor + crachá); a
     # conferência dele é a do token, feita à parte
 }
@@ -135,11 +138,12 @@ def main() -> int:
     for sis, (fn, _papel, acao) in PORTAS.items():
         meu = crachas.get(sis, "")
         outro = next((t for s, t in crachas.items() if s != sis), "")
-        a, _ = http(f"{FN}/{fn}", {"action": acao},
+        corpo = {"action": acao} if acao else None   # None = GET (a Central lê por GET)
+        a, _ = http(f"{FN}/{fn}", corpo,
                     cab={"apikey": anon, "Authorization": f"Bearer {meu}"})
-        b, _ = http(f"{FN}/{fn}", {"action": acao},
+        b, _ = http(f"{FN}/{fn}", corpo,
                     cab={"apikey": anon, "Authorization": f"Bearer {outro}"})
-        c, _ = http(f"{FN}/{fn}", {"action": acao}, cab={"apikey": anon})
+        c, _ = http(f"{FN}/{fn}", corpo, cab={"apikey": anon})
         # 400 conta como "passou pela porta": a ação existe, o corpo é que não serve
         ok = (a in (200, 400), b in (401, 403), c in (401, 403))
         if not ok[0]:
