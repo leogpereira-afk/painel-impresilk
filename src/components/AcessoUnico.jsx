@@ -10,8 +10,11 @@
 // pela tabela antiga. Aviso que a tela nao da, o usuario descobre do pior jeito.
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Users, KeyRound, DoorOpen, Check, Pencil, AlertTriangle, Search } from "lucide-react";
-import { lerAcessos, salvarConta, salvarPapel, removerPapel } from "../services/acesso.js";
+import { Users, KeyRound, DoorOpen, Pencil, AlertTriangle, Search, UserPlus, Power } from "lucide-react";
+import {
+  lerAcessos, salvarConta, salvarPapel, removerPapel,
+  criarPessoa, definirSenha, desativar,
+} from "../services/acesso.js";
 import { Card, SectionTitle, Empty } from "./ui.jsx";
 
 const NOME_SISTEMA = {
@@ -19,20 +22,138 @@ const NOME_SISTEMA = {
   dre: "DRE", compras: "Compras", pops: "POPs",
 };
 
-// Papeis que cada sistema ja usa hoje. Sao os valores que estao gravados em
-// equipe_contas -- inventar nome novo aqui faria a virada gravar papel que
-// nenhum sistema reconhece.
+// Papeis que cada sistema aceita. COPIA FIEL da lista fechada do equipe-auth
+// (supabase/functions/equipe-auth/index.ts, const PAPEIS) -- o servidor valida
+// com includes(), sem normalizar: papel que nao esta la e recusado, e papel
+// gravado so na tabela nova (que nao tem CHECK) nao e recusado por ninguem e
+// simplesmente nao funciona em lugar nenhum.
+//
+// Esta lista JA ESTEVE ERRADA aqui: "compras" tinha compras/obra (os papeis do
+// app antigo) e "pops" nao tinha gestor. Ao mexer, confira na origem.
 const PAPEIS = {
-  pcp: ["admin", "pcp", "comercial", "montagem"],
-  brief: ["admin", "vendedor", "designer", "medidor"],
-  compras: ["admin", "compras", "obra"],
-  pops: ["admin", "equipe"],
+  brief: ["vendedor", "designer", "medidor", "admin"],
+  pcp: ["admin", "pcp", "montagem", "operacao", "comercial"],
+  compras: ["admin", "comprador", "solicitante"],
   dre: ["equipe"],
+  pops: ["admin", "gestor", "equipe"],
   rh: ["ADMIN_RH", "GESTOR", "COLABORADOR"],
+  // O painel nao usa papel: quem manda la e a lista de modulos (permissoes).
   painel: [],
 };
 
-function Conta({ c, sistemas, colaboradores, aoMudar, aoAvisar }) {
+// A senha temporaria aparece UMA vez. Ela nao fica guardada em lugar nenhum
+// legivel -- se a direcao fechar esta caixa sem anotar, o caminho e gerar outra.
+function SenhaNova({ senha, nome, aoFechar }) {
+  if (!senha) return null;
+  return (
+    <div className="mb-4 rounded-xl border-2 border-brand bg-brand-50 p-4">
+      <p className="font-display text-sm font-semibold text-slate-900">
+        Senha de {nome}: <span className="font-mono text-base">{senha}</span>
+      </p>
+      <p className="mt-1 text-xs text-slate-600">
+        Anote e passe para a pessoa agora — esta senha não aparece de novo. Ela é obrigada a
+        trocar na primeira entrada.
+      </p>
+      <button type="button" className="btn-ghost mt-2 h-8 px-2 text-xs" onClick={aoFechar}>
+        Já anotei
+      </button>
+    </div>
+  );
+}
+
+const VAZIA = { usuario: "", nome: "", tipo: "pessoa", colaborador: "" };
+
+function NovaPessoa({ sistemas, aoCriar, aoCancelar }) {
+  const [f, setF] = useState(VAZIA);
+  const [papeis, setPapeis] = useState({});
+  const [salvando, setSalvando] = useState(false);
+
+  const alternar = (sis) =>
+    setPapeis((p) => {
+      const n = { ...p };
+      if (n[sis] === undefined) n[sis] = (PAPEIS[sis] || [])[0] || "";
+      else delete n[sis];
+      return n;
+    });
+
+  const enviar = async (e) => {
+    e.preventDefault();
+    setSalvando(true);
+    try {
+      await aoCriar(f, Object.entries(papeis).map(([sistema, papel]) => ({ sistema, papel })));
+    } finally {
+      setSalvando(false);
+    }
+  };
+
+  return (
+    <form onSubmit={enviar} className="mb-4 space-y-3 rounded-xl border p-4"
+      style={{ borderColor: "var(--hairline)" }}>
+      <p className="font-display text-sm font-semibold text-slate-900">Nova pessoa</p>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <div>
+          <label className="label" htmlFor="np-u">Usuário (como ela digita para entrar)</label>
+          <input id="np-u" className="input" value={f.usuario} required
+            placeholder="ex.: joao"
+            onChange={(e) => setF((x) => ({ ...x, usuario: e.target.value }))} />
+        </div>
+        <div>
+          <label className="label" htmlFor="np-n">Nome</label>
+          <input id="np-n" className="input" value={f.nome}
+            onChange={(e) => setF((x) => ({ ...x, nome: e.target.value }))} />
+        </div>
+        <div>
+          <label className="label" htmlFor="np-t">O que é esta conta</label>
+          <select id="np-t" className="input" value={f.tipo}
+            onChange={(e) => setF((x) => ({ ...x, tipo: e.target.value }))}>
+            <option value="pessoa">Uma pessoa</option>
+            <option value="funcao">Porta compartilhada (uma função)</option>
+          </select>
+        </div>
+        <div>
+          <label className="label" htmlFor="np-c">Quem é no RH</label>
+          <input id="np-c" className="input" list="rh-colaboradores" value={f.colaborador}
+            placeholder="obrigatório para dar acesso ao RH"
+            onChange={(e) => setF((x) => ({ ...x, colaborador: e.target.value }))} />
+        </div>
+      </div>
+
+      <div>
+        <p className="label mb-2">Em quais sistemas ela entra</p>
+        <div className="space-y-2">
+          {sistemas.map((sis) => (
+            <div key={sis} className="flex flex-wrap items-center gap-2">
+              <label className="flex min-w-[7rem] cursor-pointer items-center gap-2 text-sm">
+                <input type="checkbox" checked={papeis[sis] !== undefined}
+                  onChange={() => alternar(sis)}
+                  className="h-4 w-4 rounded border-slate-300 text-brand focus:ring-brand-200" />
+                {NOME_SISTEMA[sis] || sis}
+              </label>
+              {papeis[sis] !== undefined && (PAPEIS[sis] || []).length > 0 && (
+                <select className="input h-8 w-auto py-0 text-xs" value={papeis[sis]}
+                  onChange={(e) => setPapeis((p) => ({ ...p, [sis]: e.target.value }))}>
+                  {PAPEIS[sis].map((o) => <option key={o} value={o}>{o}</option>)}
+                </select>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <p className="text-xs text-slate-500">
+        A senha é criada por mim e mostrada uma vez aqui na tela. A pessoa troca na primeira entrada.
+      </p>
+      <div className="flex gap-2">
+        <button className="btn-primary" disabled={salvando}>
+          {salvando ? "Criando..." : "Criar e dar acesso"}
+        </button>
+        <button type="button" className="btn-ghost" onClick={aoCancelar}>Cancelar</button>
+      </div>
+    </form>
+  );
+}
+
+function Conta({ c, sistemas, colaboradores, aoMudar, aoAvisar, aoSenha }) {
   const [aberta, setAberta] = useState(false);
   const [f, setF] = useState(null);
 
@@ -66,6 +187,30 @@ function Conta({ c, sistemas, colaboradores, aoMudar, aoAvisar }) {
     } catch (err) { aoAvisar({ tom: "erro", texto: err.message }); }
   };
 
+  const novaSenha = async () => {
+    if (!confirm(`Gerar uma senha nova para ${c.nome || c.usuario}? A senha atual dela para de valer em todos os sistemas.`)) return;
+    try {
+      const r = await definirSenha(c.usuario);
+      aoSenha({ senha: r.senha, nome: c.nome || c.usuario });
+      if (r.recusados?.length) {
+        aoAvisar({ tom: "erro", texto: `Não consegui em: ${r.recusados.map((x) => x.sistema).join(", ")}` });
+      }
+      await aoMudar();
+    } catch (err) { aoAvisar({ tom: "erro", texto: err.message }); }
+  };
+
+  const alternarAtivo = async () => {
+    const ligar = c.ativo === false;
+    if (!ligar && !confirm(`Desativar ${c.nome || c.usuario}? Ela para de entrar. Quem já está com a sessão aberta continua até o crachá vencer.`)) return;
+    try {
+      const r = await desativar(c.usuario, ligar);
+      if (r.recusados?.length) {
+        aoAvisar({ tom: "erro", texto: r.recusados.map((x) => `${NOME_SISTEMA[x.sistema] || x.sistema}: ${x.erro}`).join(" · ") });
+      }
+      await aoMudar();
+    } catch (err) { aoAvisar({ tom: "erro", texto: err.message }); }
+  };
+
   const ehFuncao = c.tipo === "funcao";
   const naoMigradas = c.senhas.filter((s) => !s.migrada).length;
 
@@ -88,6 +233,7 @@ function Conta({ c, sistemas, colaboradores, aoMudar, aoAvisar }) {
             {c.colaborador ? ` — ${c.colaborador}` : ""}
           </span>
         </span>
+        {c.ativo === false && <span className="chip-bad shrink-0">desativada</span>}
         {ehFuncao && <span className="chip-warn shrink-0">porta de função</span>}
         {c.senhas.length > 1 && (
           <span className="chip shrink-0" title={`${c.senhas.length} senhas diferentes hoje`}>
@@ -127,9 +273,17 @@ function Conta({ c, sistemas, colaboradores, aoMudar, aoAvisar }) {
               </div>
             </form>
           ) : (
-            <button type="button" className="btn-ghost h-8 px-2 text-xs" onClick={editar}>
-              <Pencil size={13} /> Editar nome, tipo e vínculo com o RH
-            </button>
+            <div className="flex flex-wrap gap-2">
+              <button type="button" className="btn-ghost h-8 px-2 text-xs" onClick={editar}>
+                <Pencil size={13} /> Editar nome, tipo e vínculo com o RH
+              </button>
+              <button type="button" className="btn-ghost h-8 px-2 text-xs" onClick={novaSenha}>
+                <KeyRound size={13} /> Gerar nova senha
+              </button>
+              <button type="button" className="btn-ghost h-8 px-2 text-xs" onClick={alternarAtivo}>
+                <Power size={13} /> {c.ativo === false ? "Reativar" : "Desativar"}
+              </button>
+            </div>
           )}
 
           <div>
@@ -181,6 +335,8 @@ export default function AcessoUnico({ aoAvisar }) {
   const [dados, setDados] = useState(null);
   const [erro, setErro] = useState(null);
   const [busca, setBusca] = useState("");
+  const [criando, setCriando] = useState(false);
+  const [senhaNova, setSenhaNova] = useState(null);
 
   const carregar = useCallback(async () => {
     try {
@@ -190,6 +346,23 @@ export default function AcessoUnico({ aoAvisar }) {
   }, []);
 
   useEffect(() => { carregar(); }, [carregar]);
+
+  const criar = useCallback(async (conta, papeis) => {
+    try {
+      const r = await criarPessoa(conta, papeis);
+      setSenhaNova({ senha: r.senha, nome: conta.nome || conta.usuario });
+      setCriando(false);
+      // Sistema que recusou nao pode virar silencio: a pessoa foi criada, mas
+      // nao entra naquele -- e so aqui da para dizer por que.
+      if (r.recusados?.length) {
+        aoAvisar({
+          tom: "erro",
+          texto: r.recusados.map((x) => `${NOME_SISTEMA[x.sistema] || x.sistema}: ${x.erro}`).join(" · "),
+        });
+      }
+      await carregar();
+    } catch (e) { aoAvisar({ tom: "erro", texto: e.message }); }
+  }, [carregar, aoAvisar]);
 
   const lista = useMemo(() => {
     if (!dados) return [];
@@ -224,15 +397,15 @@ export default function AcessoUnico({ aoAvisar }) {
         sub="Uma linha por pessoa. O que muda de um sistema para outro é o papel, não a conta."
       />
 
-      {/* Sem este aviso a direcao desmarca um sistema, acha que tirou o acesso,
-          e a pessoa continua entrando pela tabela antiga. */}
+      {/* O aviso ANTIGO dizia que esta tela nao mandava no login -- e nao mandava
+          mesmo. Agora manda, e deixar o texto velho seria pior do que nao ter
+          aviso: a direcao tiraria um acesso achando que era ensaio. */}
       <p className="mb-4 flex items-start gap-2 rounded-lg bg-warn-50 px-3 py-2 text-sm text-warn-700">
         <AlertTriangle size={15} className="mt-0.5 shrink-0" />
         <span>
-          <b className="font-display">Isto ainda não manda no login.</b> Os sete sistemas continuam
-          usando as contas antigas até a virada de cada um. O que você ajusta aqui é como as contas
-          vão ficar quando ela acontecer. Para tirar o acesso de alguém <b>hoje</b>, é na lista de
-          contas do painel (acima) ou na Central de Acessos.
+          <b className="font-display">Vale na hora.</b> Cadastrar, mudar papel, desativar e tirar
+          acesso mexem no sistema de verdade — não é ensaio. Uma ressalva: quem já está com a
+          sessão aberta continua até o crachá vencer (30 dias no campo, 12 horas no painel).
         </span>
       </p>
 
@@ -255,6 +428,17 @@ export default function AcessoUnico({ aoAvisar }) {
         </div>
       )}
 
+      <SenhaNova senha={senhaNova?.senha} nome={senhaNova?.nome}
+        aoFechar={() => setSenhaNova(null)} />
+
+      {criando ? (
+        <NovaPessoa sistemas={dados.sistemas} aoCriar={criar} aoCancelar={() => setCriando(false)} />
+      ) : (
+        <button type="button" className="btn-primary mb-3" onClick={() => setCriando(true)}>
+          <UserPlus size={15} /> Cadastrar pessoa
+        </button>
+      )}
+
       <div className="sem-impressao relative mb-3 max-w-sm">
         <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
         <input className="input pl-9" value={busca} onChange={(e) => setBusca(e.target.value)}
@@ -269,7 +453,8 @@ export default function AcessoUnico({ aoAvisar }) {
         <div className="space-y-2">
           {lista.map((c) => (
             <Conta key={c.usuario} c={c} sistemas={dados.sistemas}
-              colaboradores={dados.colaboradores} aoMudar={carregar} aoAvisar={aoAvisar} />
+              colaboradores={dados.colaboradores} aoMudar={carregar} aoAvisar={aoAvisar}
+              aoSenha={setSenhaNova} />
           ))}
         </div>
       ) : (
