@@ -196,10 +196,22 @@ export function calcManutencoes(itens, mapa, hojeISO) {
     porItem.get(chave).push(l);
   }
 
+  // Início da janela de 12 meses (data local, nunca UTC).
+  const jan = new Date();
+  jan.setMonth(jan.getMonth() - 12);
+  const inicioJanela = `${jan.getFullYear()}-${String(jan.getMonth() + 1).padStart(2, "0")}-${String(jan.getDate()).padStart(2, "0")}`;
+
   const lista = (itens || []).map((it) => {
     const hist = porItem.get(it.id) || [];
     const total = hist.reduce((s, l) => s + l.valor, 0);
     const noAno = hist.filter((l) => String(l.data || "").startsWith(ano)).reduce((s, l) => s + l.valor, 0);
+    /* ÚLTIMOS 12 MESES, e não "no ano". Em 2 de janeiro o gasto do ano zera e a
+       tela esquece tudo -- justamente na semana de decidir orçamento e troca de
+       veículo. A janela móvel responde a pergunta que se faz o ano inteiro:
+       quanto este carro me custou nos últimos doze meses? */
+    const doze = hist
+      .filter((l) => String(l.data || "") >= inicioJanela)
+      .reduce((s, l) => s + l.valor, 0);
     const ultima = hist[0] || null;
     // A próxima é a MAIOR data prevista entre os lançamentos: marcar a próxima
     // num lançamento antigo não pode ressuscitar um alerta já resolvido por um
@@ -216,6 +228,7 @@ export function calcManutencoes(itens, mapa, hojeISO) {
       quantos: hist.length,
       total,
       noAno,
+      doze,
       ultima,
       proxima,
       sit: situacaoProxima(proxima, hojeISO),

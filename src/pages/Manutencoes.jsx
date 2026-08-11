@@ -690,7 +690,7 @@ function LinhaItem({ item, aberto, aoAbrir, aoLancar, aoEditarItem, aoApagarItem
           <span className="block text-xs text-slate-500">
             {item.quantos === 0
               ? "nada lançado"
-              : `${item.quantos} ${item.quantos === 1 ? "serviço" : "serviços"} · ${moeda(item.noAno)} no ano`}
+              : `${item.quantos} ${item.quantos === 1 ? "serviço" : "serviços"} · ${moeda(item.doze)} em 12 meses`}
           </span>
         </span>
 
@@ -815,11 +815,11 @@ export default function Manutencoes() {
               `${i.nome} ${i.categoria} ${i.identificacao} ${i.responsavel} ${resumoEspec(i).join(" ")}`
             ).includes(q)
       )
-      // Atrasado primeiro; depois o que mais consumiu no ano.
+      // Atrasado primeiro; depois o que mais consumiu em 12 meses.
       .sort((a, b) => {
         const peso = { vencida: 0, perto: 1, ok: 2, sem: 3 };
         const d = peso[a.sit.nivel] - peso[b.sit.nivel];
-        return d !== 0 ? d : b.noAno - a.noAno;
+        return d !== 0 ? d : b.doze - a.doze;
       });
   }, [vm, familia, busca]);
 
@@ -1135,22 +1135,25 @@ export default function Manutencoes() {
       {vm.ranking.length > 0 && (
         <Card>
           <SectionTitle
-            titulo="Quem mais consumiu no ano"
+            titulo="Quem mais consumiu nos últimos 12 meses"
             sub="A conta que decide trocar um veículo ou renegociar um contrato de assistência."
           />
           <div className="space-y-2">
             {vm.ranking.map((i) => {
-              const maior = vm.ranking[0].noAno || 1;
+              // Últimos 12 meses, não "no ano": em 2 de janeiro o ranking do
+              // ano zera e a tela esquece tudo, justamente na semana de decidir
+              // orçamento e troca de veículo.
+              const maior = vm.ranking[0].doze || 1;
               const Icone = ICONE_FAMILIA[i.familia] || Wrench;
               return (
                 <div key={i.id} className="flex items-center gap-3">
                   <Icone size={15} className="shrink-0 text-slate-400" />
                   <span className="min-w-0 flex-1 truncate text-sm text-slate-700">{i.nome}</span>
                   <div className="hidden h-2 w-40 shrink-0 overflow-hidden rounded-full bg-slate-100 sm:block">
-                    <div className="h-full rounded-full bg-brand" style={{ width: `${(i.noAno / maior) * 100}%` }} />
+                    <div className="h-full rounded-full bg-brand" style={{ width: `${(i.doze / maior) * 100}%` }} />
                   </div>
                   <span className="w-28 shrink-0 text-right text-sm font-medium tabular-nums text-slate-900">
-                    {moeda(i.noAno)}
+                    {moeda(i.doze)}
                   </span>
                 </div>
               );

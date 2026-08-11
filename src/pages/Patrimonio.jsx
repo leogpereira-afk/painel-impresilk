@@ -508,7 +508,13 @@ export default function Patrimonio() {
 
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <StatCard rotulo="Bens" valor={numero(k.quantos)} sub={k.baixados ? `${k.baixados} baixados` : "todos em uso"} tom="neutral" icone={Boxes} />
-        <StatCard rotulo="Valor total" valor={moeda(k.valor)} sub="soma do que foi pago" tom="neutral" icone={Wallet} />
+        {/* SEM NOTA APARECE NO SUBTÍTULO. `semValor` já era contado e ninguém
+            via: este é o número que vai para o seguro, e ele pode estar
+            mentindo PARA BAIXO sem nada avisando. "Soma do que foi pago" sem
+            dizer quantos itens não têm valor é meia verdade. */}
+        <StatCard rotulo="Valor total" valor={moeda(k.valor)}
+          sub={k.semValor ? `soma do que foi pago · ${k.semValor} item(ns) sem valor` : "soma do que foi pago"}
+          tom={k.semValor ? "warn" : "neutral"} icone={Wallet} />
         <StatCard rotulo="Comprados no ano" valor={moeda(k.noAno)} sub={`${numero(k.compradosNoAno)} ${k.compradosNoAno === 1 ? "bem" : "bens"}`} tom="neutral" icone={Coins} />
         <StatCard
           rotulo="Sem nota"

@@ -855,6 +855,22 @@ function BlocoAtas({ dados, papel, aoRecarregar, aoAvisar }) {
             )}
           </>
         )}
+
+        {/* GERAR AÇÕES SOBREVIVE À APROVAÇÃO.
+            O botão estava dentro do bloco `!travada`, junto com os de EDITAR —
+            e sumia no instante em que a ata era aprovada. Quem aprova antes de
+            gerar (o mais natural: aprovo e só depois penso no que virou tarefa)
+            ficava sem caminho e redigitava as decisões à mão nas táticas.
+            Gerar ação não altera a ata: lê as decisões e cria tática. Travar a
+            ata não tem por que travar isso. */}
+        {travada && (
+          <div className="flex flex-wrap gap-2 border-t pt-3" style={{ borderColor: "var(--hairline)" }}>
+            <GerarAcoes reuniao={r} objetivos={objetivos} aoRecarregar={aoRecarregar} aoAvisar={aoAvisar} />
+            <span className="self-center text-xs text-slate-400">
+              A ata está aprovada e não muda mais — mas as decisões dela ainda viram tática.
+            </span>
+          </div>
+        )}
       </div>
     );
   }
