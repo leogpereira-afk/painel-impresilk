@@ -153,10 +153,17 @@ Deno.serve(async (req: Request) => {
 
     const candidatos: { id: string; email: string }[] = [];
     if (!conta.auth_user_id && conta.colaborador) {
-      const { data: perfis } = await sb.from("perfis").select("user_id, nome, atualizado_em");
+      /* CASA POR `perfis.usuario`, NAO POR `perfis.nome`.
+         `nome` e o nome CURTO de exibicao ("Jessica Sampaio"), copiado da conta
+         do painel; `usuario` e o nome COMPLETO normalizado, que e como o RH
+         identifica a pessoa e como ela digita para entrar. Comparando com
+         `nome`, o alvo (o nome do colaborador, completo) nunca batia -- e a
+         pessoa ganhava uma SEGUNDA identidade no Auth, calada. Foi o que
+         aconteceu com a Jessica em 11/08. */
+      const { data: perfis } = await sb.from("perfis").select("user_id, usuario, nome, atualizado_em");
       const alvo = semAcento(conta.colaborador);
       const meus = (perfis ?? [])
-        .filter((p: any) => semAcento(p.nome) === alvo)
+        .filter((p: any) => semAcento(p.usuario) === alvo || semAcento(p.nome) === alvo)
         .sort((a: any, b: any) => String(b.atualizado_em).localeCompare(String(a.atualizado_em)));
       for (const p of meus) {
         const { data: u } = await sb.auth.admin.getUserById(p.user_id);
