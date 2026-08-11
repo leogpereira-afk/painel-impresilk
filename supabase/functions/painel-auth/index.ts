@@ -25,6 +25,8 @@ import {
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const JWT_SECRET = Deno.env.get("PAINEL_JWT_SECRET") ?? "";
+// Chave publica: signInWithPassword nao aceita a de servico.
+const ANON_KEY = Deno.env.get("ANON_KEY_IMPRESILK") ?? "";
 const TOKEN = Deno.env.get("PAINEL_TOKEN") ?? "";
 const MASTER_USUARIO = normalizarUsuario(Deno.env.get("PAINEL_AUTH_MASTER_USUARIO") || "leonardo");
 const MASTER_SENHA = Deno.env.get("PAINEL_AUTH_MASTER_SENHA") ?? "";
@@ -206,13 +208,50 @@ Deno.serve(async (req: Request) => {
         // protegeria pouco e travaria o dono do sistema para fora. Para as
         // demais contas a senha atual continua obrigatoria: a direcao redefine
         // a senha delas pela tela de acessos.
+        /* A SENHA ATUAL E CONFERIDA ONDE ELA DE FATO VALE.
+           Depois da virada, quem manda na senha de uma conta migrada e o
+           Supabase Auth -- `painel_contas` guarda um hash que pode estar velho.
+           Conferindo so no hash velho, a pessoa digitava a senha que usa hoje e
+           ouvia "senha atual incorreta". */
+        const { data: unificada } = await sb.from("acesso_conta")
+          .select("auth_user_id").eq("usuario", chave).maybeSingle();
+        const idAuth = unificada?.auth_user_id ?? null;
+
         const semAtual = body.semSenhaAtual === true && ehMaster;
-        const confere = semAtual
-          ? true
-          : conta
+        let confere = semAtual;
+        if (!confere && idAuth && ANON_KEY) {
+          const { data: u } = await sb.auth.admin.getUserById(idAuth);
+          const email = u?.user?.email;
+          if (email) {
+            const cliente = createClient(SUPABASE_URL, ANON_KEY, { auth: { persistSession: false } });
+            const { data: ok } = await cliente.auth.signInWithPassword({ email, password: atual });
+            confere = !!ok?.session;
+          }
+        }
+        if (!confere) {
+          confere = conta
             ? await conferirSenha(atual, conta)
             : ehMaster && !!MASTER_SENHA && igual(atual, MASTER_SENHA);
+        }
         if (!confere) return json({ erro: "Senha atual incorreta." }, 401);
+
+        /* A SENHA E UMA SO -- ENTAO TROCAR AQUI TEM DE TROCAR LA.
+           Depois da virada, quem entra pela entrada unica e conferido no
+           Supabase Auth, nao em `painel_contas`. Gravando so aqui, a pessoa
+           trocava a senha, via "pronto", e no dia seguinte a entrada unica
+           continuava pedindo a ANTIGA -- enquanto o login antigo ja queria a
+           nova. Duas senhas para a mesma pessoa, do pior jeito: sem ninguem
+           saber qual vale onde.
+           Se a conta ainda nao foi migrada, nao ha o que atualizar la. */
+        if (idAuth) {
+          const { error: erroAuth } = await sb.auth.admin
+            .updateUserById(idAuth, { password: nova });
+          // Falhar aqui e falhar a troca: gravar so de um lado e o problema.
+          if (erroAuth) {
+            console.error("[painel-auth] troca de senha no Auth:", erroAuth.message);
+            return json({ erro: "Nao consegui trocar a senha agora. Tente de novo." }, 500);
+          }
+        }
 
         const reg = await hashSenha(nova);
         const { error } = await sb.from("painel_contas").upsert({
