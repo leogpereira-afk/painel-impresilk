@@ -35,6 +35,9 @@ import {
   Coins,
 } from "lucide-react";
 import { listarAtivos, salvarAtivo, removerAtivo } from "../services/ativos.js";
+// O item cadastrado aqui também é patrimônio: mesma coisa, duas perguntas
+// ("quanto me custa para manter" e "quanto vale, e onde está").
+import { lerSetores, salvarBem } from "../services/patrimonio.js";
 import { lerManutencoes, salvarManutencao, removerManutencao } from "../services/manutencoes.js";
 import { getFluxoMensal } from "../services/mubi.js";
 import {
@@ -327,7 +330,7 @@ const EXEMPLO_NOME = {
   predial: "ex: Ar condicionado da produção",
 };
 
-function FormItem({ inicial, salvando, aoSalvar, aoFechar }) {
+function FormItem({ inicial, salvando, aoSalvar, aoFechar, setores }) {
   const [f, setF] = useState(inicial);
   const trocar = (campo) => (e) => setF((v) => ({ ...v, [campo]: e.target.value }));
   const trocarEspec = (campo, maiusculo) => (e) => {
@@ -558,6 +561,41 @@ function FormItem({ inicial, salvando, aoSalvar, aoFechar }) {
               onChange={trocar("observacao")}
             />
           </div>
+
+          {/* FICHA DE PATRIMÔNIO — o mesmo item, a outra pergunta.
+              Aqui se pergunta quanto custa para manter; no Patrimônio, quanto
+              vale e onde está. Eram dois cadastros que não se conheciam, e a
+              mesma máquina era digitada duas vezes com nomes diferentes — daí
+              o valor do seguro nunca fechar com a lista de manutenção.
+              Preenchido aqui, o item nasce nas duas telas. A etiqueta é gerada
+              pelo servidor na primeira gravação. */}
+          <div className="sm:col-span-2 mt-1 border-t pt-3" style={{ borderColor: "var(--hairline)" }}>
+            <p className="label">Ficha de patrimônio <span className="font-normal text-slate-400">— aparece também em Patrimônio</span></p>
+          </div>
+          <div>
+            <label className="label" htmlFor="i-setor">Setor</label>
+            <select id="i-setor" className="input" value={f.setorSigla || ""} onChange={trocar("setorSigla")}>
+              <option value="">onde fica...</option>
+              {(setores || []).map((s) => (
+                <option key={s.sigla} value={s.sigla}>{s.sigla} — {s.nome}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="label" htmlFor="i-nf">Nota fiscal</label>
+            <input id="i-nf" className="input" placeholder="número da NF"
+              value={f.nf || ""} onChange={trocar("nf")} />
+          </div>
+          <div>
+            <label className="label" htmlFor="i-aquisicao">Data de aquisição</label>
+            <input id="i-aquisicao" type="date" className="input"
+              value={f.dataAquisicao || ""} onChange={trocar("dataAquisicao")} />
+          </div>
+          <div>
+            <label className="label" htmlFor="i-valor">Valor pago (R$)</label>
+            <input id="i-valor" className="input" inputMode="decimal" placeholder="ex: 78.500,00"
+              value={f.valor || ""} onChange={trocar("valor")} />
+          </div>
         </div>
 
         {novo && f.tipo === "veiculo" && (
@@ -750,6 +788,9 @@ export default function Manutencoes() {
   const [aberto, setAberto] = useState(null);
   const [formLanc, setFormLanc] = useState(null);
   const [formItem, setFormItem] = useState(null);
+  // Setores do Patrimônio: o item cadastrado aqui nasce lá também, e "onde
+  // fica" é a pergunta que a outra tela faz.
+  const [setores, setSetores] = useState([]);
   const [salvando, setSalvando] = useState(false);
   const topoForm = useRef(null);
 
@@ -759,7 +800,8 @@ export default function Manutencoes() {
 
   const carregar = useCallback(async () => {
     try {
-      const [lista, m] = await Promise.all([listarAtivos(), lerManutencoes()]);
+      const [lista, m, st] = await Promise.all([listarAtivos(), lerManutencoes(), lerSetores().catch(() => ({}))]);
+      setSetores(Object.values(st || {}).filter((x) => x?.sigla).sort((a2, b2) => a2.sigla.localeCompare(b2.sigla)));
       setItens(lista.filter((x) => FAMILIAS[x.tipo]));
       setMapa(m);
       setErro(null);
@@ -989,6 +1031,33 @@ export default function Manutencoes() {
         medidorAtual: paraNumero(f.medidorAtual),
         medidorProximo: paraNumero(f.medidorProximo),
       });
+      /* O MESMO ITEM, NAS DUAS TELAS.
+         Um carro é uma coisa só: aqui interessa quanto custa para manter, no
+         Patrimônio interessa quanto vale e onde está. Eram dois cadastros
+         separados, sem saber um do outro — e a mesma máquina era digitada duas
+         vezes, com nomes diferentes, o que faz o valor do seguro nunca fechar
+         com a lista de manutenção.
+         O ativo é o dono do vínculo (`origemAtivoId`); o código da etiqueta o
+         servidor gera na primeira gravação. Falhar aqui NÃO derruba o cadastro
+         do ativo: ele já está salvo, e perder o espelho é menos ruim do que
+         dizer que não cadastrou quando cadastrou. */
+      try {
+        const idBem = f.bemId || `pat-${salvo.id}`;
+        await salvarBem(idBem, {
+          origemAtivoId: salvo.id,
+          setorSigla: f.setorSigla || "",
+          nomeGenerico: f.nome,
+          descricaoTecnica: [f.categoria, identificacaoDe(f)].filter(Boolean).join(" · "),
+          nf: f.nf || "",
+          dataAquisicao: f.dataAquisicao || "",
+          valor: paraNumero(f.valor),
+          situacao: "uso",
+          observacao: f.observacao || "",
+        });
+      } catch (e2) {
+        console.warn("[manutencoes] item salvo, mas o espelho no patrimônio falhou:", e2?.message || e2);
+      }
+
       setItens((l) => {
         const outros = (l || []).filter((x) => x.id !== salvo.id);
         return [...outros, salvo];
@@ -1125,6 +1194,7 @@ export default function Manutencoes() {
           <FormItem
             key={formItem.id || "novo-item"}
             inicial={formItem}
+            setores={setores}
             salvando={salvando}
             aoSalvar={gravarItem}
             aoFechar={() => setFormItem(null)}
