@@ -13,8 +13,6 @@ export const MODULOS = [
   { id: "gestao", nome: "Gestão", sub: "identidade, plano do ano, táticas e atas — a tela de direção" },
   { id: "compromissos", nome: "Compromissos", sub: "a agenda de cada um — cada pessoa vê só a dela" },
   { id: "contas-atrasadas", nome: "Contas Atrasadas", sub: "quem deve e a cobrança" },
-  { id: "fluxo-caixa", nome: "Fluxo de Caixa", sub: "caixa, projeção e realizado" },
-  { id: "produtos", nome: "Produtos", sub: "faturamento por produto e família" },
   { id: "orcamentos", nome: "Orçamentos", sub: "funil e conversão do time" },
   { id: "bancos", nome: "Bancos e Pix", sub: "contas, CNPJs e chaves de todas as empresas" },
   { id: "marketing", nome: "Marketing", sub: "logomarcas, materiais e atalhos do Drive" },
@@ -28,8 +26,21 @@ export const MODULOS = [
 // Módulos que mostram DINHEIRO. Não muda nada no servidor; serve para a tela
 // avisar a direção do peso do que está marcando.
 export const COM_DINHEIRO = new Set([
-  "contas-atrasadas", "fluxo-caixa", "produtos", "orcamentos", "bancos", "gestao",
+  "contas-atrasadas", "orcamentos", "bancos", "gestao",
 ]);
+
+// Ids que já foram módulos e não são mais (as telas saíram do menu e das rotas
+// em "Painel: tirar Capa dos sistemas, Fluxo de Caixa e Produtos do menu").
+// Contas antigas ainda carregam esses ids guardados; a tela precisa DESCARTAR na
+// leitura, senão reenvia um id que o servidor não conhece e recebe um aviso de
+// erro por algo que ela mesma mandou.
+const APOSENTADOS = new Set(["fluxo-caixa", "produtos"]);
+
+const CONHECIDOS = new Set(MODULOS.map((m) => m.id));
+
+/** Só o que ainda existe. Curinga passa. */
+export const somenteValidos = (perms) =>
+  (Array.isArray(perms) ? perms : []).filter((p) => p === "*" || (CONHECIDOS.has(p) && !APOSENTADOS.has(p)));
 
 export const nomeDoModulo = (id) =>
   MODULOS.find((m) => m.id === id)?.nome || id;

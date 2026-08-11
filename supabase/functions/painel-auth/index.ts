@@ -40,7 +40,10 @@ const sb = createClient(SUPABASE_URL, SERVICE_KEY, { auth: { persistSession: fal
 // quando a tela de direcao nasceu -- marcar a caixa, salvar e receber {ok:true}
 // nao concedia nada, e nao havia como perceber. Modulo novo entra nos DOIS
 // lugares (aqui e em src/lib/modulos.js) ou nao entra em nenhum.
-const MODULOS = ["gestao", "contas-atrasadas", "fluxo-caixa", "produtos", "orcamentos", "bancos", "marketing", "licitacoes", "glossario", "compromissos", "manutencoes", "patrimonio", "configuracoes"];
+// fluxo-caixa e produtos sairam: as telas nao existem mais no painel (menu e
+// rotas removidos). Conta antiga pode ter o id guardado; ele simplesmente nao
+// abre nada, e some na proxima gravacao.
+const MODULOS = ["gestao", "contas-atrasadas", "orcamentos", "bancos", "marketing", "licitacoes", "glossario", "compromissos", "manutencoes", "patrimonio", "configuracoes"];
 
 // Mensagem UNICA para qualquer falha de login: usuario inexistente e senha
 // errada precisam ser indistinguiveis, senao da para descobrir quem tem acesso.

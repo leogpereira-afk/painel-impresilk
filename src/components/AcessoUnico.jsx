@@ -16,7 +16,7 @@ import {
   criarPessoa, definirSenha, desativar,
 } from "../services/acesso.js";
 import { Card, SectionTitle, Empty } from "./ui.jsx";
-import { MODULOS, COM_DINHEIRO } from "../lib/modulos.js";
+import { MODULOS, COM_DINHEIRO, somenteValidos } from "../lib/modulos.js";
 
 const NOME_SISTEMA = {
   painel: "Painel", rh: "RH", pcp: "PCP", brief: "Brief",
@@ -168,9 +168,13 @@ function NovaPessoa({ sistemas, aoCriar, aoCancelar }) {
 // repetia usuario, nome e senha -- duas listas de conta na mesma pagina, cada
 // uma mandando num pedaco. Agora e aqui, no cartao da propria pessoa.
 function ModulosDoPainel({ permissoes, aoMudar }) {
-  const total = permissoes.includes("*");
+  // Descarta na LEITURA o que nao existe mais (fluxo-caixa, produtos). Sem isto,
+  // marcar qualquer caixa reenviaria o id aposentado junto e a tela levaria um
+  // aviso de erro por causa de um dado velho que ela mesma carregou.
+  const atuais = somenteValidos(permissoes);
+  const total = atuais.includes("*");
   const marcar = (id) =>
-    aoMudar(permissoes.includes(id) ? permissoes.filter((x) => x !== id) : [...permissoes, id]);
+    aoMudar(atuais.includes(id) ? atuais.filter((x) => x !== id) : [...atuais, id]);
 
   return (
     <div className="mt-2 rounded-lg bg-slate-50 p-3">
@@ -190,7 +194,7 @@ function ModulosDoPainel({ permissoes, aoMudar }) {
         <div className="mt-3 grid gap-x-4 gap-y-2 sm:grid-cols-2">
           {MODULOS.map((m) => (
             <label key={m.id} className="flex cursor-pointer items-start gap-2 text-sm">
-              <input type="checkbox" checked={permissoes.includes(m.id)}
+              <input type="checkbox" checked={atuais.includes(m.id)}
                 onChange={() => marcar(m.id)}
                 className="mt-0.5 h-4 w-4 rounded border-slate-300 text-brand focus:ring-brand-200" />
               <span className="min-w-0">
@@ -376,9 +380,9 @@ function Conta({ c, sistemas, colaboradores, aoMudar, aoAvisar, aoSenha }) {
                     )}
                     {p && sis === "painel" && (
                       <span className="text-xs text-slate-500">
-                        {(p.permissoes || []).includes("*")
+                        {somenteValidos(p.permissoes).includes("*")
                           ? "acesso total"
-                          : `${(p.permissoes || []).length} de ${MODULOS.length} partes`}
+                          : `${somenteValidos(p.permissoes).length} de ${MODULOS.length} partes`}
                       </span>
                     )}
                     {p && sis === "painel" && (
