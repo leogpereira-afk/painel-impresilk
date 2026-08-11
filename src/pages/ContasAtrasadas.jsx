@@ -408,6 +408,53 @@ export default function ContasAtrasadas() {
             </div>
           </div>
 
+          {/* A CARTEIRA DE CADA VENDEDOR, A UM CLIQUE.
+              O filtro por vendedor já existia — dentro de um seletor, escondido
+              atrás de outro filtro. Cobrar é conversa por pessoa ("Barbara, o
+              que travou nesses três?"), e para isso o caminho tem de ser um
+              clique, não abrir uma lista e procurar. O valor vem junto porque é
+              ele que decide por quem começar, não a quantidade. */}
+          {opcoesVendedor.length > 0 && (
+            <div className="flex flex-wrap items-center gap-1.5">
+              <button
+                type="button"
+                onClick={() => setVendedorSel("")}
+                aria-pressed={!vendedorSel}
+                className={`h-9 whitespace-nowrap rounded-full border px-3.5 font-display text-sm font-medium transition-all ${
+                  !vendedorSel
+                    ? "border-brand bg-brand text-white"
+                    : "border-slate-200 text-slate-600 hover:bg-slate-50"
+                }`}
+              >
+                Todos
+              </button>
+              {opcoesVendedor.map((v) => {
+                const aberto = vendedorSel === v.nome;
+                return (
+                  <button
+                    key={v.nome}
+                    type="button"
+                    // Clicar de novo no mesmo tira o filtro: sem isso a saída é
+                    // procurar o "Todos", e a pessoa acha que travou.
+                    onClick={() => setVendedorSel(aberto ? "" : v.nome)}
+                    aria-pressed={aberto}
+                    title={`${v.qtd ?? 0} título(s) atrasado(s) — ${moeda(v.valor)}`}
+                    className={`h-9 whitespace-nowrap rounded-full border px-3.5 font-display text-sm font-medium transition-all ${
+                      aberto
+                        ? "border-brand bg-brand text-white"
+                        : "border-slate-200 text-slate-600 hover:bg-slate-50"
+                    }`}
+                  >
+                    {v.nome}
+                    <span className={`ml-1.5 font-normal ${aberto ? "text-white/80" : "text-slate-400"}`}>
+                      {moeda(v.valor)}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+
           <div
             className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-xl border bg-slate-50/70 px-3 py-2.5"
             style={{ borderColor: "var(--hairline)" }}

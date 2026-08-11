@@ -116,6 +116,13 @@ function useTema() {
 
 const CLASSE_ITEM =
   "flex items-center gap-2.5 rounded-lg px-3 py-2 font-display text-sm font-medium transition-all";
+
+/* ONDE EU ESTOU. O item aberto fica AZUL CHEIO, não com um fundo lavanda de 10%
+   de opacidade -- naquele tom, com onze itens na lista, dá para percorrer o menu
+   inteiro sem achar o que está aberto. Aqui é azul de marca com texto branco:
+   uma olhada e acabou. `aria-current` acompanha, para quem usa leitor de tela. */
+const CLASSE_ABERTO = "bg-brand text-white shadow-sm hover:bg-brand-600";
+const CLASSE_FECHADO = "text-slate-600 hover:bg-slate-100 hover:text-slate-900";
 const CLASSE_TITULO =
   "mb-1.5 mt-6 flex w-full items-center gap-1.5 px-3 font-display text-xs font-semibold uppercase tracking-wide text-slate-400 transition-colors hover:text-slate-600";
 
@@ -220,7 +227,7 @@ function ConteudoLateral({ aoNavegar, sessao }) {
           className={({ isActive }) =>
             [
               CLASSE_ITEM,
-              isActive ? "bg-brand/10 text-brand" : "text-slate-600 hover:bg-slate-100 hover:text-slate-900",
+              isActive ? CLASSE_ABERTO : CLASSE_FECHADO,
             ].join(" ")
           }
         >
@@ -255,9 +262,7 @@ function ConteudoLateral({ aoNavegar, sessao }) {
                     className={({ isActive }) =>
                       [
                         CLASSE_ITEM,
-                        isActive
-                          ? "bg-brand/10 text-brand"
-                          : "text-slate-600 hover:bg-slate-100 hover:text-slate-900",
+                        isActive ? CLASSE_ABERTO : CLASSE_FECHADO,
                       ].join(" ")
                     }
                   >
@@ -319,9 +324,7 @@ function ConteudoLateral({ aoNavegar, sessao }) {
           className={({ isActive }) =>
             [
               "flex items-center gap-2.5 rounded-lg px-3 py-2 font-display text-sm font-medium transition-all",
-              isActive
-                ? "bg-brand/10 text-brand"
-                : "text-slate-500 hover:bg-slate-100 hover:text-slate-900",
+              isActive ? CLASSE_ABERTO : "text-slate-500 hover:bg-slate-100 hover:text-slate-900",
             ].join(" ")
           }
         >
@@ -336,9 +339,7 @@ function ConteudoLateral({ aoNavegar, sessao }) {
             className={({ isActive }) =>
               [
                 "flex items-center gap-2.5 rounded-lg px-3 py-2 font-display text-sm font-medium transition-all",
-                isActive
-                  ? "bg-brand/10 text-brand"
-                  : "text-slate-500 hover:bg-slate-100 hover:text-slate-900",
+                isActive ? CLASSE_ABERTO : "text-slate-500 hover:bg-slate-100 hover:text-slate-900",
               ].join(" ")
             }
           >
