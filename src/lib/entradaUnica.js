@@ -27,6 +27,9 @@ const CHAVE = {
   brief: "app_sync_cracha",
   compras: "compras_cracha",
   pops: "pops_cracha",
+  // A Central do Léo: app pessoal, mas entra pela mesma porta que os outros.
+  // A chave é a que ela já lia (`cl_token`) — o que mudou é o que vai dentro.
+  central: "cl_token",
 };
 
 // Onde cada um mora. Endereco direto do github.io, e nao o atalho
@@ -39,11 +42,12 @@ const ENDERECO = {
   compras: "https://leogpereira-afk.github.io/impresilk-compras/",
   pops: "https://leogpereira-afk.github.io/pops-fabricacao/",
   rh: "https://leogpereira-afk.github.io/impresilkrh/",
+  central: "https://leogpereira-afk.github.io/vida-leo/",
 };
 
 export const NOME_SISTEMA = {
   pcp: "PCP", dre: "DRE", brief: "Brief", compras: "Compras",
-  pops: "POPs", rh: "RH", painel: "Painel",
+  pops: "POPs", rh: "RH", painel: "Painel", central: "Central do Léo",
 };
 
 const K_SISTEMAS = "painel_meus_sistemas";

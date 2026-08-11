@@ -9,7 +9,8 @@
 // uma vez.
 
 import {
-  ClipboardList, BookOpen, Factory, ShoppingCart, TrendingUp, Users, ExternalLink,
+  ClipboardList, BookOpen, Factory, ShoppingCart, TrendingUp, Users, UserCircle,
+  ExternalLink,
 } from "lucide-react";
 import { meusSistemas, enderecoDe, NOME_SISTEMA } from "../lib/entradaUnica.js";
 
@@ -22,6 +23,7 @@ const ICONE = {
   compras: ShoppingCart,
   dre: TrendingUp,
   rh: Users,
+  central: UserCircle,     // o app pessoal
 };
 
 export default function MeusSistemas() {

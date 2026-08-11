@@ -20,7 +20,7 @@ import { MODULOS, COM_DINHEIRO, somenteValidos } from "../lib/modulos.js";
 
 const NOME_SISTEMA = {
   painel: "Painel", rh: "RH", pcp: "PCP", brief: "Brief",
-  dre: "DRE", compras: "Compras", pops: "POPs",
+  dre: "DRE", compras: "Compras", pops: "POPs", central: "Central do Léo",
 };
 
 // Papeis que cada sistema aceita. COPIA FIEL da lista fechada do equipe-auth
@@ -38,6 +38,8 @@ const PAPEIS = {
   dre: ["equipe"],
   pops: ["admin", "gestor", "equipe"],
   rh: ["ADMIN_RH", "GESTOR", "COLABORADOR"],
+  // App pessoal do Leo: uma pessoa so, um papel so.
+  central: ["dono"],
   // O painel nao usa papel: quem manda la e a lista de modulos (permissoes).
   painel: [],
 };
@@ -53,6 +55,7 @@ const PAPEL_INICIAL = {
   dre: "equipe",
   pops: "equipe",
   rh: "COLABORADOR",
+  central: "dono",
   painel: "",
 };
 

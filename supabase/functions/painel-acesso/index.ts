@@ -160,7 +160,7 @@ function senhaTemporaria() {
 
 // Os sete sistemas da casa. Lista fechada: sistema digitado errado viraria uma
 // linha de papel que nenhuma tela le e ninguem descobre.
-const SISTEMAS = ["painel", "rh", "pcp", "brief", "dre", "compras", "pops"];
+const SISTEMAS = ["painel", "rh", "pcp", "brief", "dre", "compras", "pops", "central"];
 
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
