@@ -531,6 +531,11 @@ export default function Compromissos() {
   const [equipe, setEquipe] = useState([]);
   const [encaminhando, setEncaminhando] = useState(null); // id da linha aberta
   const [remarcando, setRemarcando] = useState(null);     // id da linha remarcando
+  /* OS CARTÕES VIRAM RECORTE. Eles mostravam o número e não levavam a lugar
+     nenhum: para ver os atrasados era rolar até o grupo. Clicar num cartão
+     filtra a lista; clicar de novo volta ao normal. É o mesmo gesto que Contas
+     Atrasadas, Produtos e Fluxo de Caixa já fazem. */
+  const [recorte, setRecorte] = useState(null); // "atrasados" | "hoje" | "semData" | "feitos" | null
   const [conversaAberta, setConversaAberta] = useState(null); // id da conversa expandida
   const [enviando, setEnviando] = useState(null); // id do recado em envio
   // Item sem dono so acontece em registro antigo (anterior ao carimbo do
@@ -858,6 +863,18 @@ export default function Compromissos() {
     }
   };
 
+  /* Grupos que aparecem depois do recorte dos cartões.
+     Três casos, escritos separados de propósito — a versão em uma linha só
+     misturava os operadores e escondia qual era qual:
+       sem recorte  → tudo
+       "feitos"     → nenhum grupo de abertos (só a seção de resolvidos)
+       um grupo     → só ele */
+  const gruposNaTela = !recorte
+    ? vm?.grupos || []
+    : recorte === "feitos"
+      ? []
+      : (vm?.grupos || []).filter((g) => g.nome === recorte);
+
   const acoes = useMemo(
     () => ({ alternarFeito, abrirForm, remover, encaminhar, enviarRecado, baixarAnexo, mandarWhatsApp, remarcar }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -896,6 +913,8 @@ export default function Compromissos() {
           sub={vm.semData ? `${vm.semData} sem data marcada` : "tudo com data"}
           tom={vm.emAberto ? "neutral" : "ok"}
           icone={CircleDot}
+          ativo={recorte === null}
+          onClick={() => setRecorte(null)}
         />
         <StatCard
           rotulo="Atrasados"
@@ -903,6 +922,8 @@ export default function Compromissos() {
           sub={vm.atrasados ? "passaram da data" : "nada atrasado"}
           tom={vm.atrasados ? "bad" : "ok"}
           icone={AlertTriangle}
+          ativo={recorte === "Atrasados"}
+          onClick={() => setRecorte((r) => (r === "Atrasados" ? null : "Atrasados"))}
         />
         <StatCard
           rotulo="Hoje"
@@ -910,6 +931,8 @@ export default function Compromissos() {
           sub={vm.hoje ? "marcados para hoje" : "sem compromisso hoje"}
           tom={vm.hoje ? "warn" : "neutral"}
           icone={CalendarCheck}
+          ativo={recorte === "Hoje"}
+          onClick={() => setRecorte((r) => (r === "Hoje" ? null : "Hoje"))}
         />
         <StatCard
           rotulo="Resolvidos"
@@ -917,6 +940,8 @@ export default function Compromissos() {
           sub="já concluidos"
           tom={vm.concluidos ? "ok" : "neutral"}
           icone={Check}
+          ativo={recorte === "feitos"}
+          onClick={() => setRecorte((r) => (r === "feitos" ? null : "feitos"))}
         />
       </div>
 
@@ -1081,7 +1106,9 @@ export default function Compromissos() {
         </Card>
       )}
 
-      {vm.grupos.length === 0 ? (
+      {/* O recorte escolhido no cartão vale aqui: "feitos" esconde os abertos,
+          um grupo mostra só ele. Sem recorte, a tela é a de sempre. */}
+      {gruposNaTela.length === 0 ? (
         <Card>
           <Empty>
             Nada em aberto{dePessoa ? " para esta pessoa" : ""}. Use &quot;Novo compromisso&quot; para
@@ -1089,7 +1116,7 @@ export default function Compromissos() {
           </Empty>
         </Card>
       ) : (
-        vm.grupos.map((g) => (
+        gruposNaTela.map((g) => (
           <Card key={g.nome}>
             <SectionTitle
               titulo={g.nome}
@@ -1119,7 +1146,7 @@ export default function Compromissos() {
         ))
       )}
 
-      {vm.feitos.length > 0 && (
+      {vm.feitos.length > 0 && recorte !== "Atrasados" && recorte !== "Hoje" && (
         <Card className="p-0">
           <button
             type="button"
