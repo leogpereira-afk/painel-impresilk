@@ -152,6 +152,15 @@ Deno.serve(async (req: Request) => {
           });
         }
 
+        /* DESATIVAR TEM DE VALER AQUI TAMBEM.
+           `painel_contas` nao tem coluna de ativo: quem manda sobre estar ativo
+           e a tabela nova (acesso_conta). Sem esta consulta, desativar alguem na
+           tela de Acessos fechava a porta nova e deixava ESTA aberta -- a pessoa
+           digitava usuario e senha e entrava com todas as permissoes. */
+        const { data: unica } = await sb.from("acesso_conta")
+          .select("ativo").eq("usuario", usuario).maybeSingle();
+        if (unica && unica.ativo === false) return json({ erro: ERRO_LOGIN }, 401);
+
         const conta = await lerConta(usuario);
         // Confere SEMPRE, mesmo sem conta: o tempo de resposta tem de ser o
         // mesmo nos dois casos (ver CONTA_FANTASMA).

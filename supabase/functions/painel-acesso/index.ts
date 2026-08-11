@@ -213,12 +213,17 @@ Deno.serve(async (req: Request) => {
         if (!/^[a-z0-9._-]+$/.test(usuario)) {
           return resposta({ erro: "O usuario aceita so letras sem acento, numeros, ponto, hifen e sublinhado." }, 400);
         }
+        // `ativo` AUSENTE mantem o que esta gravado. Com `c.ativo !== false`
+        // sozinho, um corpo sem o campo (a tela de editar nome mandava assim)
+        // gravava true e devolvia o acesso de quem tinha sido desativado.
+        const { data: antes } = await sb.from("acesso_conta")
+          .select("ativo").eq("usuario", usuario).maybeSingle();
         const linha: any = {
           usuario,
           nome: texto(c.nome, 120) || usuario,
           tipo: c.tipo === "funcao" ? "funcao" : "pessoa",
           colaborador: texto(c.colaborador, 160),
-          ativo: c.ativo !== false,
+          ativo: c.ativo === undefined ? (antes?.ativo ?? true) : c.ativo !== false,
           atualizado_em: new Date().toISOString(),
         };
         const { data, error } = await sb.from("acesso_conta")

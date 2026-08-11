@@ -137,6 +137,20 @@ Deno.serve(async (req: Request) => {
     // tem dois). Ordena do mais recente para o mais antigo e deixa a senha
     // digitada decidir qual e o de verdade -- adivinhar aqui erraria calado.
     let email = emailDe(usuario);
+
+    /* O E-MAIL SAI DO ID GRAVADO, NUNCA E REMONTADO.
+       Quem foi adotado do RH tem `auth_user_id` de um usuario cujo endereco e
+       `<nome>@rh.impresilk.local` -- e nao `<usuario>@impresilk.local`, que e o
+       que emailDe() devolve. Remontar pelo usuario fazia a pessoa entrar UMA
+       vez (na adocao, quando o endereco vinha do candidato) e da segunda em
+       diante levar 401 com a senha CERTA, para sempre, porque o ramo do legado
+       nunca mais roda com `auth_user_id` preenchido. Pegava exatamente as 12
+       pessoas amarradas a um colaborador -- o publico deste desenho. */
+    if (conta.auth_user_id) {
+      const { data: u } = await sb.auth.admin.getUserById(conta.auth_user_id);
+      if (u?.user?.email) email = u.user.email;
+    }
+
     const candidatos: { id: string; email: string }[] = [];
     if (!conta.auth_user_id && conta.colaborador) {
       const { data: perfis } = await sb.from("perfis").select("user_id, nome, atualizado_em");
@@ -148,7 +162,10 @@ Deno.serve(async (req: Request) => {
         const { data: u } = await sb.auth.admin.getUserById(p.user_id);
         if (u?.user?.email) candidatos.push({ id: p.user_id, email: u.user.email });
       }
-      if (candidatos.length) email = candidatos[0].email;
+      // NAO aponta `email` para candidatos[0] aqui. Fazer isso mandava o ramo
+      // 2b criar/atualizar a conta do RH de um candidato que a senha digitada
+      // nunca abriu -- e, quando o nome batia com o de outra pessoa, trocava a
+      // senha do Auth DELA. O e-mail so muda dentro do laco, depois do signIn.
     }
     let sessao: any = null;
 
@@ -202,15 +219,29 @@ Deno.serve(async (req: Request) => {
       });
       let idAuth = criado?.user?.id ?? null;
       if (erroCriar && !idAuth) {
-        // Ja existia no GoTrue (conta do RH, ou uma tentativa anterior que
-        // gravou o usuario e morreu antes de marcar a conta): acha e troca a
-        // senha para a que acabou de ser conferida.
-        const { data: lista2 } = await sb.auth.admin.listUsers({ page: 1, perPage: 1000 });
-        const achado = (lista2?.users ?? []).find((u: any) => u.email === email);
-        if (!achado) throw new Error(erroCriar.message);
-        idAuth = achado.id;
-        await sb.auth.admin.updateUserById(idAuth, { password: senha });
+        /* O endereco ja existe no GoTrue e a senha digitada NAO o abriu (se
+           abrisse, o laco 2a teria adotado). Trocar a senha dele aqui era o que
+           permitia uma pessoa reescrever a senha do Auth de OUTRA -- bastava o
+           nome do colaborador bater. Agora para, e a direcao resolve. */
+        return json({
+          erro: "Ja existe um acesso com esse endereco e a senha nao confere. Fale com a direcao.",
+          conflito: true,
+        }, 409);
       }
+      if (!idAuth) throw new Error(erroCriar?.message || "nao consegui criar o acesso");
+
+      /* PROVAR PRIMEIRO, GRAVAR DEPOIS.
+         Gravando `auth_user_id` antes do signIn, um GoTrue que recusasse a senha
+         (politica de tamanho, por exemplo) deixava a conta marcada como migrada
+         com uma senha que nao funciona -- e, como o ramo do legado so roda com
+         `auth_user_id` vazio, a pessoa ficava trancada em definitivo ouvindo que
+         errou uma senha que acertou. */
+      const { data, error } = await cliente.auth.signInWithPassword({ email, password: senha });
+      if (error || !data?.session) {
+        await sb.auth.admin.deleteUser(idAuth).catch(() => {});
+        return json({ erro: ERRO }, 401);
+      }
+      sessao = data.session;
 
       await sb.from("acesso_conta").update({ auth_user_id: idAuth, atualizado_em: new Date().toISOString() })
         .eq("id", conta.id);
@@ -218,10 +249,6 @@ Deno.serve(async (req: Request) => {
       // hash de senha nao e coisa para ficar guardada "por via das duvidas".
       await sb.from("acesso_senha_legado")
         .update({ usado_em: new Date().toISOString() }).eq("conta_id", conta.id);
-
-      const { data, error } = await cliente.auth.signInWithPassword({ email, password: senha });
-      if (error || !data?.session) return json({ erro: ERRO }, 401);
-      sessao = data.session;
       conta.auth_user_id = idAuth;
       }
     }

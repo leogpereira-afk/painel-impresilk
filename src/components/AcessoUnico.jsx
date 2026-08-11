@@ -42,6 +42,20 @@ const PAPEIS = {
   painel: [],
 };
 
+// COM O QUE A PESSOA COMECA ao marcar a caixa. Antes era o primeiro da lista --
+// e o primeiro de pcp, compras e pops e "admin", e o de rh e "ADMIN_RH". Um
+// clique numa caixa dava a chave do sistema inteiro, sem confirmar nada.
+// Comeca sempre pelo menor; subir e escolha explicita no seletor ao lado.
+const PAPEL_INICIAL = {
+  brief: "medidor",
+  pcp: "montagem",
+  compras: "solicitante",
+  dre: "equipe",
+  pops: "equipe",
+  rh: "COLABORADOR",
+  painel: "",
+};
+
 // A senha temporaria aparece UMA vez. Ela nao fica guardada em lugar nenhum
 // legivel -- se a direcao fechar esta caixa sem anotar, o caminho e gerar outra.
 function SenhaNova({ senha, nome, aoFechar }) {
@@ -221,7 +235,10 @@ function Conta({ c, sistemas, colaboradores, aoMudar, aoAvisar, aoSenha }) {
   const [f, setF] = useState(null);
 
   const editar = () => {
-    setF({ usuario: c.usuario, nome: c.nome || "", tipo: c.tipo, colaborador: c.colaborador || "" });
+    // `ativo` viaja junto: sem ele o servidor recebe undefined, assume true e
+    // salvar o NOME de alguem desativado devolvia o acesso dela, calado.
+    setF({ usuario: c.usuario, nome: c.nome || "", tipo: c.tipo,
+           colaborador: c.colaborador || "", ativo: c.ativo !== false });
     setAberta(true);
   };
 
@@ -236,9 +253,16 @@ function Conta({ c, sistemas, colaboradores, aoMudar, aoAvisar, aoSenha }) {
 
   const alternarSistema = async (sis) => {
     const tem = c.papeis.some((p) => p.sistema === sis);
+    const nome = NOME_SISTEMA[sis] || sis;
+    if (tem && !confirm(`Tirar o acesso de ${c.nome || c.usuario} ao ${nome}? A conta dela naquele sistema é APAGADA.`)) return;
     try {
-      if (tem) await removerPapel(c.usuario, sis);
-      else await salvarPapel({ usuario: c.usuario, sistema: sis, papel: (PAPEIS[sis] || [])[0] || "" });
+      if (tem) { await removerPapel(c.usuario, sis); }
+      else {
+        const r = await salvarPapel({ usuario: c.usuario, sistema: sis, papel: PAPEL_INICIAL[sis] ?? "" });
+        // Conta nova naquele sistema nasce com senha temporaria. Se ela nao
+        // aparecer aqui, ninguem nunca a vera -- e a pessoa nao entra.
+        if (r?.senha) aoSenha({ senha: r.senha, nome: `${c.nome || c.usuario} no ${nome}` });
+      }
       await aoMudar();
     } catch (err) { aoAvisar({ tom: "erro", texto: err.message }); }
   };
@@ -485,8 +509,9 @@ export default function AcessoUnico({ aoAvisar }) {
         <AlertTriangle size={15} className="mt-0.5 shrink-0" />
         <span>
           <b className="font-display">Vale na hora.</b> Cadastrar, mudar papel, desativar e tirar
-          acesso mexem no sistema de verdade — não é ensaio. Uma ressalva: quem já está com a
-          sessão aberta continua até o crachá vencer (30 dias no campo, 12 horas no painel).
+          acesso mexem no sistema de verdade — não é ensaio. Duas ressalvas: quem já está com a
+          sessão aberta continua até o crachá vencer (30 dias no campo, 12 horas no painel); e
+          <b> desativar não alcança o RH</b> — lá o acesso se tira removendo o sistema da pessoa.
         </span>
       </p>
 
