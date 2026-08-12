@@ -70,6 +70,11 @@ export const CONFIG_PADRAO = {
   ],
 
   motivosPerda: [
+    /* "Compra futura" e o primeiro da lista porque e o maior dinheiro que
+       escapa (R$ 3,5 mi na base) e o unico que volta so com agenda. Sem ele
+       aqui, dar baixa pela propria tela apagava o balde de compra futura: o
+       motivo gravado a mao substituia o texto do ERP e o cliente sumia. */
+    { id: "compra-futura", nome: "Compra futura" },
     { id: "preco", nome: "Preço" },
     { id: "prazo", nome: "Prazo de entrega" },
     { id: "concorrencia", nome: "Foi para a concorrência" },

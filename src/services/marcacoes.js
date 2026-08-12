@@ -16,6 +16,10 @@ const BASE = `${API}/painel-config`;
 async function chamar(action, corpo) {
   const resp = await comCracha(BASE, {
     method: "POST",
+    // keepalive: o botao "Chamar" grava e MANDA a pessoa para o WhatsApp no
+    // mesmo gesto. Sem isto o navegador (o iPhone principalmente) descarta o
+    // pedido ao jogar a aba para o fundo, e "eu chamei" nunca vira fato.
+    keepalive: true,
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ action, ...corpo }),
   });

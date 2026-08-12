@@ -1,17 +1,27 @@
-// Orcamentos acima do valor minimo. Cruza o dado do Mubi com o override de
-// motivo de perda. Filtra por valor minimo e data de corte de Configuracoes.
-// Recalcula ao vivo quando o CEO troca um motivo.
+// O funil de fechamento: o que fazer HOJE para cada cliente, e o placar do mes.
+//
+// A pergunta que este arquivo responde mudou. Antes era "quanto esta na mesa e
+// por que perdemos" -- um relatorio. Agora e "para quem eu ligo agora, e o que
+// eu prometi a ele" -- uma fila de trabalho. O relatorio continua existindo,
+// mas atras de um acordeao.
+//
+// POR QUE O EIXO E A PROMESSA, E NAO A ETAPA DE VENDA
+// O ERP so tem tres situacoes (aberto, ganho, perdido) e duas sao terminais.
+// Inventar etapas ("negociando", "proposta revisada") exigiria alguem alimentar
+// a mao todo dia; a coleção ov_orc do painel tinha UM registro em oito meses --
+// ninguem alimenta nada. Entao o unico eixo honesto e o que o proprio sistema
+// consegue observar: eu chamei? eu prometi voltar? a promessa venceu?
+//
+// E o eixo certo pelo dado: os dois maiores motivos de perda da casa sao
+// "Cliente nao deu retorno" (R$ 3,7 mi) e "Compra futura" (R$ 3,5 mi). Nenhum
+// dos dois e preco. Os dois se resolvem com agenda.
+//
+// MEMBRESIA EM BALDE E FATO BINARIO, NUNCA RELOGIO. "Parado ha N dias" contava
+// desde o CADASTRO do orcamento (nao desde o ultimo toque), entao um orcamento
+// revisado ontem aparecia parado ha 90 dias e furava a fila. Um fato -- tem
+// data marcada ou nao tem -- nao envelhece errado.
 
-import { diaLocalISO, diasEntre } from "../format.js";
-
-const ACAO_POR_MOTIVO = {
-  preco: "Revisar a tabela e criar faixa de desconto por volume.",
-  prazo: "Alinhar o prazo real com a producao antes de enviar a proposta.",
-  concorrencia: "Reforcar diferencial e prova social na proposta.",
-  "sem-retorno": "Ativar follow-up automatico em 48 horas e em 5 dias.",
-  cancelado: "Qualificar melhor a demanda antes de orcar.",
-  escopo: "Fechar o escopo por escrito antes de enviar o valor.",
-};
+import { diaLocalISO, diasEntre, ymdLocal } from "../format.js";
 
 // Chave estavel para agrupar um motivo que veio como texto livre do ERP.
 const chaveTexto = (t) =>
@@ -21,86 +31,352 @@ const chaveTexto = (t) =>
     .trim()
     .toLowerCase();
 
-// "Compra futura" nao e perda: e um cliente que pediu para voltar depois. E a
-// maior fatia do valor que escapa, e a unica que se recupera so com agenda.
-const ehCompraFutura = (texto) => chaveTexto(texto).includes("compra futura");
-// Perdas por falta de acompanhamento (o vendedor nunca voltou a falar).
-const ehSemRetorno = (texto) => chaveTexto(texto).includes("retorno");
+/* O nome do vendedor E o id (o Mubisys nao manda codigo). Entao "Barbara
+   Vasconcelos" e "Barbara  Vasconcelos" -- com dois espacos -- viravam duas
+   pessoas na lista, cada uma com metade da fila. */
+export const canonVend = (s) => String(s || "").replace(/\s+/g, " ").trim();
 
-export function calcOrcamentos(orcamentos, overrides, config) {
-  const p = config.parametros;
+/* dataFechamento e dataAtualizacao NAO passam por String() no normalizador do
+   cache: podem chegar null, numero ou texto do ERP. diaLocalISO com lixo
+   devolve lixo, e lixo comparado com data vira balde errado, calado. */
+const diaSeguro = (v) => {
+  if (v == null) return "";
+  const d = diaLocalISO(String(v));
+  return /^\d{4}-\d{2}-\d{2}$/.test(d) ? d : "";
+};
+
+export const somaDias = (iso, n) => {
+  const d = new Date(`${iso}T00:00:00`);
+  d.setDate(d.getDate() + n);
+  return ymdLocal(d);
+};
+
+/* Os seis baldes, em ordem fixa de urgencia. A ordem E a prioridade: o cliente
+   herda o balde mais urgente entre os orcamentos dele, e a fila sai nessa
+   ordem. Nao ha chip, nao ha filtro de balde -- eles sao cabecalhos dentro da
+   propria lista, entao ninguem precisa escolher para trabalhar. */
+export const BALDES = [
+  { id: "chamado-sem-passo", nome: "Você chamou e não marcou o retorno", tom: "bad" },
+  { id: "prometido-atrasado", nome: "Retorno prometido e não cumprido", tom: "bad" },
+  { id: "prometido-hoje", nome: "Prometido para hoje", tom: "warn" },
+  { id: "vencido", nome: "Orçamento vencido", tom: "bad" },
+  { id: "compra-futura", nome: "Compra futura sem data marcada", tom: "warn" },
+  { id: "sem-proxima-acao", nome: "Sem próxima ação marcada", tom: "neutral" },
+];
+const ORDEM_BALDE = Object.fromEntries(BALDES.map((b, i) => [b.id, i]));
+
+/* "Compra futura" nao e perda: e um cliente que pediu para voltar depois. Vale
+   R$ 3,5 milhoes na base e volta so com alguem lembrando de ligar.
+   Aceita o id manual TAMBEM: sem isso, dar baixa pela propria tela (que grava
+   motivoPerdaId) apagava o balde -- a tela comia o que ela mesma criou. */
+export const ehCompraFutura = (item) =>
+  item?.motivoPerdaId === "compra-futura" ||
+  chaveTexto(item?.motivoPerdaNome).includes("compra futura");
+
+const soma = (lista, campo) => lista.reduce((s, o) => s + (Number(o[campo]) || 0), 0);
+
+export function calcOrcamentos(orcamentos, overrides, config, opcoes = {}) {
+  const p = config.parametros || {};
   const minimo = p.valorMinimoOrcamento || 0;
-  const corte = p.dataCorteOrcamentos;
+  const corte = p.dataCorteOrcamentos || "";
   const diasParado = p.diasParado || 7;
+  const lista0 = orcamentos || [];
+  const ovs = overrides || {};
 
-  // No modo real o id do vendedor JA e o nome (vem assim do Mubisys), entao
-  // se o vendedor nao estiver cadastrado em Configuracoes, usamos o proprio id
-  // como nome, em vez de "Sem vendedor".
+  // "Hoje" vem de fora: a tela fica aberta o dia inteiro e recalcula o dia ao
+  // voltar para a aba. Congelado aqui, a promessa de hoje viraria "atrasada" so
+  // depois de um F5.
+  const hojeISO = opcoes.hoje || ymdLocal(new Date());
+
   const nomeVend = (id) =>
-    (config.vendedores || []).find((v) => v.id === id)?.nome || (id && id !== "sem" ? id : "Sem vendedor");
-  const nomeMotivo = (id) => (config.motivosPerda || []).find((m) => m.id === id)?.nome || "Nao informado";
+    (config.vendedores || []).find((v) => v.id === id)?.nome ||
+    (id && id !== "sem" ? id : "Sem vendedor");
+  const nomeMotivo = (id) =>
+    (config.motivosPerda || []).find((m) => m.id === id)?.nome || "Nao informado";
 
-  const hoje = new Date();
-  const hojeISO = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, "0")}-${String(
-    hoje.getDate()
-  ).padStart(2, "0")}`;
+  /* AS TRES RAZOES DE UM ORCAMENTO NAO ESTAR NA TELA, contadas antes do filtro.
+     Sem isto a tela some com dinheiro em silencio e ninguem entende por que o
+     orcamento que a pessoa acabou de fazer nao aparece. */
+  const excluidos = { semData: 0, antesDoCorte: 0, abaixoDoMinimo: 0, valorAbaixoDoMinimo: 0 };
+  for (const o of lista0) {
+    const d = diaSeguro(o.dataEnvio);
+    if (!d) {
+      excluidos.semData += 1;
+      continue;
+    }
+    if (corte && d < corte) {
+      excluidos.antesDoCorte += 1;
+      continue;
+    }
+    if ((o.valor || 0) < minimo) {
+      excluidos.abaixoDoMinimo += 1;
+      excluidos.valorAbaixoDoMinimo += o.valor || 0;
+    }
+  }
 
-  const filtrados = orcamentos
-    .filter((o) => o.valor >= minimo && diaLocalISO(o.dataEnvio) >= corte)
+  const filtrados = lista0
+    .filter((o) => {
+      const d = diaSeguro(o.dataEnvio);
+      return !!d && (o.valor || 0) >= minimo && (!corte || d >= corte);
+    })
     .map((o) => {
-      const ov = overrides[o.id] || {};
-      const dias = diasEntre(o.dataEnvio, hojeISO);
-      // Baixa manual: o CEO registra o desfecho de um orcamento que o ERP
-      // deixou "em aberto" para sempre. O override sobrepoe o status do Mubisys.
+      const ov = ovs[o.id] || {};
+      const envio = diaSeguro(o.dataEnvio);
+      const dias = diasEntre(envio, hojeISO);
+
+      // Baixa manual: a direcao registra o desfecho de um orcamento que o ERP
+      // deixou "em aberto" para sempre. O override sobrepoe o Mubisys.
       const baixaManual = ov.situacao === "ganho" || ov.situacao === "perdido";
       const situacao = baixaManual ? ov.situacao : o.situacao;
 
-      // Motivo da perda: a marcacao da direcao manda, mas o padrao agora e o
-      // que o vendedor ja escreveu no ERP -- ele preenche em 100% dos casos.
+      // O motivo padrao e o que o VENDEDOR ja escreveu no ERP -- ele preenche
+      // em praticamente 100% dos casos. A marcacao da direcao sobrepoe.
       const motivoTexto = ov.motivoPerdaId ? nomeMotivo(ov.motivoPerdaId) : o.motivoErp || "";
       const motivoChave = ov.motivoPerdaId || (o.motivoErp ? chaveTexto(o.motivoErp) : "sem");
 
-      // Validade: o ERP nao preenche sempre. Sem ela nao da para dizer que
-      // venceu -- e "sem validade" nao pode virar "vencido".
+      // Validade: o ERP so preenche em ~30% dos orcamentos abertos. Sem ela nao
+      // da para dizer que venceu -- e "sem validade" nunca pode virar "vencido".
       const temValidade = Number(o.validade) > 0;
       const diasParaVencer = temValidade ? Number(o.validade) - dias : null;
       const vencido = situacao === "aberto" && temValidade && diasParaVencer < 0;
 
-      // Retorno agendado pelo vendedor (o unico dado que o ERP nao tem).
       const proximoToque = ov.proximoToque || null;
-      const adiado = !!proximoToque && proximoToque > hojeISO;
+      const chamadoEm = ov.chamadoEm || null;
+      const margem = Number(o.margem) || 0;
 
-      return {
+      const item = {
         ...o,
         situacao,
         situacaoErp: o.situacao,
         baixaManual,
         dataBaixa: baixaManual ? ov.dataBaixa || null : null,
-        vendedorNome: nomeVend(o.vendedorId),
+        vendedorId: canonVend(o.vendedorId),
+        vendedorNome: nomeVend(canonVend(o.vendedorId)),
         motivoPerdaId: ov.motivoPerdaId || null,
         motivoPerdaNome: motivoTexto || null,
         motivoChave,
         motivoManual: !!ov.motivoPerdaId,
-        margem: Number(o.margem) || 0,
+        margem,
+        semMargem: !(margem > 0),
         dias,
+        envio,
+        // `parado` continua saindo (Configuracoes ainda tem o parametro), mas
+        // NENHUM balde o usa: ele contava desde o cadastro, nao desde o toque.
         parado: situacao === "aberto" && dias > diasParado,
         temValidade,
         diasParaVencer,
         vencido,
         proximoToque,
         nota: ov.nota || "",
-        adiado,
+        chamadoEm,
+        compromissoId: ov.compromissoId || null,
+        adiado: !!proximoToque && proximoToque > hojeISO,
+        toqueAtrasado: !!proximoToque && proximoToque < hojeISO,
+        toqueHoje: !!proximoToque && proximoToque === hojeISO,
+        // O ERP mexeu no registro depois do cadastro? E informacao de ficha, e
+        // so isso: nao ordena, nao classifica, nao some com ninguem.
+        mexidoNoErpEm: (() => {
+          const a = diaSeguro(o.dataAtualizacao);
+          return a && a > envio ? a : null;
+        })(),
+        fechadoEm:
+          baixaManual && ov.dataBaixa
+            ? ov.dataBaixa
+            : o.situacao !== "aberto"
+              ? diaSeguro(o.dataFechamento)
+              : "",
       };
-    })
-    .sort((a, b) => b.valor - a.valor);
+      item.recall = item.situacao === "perdido" && ehCompraFutura(item);
+      item.balde = baldeDe(item);
+      return item;
+    });
 
-  const ganhos = filtrados.filter((o) => o.situacao === "ganho");
-  const perdidos = filtrados.filter((o) => o.situacao === "perdido");
-  const abertos = filtrados.filter((o) => o.situacao === "aberto");
-  const fechados = ganhos.length + perdidos.length;
-  const conversao = fechados ? Math.round((ganhos.length / fechados) * 100) : 0;
+  /* O BALDE, primeira regra que casar vence.
+     `adiado` sai da fila e vai para a Agenda -- mas depois de "chamado sem
+     passo" e das promessas, senao uma data marcada esconderia o fato de que a
+     pessoa chamou e nao anotou nada. */
+  function baldeDe(i) {
+    const naBase = i.situacao === "aberto" || i.recall;
+    if (!naBase) return null;
+    if (i.chamadoEm && !i.proximoToque) return "chamado-sem-passo";
+    if (i.toqueAtrasado) return "prometido-atrasado";
+    if (i.toqueHoje) return "prometido-hoje";
+    if (i.adiado) return null; // tem data no futuro: mora na Agenda
+    if (i.situacao === "aberto" && i.vencido) return "vencido";
+    if (i.recall) return "compra-futura";
+    return "sem-proxima-acao";
+  }
 
-  // Por vendedor
+  // ------------------------------------------------------------ escopo
+  /* O vendedor escolhido corta ORCAMENTOS, antes de agrupar. Cortar grupos
+     depois deixaria um cliente atendido por duas pessoas com valor errado. */
+  const escopo = canonVend(opcoes.vendedor);
+  const doEscopo = escopo ? filtrados.filter((o) => o.vendedorId === escopo) : filtrados;
+
+  /* Os vendedores que a tela oferece nascem dos ORCAMENTOS, nunca de
+     config.vendedores e nunca filtrados por config.vendedoresOcultos. A lixeira
+     "Retirar Fulano" escondia a vendedora da tabela E tornava a fila dela
+     inalcancavel pelos chips -- sem botao de desfazer em lugar nenhum. */
+  const mapaBase = new Map();
+  for (const o of filtrados) {
+    if (!o.vendedorId) continue;
+    const linha = mapaBase.get(o.vendedorId) || { id: o.vendedorId, nome: o.vendedorNome, qtd: 0 };
+    linha.qtd += 1;
+    mapaBase.set(o.vendedorId, linha);
+  }
+  const vendedoresDaBase = [...mapaBase.values()].sort((a, b) => b.qtd - a.qtd);
+
+  const ganhos = doEscopo.filter((o) => o.situacao === "ganho");
+  const perdidos = doEscopo.filter((o) => o.situacao === "perdido");
+  const abertos = doEscopo.filter((o) => o.situacao === "aberto");
+  const fechadosQtd = ganhos.length + perdidos.length;
+  const conversao = fechadosQtd ? Math.round((ganhos.length / fechadosQtd) * 100) : 0;
+
+  // ------------------------------------------------------------ ordem do dinheiro
+  /* Margem manda na ordem -- faturamento gordo com margem fina nao vale a
+     ligacao que um menor e mais rentavel vale. Mas ~15% dos orcamentos vem com
+     margem 0 do ERP, e ordenar por margem afundaria todos eles no fim da fila.
+     Entao quem nao tem margem entra pela taxa MEDIA da casa.
+     Isto e criterio de ORDEM, nunca numero publicado: toda soma que aparece na
+     tela usa margem real, e o cartao de quem nao tem escreve "sem margem". */
+  const comMargem = doEscopo.filter((o) => o.margem > 0);
+  const valorComMargem = soma(comMargem, "valor");
+  const taxaMargem = valorComMargem > 0 ? soma(comMargem, "margem") / valorComMargem : 0;
+  const dinheiroOrdem = (o) =>
+    o.margem > 0 ? o.margem : taxaMargem > 0 ? o.valor * taxaMargem : o.valor;
+
+  // ------------------------------------------------------------ agrupar por empresa
+  /* Quatro orcamentos da Prefeitura sao UMA ligacao. A chave e a empresa, sem o
+     vendedor: se dois vendedores atendem a mesma empresa, quem liga precisa
+     saber disso antes de ligar, nao depois.
+     O normalizador do cache usa "Cliente" como texto de preenchimento quando o
+     ERP nao manda nome -- agrupar por ele juntaria empresas diferentes num
+     cartao so. Nesse caso cada orcamento vira o proprio grupo. */
+  const chaveEmpresa = (o) => {
+    if (o.clienteId) return `c:${o.clienteId}`;
+    const n = chaveTexto(o.cliente);
+    if (!n || n === "cliente") return `o:${o.id}`;
+    return `n:${n}`;
+  };
+
+  function agrupar(itens) {
+    const grupos = new Map();
+    for (const o of itens) {
+      const chave = chaveEmpresa(o);
+      let g = grupos.get(chave);
+      if (!g) {
+        g = {
+          chave,
+          cliente: o.cliente,
+          clienteId: o.clienteId || "",
+          agrupadoPorNome: chave.startsWith("n:"),
+          vendedores: [],
+          ids: [],
+          itens: [],
+          qtd: 0,
+          valor: 0,
+          margem: 0,
+          margemAberta: 0,
+          margemRecall: 0,
+          dinheiro: 0,
+          semMargemQtd: 0,
+          balde: null,
+          diasUltimoEnvio: Infinity,
+          proximoToque: null,
+          nota: "",
+          compromissoId: null,
+          chamadoEm: null,
+          celular: "",
+          contatoNome: "",
+          email: "",
+        };
+        grupos.set(chave, g);
+      }
+      g.qtd += 1;
+      g.ids.push(o.id);
+      g.itens.push(o);
+      g.valor += o.valor || 0;
+      g.margem += o.margem;
+      if (o.situacao === "aberto") g.margemAberta += o.margem;
+      if (o.recall) g.margemRecall += o.margem;
+      g.dinheiro += dinheiroOrdem(o);
+      if (o.semMargem) g.semMargemQtd += 1;
+      if (!g.vendedores.includes(o.vendedorNome)) g.vendedores.push(o.vendedorNome);
+      // O relogio da empresa e o envio MAIS RECENTE: com o mais antigo, um
+      // orcamento novo devolveria a empresa ao topo no dia seguinte a ligacao.
+      if (o.dias < g.diasUltimoEnvio) g.diasUltimoEnvio = o.dias;
+      if (o.balde != null && (g.balde == null || ORDEM_BALDE[o.balde] < ORDEM_BALDE[g.balde])) {
+        g.balde = o.balde;
+      }
+      if (o.proximoToque && (!g.proximoToque || o.proximoToque < g.proximoToque)) {
+        g.proximoToque = o.proximoToque;
+      }
+      if (o.chamadoEm && (!g.chamadoEm || o.chamadoEm > g.chamadoEm)) g.chamadoEm = o.chamadoEm;
+      if (!g.compromissoId && o.compromissoId) g.compromissoId = o.compromissoId;
+      if (o.nota) g.nota = o.nota;
+      if (!g.celular && o.celular) g.celular = o.celular;
+      if (!g.contatoNome && o.contatoNome) g.contatoNome = o.contatoNome;
+      if (!g.email && o.email) g.email = o.email;
+    }
+    for (const g of grupos.values()) {
+      g.vendedores.sort();
+      g.itens.sort((a, b) => b.valor - a.valor);
+      if (!Number.isFinite(g.diasUltimoEnvio)) g.diasUltimoEnvio = 0;
+      // O item que manda no texto do cartao: o do balde mais urgente.
+      g.item = g.itens.find((i) => i.balde === g.balde) || g.itens[0];
+      g.diasParaVencer = g.item?.diasParaVencer ?? null;
+    }
+    return [...grupos.values()];
+  }
+
+  // ------------------------------------------------------------ a fila
+  const naFila = doEscopo.filter((o) => o.balde != null);
+  const grupos = agrupar(naFila).sort(
+    (a, b) =>
+      ORDEM_BALDE[a.balde] - ORDEM_BALDE[b.balde] ||
+      b.dinheiro - a.dinheiro ||
+      b.valor - a.valor ||
+      String(a.cliente).localeCompare(String(b.cliente))
+  );
+
+  const porBalde = {};
+  for (const b of BALDES) porBalde[b.id] = grupos.filter((g) => g.balde === b.id).length;
+
+  // ------------------------------------------------------------ agenda
+  const agenda = agrupar(doEscopo.filter((o) => o.adiado)).sort(
+    (a, b) =>
+      String(a.proximoToque).localeCompare(String(b.proximoToque)) || b.dinheiro - a.dinheiro
+  );
+
+  // ------------------------------------------------------------ fechados na semana
+  const seteDias = somaDias(hojeISO, -7);
+  const fechados = doEscopo
+    .filter((o) => o.fechadoEm && o.fechadoEm >= seteDias && o.fechadoEm <= hojeISO)
+    .sort((a, b) => String(b.fechadoEm).localeCompare(String(a.fechadoEm)));
+
+  // ------------------------------------------------------------ cobertura e honestidade
+  const naMesa = agrupar(abertos);
+  const comData = naMesa.filter((g) => g.proximoToque);
+  const semPasso = abertos.filter((o) => !o.proximoToque);
+  const cobertura = {
+    clientesNaMesa: naMesa.length,
+    clientesComData: comData.length,
+    pct: naMesa.length ? Math.round((comData.length / naMesa.length) * 100) : 0,
+    abertosSemValidade: abertos.filter((o) => !o.temValidade).length,
+    perdidosSemMotivo: perdidos.filter((o) => !o.motivoPerdaNome).length,
+    filaSemMargem: naFila.filter((o) => o.semMargem).length,
+    // O normalizador do cache manda para "ganho" todo status que ele nao
+    // conhece (netlify/functions/mubi-cache-background.mjs). Ganho sem data de
+    // aprovacao e o sintoma disso -- se este numero crescer, a conversao esta
+    // inflada e o normalizador precisa de conserto.
+    ganhosSemFechamento: ganhos.filter((o) => !o.fechadoEm).length,
+    semPassoQtd: semPasso.length,
+    semPassoValor: soma(semPasso, "valor"),
+  };
+
+  // ------------------------------------------------------------ por vendedor (placar)
+  /* Sempre o TIME INTEIRO, sobre `filtrados`: o ranking existe para comparar.
+     O escopo escolhido nao encolhe o ranking -- ele so muda a fila. */
   const linhaV = (id, nome) => ({
     vendedorId: id,
     nome,
@@ -109,18 +385,17 @@ export function calcOrcamentos(orcamentos, overrides, config) {
     ganhos: 0,
     perdidos: 0,
     conversao: 0,
-    // Margem separa quem fatura de quem da lucro: sao rankings diferentes.
     margemGanha: 0,
     margemPerdida: 0,
     semRetorno: 0,
     naMesa: 0,
+    semPasso: 0,
   });
   const mapV = {};
-  for (const v of config.vendedores || []) mapV[v.id] = linhaV(v.id, v.nome);
   for (const o of filtrados) {
     const row = mapV[o.vendedorId] || (mapV[o.vendedorId] = linhaV(o.vendedorId, o.vendedorNome));
     row.qtd += 1;
-    row.valor += o.valor;
+    row.valor += o.valor || 0;
     if (o.situacao === "ganho") {
       row.ganhos += 1;
       row.margemGanha += o.margem;
@@ -128,170 +403,86 @@ export function calcOrcamentos(orcamentos, overrides, config) {
     if (o.situacao === "perdido") {
       row.perdidos += 1;
       row.margemPerdida += o.margem;
-      if (ehSemRetorno(o.motivoPerdaNome)) row.semRetorno += 1;
+      // "Sem retorno" pelo texto do ERP OU pelo motivo manual equivalente: a
+      // regra so por palavra ignorava tudo que a direcao classificou a mao.
+      if (o.motivoPerdaId === "sem-retorno" || chaveTexto(o.motivoPerdaNome).includes("retorno")) {
+        row.semRetorno += 1;
+      }
     }
-    if (o.situacao === "aberto") row.naMesa += 1;
+    if (o.situacao === "aberto") {
+      row.naMesa += 1;
+      if (!o.proximoToque) row.semPasso += 1;
+    }
   }
-  // Vendedores ocultados na tela: a tabela e reconstruida a partir dos
-  // orcamentos, entao quem tem ao menos um voltaria sozinho. Sem este filtro, o
-  // botao de retirar nao tinha efeito nenhum.
-  const ocultos = new Set(config.vendedoresOcultos || []);
   const porVendedor = Object.values(mapV)
-    .filter((r) => !ocultos.has(r.vendedorId))
-    .map((r) => ({ ...r, conversao: r.ganhos + r.perdidos ? Math.round((r.ganhos / (r.ganhos + r.perdidos)) * 100) : 0 }))
-    .sort((a, b) => b.valor - a.valor);
+    .map((r) => ({
+      ...r,
+      conversao: r.ganhos + r.perdidos ? Math.round((r.ganhos / (r.ganhos + r.perdidos)) * 100) : 0,
+    }))
+    .sort((a, b) => b.margemGanha - a.margemGanha || b.valor - a.valor);
 
-  // Por que perdemos (por motivo, por valor)
+  // ------------------------------------------------------------ por que perdemos
   const mapM = {};
   for (const o of perdidos) {
     const k = o.motivoChave;
-    if (!mapM[k])
+    if (!mapM[k]) {
       mapM[k] = {
         motivoId: o.motivoPerdaId,
         chave: k,
-        nome: o.motivoPerdaNome || "Nao informado",
+        nome: o.motivoPerdaNome || "Não informado",
         valor: 0,
         qtd: 0,
         margem: 0,
       };
-    mapM[k].valor += o.valor;
+    }
+    mapM[k].valor += o.valor || 0;
     mapM[k].qtd += 1;
     mapM[k].margem += o.margem;
   }
   const porMotivoPerda = Object.values(mapM).sort((a, b) => b.valor - a.valor);
-  const motivoLider = porMotivoPerda[0];
-  // A acao sugerida seguia so o id das marcacoes manuais. Agora o motivo chega
-  // como texto do ERP, entao caimos para o casamento por palavra.
-  const acaoPorTexto = (texto) => {
-    const t = chaveTexto(texto);
-    if (t.includes("compra futura")) return "Agendar o retorno na data que o cliente pediu -- este dinheiro so volta com lembrete.";
-    if (t.includes("retorno")) return "Ativar follow-up automatico em 48 horas e em 5 dias.";
-    if (t.includes("preco")) return "Revisar a tabela e criar faixa de desconto por volume.";
-    if (t.includes("prazo")) return "Alinhar o prazo real com a producao antes de enviar a proposta.";
-    if (t.includes("outra empresa") || t.includes("comparativo")) return "Reforcar diferencial e prova social na proposta.";
-    if (t.includes("escopo") || t.includes("material")) return "Fechar o escopo por escrito antes de enviar o valor.";
-    return "Revisar a abordagem para este motivo.";
-  };
-  const acaoLider = motivoLider
-    ? ACAO_POR_MOTIVO[motivoLider.motivoId] || acaoPorTexto(motivoLider.nome)
-    : "Sem perdas registradas no periodo.";
 
-  const parados = abertos
-    .filter((o) => o.parado)
-    .sort((a, b) => b.dias - a.dias)
-    .map((o) => ({ id: o.id, numero: o.numero, cliente: o.cliente, vendedorNome: o.vendedorNome, valor: o.valor, dias: o.dias }));
-
-  // ---------------------------------------------------------------- acoes do dia
-  //
-  // A fila de trabalho: o que vale a pena tocar HOJE, do maior para o menor
-  // dinheiro em jogo. Ordena por MARGEM, nao por faturamento -- um orcamento
-  // gordo de margem fina nao vale a ligacao que um menor e mais rentavel vale.
-  //
-  // Quem ja tem retorno agendado para depois de hoje sai da fila ate la: sem
-  // isso o vendedor veria o mesmo cliente todo dia e pararia de olhar a tela.
-  const naFila = (o) => !o.adiado;
-
-  const itensDaFila = [
-    ...abertos.filter((o) => o.vencido && naFila(o)).map((o) => ({ ...o, fila: "vencido" })),
-    // Perdidos por "compra futura": nao sao perda, sao agenda. Maior fatia do
-    // valor que escapa e a unica que volta so com alguem lembrando de ligar.
-    ...perdidos
-      .filter((o) => ehCompraFutura(o.motivoPerdaNome) && naFila(o))
-      .map((o) => ({ ...o, fila: "recall" })),
-    ...abertos
-      .filter((o) => o.parado && !o.vencido && naFila(o))
-      .map((o) => ({ ...o, fila: "sem-retorno" })),
-  ];
-
-  // Uma linha por CLIENTE (do mesmo vendedor), nao por orcamento: quatro
-  // orcamentos da mesma empresa sao uma ligacao so. Sem agrupar, o topo da fila
-  // ficava com o mesmo nome repetido quatro vezes e escondia os outros clientes.
-  const URGENCIA = { vencido: 0, "sem-retorno": 1, recall: 2 };
-  const grupos = new Map();
-  for (const o of itensDaFila) {
-    const chave = `${o.vendedorId}|${o.clienteId || chaveTexto(o.cliente)}`;
-    let g = grupos.get(chave);
-    if (!g) {
-      g = {
-        chave,
-        cliente: o.cliente,
-        clienteId: o.clienteId || "",
-        vendedorId: o.vendedorId,
-        vendedorNome: o.vendedorNome,
-        celular: o.celular || "",
-        contatoNome: o.contatoNome || "",
-        fila: o.fila,
-        qtd: 0,
-        valor: 0,
-        margem: 0,
-        dias: 0,
-        itens: [],
-      };
-      grupos.set(chave, g);
-    }
-    g.qtd += 1;
-    g.valor += o.valor;
-    g.margem += o.margem;
-    g.dias = Math.max(g.dias, o.dias);
-    if (!g.celular && o.celular) g.celular = o.celular;
-    // A linha herda a fila mais urgente entre os orcamentos do cliente.
-    if (URGENCIA[o.fila] < URGENCIA[g.fila]) g.fila = o.fila;
-    g.itens.push({
-      id: o.id,
-      numero: o.numero,
-      valor: o.valor,
-      margem: o.margem,
-      dias: o.dias,
-      trabalho: o.trabalho,
-      fila: o.fila,
-      motivo: o.motivoPerdaNome || null,
-    });
-  }
-  const acoes = [...grupos.values()]
-    .map((g) => ({ ...g, itens: g.itens.sort((a, b) => b.margem - a.margem) }))
-    .sort((a, b) => b.margem - a.margem);
-
-  const soma = (lista, campo) => lista.reduce((s, o) => s + (o[campo] || 0), 0);
-  const vencidos = abertos.filter((o) => o.vencido);
-  const recall = perdidos.filter((o) => ehCompraFutura(o.motivoPerdaNome));
+  const recall = doEscopo.filter((o) => o.recall);
 
   return {
-    // Lista mestra (ja filtrada por valor minimo e data de corte, ordenada por
-    // valor): alimenta a tabela com busca, filtros e linhas expansiveis.
-    lista: filtrados,
+    // Lista mestra do escopo escolhido: alimenta a aba Arquivo.
+    lista: doEscopo,
     kpis: {
       naMesaQtd: abertos.length,
-      naMesaValor: abertos.reduce((s, o) => s + o.valor, 0),
+      naMesaValor: soma(abertos, "valor"),
       conversao,
-      valorPerdido: perdidos.reduce((s, o) => s + o.valor, 0),
-      ganhosValor: ganhos.reduce((s, o) => s + o.valor, 0),
+      valorPerdido: soma(perdidos, "valor"),
+      ganhosValor: soma(ganhos, "valor"),
       ganhosQtd: ganhos.length,
       perdidosQtd: perdidos.length,
-      totalQtd: filtrados.length,
-      // Margem: o numero que decide a ordem da fila.
+      totalQtd: doEscopo.length,
       margemEmRisco: soma(abertos, "margem"),
       margemGanha: soma(ganhos, "margem"),
       margemPerdida: soma(perdidos, "margem"),
-      vencidosQtd: vencidos.length,
-      vencidosValor: soma(vencidos, "valor"),
+      ticketGanho: ganhos.length ? soma(ganhos, "valor") / ganhos.length : 0,
+      vencidosQtd: abertos.filter((o) => o.vencido).length,
       recallQtd: recall.length,
       recallValor: soma(recall, "valor"),
-      // Duas contagens diferentes de proposito: a fila mostra CLIENTES (uma
-      // ligacao cada), mas o dinheiro em jogo vem dos orcamentos por tras.
-      acoesQtd: acoes.length,
-      acoesOrcamentos: itensDaFila.length,
-      acoesMargem: soma(itensDaFila, "margem"),
     },
-    acoes,
+    fila: {
+      grupos,
+      kpis: {
+        clientes: grupos.length,
+        orcamentos: naFila.length,
+        valor: soma(naFila, "valor"),
+        // Os dois dinheiros NUNCA se somam: o que o ERP ja deu por perdido nao
+        // esta "em jogo", esta a recuperar. Somar inflaria a mesa em milhoes.
+        margemAberta: soma(naFila.filter((o) => o.situacao === "aberto"), "margem"),
+        margemRecall: soma(naFila.filter((o) => o.recall), "margem"),
+        porBalde,
+      },
+    },
+    agenda,
+    fechados,
+    cobertura,
+    excluidos,
+    vendedoresDaBase,
     porVendedor,
     porMotivoPerda,
-    motivoLider: motivoLider || null,
-    acaoLider,
-    parados,
-    perdidos: perdidos
-      .sort((a, b) => b.valor - a.valor)
-      .map((o) => ({ id: o.id, numero: o.numero, cliente: o.cliente, vendedorNome: o.vendedorNome, valor: o.valor, motivoPerdaId: o.motivoPerdaId })),
+    motivoLider: porMotivoPerda[0] || null,
   };
 }
-
-export { ACAO_POR_MOTIVO };
