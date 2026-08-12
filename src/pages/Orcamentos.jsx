@@ -1,23 +1,25 @@
-// Orçamentos — a mesa de fechamento.
+// Orçamentos — a mesa.
 //
-// A tela responde UMA pergunta: para quem eu ligo agora, e o que eu prometi a
-// ele. Tudo o que não muda o que a pessoa faz nos próximos dez minutos ficou
-// atrás de um acordeão (o Placar) ou de uma aba (Arquivo).
+// A tela abre com O QUE ESTÁ NA MESA: um orçamento por linha, do maior para o
+// menor, com cliente, trabalho, vendedor, estado e dinheiro. É a lista que
+// responde "onde eu mexo agora", e é a primeira coisa que aparece.
 //
-// A tela velha era um relatório com uma fila dentro: três cartões de placar,
-// dois seletores de período, uma tabela de nove colunas e outra de seis — e a
-// fila de trabalho só aparecia depois de ~600px de rolagem no celular, que é
-// onde o CEO abre isto. Pior: o seletor de mês do relatório mandava também na
-// fila, então escolher "junho" para ver um número esvaziava a fila do dia com a
-// mensagem "tudo já foi tratado", que era mentira.
+// A versão anterior escondia essa lista dentro de cabeçalhos de balde ("sem
+// próxima ação", "prometido e não cumprido") e obrigava a caçar. Os baldes
+// continuam existindo no cálculo — mas agora eles são o SELO da linha e o
+// recorte dos quatro números do topo, não a estrutura da tela.
 //
-// Três abas: Hoje (o trabalho), Agenda (o que foi prometido) e Arquivo (achar
-// um orçamento). O Placar do mês é o mesmo em todas, fechado por padrão.
+// Craft da lista (medido em Linear, Geist/Vercel e Attio):
+//   · um selo por linha, nunca dois — se precisa de dois, falta uma coluna;
+//   · o valor é o ÚNICO número forte da linha, com tabular-nums e o "R$" em
+//     cinza; a margem entra abaixo, menor;
+//   · sem zebra, sem borda grossa: separador de 1px bem claro e ritmo vertical;
+//   · dado ausente é travessão "—", nunca "N/A" nem R$ 0;
+//   · cor só marca estado e a ação primária. O resto é cinza.
 //
-// A prova de que a tela velha não era usada está no banco: a coleção de
-// marcações do painel tinha UM registro em oito meses. Por isso aqui o primeiro
-// gesto tem de valer sozinho — o botão É a gravação, e o desfazer fica 8s na
-// tela em vez de um diálogo de confirmação antes.
+// Três abas: Na mesa (o trabalho) · Agenda (o que foi prometido) · Histórico
+// (ganhos e perdidos). O Placar do mês é acordeão no rodapé, e é o ÚNICO lugar
+// com seletor de período — na mesa, um filtro de relatório não manda.
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
@@ -30,10 +32,11 @@ import {
   ChevronDown,
   Check,
   Undo2,
+  MoreHorizontal,
 } from "lucide-react";
 import { useApp } from "../config/store.jsx";
 import { getSessao, vendedorDaSessao } from "../lib/sessao.js";
-import { calcOrcamentos, BALDES, canonVend, somaDias } from "../lib/calc/orcamentos.js";
+import { calcOrcamentos, canonVend, somaDias } from "../lib/calc/orcamentos.js";
 import { salvarCompromisso, removerCompromisso } from "../services/compromissos.js";
 import { moeda, numero, pct, dataCurta, dataLonga, diasEntre, ymdLocal } from "../lib/format.js";
 import {
@@ -55,16 +58,33 @@ const MESES_LONGOS = [
   "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro",
 ];
 
-const TOM_BALDE = {
-  bad: "text-bad-700",
-  warn: "text-warn-700",
-  neutral: "text-slate-600",
+// Selo: fundo 50, texto 700, ponto na cor cheia. Um por linha.
+const SELO = {
+  bad: { caixa: "bg-bad-50 text-bad-700", ponto: "bg-bad-600" },
+  warn: { caixa: "bg-warn-50 text-warn-700", ponto: "bg-warn-600" },
+  ok: { caixa: "bg-ok-50 text-ok-700", ponto: "bg-ok-600" },
+  brand: { caixa: "bg-brand-50 text-brand-700", ponto: "bg-brand" },
+  neutral: { caixa: "bg-slate-100 text-slate-600", ponto: "bg-slate-400" },
 };
+// Trilho colorido de 3px na borda esquerda: é o que deixa varrer a lista com o
+// olho sem ler selo por selo. Só os estados que pedem ação ganham trilho.
+const TRILHO = { bad: "bg-bad-600", warn: "bg-warn-500", ok: "bg-transparent", brand: "bg-transparent", neutral: "bg-transparent" };
 
-const ROTULO_SITUACAO = { aberto: "Aberto", ganho: "Ganho", perdido: "Perdido" };
-const CHIP_SITUACAO = { aberto: "chip-warn", ganho: "chip-ok", perdido: "chip-bad" };
+const CORTES = [
+  { id: "mesa", rotulo: "Na mesa" },
+  { id: "atrasados", rotulo: "Atrasados" },
+  { id: "semRetorno", rotulo: "Sem retorno" },
+  { id: "recall", rotulo: "Compra futura" },
+];
 
-// Busca sem acento.
+const ORDENS = {
+  valor: { rotulo: "Maior valor", fn: (a, b) => b.valor - a.valor },
+  margem: { rotulo: "Maior margem", fn: (a, b) => b.margem - a.margem },
+  parado: { rotulo: "Mais parado", fn: (a, b) => b.dias - a.dias },
+  urgencia: { rotulo: "Mais urgente", fn: null }, // usa a ordem do balde
+};
+const PESO_ESTADO = { atrasado: 0, chamado: 1, vencido: 2, hoje: 3, sem: 4, recall: 5, agendado: 6 };
+
 const norm = (s) =>
   String(s || "")
     .toLowerCase()
@@ -72,35 +92,432 @@ const norm = (s) =>
     .replace(/[̀-ͯ]/g, "");
 
 const primeiroNome = (n) => String(n || "").trim().split(/\s+/)[0] || "";
+const iniciais = (n) =>
+  String(n || "?")
+    .trim()
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((x) => x[0])
+    .join("")
+    .toUpperCase();
 
-function linkWhats(g) {
-  if (!g.celular) return null;
-  const ola = primeiroNome(g.contatoNome) ? `Olá, ${primeiroNome(g.contatoNome)}! ` : "Olá! ";
-  const ref =
-    g.qtd === 1
-      ? `sobre o orçamento ${g.itens[0]?.numero || ""}`.trim()
-      : "sobre os orçamentos que enviamos";
-  const texto = `${ola}Aqui é da Impresilk, ${ref}. Posso te ajudar a seguir com ele?`;
-  return `https://wa.me/${g.celular}?text=${encodeURIComponent(texto)}`;
-}
-
-// A linha de tempo do cartão: um fato, nunca uma opinião.
-function textoRelogio(g) {
-  if (g.balde === "prometido-atrasado" || g.balde === "prometido-hoje") {
-    return `prometido para ${dataCurta(g.proximoToque)}`;
-  }
-  if (g.balde === "chamado-sem-passo") {
-    return `chamado ${dataCurta(g.chamadoEm)}, sem retorno marcado`;
-  }
-  if (g.balde === "vencido" && g.diasParaVencer != null) {
-    return `venceu há ${Math.abs(g.diasParaVencer)} d`;
-  }
-  return g.diasUltimoEnvio <= 0 ? "enviado hoje" : `enviado há ${g.diasUltimoEnvio} d`;
+function linkWhats(o) {
+  if (!o.celular) return null;
+  const ola = primeiroNome(o.contatoNome) ? `Olá, ${primeiroNome(o.contatoNome)}! ` : "Olá! ";
+  const texto = `${ola}Aqui é da Impresilk, sobre o orçamento ${o.numero || ""}. Posso te ajudar a seguir com ele?`;
+  return `https://wa.me/${o.celular}?text=${encodeURIComponent(texto)}`;
 }
 
 // ---------------------------------------------------------------- componentes
-// Todos no escopo do módulo: componente declarado dentro de outro vira tipo
-// novo a cada render e o campo de nota perde o foco a cada letra digitada.
+// Todos no escopo do módulo: componente dentro de componente remonta a cada
+// render e o campo de nota perde o foco a cada letra.
+
+function Selo({ estado }) {
+  const s = SELO[estado.tom] || SELO.neutral;
+  return (
+    <span
+      className={`inline-flex max-w-full items-center gap-1.5 truncate rounded-full px-2.5 py-1 font-display text-xs font-medium ${s.caixa}`}
+    >
+      <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${s.ponto}`} />
+      <span className="truncate">{estado.rotulo}</span>
+    </span>
+  );
+}
+
+function Dinheiro({ valor, margem, semMargem, classe = "text-[17px]" }) {
+  return (
+    <div className="text-right">
+      <p className={`tnum font-semibold text-slate-900 ${classe}`}>
+        <span className="text-sm font-normal text-slate-400">R$ </span>
+        {numero(Math.round(valor))}
+      </p>
+      <p className="tnum text-xs text-slate-500">
+        {semMargem ? (
+          <span className="text-slate-400">margem —</span>
+        ) : (
+          <>
+            margem {numero(Math.round(margem))}
+            {valor > 0 && (
+              <span className="text-ok-700"> · {Math.round((margem / valor) * 100)}%</span>
+            )}
+          </>
+        )}
+      </p>
+    </div>
+  );
+}
+
+function FaixaNumeros({ r, conversao, recorte, aoRecortar }) {
+  const celulas = [
+    {
+      id: "mesa",
+      curto: `${numero(r.mesa.qtd)} orçamentos`,
+      rotulo: "Na mesa",
+      valor: moeda(r.mesa.valor),
+      sub: `${numero(r.mesa.qtd)} orçamentos · margem ${moeda(r.mesa.margem)}`,
+      cor: "text-slate-900",
+    },
+    {
+      id: "atrasados",
+      curto: moeda(r.atrasados.valor),
+      rotulo: "Atrasados",
+      valor: numero(r.atrasados.qtd),
+      sub: `${moeda(r.atrasados.valor)} · promessa vencida ou orçamento vencido`,
+      cor: r.atrasados.qtd ? "text-bad-700" : "text-slate-900",
+    },
+    {
+      id: "semRetorno",
+      curto: moeda(r.semRetorno.valor),
+      rotulo: "Sem retorno marcado",
+      valor: numero(r.semRetorno.qtd),
+      sub: `${moeda(r.semRetorno.valor)} sem data para voltar e ainda no prazo`,
+      cor: r.semRetorno.qtd ? "text-warn-700" : "text-slate-900",
+    },
+    {
+      id: "recall",
+      curto: moeda(r.recall.valor),
+      rotulo: "Compra futura",
+      valor: numero(r.recall.qtd),
+      sub: `${moeda(r.recall.valor)} a recuperar com agenda`,
+      cor: "text-slate-900",
+    },
+  ];
+  return (
+    <div className="grid grid-cols-2 overflow-hidden rounded-xl border bg-white lg:grid-cols-4" style={{ borderColor: "var(--hairline)" }}>
+      {celulas.map((c, i) => {
+        const ativo = recorte === c.id;
+        return (
+          <button
+            key={c.id}
+            onClick={() => aoRecortar(c.id)}
+            aria-pressed={ativo}
+            className={`border-t px-4 py-3 text-left transition-colors first:border-t-0 sm:border-t-0 ${
+              i % 2 === 1 ? "border-l" : ""
+            } lg:border-l lg:first:border-l-0 ${ativo ? "bg-brand-50" : "hover:bg-slate-50"}`}
+            style={{ borderColor: "var(--hairline)" }}
+          >
+            <span className="block truncate text-xs text-slate-500">{c.rotulo}</span>
+            <span className={`tnum mt-0.5 block text-[22px] font-semibold leading-tight ${c.cor}`}>
+              {c.valor}
+            </span>
+            <span className="mt-0.5 hidden line-clamp-2 text-xs text-slate-400 sm:block">{c.sub}</span>
+            <span className="mt-0.5 block truncate text-xs text-slate-400 sm:hidden">{c.curto}</span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+/* Os botões de data SÃO a gravação — não existe escolher e depois salvar.
+   Confirmar antes de cada gesto transforma dois toques em quatro; o desfazer de
+   8 segundos cobre o engano com um toque só. */
+function PainelRetorno({ o, hoje, salvando, acoes, aoFechar }) {
+  const [nota, setNota] = useState(o.nota || "");
+  const [outra, setOutra] = useState("");
+  const marcar = (data) => {
+    acoes.agendar(o, data, nota);
+    aoFechar();
+  };
+  return (
+    <div className="mt-3 space-y-3 rounded-xl bg-slate-50 p-3">
+      <div>
+        <p className="label mb-1.5">
+          {o.proximoToque ? `Retorno marcado para ${dataLonga(o.proximoToque)}` : "Voltar a falar em"}
+        </p>
+        <div className="flex flex-wrap gap-2">
+          {[
+            { d: 1, r: "Amanhã" },
+            { d: 3, r: "3 dias" },
+            { d: 7, r: "7 dias" },
+            { d: 15, r: "15 dias" },
+          ].map((b) => (
+            <button
+              key={b.d}
+              className="btn-outline min-h-[40px]"
+              disabled={salvando}
+              onClick={() => marcar(somaDias(hoje, b.d))}
+            >
+              {b.r}
+              <span className="ml-1 text-xs text-slate-400">{dataCurta(somaDias(hoje, b.d))}</span>
+            </button>
+          ))}
+          <span className="inline-flex items-end gap-2">
+            <input
+              type="date"
+              className="input w-auto"
+              value={outra}
+              min={hoje}
+              onChange={(e) => setOutra(e.target.value)}
+              aria-label="Outra data"
+            />
+            <button className="btn-primary min-h-[40px]" disabled={!outra || salvando} onClick={() => marcar(outra)}>
+              Marcar
+            </button>
+          </span>
+        </div>
+      </div>
+
+      <input
+        key={`n-${o.id}`}
+        className="input"
+        value={nota}
+        onChange={(e) => setNota(e.target.value)}
+        placeholder="Nota (opcional): o que ele pediu, o que falta"
+        aria-label="Nota do retorno"
+      />
+
+      {o.proximoToque && (
+        <div className="flex flex-wrap gap-2">
+          <button className="btn-outline" disabled={salvando} onClick={() => { acoes.antecipar(o); aoFechar(); }}>
+            Antecipar para hoje
+          </button>
+          <button className="btn-ghost" disabled={salvando} onClick={() => { acoes.cancelar(o); aoFechar(); }}>
+            Cancelar retorno
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function PainelDesfecho({ o, motivos, salvando, acoes, aoFechar }) {
+  const [motivo, setMotivo] = useState(o.motivoPerdaId || "");
+  return (
+    <div className="mt-3 space-y-3 rounded-xl bg-slate-50 p-3">
+      <p className="label mb-0">Como terminou?</p>
+      <div className="flex flex-wrap gap-2">
+        <button
+          className="btn-outline min-h-[44px] text-ok-700"
+          disabled={salvando}
+          onClick={() => { acoes.baixa(o, "ganho", ""); aoFechar(); }}
+        >
+          <Check size={15} strokeWidth={2.4} /> Ganhamos
+        </button>
+        <button
+          className="btn-outline min-h-[44px] text-bad-700"
+          disabled={salvando}
+          onClick={() => { acoes.baixa(o, "perdido", motivo); aoFechar(); }}
+        >
+          <X size={15} strokeWidth={2.4} /> Perdemos
+        </button>
+      </div>
+      <div>
+        <p className="label mb-1.5">Se perdemos, por quê?</p>
+        <div className="flex flex-wrap gap-1.5">
+          {motivos.map((m) => (
+            <button
+              key={m.id}
+              className={motivo === m.id ? "chip-sel" : "chip-btn"}
+              aria-pressed={motivo === m.id}
+              onClick={() => setMotivo((v) => (v === m.id ? "" : m.id))}
+            >
+              {m.nome}
+            </button>
+          ))}
+        </div>
+        {o.motivoPerdaNome && !o.motivoManual && (
+          <p className="mt-1.5 text-xs text-slate-500">
+            O ERP já diz: <b>{o.motivoPerdaNome}</b>. Escolher aqui sobrepõe.
+          </p>
+        )}
+      </div>
+      {o.baixaManual && (
+        <button className="btn-ghost" disabled={salvando} onClick={() => { acoes.desfazerBaixa(o); aoFechar(); }}>
+          Desfazer a baixa (o ERP marca {(o.situacaoErp || "").toLowerCase()})
+        </button>
+      )}
+    </div>
+  );
+}
+
+function Ficha({ o }) {
+  const linhas = [
+    o.contatoNome && `contato ${o.contatoNome}`,
+    o.celular && o.celular.replace(/^55(\d{2})(\d{4,5})(\d{4})$/, "($1) $2-$3"),
+    o.email,
+    o.temValidade
+      ? o.diasParaVencer < 0
+        ? `vale ${o.validade} dias — venceu há ${Math.abs(o.diasParaVencer)}`
+        : `vale ${o.validade} dias — faltam ${o.diasParaVencer}`
+      : "sem validade no ERP",
+    `enviado em ${dataLonga(o.envio)}`,
+    o.mexidoNoErpEm && `o ERP mexeu nele em ${dataLonga(o.mexidoNoErpEm)}`,
+    o.fechadoEm && `fechado em ${dataLonga(o.fechadoEm)}`,
+    o.nota && `nota: “${o.nota}”`,
+  ].filter(Boolean);
+  return <p className="mt-2 text-xs text-slate-500">{linhas.join(" · ")}</p>;
+}
+
+function LinhaOrcamento({ o, aberto, painel, mostrarVendedor, motivos, hoje, salvando, acoes }) {
+  const wa = linkWhats(o);
+  const trilho = TRILHO[o.estado.tom] || TRILHO.neutral;
+  return (
+    <div
+      className={`relative border-t px-4 py-3 transition-colors first:border-0 hover:bg-slate-50/60 ${
+        o.saindo ? "opacity-50" : ""
+      }`}
+      style={{ borderColor: "#f0f0f5" }}
+    >
+      <span className={`absolute inset-y-0 left-0 w-[3px] ${trilho}`} aria-hidden="true" />
+
+      <div className="xl:grid xl:grid-cols-[minmax(0,1fr)_144px_120px_44px_140px_136px] xl:items-center xl:gap-3">
+        {/* cliente + trabalho: mesmo corpo, muda peso e cor (padrão Geist) */}
+        <button className="block w-full min-w-0 text-left" onClick={() => acoes.abrir(o)} aria-expanded={aberto}>
+          <p className="truncate font-display text-[15px] font-semibold leading-tight text-slate-900">
+            {o.cliente}
+          </p>
+          <p className="truncate text-sm text-slate-500">{o.trabalho || "sem descrição no ERP"}</p>
+        </button>
+
+        <div className="mt-2 flex flex-wrap items-center gap-2 xl:mt-0 xl:block">
+          <Selo estado={o.estado} />
+          {/* No celular o vendedor e os dias andam junto do selo; no computador
+              cada um tem a sua coluna. */}
+          {mostrarVendedor && (
+            <span className="inline-flex items-center gap-1.5 text-xs text-slate-600 xl:hidden">
+              <span className="grid h-5 w-5 place-items-center rounded-full bg-brand-50 text-[9px] font-semibold text-brand-ink">
+                {iniciais(o.vendedorNome)}
+              </span>
+              {o.vendedorNome}
+            </span>
+          )}
+          <span className="text-xs text-slate-400 xl:hidden">{o.dias <= 0 ? "hoje" : `${o.dias} d`}</span>
+        </div>
+
+        <div className="hidden xl:block">
+          {mostrarVendedor && (
+            <span className="flex items-center gap-2 text-sm text-slate-600">
+              <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-brand-50 text-[10px] font-semibold text-brand-ink">
+                {iniciais(o.vendedorNome)}
+              </span>
+              <span className="truncate" title={o.vendedorNome}>{primeiroNome(o.vendedorNome)}</span>
+            </span>
+          )}
+        </div>
+
+        <p className="hidden text-right text-sm tabular-nums text-slate-500 xl:block">
+          {o.dias <= 0 ? "hoje" : `${o.dias} d`}
+        </p>
+
+        <div className="mt-2 flex items-end justify-between gap-3 xl:mt-0 xl:block">
+          <Dinheiro valor={o.valor} margem={o.margem} semMargem={o.semMargem} />
+        </div>
+
+        {/* Ações sempre visíveis -- no dedo não existe hover, e esconder a ação
+            é o que fazia a tela "dar trabalho". No computador elas moram na
+            própria linha, em ícones com rótulo escondido; no celular viram
+            botões de largura inteira com o nome escrito. */}
+        {/* Três botões lado a lado no celular (grade de 3), não empilhados: um
+            por linha fazia cada orçamento ocupar 330px e só cabia UM na tela. */}
+        <div className="sem-impressao mt-2.5 grid grid-cols-3 gap-2 xl:mt-0 xl:flex xl:justify-end">
+          {wa ? (
+            <a
+              className="btn-outline min-h-[44px] justify-center !border-ok-200 !text-ok-700 xl:min-h-[40px] xl:!px-2.5"
+              href={wa}
+              target="_blank"
+              rel="noopener noreferrer"
+              title="Chamar no WhatsApp"
+              onClick={() => acoes.chamar(o)}
+            >
+              <MessageCircle size={15} strokeWidth={2.4} />
+              <span className="xl:hidden">WhatsApp</span>
+            </a>
+          ) : o.email ? (
+            <a
+              className="btn-outline min-h-[44px] justify-center xl:min-h-[40px] xl:!px-2.5"
+              href={`mailto:${o.email}`}
+              title="Mandar e-mail"
+              onClick={() => acoes.chamar(o)}
+            >
+              <Mail size={15} strokeWidth={2.4} />
+              <span className="xl:hidden">E-mail</span>
+            </a>
+          ) : (
+            /* Botão desligado, não texto: com "sem contato" escrito ali, a
+               coluna de ações perdia o alinhamento e a linha inteira dançava. */
+            <span
+              className="btn-outline pointer-events-none min-h-[44px] justify-center opacity-40 xl:min-h-[40px] xl:!px-2.5"
+              title="Sem telefone nem e-mail no Mubisys"
+            >
+              <MessageCircle size={15} strokeWidth={2.4} />
+              <span className="xl:hidden">sem nº</span>
+            </span>
+          )}
+          <button
+            className={`btn-outline min-h-[44px] justify-center xl:min-h-[40px] xl:!px-2.5 ${painel === "retorno" ? "!border-brand !text-brand" : ""}`}
+            onClick={() => acoes.painel(o, "retorno")}
+            title={o.proximoToque ? "Mudar o retorno" : "Marcar retorno"}
+          >
+            <CalendarClock size={15} strokeWidth={2.4} />
+            <span className="xl:hidden">{o.proximoToque ? "Mudar" : "Retorno"}</span>
+          </button>
+          <button
+            className={`btn-outline min-h-[44px] justify-center xl:min-h-[40px] xl:!px-2.5 ${painel === "desfecho" ? "!border-brand !text-brand" : ""}`}
+            onClick={() => acoes.painel(o, "desfecho")}
+            title="Ganhamos ou perdemos"
+          >
+            <MoreHorizontal size={15} strokeWidth={2.4} />
+            <span className="xl:hidden">Ganho/Perda</span>
+          </button>
+        </div>
+      </div>
+
+      {o.qtdDoCliente > 1 && (
+        <button className="chip-btn sem-impressao mt-2" onClick={() => acoes.verCliente(o)}>
+          +{o.qtdDoCliente - 1} do mesmo cliente
+        </button>
+      )}
+      <span className="apenas-impressao text-xs">
+        {[o.celular, o.contatoNome, o.estado.rotulo].filter(Boolean).join(" · ")}
+      </span>
+
+      {aberto && <Ficha o={o} />}
+      {painel === "retorno" && (
+        <PainelRetorno o={o} hoje={hoje} salvando={salvando} acoes={acoes} aoFechar={() => acoes.painel(o, null)} />
+      )}
+      {painel === "desfecho" && (
+        <PainelDesfecho o={o} motivos={motivos} salvando={salvando} acoes={acoes} aoFechar={() => acoes.painel(o, null)} />
+      )}
+    </div>
+  );
+}
+
+function LinhaAgenda({ o, salvando, acoes }) {
+  return (
+    <div className="border-t px-4 py-3 first:border-0" style={{ borderColor: "#f0f0f5" }}>
+      <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+        <p className="min-w-0 flex-1 truncate font-display text-[15px] font-semibold text-slate-900">
+          {o.cliente}
+        </p>
+        <Dinheiro valor={o.valor} margem={o.margem} semMargem={o.semMargem} classe="text-base" />
+      </div>
+      <p className="mt-0.5 text-sm text-slate-500">
+        {o.trabalho || "sem descrição no ERP"} · {o.vendedorNome}
+      </p>
+      {o.nota && <p className="mt-0.5 text-xs italic text-slate-600">“{o.nota}”</p>}
+      <div className="sem-impressao mt-2 flex flex-wrap gap-2">
+        {o.celular && (
+          <a
+            className="btn-outline !border-ok-200 !text-ok-700"
+            href={linkWhats(o)}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={() => acoes.chamar(o)}
+          >
+            <MessageCircle size={14} strokeWidth={2.4} /> WhatsApp
+          </a>
+        )}
+        <button className="btn-outline" disabled={salvando} onClick={() => acoes.antecipar(o)}>
+          Antecipar para hoje
+        </button>
+        <button className="btn-ghost" disabled={salvando} onClick={() => acoes.cancelar(o)}>
+          Cancelar retorno
+        </button>
+      </div>
+    </div>
+  );
+}
 
 function Honestidade({ x, c, minimo, corte }) {
   const linhas = [
@@ -108,14 +525,13 @@ function Honestidade({ x, c, minimo, corte }) {
     x.antesDoCorte > 0 && `${numero(x.antesDoCorte)} enviados antes de ${dataLonga(corte)}`,
     x.semData > 0 && `${numero(x.semData)} sem data de cadastro no ERP`,
     c.abertosSemValidade > 0 && `${numero(c.abertosSemValidade)} abertos sem validade preenchida — esses nunca aparecem como vencidos`,
-    c.perdidosSemMotivo > 0 && `${numero(c.perdidosSemMotivo)} perdidos sem texto de motivo`,
-    c.filaSemMargem > 0 && `${numero(c.filaSemMargem)} na fila com margem zerada no ERP`,
+    c.filaSemMargem > 0 && `${numero(c.filaSemMargem)} com margem zerada no ERP`,
     c.ganhosSemFechamento > 0 && `${numero(c.ganhosSemFechamento)} marcados como ganhos sem data de aprovação`,
   ].filter(Boolean);
   if (!linhas.length) return null;
   return (
-    <details className="sem-impressao mb-3 text-xs text-slate-500">
-      <summary className="cursor-pointer">O que não está nesta tela</summary>
+    <details className="sem-impressao mt-4 text-xs text-slate-500">
+      <summary className="cursor-pointer">O que não está nesta lista</summary>
       <ul className="mt-1 space-y-0.5 pl-4">
         {linhas.map((l) => (
           <li key={l}>{l}</li>
@@ -125,435 +541,9 @@ function Honestidade({ x, c, minimo, corte }) {
   );
 }
 
-function GrupoBalde({ balde, qtd, margem, restantes, aoVerTudo, children }) {
-  return (
-    <section className="mt-5 first:mt-0">
-      <h3 className="mb-1 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5">
-        <span className={`font-display text-sm font-semibold ${TOM_BALDE[balde.tom]}`}>
-          {balde.nome}
-        </span>
-        <span className="tnum text-xs font-normal text-slate-500">
-          {numero(qtd)} {qtd === 1 ? "cliente" : "clientes"}
-          {margem > 0 ? ` · ${moeda(margem)} de margem` : ""}
-        </span>
-      </h3>
-      <div className="rounded-xl border" style={{ borderColor: "var(--hairline)" }}>
-        {children}
-      </div>
-      {restantes > 0 && (
-        <button className="btn-ghost sem-impressao mt-1" onClick={aoVerTudo}>
-          ver os {numero(restantes)} restantes
-        </button>
-      )}
-    </section>
-  );
-}
-
-/* Os botões de data SÃO a gravação -- não existe "escolher e depois salvar".
-   Confirmar antes de gravar em toda ação transforma dois toques em quatro; o
-   desfazer de 8s cobre o engano com um toque só, e cobre também o engano que a
-   confirmação não pega (a pessoa confirma no automático). */
-function BotoesData({ chave, aoEscolher, salvando, hoje }) {
-  const [nota, setNota] = useState("");
-  const [outra, setOutra] = useState("");
-  const escolher = (dias) => aoEscolher(somaDias(hoje, dias), nota);
-  return (
-    <div className="space-y-2">
-      <div className="flex flex-wrap gap-2">
-        {[
-          { d: 1, r: "Amanhã" },
-          { d: 3, r: "Em 3 dias" },
-          { d: 7, r: "Em 7 dias" },
-          { d: 15, r: "Em 15 dias" },
-        ].map((b) => (
-          <button
-            key={b.d}
-            className="btn-outline min-h-[40px]"
-            disabled={salvando}
-            onClick={() => escolher(b.d)}
-          >
-            {b.r}
-          </button>
-        ))}
-      </div>
-      <div className="flex flex-wrap items-end gap-2">
-        <div>
-          <label className="label" htmlFor={`d-${chave}`}>
-            Outra data
-          </label>
-          <input
-            id={`d-${chave}`}
-            type="date"
-            className="input w-auto"
-            value={outra}
-            min={hoje}
-            onChange={(e) => setOutra(e.target.value)}
-          />
-        </div>
-        <button
-          className="btn-primary min-h-[40px]"
-          disabled={!outra || salvando}
-          onClick={() => aoEscolher(outra, nota)}
-        >
-          Marcar
-        </button>
-      </div>
-      <input
-        key={`n-${chave}`}
-        className="input"
-        value={nota}
-        onChange={(e) => setNota(e.target.value)}
-        placeholder="Nota (opcional): o que ele pediu, o que falta"
-        aria-label="Nota do retorno"
-      />
-    </div>
-  );
-}
-
-function LinhaOrcamento({ o, escolhido, aoEscolher, mostrarCaixa, aoCompraFutura, aoDesfazer }) {
-  return (
-    <div className="border-t py-2 text-sm first:border-0" style={{ borderColor: "var(--hairline)" }}>
-      <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
-        {mostrarCaixa && (
-          <input
-            type="checkbox"
-            className="h-4 w-4 shrink-0 rounded border-slate-300 text-brand focus:ring-brand-200"
-            checked={escolhido}
-            onChange={aoEscolher}
-            aria-label={`Incluir o orçamento ${o.numero}`}
-          />
-        )}
-        <span className="tnum font-medium text-slate-900">nº {o.numero}</span>
-        <span className="min-w-0 flex-1 truncate text-slate-600">
-          {o.trabalho || "sem descrição no ERP"}
-        </span>
-        <span className="tnum font-medium text-slate-900">{moeda(o.valor)}</span>
-      </div>
-      <p className="mt-0.5 text-xs text-slate-500">
-        {[
-          o.margem > 0 ? `margem ${moeda(o.margem)}` : "sem margem no ERP",
-          o.dias <= 0 ? "enviado hoje" : `enviado há ${o.dias} d`,
-          o.temValidade
-            ? o.diasParaVencer < 0
-              ? `vale ${o.validade} dias, venceu há ${Math.abs(o.diasParaVencer)}`
-              : `vale ${o.validade} dias, faltam ${o.diasParaVencer}`
-            : "sem validade no ERP",
-          o.mexidoNoErpEm ? `o ERP mexeu nele em ${dataCurta(o.mexidoNoErpEm)}` : null,
-        ]
-          .filter(Boolean)
-          .join(" · ")}
-      </p>
-      {o.situacao === "perdido" && (
-        <p className="mt-0.5 text-xs text-bad-700">
-          perdido: {o.motivoPerdaNome || "sem motivo"}
-          <span className="text-slate-400">
-            {" "}
-            ({o.motivoManual ? "você classificou" : "veio do ERP"})
-          </span>
-          {!o.recall && (
-            <button className="btn-ghost sem-impressao ml-2 !px-2 !py-0.5 text-xs" onClick={aoCompraFutura}>
-              Isto é compra futura
-            </button>
-          )}
-        </p>
-      )}
-      {o.baixaManual && (
-        <p className="mt-0.5 text-xs text-slate-500">
-          marcado como {ROTULO_SITUACAO[o.situacao].toLowerCase()}
-          {o.dataBaixa ? ` em ${dataCurta(o.dataBaixa)}` : ""} · o ERP marca{" "}
-          {(ROTULO_SITUACAO[o.situacaoErp] || o.situacaoErp).toLowerCase()}
-          <button className="btn-ghost sem-impressao ml-2 !px-2 !py-0.5 text-xs" onClick={aoDesfazer}>
-            Desfazer baixa
-          </button>
-        </p>
-      )}
-    </div>
-  );
-}
-
-function GavetaNegocio({ g, motivos, hoje, salvando, acoes }) {
-  const [escolhidos, setEscolhidos] = useState(() => g.ids);
-  const [perdendo, setPerdendo] = useState(false);
-  const [motivo, setMotivo] = useState("");
-  const varios = g.qtd > 1;
-  const alvos = varios ? escolhidos : g.ids;
-
-  return (
-    <div className="mt-3 space-y-4 rounded-xl bg-slate-50 p-3">
-      {g.proximoToque && (
-        <div>
-          <p className="text-sm text-slate-700">
-            Retorno marcado para <b>{dataLonga(g.proximoToque)}</b>
-            {g.nota ? ` — “${g.nota}”` : ""}
-          </p>
-          <div className="sem-impressao mt-2 flex flex-wrap gap-2">
-            <button className="btn-outline" disabled={salvando} onClick={() => acoes.antecipar(g)}>
-              Antecipar para hoje
-            </button>
-            <button className="btn-ghost" disabled={salvando} onClick={() => acoes.cancelar(g)}>
-              Cancelar retorno
-            </button>
-          </div>
-        </div>
-      )}
-
-      <div className="sem-impressao">
-        <p className="label mb-1">{g.proximoToque ? "Mudar a data" : "Quando você volta a falar?"}</p>
-        <BotoesData
-          chave={g.chave}
-          hoje={hoje}
-          salvando={salvando}
-          aoEscolher={(data, nota) => acoes.agendar(g, data, nota)}
-        />
-      </div>
-
-      {(g.contatoNome || g.celular || g.email) && (
-        <p className="text-xs text-slate-500">
-          {[g.contatoNome, g.celular, g.email].filter(Boolean).join(" · ")}
-        </p>
-      )}
-
-      <div>
-        <p className="label mb-1">
-          {g.qtd === 1 ? "O orçamento" : `Os ${numero(g.qtd)} orçamentos`}
-        </p>
-        {g.itens.map((o) => (
-          <LinhaOrcamento
-            key={o.id}
-            o={o}
-            mostrarCaixa={varios && perdendo}
-            escolhido={escolhidos.includes(o.id)}
-            aoEscolher={() =>
-              setEscolhidos((prev) =>
-                prev.includes(o.id) ? prev.filter((x) => x !== o.id) : [...prev, o.id]
-              )
-            }
-            aoCompraFutura={() => acoes.compraFutura(g, o)}
-            aoDesfazer={() => acoes.desfazerBaixa(g, o)}
-          />
-        ))}
-      </div>
-
-      <div className="sem-impressao">
-        {!perdendo ? (
-          <div className="flex flex-wrap gap-2">
-            <button
-              className="btn-outline min-h-[44px]"
-              disabled={salvando}
-              onClick={() => (varios ? setPerdendo("ganho") : acoes.baixa(g, g.ids, "ganho", ""))}
-            >
-              <Check size={15} strokeWidth={2.4} /> Ganhamos
-            </button>
-            <button
-              className="btn-outline min-h-[44px]"
-              disabled={salvando}
-              onClick={() => setPerdendo("perdido")}
-            >
-              <X size={15} strokeWidth={2.4} /> Perdemos
-            </button>
-          </div>
-        ) : (
-          <div className="space-y-2 rounded-xl bg-white p-3">
-            <p className="text-sm text-slate-700">
-              {varios
-                ? `Quais destes ${numero(g.qtd)} orçamentos? Desmarque o que continua na mesa.`
-                : perdendo === "ganho"
-                  ? "Marcar como ganho?"
-                  : "Marcar como perdido?"}
-            </p>
-            {perdendo === "perdido" && (
-              <div className="flex flex-wrap gap-1.5">
-                {motivos.map((m) => (
-                  <button
-                    key={m.id}
-                    className={motivo === m.id ? "chip-sel" : "chip-btn"}
-                    onClick={() => setMotivo((v) => (v === m.id ? "" : m.id))}
-                  >
-                    {m.nome}
-                  </button>
-                ))}
-              </div>
-            )}
-            <div className="flex flex-wrap gap-2">
-              <button
-                className={perdendo === "ganho" ? "btn-primary" : "btn-danger"}
-                disabled={salvando || alvos.length === 0}
-                onClick={() => {
-                  acoes.baixa(g, alvos, perdendo, motivo);
-                  setPerdendo(false);
-                }}
-              >
-                {alvos.length > 1 ? `Confirmar (${alvos.length})` : "Confirmar"}
-              </button>
-              <button className="btn-ghost" onClick={() => setPerdendo(false)}>
-                Cancelar
-              </button>
-            </div>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function CartaoNegocio({ g, aberto, saindo, mostrarVendedor, motivos, hoje, salvando, acoes }) {
-  const wa = linkWhats(g);
-  return (
-    <div
-      className={`border-t px-4 py-3.5 first:border-0 ${saindo ? "opacity-50" : ""}`}
-      style={{ borderColor: "var(--hairline)" }}
-    >
-      <button
-        className="block w-full text-left"
-        onClick={() => acoes.abrir(g)}
-        aria-expanded={aberto}
-      >
-        {/* line-clamp, não truncate: "PREFEITURA MUNICIPAL DE MONTES CLAROS" e
-            "...DE MONTE AZUL" viravam o mesmo cartão cortado. */}
-        <p className="line-clamp-2 font-display text-[15px] font-semibold leading-tight text-slate-900">
-          {g.cliente}
-        </p>
-        <p className="tnum mt-1 text-sm text-slate-700">
-          {moeda(g.valor)}
-          {g.qtd > 1 ? ` · ${numero(g.qtd)} orçamentos` : ""}
-          {g.margem > 0 ? (
-            <span className="text-ok-700"> · margem {moeda(g.margem)}</span>
-          ) : (
-            <span className="italic text-slate-400"> · sem margem no ERP</span>
-          )}
-        </p>
-        <p className="mt-0.5 text-xs text-slate-500">
-          {textoRelogio(g)}
-          {mostrarVendedor ? ` · ${g.vendedores.join(", ")}` : ""}
-          {g.agrupadoPorNome && (
-            <span title="agrupado pelo nome: o ERP não mandou o código deste cliente"> · ~</span>
-          )}
-        </p>
-        {g.nota && <p className="mt-1 truncate text-xs italic text-slate-500">“{g.nota}”</p>}
-        <span className="apenas-impressao text-xs">
-          {[g.celular, g.contatoNome].filter(Boolean).join(" · ")}
-        </span>
-      </button>
-
-      <div className="sem-impressao mt-3 grid grid-cols-2 gap-2">
-        {wa ? (
-          <a
-            className="btn-outline min-h-[44px] justify-center"
-            href={wa}
-            target="_blank"
-            rel="noopener noreferrer"
-            onClick={() => acoes.chamar(g)}
-          >
-            <MessageCircle size={15} strokeWidth={2.4} /> Chamar
-          </a>
-        ) : g.email ? (
-          <a
-            className="btn-outline min-h-[44px] justify-center"
-            href={`mailto:${g.email}`}
-            onClick={() => acoes.chamar(g)}
-          >
-            <Mail size={15} strokeWidth={2.4} /> E-mail
-          </a>
-        ) : (
-          <span className="grid min-h-[44px] place-items-center text-xs text-slate-400">
-            sem contato no Mubisys
-          </span>
-        )}
-        <button className="btn-outline min-h-[44px] justify-center" onClick={() => acoes.abrir(g)}>
-          <CalendarClock size={15} strokeWidth={2.4} />
-          {g.proximoToque ? "Ver retorno" : "Retorno"}
-        </button>
-      </div>
-
-      {aberto && (
-        <GavetaNegocio g={g} motivos={motivos} hoje={hoje} salvando={salvando} acoes={acoes} />
-      )}
-    </div>
-  );
-}
-
-function LinhaAgenda({ g, salvando, acoes }) {
-  return (
-    <div className="border-t px-4 py-3 first:border-0" style={{ borderColor: "var(--hairline)" }}>
-      <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
-        <p className="min-w-0 flex-1 font-display text-sm font-semibold text-slate-900">
-          {g.cliente}
-        </p>
-        <p className="tnum text-sm text-slate-700">
-          {moeda(g.valor)}
-          {g.margem > 0 ? <span className="text-ok-700"> · {moeda(g.margem)}</span> : ""}
-        </p>
-      </div>
-      <p className="mt-0.5 text-xs text-slate-500">
-        {dataLonga(g.proximoToque)}
-        {g.qtd > 1 ? ` · ${numero(g.qtd)} orçamentos` : ""}
-        {` · ${g.vendedores.join(", ")}`}
-      </p>
-      {g.nota && <p className="mt-0.5 text-xs italic text-slate-600">“{g.nota}”</p>}
-      <div className="sem-impressao mt-2 flex flex-wrap gap-2">
-        {g.celular && (
-          <a
-            className="btn-outline"
-            href={linkWhats(g)}
-            target="_blank"
-            rel="noopener noreferrer"
-            onClick={() => acoes.chamar(g)}
-          >
-            <MessageCircle size={14} strokeWidth={2.4} /> Chamar
-          </a>
-        )}
-        <button className="btn-outline" disabled={salvando} onClick={() => acoes.antecipar(g)}>
-          Antecipar para hoje
-        </button>
-        <button className="btn-ghost" disabled={salvando} onClick={() => acoes.cancelar(g)}>
-          Cancelar retorno
-        </button>
-      </div>
-    </div>
-  );
-}
-
-function LinhaArquivo({ o, aberto, aoAbrir, children }) {
-  return (
-    <div className="border-t first:border-0" style={{ borderColor: "var(--hairline)" }}>
-      <button className="block w-full px-4 py-3 text-left" onClick={aoAbrir} aria-expanded={aberto}>
-        <div className="flex flex-wrap items-baseline justify-between gap-x-3">
-          <span className="min-w-0 flex-1 truncate font-display text-sm font-medium text-slate-900">
-            {o.cliente}
-          </span>
-          <span className="tnum text-sm font-semibold text-slate-900">{moeda(o.valor)}</span>
-        </div>
-        <p className="mt-0.5 text-xs text-slate-500">
-          <span className={CHIP_SITUACAO[o.situacao] || "chip"}>
-            {ROTULO_SITUACAO[o.situacao] || o.situacao}
-            {o.baixaManual && " ✎"}
-          </span>{" "}
-          nº {o.numero}
-          {o.trabalho ? ` · ${o.trabalho}` : ""} · {o.vendedorNome} · enviado em{" "}
-          {dataLonga(o.envio)}
-          {o.fechadoEm ? ` · fechado em ${dataLonga(o.fechadoEm)}` : ""}
-          {o.margem > 0 ? ` · margem ${moeda(o.margem)}` : ""}
-        </p>
-      </button>
-      {aberto && <div className="px-4 pb-3">{children}</div>}
-    </div>
-  );
-}
-
 function Placar({
-  aberto,
-  aoAlternar,
-  vmP,
-  rotuloPeriodo,
-  anos,
-  meses,
-  ano,
-  mes,
-  aoTrocarAno,
-  aoTrocarMes,
-  aoEscolherVendedor,
-  aoVerMotivo,
-  aoVerSemPasso,
+  aberto, aoAlternar, vmP, rotuloPeriodo, anos, meses, ano, mes,
+  aoTrocarAno, aoTrocarMes, aoEscolherVendedor, aoVerMotivo,
 }) {
   const k = vmP.kpis;
   const maiorMargem = Math.max(1, ...vmP.porVendedor.map((v) => v.margemGanha));
@@ -567,12 +557,9 @@ function Placar({
       >
         <span className="font-display font-semibold text-slate-900">Placar do mês</span>
         <span className="tnum flex items-center gap-2 text-xs text-slate-500">
-          {rotuloPeriodo} · {numero(k.ganhosQtd)} ganhos · {pct(k.conversao)} ·{" "}
-          {moeda(k.margemGanha)}
-          <ChevronDown
-            size={16}
-            className={`shrink-0 transition-transform ${aberto ? "" : "-rotate-90"}`}
-          />
+          <span className="hidden sm:inline">{rotuloPeriodo} · </span>
+          {numero(k.ganhosQtd)} ganhos · {pct(k.conversao)} · {moeda(k.margemGanha)}
+          <ChevronDown size={16} className={`shrink-0 transition-transform ${aberto ? "" : "-rotate-90"}`} />
         </span>
       </button>
 
@@ -580,63 +567,35 @@ function Placar({
         <div className="space-y-5 px-5 pb-5">
           <div className="sem-impressao flex flex-wrap items-center gap-2">
             <span className="text-sm text-slate-500">Período</span>
-            <select
-              className="input w-auto"
-              value={mes}
-              onChange={(e) => aoTrocarMes(e.target.value)}
-              aria-label="Mês"
-            >
+            <select className="input w-auto" value={mes} onChange={(e) => aoTrocarMes(e.target.value)} aria-label="Mês">
               <option value="todos">Ano inteiro</option>
               {meses.map((m) => (
-                <option key={m} value={m}>
-                  {MESES_LONGOS[Number(m) - 1]}
-                </option>
+                <option key={m} value={m}>{MESES_LONGOS[Number(m) - 1]}</option>
               ))}
             </select>
-            {/* Select de um item só é controle morto: o cache cobre o ano
-                corrente, então o seletor de ano só aparece quando há dois. */}
             {anos.length > 1 && (
-              <select
-                className="input w-auto"
-                value={ano}
-                onChange={(e) => aoTrocarAno(e.target.value)}
-                aria-label="Ano"
-              >
+              <select className="input w-auto" value={ano} onChange={(e) => aoTrocarAno(e.target.value)} aria-label="Ano">
                 <option value="todos">Todos os anos</option>
                 {anos.map((a) => (
-                  <option key={a} value={a}>
-                    {a}
-                  </option>
+                  <option key={a} value={a}>{a}</option>
                 ))}
               </select>
             )}
           </div>
 
-          <div className="grid grid-cols-2 gap-x-4 gap-y-3 text-sm sm:grid-cols-4">
-            <p>
-              <span className="label mb-0 block">Conversão</span>
-              <span className="tnum text-slate-900">{pct(k.conversao)}</span>
-              <span className="block text-xs text-slate-500">
-                {numero(k.ganhosQtd)} de {numero(k.ganhosQtd + k.perdidosQtd)} decididos
-              </span>
-            </p>
-            <p>
-              <span className="label mb-0 block">Margem ganha</span>
-              <span className="tnum text-ok-700">{moeda(k.margemGanha)}</span>
-              <span className="block text-xs text-slate-500">{moeda(k.ganhosValor)} faturados</span>
-            </p>
-            <p>
-              <span className="label mb-0 block">Margem perdida</span>
-              <span className="tnum text-bad-700">{moeda(k.margemPerdida)}</span>
-              <span className="block text-xs text-slate-500">
-                {numero(k.perdidosQtd)} não fecharam
-              </span>
-            </p>
-            <p>
-              <span className="label mb-0 block">Ticket ganho</span>
-              <span className="tnum text-slate-900">{moeda(k.ticketGanho)}</span>
-              <span className="block text-xs text-slate-500">média por venda</span>
-            </p>
+          <div className="grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-4">
+            {[
+              { r: "Conversão", v: pct(k.conversao), s: `${numero(k.ganhosQtd)} de ${numero(k.ganhosQtd + k.perdidosQtd)} decididos`, c: "text-slate-900" },
+              { r: "Margem ganha", v: moeda(k.margemGanha), s: `${moeda(k.ganhosValor)} faturados`, c: "text-ok-700" },
+              { r: "Margem perdida", v: moeda(k.margemPerdida), s: `${numero(k.perdidosQtd)} não fecharam`, c: "text-bad-700" },
+              { r: "Ticket ganho", v: moeda(k.ticketGanho), s: "média por venda", c: "text-slate-900" },
+            ].map((n) => (
+              <p key={n.r}>
+                <span className="block text-xs text-slate-500">{n.r}</span>
+                <span className={`tnum block text-lg font-semibold ${n.c}`}>{n.v}</span>
+                <span className="block text-xs text-slate-400">{n.s}</span>
+              </p>
+            ))}
           </div>
 
           <div>
@@ -664,7 +623,7 @@ function Placar({
             <div>
               <p className="label mb-2">Por que perdemos</p>
               <div className="space-y-2">
-                {vmP.porMotivoPerda.slice(0, 3).map((m) => (
+                {vmP.porMotivoPerda.slice(0, 4).map((m) => (
                   <button
                     key={m.chave}
                     className="block w-full rounded-xl p-1 text-left transition-colors hover:bg-slate-50"
@@ -684,14 +643,7 @@ function Placar({
           )}
 
           <p className="text-xs text-slate-500">
-            <button className="btn-ghost !px-0 text-xs" onClick={aoVerSemPasso}>
-              {numero(vmP.cobertura.semPassoQtd)} abertos sem retorno marcado ·{" "}
-              {moeda(vmP.cobertura.semPassoValor)}
-            </button>
-            {" · "}
-            <Link className="underline" to="/configuracoes">
-              equipe e regras em Configurações
-            </Link>
+            <Link className="underline" to="/configuracoes">equipe e regras em Configurações</Link>
           </p>
         </div>
       )}
@@ -715,37 +667,31 @@ function BarraDesfazer({ desfazer, aoDesfazer }) {
 
 export default function Orcamentos() {
   const {
-    config,
-    dados,
-    overridesOrcamentos,
-    setOverridesOrcamento,
-    pronto,
-    erro,
-    recarregar,
-    frescorDe,
+    config, dados, overridesOrcamentos, setOverridesOrcamento,
+    pronto, erro, recarregar, frescorDe,
   } = useApp();
 
   const meuVendedor = useMemo(() => canonVend(vendedorDaSessao()), []);
-  const [aba, setAba] = useState("hoje");
+  const [aba, setAba] = useState("mesa");
   const [vendedorEscopo, setVendedorEscopo] = useState(meuVendedor || "");
+  const [recorte, setRecorte] = useState("mesa");
+  const [ordem, setOrdem] = useState("valor");
+  const [busca, setBusca] = useState("");
   const [aberto, setAberto] = useState(null);
-  const [expandidoBalde, setExpandidoBalde] = useState({});
+  const [painel, setPainel] = useState({ id: null, qual: null });
+  const [limite, setLimite] = useState(30);
   const [placarAberto, setPlacarAberto] = useState(false);
   const [ano, setAno] = useState("todos");
   const [mes, setMes] = useState("todos");
-  const [buscaArq, setBuscaArq] = useState("");
-  const [situacaoArq, setSituacaoArq] = useState("todos");
-  const [motivoArq, setMotivoArq] = useState(null);
-  const [limiteArq, setLimiteArq] = useState(50);
-  const [abertoArq, setAbertoArq] = useState(null);
+  const [situacaoHist, setSituacaoHist] = useState("ganho");
+  const [motivoHist, setMotivoHist] = useState(null);
   const [desfazer, setDesfazer] = useState(null);
   const [saindo, setSaindo] = useState([]);
   const [salvando, setSalvando] = useState(false);
   const [aviso, setAviso] = useState(null);
 
-  /* "Hoje" em estado, não constante: a tela fica aberta o dia inteiro no
-     celular. Congelado, a promessa de hoje só viraria "atrasada" depois de um
-     F5 -- e a de amanhã continuaria dizendo "amanhã" no dia seguinte. */
+  // "Hoje" em estado: a tela fica aberta o dia inteiro no celular. Congelado, a
+  // promessa de hoje só viraria "atrasada" depois de um F5.
   const [hoje, setHoje] = useState(() => ymdLocal(new Date()));
   useEffect(() => {
     const conferir = () => setHoje(ymdLocal(new Date()));
@@ -757,8 +703,6 @@ export default function Orcamentos() {
     };
   }, []);
 
-  // A barra de desfazer vive 8 segundos. Quando ela morre, o que saiu da fila
-  // some de vez.
   useEffect(() => {
     if (!desfazer) return undefined;
     const t = setTimeout(() => {
@@ -768,14 +712,13 @@ export default function Orcamentos() {
     return () => clearTimeout(t);
   }, [desfazer]);
 
-  /* Impressão mostra a lista INTEIRA (a tela pagina em lotes de 50).
-     `beforeprint` sozinho não basta: a atualização de estado do React é
-     assíncrona e o diálogo captura a página antes do redesenho, então o PDF
-     saía truncado. `matchMedia("print")` avisa na entrada E na saída. */
+  /* Impressão mostra a lista INTEIRA (a tela pagina em lotes). `beforeprint`
+     sozinho não basta: a atualização de estado do React é assíncrona e o
+     diálogo captura a página antes do redesenho. */
   useEffect(() => {
     const mm = window.matchMedia?.("print");
-    const entrar = () => setLimiteArq(Number.MAX_SAFE_INTEGER);
-    const sair = () => setLimiteArq(50);
+    const entrar = () => setLimite(Number.MAX_SAFE_INTEGER);
+    const sair = () => setLimite(30);
     const aoMudar = (e) => (e.matches ? entrar() : sair());
     mm?.addEventListener?.("change", aoMudar);
     window.addEventListener("beforeprint", entrar);
@@ -787,8 +730,6 @@ export default function Orcamentos() {
     };
   }, []);
 
-  // Os períodos que EXISTEM no dado: oferecer um mês vazio é oferecer tela em
-  // branco.
   const periodos = useMemo(() => {
     const anos = new Set();
     const mesesPorAno = {};
@@ -808,18 +749,12 @@ export default function Orcamentos() {
     };
   }, [dados]);
 
-  /* DUAS CONTAS, DE PROPÓSITO.
-     `vm` é a tela de trabalho e NUNCA vê o período: era o defeito mais grave da
-     tela velha -- escolher "junho" no relatório esvaziava a fila do dia e ainda
-     dizia "tudo já foi tratado".
-     `vmPeriodo` é só o Placar. */
+  /* DUAS CONTAS, DE PROPÓSITO. `vm` é a tela de trabalho e nunca vê o período —
+     era o defeito mais grave da tela velha. `vmPeriodo` é só o Placar. */
   const vm = useMemo(
     () =>
       dados
-        ? calcOrcamentos(dados.orcamentos, overridesOrcamentos, config, {
-            vendedor: vendedorEscopo,
-            hoje,
-          })
+        ? calcOrcamentos(dados.orcamentos, overridesOrcamentos, config, { vendedor: vendedorEscopo, hoje })
         : null,
     [dados, overridesOrcamentos, config, vendedorEscopo, hoje]
   );
@@ -838,79 +773,79 @@ export default function Orcamentos() {
     return calcOrcamentos(base, overridesOrcamentos, config, { vendedor: vendedorEscopo, hoje });
   }, [dados, overridesOrcamentos, config, ano, mes, vendedorEscopo, hoje]);
 
-  /* A ORDEM DA FILA É CONGELADA. Ela é ordenada por dinheiro, e marcar um
-     orçamento muda o dinheiro do cliente: sem congelar, o cartão pula de lugar
-     debaixo do dedo e a pessoa jura que "não selecionou" ou que "sumiu o que eu
-     marquei". Congela a LISTA DE CHAVES (não o conjunto): item novo entra no
-     fim, item que saiu desaparece quando a barra de desfazer expira. */
-  const chaveOrdem = `${vendedorEscopo}|${hoje}`;
-  const ordemRef = useRef({ chave: "", ids: [] });
-  if (vm && ordemRef.current.chave !== chaveOrdem) {
-    ordemRef.current = { chave: chaveOrdem, ids: vm.fila.grupos.map((g) => g.chave) };
-  }
-
-  const filaNaTela = useMemo(() => {
-    if (!vm) return [];
-    const atuais = new Map(vm.fila.grupos.map((g) => [g.chave, g]));
-    const congelados = new Map(saindo.map((g) => [g.chave, g]));
-    const vistos = new Set();
-    const saida = [];
-    for (const chave of ordemRef.current.ids) {
-      const g = atuais.get(chave) || congelados.get(chave);
-      if (!g) continue;
-      vistos.add(chave);
-      saida.push(g);
+  /* Quantos orçamentos ABERTOS o mesmo cliente tem: vira o chip "+2 do mesmo
+     cliente", que é o que evita ligar três vezes para a mesma empresa. */
+  const porCliente = useMemo(() => {
+    const m = new Map();
+    for (const o of vm?.mesa || []) {
+      const k = o.clienteId || norm(o.cliente);
+      m.set(k, (m.get(k) || 0) + 1);
     }
-    for (const g of vm.fila.grupos) if (!vistos.has(g.chave)) saida.push(g);
-    return saida;
-    // chaveOrdem entra de propósito: é ele que troca `ordemRef.current` (o lint
-    // não enxerga isso porque a leitura é de um ref). Sem ele na lista, mudar
-    // de vendedor deixaria a fila renderizada na ordem do vendedor anterior.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [vm, saindo, chaveOrdem]);
+    return m;
+  }, [vm]);
 
-  const listaArquivo = useMemo(() => {
+  const naTela = useMemo(() => {
     if (!vm) return [];
-    const q = norm(buscaArq.trim());
-    return vm.lista.filter((o) => {
-      if (situacaoArq === "sem-passo" && !(o.situacao === "aberto" && !o.proximoToque)) return false;
-      if (situacaoArq !== "todos" && situacaoArq !== "sem-passo" && o.situacao !== situacaoArq) {
-        return false;
-      }
-      if (motivoArq && o.motivoChave !== motivoArq.chave) return false;
-      if (q) {
-        const alvo = norm(
-          `${o.cliente} ${o.numero} ${o.trabalho || ""} ${o.contatoNome || ""} ${o.vendedorNome}`
-        );
-        if (!alvo.includes(q)) return false;
-      }
-      return true;
+    const q = norm(busca.trim());
+    const base =
+      recorte === "recall"
+        ? vm.lista.filter((o) => o.recall)
+        : recorte === "atrasados"
+          ? vm.mesa.filter((o) => o.toqueAtrasado || o.vencido || (o.chamadoEm && !o.proximoToque))
+          : recorte === "semRetorno"
+            ? vm.mesa.filter(
+                (o) =>
+                  !o.proximoToque &&
+                  !o.chamadoEm &&
+                  !(o.toqueAtrasado || o.vencido || (o.chamadoEm && !o.proximoToque))
+              )
+            : vm.mesa;
+    const filtrada = base.filter((o) => {
+      if (!q) return true;
+      return norm(`${o.cliente} ${o.numero} ${o.trabalho || ""} ${o.contatoNome || ""} ${o.vendedorNome}`).includes(q);
     });
-  }, [vm, buscaArq, situacaoArq, motivoArq]);
+    const ord =
+      ordem === "urgencia"
+        ? (a, b) =>
+            (PESO_ESTADO[a.estado.chave] ?? 9) - (PESO_ESTADO[b.estado.chave] ?? 9) ||
+            b.margem - a.margem ||
+            b.valor - a.valor
+        : ORDENS[ordem].fn;
+    return [...filtrada].sort(ord).map((o) => ({
+      ...o,
+      qtdDoCliente: porCliente.get(o.clienteId || norm(o.cliente)) || 1,
+      saindo: saindo.includes(o.id),
+    }));
+  }, [vm, recorte, busca, ordem, porCliente, saindo]);
+
+  const historico = useMemo(() => {
+    if (!vm) return [];
+    const q = norm(busca.trim());
+    return vm.lista
+      .filter((o) => o.situacao === situacaoHist)
+      .filter((o) => !motivoHist || o.motivoChave === motivoHist.chave)
+      .filter((o) =>
+        !q ? true : norm(`${o.cliente} ${o.numero} ${o.trabalho || ""} ${o.vendedorNome}`).includes(q)
+      )
+      .sort((a, b) => String(b.fechadoEm).localeCompare(String(a.fechadoEm)) || b.valor - a.valor);
+  }, [vm, situacaoHist, motivoHist, busca]);
 
   if (erro) return <ErroModulo mensagem={erro} aoTentar={recarregar} />;
   if (!pronto || !vm || !vmPeriodo) return <CarregandoModulo />;
 
-  const f = vm.fila;
   const motivos = config.motivosPerda || [];
   const atualizadoEm = frescorDe("orcamentos");
-  const resumoEscopo = `Vendedor: ${vendedorEscopo || "todos"}`;
+  const r = vm.recorte;
 
-  /* Vínculo órfão: a conta aponta para um nome que não existe em NENHUM
-     orçamento da base. O teste é contra a base crua -- contra a fila, o bom
-     vendedor (que agendou o retorno de todo mundo) era acusado de cadastro
-     errado justamente por ter feito o trabalho. */
   const vinculoOrfao =
     !!meuVendedor &&
     (dados?.orcamentos || []).length > 0 &&
     !(dados?.orcamentos || []).some((o) => canonVend(o.vendedorId) === meuVendedor);
 
   // ------------------------------------------------------------ gravação
-  /* Uma gravação = UM pedido com todos os ids. Em laço, cada merge relê o
-     registro do servidor e um sobrescreve o outro: cliente com 4 orçamentos
-     perdia 3 datas. O patch inverso é montado ANTES, lendo o override que está
-     no store agora -- e campo que não existia volta como `null` explícito,
-     nunca `undefined` (undefined não apaga nada no merge do servidor). */
+  /* Uma gravação = UM pedido. O patch inverso é montado ANTES, lendo o override
+     que está no store agora; campo que não existia volta como `null` explícito
+     (undefined não apaga nada no merge do servidor). */
   function gravar(ids, campos, rotulo, { some = true } = {}) {
     if (!ids.length) return;
     const inverso = Object.fromEntries(
@@ -919,17 +854,13 @@ export default function Orcamentos() {
         return [id, Object.fromEntries(Object.keys(campos).map((k) => [k, atual[k] ?? null]))];
       })
     );
-    const patch = Object.fromEntries(ids.map((id) => [id, campos]));
     setSalvando(true);
     setAviso(null);
-    Promise.resolve(setOverridesOrcamento(patch))
+    Promise.resolve(setOverridesOrcamento(Object.fromEntries(ids.map((id) => [id, campos]))))
       .catch((e) => setAviso({ tom: "erro", texto: e?.message || "Não consegui gravar." }))
       .finally(() => setSalvando(false));
     setDesfazer({ rotulo, patch: inverso });
-    if (some) {
-      const grupo = filaNaTela.find((g) => g.ids.some((id) => ids.includes(id)));
-      if (grupo) setSaindo((s) => (s.some((x) => x.chave === grupo.chave) ? s : [...s, grupo]));
-    }
+    if (some) setSaindo((s) => [...new Set([...s, ...ids])]);
   }
 
   function aplicarDesfazer() {
@@ -943,66 +874,62 @@ export default function Orcamentos() {
   }
 
   const acoes = {
-    abrir: (g) => setAberto((a) => (a === g.chave ? null : g.chave)),
+    abrir: (o) => setAberto((a) => (a === o.id ? null : o.id)),
+    painel: (o, qual) =>
+      setPainel((p) => (p.id === o.id && p.qual === qual ? { id: null, qual: null } : { id: o.id, qual })),
+    verCliente: (o) => {
+      setBusca(o.cliente);
+      setRecorte("mesa");
+      setLimite(30);
+    },
 
     /* CHAMAR GRAVA ANTES DE SAIR. O WhatsApp joga a aba do painel para o fundo
        (no iPhone o navegador pode até descarregá-la), então "eu chamei" tem de
-       virar fato no servidor no mesmo gesto. O cartão NÃO some: ele sobe para o
-       balde "chamou e não marcou o retorno", que é a dívida de verdade. */
-    chamar: (g) => gravar(g.ids, { chamadoEm: hoje }, `Chamada registrada — ${g.cliente}`, { some: false }),
+       virar fato no servidor no mesmo gesto — com keepalive no serviço. O
+       orçamento NÃO some da lista: ele passa a exibir "Chamado dd/mm". */
+    chamar: (o) => gravar([o.id], { chamadoEm: hoje }, `Chamada registrada — ${o.cliente}`, { some: false }),
 
-    agendar: (g, data, nota) => {
+    agendar: (o, data, nota) => {
       if (!data) return;
       const dias = diasEntre(hoje, data);
-      if (dias > 90 && !window.confirm(`Retorno para ${dataLonga(data)}, daqui a ${dias} dias. Confirma?`)) {
-        return;
-      }
-      const id = g.compromissoId || `cp-${getSessao()?.usuario || "eu"}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+      if (dias > 90 && !window.confirm(`Retorno para ${dataLonga(data)}, daqui a ${dias} dias. Confirma?`)) return;
+      const id =
+        o.compromissoId ||
+        `cp-${getSessao()?.usuario || "eu"}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
       gravar(
-        g.ids,
-        { proximoToque: data, compromissoId: id, chamadoEm: null, ...(nota ? { nota } : {}) },
-        `Retorno de ${g.cliente} marcado para ${dataCurta(data)}`
+        [o.id],
+        { proximoToque: data, compromissoId: id, chamadoEm: null, nota: nota || null },
+        `${o.cliente}: retorno em ${dataCurta(data)}`,
+        { some: recorte !== "mesa" }
       );
-      /* O retorno prometido aqui tem de aparecer na Agenda de Compromissos:
-         antes ele morria dentro do módulo e a agenda da manhã ficava sem
-         justamente o que a pessoa acabou de prometer. Falhar aqui NÃO derruba o
-         agendamento -- o retorno já foi gravado. */
+      /* O retorno prometido aqui tem de aparecer na agenda de Compromissos:
+         antes ele morria dentro do módulo. Falhar aqui NÃO derruba o
+         agendamento — o retorno já foi gravado. */
       salvarCompromisso(id, {
-        titulo: `Retorno — ${g.cliente}`,
+        titulo: `Retorno — ${o.cliente}`,
         tipo: "retorno",
-        cliente: g.cliente,
+        cliente: o.cliente,
         data,
-        telefone: g.celular || "",
-        obs: nota || `${g.qtd} orçamento(s) na mesa`,
+        telefone: o.celular || "",
+        obs: nota || o.trabalho || "",
       }).catch((e) => console.warn("[orcamentos] retorno gravado, sem compromisso:", e?.message || e));
     },
 
-    antecipar: (g) =>
-      gravar(g.ids, { proximoToque: hoje }, `${g.cliente} voltou para a fila de hoje`, {
-        some: false,
-      }),
+    antecipar: (o) => gravar([o.id], { proximoToque: hoje }, `${o.cliente} voltou para hoje`, { some: false }),
 
     // A NOTA SOBREVIVE ao cancelamento: ela é o que o cliente pediu, não a data.
-    cancelar: (g) => {
-      gravar(
-        g.ids,
-        { proximoToque: null, compromissoId: null },
-        `Retorno de ${g.cliente} cancelado`,
-        { some: false }
-      );
-      if (g.compromissoId) {
-        removerCompromisso(g.compromissoId).catch((e) =>
+    cancelar: (o) => {
+      gravar([o.id], { proximoToque: null, compromissoId: null }, `Retorno de ${o.cliente} cancelado`, { some: false });
+      if (o.compromissoId) {
+        removerCompromisso(o.compromissoId).catch((e) =>
           console.warn("[orcamentos] compromisso não removido:", e?.message || e)
         );
       }
     },
 
-    /* Um toque só quando o cliente tem UM orçamento; com vários, a gaveta exige
-       marcar quais. Dar baixa em tudo de uma vez transformava 1 venda em 4 e o
-       Placar passava a mentir. */
-    baixa: (g, ids, situacao, motivoId) =>
+    baixa: (o, situacao, motivoId) =>
       gravar(
-        ids,
+        [o.id],
         {
           situacao,
           dataBaixa: hoje,
@@ -1011,43 +938,24 @@ export default function Orcamentos() {
           chamadoEm: null,
           ...(motivoId ? { motivoPerdaId: motivoId } : {}),
         },
-        `${g.cliente}: ${ids.length > 1 ? `${ids.length} orçamentos ` : ""}${situacao === "ganho" ? "ganho" : "perdido"}`
+        `${o.cliente} nº ${o.numero}: ${situacao === "ganho" ? "ganho" : "perdido"}`
       ),
 
-    compraFutura: (g, o) =>
-      gravar([o.id], { motivoPerdaId: "compra-futura" }, `${g.cliente} virou compra futura`, {
-        some: false,
-      }),
-
-    desfazerBaixa: (g, o) =>
-      gravar(
-        [o.id],
-        { situacao: null, dataBaixa: null },
-        `Baixa desfeita — ${g.cliente} nº ${o.numero}`,
-        { some: false }
-      ),
+    desfazerBaixa: (o) =>
+      gravar([o.id], { situacao: null, dataBaixa: null }, `Baixa desfeita — ${o.cliente}`, { some: false }),
   };
 
   function trocarVendedor(v) {
     setVendedorEscopo(v);
     setAberto(null);
+    setPainel({ id: null, qual: null });
     setSaindo([]);
-    ordemRef.current = { chave: "", ids: [] };
+    setLimite(30);
   }
 
   function trocarAno(a) {
     setAno(a);
     if (mes !== "todos" && !periodos.mesesDoAno(a).includes(mes)) setMes("todos");
-  }
-
-  function verNoArquivo(patch) {
-    setAba("arquivo");
-    setAbertoArq(null);
-    setLimiteArq(50);
-    setPlacarAberto(false);
-    setBuscaArq("");
-    setSituacaoArq(patch.situacao ?? "todos");
-    setMotivoArq(patch.motivo ?? null);
   }
 
   const rotuloPeriodo =
@@ -1057,51 +965,39 @@ export default function Orcamentos() {
         ? ano
         : "todo o período";
 
-  const subFila = BALDES.map((b) =>
-    f.kpis.porBalde[b.id] ? `${f.kpis.porBalde[b.id]} ${b.nome.toLowerCase()}` : null
-  )
-    .filter(Boolean)
-    .join(" · ");
-
-  const fechadosHoje = vm.fechados.filter((o) => o.fechadoEm === hoje);
-  const visiveisArq = listaArquivo.slice(0, limiteArq);
-  const restantesArq = listaArquivo.length - visiveisArq.length;
-  const temFiltroArq = !!buscaArq || situacaoArq !== "todos" || !!motivoArq;
+  const visiveis = naTela.slice(0, limite);
+  const restantes = naTela.length - visiveis.length;
+  const somaTela = naTela.reduce((s, o) => s + o.valor, 0);
+  const cortelabel = CORTES.find((c) => c.id === recorte)?.rotulo || "Na mesa";
+  const mostrarVendedor = vendedorEscopo === "";
 
   return (
-    <div className={`space-y-6 ${desfazer ? "pb-20" : ""}`}>
+    <div className={`space-y-5 ${desfazer ? "pb-20" : ""}`}>
       <AvisoDadoParado atualizadoEm={atualizadoEm} />
 
       <PageTitle
         titulo="Orçamentos"
-        descricao={
-          `${numero(f.kpis.clientes)} ${f.kpis.clientes === 1 ? "cliente para tocar" : "clientes para tocar"} · ` +
-          (f.kpis.margemAberta > 0
-            ? `${moeda(f.kpis.margemAberta)} de margem em jogo`
-            : `${moeda(f.kpis.valor)} na mesa`) +
-          (f.kpis.margemRecall > 0
-            ? ` · ${moeda(f.kpis.margemRecall)} em compra futura a recuperar`
-            : "")
-        }
+        descricao={`${numero(r.mesa.qtd)} abertos · ${moeda(r.mesa.valor)} na mesa`}
       />
 
       <div className="sem-impressao space-y-2">
         <Segmented
           opcoes={[
-            { valor: "hoje", rotulo: `Hoje (${f.kpis.clientes})` },
-            { valor: "agenda", rotulo: `Agenda (${vm.agenda.length})` },
-            { valor: "arquivo", rotulo: "Arquivo" },
+            { valor: "mesa", rotulo: `Na mesa (${numero(r.mesa.qtd)})` },
+            { valor: "agenda", rotulo: `Agenda (${numero(vm.agenda.length)})` },
+            { valor: "historico", rotulo: "Histórico" },
           ]}
           valor={aba}
           onChange={(v) => {
             setAba(v);
             setAberto(null);
+            setPainel({ id: null, qual: null });
+            setLimite(30);
           }}
         />
 
         {vm.vendedoresDaBase.length > 1 && (
-          <div className="flex flex-wrap items-center gap-1.5">
-            <span className="mr-1 text-xs text-slate-500">Vendedor</span>
+          <div className="-mx-1 flex items-center gap-1.5 overflow-x-auto px-1 pb-1 lg:flex-wrap lg:overflow-visible [&>*]:shrink-0">
             <button
               className={vendedorEscopo === "" ? "chip-sel" : "chip-btn"}
               onClick={() => trocarVendedor("")}
@@ -1116,7 +1012,7 @@ export default function Orcamentos() {
                 onClick={() => trocarVendedor(v.id)}
                 aria-pressed={vendedorEscopo === v.id}
               >
-                {v.nome} · {numero(v.qtd)}
+                {v.nome} <span className="text-slate-400">{numero(v.qtd)}</span>
               </button>
             ))}
           </div>
@@ -1124,149 +1020,172 @@ export default function Orcamentos() {
 
         {vinculoOrfao && (
           <p className="rounded-lg bg-slate-100 px-3 py-2 text-xs text-slate-600">
-            Nenhum orçamento da base está no nome <b>{meuVendedor}</b>. Se o seu nome estiver
-            escrito diferente no Mubisys, peça para a direção corrigir em Acessos.
-            <button className="btn-ghost ml-2" onClick={() => trocarVendedor("")}>
-              Ver o time todo
-            </button>
+            Nenhum orçamento da base está no nome <b>{meuVendedor}</b>. Se o seu nome estiver escrito
+            diferente no Mubisys, peça para a direção corrigir em Acessos.
+            <button className="btn-ghost ml-2" onClick={() => trocarVendedor("")}>Ver o time todo</button>
           </p>
         )}
       </div>
 
       {aviso && (
-        <p
-          className={`rounded-lg px-3 py-2 text-sm ${
-            aviso.tom === "erro" ? "bg-bad-50 text-bad-700" : "bg-ok-50 text-ok-700"
-          }`}
-        >
+        <p className={`rounded-lg px-3 py-2 text-sm ${aviso.tom === "erro" ? "bg-bad-50 text-bad-700" : "bg-ok-50 text-ok-700"}`}>
           {aviso.texto}
         </p>
       )}
 
-      {aba === "hoje" && (
-        <Card>
-          <CabecalhoImpressao
-            titulo="Impresilk — fila de fechamento"
-            atualizadoEm={atualizadoEm}
-            linhas={[
-              `Emitido em ${dataLonga(hoje)} · ${numero(f.kpis.clientes)} clientes · ${moeda(f.kpis.valor)}`,
-              resumoEscopo,
-            ]}
-          />
-          <SectionTitle
-            titulo="Para hoje"
-            sub={subFila || "Nada pendente com este escopo."}
-            acao={<BotaoPDF titulo="Imprime esta fila como pauta de ligações" />}
-          />
-
-          <Honestidade
-            x={vm.excluidos}
-            c={vm.cobertura}
-            minimo={config.parametros.valorMinimoOrcamento}
-            corte={config.parametros.dataCorteOrcamentos}
-          />
-
-          {filaNaTela.length === 0 ? (
-            <Empty>
-              {vm.kpis.naMesaQtd === 0
-                ? "Nenhum orçamento aberto na base com este escopo."
-                : `Nada para hoje: todos os ${numero(vm.kpis.naMesaQtd)} abertos têm retorno marcado.`}
-              {vm.agenda.length > 0 && (
-                <button className="btn-ghost ml-2" onClick={() => setAba("agenda")}>
-                  Ver a Agenda ({numero(vm.agenda.length)})
-                </button>
-              )}
-              {vendedorEscopo && (
-                <button className="btn-ghost ml-2" onClick={() => trocarVendedor("")}>
-                  Ver o time todo
-                </button>
-              )}
-            </Empty>
-          ) : (
-            BALDES.map((b) => {
-              const gs = filaNaTela.filter((g) => g.balde === b.id);
-              if (!gs.length) return null;
-              /* Teto no balde GORDO, não na fila inteira: paginar um balde de
-                 3 clientes é atrapalhar, mas "compra futura" tem 61 clientes e
-                 "sem próxima ação" tem 62 na base de hoje -- sem teto, a aba
-                 vira 8 mil pixels de rolagem no celular. Como o balde já vem
-                 ordenado por dinheiro, o teto corta o fim, nunca o topo. */
-              const teto = gs.length > 15 && !expandidoBalde[b.id] ? 12 : gs.length;
-              return (
-                <GrupoBalde
-                  key={b.id}
-                  balde={b}
-                  qtd={gs.length}
-                  margem={gs.reduce((s, g) => s + g.margem, 0)}
-                  restantes={gs.length - teto}
-                  aoVerTudo={() => setExpandidoBalde((s) => ({ ...s, [b.id]: true }))}
-                >
-                  {gs.slice(0, teto).map((g) => (
-                    <CartaoNegocio
-                      key={g.chave}
-                      g={g}
-                      aberto={aberto === g.chave}
-                      saindo={saindo.some((x) => x.chave === g.chave)}
-                      mostrarVendedor={vendedorEscopo === ""}
-                      motivos={motivos}
-                      hoje={hoje}
-                      salvando={salvando}
-                      acoes={acoes}
-                    />
-                  ))}
-                </GrupoBalde>
-              );
-            })
-          )}
-
-          <div className="mt-5 space-y-1 border-t pt-3 text-xs text-slate-500" style={{ borderColor: "var(--hairline)" }}>
-            {vm.agenda.length > 0 && (
-              <p>
-                {moeda(vm.agenda.reduce((s, g) => s + g.valor, 0))} estão na Agenda, com data
-                marcada.
-                <button className="btn-ghost sem-impressao ml-1 !px-1 text-xs" onClick={() => setAba("agenda")}>
-                  ver
-                </button>
-              </p>
-            )}
-            <p>
-              Cobertura de próximo passo: {numero(vm.cobertura.clientesComData)} de{" "}
-              {numero(vm.cobertura.clientesNaMesa)} clientes na mesa têm data (
-              {pct(vm.cobertura.pct)}).
-            </p>
-            {fechadosHoje.length > 0 && (
-              <p>
-                Fechados hoje: {numero(fechadosHoje.length)} (
-                {moeda(fechadosHoje.reduce((s, o) => s + o.valor, 0))}).
-              </p>
-            )}
+      {aba === "mesa" && (
+        <>
+          <div className="sem-impressao">
+            <FaixaNumeros
+              r={r}
+              conversao={vm.kpis.conversao}
+              recorte={recorte}
+              aoRecortar={(id) => {
+                setRecorte(id);
+                setLimite(30);
+                setAberto(null);
+              }}
+            />
           </div>
-        </Card>
+
+          <Card className="p-0">
+            <div className="px-4 pt-4 sm:px-5 sm:pt-5">
+              <CabecalhoImpressao
+                titulo="Impresilk — orçamentos na mesa"
+                atualizadoEm={atualizadoEm}
+                linhas={[
+                  `Emitido em ${dataLonga(hoje)} · ${numero(naTela.length)} orçamentos · ${moeda(somaTela)}`,
+                  `${cortelabel} · vendedor: ${vendedorEscopo || "todos"}${busca ? ` · busca "${busca}"` : ""}`,
+                ]}
+              />
+              {/* No celular este cabeçalho era 250px repetindo o que a faixa de
+                  números e a aba já dizem -- e empurrava a lista, que é o que
+                  ele pediu para ver primeiro, para fora da tela. */}
+              <div className="hidden sm:block">
+                <SectionTitle
+                  titulo={cortelabel}
+                  sub={`${numero(naTela.length)} ${naTela.length === 1 ? "orçamento" : "orçamentos"} · ${moeda(somaTela)}`}
+                  acao={<BotaoPDF titulo="Imprime esta lista" />}
+                />
+              </div>
+
+              <div className="sem-impressao mb-3 flex flex-wrap items-center gap-2">
+                <div className="relative min-w-0 flex-1 sm:max-w-xs">
+                  <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <input
+                    type="search"
+                    className="input pl-9"
+                    value={busca}
+                    onChange={(e) => {
+                      setBusca(e.target.value);
+                      setLimite(30);
+                    }}
+                    placeholder="Cliente, número, trabalho ou contato"
+                    aria-label="Buscar orçamento"
+                  />
+                </div>
+                <select
+                  className="input w-auto"
+                  value={ordem}
+                  onChange={(e) => setOrdem(e.target.value)}
+                  aria-label="Ordenar por"
+                >
+                  {Object.entries(ORDENS).map(([id, o]) => (
+                    <option key={id} value={id}>{o.rotulo}</option>
+                  ))}
+                </select>
+                {(busca || recorte !== "mesa") && (
+                  <button
+                    className="btn-ghost"
+                    onClick={() => {
+                      setBusca("");
+                      setRecorte("mesa");
+                      setLimite(30);
+                    }}
+                  >
+                    <X size={15} /> Limpar
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {visiveis.length === 0 ? (
+              <div className="px-5 pb-5">
+                <Empty>
+                  {busca
+                    ? `Nada com "${busca}".`
+                    : recorte === "mesa"
+                      ? "Nenhum orçamento aberto com este escopo."
+                      : `Nada em ${cortelabel.toLowerCase()} — e isso é uma boa notícia.`}
+                </Empty>
+              </div>
+            ) : (
+              <div>
+                {visiveis.map((o) => (
+                  <LinhaOrcamento
+                    key={o.id}
+                    o={o}
+                    aberto={aberto === o.id}
+                    painel={painel.id === o.id ? painel.qual : null}
+                    mostrarVendedor={mostrarVendedor}
+                    motivos={motivos}
+                    hoje={hoje}
+                    salvando={salvando}
+                    acoes={acoes}
+                  />
+                ))}
+              </div>
+            )}
+
+            <div className="px-5 pb-5">
+              {restantes > 0 && (
+                <button className="btn-ghost sem-impressao mt-3" onClick={() => setLimite((n) => n + 30)}>
+                  Mostrar mais ({numero(restantes)} restantes)
+                </button>
+              )}
+              <Honestidade
+                x={vm.excluidos}
+                c={vm.cobertura}
+                minimo={config.parametros.valorMinimoOrcamento}
+                corte={config.parametros.dataCorteOrcamentos}
+              />
+              <p className="mt-2 text-xs text-slate-500">
+                Cobertura de próximo passo: {numero(vm.cobertura.clientesComData)} de{" "}
+                {numero(vm.cobertura.clientesNaMesa)} clientes na mesa têm data ({pct(vm.cobertura.pct)}).
+              </p>
+            </div>
+          </Card>
+        </>
       )}
 
       {aba === "agenda" && (
-        <Card>
-          <CabecalhoImpressao
-            titulo="Impresilk — retornos marcados"
-            atualizadoEm={atualizadoEm}
-            linhas={[`Emitido em ${dataLonga(hoje)} · ${numero(vm.agenda.length)} clientes`, resumoEscopo]}
-          />
-          <SectionTitle
-            titulo="Retornos marcados"
-            sub={
-              vm.agenda.length
-                ? `${numero(vm.agenda.length)} clientes · ${moeda(vm.agenda.reduce((s, g) => s + g.valor, 0))} com data marcada`
-                : "O que você prometeu, e para quando."
-            }
-            acao={<BotaoPDF titulo="Imprime a agenda de retornos" />}
-          />
+        <Card className="p-0">
+          <div className="px-5 pt-5">
+            <CabecalhoImpressao
+              titulo="Impresilk — retornos marcados"
+              atualizadoEm={atualizadoEm}
+              linhas={[
+                `Emitido em ${dataLonga(hoje)} · ${numero(vm.agenda.length)} clientes`,
+                `Vendedor: ${vendedorEscopo || "todos"}`,
+              ]}
+            />
+            <SectionTitle
+              titulo="Retornos marcados"
+              sub={
+                vm.agenda.length
+                  ? `${numero(vm.agenda.length)} clientes · ${moeda(vm.agenda.reduce((s, g) => s + g.valor, 0))} com data marcada`
+                  : "O que você prometeu, e para quando."
+              }
+              acao={<BotaoPDF titulo="Imprime a agenda de retornos" />}
+            />
+          </div>
           {vm.agenda.length === 0 ? (
-            <Empty>
-              Nenhum retorno marcado.
-              <button className="btn-ghost ml-2" onClick={() => setAba("hoje")}>
-                Marcar um na aba Hoje
-              </button>
-            </Empty>
+            <div className="px-5 pb-5">
+              <Empty>
+                Nenhum retorno marcado.
+                <button className="btn-ghost ml-2" onClick={() => setAba("mesa")}>Marcar um na mesa</button>
+              </Empty>
+            </div>
           ) : (
             (() => {
               const semana = somaDias(hoje, 7);
@@ -1277,167 +1196,112 @@ export default function Orcamentos() {
                 { nome: "Neste mês", teste: (d) => d > semana && d <= mesQueVem },
                 { nome: "Mais para frente", teste: (d) => d > mesQueVem },
               ];
-              return faixas.map((fx) => {
-                const gs = vm.agenda.filter((g) => fx.teste(g.proximoToque));
-                if (!gs.length) return null;
-                return (
-                  <section key={fx.nome} className="mt-5 first:mt-0">
-                    <h3 className="mb-1 flex items-baseline justify-between gap-3">
-                      <span className="font-display text-sm font-semibold text-slate-700">
-                        {fx.nome}
-                      </span>
-                      <span className="tnum text-xs text-slate-500">
-                        {numero(gs.length)} · {moeda(gs.reduce((s, g) => s + g.valor, 0))}
-                      </span>
-                    </h3>
-                    <div className="rounded-xl border" style={{ borderColor: "var(--hairline)" }}>
-                      {gs.map((g) => (
-                        <LinhaAgenda key={g.chave} g={g} salvando={salvando} acoes={acoes} />
-                      ))}
-                    </div>
-                  </section>
-                );
-              });
+              return (
+                <div className="pb-5">
+                  {faixas.map((fx) => {
+                    const gs = vm.agenda.filter((g) => fx.teste(g.proximoToque));
+                    if (!gs.length) return null;
+                    return (
+                      <section key={fx.nome} className="mt-4 first:mt-0">
+                        <h3 className="flex items-baseline justify-between gap-3 px-5 pb-1">
+                          <span className="font-display text-sm font-semibold text-slate-700">{fx.nome}</span>
+                          <span className="tnum text-xs text-slate-500">
+                            {numero(gs.length)} · {moeda(gs.reduce((s, g) => s + g.valor, 0))}
+                          </span>
+                        </h3>
+                        {gs.flatMap((g) =>
+                          g.itens.map((o) => (
+                            <LinhaAgenda key={o.id} o={{ ...o, nota: o.nota || g.nota }} salvando={salvando} acoes={acoes} />
+                          ))
+                        )}
+                      </section>
+                    );
+                  })}
+                </div>
+              );
             })()
           )}
         </Card>
       )}
 
-      {aba === "arquivo" && (
-        <Card>
-          <CabecalhoImpressao
-            titulo="Impresilk — orçamentos"
-            atualizadoEm={atualizadoEm}
-            linhas={[
-              `Emitido em ${dataLonga(hoje)} · ${numero(listaArquivo.length)} orçamentos · ${moeda(listaArquivo.reduce((s, o) => s + o.valor, 0))}`,
-              [
-                resumoEscopo,
-                situacaoArq !== "todos" ? `situação: ${situacaoArq}` : null,
-                motivoArq ? `motivo: ${motivoArq.nome}` : null,
-                buscaArq ? `busca: "${buscaArq}"` : null,
-              ]
-                .filter(Boolean)
-                .join(" · "),
-            ]}
-          />
-          <SectionTitle
-            titulo="Todos os orçamentos"
-            sub="Para achar um orçamento específico e ver o que aconteceu com ele."
-            acao={<BotaoPDF titulo="Imprime a lista com o recorte atual" />}
-          />
-
-          <div className="sem-impressao mb-3 flex flex-wrap items-center gap-2">
-            <div className="relative min-w-0 flex-1 sm:max-w-sm">
-              <Search
-                size={16}
-                className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
-              />
-              <input
-                type="search"
-                className="input pl-9"
-                value={buscaArq}
-                onChange={(e) => {
-                  setBuscaArq(e.target.value);
-                  setLimiteArq(50);
+      {aba === "historico" && (
+        <Card className="p-0">
+          <div className="px-5 pt-5">
+            <CabecalhoImpressao
+              titulo="Impresilk — histórico de orçamentos"
+              atualizadoEm={atualizadoEm}
+              linhas={[
+                `Emitido em ${dataLonga(hoje)} · ${numero(historico.length)} orçamentos · ${moeda(historico.reduce((s, o) => s + o.valor, 0))}`,
+                `${situacaoHist === "ganho" ? "Ganhos" : "Perdidos"} · vendedor: ${vendedorEscopo || "todos"}${motivoHist ? ` · motivo ${motivoHist.nome}` : ""}`,
+              ]}
+            />
+            <SectionTitle
+              titulo="Histórico"
+              sub="O que já foi decidido — para achar um orçamento e ver o que aconteceu com ele."
+              acao={<BotaoPDF titulo="Imprime o histórico com o recorte atual" />}
+            />
+            <div className="sem-impressao mb-3 flex flex-wrap items-center gap-2">
+              <Segmented
+                opcoes={[
+                  { valor: "ganho", rotulo: `Ganhos (${numero(vm.kpis.ganhosQtd)})` },
+                  { valor: "perdido", rotulo: `Perdidos (${numero(vm.kpis.perdidosQtd)})` },
+                ]}
+                valor={situacaoHist}
+                onChange={(v) => {
+                  setSituacaoHist(v);
+                  setMotivoHist(null);
+                  setLimite(30);
                 }}
-                placeholder="Cliente, número, trabalho, contato ou vendedor"
-                aria-label="Buscar orçamento"
               />
-            </div>
-            {/* Chips que quebram linha, não Segmented: as cinco opções somam
-                400px e a tela do celular tem 375 -- a página inteira passava a
-                rolar de lado por causa desta única barra. */}
-            <div className="flex flex-wrap items-center gap-1.5">
-              {[
-                { valor: "todos", rotulo: "Todos" },
-                { valor: "aberto", rotulo: "Abertos" },
-                { valor: "sem-passo", rotulo: "Sem retorno marcado" },
-                { valor: "ganho", rotulo: "Ganhos" },
-                { valor: "perdido", rotulo: "Perdidos" },
-              ].map((o) => (
-                <button
-                  key={o.valor}
-                  className={situacaoArq === o.valor ? "chip-sel" : "chip-btn"}
-                  aria-pressed={situacaoArq === o.valor}
-                  onClick={() => {
-                    setSituacaoArq(o.valor);
-                    setLimiteArq(50);
+              <div className="relative min-w-0 flex-1 sm:max-w-xs">
+                <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                <input
+                  type="search"
+                  className="input pl-9"
+                  value={busca}
+                  onChange={(e) => {
+                    setBusca(e.target.value);
+                    setLimite(30);
                   }}
-                >
-                  {o.rotulo}
+                  placeholder="Cliente, número ou trabalho"
+                  aria-label="Buscar no histórico"
+                />
+              </div>
+              {motivoHist && (
+                <button className="chip-sel" onClick={() => setMotivoHist(null)}>
+                  {motivoHist.nome} <X size={12} />
                 </button>
-              ))}
+              )}
             </div>
-            {temFiltroArq && (
-              <button
-                className="btn-ghost"
-                onClick={() => {
-                  setBuscaArq("");
-                  setSituacaoArq("todos");
-                  setMotivoArq(null);
-                  setLimiteArq(50);
-                }}
-              >
-                <X size={15} /> Limpar
-              </button>
-            )}
           </div>
 
-          {motivoArq && (
-            <p className="mb-2 text-xs text-slate-500">
-              Motivo: <b>{motivoArq.nome}</b>
-            </p>
-          )}
-
-          <p className="mb-2 text-sm text-slate-500">
-            {numero(listaArquivo.length)} de {numero(vm.lista.length)} ·{" "}
-            {moeda(listaArquivo.reduce((s, o) => s + o.valor, 0))}
-          </p>
-
-          {visiveisArq.length === 0 ? (
-            <Empty>Nenhum orçamento neste filtro.</Empty>
+          {historico.length === 0 ? (
+            <div className="px-5 pb-5">
+              <Empty>Nenhum orçamento neste recorte.</Empty>
+            </div>
           ) : (
             <>
-              <div className="rounded-xl border" style={{ borderColor: "var(--hairline)" }}>
-                {visiveisArq.map((o) => {
-                  const g = {
-                    chave: `arq-${o.id}`,
-                    cliente: o.cliente,
-                    ids: [o.id],
-                    itens: [o],
-                    qtd: 1,
-                    valor: o.valor,
-                    margem: o.margem,
-                    celular: o.celular,
-                    contatoNome: o.contatoNome,
-                    email: o.email,
-                    nota: o.nota,
-                    proximoToque: o.proximoToque,
-                    compromissoId: o.compromissoId,
-                    vendedores: [o.vendedorNome],
-                  };
-                  return (
-                    <LinhaArquivo
-                      key={o.id}
-                      o={o}
-                      aberto={abertoArq === o.id}
-                      aoAbrir={() => setAbertoArq((a) => (a === o.id ? null : o.id))}
-                    >
-                      <GavetaNegocio
-                        g={g}
-                        motivos={motivos}
-                        hoje={hoje}
-                        salvando={salvando}
-                        acoes={acoes}
-                      />
-                    </LinhaArquivo>
-                  );
-                })}
+              <div>
+                {historico.slice(0, limite).map((o) => (
+                  <LinhaOrcamento
+                    key={o.id}
+                    o={{ ...o, qtdDoCliente: 1 }}
+                    aberto={aberto === o.id}
+                    painel={painel.id === o.id ? painel.qual : null}
+                    mostrarVendedor={mostrarVendedor}
+                    motivos={motivos}
+                    hoje={hoje}
+                    salvando={salvando}
+                    acoes={acoes}
+                  />
+                ))}
               </div>
-              {restantesArq > 0 && (
-                <button className="btn-ghost sem-impressao mt-3" onClick={() => setLimiteArq((n) => n + 50)}>
-                  Mostrar mais ({numero(restantesArq)} restantes)
-                </button>
+              {historico.length > limite && (
+                <div className="px-5 pb-5">
+                  <button className="btn-ghost sem-impressao mt-3" onClick={() => setLimite((n) => n + 30)}>
+                    Mostrar mais ({numero(historico.length - limite)} restantes)
+                  </button>
+                </div>
               )}
             </>
           )}
@@ -1458,10 +1322,16 @@ export default function Orcamentos() {
         aoEscolherVendedor={(id) => {
           trocarVendedor(id);
           setPlacarAberto(false);
-          setAba("hoje");
+          setAba("mesa");
         }}
-        aoVerMotivo={(m) => verNoArquivo({ situacao: "perdido", motivo: m })}
-        aoVerSemPasso={() => verNoArquivo({ situacao: "sem-passo" })}
+        aoVerMotivo={(m) => {
+          setAba("historico");
+          setSituacaoHist("perdido");
+          setMotivoHist(m);
+          setBusca("");
+          setLimite(30);
+          setPlacarAberto(false);
+        }}
       />
 
       <BarraDesfazer desfazer={desfazer} aoDesfazer={aplicarDesfazer} />

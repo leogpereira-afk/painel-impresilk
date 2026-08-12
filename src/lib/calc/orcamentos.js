@@ -75,6 +75,29 @@ export const ehCompraFutura = (item) =>
 
 const soma = (lista, campo) => lista.reduce((s, o) => s + (Number(o[campo]) || 0), 0);
 
+const dia = (iso) => {
+  const [a, m, d] = String(iso || "").split("-");
+  return d ? `${d}/${m}` : "";
+};
+
+/* O SELO DA LINHA: uma frase curta e um tom, por orçamento.
+   Regra do Geist que a casa adota: UM selo por linha. Se a linha precisa de
+   dois, é sinal de que falta uma coluna -- não de que cabe mais um selo.
+   Primeira regra que casar vence, e a ordem é a da urgência. */
+export function estadoDe(o) {
+  if (o.situacao === "ganho") return { chave: "ganho", rotulo: "Ganho", tom: "ok" };
+  if (o.recall) return { chave: "recall", rotulo: "Compra futura", tom: "warn" };
+  if (o.situacao === "perdido") {
+    return { chave: "perdido", rotulo: o.motivoPerdaNome || "Perdido", tom: "bad" };
+  }
+  if (o.toqueAtrasado) return { chave: "atrasado", rotulo: `Prometido ${dia(o.proximoToque)}`, tom: "bad" };
+  if (o.toqueHoje) return { chave: "hoje", rotulo: "Prometido hoje", tom: "warn" };
+  if (o.adiado) return { chave: "agendado", rotulo: `Volta ${dia(o.proximoToque)}`, tom: "brand" };
+  if (o.chamadoEm) return { chave: "chamado", rotulo: `Chamado ${dia(o.chamadoEm)}`, tom: "bad" };
+  if (o.vencido) return { chave: "vencido", rotulo: `Vencido há ${Math.abs(o.diasParaVencer)} d`, tom: "bad" };
+  return { chave: "sem", rotulo: "Sem retorno", tom: "neutral" };
+}
+
 export function calcOrcamentos(orcamentos, overrides, config, opcoes = {}) {
   const p = config.parametros || {};
   const minimo = p.valorMinimoOrcamento || 0;
@@ -188,6 +211,7 @@ export function calcOrcamentos(orcamentos, overrides, config, opcoes = {}) {
       };
       item.recall = item.situacao === "perdido" && ehCompraFutura(item);
       item.balde = baldeDe(item);
+      item.estado = estadoDe(item);
       return item;
     });
 
@@ -217,14 +241,18 @@ export function calcOrcamentos(orcamentos, overrides, config, opcoes = {}) {
      config.vendedores e nunca filtrados por config.vendedoresOcultos. A lixeira
      "Retirar Fulano" escondia a vendedora da tabela E tornava a fila dela
      inalcancavel pelos chips -- sem botao de desfazer em lugar nenhum. */
+  /* A contagem do chip e do que esta ABERTO, nao do ano inteiro. Com o ano,
+     "Barbara 315" aparecia ao lado de "56 abertos" e o numero nao batia com
+     nada que a lista mostrasse. */
   const mapaBase = new Map();
   for (const o of filtrados) {
     if (!o.vendedorId) continue;
-    const linha = mapaBase.get(o.vendedorId) || { id: o.vendedorId, nome: o.vendedorNome, qtd: 0 };
-    linha.qtd += 1;
+    const linha = mapaBase.get(o.vendedorId) || { id: o.vendedorId, nome: o.vendedorNome, qtd: 0, total: 0 };
+    linha.total += 1;
+    if (o.situacao === "aberto") linha.qtd += 1;
     mapaBase.set(o.vendedorId, linha);
   }
-  const vendedoresDaBase = [...mapaBase.values()].sort((a, b) => b.qtd - a.qtd);
+  const vendedoresDaBase = [...mapaBase.values()].sort((a, b) => b.qtd - a.qtd || b.total - a.total);
 
   const ganhos = doEscopo.filter((o) => o.situacao === "ganho");
   const perdidos = doEscopo.filter((o) => o.situacao === "perdido");
@@ -443,9 +471,29 @@ export function calcOrcamentos(orcamentos, overrides, config, opcoes = {}) {
 
   const recall = doEscopo.filter((o) => o.recall);
 
+  /* A MESA é o que a tela abre: os orçamentos ABERTOS, um por linha. Não é a
+     fila por baldes (que escondia a lista dentro de cabeçalhos) nem o arquivo
+     inteiro. Compra futura entra por filtro, nunca por padrão -- ela é dinheiro
+     que o ERP já deu por perdido. */
+  const mesa = abertos;
+  /* OS QUATRO NUMEROS SAO CONJUNTOS SEPARADOS. Com "sem retorno" contando
+     tambem os vencidos, ele dava 56 ao lado de "na mesa 56" -- dois numeros
+     iguais, um deles inutil. Quem esta atrasado ja tem lugar no seu proprio
+     numero; "sem retorno" e o que ainda nao virou divida. */
+  const ehAtrasado = (o) => o.toqueAtrasado || o.vencido || (o.chamadoEm && !o.proximoToque);
+  const atrasados = abertos.filter(ehAtrasado);
+  const semRetorno = abertos.filter((o) => !o.proximoToque && !o.chamadoEm && !ehAtrasado(o));
+
   return {
-    // Lista mestra do escopo escolhido: alimenta a aba Arquivo.
+    // Lista mestra do escopo escolhido: alimenta a aba Histórico.
     lista: doEscopo,
+    mesa,
+    recorte: {
+      mesa: { qtd: mesa.length, valor: soma(mesa, "valor"), margem: soma(mesa, "margem") },
+      atrasados: { qtd: atrasados.length, valor: soma(atrasados, "valor") },
+      semRetorno: { qtd: semRetorno.length, valor: soma(semRetorno, "valor") },
+      recall: { qtd: recall.length, valor: soma(recall, "valor"), margem: soma(recall, "margem") },
+    },
     kpis: {
       naMesaQtd: abertos.length,
       naMesaValor: soma(abertos, "valor"),
