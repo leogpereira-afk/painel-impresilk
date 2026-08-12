@@ -6,7 +6,7 @@
 // clicaveis, ha busca por empresa, e cada linha de titulo expande com os
 // detalhes. A lista de titulos vem logo abaixo do painel de numeros.
 
-import { Fragment, useMemo, useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import {
   AlertTriangle,
   Clock,
@@ -16,6 +16,8 @@ import {
   Phone,
   CheckCircle2,
   ChevronRight,
+  Undo2,
+  SlidersHorizontal,
   Search,
   User,
   X,
@@ -33,11 +35,11 @@ import {
 import { useApp } from "../config/store.jsx";
 import { calcContasAtrasadas, agruparDividas } from "../lib/calc/contasAtrasadas.js";
 import { moeda, numero, dataLonga, dataCurta, rotuloMes, ymdLocal, MESES } from "../lib/format.js";
+import { Selo, Avatar, Dinheiro, FaixaNumeros, LinhaLista } from "../components/lista.jsx";
 import {
   Card,
   PageTitle,
   SectionTitle,
-  StatCard,
   BarRow,
   Segmented,
   Empty,
@@ -82,6 +84,9 @@ export default function ContasAtrasadas() {
   // causa de `pagar`, que esta tela nem le.
   const atualizadoEm = frescorDe("contas-atrasadas");
 
+  // Duas abas: a lista de cobrança (o trabalho) e a análise (a reunião).
+  const [aba, setAba] = useState("lista");
+  const [maisFiltros, setMaisFiltros] = useState(false);
   const [filtro, setFiltro] = useState("todos");
   const [diasMin, setDiasMin] = useState(30);
   const [busca, setBusca] = useState("");
@@ -230,13 +235,6 @@ export default function ContasAtrasadas() {
   const k = vm.kpis;
   const tomDso = k.dso <= k.dsoMeta ? "ok" : k.dso <= k.dsoAlerta ? "warn" : "bad";
 
-  const opcoesFiltro = [
-    { valor: "todos", rotulo: "Todos" },
-    { valor: "pendentes", rotulo: "Pendentes" },
-    { valor: "reincidentes", rotulo: "Reincidentes" },
-    { valor: "acima", rotulo: "Acima de X dias" },
-  ];
-
   const temFiltro =
     filtro !== "todos" ||
     !!busca ||
@@ -274,7 +272,7 @@ export default function ContasAtrasadas() {
     <div className="space-y-8">
       <PageTitle
         titulo="Contas Atrasadas"
-        descricao="Quem esta devendo, por que, e o que fazer agora. Clique nos números para filtrar a lista."
+        descricao="Quem está devendo, e o que fazer agora."
       />
 
       <AvisoDadoParado atualizadoEm={atualizadoEm} />
@@ -287,66 +285,76 @@ export default function ContasAtrasadas() {
         </p>
       )}
 
-      {/* KPIs: clicaveis, filtram a lista de titulos abaixo */}
-      {/* Os KPIs sao filtros clicaveis: no papel viram cartoes mortos e ainda
-          saem pela metade (os que nao tem clique nao sao botoes). O cabecalho
-          de impressao ja carrega total e quantidade. */}
-      <div className="sem-impressao grid grid-cols-2 gap-4 lg:grid-cols-5">
-        <StatCard
-          rotulo="Total atrasado"
-          valor={moeda(k.totalAtrasado)}
-          sub={`${numero(k.qtd)} títulos em aberto`}
-          tom="brand"
-          icone={AlertTriangle}
-          ativo={!temFiltro}
-          onClick={() => {
-            limparTudo();
-            irParaTitulos();
-          }}
-        />
-        <StatCard
-          rotulo="Pendentes de cobrança"
-          valor={numero(k.pendentesQtd)}
-          sub={moeda(k.pendentesValor)}
-          tom="warn"
-          icone={Clock}
-          ativo={filtro === "pendentes"}
-          onClick={() => alternarFiltro("pendentes")}
-        />
-        <StatCard
-          rotulo="Reincidentes"
-          valor={numero(k.reincidentesQtd)}
-          sub={moeda(k.reincidentesValor)}
-          tom="bad"
-          icone={Repeat}
-          ativo={filtro === "reincidentes"}
-          onClick={() => alternarFiltro("reincidentes")}
-        />
-        <StatCard
-          rotulo="DSO"
-          valor={`${k.dso} dias`}
-          sub={`meta ${k.dsoMeta} dias`}
-          tom={tomDso}
-          icone={Gauge}
-          tendencia={k.dsoTendencia}
-        />
-        <StatCard
-          rotulo="Maior atraso"
-          valor={`${numero(k.maiorAtrasoDias)} dias`}
-          sub={k.maiorAtrasoCliente}
-          tom="neutral"
-          icone={Timer}
-          ativo={!!busca && busca === k.maiorAtrasoCliente}
-          onClick={() => {
-            setFiltro("todos");
-            setFaixaSel(null);
-            setBusca((b) => (b === k.maiorAtrasoCliente ? "" : k.maiorAtrasoCliente));
-            irParaTitulos();
-          }}
+      {/* A LISTA VEM PRIMEIRO. Antes eram cinco cartões de 130px cada: no
+          celular davam ~430px, e o CEO rolava meia tela antes de ver o primeiro
+          título. Agora são quatro células divididas por fio, cada uma
+          recortando a lista -- o mesmo desenho de Orçamentos. DSO e maior
+          atraso desceram para a aba Análise: são leitura de reunião, não de
+          cobrança. */}
+      <div className="sem-impressao">
+        <Segmented
+          opcoes={[
+            { valor: "lista", rotulo: `A cobrar (${numero(k.qtd)})` },
+            { valor: "analise", rotulo: "Análise" },
+          ]}
+          valor={aba}
+          onChange={setAba}
         />
       </div>
 
+      {aba === "lista" && (
+        <div className="sem-impressao">
+          <FaixaNumeros
+            ativo={temFiltro ? filtro : "todos"}
+            aoEscolher={(id) => {
+              if (id === "todos") {
+                limparTudo();
+              } else if (id === "aVencer") {
+                limparTudo();
+                setAba("analise");
+              } else {
+                alternarFiltro(id);
+              }
+              irParaTitulos();
+            }}
+            celulas={[
+              {
+                id: "todos",
+                rotulo: "Total atrasado",
+                valor: moeda(k.totalAtrasado),
+                sub: `${numero(k.qtd)} títulos em aberto · maior atraso ${numero(k.maiorAtrasoDias)} dias`,
+                curto: `${numero(k.qtd)} títulos · maior ${numero(k.maiorAtrasoDias)}d`,
+              },
+              {
+                id: "pendentes",
+                rotulo: "Pendentes de cobrança",
+                valor: numero(k.pendentesQtd),
+                sub: `${moeda(k.pendentesValor)} sem ninguém ter falado com o cliente`,
+                curto: moeda(k.pendentesValor),
+                cor: k.pendentesQtd ? "text-warn-700" : undefined,
+              },
+              {
+                id: "reincidentes",
+                rotulo: "Reincidentes",
+                valor: numero(k.reincidentesQtd),
+                sub: `${moeda(k.reincidentesValor)} de quem já atrasou antes`,
+                curto: moeda(k.reincidentesValor),
+                cor: k.reincidentesQtd ? "text-bad-700" : undefined,
+              },
+              {
+                id: "aVencer",
+                rotulo: "Vence em 7 dias",
+                valor: numero(vm.aVencer?.qtd || 0),
+                sub: `${moeda(vm.aVencer?.valor || 0)} · ${numero(vm.aVencer?.deQuemJaDeve || 0)} de quem já deve`,
+                curto: `${moeda(vm.aVencer?.valor || 0)} · ${numero(vm.aVencer?.deQuemJaDeve || 0)} já devem`,
+              },
+            ]}
+          />
+        </div>
+      )}
+
       {/* Titulos: logo abaixo do painel de numeros */}
+      {aba === "lista" && (
       <Card ref={titulosRef}>
         <CabecalhoImpressao
           atualizadoEm={atualizadoEm}
@@ -361,12 +369,16 @@ export default function ContasAtrasadas() {
           ]}
         />
 
-        <SectionTitle
-          className="sem-impressao"
-          titulo="Títulos"
-          sub="Clique na linha para ver os detalhes. Classifique o motivo e marque o que já foi cobrado."
-          acao={<BotaoPDF titulo="Gera um PDF com exatamente o recorte que esta na tela" />}
-        />
+        {/* No celular este cabeçalho eram 250px repetindo o que a aba e os
+            números já dizem, e empurrava a lista para fora da tela. */}
+        <div className="hidden sm:block">
+          <SectionTitle
+            className="sem-impressao"
+            titulo="Títulos"
+            sub="Toque na linha para ver a ficha. Marque o que já foi cobrado e diga por que atrasou."
+            acao={<BotaoPDF titulo="Gera um PDF com exatamente o recorte que esta na tela" />}
+          />
+        </div>
 
         {/* Barra de busca e filtros, em dois niveis.
             NIVEL 1: buscar e ordenar -- o que se usa a toda hora, com a busca
@@ -391,7 +403,7 @@ export default function ContasAtrasadas() {
             </div>
 
             <div className="flex shrink-0 items-center gap-2">
-              <label className="label-filtro" htmlFor="ordem-titulos">
+              <label className="label-filtro sr-only sm:not-sr-only" htmlFor="ordem-titulos">
                 Ordenar por
               </label>
               <select
@@ -413,9 +425,9 @@ export default function ContasAtrasadas() {
               descartado no cálculo. O número que importa não é o total: é
               quanto disso é de cliente que JÁ está devendo. Esse é quem não
               deveria receber trabalho novo sem uma conversa. */}
-          {vm.aVencer?.qtd > 0 && (
+          {vm.aVencer?.qtd > 0 && aba === "lista" && (
             <div
-              className="flex flex-wrap items-center gap-x-4 gap-y-1 rounded-xl border px-3 py-2.5"
+              className="hidden sm:flex flex flex-wrap items-center gap-x-4 gap-y-1 rounded-xl border px-3 py-2.5"
               style={{ borderColor: "var(--hairline)" }}
             >
               <span className="font-display text-sm font-semibold text-slate-800">
@@ -481,30 +493,39 @@ export default function ContasAtrasadas() {
             </div>
           )}
 
+          {/* No celular a caixa de recortes custava 280px ANTES da primeira
+              linha -- e é o que menos se usa com o telefone na mão. Ela vira um
+              botão; no computador continua aberta. */}
+          <button
+            type="button"
+            className="btn-ghost sm:hidden"
+            onClick={() => setMaisFiltros((v) => !v)}
+            aria-expanded={maisFiltros}
+          >
+            <SlidersHorizontal size={15} strokeWidth={2.4} />
+            {maisFiltros ? "Esconder filtros" : "Filtros"}
+            {temFiltro && <span className="ml-1 h-1.5 w-1.5 rounded-full bg-brand" />}
+          </button>
           <div
-            className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-xl border bg-slate-50/70 px-3 py-2.5"
+            className={`${maisFiltros ? "flex" : "hidden"} flex-wrap items-center gap-x-4 gap-y-2 rounded-xl border bg-slate-50/70 px-3 py-2.5 sm:flex`}
             style={{ borderColor: "var(--hairline)" }}
           >
-            {/* O QUE mostrar. Estava no cabecalho, espremido contra o titulo, e
-                "Acima de X dias" quebrava em tres linhas. Aqui embaixo, junto
-                dos outros recortes, cabe e faz sentido: e um filtro tambem. */}
-            <div className="flex flex-wrap items-center gap-1.5">
-              {opcoesFiltro.map((o) => (
-                <button
-                  key={o.valor}
-                  type="button"
-                  onClick={() => setFiltro(o.valor)}
-                  aria-pressed={filtro === o.valor}
-                  className={`h-9 whitespace-nowrap rounded-lg border px-3 font-display text-sm font-medium transition-all ${
-                    filtro === o.valor
-                      ? "border-brand-300 bg-brand-50 text-brand-700"
-                      : "border-transparent text-slate-500 hover:bg-white hover:text-slate-800"
-                  }`}
-                >
-                  {o.rotulo}
-                </button>
-              ))}
-            </div>
+            {/* "Todos", "Pendentes" e "Reincidentes" saíram daqui: são os
+                mesmos recortes dos quatro números lá em cima, e a mesma escolha
+                duas vezes na tela é trabalho a mais. Sobrou o corte por tempo,
+                que os números não dão. */}
+            <button
+              type="button"
+              onClick={() => setFiltro(filtro === "acima" ? "todos" : "acima")}
+              aria-pressed={filtro === "acima"}
+              className={`h-9 whitespace-nowrap rounded-lg border px-3 font-display text-sm font-medium transition-all ${
+                filtro === "acima"
+                  ? "border-brand-300 bg-brand-50 text-brand-700"
+                  : "border-transparent text-slate-500 hover:bg-white hover:text-slate-800"
+              }`}
+            >
+              Acima de {diasMin} dias
+            </button>
 
             <span className="hidden h-5 w-px bg-slate-200 sm:block" aria-hidden="true" />
 
@@ -547,7 +568,11 @@ export default function ContasAtrasadas() {
 
             <span className="hidden h-5 w-px bg-slate-200 sm:block" aria-hidden="true" />
 
-            <div className="flex items-center gap-2">
+            {/* Os dois campos de data + o rótulo somam 454px numa tela de 390:
+                era a página inteira rolando de lado. Com flex-wrap eles descem
+                para a linha seguinte no celular e continuam lado a lado no
+                computador. */}
+            <div className="flex min-w-0 flex-wrap items-center gap-2">
               <label className="label-filtro" htmlFor="vence-de">
                 Vencimento entre
               </label>
@@ -674,224 +699,177 @@ export default function ContasAtrasadas() {
         </div>
 
         {titulosFiltrados.length ? (
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[760px] border-collapse">
-              <thead>
-                <tr>
-                  <th className="th text-left">Cliente</th>
-                  <th className="th text-right">Valor</th>
-                  <th className="th text-right">Atraso</th>
-                  <th className="th text-left">Motivo</th>
-                  <th className="th text-left">Próxima ação</th>
-                  <th className="th text-right">Ação</th>
-                </tr>
-              </thead>
-              <tbody>
-                {titulosFiltrados.map((t) => {
-                  const aberto = expandido === t.id;
-                  return (
-                    <Fragment key={t.id}>
-                      {/* Linha: separada por hairline (nao por caixa), com a
-                          aberta marcada por uma faixa indigo na borda esquerda
-                          -- da para saber onde se esta sem procurar a seta. */}
-                      <tr
-                        onClick={() => setExpandido(aberto ? null : t.id)}
-                        className={`cursor-pointer border-t transition-colors ${
-                          aberto ? "bg-brand-50/40" : "hover:bg-slate-50"
-                        }`}
-                        style={{
-                          borderColor: "var(--hairline)",
-                          boxShadow: aberto ? "inset 3px 0 0 0 var(--tw-shadow-color, #3840E8)" : undefined,
-                        }}
-                        aria-expanded={aberto}
-                      >
-                        <td className="td">
-                          <div className="flex items-center gap-2">
-                            <ChevronRight
-                              size={16}
-                              strokeWidth={2.4}
-                              className={`shrink-0 text-slate-400 transition-transform ${aberto ? "rotate-90" : ""}`}
-                            />
-                            <span className="font-display font-medium text-slate-900">
-                              {t.cliente}
-                            </span>
-                            {t.reincidente && (
-                              <span className="chip chip-warn shrink-0">reincidente</span>
-                            )}
-                          </div>
-                          <p className="mt-0.5 flex flex-wrap items-center gap-x-1.5 pl-6 text-xs text-slate-500">
-                            <span>
-                              NF {t.nf || "-"}, OS {t.os || "-"}
-                            </span>
-                            {/* Quem vendeu: e por quem a cobranca comeca. Fica
-                                clicavel para isolar a carteira do vendedor. */}
-                            {t.vendedor ? (
-                              <button
-                                type="button"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setVendedorSel(
-                                    vendedorSel === t.vendedores[0] ? "" : t.vendedores[0]
-                                  );
-                                }}
-                                className="inline-flex items-center gap-1 rounded-full bg-brand-50 px-2 py-0.5 font-medium text-brand-700 transition-colors hover:bg-brand-100"
-                                title={`Ver só os títulos de ${t.vendedor}`}
-                              >
-                                <User size={11} strokeWidth={2.4} />
-                                {t.vendedor}
-                              </button>
-                            ) : (
-                              <span className="text-slate-400">· vendedor não localizado</span>
-                            )}
-                            {/* O chip acima e um <button> e some na impressao;
-                                sem isto o vendedor -- o dado que faz o PDF de
-                                cobranca valer -- nao sairia no papel. */}
-                            {t.vendedor && (
-                              <span className="apenas-impressao">· vendedor: {t.vendedor}</span>
-                            )}
-                          </p>
-                        </td>
-                        <td className="td text-right tnum font-semibold text-slate-900">
-                          {moeda(t.valor)}
-                        </td>
-                        {/* Atraso com peso visual: em cobranca, 15 dias e 300
-                            dias sao problemas diferentes e a tabela precisa
-                            gritar isso sem o gestor ler numero por numero. */}
-                        <td className="td text-right">
-                          <span
-                            className={`inline-block whitespace-nowrap rounded-md px-2 py-0.5 tnum text-sm font-semibold ${
-                              t.dias >= 90
-                                ? "bg-bad-50 text-bad-700"
-                                : t.dias >= 30
-                                  ? "bg-warn-50 text-warn-700"
-                                  : "text-slate-600"
-                            }`}
-                          >
-                            {numero(t.dias)} dias
-                          </span>
-                        </td>
-                        {/* Motivo: select sem moldura. Com borda em toda linha
-                            viravam 83 caixas empilhadas competindo com o dado;
-                            a moldura so aparece ao passar o mouse ou focar.
-                            Quando ha motivo, o texto escurece para mostrar que
-                            aquela linha ja foi classificada. */}
-                        <td className="td" onClick={(e) => e.stopPropagation()}>
-                          <select
-                            className={`input-quieto font-display ${
-                              t.motivoId ? "font-medium text-slate-800" : "text-slate-400"
-                            }`}
-                            value={t.motivoId || ""}
-                            onChange={(e) =>
-                              setOverrideRecebivel(t.id, { motivoId: e.target.value || null })
-                            }
-                            aria-label={`Motivo do atraso de ${t.cliente}`}
-                          >
-                            <option value="">Sem motivo</option>
-                            {(config.motivosAtraso || []).map((m) => (
-                              <option key={m.id} value={m.id}>
-                                {m.nome}
-                              </option>
-                            ))}
-                          </select>
-                          {/* No papel o <select> some; o motivo vira texto. */}
-                          <span className="apenas-impressao">{t.motivoNome}</span>
-                        </td>
-                        <td className="td text-sm text-slate-500">{t.proximaAcao}</td>
-                        <td className="td text-right" onClick={(e) => e.stopPropagation()}>
-                          {/* No papel o botao some; sobra a situacao, que e o
-                              que interessa a quem vai cobrar com a lista na
-                              mao: ja falei com este cliente ou nao? */}
-                          {!t.cobrado && <span className="apenas-impressao">a cobrar</span>}
-                          {t.cobrado ? (
-                            /* CARIMBO COM DATA E COM VOLTA.
-                               Antes era um chip morto: sem data, sem desfazer em
-                               lugar nenhum do app, e a linha sumia no instante do
-                               clique quando o filtro "Pendentes" estava ligado —
-                               a lista pulava e o clique seguinte caía no cliente
-                               errado. Agora diz HÁ QUANTO TEMPO foi cobrado, que
-                               é o que separa "acabei de falar" de "falei há 20
-                               dias e não pagou". */
-                            <span className="inline-flex items-center gap-1.5">
-                              <span className="chip chip-ok inline-flex items-center gap-1">
-                                <CheckCircle2 size={13} strokeWidth={2.4} />
-                                {t.cobradoHa == null
-                                  ? "Cobrado"
-                                  : t.cobradoHa === 0
-                                    ? "Cobrado hoje"
-                                    : `Cobrado há ${t.cobradoHa}d`}
-                              </span>
-                              <button
-                                className="sem-impressao text-xs text-slate-400 underline underline-offset-2 hover:text-slate-700"
-                                onClick={() => setOverrideRecebivel(t.id, { cobrado: false, cobradoEm: "" })}
-                                title="Desmarcar"
-                              >
-                                desfazer
-                              </button>
-                            </span>
-                          ) : (
-                            <button
-                              className="sem-impressao inline-flex h-8 items-center gap-1.5 rounded-lg border border-transparent px-2.5 font-display text-sm font-medium text-slate-500 transition-all duration-150 hover:border-brand-200 hover:bg-brand-50 hover:text-brand-700"
-                              onClick={() =>
-                                setOverrideRecebivel(t.id, { cobrado: true, cobradoEm: ymdLocal(new Date()) })
-                              }
-                            >
-                              <CheckCircle2 size={14} strokeWidth={2.2} />
-                              Marcar cobrado
-                            </button>
-                          )}
-                        </td>
-                      </tr>
+          /* UMA LINHA POR TÍTULO, sem tabela. A tabela tinha min-w-[760px]
+             dentro de um overflow-x: no celular do CEO era preciso arrastar de
+             lado para alcançar o motivo e o botão de cobrado -- justamente as
+             duas coisas que a tela pede para fazer. Mesma anatomia da tela de
+             Orçamentos: título e sub, um selo, quem vendeu, o tempo, o dinheiro
+             e as ações na própria linha. */
+          <div className="-mx-5 sm:-mx-6">
+            {titulosFiltrados.map((t) => {
+              const aberto = expandido === t.id;
+              const tom = t.dias >= 90 ? "bad" : t.dias >= 30 ? "warn" : "neutral";
+              return (
+                <LinhaLista key={t.id} tom={t.cobrado ? "ok" : tom}>
+                  <div className="xl:grid xl:grid-cols-[minmax(0,1fr)_140px_120px_92px_150px_132px] xl:items-center xl:gap-3">
+                    <button
+                      className="block w-full min-w-0 text-left"
+                      onClick={() => setExpandido(aberto ? null : t.id)}
+                      aria-expanded={aberto}
+                    >
+                      <p className="truncate font-display text-[15px] font-semibold leading-tight text-slate-900">
+                        {t.cliente}
+                      </p>
+                      <p className="truncate text-sm text-slate-500">
+                        NF {t.nf || "—"} · OS {t.os || "—"}
+                        {t.vencimento ? ` · venceu em ${dataLonga(t.vencimento)}` : ""}
+                      </p>
+                    </button>
 
-                      {aberto && (
-                        <tr>
-                          <td colSpan={6} className="px-4 pb-4 pt-0">
-                            <div
-                              className="rounded-xl border bg-slate-50 p-4"
-                              style={{ borderColor: "var(--hairline)" }}
-                            >
-                              <dl className="grid gap-x-6 gap-y-3 sm:grid-cols-3">
-                                <Detalhe rotulo="CNPJ / CPF" valor={t.cnpj || "nao informado"} />
-                                <Detalhe rotulo="Nota fiscal" valor={t.nf || "sem NF"} />
-                                <Detalhe rotulo="Ordem de serviço" valor={t.os || "sem OS"} />
-                                <Detalhe
-                                  rotulo={t.vendedores.length > 1 ? "Vendedores" : "Vendedor"}
-                                  valor={t.vendedor || "nao localizado (OS de outro ano)"}
-                                />
-                                <Detalhe
-                                  rotulo="Emissão"
-                                  valor={t.emissao ? dataLonga(t.emissao) : "nao informada"}
-                                />
-                                <Detalhe
-                                  rotulo="Vencimento"
-                                  valor={t.vencimento ? dataLonga(t.vencimento) : "nao informado"}
-                                />
-                                <Detalhe rotulo="Atraso" valor={`${numero(t.dias)} dias`} />
-                                <Detalhe rotulo="Classificação" valor={t.grupoNome} />
-                                <Detalhe rotulo="Motivo" valor={t.motivoNome} />
-                                <Detalhe
-                                  rotulo="Situação"
-                                  valor={t.cobrado ? "ja cobrado" : "pendente de cobranca"}
-                                />
-                              </dl>
-                              <div
-                                className="mt-3 border-t pt-3"
-                                style={{ borderColor: "var(--hairline)" }}
-                              >
-                                <p className="label mb-1">Próxima ação sugerida</p>
-                                <p className="flex items-center gap-2 text-sm text-slate-700">
-                                  <Phone size={14} strokeWidth={2.2} className="text-brand" />
-                                  {t.proximaAcao}
-                                </p>
-                              </div>
-                            </div>
-                          </td>
-                        </tr>
+                    <div className="mt-2 flex flex-wrap items-center gap-2 xl:mt-0 xl:block">
+                      {t.cobrado ? (
+                        <Selo tom="ok">
+                          {t.cobradoHa == null
+                            ? "Cobrado"
+                            : t.cobradoHa === 0
+                              ? "Cobrado hoje"
+                              : `Cobrado há ${t.cobradoHa}d`}
+                        </Selo>
+                      ) : (
+                        <Selo tom={tom}>{t.reincidente ? "Reincidente" : "A cobrar"}</Selo>
                       )}
-                    </Fragment>
-                  );
-                })}
-              </tbody>
-            </table>
+                      <span className="text-xs text-slate-500 xl:hidden">
+                        {t.vendedor || "sem vendedor"} · {numero(t.dias)} {t.dias === 1 ? "dia" : "dias"}
+                      </span>
+                    </div>
+
+                    <div className="hidden xl:block">
+                      {t.vendedor ? (
+                        <button
+                          type="button"
+                          className="flex items-center gap-2 text-sm text-slate-600"
+                          onClick={() =>
+                            setVendedorSel(vendedorSel === t.vendedores[0] ? "" : t.vendedores[0])
+                          }
+                          title={`Ver só os títulos de ${t.vendedor}`}
+                        >
+                          <Avatar nome={t.vendedor} />
+                          <span className="truncate">{t.vendedor.split(" ")[0]}</span>
+                        </button>
+                      ) : (
+                        <span className="text-sm text-slate-400">—</span>
+                      )}
+                    </div>
+
+                    <p
+                      className={`hidden text-right text-sm tabular-nums xl:block ${
+                        t.dias >= 90 ? "text-bad-700" : t.dias >= 30 ? "text-warn-700" : "text-slate-500"
+                      }`}
+                    >
+                      {numero(t.dias)} {t.dias === 1 ? "dia" : "dias"}
+                    </p>
+
+                    <div className="mt-2 xl:mt-0">
+                      <Dinheiro
+                        valor={t.valor}
+                        formatar={numero}
+                        abaixo={t.motivoId ? t.motivoNome : <span className="text-slate-400">sem motivo</span>}
+                      />
+                    </div>
+
+                    <div className="sem-impressao mt-2.5 grid grid-cols-2 gap-2 xl:mt-0 xl:flex xl:justify-end">
+                      {t.cobrado ? (
+                        <button
+                          className="btn-outline min-h-[44px] justify-center xl:min-h-[40px] xl:!px-2.5"
+                          onClick={() => setOverrideRecebivel(t.id, { cobrado: false, cobradoEm: "" })}
+                          title="Desmarcar a cobrança"
+                        >
+                          <Undo2 size={15} strokeWidth={2.4} />
+                          <span className="xl:hidden">Desfazer</span>
+                        </button>
+                      ) : (
+                        <button
+                          className="btn-outline min-h-[44px] justify-center !border-ok-200 !text-ok-700 xl:min-h-[40px] xl:!px-2.5"
+                          onClick={() =>
+                            setOverrideRecebivel(t.id, { cobrado: true, cobradoEm: ymdLocal(new Date()) })
+                          }
+                          title="Marcar como cobrado"
+                        >
+                          <CheckCircle2 size={15} strokeWidth={2.4} />
+                          <span className="xl:hidden">Cobrado</span>
+                        </button>
+                      )}
+                      <button
+                        className={`btn-outline min-h-[44px] justify-center xl:min-h-[40px] xl:!px-2.5 ${
+                          aberto ? "!border-brand !text-brand" : ""
+                        }`}
+                        onClick={() => setExpandido(aberto ? null : t.id)}
+                        title="Ver a ficha do título"
+                      >
+                        <ChevronRight
+                          size={15}
+                          strokeWidth={2.4}
+                          className={`transition-transform ${aberto ? "rotate-90" : ""}`}
+                        />
+                        <span className="xl:hidden">Ficha</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* No papel o botão some; sobra o que interessa a quem cobra
+                      com a lista na mão: já falei com este cliente ou não? */}
+                  <span className="apenas-impressao text-xs">
+                    {[t.vendedor && `vendedor: ${t.vendedor}`, t.cobrado ? "já cobrado" : "a cobrar", t.motivoNome]
+                      .filter(Boolean)
+                      .join(" · ")}
+                  </span>
+
+                  {aberto && (
+                    <div className="mt-3 rounded-xl bg-slate-50 p-3">
+                      <dl className="grid gap-x-6 gap-y-3 sm:grid-cols-3">
+                        <Detalhe rotulo="CNPJ / CPF" valor={t.cnpj || "não informado"} />
+                        <Detalhe rotulo="Nota fiscal" valor={t.nf || "sem NF"} />
+                        <Detalhe rotulo="Ordem de serviço" valor={t.os || "sem OS"} />
+                        <Detalhe
+                          rotulo={t.vendedores.length > 1 ? "Vendedores" : "Vendedor"}
+                          valor={t.vendedor || "não localizado (OS de outro ano)"}
+                        />
+                        <Detalhe rotulo="Emissão" valor={t.emissao ? dataLonga(t.emissao) : "não informada"} />
+                        <Detalhe
+                          rotulo="Vencimento"
+                          valor={t.vencimento ? dataLonga(t.vencimento) : "não informado"}
+                        />
+                        <Detalhe rotulo="Atraso" valor={`${numero(t.dias)} dias`} />
+                        <Detalhe rotulo="Classificação" valor={t.grupoNome} />
+                      </dl>
+
+                      <div className="sem-impressao mt-3 border-t pt-3" style={{ borderColor: "var(--hairline)" }}>
+                        <label className="label mb-1 block" htmlFor={`m-${t.id}`}>
+                          Por que está atrasado?
+                        </label>
+                        <select
+                          id={`m-${t.id}`}
+                          className="input w-auto"
+                          value={t.motivoId || ""}
+                          onChange={(e) => setOverrideRecebivel(t.id, { motivoId: e.target.value || null })}
+                        >
+                          <option value="">Sem motivo</option>
+                          {(config.motivosAtraso || []).map((m) => (
+                            <option key={m.id} value={m.id}>
+                              {m.nome}
+                            </option>
+                          ))}
+                        </select>
+                        <p className="mt-3 flex items-center gap-2 text-sm text-slate-700">
+                          <Phone size={14} strokeWidth={2.2} className="text-brand" />
+                          {t.proximaAcao}
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                </LinhaLista>
+              );
+            })}
           </div>
         ) : (
           <Empty>
@@ -904,7 +882,14 @@ export default function ContasAtrasadas() {
           </Empty>
         )}
       </Card>
+      )}
 
+      {/* A ANÁLISE INTEIRA ATRÁS DE UMA ABA. Eram sete blocos (onde está a
+          dívida, ranking, motivos, padrões, idade, plano, cobrar hoje, DSO)
+          empilhados embaixo da lista: leitura de reunião ocupando a tela de
+          quem está cobrando. Nada foi apagado -- mudou de lugar. */}
+      {aba === "analise" && (
+      <>
       {/* Onde a divida esta: mesmo recorte da lista acima, visto por tres
           angulos. Clicar numa barra filtra a lista (ano/mes) ou busca o
           cliente, para o gestor ir do "onde" direto para o "quem". */}
@@ -1308,6 +1293,8 @@ export default function ContasAtrasadas() {
             assim que houver alguns dias acumulados.
           </Empty>
         </Card>
+      )}
+      </>
       )}
     </div>
   );

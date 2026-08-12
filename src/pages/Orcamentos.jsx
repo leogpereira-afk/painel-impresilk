@@ -39,6 +39,7 @@ import { getSessao, vendedorDaSessao } from "../lib/sessao.js";
 import { calcOrcamentos, canonVend, somaDias } from "../lib/calc/orcamentos.js";
 import { salvarCompromisso, removerCompromisso } from "../services/compromissos.js";
 import { moeda, numero, pct, dataCurta, dataLonga, diasEntre, ymdLocal } from "../lib/format.js";
+import { Selo, Avatar, Dinheiro as DinheiroBase, FaixaNumeros as FaixaBase, LinhaLista } from "../components/lista.jsx";
 import {
   Card,
   PageTitle,
@@ -57,18 +58,6 @@ const MESES_LONGOS = [
   "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
   "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro",
 ];
-
-// Selo: fundo 50, texto 700, ponto na cor cheia. Um por linha.
-const SELO = {
-  bad: { caixa: "bg-bad-50 text-bad-700", ponto: "bg-bad-600" },
-  warn: { caixa: "bg-warn-50 text-warn-700", ponto: "bg-warn-600" },
-  ok: { caixa: "bg-ok-50 text-ok-700", ponto: "bg-ok-600" },
-  brand: { caixa: "bg-brand-50 text-brand-700", ponto: "bg-brand" },
-  neutral: { caixa: "bg-slate-100 text-slate-600", ponto: "bg-slate-400" },
-};
-// Trilho colorido de 3px na borda esquerda: é o que deixa varrer a lista com o
-// olho sem ler selo por selo. Só os estados que pedem ação ganham trilho.
-const TRILHO = { bad: "bg-bad-600", warn: "bg-warn-500", ok: "bg-transparent", brand: "bg-transparent", neutral: "bg-transparent" };
 
 const CORTES = [
   { id: "mesa", rotulo: "Na mesa" },
@@ -92,15 +81,6 @@ const norm = (s) =>
     .replace(/[̀-ͯ]/g, "");
 
 const primeiroNome = (n) => String(n || "").trim().split(/\s+/)[0] || "";
-const iniciais = (n) =>
-  String(n || "?")
-    .trim()
-    .split(/\s+/)
-    .slice(0, 2)
-    .map((x) => x[0])
-    .join("")
-    .toUpperCase();
-
 function linkWhats(o) {
   if (!o.celular) return null;
   const ola = primeiroNome(o.contatoNome) ? `Olá, ${primeiroNome(o.contatoNome)}! ` : "Olá! ";
@@ -112,106 +92,67 @@ function linkWhats(o) {
 // Todos no escopo do módulo: componente dentro de componente remonta a cada
 // render e o campo de nota perde o foco a cada letra.
 
-function Selo({ estado }) {
-  const s = SELO[estado.tom] || SELO.neutral;
-  return (
-    <span
-      className={`inline-flex max-w-full items-center gap-1.5 truncate rounded-full px-2.5 py-1 font-display text-xs font-medium ${s.caixa}`}
-    >
-      <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${s.ponto}`} />
-      <span className="truncate">{estado.rotulo}</span>
-    </span>
-  );
+// O selo e o dinheiro desta tela são o padrão da casa, com o texto daqui.
+function SeloOrc({ estado }) {
+  return <Selo tom={estado.tom}>{estado.rotulo}</Selo>;
 }
 
-function Dinheiro({ valor, margem, semMargem, classe = "text-[17px]" }) {
+function Dinheiro({ valor, margem, semMargem, classe }) {
   return (
-    <div className="text-right">
-      <p className={`tnum font-semibold text-slate-900 ${classe}`}>
-        <span className="text-sm font-normal text-slate-400">R$ </span>
-        {numero(Math.round(valor))}
-      </p>
-      <p className="tnum text-xs text-slate-500">
-        {semMargem ? (
+    <DinheiroBase
+      valor={valor}
+      classe={classe}
+      formatar={numero}
+      abaixo={
+        semMargem ? (
           <span className="text-slate-400">margem —</span>
         ) : (
           <>
             margem {numero(Math.round(margem))}
-            {valor > 0 && (
-              <span className="text-ok-700"> · {Math.round((margem / valor) * 100)}%</span>
-            )}
+            {valor > 0 && <span className="text-ok-700"> · {Math.round((margem / valor) * 100)}%</span>}
           </>
-        )}
-      </p>
-    </div>
+        )
+      }
+    />
   );
 }
 
-function FaixaNumeros({ r, conversao, recorte, aoRecortar }) {
+function FaixaNumeros({ r, recorte, aoRecortar }) {
   const celulas = [
     {
       id: "mesa",
-      curto: `${numero(r.mesa.qtd)} orçamentos`,
       rotulo: "Na mesa",
       valor: moeda(r.mesa.valor),
       sub: `${numero(r.mesa.qtd)} orçamentos · margem ${moeda(r.mesa.margem)}`,
-      cor: "text-slate-900",
+      curto: `${numero(r.mesa.qtd)} orçamentos`,
     },
     {
       id: "atrasados",
-      curto: moeda(r.atrasados.valor),
       rotulo: "Atrasados",
       valor: numero(r.atrasados.qtd),
       sub: `${moeda(r.atrasados.valor)} · promessa vencida ou orçamento vencido`,
-      cor: r.atrasados.qtd ? "text-bad-700" : "text-slate-900",
+      curto: moeda(r.atrasados.valor),
+      cor: r.atrasados.qtd ? "text-bad-700" : undefined,
     },
     {
       id: "semRetorno",
-      curto: moeda(r.semRetorno.valor),
       rotulo: "Sem retorno marcado",
       valor: numero(r.semRetorno.qtd),
       sub: `${moeda(r.semRetorno.valor)} sem data para voltar e ainda no prazo`,
-      cor: r.semRetorno.qtd ? "text-warn-700" : "text-slate-900",
+      curto: moeda(r.semRetorno.valor),
+      cor: r.semRetorno.qtd ? "text-warn-700" : undefined,
     },
     {
       id: "recall",
-      curto: moeda(r.recall.valor),
       rotulo: "Compra futura",
       valor: numero(r.recall.qtd),
       sub: `${moeda(r.recall.valor)} a recuperar com agenda`,
-      cor: "text-slate-900",
+      curto: moeda(r.recall.valor),
     },
   ];
-  return (
-    <div className="grid grid-cols-2 overflow-hidden rounded-xl border bg-white lg:grid-cols-4" style={{ borderColor: "var(--hairline)" }}>
-      {celulas.map((c, i) => {
-        const ativo = recorte === c.id;
-        return (
-          <button
-            key={c.id}
-            onClick={() => aoRecortar(c.id)}
-            aria-pressed={ativo}
-            className={`border-t px-4 py-3 text-left transition-colors first:border-t-0 sm:border-t-0 ${
-              i % 2 === 1 ? "border-l" : ""
-            } lg:border-l lg:first:border-l-0 ${ativo ? "bg-brand-50" : "hover:bg-slate-50"}`}
-            style={{ borderColor: "var(--hairline)" }}
-          >
-            <span className="block truncate text-xs text-slate-500">{c.rotulo}</span>
-            <span className={`tnum mt-0.5 block text-[22px] font-semibold leading-tight ${c.cor}`}>
-              {c.valor}
-            </span>
-            <span className="mt-0.5 hidden line-clamp-2 text-xs text-slate-400 sm:block">{c.sub}</span>
-            <span className="mt-0.5 block truncate text-xs text-slate-400 sm:hidden">{c.curto}</span>
-          </button>
-        );
-      })}
-    </div>
-  );
+  return <FaixaBase celulas={celulas} ativo={recorte} aoEscolher={aoRecortar} />;
 }
 
-/* Os botões de data SÃO a gravação — não existe escolher e depois salvar.
-   Confirmar antes de cada gesto transforma dois toques em quatro; o desfazer de
-   8 segundos cobre o engano com um toque só. */
 function PainelRetorno({ o, hoje, salvando, acoes, aoFechar }) {
   const [nota, setNota] = useState(o.nota || "");
   const [outra, setOutra] = useState("");
@@ -351,15 +292,8 @@ function Ficha({ o }) {
 
 function LinhaOrcamento({ o, aberto, painel, mostrarVendedor, motivos, hoje, salvando, acoes }) {
   const wa = linkWhats(o);
-  const trilho = TRILHO[o.estado.tom] || TRILHO.neutral;
   return (
-    <div
-      className={`relative border-t px-4 py-3 transition-colors first:border-0 hover:bg-slate-50/60 ${
-        o.saindo ? "opacity-50" : ""
-      }`}
-      style={{ borderColor: "#f0f0f5" }}
-    >
-      <span className={`absolute inset-y-0 left-0 w-[3px] ${trilho}`} aria-hidden="true" />
+    <LinhaLista tom={o.estado.tom} saindo={o.saindo}>
 
       <div className="xl:grid xl:grid-cols-[minmax(0,1fr)_144px_120px_44px_140px_136px] xl:items-center xl:gap-3">
         {/* cliente + trabalho: mesmo corpo, muda peso e cor (padrão Geist) */}
@@ -371,14 +305,12 @@ function LinhaOrcamento({ o, aberto, painel, mostrarVendedor, motivos, hoje, sal
         </button>
 
         <div className="mt-2 flex flex-wrap items-center gap-2 xl:mt-0 xl:block">
-          <Selo estado={o.estado} />
+          <SeloOrc estado={o.estado} />
           {/* No celular o vendedor e os dias andam junto do selo; no computador
               cada um tem a sua coluna. */}
           {mostrarVendedor && (
             <span className="inline-flex items-center gap-1.5 text-xs text-slate-600 xl:hidden">
-              <span className="grid h-5 w-5 place-items-center rounded-full bg-brand-50 text-[9px] font-semibold text-brand-ink">
-                {iniciais(o.vendedorNome)}
-              </span>
+              <Avatar nome={o.vendedorNome} tamanho="h-5 w-5 text-[9px]" />
               {o.vendedorNome}
             </span>
           )}
@@ -388,9 +320,7 @@ function LinhaOrcamento({ o, aberto, painel, mostrarVendedor, motivos, hoje, sal
         <div className="hidden xl:block">
           {mostrarVendedor && (
             <span className="flex items-center gap-2 text-sm text-slate-600">
-              <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-brand-50 text-[10px] font-semibold text-brand-ink">
-                {iniciais(o.vendedorNome)}
-              </span>
+              <Avatar nome={o.vendedorNome} />
               <span className="truncate" title={o.vendedorNome}>{primeiroNome(o.vendedorNome)}</span>
             </span>
           )}
@@ -479,7 +409,7 @@ function LinhaOrcamento({ o, aberto, painel, mostrarVendedor, motivos, hoje, sal
       {painel === "desfecho" && (
         <PainelDesfecho o={o} motivos={motivos} salvando={salvando} acoes={acoes} aoFechar={() => acoes.painel(o, null)} />
       )}
-    </div>
+    </LinhaLista>
   );
 }
 
@@ -1038,7 +968,6 @@ export default function Orcamentos() {
           <div className="sem-impressao">
             <FaixaNumeros
               r={r}
-              conversao={vm.kpis.conversao}
               recorte={recorte}
               aoRecortar={(id) => {
                 setRecorte(id);
