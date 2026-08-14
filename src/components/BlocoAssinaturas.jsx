@@ -338,17 +338,6 @@ export default function BlocoAssinaturas({ podeEditar }) {
                 <div className="min-w-0">
                   <p className="truncate font-display text-[15px] font-semibold leading-tight text-slate-900">
                     {a.nome}
-                    {a.url && (
-                      <a
-                        className="sem-impressao ml-1.5 inline-flex text-slate-400 hover:text-brand"
-                        href={a.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        title="Abrir a página de cobrança"
-                      >
-                        <ExternalLink size={13} strokeWidth={2.4} />
-                      </a>
-                    )}
                   </p>
                   <p className="truncate text-sm text-slate-500">{a.oQue || "sem descrição"}</p>
                 </div>
@@ -367,6 +356,18 @@ export default function BlocoAssinaturas({ podeEditar }) {
                 </p>
 
                 <div className="sem-impressao mt-2.5 grid grid-cols-2 gap-2 xl:mt-0 xl:flex xl:justify-end">
+                  {a.url && (
+                    <a
+                      className="btn-outline min-h-[44px] justify-center xl:min-h-[40px] xl:!px-2.5"
+                      href={a.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      title="Abrir a página de cobrança deste serviço"
+                    >
+                      <ExternalLink size={15} strokeWidth={2.4} />
+                      <span className="xl:hidden">Fatura</span>
+                    </a>
+                  )}
                   <button
                     className={`btn-outline min-h-[44px] justify-center xl:min-h-[40px] ${
                       a.pagoEm ? "!border-ok-200 !text-ok-700" : ""
