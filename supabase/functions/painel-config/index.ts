@@ -34,7 +34,10 @@ const sb = createClient(SUPABASE_URL, SERVICE_KEY, { auth: { persistSession: fal
 // "marketing" guarda os atalhos do Drive; "bancos", as contas bancarias da aba
 // Bancos e Pix. Entram como overlay porque o mecanismo e o mesmo: mapa por id,
 // merge sem corrida.
-const OVERLAYS = new Set(["ov_rec", "ov_orc", "marketing", "bancos", "glossario", "compromissos", "manutencoes", "patrimonio", "setores"]);
+// "assinaturas" sao as contas dos SISTEMAS (Supabase, GitHub, Claude...): dia
+// do vencimento, valor e o mes que ja foi pago. Mesmo mecanismo, um registro
+// por servico.
+const OVERLAYS = new Set(["ov_rec", "ov_orc", "marketing", "bancos", "glossario", "compromissos", "manutencoes", "patrimonio", "setores", "assinaturas"]);
 // Chaves em que cada pessoa so enxerga e mexe no que E DELA. A vendedora nao
 // pode ver a agenda da colega, e a direcao ve tudo. Isso e checado no
 // SERVIDOR: filtrar so na tela seria conforto, nao separacao.
@@ -176,6 +179,8 @@ Deno.serve(async (req: Request) => {
     // Duas chaves, um modulo so: os setores existem para o patrimonio.
     patrimonio: "patrimonio",
     setores: "patrimonio",
+    // As contas dos sistemas sao assunto da direcao: moram na tela de Gestao.
+    assinaturas: "gestao",
   };
   const barraChave = (chave: string) => {
     // Sem sessao, quem responde e o 401 de cada ramo: o cliente usa esse 401

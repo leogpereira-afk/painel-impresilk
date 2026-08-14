@@ -16,8 +16,9 @@
 // `equipeDoRH` na Edge Function).
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import BlocoAssinaturas from "../components/BlocoAssinaturas.jsx";
 import {
-  ChevronDown, Compass, Target, Swords, FileText, Flag, Plus, Pencil, Trash2,
+  ChevronDown, Compass, Target, Swords, FileText, Flag, Plus, Pencil, Trash2, CreditCard,
   Check, Lock, Users, Search,
 } from "lucide-react";
 import {
@@ -39,6 +40,9 @@ const BLOCOS = [
   { id: "tatico", titulo: "Esquema tático", sub: "o que está sendo feito agora, e por quem", icone: Swords },
   { id: "atas", titulo: "Reuniões e atas", sub: "o que foi decidido e por quem", icone: FileText },
   { id: "ciclo", titulo: "Fechamento de ciclo", sub: "planejado, realizado e desvio", icone: Flag },
+  // As contas que sustentam os sistemas (Supabase, GitHub, Claude): quando
+  // vencem e se já foram pagas. É controle da direção, não de produção.
+  { id: "assinaturas", titulo: "Contas dos sistemas", sub: "o que o painel custa por mês, e o que já foi pago", icone: CreditCard },
 ];
 const BLOCO_PADRAO = "tatico";
 
@@ -1374,6 +1378,7 @@ export default function Gestao() {
     ),
     atas: <BlocoAtas dados={dados} papel={papel} aoRecarregar={carregar} aoAvisar={setAviso} />,
     ciclo: <BlocoCiclo dados={dados} podeEditar={ehDiretoria} hojeISO={hojeISO} aoRecarregar={carregar} aoAvisar={setAviso} />,
+    assinaturas: <BlocoAssinaturas podeEditar={ehDiretoria} />,
   };
 
   return (
