@@ -371,7 +371,12 @@ export function calcOrcamentos(orcamentos, overrides, config, opcoes = {}) {
   for (const b of BALDES) porBalde[b.id] = grupos.filter((g) => g.balde === b.id).length;
 
   // ------------------------------------------------------------ agenda
-  const agenda = agrupar(doEscopo.filter((o) => o.adiado)).sort(
+  /* Só quem ainda está vivo: sem o corte por situação, um orçamento GANHO que
+     tinha retorno marcado continuava aparecendo na Agenda -- e alguém ligava
+     para cobrar decisão de um negócio já fechado. É também o que permite à
+     baixa NÃO apagar a promessa: baixado, ele sai daqui por situação; desfeita
+     a baixa, a promessa volta intacta. */
+  const agenda = agrupar(doEscopo.filter((o) => o.adiado && (o.situacao === "aberto" || o.recall))).sort(
     (a, b) =>
       String(a.proximoToque).localeCompare(String(b.proximoToque)) || b.dinheiro - a.dinheiro
   );

@@ -89,21 +89,22 @@ export function Dinheiro({ valor, abaixo, classe = "text-[17px]", formatar }) {
    no celular no lugar do `sub` (que quebra em três linhas em 390px). */
 export function FaixaNumeros({ celulas, ativo, aoEscolher }) {
   return (
+    /* O fio entre as células é o FUNDO aparecendo pelo gap de 1px: com borda
+       por célula, a grade 2×2 entre 640 e 1023px ficava sem o fio horizontal
+       (o sm: apagava o border-t antes de a grade virar 4 colunas) e os quatro
+       números se fundiam num bloco só. */
     <div
-      className="grid grid-cols-2 overflow-hidden rounded-xl border bg-white lg:grid-cols-4"
-      style={{ borderColor: "var(--hairline)" }}
+      className="grid grid-cols-2 gap-px overflow-hidden rounded-xl border lg:grid-cols-4"
+      style={{ borderColor: "var(--hairline)", backgroundColor: "var(--hairline)" }}
     >
-      {celulas.map((c, i) => {
+      {celulas.map((c) => {
         const sel = ativo === c.id;
         return (
           <button
             key={c.id}
             onClick={() => aoEscolher(c.id)}
             aria-pressed={sel}
-            className={`border-t px-4 py-3 text-left transition-colors first:border-t-0 sm:border-t-0 ${
-              i % 2 === 1 ? "border-l" : ""
-            } lg:border-l lg:first:border-l-0 ${sel ? "bg-brand-50" : "hover:bg-slate-50"}`}
-            style={{ borderColor: "var(--hairline)" }}
+            className={`px-4 py-3 text-left transition-colors ${sel ? "bg-brand-50" : "bg-white hover:bg-slate-50"}`}
           >
             <span className="block truncate text-xs text-slate-500">{c.rotulo}</span>
             <span
@@ -136,7 +137,7 @@ export function LinhaLista({ tom = "neutral", saindo, children }) {
       className={`relative border-t px-4 py-3 transition-colors first:border-0 hover:bg-slate-50/60 ${
         saindo ? "opacity-50" : ""
       }`}
-      style={{ borderColor: "#f0f0f5" }}
+      style={{ borderColor: "var(--fio-lista, #f0f0f5)" }}
     >
       <span className={`absolute inset-y-0 left-0 w-[3px] ${TRILHO[tom] || TRILHO.neutral}`} aria-hidden="true" />
       {children}

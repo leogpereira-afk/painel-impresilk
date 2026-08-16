@@ -9,17 +9,12 @@
 import { useMemo, useRef, useState } from "react";
 import {
   AlertTriangle,
-  Clock,
-  Repeat,
-  Timer,
-  Gauge,
   Phone,
   CheckCircle2,
   ChevronRight,
   Undo2,
   SlidersHorizontal,
   Search,
-  User,
   X,
 } from "lucide-react";
 import {
@@ -136,7 +131,7 @@ export default function ContasAtrasadas() {
   // sem dizer o que esta (e o que nao esta) na lista.
   const resumoFiltros = useMemo(() => {
     const p = [];
-    if (filtro !== "todos") p.push({ pendentes: "so pendentes de cobranca", reincidentes: "so reincidentes", acima: `atraso acima de ${diasMin} dias` }[filtro] || filtro);
+    if (filtro !== "todos") p.push({ pendentes: "so pendentes de cobranca", reincidentes: "so reincidentes", acima: `atraso acima de ${diasMin} dias`, aVencer: "vence nos proximos 7 dias" }[filtro] || filtro);
     if (anoSel) p.push(`ano ${anoSel}`);
     if (mesSel) p.push(`mes ${MESES[Number(mesSel) - 1]}`);
     if (venceDe || venceAte)
@@ -151,6 +146,37 @@ export default function ContasAtrasadas() {
     if (!vm) return [];
     const min = Number(diasMin) || 0;
     const q = norm(busca.trim());
+    /* O recorte "aVencer" troca a FONTE: são títulos ainda no prazo (não estão
+       em vm.titulos). Ganham a forma da linha com o que têm -- sem motivo, sem
+       cobrança, vencimento à frente -- e o selo diz "vence em N d". */
+    if (filtro === "aVencer") {
+      return (vm.aVencer?.lista || [])
+        .filter((r) => (!q ? true : norm(`${r.cliente} ${r.cnpj || ""} ${r.nf || ""} ${r.os || ""}`).includes(q)))
+        .map((r) => ({
+          id: r.id,
+          cliente: r.cliente,
+          cnpj: r.cnpj || "",
+          nf: r.nf || "",
+          os: r.os || "",
+          vencimento: r.vencimento || "",
+          emissao: r.emissao || "",
+          valor: r.valor || 0,
+          dias: r.dias,
+          diasAte: r.diasAte,
+          aVencer: true,
+          jaDeve: !!r.jaDeve,
+          vendedores: [],
+          vendedor: "",
+          cobrado: false,
+          reincidente: false,
+          motivoId: null,
+          motivoNome: "",
+          grupoNome: "no prazo",
+          proximaAcao: r.jaDeve
+            ? "Ligar antes de vencer: este cliente já tem atraso em aberto."
+            : "Lembrete amigável antes do vencimento.",
+        }));
+    }
     const filtrados = vm.titulos.filter((t) => {
       if (filtro === "pendentes" && t.cobrado) return false;
       if (filtro === "reincidentes" && !t.reincidente) return false;
@@ -254,8 +280,15 @@ export default function ContasAtrasadas() {
     setAnoSel("");
     setMesSel("");
   };
-  const irParaTitulos = () =>
-    titulosRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  /* Volta para a aba da lista ANTES de rolar: os cliques da Análise ("ver na
+     lista", ranking, plano, idade) chamavam isto com o Card da lista
+     desmontado -- o ref era null, o scroll era um no-op e o filtro ficava
+     armado em silêncio para a próxima visita. O setTimeout dá o quadro que o
+     React precisa para montar o Card. */
+  const irParaTitulos = () => {
+    setAba("lista");
+    setTimeout(() => titulosRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 80);
+  };
 
   // Clique num KPI liga/desliga o filtro correspondente e leva para a lista.
   // Limpa busca e faixa para o KPI ser um filtro previsivel (senao o clique
@@ -305,13 +338,19 @@ export default function ContasAtrasadas() {
       {aba === "lista" && (
         <div className="sem-impressao">
           <FaixaNumeros
-            ativo={temFiltro ? filtro : "todos"}
+            // "Total atrasado" só acende quando NADA está filtrado: com a
+            // carteira de um vendedor ligada, a célula acesa afirmava um
+            // recorte que não era o da tela.
+            ativo={filtro !== "todos" ? filtro : temFiltro ? null : "todos"}
             aoEscolher={(id) => {
               if (id === "todos") {
                 limparTudo();
               } else if (id === "aVencer") {
+                // Vira recorte da própria lista: mandava para a Análise, onde
+                // não existe nada sobre a semana -- no celular a informação
+                // não estava em lugar NENHUM.
                 limparTudo();
-                setAba("analise");
+                setFiltro("aVencer");
               } else {
                 alternarFiltro(id);
               }
@@ -705,7 +744,7 @@ export default function ContasAtrasadas() {
              duas coisas que a tela pede para fazer. Mesma anatomia da tela de
              Orçamentos: título e sub, um selo, quem vendeu, o tempo, o dinheiro
              e as ações na própria linha. */
-          <div className="-mx-5 sm:-mx-6">
+          <div className="-mx-5 print:mx-0 sm:-mx-6">
             {titulosFiltrados.map((t) => {
               const aberto = expandido === t.id;
               const tom = t.dias >= 90 ? "bad" : t.dias >= 30 ? "warn" : "neutral";
@@ -727,7 +766,12 @@ export default function ContasAtrasadas() {
                     </button>
 
                     <div className="mt-2 flex flex-wrap items-center gap-2 xl:mt-0 xl:block">
-                      {t.cobrado ? (
+                      {t.aVencer ? (
+                        <Selo tom={t.jaDeve ? "warn" : "brand"}>
+                          {t.diasAte === 0 ? "Vence hoje" : `Vence em ${t.diasAte} d`}
+                          {t.jaDeve ? " · já deve" : ""}
+                        </Selo>
+                      ) : t.cobrado ? (
                         <Selo tom="ok">
                           {t.cobradoHa == null
                             ? "Cobrado"
@@ -766,7 +810,7 @@ export default function ContasAtrasadas() {
                         t.dias >= 90 ? "text-bad-700" : t.dias >= 30 ? "text-warn-700" : "text-slate-500"
                       }`}
                     >
-                      {numero(t.dias)} {t.dias === 1 ? "dia" : "dias"}
+                      {t.aVencer ? `em ${numero(t.diasAte)} d` : `${numero(t.dias)} ${t.dias === 1 ? "dia" : "dias"}`}
                     </p>
 
                     <div className="mt-2 xl:mt-0">

@@ -147,7 +147,10 @@ function Saude({ dados, hojeISO, aoIr }) {
   const decisoes = dados?.decisoes || [];
   const reunioes = dados?.reunioes || [];
 
-  const abertas = taticas.filter((t) => t.status !== "concluida");
+  // Cancelada não é "em andamento": contada aqui, uma tática cancelada com
+  // prazo vencido acendia "atrasadas" para sempre -- divergindo do calc, que
+  // já a exclui.
+  const abertas = taticas.filter((t) => t.status !== "concluida" && t.status !== "cancelada");
   const atrasadas = abertas.filter((t) => t.prazo && t.prazo < hojeISO).length;
   const semDono = abertas.filter((t) => !t.responsavel).length;
   const decisoesAbertas = decisoes.filter((d) => d.status === "aberta").length;

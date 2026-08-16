@@ -356,6 +356,20 @@ Deno.serve(async (req: Request) => {
             // e hora. Sem isto, qualquer pessoa reescreveria a conversa inteira
             // -- inclusive apagando o que a colega escreveu.
             const { historico: _naoVemDoCliente, ...camposLimpos } = (campos as any) ?? {};
+            /* `pagosPatch` funde MES a MES dentro do campo `pagos` (null tira o
+               mes). Mandar o mapa inteiro -- como a primeira versao fazia --
+               reabria a corrida que este arquivo fechou para registros: o
+               celular com estado velho apagava o mes que o desktop tinha
+               acabado de marcar. */
+            if (camposLimpos.pagosPatch && typeof camposLimpos.pagosPatch === "object") {
+              const atualPagos = { ...(((data?.registro as any) ?? {}).pagos ?? {}) };
+              for (const [mes, v] of Object.entries(camposLimpos.pagosPatch as Record<string, unknown>)) {
+                if (v == null) delete atualPagos[mes];
+                else atualPagos[mes] = String(v);
+              }
+              (camposLimpos as any).pagos = atualPagos;
+              delete (camposLimpos as any).pagosPatch;
+            }
             const fundido: any = { ...(data?.registro ?? {}), ...camposLimpos };
             if (POR_DONO.has(chave)) {
               const donoAtual = (data?.registro as any)?.dono ?? null;

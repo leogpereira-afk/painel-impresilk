@@ -288,6 +288,9 @@ Deno.serve(async (req: Request) => {
         const id = String(corpo.id ?? "");
         if (!id) return resposta({ erro: "id ausente" }, 400);
         { const b = await barraId(id); if (b) return b; }
+        // Mesma trava do lerArquivo: id que nao e de ativo nao apaga nada --
+        // o storage.remove no fim apagaria bytes de anexo de conversa alheia.
+        if (!(await tipoDoId(id))) return resposta({ erro: "item nao encontrado" }, 404);
         await sb.from("painel_registros").delete().eq("colecao", "ativo").eq("id", id);
         // O arquivo vai junto: deixar orfao so ocupa espaco e guarda um
         // documento que o usuario mandou apagar.
@@ -325,6 +328,11 @@ Deno.serve(async (req: Request) => {
       case "lerArquivo": {
         const id = String(corpo.id ?? "");
         { const b = await barraId(id); if (b) return b; }
+        /* So arquivo DE ATIVO. O bucket e compartilhado com os anexos de
+           conversa dos compromissos (que tem dono e regra propria no
+           painel-config): sem esta trava, qualquer pessoa logada baixava o
+           anexo da conversa de outra passando a chave dele aqui. */
+        if (!(await tipoDoId(id))) return resposta({ erro: "arquivo nao encontrado" }, 404);
         const { data: meta } = await sb.from("painel_registros").select("registro")
           .eq("colecao", "arquivo").eq("id", id).maybeSingle();
         const { data: arq, error } = await sb.storage.from(BUCKET).download(id);

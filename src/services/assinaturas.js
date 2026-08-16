@@ -31,3 +31,10 @@ export const salvarAssinatura = (id, dados) =>
 
 export const removerAssinatura = (id) =>
   chamar("removerId", { chave: "assinaturas", id }).then(() => true);
+
+// Marca ou tira UM mês (valor null tira). O servidor funde mês a mês: mandar o
+// mapa inteiro fazia o aparelho com estado velho apagar o mês que o outro
+// tinha acabado de marcar.
+export const marcarPago = (id, mes, dataOuNull) =>
+  chamar("merge", { chave: "assinaturas", patch: { [id]: { pagosPatch: { [mes]: dataOuNull } } } })
+    .then((r) => r.valor || {});

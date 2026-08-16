@@ -99,6 +99,10 @@ async function montarBackupPainel() {
       manutencoes: await linhasDe("manutencoes"),
       patrimonio: await linhasDe("patrimonio"),
       setores: await linhasDe("setores"),
+      // Contas dos sistemas (Supabase, GitHub, Claude): dia, valor e meses
+      // pagos. Nasceu em 15/08 e ficou UM dia fora do backup -- a auditoria
+      // pegou antes de virar perda.
+      assinaturas: await linhasDe("assinaturas"),
       // Os BYTES dos arquivos ficam no bucket (duraveis); um backup diario
       // deles incharia o repositorio. Mesma decisao do original com as fotos.
     },
@@ -426,6 +430,7 @@ Deno.serve(async (req: Request) => {
           if (p.manutencoes) mapas.push(["manutencoes", p.manutencoes]);
           if (p.patrimonio) mapas.push(["patrimonio", p.patrimonio]);
           if (p.setores) mapas.push(["setores", p.setores]);
+          if (p.assinaturas) mapas.push(["assinaturas", p.assinaturas]);
         } else {
           // v1: chaves de blob (ov_rec/ov_orc mapas; ativo_<id> soltos)
           mapas.push(["ov_rec", p.ov_rec ?? {}], ["ov_orc", p.ov_orc ?? {}]);

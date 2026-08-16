@@ -1048,17 +1048,34 @@ export default function Manutencoes() {
          dizer que não cadastrou quando cadastrou. */
       try {
         const idBem = f.bemId || `pat-${salvo.id}`;
-        await salvarBem(idBem, {
+        /* EDITAR NÃO PODE ZERAR O QUE ESTA TELA NÃO CARREGA. O formulário de
+           edição nasce do ATIVO, que não traz NF, data, valor nem setor do bem
+           -- reenviar esses campos vazios apagava, a cada "Salvar", o que o
+           Patrimônio já tinha (era o único bloqueador da auditoria de 15/08).
+           O merge do servidor mantém campo AUSENTE; então, na edição, os campos
+           do bem só entram se a pessoa os preencheu agora. Na criação vão
+           todos, como sempre. */
+        const doBem = {
           origemAtivoId: salvo.id,
-          setorSigla: f.setorSigla || "",
           nomeGenerico: f.nome,
           descricaoTecnica: [f.categoria, identificacaoDe(f)].filter(Boolean).join(" · "),
-          nf: f.nf || "",
-          dataAquisicao: f.dataAquisicao || "",
-          valor: paraNumero(f.valor),
-          situacao: "uso",
           observacao: f.observacao || "",
-        });
+        };
+        if (!f.id) {
+          Object.assign(doBem, {
+            setorSigla: f.setorSigla || "",
+            nf: f.nf || "",
+            dataAquisicao: f.dataAquisicao || "",
+            valor: paraNumero(f.valor),
+            situacao: "uso",
+          });
+        } else {
+          if (f.setorSigla) doBem.setorSigla = f.setorSigla;
+          if (f.nf) doBem.nf = f.nf;
+          if (f.dataAquisicao) doBem.dataAquisicao = f.dataAquisicao;
+          if (paraNumero(f.valor) > 0) doBem.valor = paraNumero(f.valor);
+        }
+        await salvarBem(idBem, doBem);
       } catch (e2) {
         console.warn("[manutencoes] item salvo, mas o espelho no patrimônio falhou:", e2?.message || e2);
       }

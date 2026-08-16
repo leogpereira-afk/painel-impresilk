@@ -7,6 +7,9 @@
   --bg: #f4f4f7;
   --surface: #ffffff;
   --hairline: #e6e6ee;
+  /* Fio entre linhas de lista: mais claro que o hairline de borda. No escuro
+     o valor fixo #f0f0f5 virava um risco quase branco em toda linha. */
+  --fio-lista: #f0f0f5;
 }
 
 * {
@@ -193,6 +196,7 @@ html.dark {
   --bg: #0c0e1a;
   --surface: #161a2c;
   --hairline: rgba(255, 255, 255, 0.10);
+  --fio-lista: rgba(255, 255, 255, 0.07);
   color-scheme: dark;
 }
 html.dark body {

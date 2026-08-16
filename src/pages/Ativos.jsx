@@ -138,9 +138,15 @@ export default function Ativos() {
   // Prêmio e importância segurada da carteira -- as duas perguntas que se faz
   // sobre seguro depois de "vence quando".
   const carteira = useMemo(() => {
-    const apolices = vm.lista.filter((x) => x.tipo === "seguro" && x.sit.nivel !== "vencido");
+    // "Vigente" exige vigência: apólice sem data não pode inflar a carteira
+    // como se cobrisse -- ela entra num aviso próprio.
+    const apolices = vm.lista.filter(
+      (x) => x.tipo === "seguro" && x.sit.nivel !== "vencido" && x.sit.nivel !== "sem"
+    );
+    const semVigencia = vm.lista.filter((x) => x.tipo === "seguro" && x.sit.nivel === "sem").length;
     return {
       quantas: apolices.length,
+      semVigencia,
       premio: apolices.reduce((t, x) => t + (Number(x.valor) || 0), 0),
       segurado: apolices.reduce((t, x) => t + (Number(x.valorSegurado) || 0), 0),
     };
@@ -527,7 +533,7 @@ export default function Ativos() {
         )}
 
         {/* A carteira de seguros: prêmio e cobertura só fazem sentido somados. */}
-        {tipo === "seguro" && carteira.quantas > 0 && !recorte && (
+        {tipo === "seguro" && (carteira.quantas > 0 || carteira.semVigencia > 0) && !recorte && (
           <div className="mb-3 flex flex-wrap items-center gap-x-5 gap-y-1 rounded-lg bg-slate-50 px-3 py-2 text-sm text-slate-600">
             <span>
               <b className="text-slate-900">{numero(carteira.quantas)}</b>{" "}
@@ -539,6 +545,11 @@ export default function Ativos() {
             <span>
               custam <b className="text-slate-900">{moeda(carteira.premio)}</b> no ano
             </span>
+            {carteira.semVigencia > 0 && (
+              <span className="text-warn-700">
+                {numero(carteira.semVigencia)} sem vigência informada
+              </span>
+            )}
           </div>
         )}
 

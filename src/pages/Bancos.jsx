@@ -454,7 +454,10 @@ export default function Bancos() {
       )}
 
       {grupos.map((g, i) => {
-        const aberto = estaAberto(g.nome, i);
+        // Com UMA empresa só não existe grade de cartões (ela pede 2+): fechar
+        // o único grupo deixava a tela vazia, sem nenhum botão de volta -- e o
+        // estado ficava gravado, sobrevivendo ao recarregar.
+        const aberto = grupos.length === 1 || estaAberto(g.nome, i);
         // Fechado não ocupa espaço: quem escolhe é o cartão lá em cima.
         if (!aberto) return null;
         return (

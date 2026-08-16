@@ -11,11 +11,12 @@
 // Moeda não se soma: dólar e real aparecem lado a lado, nunca num total só.
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Plus, X, Trash2, ExternalLink, Check, ChevronLeft, ChevronRight, Undo2 } from "lucide-react";
+import { Plus, Trash2, ExternalLink, Check, ChevronLeft, ChevronRight, Undo2 } from "lucide-react";
 import {
   lerAssinaturas,
   salvarAssinatura,
   removerAssinatura,
+  marcarPago,
 } from "../services/assinaturas.js";
 import {
   calcAssinaturas,
@@ -25,7 +26,7 @@ import {
   MOEDAS,
   SUGESTOES,
 } from "../lib/calc/assinaturas.js";
-import { numero, dataLonga, ymdLocal } from "../lib/format.js";
+import { numero, dataLonga, paraNumero, ymdLocal } from "../lib/format.js";
 import { Selo, FaixaNumeros, LinhaLista } from "./lista.jsx";
 import { SectionTitle, Empty, CarregandoModulo, ErroModulo } from "./ui.jsx";
 
@@ -140,7 +141,9 @@ export default function BlocoAssinaturas({ podeEditar }) {
     const l = vm.lista;
     if (recorte === "aPagar") return l.filter((a) => a.ativa && !a.pagoEm);
     if (recorte === "vencidas") return l.filter((a) => a.ativa && !a.pagoEm && a.temDia && a.dias < 0);
-    if (recorte === "pagas") return l.filter((a) => a.pagoEm);
+    // Só as ativas: o número do cartão conta ativas, e a lista tem de ser o
+    // mesmo conjunto -- senão "Pagas 2 de 3" abria com 3 linhas.
+    if (recorte === "pagas") return l.filter((a) => a.ativa && a.pagoEm);
     return l;
   }, [vm, recorte]);
 
@@ -171,13 +174,15 @@ export default function BlocoAssinaturas({ podeEditar }) {
       nome: f.nome.trim(),
       oQue: (f.oQue || "").trim(),
       diaVencimento: Number(f.diaVencimento) || "",
-      valor: Number(String(f.valor).replace(",", ".")) || 0,
+      // paraNumero entende "1.234,56"; o replace de vírgula sozinho fazia
+      // qualquer valor com ponto de milhar virar 0, sem aviso.
+      valor: paraNumero(f.valor),
       moeda: f.moeda,
       url: (f.url || "").trim(),
       ativa: f.ativa !== false,
-      // `pagos` vai junto no merge: o servidor funde CAMPO a campo no registro,
-      // então um patch sem ele apagaria o histórico de pagamentos.
-      pagos: (mapa[id] && mapa[id].pagos) || {},
+      // `pagos` NÃO vai: campo ausente no merge mantém o que está no servidor.
+      // Reenviar o mapa lido no carregamento apagava o mês que outro aparelho
+      // tivesse marcado nesse meio-tempo.
     });
     if (ok) {
       setForm(null);
@@ -185,13 +190,18 @@ export default function BlocoAssinaturas({ podeEditar }) {
     }
   }
 
-  // Marcar/desmarcar o pagamento DAQUELE mês. Manda o objeto `pagos` inteiro
-  // porque o merge do servidor troca o campo por completo.
-  function alternarPago(a) {
-    const pagos = { ...a.pagos };
-    if (pagos[mes]) delete pagos[mes];
-    else pagos[mes] = ymdLocal(new Date());
-    gravar(a.id, { pagos });
+  // Marcar/desmarcar o pagamento DAQUELE mês, e só dele: o servidor funde mês
+  // a mês (pagosPatch), então dois aparelhos não se apagam.
+  async function alternarPago(a) {
+    setSalvando(true);
+    setAviso(null);
+    try {
+      setMapa(await marcarPago(a.id, mes, a.pagoEm ? null : ymdLocal(new Date())));
+    } catch (e) {
+      setAviso({ tom: "erro", texto: e.message });
+    } finally {
+      setSalvando(false);
+    }
   }
 
   async function apagar(a) {
@@ -249,6 +259,10 @@ export default function BlocoAssinaturas({ podeEditar }) {
           </button>
         )}
       </div>
+
+      {/* No papel o seletor de mês some (sem-impressao): sem esta linha o PDF
+          mostrava selos "Pago" sem dizer de que competência. */}
+      <p className="apenas-impressao text-sm font-semibold first-letter:uppercase">{nomeDoMes(mes)}</p>
 
       {aviso && (
         <p className={`rounded-lg px-3 py-2 text-sm ${aviso.tom === "erro" ? "bg-bad-50 text-bad-700" : "bg-ok-50 text-ok-700"}`}>

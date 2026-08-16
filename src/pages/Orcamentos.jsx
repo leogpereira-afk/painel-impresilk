@@ -249,7 +249,7 @@ function PainelDesfecho({ o, motivos, salvando, acoes, aoFechar }) {
           {motivos.map((m) => (
             <button
               key={m.id}
-              className={motivo === m.id ? "chip-sel" : "chip-btn"}
+              className={`min-h-[36px] ${motivo === m.id ? "chip-sel" : "chip-btn"}`}
               aria-pressed={motivo === m.id}
               onClick={() => setMotivo((v) => (v === m.id ? "" : m.id))}
             >
@@ -398,8 +398,12 @@ function LinhaOrcamento({ o, aberto, painel, mostrarVendedor, motivos, hoje, sal
           +{o.qtdDoCliente - 1} do mesmo cliente
         </button>
       )}
+      {/* O selo já sai no papel; repetir o estado aqui duplicava a linha. E o
+          telefone cru ("5538999990000") é ilegível para discar da folha. */}
       <span className="apenas-impressao text-xs">
-        {[o.celular, o.contatoNome, o.estado.rotulo].filter(Boolean).join(" · ")}
+        {[o.celular && o.celular.replace(/^55(\d{2})(\d{4,5})(\d{4})$/, "($1) $2-$3"), o.contatoNome]
+          .filter(Boolean)
+          .join(" · ")}
       </span>
 
       {aberto && <Ficha o={o} />}
@@ -487,7 +491,7 @@ function Placar({
       >
         <span className="font-display font-semibold text-slate-900">Placar do mês</span>
         <span className="tnum flex items-center gap-2 text-xs text-slate-500">
-          <span className="hidden sm:inline">{rotuloPeriodo} · </span>
+          <span>{rotuloPeriodo} · </span>
           {numero(k.ganhosQtd)} ganhos · {pct(k.conversao)} · {moeda(k.margemGanha)}
           <ChevronDown size={16} className={`shrink-0 transition-transform ${aberto ? "" : "-rotate-90"}`} />
         </span>
@@ -708,7 +712,11 @@ export default function Orcamentos() {
   const porCliente = useMemo(() => {
     const m = new Map();
     for (const o of vm?.mesa || []) {
-      const k = o.clienteId || norm(o.cliente);
+      // Mesma regra do calc: sem clienteId e com o nome de preenchimento
+      // "Cliente", cada orçamento é o próprio grupo -- senão duas empresas sem
+      // nome no ERP viravam "+1 do mesmo cliente" uma da outra.
+      const n = norm(o.cliente);
+      const k = o.clienteId ? `c:${o.clienteId}` : !n || n === "cliente" ? `o:${o.id}` : `n:${n}`;
       m.set(k, (m.get(k) || 0) + 1);
     }
     return m;
@@ -743,7 +751,12 @@ export default function Orcamentos() {
         : ORDENS[ordem].fn;
     return [...filtrada].sort(ord).map((o) => ({
       ...o,
-      qtdDoCliente: porCliente.get(o.clienteId || norm(o.cliente)) || 1,
+      qtdDoCliente: (() => {
+        const n = norm(o.cliente);
+        return (
+          porCliente.get(o.clienteId ? `c:${o.clienteId}` : !n || n === "cliente" ? `o:${o.id}` : `n:${n}`) || 1
+        );
+      })(),
       saindo: saindo.includes(o.id),
     }));
   }, [vm, recorte, busca, ordem, porCliente, saindo]);
@@ -830,7 +843,9 @@ export default function Orcamentos() {
         [o.id],
         { proximoToque: data, compromissoId: id, chamadoEm: null, nota: nota || null },
         `${o.cliente}: retorno em ${dataCurta(data)}`,
-        { some: recorte !== "mesa" }
+        // `recorte` é estado da aba mesa: lido do Histórico, desbotava a
+        // linha errada. O desbote só faz sentido na mesa mesmo.
+        { some: aba === "mesa" && recorte !== "mesa" }
       );
       /* O retorno prometido aqui tem de aparecer na agenda de Compromissos:
          antes ele morria dentro do módulo. Falhar aqui NÃO derruba o
@@ -845,7 +860,21 @@ export default function Orcamentos() {
       }).catch((e) => console.warn("[orcamentos] retorno gravado, sem compromisso:", e?.message || e));
     },
 
-    antecipar: (o) => gravar([o.id], { proximoToque: hoje }, `${o.cliente} voltou para hoje`, { some: false }),
+    antecipar: (o) => {
+      gravar([o.id], { proximoToque: hoje }, `${o.cliente} voltou para hoje`, { some: false });
+      // O espelho em Compromissos anda junto: sem isto a agenda da equipe
+      // continuava mostrando o retorno na data antiga.
+      if (o.compromissoId) {
+        salvarCompromisso(o.compromissoId, {
+          titulo: `Retorno — ${o.cliente}`,
+          tipo: "retorno",
+          cliente: o.cliente,
+          data: hoje,
+          telefone: o.celular || "",
+          obs: o.nota || o.trabalho || "",
+        }).catch((e) => console.warn("[orcamentos] antecipado, espelho ficou:", e?.message || e));
+      }
+    },
 
     // A NOTA SOBREVIVE ao cancelamento: ela é o que o cliente pediu, não a data.
     cancelar: (o) => {
@@ -857,19 +886,26 @@ export default function Orcamentos() {
       }
     },
 
-    baixa: (o, situacao, motivoId) =>
+    /* A baixa NÃO apaga mais proximoToque/chamadoEm: o calc esconde o baixado
+       da fila e da Agenda pela situação, então "Desfazer a baixa" -- mesmo dias
+       depois, fora da barra de 8s -- devolve o orçamento com a promessa
+       intacta. Antes, um "Ganhamos" por engano perdia a data que o cliente
+       tinha pedido, sem volta.
+       O compromisso espelhado sai da agenda de Compromissos (senão alguém liga
+       no dia marcado para um negócio já fechado); desfeita a baixa, marcar o
+       retorno de novo o recria. */
+    baixa: (o, situacao, motivoId) => {
       gravar(
         [o.id],
-        {
-          situacao,
-          dataBaixa: hoje,
-          proximoToque: null,
-          compromissoId: null,
-          chamadoEm: null,
-          ...(motivoId ? { motivoPerdaId: motivoId } : {}),
-        },
+        { situacao, dataBaixa: hoje, ...(motivoId ? { motivoPerdaId: motivoId } : {}) },
         `${o.cliente} nº ${o.numero}: ${situacao === "ganho" ? "ganho" : "perdido"}`
-      ),
+      );
+      if (o.compromissoId) {
+        removerCompromisso(o.compromissoId).catch((e) =>
+          console.warn("[orcamentos] baixa feita, compromisso ficou:", e?.message || e)
+        );
+      }
+    },
 
     desfazerBaixa: (o) =>
       gravar([o.id], { situacao: null, dataBaixa: null }, `Baixa desfeita — ${o.cliente}`, { some: false }),
@@ -923,6 +959,10 @@ export default function Orcamentos() {
             setAberto(null);
             setPainel({ id: null, qual: null });
             setLimite(30);
+            // A mesma string servia mesa E histórico: o Histórico abria
+            // filtrado por uma busca da outra aba, com os números do Segmented
+            // desmentindo a lista.
+            setBusca("");
           }}
         />
 
@@ -1250,6 +1290,8 @@ export default function Orcamentos() {
         aoTrocarMes={setMes}
         aoEscolherVendedor={(id) => {
           trocarVendedor(id);
+          // A busca residual fazia a fila do vendedor escolhido abrir "vazia".
+          setBusca("");
           setPlacarAberto(false);
           setAba("mesa");
         }}
