@@ -390,6 +390,13 @@ Deno.serve(async (req: Request) => {
             const chave = normalizar(login);
             (reivindicados[p.sistema] ??= new Set()).add(chave);
             const r = real[p.sistema]?.[chave] ?? null;
+            /* O `ativo` da conta NAO conta a historia toda: painel_contas e
+               perfis nao tinham coluna de ativo, entao `estadoReal` grava true
+               fixo neles -- e conta desativada aparecia VERDE, com selo "ok".
+               Quem manda sobre estar ativo e o quadro unico, que e onde o botao
+               "desativar" grava: a pessoa (c.ativo) e o papel dela naquele
+               sistema (p.ativo). */
+            const ativo = r ? (r.ativo !== false && c.ativo !== false && p.ativo !== false) : false;
             return {
               ...p,
               // O login com que a pessoa entra ALI. Quando ninguem corrigiu,
@@ -397,7 +404,7 @@ Deno.serve(async (req: Request) => {
               login,
               deduzido: !texto(p.login, 160),
               real: r
-                ? { existe: true, login: r.login, papel: r.papel, ativo: r.ativo,
+                ? { existe: true, login: r.login, papel: r.papel, ativo,
                     temporaria: r.temporaria, em: r.em, permissoes: r.permissoes }
                 : { existe: false },
             };
@@ -515,9 +522,46 @@ Deno.serve(async (req: Request) => {
             .sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR"));
         }
 
+        /* QUEM ESTA BATENDO NA PORTA E NAO CONSEGUE ENTRAR.
+           O equipe_acessos_log existe desde 03/08 e a tela NUNCA o leu -- sao
+           121 falhas gravadas contra 43 entradas, e a pergunta que o dono mais
+           faz ("por que a Barbara nao consegue entrar?") tinha resposta no banco
+           e silencio na tela. Foi assim que ele passou cinco tentativas
+           digitando um usuario que nao existe no PCP.
+
+           Agrupado por (usuario, sistema, motivo) nos ultimos 30 dias. O motivo
+           importa mais que a contagem: "senha errada" e "usuario nao existe" sao
+           problemas OPOSTOS -- num a pessoa sabe o login e erra a senha; no
+           outro ela esta digitando um login que nao existe, e trocar a senha
+           dela nao resolve nada. */
+        const desde = new Date(Date.now() - 30 * 86400_000).toISOString();
+        const { data: linhas } = await sb.from("equipe_acessos_log")
+          .select("sistema, usuario, acao, detalhe, em")
+          .gte("em", desde)
+          .in("acao", ["login-falhou", "login-barrado", "entrou"])
+          .order("em", { ascending: false })
+          .limit(2000);
+        const porta: Record<string, any> = {};
+        for (const l of linhas ?? []) {
+          const k = `${normalizar(l.usuario)}|${l.sistema}`;
+          const e = (porta[k] ??= {
+            usuario: l.usuario, sistema: l.sistema,
+            falhas: 0, entradas: 0, ultimaFalha: null as string | null, motivo: "",
+          });
+          if (l.acao === "entrou") e.entradas++;
+          else {
+            e.falhas++;
+            if (!e.ultimaFalha) { e.ultimaFalha = l.em; e.motivo = texto(l.detalhe, 60); }
+          }
+        }
+        const naPorta = Object.values(porta)
+          .filter((e: any) => e.falhas > 0)
+          .sort((a: any, b: any) => b.falhas - a.falhas);
+
         return resposta({
           ok: true,
           sistemas: SISTEMAS,
+          naPorta,
           contas: contasFora,
           soltas,
           elenco,
@@ -607,6 +651,9 @@ Deno.serve(async (req: Request) => {
             nome: linha.nome,
             papel: papelNoSistema(sistema, p.papel, p.permissoes ?? []),
             permissoes: Array.isArray(p.permissoes) ? p.permissoes : [],
+            // O vinculo com o vendedor tem de ir na CRIACAO: gravado so depois,
+            // a pessoa passa o primeiro dia vendo a mesa do time inteiro.
+            ...(p.vendedorId ? { vendedorId: texto(p.vendedorId, 120) } : {}),
             senha,
             temporaria: true,
           });

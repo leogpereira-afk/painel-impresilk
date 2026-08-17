@@ -21,10 +21,10 @@
 //   · Por pessoa  — "o que o Pedro acessa?"
 //   · Por sistema — "quem entra no PCP, e com que login?"
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Users, KeyRound, DoorOpen, Pencil, AlertTriangle, Search, UserPlus, Power,
-  Link2, Plus, X, Check, ChevronRight, ExternalLink,
+  Link2, Plus, X, Check, ChevronRight, ExternalLink, Copy, MessageCircle,
 } from "lucide-react";
 import {
   lerAcessos, salvarConta, salvarPapel, removerPapel,
@@ -59,6 +59,26 @@ const COMO_ENTRA = {
   cadastro: { selo: "", tom: "neutral", resumo: "" },
 };
 
+/* O QUE A FALHA DE LOGIN QUER DIZER, e o que fazer com ela. Os dois motivos sao
+   problemas OPOSTOS e pedem botoes diferentes:
+     · "senha errada"    -> a pessoa SABE o login e erra a senha. Gerar senha nova.
+     · "nao existe"      -> ela esta digitando um login que nao existe. Trocar a
+                            senha nao resolve NADA -- e o caso do dono no PCP,
+                            cinco tentativas com um usuario que nao existia.
+   Sem essa distincao a tela mostraria "4 falhas" e deixaria a conclusao por
+   conta de quem olha -- que foi como o problema durou onze dias. */
+function lerFalha(e) {
+  const m = String(e.motivo || "").toLowerCase();
+  if (m.includes("nao existe") || m.includes("não existe") || m.includes("usuário não") || m.includes("usuario nao")) {
+    return { texto: "está digitando um login que não existe ali", acao: "apontar" };
+  }
+  if (m.includes("desativada") || m.includes("barrada") || m.includes("travada")) {
+    return { texto: "está barrada — conta desativada ou porta travada", acao: "reativar" };
+  }
+  if (m.includes("senha")) return { texto: "sabe o login, erra a senha", acao: "senha" };
+  return { texto: e.motivo || "não conseguiu entrar", acao: "" };
+}
+
 // O estado de uma linha pessoa×sistema, em uma palavra. E o que decide a cor do
 // trilho e o texto do selo -- e o unico lugar onde essa regra mora.
 function estadoDoPapel(p) {
@@ -70,28 +90,65 @@ function estadoDoPapel(p) {
 
 // A senha temporaria aparece UMA vez. Ela nao fica guardada em lugar nenhum
 // legivel -- se a direcao fechar esta caixa sem anotar, o caminho e gerar outra.
-function SenhaNova({ senha, nome, aoFechar }) {
+function SenhaNova({ senha, nome, login, aoFechar }) {
+  const caixa = useRef(null);
+  const [copiou, setCopiou] = useState(false);
+  /* NO CELULAR ELA NASCIA FORA DA TELA. Esta caixa e renderizada no TOPO do
+     cartao, e os botoes que a geram ficam a uns 600px abaixo -- o dono clicava
+     "gerar senha", nada acontecia na vista dele, e a unica senha que ele veria
+     na vida ficava rolagem acima. Agora a tela vem ate ela. */
+  useEffect(() => {
+    if (senha) caixa.current?.scrollIntoView({ block: "center", behavior: "smooth" });
+    setCopiou(false);
+  }, [senha]);
   if (!senha) return null;
+  const recado = `Sua senha de acesso${login ? ` (login ${login})` : ""}: ${senha}\n\nÉ temporária — o sistema vai pedir para você trocar na primeira entrada.`;
   return (
-    <div className="mb-4 rounded-xl border-2 border-brand bg-brand-50 p-4">
-      <p className="font-display text-sm font-semibold text-slate-900">
-        Senha de {nome}: <span className="font-mono text-base">{senha}</span>
+    <div ref={caixa} className="mb-4 rounded-xl border-2 border-brand bg-brand-50 p-4">
+      <p className="font-display text-sm font-semibold text-slate-900">Senha de {nome}</p>
+      {/* Grande e selecionavel: no celular, ler uma senha de 20 caracteres em
+          corpo 12 e digita-la em outro app e onde o erro acontece. */}
+      <p className="mt-1 select-all break-all font-mono text-xl font-semibold tracking-tight text-slate-900">
+        {senha}
       </p>
-      <p className="mt-1 text-xs text-slate-600">
-        Anote e passe para a pessoa agora — esta senha não aparece de novo. Ela é obrigada a
-        trocar na primeira entrada.
+      <div className="mt-3 flex flex-wrap gap-2">
+        <button type="button" className="btn-primary h-10 px-3 text-sm"
+          onClick={async () => {
+            try {
+              await navigator.clipboard.writeText(senha);
+              setCopiou(true);
+            } catch {
+              // Sem permissao de area de transferencia (acontece em navegador
+              // antigo e em http): a senha esta selecionavel logo acima, e
+              // dizer isso e melhor que um botao que nao faz nada.
+              setCopiou(false);
+              alert("Não consegui copiar por aqui. Segure o dedo sobre a senha para selecionar.");
+            }
+          }}>
+          <Copy size={15} /> {copiou ? "Copiada" : "Copiar senha"}
+        </button>
+        <a className="btn-outline h-10 px-3 text-sm"
+          href={`https://wa.me/?text=${encodeURIComponent(recado)}`}
+          target="_blank" rel="noreferrer">
+          <MessageCircle size={15} /> Mandar no WhatsApp
+        </a>
+        <button type="button" className="btn-ghost h-10 px-2 text-sm" onClick={aoFechar}>
+          Já anotei
+        </button>
+      </div>
+      <p className="mt-2 text-xs text-slate-600">
+        Esta senha <b>não aparece de novo</b>. Ela é temporária: a pessoa é obrigada a trocar na
+        primeira entrada.
       </p>
-      <button type="button" className="btn-ghost mt-2 h-8 px-2 text-xs" onClick={aoFechar}>
-        Já anotei
-      </button>
     </div>
   );
 }
 
 const VAZIA = { usuario: "", nome: "", tipo: "pessoa", colaborador: "" };
 
-function NovaPessoa({ sistemas, aoCriar, aoCancelar }) {
+function NovaPessoa({ sistemas, vendedores, aoCriar, aoCancelar }) {
   const [f, setF] = useState(VAZIA);
+  const [vend, setVend] = useState("");
   const [papeis, setPapeis] = useState({});
   // O Painel nao tem papel: tem lista de partes. Sem escolher aqui, a pessoa
   // nascia com acesso a NADA dentro do painel -- entrava e nao via tela nenhuma.
@@ -111,7 +168,8 @@ function NovaPessoa({ sistemas, aoCriar, aoCancelar }) {
     setSalvando(true);
     try {
       await aoCriar(f, Object.entries(papeis).map(([sistema, papel]) => ({
-        sistema, papel, ...(sistema === "painel" ? { permissoes: modulos } : {}),
+        sistema, papel,
+        ...(sistema === "painel" ? { permissoes: modulos, vendedorId: vend.trim() } : {}),
       })));
     } finally {
       setSalvando(false);
@@ -169,6 +227,26 @@ function NovaPessoa({ sistemas, aoCriar, aoCancelar }) {
               )}
               {papeis[sis] !== undefined && sis === "painel" && (
                 <div className="w-full">
+                  {/* SEM ISTO A VENDEDORA NOVA VE A MESA INTEIRA. O formulario
+                      nunca passava vendedorId -- karen, pedro e raphael estao
+                      com o campo vazio ate hoje --, e ninguem percebe: lista
+                      cheia parece certa. */}
+                  <div className="mt-2 rounded-lg bg-slate-50 p-3">
+                    <label className="label" htmlFor="np-vend">
+                      Quem ela é no ERP (dona da fila de orçamentos)
+                    </label>
+                    <input id="np-vend" className="input h-9" list="vendedores-erp"
+                      value={vend} onChange={(e) => setVend(e.target.value)}
+                      placeholder="em branco = vê os orçamentos de todo mundo" />
+                    <datalist id="vendedores-erp">
+                      {(vendedores || []).map((v) => (
+                        <option key={v.nome} value={v.nome}>{v.n} orçamentos</option>
+                      ))}
+                    </datalist>
+                    <p className="mt-1 text-xs text-slate-500">
+                      Exatamente como o Mubisys escreve — a lista acima vem de lá.
+                    </p>
+                  </div>
                   <ModulosDoPainel permissoes={modulos} aoMudar={setModulos} />
                 </div>
               )}
@@ -1150,7 +1228,8 @@ export default function AcessoUnico({ aoAvisar }) {
     const temporarias = contas.reduce(
       (n, c) => n + c.papeis.filter((p) => p.real?.existe && p.real.temporaria).length, 0);
     const soltas = Object.values(dados.soltas || {}).reduce((n, l) => n + l.length, 0);
-    return { pessoas: contas.length, foraDoLugar, temporarias, soltas };
+    const naPorta = (dados.naPorta || []).length;
+    return { pessoas: contas.length, foraDoLugar, temporarias, soltas, naPorta };
   }, [dados]);
 
   const lista = useMemo(() => {
@@ -1187,6 +1266,9 @@ export default function AcessoUnico({ aoAvisar }) {
       sub: "existem lá e não são de ninguém aqui", curto: "sem dono" },
     { id: "temporaria", rotulo: "Senha temporária", valor: numeros.temporarias,
       sub: "ainda não trocaram a senha que receberam", curto: "não trocaram" },
+    { id: "porta", rotulo: "Batendo na porta", valor: numeros.naPorta,
+      cor: numeros.naPorta ? "text-warn-700" : "text-slate-900",
+      sub: "tentaram entrar e não conseguiram (30 dias)", curto: "não entraram" },
   ];
 
   return (
@@ -1261,14 +1343,52 @@ export default function AcessoUnico({ aoAvisar }) {
         </p>
       )}
 
-      <SenhaNova senha={senhaNova?.senha} nome={senhaNova?.nome}
+      <SenhaNova senha={senhaNova?.senha} nome={senhaNova?.nome} login={senhaNova?.login}
         aoFechar={() => setSenhaNova(null)} />
 
       <datalist id="rh-colaboradores">
         {dados.colaboradores.map((n) => <option key={n} value={n} />)}
       </datalist>
 
-      {lente === "sistema" ? (
+      {recorte === "porta" ? (
+        /* A JORNADA QUE NAO EXISTIA: "a Barbara nao consegue entrar". A resposta
+           sempre esteve no equipe_acessos_log e a tela nunca a leu. */
+        <div className="space-y-2">
+          <p className="text-sm text-slate-500">
+            Quem tentou entrar nos últimos 30 dias e não conseguiu. O <b>motivo</b> importa mais
+            que a contagem: quem erra a senha e quem digita um login que não existe têm
+            problemas opostos — e no segundo caso <b>trocar a senha não resolve nada</b>.
+          </p>
+          {(dados.naPorta || []).length === 0 ? (
+            <Empty>Ninguém tentou e falhou nos últimos 30 dias.</Empty>
+          ) : (
+            <div className="overflow-hidden rounded-xl border" style={{ borderColor: "var(--hairline)" }}>
+              {(dados.naPorta || []).map((e) => {
+                const f = lerFalha(e);
+                return (
+                  <LinhaLista key={`${e.usuario}-${e.sistema}`} tom={e.entradas > 0 ? "warn" : "bad"}>
+                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                      <span className="min-w-[8rem] font-mono text-sm font-semibold text-slate-900">
+                        {e.usuario}
+                      </span>
+                      <span className="chip shrink-0">{nomeSis(e.sistema)}</span>
+                      <span className="min-w-0 flex-1 text-sm text-slate-600">{f.texto}</span>
+                      <span className="tnum shrink-0 text-sm text-slate-500">
+                        {e.falhas}× {e.entradas > 0 ? `· entrou ${e.entradas}×` : "· nunca entrou"}
+                      </span>
+                      {e.ultimaFalha && (
+                        <span className="shrink-0 text-xs text-slate-400">
+                          última {new Date(e.ultimaFalha).toLocaleDateString("pt-BR")}
+                        </span>
+                      )}
+                    </div>
+                  </LinhaLista>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      ) : lente === "sistema" ? (
         <div className="space-y-2">
           <p className="text-sm text-slate-500">
             Um sistema por linha. Clique para abrir e ver, nome por nome, quem entra ali —
@@ -1292,7 +1412,8 @@ export default function AcessoUnico({ aoAvisar }) {
       ) : (
         <>
           {criando ? (
-            <NovaPessoa sistemas={dados.sistemas} aoCriar={criar} aoCancelar={() => setCriando(false)} />
+            <NovaPessoa sistemas={dados.sistemas} vendedores={dados.vendedores}
+              aoCriar={criar} aoCancelar={() => setCriando(false)} />
           ) : (
             <button type="button" className="btn-primary mb-3" onClick={() => setCriando(true)}>
               <UserPlus size={15} /> Cadastrar pessoa
