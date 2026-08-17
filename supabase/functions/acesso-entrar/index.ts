@@ -151,6 +151,20 @@ Deno.serve(async (req: Request) => {
   const senha = String(corpo.senha ?? "");
   if (!usuario || !senha) return json({ erro: "Informe usuario e senha." }, 400);
 
+  /* FREIO. Esta e a porta que a equipe usa, e ela nao tinha limite nenhum:
+     tres tentativas erradas seguidas voltavam em ~1s cada, sem 429 e -- para
+     quem ja tinha migrado -- sem uma linha de log. A contagem e a mesma das
+     outras quatro portas de senha (public.porta_travada), sobre o mesmo
+     equipe_acessos_log. "*" porque a tentativa e contra a ENTRADA, nao contra
+     um sistema. */
+  const { data: travado } = await sb.rpc("porta_travada", { p_sistema: "*", p_usuario: usuario });
+  if (travado === true) {
+    await registrar("*", usuario, "login-barrado", "porta travada por tentativas");
+    return json({
+      erro: "Muitas tentativas seguidas. Espere 15 minutos ou peca uma senha nova a direcao.",
+    }, 429);
+  }
+
   try {
     const { data: conta } = await sb.from("acesso_conta")
       .select("*").eq("usuario", usuario).maybeSingle();

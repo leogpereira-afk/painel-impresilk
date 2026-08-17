@@ -135,7 +135,32 @@ Deno.serve(async (req: Request) => {
         const senha = String(body.senha || "");
         if (!usuario || !senha) return json({ erro: "Informe usuario e senha." }, 400);
 
+        /* FREIO E RASTRO. Esta porta nao registrava NADA -- nem entrada, nem
+           falha -- e nao tinha limite de tentativa: um martelo online contra o
+           usuario da direcao era invisivel. Agora ela usa as mesmas duas funcoes
+           de banco que as outras quatro portas de senha da casa, e as falhas
+           caem no MESMO equipe_acessos_log que a tela ja mostra. */
+        const trancar = async () => {
+          const { data: t } = await sb.rpc("porta_travada", { p_sistema: "painel", p_usuario: usuario });
+          return t === true;
+        };
+        const anotar = (acao: string, detalhe = "") =>
+          sb.rpc("porta_registrar", {
+            p_sistema: "painel", p_usuario: usuario, p_acao: acao, p_por: "-", p_detalhe: detalhe,
+          }).then(() => {}, () => {});   // log e testemunha: falhar aqui nao derruba o login
+        if (await trancar()) {
+          await anotar("login-barrado", "porta travada por tentativas");
+          return json({
+            erro: "Muitas tentativas seguidas. Espere 15 minutos ou peca uma senha nova a direcao.",
+          }, 429);
+        }
+
         if (usuario === MASTER_USUARIO) {
+          /* MESMO NUMERO DE IDAS AO BANCO que o caminho comum. O ramo do master
+             pulava a consulta a acesso_conta, e isso o denunciava pelo relogio:
+             ~0,49s constante contra 0,7-1,2s de todo mundo (medido em 6 amostras
+             por usuario). Quem cronometrasse a porta descobria QUEM e o dono. */
+          await sb.from("acesso_conta").select("ativo").eq("usuario", usuario).maybeSingle();
           const propria = await lerConta(MASTER_USUARIO);
           // A senha do ambiente e apenas a INICIAL: assim que a direcao troca a
           // senha dentro do painel, passa a valer a conta gravada -- a senha
@@ -143,10 +168,11 @@ Deno.serve(async (req: Request) => {
           const ok = propria
             ? await conferirSenha(senha, propria)
             : !!MASTER_SENHA && igual(senha, MASTER_SENHA);
-          if (!ok) return json({ erro: ERRO_LOGIN }, 401);
+          if (!ok) { await anotar("login-falhou", "senha errada"); return json({ erro: ERRO_LOGIN }, 401); }
           const token = await assinarJwt(
             { sub: MASTER_USUARIO, nome: propria?.nome || "Direcao", master: true, perms: ["*"], vend: "" },
             JWT_SECRET, EXP_SEG);
+          await anotar("entrou", "direcao");
           return json({
             token, usuario: MASTER_USUARIO, nome: propria?.nome || "Direcao",
             permissoes: ["*"], master: true, vendedorId: "",
@@ -167,11 +193,15 @@ Deno.serve(async (req: Request) => {
         // Confere SEMPRE, mesmo sem conta: o tempo de resposta tem de ser o
         // mesmo nos dois casos (ver CONTA_FANTASMA).
         const senhaOk = await conferirSenha(senha, conta ?? CONTA_FANTASMA);
-        if (!conta || !senhaOk) return json({ erro: ERRO_LOGIN }, 401);
+        if (!conta || !senhaOk) {
+          await anotar("login-falhou", conta ? "senha errada" : "usuario nao existe");
+          return json({ erro: ERRO_LOGIN }, 401);
+        }
         const perms = conta.permissoes || [];
         const vend = conta.vendedor_id || "";
         const token = await assinarJwt(
           { sub: conta.usuario, nome: conta.nome, master: false, perms, vend }, JWT_SECRET, EXP_SEG);
+        await anotar("entrou", "");
         return json({
           token, usuario: conta.usuario, nome: conta.nome,
           permissoes: perms, master: false, vendedorId: vend,
