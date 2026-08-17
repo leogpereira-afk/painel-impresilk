@@ -292,6 +292,23 @@ const SISTEMAS = ["painel", "rh", "pcp", "brief", "dre", "compras", "pops", "cen
 // sistema); depois que a direcao define uma senha de proposito, ter as antigas
 // guardadas e so guardar chave de porta trocada.
 // ============================================================================
+/* Encerra as sessoes abertas daquela identidade no Supabase Auth. O GoTrue
+   expoe isso pela admin API; a service_role que esta function ja usa basta.
+   Falha aqui e AVISO, nao excecao: a senha e o `ativo` ja foram gravados, e
+   abortar deixaria o estado pela metade. */
+async function derrubarSessoes(authUserId: string) {
+  try {
+    /* Pelo BANCO, e nao pela API do GoTrue: esta instalacao nao expoe
+       DELETE /admin/users/{id}/sessions nem POST .../logout (404 nas duas,
+       conferido em 17/08/2026), e a Edge Function nao alcanca o schema `auth`
+       pelo PostgREST. public.derrubar_sessoes e SECURITY DEFINER e faz o corte. */
+    const { error } = await sb.rpc("derrubar_sessoes", { p_user: authUserId });
+    if (error) console.warn("[painel-acesso] nao derrubei as sessoes:", error.message);
+  } catch (e) {
+    console.warn("[painel-acesso] nao derrubei as sessoes:", (e as Error)?.message);
+  }
+}
+
 async function senhaNaPortaDaFrente(conta: any, senha: string) {
   const avisos: string[] = [];
   if (conta.auth_user_id) {
@@ -658,6 +675,9 @@ Deno.serve(async (req: Request) => {
         }
         // A PORTA DA FRENTE. Antes aqui so se carimbava `usado_em`, e o carimbo
         // nao tirava nada: a entrada unica aceita o hash antigo do mesmo jeito.
+        // Senha nova tambem derruba quem esta dentro: senao a sessao antiga
+        // continua valendo e "troquei a senha dela" nao significa nada.
+        if (conta.auth_user_id) await derrubarSessoes(conta.auth_user_id);
         const avisos = await senhaNaPortaDaFrente(conta, senha);
         for (const a of avisos) recusados.push({ sistema: "entrada", erro: a });
         if (!avisos.length) trocados.push("entrada");
@@ -676,11 +696,24 @@ Deno.serve(async (req: Request) => {
         const recusados: { sistema: string; erro: string }[] = [];
         const realDes = await estadoReal();
         for (const p of papeis ?? []) {
-          if (p.sistema === "rh" || p.sistema === "painel") {
-            // Nenhum dos dois tem coluna de "desativado": no painel a conta
-            // existe ou nao existe, e no RH quem manda e a linha em perfis.
-            // Desativar ali seria apagar -- e apagar leva junto o historico.
-            recusados.push({ sistema: p.sistema, erro: "Aqui e preciso remover o acesso, nao ha como so desativar." });
+          /* O TEXTO DAQUI ERA FALSO NOS DOIS CASOS, e a tela repetia o falso.
+             · Painel: o painel-auth SEMPRE consultou acesso_conta.ativo antes de
+               conferir a senha -- desativar ja fechava a porta dele. Dizer que
+               nao fechava fazia a direcao procurar um caminho que nao precisava.
+             · RH: `perfis` ganhou coluna `ativo` em 17/08/2026, e o sync passou
+               a exigi-la. Era o unico dos oito que ficava aberto depois do
+               desligamento.
+             Os dois agora entram no fluxo normal e voltam em `feitos`. */
+          if (p.sistema === "painel") {
+            feitos.push(p.sistema);      // a porta ja le acesso_conta.ativo
+            continue;
+          }
+          if (p.sistema === "rh") {
+            const alvoRh = alvoNoSistema(conta, "rh", p);
+            const { error } = await sb.from("perfis").update({ ativo })
+              .eq("usuario", normalizar(alvoRh));
+            if (error) recusados.push({ sistema: "rh", erro: error.message });
+            else feitos.push("rh");
             continue;
           }
           const login = alvoNoSistema(conta, p.sistema, p);
@@ -702,6 +735,10 @@ Deno.serve(async (req: Request) => {
         await sb.from("acesso_conta")
           .update({ ativo, atualizado_em: new Date().toISOString() }).eq("id", id);
         await sb.from("acesso_papel").update({ ativo }).eq("conta_id", id);
+        /* DERRUBAR A SESSAO ABERTA. O cracha dos sistemas para de valer em ate
+           60s (public.acesso_revogado), mas a sessao do Supabase Auth se renova
+           sozinha para sempre -- quem estivesse com o RH aberto continuaria. */
+        if (!ativo && conta.auth_user_id) await derrubarSessoes(conta.auth_user_id);
         return resposta({ ok: true, feitos, recusados });
       }
 

@@ -1225,10 +1225,13 @@ export default function AcessoUnico({ aoAvisar }) {
       <p className="mb-4 flex items-start gap-2 rounded-lg bg-warn-50 px-3 py-2 text-sm text-warn-700">
         <AlertTriangle size={15} className="mt-0.5 shrink-0" />
         <span>
-          <b className="font-display">Vale na hora.</b> Cadastrar, mudar papel, desativar e tirar
-          acesso mexem no sistema de verdade — não é ensaio. Duas ressalvas: quem já está com a
-          sessão aberta continua até o crachá vencer (30 dias no campo, 12 horas no painel); e
-          <b> desativar não alcança o RH</b> — lá o acesso se tira removendo o sistema da pessoa.
+          <b className="font-display">Vale na hora, e agora vale mesmo.</b> Cadastrar, mudar papel,
+          desativar e tirar acesso mexem no sistema de verdade — não é ensaio. Até 17/08 este aviso
+          dizia que quem já estava com a sessão aberta continuava até o crachá vencer (30 dias no
+          campo) e que <b>desativar não alcançava o RH</b>. As duas coisas eram verdade e deixaram
+          de ser: as portas dos oito passaram a perguntar, a cada minuto, se o acesso ainda vale, e
+          desativar fecha o RH e derruba a sessão aberta. <b>Desligar alguém agora fecha tudo em
+          até um minuto.</b>
         </span>
       </p>
 
