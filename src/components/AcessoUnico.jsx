@@ -77,6 +77,12 @@ const PAPEL_INICIAL = {
 
 const nomeSis = (s) => NOME_SISTEMA[s] || s;
 
+// Sistemas que esta tela MOSTRA mas nao administra. A Central do Léo tem porta
+// propria (leo-sync) e nao mora em equipe_contas: criar conta ou trocar senha
+// nela por aqui fabricaria uma SEGUNDA senha, valida, para o app pessoal do
+// dono. O servidor recusa igual -- ver SO_LEITURA em painel-acesso.
+const SO_LEITURA = new Set(["central"]);
+
 // Onde cada sistema mora, para abrir dali mesmo. A Central e o app pessoal do
 // dono e nao tem atalho no dominio da empresa.
 const ENDERECO = {
@@ -389,7 +395,11 @@ function LinhaSistema({ c, sis, p, soltas, aoAlternar, aoPapel, aoModulos, aoApo
               </select>
             )}
 
-            {p.real?.existe && (
+            {/* A Central tem porta propria (leo-sync) e nao se administra por
+                aqui: o botao chamaria a equipe-auth, que fabricaria uma segunda
+                senha valida para o app pessoal do dono. O servidor recusa; o
+                botao some para nao prometer. */}
+            {p.real?.existe && !SO_LEITURA.has(sis) && (
               <button type="button" onClick={() => aoSenha(sis)}
                 className="btn-ghost h-8 px-2 text-xs" title={`Nova senha só no ${nomeSis(sis)}`}>
                 <KeyRound size={13} /> Senha aqui

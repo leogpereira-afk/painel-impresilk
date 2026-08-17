@@ -201,8 +201,42 @@ async function estadoReal(): Promise<MapaReal> {
       em: c.atualizado_em, nome: c.nome || c.usuario,
     };
   }
+
+  /* A CENTRAL NAO TEM TABELA DE CONTAS, e nao e esquecimento: o app pessoal do
+     dono autentica pela leo-sync (LEO_SESSION_SECRET), nao por equipe_contas.
+     Sem um ramo aqui ela caia no "nao existe la" -- e a tela oferecia "Tirar da
+     lista" e "Criar a conta la" para a UNICA linha que registra quem abre a
+     Central. Uma das duas apagaria o registro; a outra fabricaria em
+     equipe_contas uma segunda senha que abre o app pessoal dele.
+     Aqui a propria linha de acesso e a verdade -- que e o que ela sempre foi. */
+  const { data: central } = await sb.from("acesso_papel")
+    .select("conta_id, papel, ativo").eq("sistema", "central");
+  if (central?.length) {
+    const { data: donos } = await sb.from("acesso_conta")
+      .select("id, usuario, nome, ativo, atualizado_em")
+      .in("id", central.map((p: any) => p.conta_id));
+    const porId = new Map((donos ?? []).map((d: any) => [d.id, d]));
+    for (const p of central) {
+      const d = porId.get(p.conta_id);
+      if (!d) continue;
+      por("central")[normalizar(d.usuario)] = {
+        login: d.usuario, papel: p.papel || "dono",
+        ativo: p.ativo !== false && d.ativo !== false,
+        temporaria: false, em: d.atualizado_em, nome: d.nome || d.usuario,
+      };
+    }
+  }
   return mapa;
 }
+
+/* A Central nao se administra por aqui. Criar conta ou trocar senha nela cairia
+   em equipe_contas pela equipe-auth -- que ainda nao tem "central" na lista
+   EXTERNOS -- e fabricaria uma SEGUNDA senha, valida, para o app pessoal do
+   dono. Enquanto o outro lado nao fecha, quem fecha e este. */
+const SO_LEITURA = new Set(["central"]);
+const RECADO_SO_LEITURA =
+  "A Central do Léo é o app pessoal do dono e tem porta própria (leo-sync). " +
+  "Ela aparece aqui só para registro: não se cria conta nem se troca senha dela por esta tela.";
 
 // A conta daquela pessoa naquele sistema, ou null. Ler para decidir e legitimo
 // -- o que esta function nao faz e ESCREVER as regras dos outros. Isto decide
@@ -602,6 +636,7 @@ Deno.serve(async (req: Request) => {
         // dele, inventava outra pessoa com o mesmo nome. Marcar a caixa do
         // sistema (dar acesso) manda `criar`; o seletor de papel, nao.
         const nova = !(await acharNoSistema(sistema, login));
+        if (nova && SO_LEITURA.has(sistema)) return resposta({ erro: RECADO_SO_LEITURA }, 400);
         if (nova && corpo.criar !== true) {
           return resposta({
             erro: `Nao existe a conta "${login}" no ${sistema}. Aponte para uma conta que ja existe la, ou peca para criar.`,
@@ -737,6 +772,7 @@ Deno.serve(async (req: Request) => {
         const id = await contaPorUsuario(corpo.usuario);
         if (!id) return resposta({ erro: "Conta nao encontrada." }, 404);
         const { data: conta } = await sb.from("acesso_conta").select("*").eq("id", id).single();
+        if (SO_LEITURA.has(sistema)) return resposta({ erro: RECADO_SO_LEITURA }, 400);
         const { data: papel } = await sb.from("acesso_papel")
           .select("*").eq("conta_id", id).eq("sistema", sistema).maybeSingle();
         if (!papel) return resposta({ erro: `Essa pessoa nao tem acesso ao ${sistema}.` }, 404);
