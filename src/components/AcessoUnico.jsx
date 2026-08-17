@@ -89,6 +89,17 @@ const norma = (s) =>
 // dono. O servidor recusa igual -- ver SO_LEITURA em painel-acesso.
 const SO_LEITURA = new Set(["central"]);
 
+/* POR ONDE A PESSOA ENTRA quando nao tem conta. Duas destas sao acesso de
+   verdade e nao apareciam em lugar nenhum: o instalador do PCP toca no proprio
+   nome (a LISTA E a credencial) e o fornecedor do Compras abre as telas dele
+   por um link publico. A terceira e so cadastro -- a pessoa existe no sistema e
+   nao entra. */
+const COMO_ENTRA = {
+  nome: { selo: "entra sem senha", tom: "warn", resumo: "entram sem senha" },
+  link: { selo: "entra por link", tom: "warn", resumo: "entram por link" },
+  cadastro: { selo: "", tom: "neutral", resumo: "" },
+};
+
 // Onde cada sistema mora, para abrir dali mesmo. A Central e o app pessoal do
 // dono e nao tem atalho no dominio da empresa.
 const ENDERECO = {
@@ -783,8 +794,11 @@ function contasDoSistema(sistema, contas, soltas, elenco) {
     dentro,
     fora,
     outros,
-    // Instalador do PCP nao e "so cadastro": ele ENTRA, tocando no nome.
-    entramSemSenha: outros.filter((e) => e.como === "nome").length,
+    // Instalador do PCP e fornecedor do Compras nao sao "so cadastro": eles
+    // ENTRAM, por outro caminho. Contados por caminho, nao somados.
+    entram: ["nome", "link"]
+      .map((k) => ({ como: k, n: outros.filter((e) => e.como === k).length }))
+      .filter((x) => x.n > 0),
     semDono: dentro.filter((l) => !l.dono).length,
     temporarias: dentro.filter((l) => l.temporaria).length,
     desativadas: dentro.filter((l) => l.ativo === false).length,
@@ -831,18 +845,20 @@ function SecaoSistema({ sistema, dados, acoes, aberta, aoAlternar, endereco }) {
               {dados.semDono} sem dono
             </Selo>
           )}
-          {dados.entramSemSenha > 0 && (
-            <Selo tom="warn" title="entram tocando no próprio nome, sem senha">
-              {dados.entramSemSenha} entram sem senha
+          {dados.entram.map((x) => (
+            <Selo key={x.como} tom="warn" title="acesso sem conta de login">
+              {x.n} {COMO_ENTRA[x.como].resumo}
             </Selo>
-          )}
+          ))}
           {dados.temporarias > 0 && (
             <Selo tom="warn">{dados.temporarias} senha temporária</Selo>
           )}
           {dados.desativadas > 0 && <Selo tom="bad">{dados.desativadas} desativada</Selo>}
-          {dados.fora.length + dados.semDono + dados.temporarias + dados.desativadas === 0 && (
-            <Selo tom="ok">em ordem</Selo>
-          )}
+          {/* "em ordem" so quando nao ha NADA a dizer. Ele aparecia ao lado de
+              "3 entram sem senha", e as duas frases juntas se desmentem: o selo
+              amarelo ja e o recado, e o verde ao lado apagava o peso dele. */}
+          {dados.fora.length + dados.semDono + dados.temporarias + dados.desativadas === 0 &&
+            dados.entram.length === 0 && <Selo tom="ok">em ordem</Selo>}
         </span>
       </button>
 
@@ -915,26 +931,38 @@ function SecaoSistema({ sistema, dados, acoes, aberta, aoAlternar, endereco }) {
             </div>
           )}
 
-          {/* O RESTO DO ELENCO: quem o sistema conhece e nao tem conta aqui. */}
-          {dados.outros.length > 0 && (
+          {/* O RESTO DO ELENCO: quem o sistema conhece e nao tem conta aqui.
+              Quando nao ha mais ninguem, a tela DIZ isso -- silencio aqui virou
+              "esta faltando", e com razao: nao da para distinguir "nao tem mais
+              gente" de "a tela nao foi buscar". */}
+          {dados.outros.length === 0 ? (
+            <p className="border-t px-4 py-3 text-xs text-slate-500"
+              style={{ borderColor: "var(--hairline)" }}>
+              O {nomeSis(sistema)} não conhece mais ninguém além destas contas — aqui a lista
+              de quem entra é a lista inteira.
+            </p>
+          ) : (
             <div className="border-t" style={{ borderColor: "var(--hairline)" }}>
               <p className="px-4 pb-1 pt-3 text-xs text-slate-500">
                 Mais <b>{dados.outros.length}</b>{" "}
                 {dados.outros.length === 1 ? "pessoa cadastrada" : "pessoas cadastradas"} no{" "}
                 {nomeSis(sistema)}
-                {dados.entramSemSenha > 0
-                  ? " — e as marcadas em amarelo ENTRAM, tocando no próprio nome, sem senha."
+                {dados.entram.length
+                  ? " — e as marcadas em amarelo ENTRAM, sem conta de login."
                   : ", sem conta de entrada."}
               </p>
-              {dados.outros.map((e) => (
-                <LinhaLista key={`${e.como}-${e.nome}`} tom={e.como === "nome" ? "warn" : "neutral"}>
-                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-                    <span className="min-w-0 flex-1 truncate text-sm text-slate-700">{e.nome}</span>
-                    {e.detalhe && <span className="shrink-0 text-xs text-slate-500">{e.detalhe}</span>}
-                    {e.como === "nome" && <Selo tom="warn">entra sem senha</Selo>}
-                  </div>
-                </LinhaLista>
-              ))}
+              {dados.outros.map((e) => {
+                const c = COMO_ENTRA[e.como] || COMO_ENTRA.cadastro;
+                return (
+                  <LinhaLista key={`${e.como}-${e.nome}`} tom={c.tom}>
+                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                      <span className="min-w-0 flex-1 truncate text-sm text-slate-700">{e.nome}</span>
+                      {e.detalhe && <span className="shrink-0 text-xs text-slate-500">{e.detalhe}</span>}
+                      {c.selo && <Selo tom={c.tom}>{c.selo}</Selo>}
+                    </div>
+                  </LinhaLista>
+                );
+              })}
             </div>
           )}
 

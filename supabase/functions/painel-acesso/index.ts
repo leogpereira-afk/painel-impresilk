@@ -417,54 +417,86 @@ Deno.serve(async (req: Request) => {
           .map(([nome, n]) => ({ nome, n }))
           .sort((a, b) => b.n - a.n);
 
-        /* QUEM MAIS O SISTEMA CONHECE. Ate aqui esta tela mostrava so quem tem
-           CONTA -- e cada sistema tem gente cadastrada alem disso. Abrir "POPs"
-           mostrava 7 nomes enquanto o POPs conhece 40 pessoas; o RH mostrava 6
-           enquanto tem 93 fichas.
+        /* QUEM MAIS O SISTEMA CONHECE.
+           Ate aqui esta tela mostrava so quem tem CONTA -- e cada sistema tem
+           gente cadastrada alem disso. Abrir "POPs" mostrava 7 nomes enquanto o
+           POPs conhece 40 pessoas; o RH mostrava 6 enquanto tem 93 fichas.
 
-           E o caso do PCP e mais que contagem: os 15 INSTALADORES entram sem
-           senha, tocando no proprio nome. Isso e acesso de verdade, e nao
-           aparecia em lugar nenhum desta tela -- a lista de nomes E a
-           credencial. Por isso eles vem marcados como "entra pelo nome", e nao
-           como simples cadastro.
+           E parte dessa gente ENTRA. Nao por senha, por outro caminho:
+             · os 15 instaladores do PCP tocam no proprio nome (decisao do dono:
+               quem sobe em andaime nao digita senha) -- a lista de nomes E a
+               credencial, e cada variante de escrita e uma porta a mais;
+             · os 53 fornecedores do Compras abrem as telas deles por um link
+               publico (desenho consciente, esta no PADRAO-DOS-SISTEMAS).
+           Nenhum dos dois aparecia em lugar nenhum desta tela. `como` diz por
+           onde cada um entra, e a tela pinta os dois de amarelo.
 
-           So o NOME e o minimo para reconhecer a pessoa. A ficha do RH tem CPF,
-           endereco e salario, e nada disso tem o que fazer aqui. */
-        const elenco: Record<string, { nome: string; como: string; detalhe: string }[]> = {};
+           So o NOME viaja: a ficha do RH tem CPF, endereco e salario, e nada
+           disso tem o que fazer aqui. */
+        type NoElenco = { nome: string; como: string; detalhe: string };
+        const elenco: Record<string, NoElenco[]> = {};
+        const juntar = (sis: string, itens: NoElenco[]) => {
+          if (!itens.length) return;
+          (elenco[sis] ??= []).push(...itens.filter((x) => x.nome));
+        };
+        // Nome pode vir texto ("Saulo Rodrigues") ou objeto ({nome, numero}).
+        const soNome = (x: unknown) =>
+          texto(typeof x === "object" && x ? (x as any).nome : x, 120);
 
         const { data: cfgPcp } = await sb.from("pcp_config_global")
           .select("config").eq("id", true).maybeSingle();
-        const instaladores = (cfgPcp?.config?.instaladores ?? []) as unknown[];
-        if (instaladores.length) {
-          elenco.pcp = instaladores
-            .map((x) => texto(x, 120))
-            .filter(Boolean)
-            .map((nome) => ({ nome, como: "nome", detalhe: "toca no nome, sem senha" }));
+        const cp = (cfgPcp?.config ?? {}) as Record<string, unknown[]>;
+        const lista = (k: string) => (Array.isArray(cp[k]) ? cp[k] : []);
+        juntar("pcp", lista("instaladores").map((x) => ({
+          nome: soNome(x), como: "nome", detalhe: "toca no nome, sem senha",
+        })));
+        for (const [chave, rotulo] of [
+          ["responsaveis", "responsável"],
+          ["gerentes_montagem", "gerente de montagem"],
+          ["funcionarios", "funcionário"],
+        ] as const) {
+          juntar("pcp", lista(chave).map((x) => ({
+            nome: soNome(x), como: "cadastro", detalhe: rotulo,
+          })));
         }
 
         const { data: pessoasPops } = await sb.from("pops_registros")
           .select("registro").eq("colecao", "pessoas");
-        if (pessoasPops?.length) {
-          elenco.pops = pessoasPops
-            .map((r: any) => ({
-              nome: texto(r.registro?.nome, 120),
-              como: "cadastro",
-              detalhe: texto(r.registro?.area, 60),
-            }))
-            .filter((x) => x.nome)
+        juntar("pops", (pessoasPops ?? []).map((r: any) => ({
+          nome: texto(r.registro?.nome, 120), como: "cadastro",
+          detalhe: texto(r.registro?.area, 60),
+        })));
+
+        const { data: forn } = await sb.from("compras_registros")
+          .select("registro").eq("colecao", "forn");
+        juntar("compras", (forn ?? []).map((r: any) => ({
+          nome: texto(r.registro?.nome, 120), como: "link",
+          detalhe: "fornecedor — abre as telas dele por link",
+        })));
+
+        juntar("rh", (colabs ?? []).map((r: any) => ({
+          nome: texto(r.registro?.nome, 120), como: "cadastro",
+          // Desligado continua na ficha; dizer isso evita a leitura de que o RH
+          // tem 93 pessoas trabalhando.
+          detalhe: texto(r.registro?.dataDesligamento, 20) ? "desligado" : "",
+        })));
+
+        // Nome repetido nas listas (o mesmo Saulo e responsavel E gerente de
+        // montagem) vira UMA linha, com os dois papeis juntos.
+        for (const sis of Object.keys(elenco)) {
+          const porNome = new Map<string, NoElenco>();
+          for (const e of elenco[sis]) {
+            const k = normalizar(e.nome);
+            const ja = porNome.get(k);
+            if (!ja) { porNome.set(k, { ...e }); continue; }
+            // "entra" ganha de "cadastro": o que importa e o acesso.
+            if (ja.como === "cadastro" && e.como !== "cadastro") ja.como = e.como;
+            const partes = new Set([ja.detalhe, e.detalhe].filter(Boolean));
+            ja.detalhe = [...partes].join(" · ");
+          }
+          elenco[sis] = [...porNome.values()]
             .sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR"));
         }
-
-        elenco.rh = (colabs ?? [])
-          .map((r: any) => ({
-            nome: texto(r.registro?.nome, 120),
-            como: "cadastro",
-            // Desligado continua na ficha; dizer isso evita a leitura de que o
-            // RH tem 93 pessoas trabalhando.
-            detalhe: texto(r.registro?.dataDesligamento, 20) ? "desligado" : "",
-          }))
-          .filter((x: any) => x.nome)
-          .sort((a: any, b: any) => a.nome.localeCompare(b.nome, "pt-BR"));
 
         return resposta({
           ok: true,
