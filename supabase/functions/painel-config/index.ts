@@ -22,7 +22,7 @@
 // ============================================================================
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
-import { verificarJwt } from "../_shared/cripto.ts";
+import { verificarJwt, crachaRevogado } from "../_shared/cripto.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -98,7 +98,9 @@ const resposta = (body: unknown, status = 200) =>
 
 async function sessaoDe(req: Request) {
   const m = String(req.headers.get("authorization") ?? "").match(/^Bearer\s+(.+)$/i);
-  return m ? await verificarJwt(m[1], JWT_SECRET) : null;
+  const s = m ? await verificarJwt(m[1], JWT_SECRET) : null;
+  // Sessao revogada vale como sessao inexistente: quem chama ja sabe recusar.
+  return s && (await crachaRevogado(sb, "painel", s)) ? null : s;
 }
 
 async function lerConfig(): Promise<any> {

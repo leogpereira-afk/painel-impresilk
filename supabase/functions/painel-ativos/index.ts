@@ -24,7 +24,7 @@
 // ============================================================================
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
-import { verificarJwt } from "../_shared/cripto.ts";
+import { verificarJwt, crachaRevogado } from "../_shared/cripto.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -118,6 +118,9 @@ Deno.serve(async (req: Request) => {
 
   const m = String(req.headers.get("authorization") ?? "").match(/^Bearer\s+(.+)$/i);
   const sessao = m ? await verificarJwt(m[1], JWT_SECRET) : null;
+  if (sessao && await crachaRevogado(sb, "painel", sessao)) {
+    return resposta({ erro: "Seu acesso foi encerrado. Fale com a direção.", semSessao: true }, 401);
+  }
   if (!sessao) return resposta({ erro: "Entre no sistema.", semSessao: true }, 401);
   const quem = sessao.nome || sessao.sub || "alguem";
 

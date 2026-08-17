@@ -57,6 +57,38 @@ export async function assinarJwt(payload: any, secret: string, expSeg = 60 * 60 
   return `${dados}.${b64urlFromBytes(sig)}`;
 }
 
+/* ---------------------------------------------------------------- revogacao
+   "Esse cracha ainda vale?" -- a pergunta que as portas do Painel nao faziam.
+   O cracha vale 12h; desativar alguem na tela de Acessos so tinha efeito quando
+   ele vencia. A regra mora no BANCO (public.acesso_revogado), a mesma que as
+   portas dos outros sete consultam: as functions estao em cinco repositorios e
+   um arquivo compartilhado viraria doze copias envelhecendo caladas.
+
+   Cache de 60s por pessoa. Banco fora do ar ACEITA e nao guarda no cache --
+   trancar a casa por uma consulta que falhou e pior que um cracha durar mais um
+   pouco. */
+const CACHE_REVOG = new Map<string, { ate: number; revogado: boolean }>();
+export async function crachaRevogado(sb: any, sistema: string, cracha: any): Promise<boolean> {
+  const sub = String(cracha?.sub ?? "").trim();
+  if (!sub) return false;
+  const chave = `${sistema}:${sub}`;
+  const agora = Date.now();
+  const emCache = CACHE_REVOG.get(chave);
+  if (emCache && emCache.ate > agora) return emCache.revogado;
+  try {
+    const { data, error } = await sb.rpc("acesso_revogado", {
+      p_sistema: sistema, p_sub: sub, p_papel: String(cracha?.papel ?? ""),
+    });
+    if (error) throw new Error(error.message);
+    const revogado = data === true;
+    CACHE_REVOG.set(chave, { ate: agora + 60_000, revogado });
+    return revogado;
+  } catch (e) {
+    console.error("[revogacao] indisponivel:", (e as Error)?.message);
+    return false;
+  }
+}
+
 export async function verificarJwt(token: string, secret: string): Promise<any | null> {
   const partes = String(token || "").split(".");
   if (partes.length !== 3) return null;
