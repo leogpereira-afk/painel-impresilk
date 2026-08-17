@@ -77,6 +77,12 @@ const PAPEL_INICIAL = {
 
 const nomeSis = (s) => NOME_SISTEMA[s] || s;
 
+// Para comparar nome com login sem tropecar em acento e maiuscula -- a mesma
+// regra que o servidor usa. "Barbara Patrícia" tem de casar com "barbara patricia".
+const norma = (s) =>
+  String(s || "").normalize("NFKD").replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase().replace(/\s+/g, " ").trim();
+
 // Sistemas que esta tela MOSTRA mas nao administra. A Central do Léo tem porta
 // propria (leo-sync) e nao mora em equipe_contas: criar conta ou trocar senha
 // nela por aqui fabricaria uma SEGUNDA senha, valida, para o app pessoal do
@@ -511,7 +517,7 @@ function LinhaSistema({ c, sis, p, soltas, vendedores, aoAlternar, aoPapel, aoMo
   );
 }
 
-function Conta({ c, sistemas, soltas, vendedores, aoMudar, aoAvisar, aoSenha }) {
+function Conta({ c, sistemas, soltas, vendedores, acoes, aoMudar, aoAvisar, aoSenha }) {
   const [aberta, setAberta] = useState(false);
   const [f, setF] = useState(null);
 
@@ -564,26 +570,9 @@ function Conta({ c, sistemas, soltas, vendedores, aoMudar, aoAvisar, aoSenha }) 
     } catch (err) { aoAvisar({ tom: "erro", texto: err.message }); }
   };
 
-  const trocarPapel = async (sis, papel) => {
-    try {
-      await salvarPapel({ usuario: c.usuario, sistema: sis, papel });
-      await aoMudar();
-    } catch (err) { aoAvisar({ tom: "erro", texto: err.message }); }
-  };
+  const trocarPapel = (sis, papel) => acoes.papel(c.usuario, sis, papel);
 
-  const apontar = async (sis, login) => {
-    try {
-      const r = await apontarLogin(c.usuario, sis, login);
-      aoAvisar({
-        tom: "ok",
-        texto: login
-          ? `${c.nome || c.usuario} agora entra no ${nomeSis(sis)} como "${r.login}"${r.papel ? ` (${r.papel})` : ""}.`
-          : `Apontamento no ${nomeSis(sis)} voltou ao padrão.`,
-      });
-      await aoMudar();
-      return true;
-    } catch (err) { aoAvisar({ tom: "erro", texto: err.message }); return false; }
-  };
+  const apontar = (sis, login) => acoes.apontar(c.usuario, c.nome || c.usuario, sis, login);
 
   const criarLa = async (sis) => {
     const p = c.papeis.find((x) => x.sistema === sis);
@@ -611,17 +600,7 @@ function Conta({ c, sistemas, soltas, vendedores, aoMudar, aoAvisar, aoSenha }) 
     } catch (err) { aoAvisar({ tom: "erro", texto: err.message }); return false; }
   };
 
-  const senhaAqui = async (sis) => {
-    // Esta troca e mesmo so de um sistema: nao mexe na senha da ENTRADA (a que
-    // a pessoa digita no Painel e que abre todos). Dizer isso aqui evita a
-    // conclusao errada de que a senha antiga parou de valer em algum lugar.
-    if (!confirm(`Gerar uma senha nova para ${c.nome || c.usuario} SÓ no ${nomeSis(sis)}?\n\nVale para quem entra pelo link direto do ${nomeSis(sis)}. A senha de entrada dela (a do Painel, que abre todos) NÃO muda — para trocar essa, use "Nova senha em todos".`)) return;
-    try {
-      const r = await senhaDoSistema(c.usuario, sis);
-      aoSenha({ senha: r.senha, nome: `${c.nome || c.usuario} no ${nomeSis(sis)} (login ${r.login})` });
-      await aoMudar();
-    } catch (err) { aoAvisar({ tom: "erro", texto: err.message }); }
-  };
+  const senhaAqui = (sis) => acoes.senha(c.usuario, c.nome || c.usuario, sis);
 
   const novaSenha = async () => {
     if (!confirm(`Gerar uma senha nova para ${c.nome || c.usuario} em TODOS os sistemas dela?\n\nA senha atual para de valer em todos — inclusive na entrada pelo Painel, que é a porta que a equipe usa.`)) return;
@@ -771,7 +750,7 @@ function Conta({ c, sistemas, soltas, vendedores, aoMudar, aoAvisar, aoSenha }) 
    O RECORTE E O SISTEMA, e o conjunto e FECHADO: o que existe naquele sistema
    esta nesta lista, ponto. Se aparecer alguem aqui que voce nao conhece, e
    porque essa pessoa entra la de verdade. */
-function contasDoSistema(sistema, contas, soltas) {
+function contasDoSistema(sistema, contas, soltas, elenco) {
   const fora = [];
   const dentro = [];
   for (const c of contas) {
@@ -793,9 +772,19 @@ function contasDoSistema(sistema, contas, soltas) {
     });
   }
   dentro.sort((a, b) => a.login.localeCompare(b.login, "pt-BR"));
+
+  /* O ELENCO DE DENTRO. Quem o sistema conhece e NAO tem conta aqui: as 40
+     pessoas do POPs, as 93 fichas do RH, os 15 instaladores do PCP. Quem ja
+     aparece como conta sai da lista para nao ser contado duas vezes. */
+  const jaTem = new Set(dentro.map((l) => norma(l.login)).concat(dentro.map((l) => norma(l.dono?.nome))));
+  const outros = (elenco?.[sistema] || []).filter((e) => !jaTem.has(norma(e.nome)));
+
   return {
     dentro,
     fora,
+    outros,
+    // Instalador do PCP nao e "so cadastro": ele ENTRA, tocando no nome.
+    entramSemSenha: outros.filter((e) => e.como === "nome").length,
     semDono: dentro.filter((l) => !l.dono).length,
     temporarias: dentro.filter((l) => l.temporaria).length,
     desativadas: dentro.filter((l) => l.ativo === false).length,
@@ -807,7 +796,7 @@ function contasDoSistema(sistema, contas, soltas) {
 
    Fechadas por padrao de proposito: oito listas abertas de uma vez sao uma
    parede de nomes, e a pergunta que se faz aqui e sempre sobre UM sistema. */
-function SecaoSistema({ sistema, dados, aberta, aoAlternar, endereco }) {
+function SecaoSistema({ sistema, dados, acoes, aberta, aoAlternar, endereco }) {
   return (
     <div className="overflow-hidden rounded-xl border" style={{ borderColor: "var(--hairline)" }}>
       <button
@@ -827,6 +816,9 @@ function SecaoSistema({ sistema, dados, aberta, aoAlternar, endereco }) {
         </span>
         <span className="tnum text-sm text-slate-500">
           {dados.dentro.length} {dados.dentro.length === 1 ? "conta" : "contas"}
+          {dados.outros.length > 0 && (
+            <span className="text-slate-400"> · {dados.outros.length} cadastrados</span>
+          )}
         </span>
         <span className="flex flex-1 flex-wrap items-center justify-end gap-1.5">
           {dados.fora.length > 0 && (
@@ -837,6 +829,11 @@ function SecaoSistema({ sistema, dados, aberta, aoAlternar, endereco }) {
           {dados.semDono > 0 && (
             <Selo tom="warn" title="existe no sistema e não é de ninguém nesta tela">
               {dados.semDono} sem dono
+            </Selo>
+          )}
+          {dados.entramSemSenha > 0 && (
+            <Selo tom="warn" title="entram tocando no próprio nome, sem senha">
+              {dados.entramSemSenha} entram sem senha
             </Selo>
           )}
           {dados.temporarias > 0 && (
@@ -883,9 +880,58 @@ function SecaoSistema({ sistema, dados, aberta, aoAlternar, endereco }) {
                         </span>
                       )}
                     </span>
-                    {l.papel && <span className="chip shrink-0">{l.papel}</span>}
+                    {/* EDITAR DAQUI MESMO. Antes esta lista so mostrava: o dono
+                        abria o PCP, via os nomes e tinha de ir para a outra aba,
+                        achar a pessoa e abrir o cartao dela para mexer em uma
+                        coisa que ja estava na frente dele. Sao as MESMAS acoes da
+                        outra aba (`acoes`), nao uma segunda copia das regras. */}
+                    {l.papel && (PAPEIS[sistema] || []).length > 0 && l.dono ? (
+                      <select className="input h-8 w-auto py-0 text-xs" value={l.papel}
+                        onChange={(e) => acoes.papel(l.dono.usuario, sistema, e.target.value)}>
+                        {[...new Set([...(PAPEIS[sistema] || []), l.papel])].map((o) => (
+                          <option key={o} value={o}>{o}</option>
+                        ))}
+                      </select>
+                    ) : l.papel ? (
+                      <span className="chip shrink-0">{l.papel}</span>
+                    ) : null}
                     {l.ativo === false && <Selo tom="bad">desativada</Selo>}
                     {l.temporaria && <Selo tom="warn">senha temporária</Selo>}
+                    {l.dono && !SO_LEITURA.has(sistema) && (
+                      <span className="flex shrink-0 gap-1">
+                        <button type="button" className="btn-ghost h-8 px-2 text-xs"
+                          onClick={() => acoes.senha(l.dono.usuario, l.dono.nome || l.dono.usuario, sistema)}>
+                          <KeyRound size={13} /> Senha
+                        </button>
+                        <button type="button" className="btn-ghost h-8 px-2 text-xs"
+                          onClick={() => acoes.tirar(l.dono.usuario, l.dono.nome || l.dono.usuario, sistema)}>
+                          <X size={13} /> Tirar
+                        </button>
+                      </span>
+                    )}
+                  </div>
+                </LinhaLista>
+              ))}
+            </div>
+          )}
+
+          {/* O RESTO DO ELENCO: quem o sistema conhece e nao tem conta aqui. */}
+          {dados.outros.length > 0 && (
+            <div className="border-t" style={{ borderColor: "var(--hairline)" }}>
+              <p className="px-4 pb-1 pt-3 text-xs text-slate-500">
+                Mais <b>{dados.outros.length}</b>{" "}
+                {dados.outros.length === 1 ? "pessoa cadastrada" : "pessoas cadastradas"} no{" "}
+                {nomeSis(sistema)}
+                {dados.entramSemSenha > 0
+                  ? " — e as marcadas em amarelo ENTRAM, tocando no próprio nome, sem senha."
+                  : ", sem conta de entrada."}
+              </p>
+              {dados.outros.map((e) => (
+                <LinhaLista key={`${e.como}-${e.nome}`} tom={e.como === "nome" ? "warn" : "neutral"}>
+                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                    <span className="min-w-0 flex-1 truncate text-sm text-slate-700">{e.nome}</span>
+                    {e.detalhe && <span className="shrink-0 text-xs text-slate-500">{e.detalhe}</span>}
+                    {e.como === "nome" && <Selo tom="warn">entra sem senha</Selo>}
                   </div>
                 </LinhaLista>
               ))}
@@ -947,6 +993,49 @@ export default function AcessoUnico({ aoAvisar }) {
   }, []);
 
   useEffect(() => { carregar(); }, [carregar]);
+
+  /* AS ACOES DE UM ACESSO, NUMA IMPLEMENTACAO SO.
+     Elas nasceram dentro do cartao da pessoa. Quando a aba de Sistemas passou a
+     precisar das mesmas (o dono abriu o PCP, viu os nomes e nao conseguiu mexer
+     em nada), copiar seria repetir regra -- e regra repetida foi exatamente o
+     que produziu quase todos os defeitos desta semana. Entao elas subiram para
+     ca e recebem `usuario` como argumento; as duas abas chamam as mesmas. */
+  const acoes = useMemo(() => ({
+    async papel(usuario, sistema, papel) {
+      try {
+        await salvarPapel({ usuario, sistema, papel });
+        await carregar();
+      } catch (e) { aoAvisar({ tom: "erro", texto: e.message }); }
+    },
+    async senha(usuario, nome, sistema) {
+      if (!confirm(`Gerar uma senha nova para ${nome} SÓ no ${nomeSis(sistema)}?\n\nVale para quem entra pelo link direto do ${nomeSis(sistema)}. A senha de entrada dela (a do Painel, que abre todos) NÃO muda.`)) return;
+      try {
+        const r = await senhaDoSistema(usuario, sistema);
+        setSenhaNova({ senha: r.senha, nome: `${nome} no ${nomeSis(sistema)} (login ${r.login})` });
+        await carregar();
+      } catch (e) { aoAvisar({ tom: "erro", texto: e.message }); }
+    },
+    async tirar(usuario, nome, sistema) {
+      if (!confirm(`Tirar o acesso de ${nome} ao ${nomeSis(sistema)}? A conta dela naquele sistema é APAGADA.`)) return;
+      try {
+        await removerPapel(usuario, sistema);
+        await carregar();
+      } catch (e) { aoAvisar({ tom: "erro", texto: e.message }); }
+    },
+    async apontar(usuario, nome, sistema, login) {
+      try {
+        const r = await apontarLogin(usuario, sistema, login);
+        aoAvisar({
+          tom: "ok",
+          texto: login
+            ? `${nome} agora entra no ${nomeSis(sistema)} como "${r.login}"${r.papel ? ` (${r.papel})` : ""}.`
+            : `Apontamento no ${nomeSis(sistema)} voltou ao padrão.`,
+        });
+        await carregar();
+        return true;
+      } catch (e) { aoAvisar({ tom: "erro", texto: e.message }); return false; }
+    },
+  }), [carregar, aoAvisar]);
 
   const criar = useCallback(async (conta, papeis) => {
     try {
@@ -1100,7 +1189,8 @@ export default function AcessoUnico({ aoAvisar }) {
               key={s}
               sistema={s}
               endereco={ENDERECO[s]}
-              dados={contasDoSistema(s, dados.contas, dados.soltas)}
+              dados={contasDoSistema(s, dados.contas, dados.soltas, dados.elenco)}
+              acoes={acoes}
               aberta={!!abertos[s]}
               aoAlternar={() => setAbertos((a) => ({ ...a, [s]: !a[s] }))}
             />
@@ -1134,8 +1224,8 @@ export default function AcessoUnico({ aoAvisar }) {
             <div className="space-y-2">
               {lista.map((c) => (
                 <Conta key={c.usuario} c={c} sistemas={dados.sistemas} soltas={dados.soltas}
-                  vendedores={dados.vendedores} aoMudar={carregar} aoAvisar={aoAvisar}
-                  aoSenha={setSenhaNova} />
+                  vendedores={dados.vendedores} acoes={acoes} aoMudar={carregar}
+                  aoAvisar={aoAvisar} aoSenha={setSenhaNova} />
               ))}
             </div>
           ) : (

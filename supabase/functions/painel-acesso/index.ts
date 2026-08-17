@@ -417,11 +417,61 @@ Deno.serve(async (req: Request) => {
           .map(([nome, n]) => ({ nome, n }))
           .sort((a, b) => b.n - a.n);
 
+        /* QUEM MAIS O SISTEMA CONHECE. Ate aqui esta tela mostrava so quem tem
+           CONTA -- e cada sistema tem gente cadastrada alem disso. Abrir "POPs"
+           mostrava 7 nomes enquanto o POPs conhece 40 pessoas; o RH mostrava 6
+           enquanto tem 93 fichas.
+
+           E o caso do PCP e mais que contagem: os 15 INSTALADORES entram sem
+           senha, tocando no proprio nome. Isso e acesso de verdade, e nao
+           aparecia em lugar nenhum desta tela -- a lista de nomes E a
+           credencial. Por isso eles vem marcados como "entra pelo nome", e nao
+           como simples cadastro.
+
+           So o NOME e o minimo para reconhecer a pessoa. A ficha do RH tem CPF,
+           endereco e salario, e nada disso tem o que fazer aqui. */
+        const elenco: Record<string, { nome: string; como: string; detalhe: string }[]> = {};
+
+        const { data: cfgPcp } = await sb.from("pcp_config_global")
+          .select("config").eq("id", true).maybeSingle();
+        const instaladores = (cfgPcp?.config?.instaladores ?? []) as unknown[];
+        if (instaladores.length) {
+          elenco.pcp = instaladores
+            .map((x) => texto(x, 120))
+            .filter(Boolean)
+            .map((nome) => ({ nome, como: "nome", detalhe: "toca no nome, sem senha" }));
+        }
+
+        const { data: pessoasPops } = await sb.from("pops_registros")
+          .select("registro").eq("colecao", "pessoas");
+        if (pessoasPops?.length) {
+          elenco.pops = pessoasPops
+            .map((r: any) => ({
+              nome: texto(r.registro?.nome, 120),
+              como: "cadastro",
+              detalhe: texto(r.registro?.area, 60),
+            }))
+            .filter((x) => x.nome)
+            .sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR"));
+        }
+
+        elenco.rh = (colabs ?? [])
+          .map((r: any) => ({
+            nome: texto(r.registro?.nome, 120),
+            como: "cadastro",
+            // Desligado continua na ficha; dizer isso evita a leitura de que o
+            // RH tem 93 pessoas trabalhando.
+            detalhe: texto(r.registro?.dataDesligamento, 20) ? "desligado" : "",
+          }))
+          .filter((x: any) => x.nome)
+          .sort((a: any, b: any) => a.nome.localeCompare(b.nome, "pt-BR"));
+
         return resposta({
           ok: true,
           sistemas: SISTEMAS,
           contas: contasFora,
           soltas,
+          elenco,
           vendedores,
           colaboradores: nomes,
         });
