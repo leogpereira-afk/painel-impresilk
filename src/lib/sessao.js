@@ -121,18 +121,20 @@ export function motivoSaida() {
   }
 }
 
-/* QUEM E A DIRECAO. A conta master OU quem recebeu acesso total ("*").
-   A regra estava escrita como `sessao.master` em tres telas, e o servidor
-   (painel-acesso) sempre aceitou os dois. O resultado: a caixa "Acesso total"
-   promete, com todas as letras, que a pessoa passa a cadastrar e tirar acesso
-   de todo mundo -- e a tela de Acessos nao aparecia para ela. Promessa da tela
-   que o menu desmente e pior do que permissao faltando, porque ninguem procura.
+/* QUEM ADMINISTRA ACESSO: so a conta da direcao (`master`). Uma pessoa, o dono.
 
-   Duas coisas continuam so do master, de proposito, e nao sao permissao e sim
-   propriedade: os atalhos da Central do Leo e os da Domo, que sao de outra
-   empresa dele. */
-export const ehDirecao = (sessao = getSessao()) =>
-  !!sessao && (sessao.master === true || (sessao.permissoes || []).includes("*"));
+   Houve um desencontro aqui, e ele valia dos dois lados. A regra estava escrita
+   a mao como `sessao.master` em tres telas, enquanto o servidor aceitava tambem
+   quem tivesse acesso total ("*") -- e a caixa "Acesso total" prometia, com
+   todas as letras, que a pessoa passaria a cadastrar e tirar acesso de todo
+   mundo. Ou seja: a tela prometia, o menu escondia, e a porta de dados abria.
+
+   O dono decidiu (16/08/2026) que administrar acesso e SO DELE. A regra passa a
+   ser uma so, escrita aqui, e o servidor confere o mesmo: "*" manda no que a
+   pessoa VE dentro do painel, nao em quem entra nos sistemas. O texto da caixa
+   foi corrigido junto -- promessa que a porta desmente e pior do que permissao
+   faltando, porque ninguem vai procurar. */
+export const ehDirecao = (sessao = getSessao()) => !!sessao && sessao.master === true;
 
 // Modulo liberado? "inicio" e sempre, senao a pessoa entra e nao tem onde ficar.
 export function podeAbrir(modulo, sessao = getSessao()) {

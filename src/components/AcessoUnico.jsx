@@ -24,7 +24,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Users, KeyRound, DoorOpen, Pencil, AlertTriangle, Search, UserPlus, Power,
-  Link2, Plus, X, Check,
+  Link2, Plus, X, Check, ChevronRight, ExternalLink,
 } from "lucide-react";
 import {
   lerAcessos, salvarConta, salvarPapel, removerPapel,
@@ -76,6 +76,19 @@ const PAPEL_INICIAL = {
 };
 
 const nomeSis = (s) => NOME_SISTEMA[s] || s;
+
+// Onde cada sistema mora, para abrir dali mesmo. A Central e o app pessoal do
+// dono e nao tem atalho no dominio da empresa.
+const ENDERECO = {
+  painel: "https://impresilk.com.br/painel",
+  rh: "https://impresilk.com.br/rh",
+  pcp: "https://impresilk.com.br/pcp",
+  brief: "https://impresilk.com.br/brief",
+  dre: "https://impresilk.com.br/dre",
+  compras: "https://impresilk.com.br/compras",
+  pops: "https://impresilk.com.br/pops",
+  central: "https://leogpereira-afk.github.io/vida-leo/",
+};
 
 // O estado de uma linha pessoa×sistema, em uma palavra. E o que decide a cor do
 // trilho e o texto do selo -- e o unico lugar onde essa regra mora.
@@ -240,10 +253,14 @@ function ModulosDoPainel({ permissoes, aoMudar }) {
           className="mt-0.5 h-4 w-4 rounded border-slate-300 text-brand focus:ring-brand-200" />
         <span>
           <b className="font-display">Acesso total</b>
+          {/* O texto dizia que isto tambem dava para cadastrar e tirar o acesso
+              de todo mundo. Nao da, e a promessa era perigosa dos dois lados:
+              quem recebia "*" procurava um botao que nao aparecia, e a porta de
+              dados chegou a abrir para essa pessoa. Administrar acesso e so da
+              conta da direcao. */}
           <span className="block text-xs text-slate-500">
-            tudo o que existe no painel, inclusive o que vier depois — e mais:
-            quem tem isto <b>cadastra e tira o acesso de todo mundo, nos sete sistemas</b>,
-            por esta mesma tela. É o poder da direção.
+            tudo o que existe <b>dentro do painel</b>, inclusive o que vier depois. Não inclui
+            esta tela: cadastrar e tirar acesso continua sendo só da conta da direção.
           </span>
         </span>
       </label>
@@ -475,7 +492,7 @@ function Conta({ c, sistemas, soltas, aoMudar, aoAvisar, aoSenha }) {
 
   const trocarModulos = async (permissoes) => {
     if (permissoes.includes("*") &&
-        !confirm(`Dar ACESSO TOTAL a ${c.nome || c.usuario}?\n\nAlém de ver tudo no painel, ela passa a cadastrar e tirar o acesso de qualquer pessoa, nos sete sistemas.`)) {
+        !confirm(`Dar ACESSO TOTAL a ${c.nome || c.usuario}?\n\nEla passa a ver TUDO dentro do painel — inclusive dinheiro: contas a pagar, fluxo, margem por orçamento e a tela de Gestão.\n\nNão inclui esta tela: cadastrar e tirar acesso continua só na conta da direção.`)) {
       return;
     }
     try {
@@ -670,75 +687,151 @@ function Conta({ c, sistemas, soltas, aoMudar, aoAvisar, aoSenha }) {
    Esta pergunta nao tinha resposta em lugar nenhum -- era abrir o sistema e
    olhar. Aqui ela sai do mesmo dado da lente por pessoa: as contas que existem
    de verdade la, com o nome de quem e (ou "de ninguem", que e o caso a
-   resolver). */
-function PorSistema({ sistema, contas, soltas }) {
-  const linhas = useMemo(() => {
-    const fora = [];
-    const dentro = [];
-    for (const c of contas) {
-      const p = c.papeis.find((x) => x.sistema === sistema);
-      if (!p) continue;
-      if (p.real?.existe) {
-        dentro.push({
-          login: p.real.login, papel: p.real.papel, ativo: p.real.ativo,
-          temporaria: p.real.temporaria, dono: c, tom: estadoDoPapel(p).tom,
-        });
-      } else {
-        fora.push({ login: p.login, dono: c });
-      }
-    }
-    for (const s of soltas?.[sistema] || []) {
+   resolver).
+
+   O RECORTE E O SISTEMA, e o conjunto e FECHADO: o que existe naquele sistema
+   esta nesta lista, ponto. Se aparecer alguem aqui que voce nao conhece, e
+   porque essa pessoa entra la de verdade. */
+function contasDoSistema(sistema, contas, soltas) {
+  const fora = [];
+  const dentro = [];
+  for (const c of contas) {
+    const p = c.papeis.find((x) => x.sistema === sistema);
+    if (!p) continue;
+    if (p.real?.existe) {
       dentro.push({
-        login: s.login, papel: s.papel, ativo: s.ativo, temporaria: s.temporaria,
-        dono: null, tom: "warn", nome: s.nome,
+        login: p.real.login, papel: p.real.papel, ativo: p.real.ativo,
+        temporaria: p.real.temporaria, dono: c, tom: estadoDoPapel(p).tom,
       });
+    } else {
+      fora.push({ login: p.login, dono: c });
     }
-    dentro.sort((a, b) => a.login.localeCompare(b.login, "pt-BR"));
-    return { dentro, fora };
-  }, [sistema, contas, soltas]);
+  }
+  for (const s of soltas?.[sistema] || []) {
+    dentro.push({
+      login: s.login, papel: s.papel, ativo: s.ativo, temporaria: s.temporaria,
+      dono: null, tom: "warn", nome: s.nome,
+    });
+  }
+  dentro.sort((a, b) => a.login.localeCompare(b.login, "pt-BR"));
+  return {
+    dentro,
+    fora,
+    semDono: dentro.filter((l) => !l.dono).length,
+    temporarias: dentro.filter((l) => l.temporaria).length,
+    desativadas: dentro.filter((l) => l.ativo === false).length,
+  };
+}
 
+/* UMA SECAO POR SISTEMA, que abre e fecha. Fechada, ela ja diz o essencial:
+   quantas pessoas entram ali e se ha algo torto. Aberta, mostra nome por nome.
+
+   Fechadas por padrao de proposito: oito listas abertas de uma vez sao uma
+   parede de nomes, e a pergunta que se faz aqui e sempre sobre UM sistema. */
+function SecaoSistema({ sistema, dados, aberta, aoAlternar, endereco }) {
   return (
-    <div className="space-y-3">
-      <p className="text-sm text-slate-500">
-        As contas que existem <b>de verdade</b> no {nomeSis(sistema)} — lidas do próprio
-        sistema, não desta tabela.
-      </p>
-      <div className="overflow-hidden rounded-xl border" style={{ borderColor: "var(--hairline)" }}>
-        {linhas.dentro.length === 0 && <Empty>Nenhuma conta no {nomeSis(sistema)}.</Empty>}
-        {linhas.dentro.map((l) => (
-          <LinhaLista key={l.login} tom={l.tom}>
-            <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-              <span className="min-w-[9rem] font-mono text-sm font-semibold text-slate-900">
-                {l.login}
-              </span>
-              <span className="min-w-0 flex-1 truncate text-sm text-slate-600">
-                {l.dono
-                  ? (l.dono.nome || l.dono.usuario)
-                  : <span className="text-warn-700">de ninguém nesta tela{l.nome && l.nome !== l.login ? ` — lá está como "${l.nome}"` : ""}</span>}
-              </span>
-              {l.papel && <span className="chip shrink-0">{l.papel}</span>}
-              {l.ativo === false && <Selo tom="bad">desativada</Selo>}
-              {l.temporaria && <Selo tom="warn">senha temporária</Selo>}
-            </div>
-          </LinhaLista>
-        ))}
-      </div>
+    <div className="overflow-hidden rounded-xl border" style={{ borderColor: "var(--hairline)" }}>
+      <button
+        type="button"
+        onClick={aoAlternar}
+        aria-expanded={aberta}
+        className={`flex w-full flex-wrap items-center gap-x-3 gap-y-1.5 px-4 py-3 text-left transition-colors ${
+          aberta ? "bg-slate-50" : "hover:bg-slate-50"
+        }`}
+      >
+        <ChevronRight
+          size={16}
+          className={`shrink-0 text-slate-400 transition-transform ${aberta ? "rotate-90" : ""}`}
+        />
+        <span className="font-display text-sm font-semibold text-slate-900">
+          {nomeSis(sistema)}
+        </span>
+        <span className="tnum text-sm text-slate-500">
+          {dados.dentro.length} {dados.dentro.length === 1 ? "conta" : "contas"}
+        </span>
+        <span className="flex flex-1 flex-wrap items-center justify-end gap-1.5">
+          {dados.fora.length > 0 && (
+            <Selo tom="bad" title="a tela promete e o sistema não tem">
+              {dados.fora.length} fora do lugar
+            </Selo>
+          )}
+          {dados.semDono > 0 && (
+            <Selo tom="warn" title="existe no sistema e não é de ninguém nesta tela">
+              {dados.semDono} sem dono
+            </Selo>
+          )}
+          {dados.temporarias > 0 && (
+            <Selo tom="warn">{dados.temporarias} senha temporária</Selo>
+          )}
+          {dados.desativadas > 0 && <Selo tom="bad">{dados.desativadas} desativada</Selo>}
+          {dados.fora.length + dados.semDono + dados.temporarias + dados.desativadas === 0 && (
+            <Selo tom="ok">em ordem</Selo>
+          )}
+        </span>
+      </button>
 
-      {linhas.fora.length > 0 && (
-        <div className="rounded-xl bg-bad-50 px-4 py-3 text-sm text-bad-700">
-          <p className="font-display font-semibold">
-            A tela promete {linhas.fora.length} acesso{linhas.fora.length > 1 ? "s" : ""} que o {nomeSis(sistema)} não tem
+      {aberta && (
+        <div className="border-t" style={{ borderColor: "var(--hairline)" }}>
+          <p className="flex flex-wrap items-center gap-x-2 px-4 pt-3 text-xs text-slate-500">
+            <span>
+              Lido do próprio {nomeSis(sistema)}, não desta tabela — quem está aqui entra lá.
+            </span>
+            {endereco && (
+              <a href={endereco} target="_blank" rel="noreferrer"
+                className="inline-flex items-center gap-1 underline">
+                abrir o {nomeSis(sistema)} <ExternalLink size={11} />
+              </a>
+            )}
           </p>
-          <ul className="mt-1 space-y-0.5 text-xs">
-            {linhas.fora.map((l) => (
-              <li key={l.login + l.dono.usuario}>
-                {l.dono.nome || l.dono.usuario} entraria como <b className="font-mono">{l.login}</b> — não existe
-              </li>
-            ))}
-          </ul>
-          <p className="mt-2 text-xs">
-            Abra a pessoa em <b>Por pessoa</b> para apontar, criar ou tirar da lista.
-          </p>
+
+          {dados.dentro.length === 0 ? (
+            <Empty>Nenhuma conta no {nomeSis(sistema)}.</Empty>
+          ) : (
+            <div className="mt-2">
+              {dados.dentro.map((l) => (
+                <LinhaLista key={l.login} tom={l.tom}>
+                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                    <span className="min-w-[8rem] font-mono text-sm font-semibold text-slate-900">
+                      {l.login}
+                    </span>
+                    <span className="min-w-0 flex-1 truncate text-sm text-slate-600">
+                      {l.dono ? (
+                        l.dono.nome || l.dono.usuario
+                      ) : (
+                        <span className="text-warn-700">
+                          de ninguém nesta tela
+                          {l.nome && l.nome !== l.login ? ` — lá está como "${l.nome}"` : ""}
+                        </span>
+                      )}
+                    </span>
+                    {l.papel && <span className="chip shrink-0">{l.papel}</span>}
+                    {l.ativo === false && <Selo tom="bad">desativada</Selo>}
+                    {l.temporaria && <Selo tom="warn">senha temporária</Selo>}
+                  </div>
+                </LinhaLista>
+              ))}
+            </div>
+          )}
+
+          {dados.fora.length > 0 && (
+            <div className="m-3 rounded-xl bg-bad-50 px-4 py-3 text-sm text-bad-700">
+              <p className="font-display font-semibold">
+                A tela promete {dados.fora.length} acesso{dados.fora.length > 1 ? "s" : ""} que
+                o {nomeSis(sistema)} não tem
+              </p>
+              <ul className="mt-1 space-y-0.5 text-xs">
+                {dados.fora.map((l) => (
+                  <li key={l.login + l.dono.usuario}>
+                    {l.dono.nome || l.dono.usuario} entraria como{" "}
+                    <b className="font-mono">{l.login}</b> — não existe
+                  </li>
+                ))}
+              </ul>
+              <p className="mt-2 text-xs">
+                Abra a pessoa em <b>Por pessoa</b> para apontar, criar ou tirar da lista.
+              </p>
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -752,7 +845,10 @@ export default function AcessoUnico({ aoAvisar }) {
   const [criando, setCriando] = useState(false);
   const [senhaNova, setSenhaNova] = useState(null);
   const [lente, setLente] = useState("pessoa");
-  const [sisAberto, setSisAberto] = useState("pcp");
+  // Quais secoes da lente por sistema estao abertas. Varias ao mesmo tempo e
+  // permitido: comparar dois sistemas e uso legitimo, e fechar um para abrir
+  // outro seria trabalho a toa.
+  const [abertos, setAbertos] = useState({});
   const [recorte, setRecorte] = useState("todas");
 
   const carregar = useCallback(async () => {
@@ -891,28 +987,23 @@ export default function AcessoUnico({ aoAvisar }) {
       </datalist>
 
       {lente === "sistema" ? (
-        <>
-          <div className="mb-3 flex flex-wrap gap-2">
-            {dados.sistemas.map((s) => {
-              const soltasN = (dados.soltas?.[s] || []).length;
-              return (
-                <button key={s} type="button" onClick={() => setSisAberto(s)}
-                  aria-pressed={sisAberto === s}
-                  className={`rounded-full px-3 py-1.5 text-sm transition-colors ${
-                    sisAberto === s ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-                  }`}>
-                  {nomeSis(s)}
-                  {soltasN > 0 && (
-                    <span className={`ml-1.5 text-xs ${sisAberto === s ? "text-warn-200" : "text-warn-700"}`}>
-                      {soltasN} sem dono
-                    </span>
-                  )}
-                </button>
-              );
-            })}
-          </div>
-          <PorSistema sistema={sisAberto} contas={dados.contas} soltas={dados.soltas} />
-        </>
+        <div className="space-y-2">
+          <p className="text-sm text-slate-500">
+            Um sistema por linha. Clique para abrir e ver, nome por nome, quem entra ali —
+            e com que login. <b>O que existe no sistema está aqui</b>: a lista sai do próprio
+            sistema, inclusive as contas que ninguém desta tela reivindica.
+          </p>
+          {dados.sistemas.map((s) => (
+            <SecaoSistema
+              key={s}
+              sistema={s}
+              endereco={ENDERECO[s]}
+              dados={contasDoSistema(s, dados.contas, dados.soltas)}
+              aberta={!!abertos[s]}
+              aoAlternar={() => setAbertos((a) => ({ ...a, [s]: !a[s] }))}
+            />
+          ))}
+        </div>
       ) : (
         <>
           {criando ? (

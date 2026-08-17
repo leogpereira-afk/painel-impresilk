@@ -242,8 +242,14 @@ Deno.serve(async (req: Request) => {
   const m = String(req.headers.get("authorization") ?? "").match(/^Bearer\s+(.+)$/i);
   const sessao = m ? await verificarJwt(m[1], JWT_SECRET) : null;
   if (!sessao) return resposta({ erro: "Entre no sistema.", semSessao: true }, 401);
-  const perms: string[] = Array.isArray(sessao.perms) ? sessao.perms : [];
-  if (sessao.master !== true && !perms.includes("*")) {
+  /* SO A CONTA DA DIRECAO. Uma pessoa, o dono -- decisao dele em 16/08/2026.
+     Antes bastava ter acesso total ("*"), e isso era desencontro puro: a tela
+     escondia o menu de quem tinha "*" (gated so por `master`), enquanto ESTA
+     porta abria para essa mesma pessoa. Quem soubesse o endereco da function
+     administrava acesso sem nunca ver o botao.
+     "*" continua mandando no que a pessoa VE dentro do painel; nao em quem
+     entra nos sistemas. Ver ehDirecao em src/lib/sessao.js. */
+  if (sessao.master !== true) {
     return resposta({ erro: "Apenas a direcao." }, 403);
   }
 
