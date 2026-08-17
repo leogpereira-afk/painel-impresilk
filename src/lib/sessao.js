@@ -121,6 +121,19 @@ export function motivoSaida() {
   }
 }
 
+/* QUEM E A DIRECAO. A conta master OU quem recebeu acesso total ("*").
+   A regra estava escrita como `sessao.master` em tres telas, e o servidor
+   (painel-acesso) sempre aceitou os dois. O resultado: a caixa "Acesso total"
+   promete, com todas as letras, que a pessoa passa a cadastrar e tirar acesso
+   de todo mundo -- e a tela de Acessos nao aparecia para ela. Promessa da tela
+   que o menu desmente e pior do que permissao faltando, porque ninguem procura.
+
+   Duas coisas continuam so do master, de proposito, e nao sao permissao e sim
+   propriedade: os atalhos da Central do Leo e os da Domo, que sao de outra
+   empresa dele. */
+export const ehDirecao = (sessao = getSessao()) =>
+  !!sessao && (sessao.master === true || (sessao.permissoes || []).includes("*"));
+
 // Modulo liberado? "inicio" e sempre, senao a pessoa entra e nao tem onde ficar.
 export function podeAbrir(modulo, sessao = getSessao()) {
   if (modulo === "inicio") return true;

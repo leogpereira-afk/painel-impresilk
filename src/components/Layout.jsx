@@ -43,7 +43,7 @@ import {
 import logoColor from "../assets/brand/logo-color.png";
 import logoWhite from "../assets/brand/logo-white.png";
 import { useApp } from "../config/store.jsx";
-import { podeAbrir, sair } from "../lib/sessao.js";
+import { ehDirecao, podeAbrir, sair } from "../lib/sessao.js";
 import { frescor } from "../lib/frescor.js";
 
 // Inicio fica solto no topo; o resto vive dentro do grupo "Gestao", que abre e
@@ -329,7 +329,7 @@ function ConteudoLateral({ aoNavegar, sessao }) {
           }
         >
           <KeyRound size={17} strokeWidth={2.2} className="shrink-0" />
-          {sessao?.master ? "Acessos" : "Minha senha"}
+          {ehDirecao(sessao) ? "Acessos" : "Minha senha"}
         </NavLink>
 
         {podeAbrir("configurações", sessao) && (
@@ -361,7 +361,7 @@ function ConteudoLateral({ aoNavegar, sessao }) {
                 {sessao.nome || sessao.usuario}
               </span>
               <span className="block text-xs text-slate-400">
-                {sessao.master ? "Direção" : "Acesso limitado"}
+                {ehDirecao(sessao) ? "Direção" : "Acesso limitado"}
               </span>
             </span>
           </div>

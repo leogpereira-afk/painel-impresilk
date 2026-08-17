@@ -25,8 +25,23 @@ async function chamar(action, corpo = {}) {
 
 export const lerAcessos = () => chamar("listar");
 export const salvarConta = (conta) => chamar("salvarConta", { conta }).then((r) => r.conta);
-export const salvarPapel = (papel) => chamar("salvarPapel", { papel });
+
+// `criar` e PEDIDO EXPLICITO. Sem ele, gravar papel numa linha cujo login nao
+// existe no sistema devolve 409 em vez de inventar uma conta com aquele nome --
+// que era como nascia a sosia (`leonardo` no PCP ao lado do `leo` de verdade).
+export const salvarPapel = (papel, { criar = false } = {}) =>
+  chamar("salvarPapel", { papel, criar });
 export const removerPapel = (usuario, sistema) => chamar("removerPapel", { usuario, sistema });
+
+// "Esta pessoa, NESTE sistema, chama-se assim." Nao escreve nada no sistema:
+// so acerta o apontamento. Mandar login vazio volta para a regra deduzida.
+export const apontarLogin = (usuario, sistema, login) =>
+  chamar("apontarLogin", { usuario, sistema, login });
+
+// Trocar a senha em UM sistema. A de todos de uma vez continua em definirSenha,
+// mas consertar o PCP nao pode custar a senha do RH que a pessoa ja decorou.
+export const senhaDoSistema = (usuario, sistema) =>
+  chamar("senhaDoSistema", { usuario, sistema });
 
 // Cria a pessoa e ja da acesso aos sistemas escolhidos. Devolve a senha
 // temporaria UMA vez -- ela nao fica guardada em lugar nenhum legivel, entao a

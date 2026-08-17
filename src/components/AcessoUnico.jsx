@@ -1,21 +1,37 @@
-// Quem entra nos SETE sistemas, num lugar so.
+// Quem entra em cada sistema, num lugar so.
 //
 // Antes desta tela, saber "o que a Barbara acessa" era abrir tres sistemas e
 // somar de cabeca -- as contas viviam em duas tabelas, uma delas com uma linha
 // por pessoa POR SISTEMA. Aqui e uma linha por PESSOA, e o que muda por sistema
 // e o papel.
 //
-// A TELA DIZ, EM CIMA, QUE AINDA NAO MANDA NO LOGIN. Sem esse aviso a direcao
-// desmarca um sistema, acha que tirou o acesso, e a pessoa continua entrando
-// pela tabela antiga. Aviso que a tela nao da, o usuario descobre do pior jeito.
+// O QUE MUDOU EM 16/08/2026, E POR QUE
+// Ate hoje esta tela mostrava a TABELA CONSOLIDADA e chamava aquilo de verdade.
+// So que a tabela guardava intencao, nao fato: ela dizia "o Leonardo entra no
+// PCP" enquanto a conta que existe la se chama `leo`. O dono passou cinco
+// tentativas digitando um usuario que nao existe, olhando para uma tela que
+// dizia que ele tinha acesso. Vinte e uma linhas estavam assim.
+//
+// Agora cada sistema e PERGUNTADO, e a tela mostra tres coisas que antes nao
+// existiam: o LOGIN com que a pessoa entra ali, se aquela conta EXISTE, e as
+// contas que existem la e nao sao de ninguem aqui (as "soltas" -- quase sempre
+// a mesma pessoa com o nome escrito de outro jeito).
+//
+// E ha duas lentes, porque sao duas perguntas diferentes:
+//   · Por pessoa  — "o que o Pedro acessa?"
+//   · Por sistema — "quem entra no PCP, e com que login?"
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Users, KeyRound, DoorOpen, Pencil, AlertTriangle, Search, UserPlus, Power } from "lucide-react";
+import {
+  Users, KeyRound, DoorOpen, Pencil, AlertTriangle, Search, UserPlus, Power,
+  Link2, Plus, X, Check,
+} from "lucide-react";
 import {
   lerAcessos, salvarConta, salvarPapel, removerPapel,
-  criarPessoa, definirSenha, desativar,
+  criarPessoa, definirSenha, desativar, apontarLogin, senhaDoSistema,
 } from "../services/acesso.js";
 import { Card, SectionTitle, Empty } from "./ui.jsx";
+import { Selo, FaixaNumeros, LinhaLista } from "./lista.jsx";
 import { MODULOS, COM_DINHEIRO, somenteValidos } from "../lib/modulos.js";
 
 const NOME_SISTEMA = {
@@ -59,6 +75,17 @@ const PAPEL_INICIAL = {
   painel: "",
 };
 
+const nomeSis = (s) => NOME_SISTEMA[s] || s;
+
+// O estado de uma linha pessoa×sistema, em uma palavra. E o que decide a cor do
+// trilho e o texto do selo -- e o unico lugar onde essa regra mora.
+function estadoDoPapel(p) {
+  if (!p?.real?.existe) return { chave: "fantasma", rotulo: "não existe lá", tom: "bad" };
+  if (p.real.ativo === false) return { chave: "desativada", rotulo: "desativada", tom: "bad" };
+  if (p.real.temporaria) return { chave: "temporaria", rotulo: "senha temporária", tom: "warn" };
+  return { chave: "ok", rotulo: "ok", tom: "ok" };
+}
+
 // A senha temporaria aparece UMA vez. Ela nao fica guardada em lugar nenhum
 // legivel -- se a direcao fechar esta caixa sem anotar, o caminho e gerar outra.
 function SenhaNova({ senha, nome, aoFechar }) {
@@ -92,7 +119,7 @@ function NovaPessoa({ sistemas, aoCriar, aoCancelar }) {
   const alternar = (sis) =>
     setPapeis((p) => {
       const n = { ...p };
-      if (n[sis] === undefined) n[sis] = (PAPEIS[sis] || [])[0] || "";
+      if (n[sis] === undefined) n[sis] = PAPEL_INICIAL[sis] ?? "";
       else delete n[sis];
       return n;
     });
@@ -150,7 +177,7 @@ function NovaPessoa({ sistemas, aoCriar, aoCancelar }) {
                 <input type="checkbox" checked={papeis[sis] !== undefined}
                   onChange={() => alternar(sis)}
                   className="h-4 w-4 rounded border-slate-300 text-brand focus:ring-brand-200" />
-                {NOME_SISTEMA[sis] || sis}
+                {nomeSis(sis)}
               </label>
               {papeis[sis] !== undefined && (PAPEIS[sis] || []).length > 0 && (
                 <select className="input h-8 w-auto py-0 text-xs" value={papeis[sis]}
@@ -247,7 +274,167 @@ function ModulosDoPainel({ permissoes, aoMudar }) {
   );
 }
 
-function Conta({ c, sistemas, colaboradores, aoMudar, aoAvisar, aoSenha }) {
+/* APONTAR O LOGIN. O campo vem com a lista das contas soltas daquele sistema,
+   porque e de la que sai a resposta em quase todo caso: o login existe, so nao
+   estava ligado a ninguem. Digitar outro tambem vale -- o servidor recusa o que
+   nao existe, em vez de criar. */
+function TrocarLogin({ sistema, atual, soltas, aoConfirmar, aoFechar }) {
+  const [v, setV] = useState(atual || "");
+  const [indo, setIndo] = useState(false);
+  const idLista = `soltas-${sistema}`;
+  return (
+    <form
+      className="mt-2 w-full rounded-lg bg-slate-50 p-3"
+      onSubmit={async (e) => {
+        e.preventDefault();
+        setIndo(true);
+        try { await aoConfirmar(v.trim()); } finally { setIndo(false); }
+      }}
+    >
+      <label className="label" htmlFor={`lg-${sistema}`}>
+        Login desta pessoa no {nomeSis(sistema)}
+      </label>
+      <div className="flex flex-wrap items-center gap-2">
+        <input id={`lg-${sistema}`} className="input h-9 w-auto min-w-[12rem] flex-1 font-mono text-sm"
+          list={idLista} value={v} onChange={(e) => setV(e.target.value)}
+          placeholder="como ela digita para entrar ali" autoFocus />
+        <datalist id={idLista}>
+          {(soltas || []).map((s) => (
+            <option key={s.login} value={s.login}>{s.papel ? `${s.papel}` : ""}</option>
+          ))}
+        </datalist>
+        <button className="btn-primary h-9 px-3 text-xs" disabled={indo}>
+          {indo ? "Apontando..." : "Apontar"}
+        </button>
+        <button type="button" className="btn-ghost h-9 px-2 text-xs" onClick={aoFechar}>
+          Cancelar
+        </button>
+      </div>
+      {(soltas || []).length > 0 && (
+        <p className="mt-2 text-xs text-slate-500">
+          Soltas no {nomeSis(sistema)}:{" "}
+          {soltas.map((s) => (
+            <button key={s.login} type="button" onClick={() => setV(s.login)}
+              className="mr-1 rounded bg-white px-1.5 py-0.5 font-mono text-[11px] underline">
+              {s.login}
+            </button>
+          ))}
+        </p>
+      )}
+      <p className="mt-2 text-xs text-slate-500">
+        Isto só acerta o apontamento — não cria nem apaga conta nenhuma. Deixe em branco
+        para voltar ao palpite ({sistema === "rh" ? "o nome do colaborador" : "o usuário"}).
+      </p>
+    </form>
+  );
+}
+
+/* UMA LINHA pessoa × sistema. E aqui que a tela deixou de mentir: alem da
+   caixa e do papel, ela mostra COM QUE LOGIN a pessoa entra ali e se aquela
+   conta existe. Quando nao existe, os tres caminhos ficam na cara -- apontar
+   para a conta certa, criar la, ou tirar da lista. */
+function LinhaSistema({ c, sis, p, soltas, aoAlternar, aoPapel, aoModulos, aoApontar, aoSenha, aoCriarLa }) {
+  const [editando, setEditando] = useState(false);
+  const opcoes = PAPEIS[sis] || [];
+  const est = p ? estadoDoPapel(p) : null;
+
+  return (
+    <LinhaLista tom={est?.tom || "neutral"}>
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+        <label className="flex min-w-[6.5rem] cursor-pointer items-center gap-2 text-sm">
+          <input type="checkbox" checked={!!p} onChange={() => aoAlternar(sis)}
+            className="h-4 w-4 rounded border-slate-300 text-brand focus:ring-brand-200" />
+          <span className="font-display font-medium text-slate-900">{nomeSis(sis)}</span>
+        </label>
+
+        {p && (
+          <>
+            {/* O LOGIN. Antes nao aparecia em lugar nenhum -- e era ele que
+                estava errado. */}
+            <span className="flex items-center gap-1.5">
+              <span className="text-xs text-slate-400">entra como</span>
+              <button type="button" onClick={() => setEditando((x) => !x)}
+                title="Trocar o login desta pessoa neste sistema"
+                className="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-xs text-slate-800 hover:bg-slate-200">
+                {p.login || "—"}
+              </button>
+            </span>
+
+            {est && <Selo tom={est.tom}>{est.rotulo}</Selo>}
+
+            {opcoes.length > 0 && p.real?.existe && (
+              <select className="input h-8 w-auto py-0 text-xs"
+                value={p.real.papel || p.papel || ""}
+                onChange={(e) => aoPapel(sis, e.target.value)}>
+                {[...new Set([...opcoes, p.real.papel].filter(Boolean))].map((o) => (
+                  <option key={o} value={o}>{o}</option>
+                ))}
+              </select>
+            )}
+
+            {p.real?.existe && (
+              <button type="button" onClick={() => aoSenha(sis)}
+                className="btn-ghost h-8 px-2 text-xs" title={`Nova senha só no ${nomeSis(sis)}`}>
+                <KeyRound size={13} /> Senha aqui
+              </button>
+            )}
+
+            {sis === "painel" && p.real?.existe && (
+              <span className="text-xs text-slate-500">
+                {somenteValidos(p.real.permissoes || p.permissoes).includes("*")
+                  ? "acesso total"
+                  : `${somenteValidos(p.real.permissoes || p.permissoes).length} de ${MODULOS.length} partes`}
+              </span>
+            )}
+          </>
+        )}
+      </div>
+
+      {/* A DIVERGENCIA, escrita por extenso e com saida. Selo vermelho sem
+          caminho e so uma forma mais bonita de nao resolver. */}
+      {p && !p.real?.existe && !editando && (
+        <div className="mt-2 rounded-lg bg-bad-50 px-3 py-2 text-xs text-bad-700">
+          <p>
+            Esta tela diz que {c.nome || c.usuario} entra no {nomeSis(sis)} como{" "}
+            <b className="font-mono">{p.login}</b>, e não existe conta com esse login lá.
+            Enquanto ficar assim, gerar senha para esta pessoa <b>não alcança o {nomeSis(sis)}</b>.
+          </p>
+          <div className="mt-2 flex flex-wrap gap-2">
+            <button type="button" className="btn-outline h-8 px-2 text-xs" onClick={() => setEditando(true)}>
+              <Link2 size={13} /> Apontar para a conta certa
+            </button>
+            <button type="button" className="btn-ghost h-8 px-2 text-xs" onClick={() => aoCriarLa(sis)}>
+              <Plus size={13} /> Criar a conta lá
+            </button>
+            <button type="button" className="btn-ghost h-8 px-2 text-xs" onClick={() => aoAlternar(sis)}>
+              <X size={13} /> Tirar da lista
+            </button>
+          </div>
+        </div>
+      )}
+
+      {p && editando && (
+        <TrocarLogin
+          sistema={sis} atual={p.login} soltas={soltas}
+          aoFechar={() => setEditando(false)}
+          aoConfirmar={async (login) => {
+            const ok = await aoApontar(sis, login);
+            if (ok) setEditando(false);
+          }}
+        />
+      )}
+
+      {p && sis === "painel" && p.real?.existe && (
+        <ModulosDoPainel
+          permissoes={p.real.permissoes || p.permissoes || []}
+          aoMudar={(perms) => aoModulos(perms)}
+        />
+      )}
+    </LinhaLista>
+  );
+}
+
+function Conta({ c, sistemas, soltas, aoMudar, aoAvisar, aoSenha }) {
   const [aberta, setAberta] = useState(false);
   const [f, setF] = useState(null);
 
@@ -270,15 +457,17 @@ function Conta({ c, sistemas, colaboradores, aoMudar, aoAvisar, aoSenha }) {
 
   const alternarSistema = async (sis) => {
     const tem = c.papeis.some((p) => p.sistema === sis);
-    const nome = NOME_SISTEMA[sis] || sis;
-    if (tem && !confirm(`Tirar o acesso de ${c.nome || c.usuario} ao ${nome}? A conta dela naquele sistema é APAGADA.`)) return;
+    if (tem && !confirm(`Tirar o acesso de ${c.nome || c.usuario} ao ${nomeSis(sis)}? A conta dela naquele sistema é APAGADA.`)) return;
     try {
       if (tem) { await removerPapel(c.usuario, sis); }
       else {
-        const r = await salvarPapel({ usuario: c.usuario, sistema: sis, papel: PAPEL_INICIAL[sis] ?? "" });
+        // Marcar a caixa E dar acesso: aqui criar la e o que se pediu.
+        const r = await salvarPapel(
+          { usuario: c.usuario, sistema: sis, papel: PAPEL_INICIAL[sis] ?? "" },
+          { criar: true });
         // Conta nova naquele sistema nasce com senha temporaria. Se ela nao
         // aparecer aqui, ninguem nunca a vera -- e a pessoa nao entra.
-        if (r?.senha) aoSenha({ senha: r.senha, nome: `${c.nome || c.usuario} no ${nome}` });
+        if (r?.senha) aoSenha({ senha: r.senha, nome: `${c.nome || c.usuario} no ${nomeSis(sis)}` });
       }
       await aoMudar();
     } catch (err) { aoAvisar({ tom: "erro", texto: err.message }); }
@@ -305,13 +494,51 @@ function Conta({ c, sistemas, colaboradores, aoMudar, aoAvisar, aoSenha }) {
     } catch (err) { aoAvisar({ tom: "erro", texto: err.message }); }
   };
 
+  const apontar = async (sis, login) => {
+    try {
+      const r = await apontarLogin(c.usuario, sis, login);
+      aoAvisar({
+        tom: "ok",
+        texto: login
+          ? `${c.nome || c.usuario} agora entra no ${nomeSis(sis)} como "${r.login}"${r.papel ? ` (${r.papel})` : ""}.`
+          : `Apontamento no ${nomeSis(sis)} voltou ao padrão.`,
+      });
+      await aoMudar();
+      return true;
+    } catch (err) { aoAvisar({ tom: "erro", texto: err.message }); return false; }
+  };
+
+  const criarLa = async (sis) => {
+    const p = c.papeis.find((x) => x.sistema === sis);
+    if (!confirm(`Criar a conta "${p?.login}" no ${nomeSis(sis)}?\n\nSó faça isso se ${c.nome || c.usuario} REALMENTE não tem conta lá — se tiver com outro nome, use "Apontar para a conta certa", senão ficam duas.`)) return;
+    try {
+      const r = await salvarPapel(
+        { usuario: c.usuario, sistema: sis, papel: p?.papel || PAPEL_INICIAL[sis] || "" },
+        { criar: true });
+      if (r?.senha) aoSenha({ senha: r.senha, nome: `${c.nome || c.usuario} no ${nomeSis(sis)}` });
+      await aoMudar();
+    } catch (err) { aoAvisar({ tom: "erro", texto: err.message }); }
+  };
+
+  const senhaAqui = async (sis) => {
+    if (!confirm(`Gerar uma senha nova para ${c.nome || c.usuario} SÓ no ${nomeSis(sis)}? As senhas dela nos outros sistemas não mudam.`)) return;
+    try {
+      const r = await senhaDoSistema(c.usuario, sis);
+      aoSenha({ senha: r.senha, nome: `${c.nome || c.usuario} no ${nomeSis(sis)} (login ${r.login})` });
+      await aoMudar();
+    } catch (err) { aoAvisar({ tom: "erro", texto: err.message }); }
+  };
+
   const novaSenha = async () => {
-    if (!confirm(`Gerar uma senha nova para ${c.nome || c.usuario}? A senha atual dela para de valer em todos os sistemas.`)) return;
+    if (!confirm(`Gerar uma senha nova para ${c.nome || c.usuario} em TODOS os sistemas dela? A senha atual para de valer em todos.`)) return;
     try {
       const r = await definirSenha(c.usuario);
       aoSenha({ senha: r.senha, nome: c.nome || c.usuario });
       if (r.recusados?.length) {
-        aoAvisar({ tom: "erro", texto: `Não consegui em: ${r.recusados.map((x) => x.sistema).join(", ")}` });
+        aoAvisar({
+          tom: "erro",
+          texto: `Não alcancei: ${r.recusados.map((x) => `${nomeSis(x.sistema)} (${x.erro})`).join(" · ")}`,
+        });
       }
       await aoMudar();
     } catch (err) { aoAvisar({ tom: "erro", texto: err.message }); }
@@ -323,7 +550,7 @@ function Conta({ c, sistemas, colaboradores, aoMudar, aoAvisar, aoSenha }) {
     try {
       const r = await desativar(c.usuario, ligar);
       if (r.recusados?.length) {
-        aoAvisar({ tom: "erro", texto: r.recusados.map((x) => `${NOME_SISTEMA[x.sistema] || x.sistema}: ${x.erro}`).join(" · ") });
+        aoAvisar({ tom: "erro", texto: r.recusados.map((x) => `${nomeSis(x.sistema)}: ${x.erro}`).join(" · ") });
       }
       await aoMudar();
     } catch (err) { aoAvisar({ tom: "erro", texto: err.message }); }
@@ -331,6 +558,7 @@ function Conta({ c, sistemas, colaboradores, aoMudar, aoAvisar, aoSenha }) {
 
   const ehFuncao = c.tipo === "funcao";
   const naoMigradas = c.senhas.filter((s) => !s.migrada).length;
+  const fora = c.papeis.filter((p) => !p.real?.existe).length;
 
   return (
     <div className="rounded-xl border" style={{ borderColor: "var(--hairline)" }}>
@@ -346,18 +574,20 @@ function Conta({ c, sistemas, colaboradores, aoMudar, aoAvisar, aoSenha }) {
           </span>
           <span className="block truncate text-xs text-slate-500">
             {c.papeis.length
-              ? c.papeis.map((p) => NOME_SISTEMA[p.sistema] || p.sistema).sort().join(" · ")
+              ? c.papeis.map((p) => nomeSis(p.sistema)).sort().join(" · ")
               : "sem sistema nenhum"}
             {c.colaborador ? ` — ${c.colaborador}` : ""}
           </span>
         </span>
-        {c.ativo === false && <span className="chip-bad shrink-0">desativada</span>}
-        {ehFuncao && <span className="chip-warn shrink-0">porta de função</span>}
-        {c.senhas.length > 1 && (
-          <span className="chip shrink-0" title={`${c.senhas.length} senhas diferentes hoje`}>
-            {c.senhas.length} senhas
+        {/* O numero que faz abrir o cartao. Sem ele a divergencia so aparecia
+            para quem ja tivesse aberto -- ou seja, para ninguem. */}
+        {fora > 0 && (
+          <span className="chip-bad shrink-0" title="acessos que não existem no sistema">
+            {fora} fora do lugar
           </span>
         )}
+        {c.ativo === false && <span className="chip-bad shrink-0">desativada</span>}
+        {ehFuncao && <span className="chip-warn shrink-0">porta de função</span>}
       </button>
 
       {aberta && (
@@ -396,7 +626,7 @@ function Conta({ c, sistemas, colaboradores, aoMudar, aoAvisar, aoSenha }) {
                 <Pencil size={13} /> Editar nome, tipo e vínculo com o RH
               </button>
               <button type="button" className="btn-ghost h-8 px-2 text-xs" onClick={novaSenha}>
-                <KeyRound size={13} /> Gerar nova senha
+                <KeyRound size={13} /> Nova senha em todos
               </button>
               <button type="button" className="btn-ghost h-8 px-2 text-xs" onClick={alternarAtivo}>
                 <Power size={13} /> {c.ativo === false ? "Reativar" : "Desativar"}
@@ -405,42 +635,21 @@ function Conta({ c, sistemas, colaboradores, aoMudar, aoAvisar, aoSenha }) {
           )}
 
           <div>
-            <p className="label mb-2">Sistemas</p>
-            <div className="space-y-2">
-              {sistemas.map((sis) => {
-                const p = c.papeis.find((x) => x.sistema === sis);
-                const opcoes = PAPEIS[sis] || [];
-                return (
-                  <div key={sis} className="flex flex-wrap items-center gap-2">
-                    <label className="flex min-w-[7rem] cursor-pointer items-center gap-2 text-sm">
-                      <input type="checkbox" checked={!!p} onChange={() => alternarSistema(sis)}
-                        className="h-4 w-4 rounded border-slate-300 text-brand focus:ring-brand-200" />
-                      {NOME_SISTEMA[sis] || sis}
-                    </label>
-                    {p && opcoes.length > 0 && (
-                      <select className="input h-8 w-auto py-0 text-xs" value={p.papel || ""}
-                        onChange={(e) => trocarPapel(sis, e.target.value)}>
-                        {opcoes.map((o) => <option key={o} value={o}>{o}</option>)}
-                      </select>
-                    )}
-                    {p && sis === "painel" && (
-                      <span className="text-xs text-slate-500">
-                        {somenteValidos(p.permissoes).includes("*")
-                          ? "acesso total"
-                          : `${somenteValidos(p.permissoes).length} de ${MODULOS.length} partes`}
-                      </span>
-                    )}
-                    {p && sis === "painel" && (
-                      <div className="w-full">
-                        <ModulosDoPainel
-                          permissoes={p.permissoes || []}
-                          aoMudar={(perms) => trocarModulos(perms)}
-                        />
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
+            <p className="label mb-1">Sistemas, e o login em cada um</p>
+            <div className="overflow-hidden rounded-xl border" style={{ borderColor: "var(--hairline)" }}>
+              {sistemas.map((sis) => (
+                <LinhaSistema
+                  key={sis} c={c} sis={sis}
+                  p={c.papeis.find((x) => x.sistema === sis)}
+                  soltas={soltas?.[sis]}
+                  aoAlternar={alternarSistema}
+                  aoPapel={trocarPapel}
+                  aoModulos={trocarModulos}
+                  aoApontar={apontar}
+                  aoSenha={senhaAqui}
+                  aoCriarLa={criarLa}
+                />
+              ))}
             </div>
           </div>
 
@@ -457,12 +666,94 @@ function Conta({ c, sistemas, colaboradores, aoMudar, aoAvisar, aoSenha }) {
   );
 }
 
+/* A OUTRA LENTE: "quem entra no PCP, e com que login?".
+   Esta pergunta nao tinha resposta em lugar nenhum -- era abrir o sistema e
+   olhar. Aqui ela sai do mesmo dado da lente por pessoa: as contas que existem
+   de verdade la, com o nome de quem e (ou "de ninguem", que e o caso a
+   resolver). */
+function PorSistema({ sistema, contas, soltas }) {
+  const linhas = useMemo(() => {
+    const fora = [];
+    const dentro = [];
+    for (const c of contas) {
+      const p = c.papeis.find((x) => x.sistema === sistema);
+      if (!p) continue;
+      if (p.real?.existe) {
+        dentro.push({
+          login: p.real.login, papel: p.real.papel, ativo: p.real.ativo,
+          temporaria: p.real.temporaria, dono: c, tom: estadoDoPapel(p).tom,
+        });
+      } else {
+        fora.push({ login: p.login, dono: c });
+      }
+    }
+    for (const s of soltas?.[sistema] || []) {
+      dentro.push({
+        login: s.login, papel: s.papel, ativo: s.ativo, temporaria: s.temporaria,
+        dono: null, tom: "warn", nome: s.nome,
+      });
+    }
+    dentro.sort((a, b) => a.login.localeCompare(b.login, "pt-BR"));
+    return { dentro, fora };
+  }, [sistema, contas, soltas]);
+
+  return (
+    <div className="space-y-3">
+      <p className="text-sm text-slate-500">
+        As contas que existem <b>de verdade</b> no {nomeSis(sistema)} — lidas do próprio
+        sistema, não desta tabela.
+      </p>
+      <div className="overflow-hidden rounded-xl border" style={{ borderColor: "var(--hairline)" }}>
+        {linhas.dentro.length === 0 && <Empty>Nenhuma conta no {nomeSis(sistema)}.</Empty>}
+        {linhas.dentro.map((l) => (
+          <LinhaLista key={l.login} tom={l.tom}>
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+              <span className="min-w-[9rem] font-mono text-sm font-semibold text-slate-900">
+                {l.login}
+              </span>
+              <span className="min-w-0 flex-1 truncate text-sm text-slate-600">
+                {l.dono
+                  ? (l.dono.nome || l.dono.usuario)
+                  : <span className="text-warn-700">de ninguém nesta tela{l.nome && l.nome !== l.login ? ` — lá está como "${l.nome}"` : ""}</span>}
+              </span>
+              {l.papel && <span className="chip shrink-0">{l.papel}</span>}
+              {l.ativo === false && <Selo tom="bad">desativada</Selo>}
+              {l.temporaria && <Selo tom="warn">senha temporária</Selo>}
+            </div>
+          </LinhaLista>
+        ))}
+      </div>
+
+      {linhas.fora.length > 0 && (
+        <div className="rounded-xl bg-bad-50 px-4 py-3 text-sm text-bad-700">
+          <p className="font-display font-semibold">
+            A tela promete {linhas.fora.length} acesso{linhas.fora.length > 1 ? "s" : ""} que o {nomeSis(sistema)} não tem
+          </p>
+          <ul className="mt-1 space-y-0.5 text-xs">
+            {linhas.fora.map((l) => (
+              <li key={l.login + l.dono.usuario}>
+                {l.dono.nome || l.dono.usuario} entraria como <b className="font-mono">{l.login}</b> — não existe
+              </li>
+            ))}
+          </ul>
+          <p className="mt-2 text-xs">
+            Abra a pessoa em <b>Por pessoa</b> para apontar, criar ou tirar da lista.
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function AcessoUnico({ aoAvisar }) {
   const [dados, setDados] = useState(null);
   const [erro, setErro] = useState(null);
   const [busca, setBusca] = useState("");
   const [criando, setCriando] = useState(false);
   const [senhaNova, setSenhaNova] = useState(null);
+  const [lente, setLente] = useState("pessoa");
+  const [sisAberto, setSisAberto] = useState("pcp");
+  const [recorte, setRecorte] = useState("todas");
 
   const carregar = useCallback(async () => {
     try {
@@ -483,27 +774,35 @@ export default function AcessoUnico({ aoAvisar }) {
       if (r.recusados?.length) {
         aoAvisar({
           tom: "erro",
-          texto: r.recusados.map((x) => `${NOME_SISTEMA[x.sistema] || x.sistema}: ${x.erro}`).join(" · "),
+          texto: r.recusados.map((x) => `${nomeSis(x.sistema)}: ${x.erro}`).join(" · "),
         });
       }
       await carregar();
     } catch (e) { aoAvisar({ tom: "erro", texto: e.message }); }
   }, [carregar, aoAvisar]);
 
+  const numeros = useMemo(() => {
+    if (!dados) return null;
+    const contas = dados.contas;
+    const foraDoLugar = contas.reduce(
+      (n, c) => n + c.papeis.filter((p) => !p.real?.existe).length, 0);
+    const temporarias = contas.reduce(
+      (n, c) => n + c.papeis.filter((p) => p.real?.existe && p.real.temporaria).length, 0);
+    const soltas = Object.values(dados.soltas || {}).reduce((n, l) => n + l.length, 0);
+    return { pessoas: contas.length, foraDoLugar, temporarias, soltas };
+  }, [dados]);
+
   const lista = useMemo(() => {
     if (!dados) return [];
     const q = busca.trim().toLowerCase();
-    return dados.contas.filter((c) =>
-      !q || `${c.usuario} ${c.nome} ${c.colaborador}`.toLowerCase().includes(q));
-  }, [dados, busca]);
-
-  const resumo = useMemo(() => {
-    if (!dados) return null;
-    const pessoas = dados.contas.filter((c) => c.tipo === "pessoa").length;
-    const portas = dados.contas.filter((c) => c.tipo === "funcao").length;
-    const varias = dados.contas.filter((c) => c.senhas.length > 1).length;
-    return { pessoas, portas, varias };
-  }, [dados]);
+    return dados.contas.filter((c) => {
+      if (q && !`${c.usuario} ${c.nome} ${c.colaborador} ${c.papeis.map((p) => p.login).join(" ")}`
+        .toLowerCase().includes(q)) return false;
+      if (recorte === "fora") return c.papeis.some((p) => !p.real?.existe);
+      if (recorte === "temporaria") return c.papeis.some((p) => p.real?.existe && p.real.temporaria);
+      return true;
+    });
+  }, [dados, busca, recorte]);
 
   if (erro) {
     return (
@@ -516,16 +815,26 @@ export default function AcessoUnico({ aoAvisar }) {
   }
   if (!dados) return null;
 
+  const celulas = [
+    { id: "todas", rotulo: "Pessoas e portas", valor: numeros.pessoas,
+      sub: "contas nesta tela", curto: "no total" },
+    { id: "fora", rotulo: "Fora do lugar", valor: numeros.foraDoLugar,
+      cor: numeros.foraDoLugar ? "text-bad-700" : "text-slate-900",
+      sub: "a tela promete e o sistema não tem", curto: "não existem lá" },
+    { id: "soltas", rotulo: "Soltas nos sistemas", valor: numeros.soltas,
+      cor: numeros.soltas ? "text-warn-700" : "text-slate-900",
+      sub: "existem lá e não são de ninguém aqui", curto: "sem dono" },
+    { id: "temporaria", rotulo: "Senha temporária", valor: numeros.temporarias,
+      sub: "ainda não trocaram a senha que receberam", curto: "não trocaram" },
+  ];
+
   return (
     <Card>
       <SectionTitle
-        titulo="Quem entra nos sete sistemas"
-        sub="Uma linha por pessoa. O que muda de um sistema para outro é o papel, não a conta."
+        titulo={`Quem entra nos ${dados.sistemas.length} sistemas`}
+        sub="Uma linha por pessoa. O que muda de um sistema para outro é o papel — e o login, que nem sempre é o mesmo."
       />
 
-      {/* O aviso ANTIGO dizia que esta tela nao mandava no login -- e nao mandava
-          mesmo. Agora manda, e deixar o texto velho seria pior do que nao ter
-          aviso: a direcao tiraria um acesso achando que era ensaio. */}
       <p className="mb-4 flex items-start gap-2 rounded-lg bg-warn-50 px-3 py-2 text-sm text-warn-700">
         <AlertTriangle size={15} className="mt-0.5 shrink-0" />
         <span>
@@ -536,56 +845,109 @@ export default function AcessoUnico({ aoAvisar }) {
         </span>
       </p>
 
-      {resumo && (
-        <div className="mb-4 grid grid-cols-3 gap-3">
-          <div className="rounded-xl border p-3" style={{ borderColor: "var(--hairline)" }}>
-            <p className="label">Pessoas</p>
-            <p className="font-display text-xl font-bold text-slate-900">{resumo.pessoas}</p>
-          </div>
-          <div className="rounded-xl border p-3" style={{ borderColor: "var(--hairline)" }}>
-            <p className="label">Portas de função</p>
-            <p className="font-display text-xl font-bold text-warn-700">{resumo.portas}</p>
-            <p className="text-xs text-slate-500">o histórico não diz quem foi</p>
-          </div>
-          <div className="rounded-xl border p-3" style={{ borderColor: "var(--hairline)" }}>
-            <p className="label">Com mais de uma senha</p>
-            <p className="font-display text-xl font-bold text-slate-900">{resumo.varias}</p>
-            <p className="text-xs text-slate-500">viram uma só na virada</p>
-          </div>
-        </div>
+      <div className="mb-4">
+        <FaixaNumeros
+          celulas={celulas}
+          ativo={lente === "pessoa" ? recorte : null}
+          aoEscolher={(id) => {
+            if (id === "soltas") { setLente("sistema"); return; }
+            setLente("pessoa");
+            setRecorte((a) => (a === id ? "todas" : id));
+          }}
+        />
+      </div>
+
+      {numeros.foraDoLugar > 0 && recorte !== "fora" && (
+        <p className="mb-4 flex items-start gap-2 rounded-lg bg-bad-50 px-3 py-2 text-sm text-bad-700">
+          <AlertTriangle size={15} className="mt-0.5 shrink-0" />
+          <span>
+            <b className="font-display">{numeros.foraDoLugar} acessos existem só nesta tela.</b>{" "}
+            A pessoa aparece com o sistema marcado, mas não há conta com aquele login lá —
+            então gerar senha para ela não alcança aquele sistema.{" "}
+            <button type="button" className="underline" onClick={() => { setLente("pessoa"); setRecorte("fora"); }}>
+              ver quem
+            </button>
+          </span>
+        </p>
       )}
+
+      <div className="mb-4 flex flex-wrap gap-2">
+        {[["pessoa", "Por pessoa"], ["sistema", "Por sistema"]].map(([id, rot]) => (
+          <button key={id} type="button" onClick={() => setLente(id)}
+            aria-pressed={lente === id}
+            className={`rounded-full px-3 py-1.5 text-sm transition-colors ${
+              lente === id ? "bg-brand text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+            }`}>
+            {rot}
+          </button>
+        ))}
+      </div>
 
       <SenhaNova senha={senhaNova?.senha} nome={senhaNova?.nome}
         aoFechar={() => setSenhaNova(null)} />
-
-      {criando ? (
-        <NovaPessoa sistemas={dados.sistemas} aoCriar={criar} aoCancelar={() => setCriando(false)} />
-      ) : (
-        <button type="button" className="btn-primary mb-3" onClick={() => setCriando(true)}>
-          <UserPlus size={15} /> Cadastrar pessoa
-        </button>
-      )}
-
-      <div className="sem-impressao relative mb-3 max-w-sm">
-        <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-        <input className="input pl-9" value={busca} onChange={(e) => setBusca(e.target.value)}
-          placeholder="Buscar pessoa, usuário ou nome no RH" />
-      </div>
 
       <datalist id="rh-colaboradores">
         {dados.colaboradores.map((n) => <option key={n} value={n} />)}
       </datalist>
 
-      {lista.length ? (
-        <div className="space-y-2">
-          {lista.map((c) => (
-            <Conta key={c.usuario} c={c} sistemas={dados.sistemas}
-              colaboradores={dados.colaboradores} aoMudar={carregar} aoAvisar={aoAvisar}
-              aoSenha={setSenhaNova} />
-          ))}
-        </div>
+      {lente === "sistema" ? (
+        <>
+          <div className="mb-3 flex flex-wrap gap-2">
+            {dados.sistemas.map((s) => {
+              const soltasN = (dados.soltas?.[s] || []).length;
+              return (
+                <button key={s} type="button" onClick={() => setSisAberto(s)}
+                  aria-pressed={sisAberto === s}
+                  className={`rounded-full px-3 py-1.5 text-sm transition-colors ${
+                    sisAberto === s ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                  }`}>
+                  {nomeSis(s)}
+                  {soltasN > 0 && (
+                    <span className={`ml-1.5 text-xs ${sisAberto === s ? "text-warn-200" : "text-warn-700"}`}>
+                      {soltasN} sem dono
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+          <PorSistema sistema={sisAberto} contas={dados.contas} soltas={dados.soltas} />
+        </>
       ) : (
-        <Empty>Ninguém com esse nome.</Empty>
+        <>
+          {criando ? (
+            <NovaPessoa sistemas={dados.sistemas} aoCriar={criar} aoCancelar={() => setCriando(false)} />
+          ) : (
+            <button type="button" className="btn-primary mb-3" onClick={() => setCriando(true)}>
+              <UserPlus size={15} /> Cadastrar pessoa
+            </button>
+          )}
+
+          <div className="sem-impressao relative mb-3 max-w-sm">
+            <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+            <input className="input pl-9" value={busca} onChange={(e) => setBusca(e.target.value)}
+              placeholder="Buscar pessoa, usuário, login ou nome no RH" />
+          </div>
+
+          {recorte !== "todas" && (
+            <p className="mb-3 flex items-center gap-2 text-sm text-slate-500">
+              <Check size={14} />
+              Mostrando só quem tem {recorte === "fora" ? "acesso fora do lugar" : "senha temporária"}.
+              <button type="button" className="underline" onClick={() => setRecorte("todas")}>ver todas</button>
+            </p>
+          )}
+
+          {lista.length ? (
+            <div className="space-y-2">
+              {lista.map((c) => (
+                <Conta key={c.usuario} c={c} sistemas={dados.sistemas} soltas={dados.soltas}
+                  aoMudar={carregar} aoAvisar={aoAvisar} aoSenha={setSenhaNova} />
+              ))}
+            </div>
+          ) : (
+            <Empty>Ninguém com esse nome.</Empty>
+          )}
+        </>
       )}
     </Card>
   );

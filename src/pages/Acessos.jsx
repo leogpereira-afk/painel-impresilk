@@ -5,7 +5,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { KeyRound, ShieldCheck, AlertTriangle, Check, Download, Upload } from "lucide-react";
-import { chamarAuth, getSessao } from "../lib/sessao.js";
+import { chamarAuth, ehDirecao as souDirecao, getSessao } from "../lib/sessao.js";
 import { baixarBackup, restaurarBackup, lerArquivoBackup, statusBackup, backupHubAgora } from "../services/backup.js";
 import { Card, PageTitle, SectionTitle } from "../components/ui.jsx";
 import { useApp } from "../config/store.jsx";
@@ -31,7 +31,10 @@ function Aviso({ tom, children }) {
 
 export default function Acessos() {
   const sessao = getSessao();
-  const ehDirecao = !!sessao?.master;
+  // Master OU acesso total -- a mesma regra que o servidor aplica em
+  // painel-acesso. Ver ehDirecao em lib/sessao.js: escrever isso a mao aqui era
+  // o que fazia quem tinha "*" ler a promessa e nao achar a tela.
+  const ehDirecao = souDirecao(sessao);
 
   // A conta da direcao nao mora na lista de acessos: ela e a dona do painel e
   // enxerga tudo. Digitar o proprio usuario no cadastro e um caminho sem saida

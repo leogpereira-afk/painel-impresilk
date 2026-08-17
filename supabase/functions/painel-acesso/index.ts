@@ -4,10 +4,23 @@
 // Le e escreve acesso_conta / acesso_papel, as tabelas que consolidam
 // equipe_contas (uma linha por pessoa POR SISTEMA) e painel_contas.
 //
-// ATENCAO AO QUE ESTA FUNCTION *NAO* FAZ: ela nao decide login nenhum ainda.
-// Quem manda nos logins de hoje continua sendo equipe_contas e painel_contas.
-// Isto aqui e a PREPARACAO da virada -- a tela diz isso com todas as letras,
-// senao a direcao mexe aqui, acha que tirou o acesso de alguem, e nao tirou.
+// O QUE ESTA VERSAO CONSERTA (16/08/2026)
+// A tabela consolidada era um MAPA DE INTENCAO: ela dizia "o Leonardo entra no
+// PCP", e a tela repetia isso sem nunca perguntar ao PCP. Só que a conta que
+// existe la se chama `leo`, nao `leonardo` -- e o dono passou cinco tentativas
+// digitando um usuario que nao existe (equipe_acessos_log, 16/08 22:46). Vinte
+// e uma divergencias assim estavam gravadas, caladas.
+//
+// Duas mudancas de fundo:
+//   1. O LOGIN DE CADA SISTEMA VIRA DADO (acesso_papel.login). Antes ele era
+//      DEDUZIDO do usuario (ou do nome do colaborador, no RH) -- e o dia em que
+//      a conta de la tinha outro nome, a deducao errava sem barulho. Vazio =
+//      cai na regra antiga, entao nada quebra por omissao.
+//   2. `listar` PERGUNTA AOS SISTEMAS. Toda linha volta com o que existe de
+//      verdade em equipe_contas / painel_contas / perfis: se a conta existe,
+//      com que login, que papel, se a senha e temporaria. Contas que existem la
+//      e nao sao de ninguem aqui voltam em `soltas`, para serem reconectadas --
+//      quase sempre e a mesma pessoa com o nome escrito de outro jeito.
 //
 // So a direcao entra. Nao ha leitura para gestor nem para colaborador: a lista
 // de quem entra em que sistema e, por si so, um mapa de onde bater.
@@ -99,12 +112,29 @@ async function chamarEquipe(corpo: Record<string, unknown>) {
   };
 }
 
-// No RH a chave da conta e o NOME COMPLETO da pessoa: perfis.usuario e casado
-// com o nome da ficha do colaborador (equipe-auth rhSalvar). Mandar o usuario
-// curto ("karen") criaria uma SEGUNDA conta chamada karen, ao lado da Karen
-// Luiza de verdade -- e ninguem perceberia ate ela nao conseguir entrar.
-const alvoNoSistema = (conta: any, sistema: string) =>
-  sistema === "rh" ? texto(conta.colaborador, 160) : texto(conta.usuario, 60);
+// Mesma normalizacao do equipe-auth (e do painel-auth, e do RH): o login e a
+// chave, entao tem de casar com acento, maiuscula e espaco sobrando. O `ç`
+// decompoe em `c` + cedilha, e a cedilha esta na faixa apagada -- e por isso
+// que "Golçalves" casa com "golcalves" em perfis.
+const normalizar = (s: unknown): string =>
+  String(s ?? "").normalize("NFKD").replace(/[̀-ͯ]/g, "")
+    .toLowerCase().replace(/\s+/g, " ").trim();
+
+// O LOGIN DAQUELA PESSOA NAQUELE SISTEMA.
+//
+// Gravado em acesso_papel.login quando alguem o corrigiu pela tela; senao a
+// regra antiga: no RH a chave e o NOME COMPLETO (perfis.usuario e casado com o
+// nome da ficha do colaborador -- mandar "karen" criaria uma SEGUNDA conta ao
+// lado da Karen Luiza de verdade), e nos outros e o usuario curto.
+//
+// A deducao continua valendo por omissao, mas ela e um PALPITE: quando erra,
+// erra criando conta nova em vez de mexer na que existe. Por isso tudo que
+// escreve confere `existeNoSistema` antes.
+const alvoNoSistema = (conta: any, sistema: string, papel?: any) => {
+  const gravado = texto(papel?.login, 160);
+  if (gravado) return gravado;
+  return sistema === "rh" ? texto(conta.colaborador, 160) : texto(conta.usuario, 60);
+};
 
 // O painel nao tem papel: tem lista de modulos. A equipe-auth so entende
 // "acesso total" pelo papel literal "tudo" (painelSalvar), entao a estrela da
@@ -115,32 +145,74 @@ const papelNoSistema = (sistema: string, papel: unknown, permissoes: unknown[]) 
     ? (Array.isArray(permissoes) && permissoes.includes("*") ? "tudo" : "")
     : texto(papel, 40);
 
-// A pessoa JA tem conta naquele sistema? Ler para decidir e legitimo -- o que
-// esta function nao faz e ESCREVER as regras dos outros. Isto decide so uma
-// coisa: se e preciso inventar uma senha (conta nova) ou nao (conta que ja
-// existe, e cuja senha nao pode ser mexida sem pedirem).
-async function jaExisteNoSistema(conta: any, sistema: string): Promise<boolean> {
-  const alvo = alvoNoSistema(conta, sistema);
-  if (!alvo) return false;
-  if (sistema === "painel") {
-    const { data } = await sb.from("painel_contas").select("usuario").eq("usuario", alvo).maybeSingle();
-    return !!data;
+// ---------------------------------------------------------------- a verdade
+// O ESTADO REAL DE TODOS OS SISTEMAS, de uma vez.
+//
+// Tres tabelas, tres formatos, um so mapa: sistema -> login -> o que ha la.
+// Ler tudo junto (em vez de uma consulta por pessoa por sistema) e o que deixa
+// `listar` responder "com que login cada um entra em cada lugar" sem virar
+// cento e cinquenta idas ao banco.
+//
+// As chaves saem NORMALIZADAS, porque e assim que os tres sistemas comparam.
+// Comparar com o texto cru fazia "Barbara Patricia" nunca casar com "barbara
+// patricia": a function concluia que a conta nao existia, mandava senha nova
+// junto e a equipe-auth TROCAVA a senha do RH da pessoa a cada mudanca de papel.
+type Real = {
+  login: string;
+  papel: string;
+  ativo: boolean;
+  temporaria: boolean;
+  em: string | null;
+  nome: string;
+  permissoes?: string[];
+};
+type MapaReal = Record<string, Record<string, Real>>;
+
+async function estadoReal(): Promise<MapaReal> {
+  const mapa: MapaReal = {};
+  const por = (s: string) => (mapa[s] ??= {});
+
+  const { data: equipe } = await sb.from("equipe_contas")
+    .select("sistema, usuario, nome, papel, ativo, trocar_senha, atualizado_em");
+  for (const c of equipe ?? []) {
+    por(c.sistema)[normalizar(c.usuario)] = {
+      login: c.usuario, papel: c.papel ?? "", ativo: c.ativo !== false,
+      temporaria: !!c.trocar_senha, em: c.atualizado_em, nome: c.nome || c.usuario,
+    };
   }
-  if (sistema === "rh") {
-    // `perfis.usuario` e o nome NORMALIZADO (sem acento) pelo RH. Comparar com
-    // .toLowerCase() sozinho fazia "Barbara Patrícia" nunca bater com
-    // "barbara patricia": a function achava que a conta nao existia, mandava
-    // senha nova junto e a equipe-auth TROCAVA a senha do RH da pessoa a cada
-    // mudanca de papel.
-    const alvoRh = alvo.normalize("NFKD").replace(/[\u0300-\u036f]/g, "")
-      .toLowerCase().replace(/\s+/g, " ").trim();
-    const { data } = await sb.from("perfis").select("user_id")
-      .eq("usuario", alvoRh).maybeSingle();
-    return !!data;
+
+  // O Painel nao tem papel nem "desativado": ou a linha existe, ou nao existe.
+  const { data: painel } = await sb.from("painel_contas")
+    .select("usuario, nome, permissoes, atualizado_em");
+  for (const c of painel ?? []) {
+    por("painel")[normalizar(c.usuario)] = {
+      login: c.usuario, papel: (c.permissoes ?? []).includes("*") ? "tudo" : "",
+      ativo: true, temporaria: false, em: c.atualizado_em, nome: c.nome || c.usuario,
+      permissoes: c.permissoes ?? [],
+    };
   }
-  const { data } = await sb.from("equipe_contas").select("usuario")
-    .eq("sistema", sistema).eq("usuario", alvo).maybeSingle();
-  return !!data;
+
+  // No RH quem manda e a linha de perfis; a senha mora no Supabase Auth.
+  const { data: perfis } = await sb.from("perfis")
+    .select("usuario, nome, perfil, atualizado_em");
+  for (const c of perfis ?? []) {
+    por("rh")[normalizar(c.usuario)] = {
+      login: c.usuario, papel: c.perfil ?? "", ativo: true, temporaria: false,
+      em: c.atualizado_em, nome: c.nome || c.usuario,
+    };
+  }
+  return mapa;
+}
+
+// A conta daquela pessoa naquele sistema, ou null. Ler para decidir e legitimo
+// -- o que esta function nao faz e ESCREVER as regras dos outros. Isto decide
+// so uma coisa: se e preciso inventar uma senha (conta nova) ou nao (conta que
+// ja existe, e cuja senha nao pode ser mexida sem pedirem).
+async function acharNoSistema(sistema: string, alvo: string, mapa?: MapaReal) {
+  const chave = normalizar(alvo);
+  if (!chave) return null;
+  const m = mapa ?? (await estadoReal());
+  return m[sistema]?.[chave] ?? null;
 }
 
 // Senha temporaria legivel: quem recebe consegue digitar sem errar, e ela morre
@@ -206,15 +278,53 @@ Deno.serve(async (req: Request) => {
           .map((r: any) => String(r.registro?.nome ?? "").trim())
           .filter(Boolean))].sort((a, b) => a.localeCompare(b, "pt-BR"));
 
+        // A VERDADE, perguntada aos sistemas. Sem isto a tela so repetia a
+        // tabela consolidada -- e era ela que estava mentindo.
+        const real = await estadoReal();
+        // Todo login que ALGUEM aqui reivindica, para saber o que sobrou solto.
+        const reivindicados: Record<string, Set<string>> = {};
+
+        const contasFora = (contas ?? []).map((c: any) => ({
+          ...c,
+          papeis: (papeis ?? []).filter((p: any) => p.conta_id === c.id).map((p: any) => {
+            const login = alvoNoSistema(c, p.sistema, p);
+            const chave = normalizar(login);
+            (reivindicados[p.sistema] ??= new Set()).add(chave);
+            const r = real[p.sistema]?.[chave] ?? null;
+            return {
+              ...p,
+              // O login com que a pessoa entra ALI. Quando ninguem corrigiu,
+              // e o palpite -- e a tela precisa poder dizer que e palpite.
+              login,
+              deduzido: !texto(p.login, 160),
+              real: r
+                ? { existe: true, login: r.login, papel: r.papel, ativo: r.ativo,
+                    temporaria: r.temporaria, em: r.em, permissoes: r.permissoes }
+                : { existe: false },
+            };
+          }),
+          senhas: (senhas ?? []).filter((s: any) => s.conta_id === c.id)
+            .map((s: any) => ({ origem: s.origem, migrada: !!s.usado_em })),
+        }));
+
+        // CONTAS SOLTAS: existem no sistema e ninguem aqui se diz dono delas.
+        // Quase sempre e a mesma pessoa com o nome escrito de outro jeito (o
+        // `leo` do PCP e o `leonardo` de todo o resto), e por isso elas voltam
+        // para a tela em vez de serem apagadas caladas.
+        const soltas: Record<string, Real[]> = {};
+        for (const sis of SISTEMAS) {
+          const sobra = Object.entries(real[sis] ?? {})
+            .filter(([chave]) => !reivindicados[sis]?.has(chave))
+            .map(([, r]) => r)
+            .sort((a, b) => a.login.localeCompare(b.login, "pt-BR"));
+          if (sobra.length) soltas[sis] = sobra;
+        }
+
         return resposta({
           ok: true,
           sistemas: SISTEMAS,
-          contas: (contas ?? []).map((c: any) => ({
-            ...c,
-            papeis: (papeis ?? []).filter((p: any) => p.conta_id === c.id),
-            senhas: (senhas ?? []).filter((s: any) => s.conta_id === c.id)
-              .map((s: any) => ({ origem: s.origem, migrada: !!s.usado_em })),
-          })),
+          contas: contasFora,
+          soltas,
           colaboradores: nomes,
         });
       }
@@ -331,10 +441,26 @@ Deno.serve(async (req: Request) => {
         const { data: papeis } = await sb.from("acesso_papel").select("*").eq("conta_id", id);
         const trocados: string[] = [];
         const recusados: { sistema: string; erro: string }[] = [];
+        const real = await estadoReal();
         for (const p of papeis ?? []) {
+          const login = alvoNoSistema(conta, p.sistema, p);
+          /* NAO CRIAR CONTA AQUI. Este era o pior efeito da divergencia: quando
+             o login nao existia no sistema, a equipe-auth recebia senha junto e
+             CRIAVA uma conta com aquele nome. O dono clicava "gerar nova senha",
+             a tela dizia que deu certo nos sete, e a conta que ele usa de
+             verdade (`leo`, no PCP) continuava com a senha velha -- agora com
+             uma sosia `leonardo` ao lado. Quem nao existe la e recusado, com o
+             nome do login que faltou. */
+          if (!(await acharNoSistema(p.sistema, login, real))) {
+            recusados.push({
+              sistema: p.sistema,
+              erro: `nao existe conta "${login}" ali — aponte para a conta certa antes`,
+            });
+            continue;
+          }
           const r = await chamarEquipe({
             acao: "salvarConta", sistema: p.sistema,
-            usuario: alvoNoSistema(conta, p.sistema), nome: conta.nome,
+            usuario: login, nome: conta.nome,
             papel: papelNoSistema(p.sistema, p.papel, p.permissoes ?? []),
             permissoes: p.permissoes ?? [], senha, temporaria: true,
           });
@@ -357,6 +483,7 @@ Deno.serve(async (req: Request) => {
         const { data: papeis } = await sb.from("acesso_papel").select("*").eq("conta_id", id);
         const feitos: string[] = [];
         const recusados: { sistema: string; erro: string }[] = [];
+        const realDes = await estadoReal();
         for (const p of papeis ?? []) {
           if (p.sistema === "rh" || p.sistema === "painel") {
             // Nenhum dos dois tem coluna de "desativado": no painel a conta
@@ -365,9 +492,17 @@ Deno.serve(async (req: Request) => {
             recusados.push({ sistema: p.sistema, erro: "Aqui e preciso remover o acesso, nao ha como so desativar." });
             continue;
           }
+          const login = alvoNoSistema(conta, p.sistema, p);
+          // Sem conta la nao ha o que desativar. Deixar seguir devolvia o erro
+          // "Defina uma senha de ao menos 6 caracteres" -- verdadeiro para a
+          // equipe-auth e incompreensivel para quem so queria desligar alguem.
+          if (!(await acharNoSistema(p.sistema, login, realDes))) {
+            recusados.push({ sistema: p.sistema, erro: `nao existe conta "${login}" ali` });
+            continue;
+          }
           const r = await chamarEquipe({
             acao: "salvarConta", sistema: p.sistema,
-            usuario: alvoNoSistema(conta, p.sistema), nome: conta.nome,
+            usuario: login, nome: conta.nome,
             papel: p.papel, ativo,
           });
           if (r.ok) feitos.push(p.sistema);
@@ -394,14 +529,31 @@ Deno.serve(async (req: Request) => {
           return resposta({ erro: 'O RH so aceita conta ligada a uma ficha de colaborador. Preencha "Quem e no RH" antes.' }, 400);
         }
 
+        // O login gravado manda; so quem nao tem cai no palpite de sempre.
+        const { data: papelAtual } = await sb.from("acesso_papel")
+          .select("login, vendedor_id").eq("conta_id", id).eq("sistema", sistema).maybeSingle();
+        const login = texto(p.login, 160) || alvoNoSistema(conta, sistema, papelAtual);
+
         // Conta nova naquele sistema nasce com senha temporaria; conta que ja
         // existe nao tem a senha mexida.
-        const nova = !(await jaExisteNoSistema(conta, sistema));
+        //
+        // CRIAR PASSOU A SER PEDIDO EXPLICITO (`criar: true`). Antes, qualquer
+        // gravacao de papel numa linha divergente criava uma conta nova la:
+        // mudar o papel de alguem cujo login estava errado nao trocava o papel
+        // dele, inventava outra pessoa com o mesmo nome. Marcar a caixa do
+        // sistema (dar acesso) manda `criar`; o seletor de papel, nao.
+        const nova = !(await acharNoSistema(sistema, login));
+        if (nova && corpo.criar !== true) {
+          return resposta({
+            erro: `Nao existe a conta "${login}" no ${sistema}. Aponte para uma conta que ja existe la, ou peca para criar.`,
+            precisaCriar: true, login,
+          }, 409);
+        }
         const senha = nova ? (texto(corpo.senha, 80) || senhaTemporaria()) : "";
 
         const r = await chamarEquipe({
           acao: "salvarConta", sistema,
-          usuario: alvoNoSistema(conta, sistema), nome: conta.nome,
+          usuario: login, nome: conta.nome,
           papel: papelNoSistema(sistema, p.papel, p.permissoes ?? []),
           permissoes: Array.isArray(p.permissoes) ? p.permissoes : [],
           ...(senha ? { senha, temporaria: true } : {}),
@@ -415,15 +567,16 @@ Deno.serve(async (req: Request) => {
         // vendedorId AUSENTE mantem o que esta gravado. Toda gravacao de papel
         // mandava "" e apagava o vinculo da vendedora -- e nenhuma tela grava
         // ele de volta, entao ela perdia a propria fila de acoes em silencio.
-        const { data: papelAntes } = await sb.from("acesso_papel")
-          .select("vendedor_id").eq("conta_id", id).eq("sistema", sistema).maybeSingle();
+        // O `login` corrigido tem o mesmo cuidado: uma troca de papel nao pode
+        // desfazer o apontamento que alguem levou tempo para acertar.
         const { error } = await sb.from("acesso_papel").upsert({
           conta_id: id,
           sistema,
           papel: texto(p.papel, 40),
           permissoes: aceitas,
+          login: texto(p.login, 160) || (papelAtual?.login ?? ""),
           vendedor_id: p.vendedorId === undefined
-            ? (papelAntes?.vendedor_id ?? "")
+            ? (papelAtual?.vendedor_id ?? "")
             : texto(p.vendedorId, 120),
           ativo: p.ativo !== false,
         }, { onConflict: "conta_id,sistema" });
@@ -444,14 +597,113 @@ Deno.serve(async (req: Request) => {
         // proprio para os dois (rhRemover apaga o usuario do Auth e a linha de
         // perfis; painelRemover apaga de painel_contas). Pular isso apagava a
         // linha SO daqui e devolvia {ok:true} -- a pessoa continuava entrando.
-        if (await jaExisteNoSistema(conta, sistema)) {
-          const r = await chamarEquipe({
-            acao: "removerConta", sistema, usuario: alvoNoSistema(conta, sistema),
-          });
+        const { data: papelRem } = await sb.from("acesso_papel")
+          .select("login").eq("conta_id", id).eq("sistema", sistema).maybeSingle();
+        const alvoRem = alvoNoSistema(conta, sistema, papelRem);
+        if (await acharNoSistema(sistema, alvoRem)) {
+          const r = await chamarEquipe({ acao: "removerConta", sistema, usuario: alvoRem });
           if (!r.ok) return resposta({ erro: r.erro || "Nao consegui tirar esse acesso." }, 400);
         }
         await sb.from("acesso_papel").delete().eq("conta_id", id).eq("sistema", sistema);
         return resposta({ ok: true });
+      }
+
+      // ------------------------------------------------------- apontar login
+      // "Esta pessoa, NESTE sistema, chama-se assim." Nao escreve nada no
+      // sistema: so acerta o apontamento, que e o que estava errado.
+      //
+      // Serve para os dois lados do mesmo problema: adotar uma conta solta
+      // (o `leo` do PCP, que e o dono com o nome curto) e desfazer um
+      // apontamento errado (mandar "" volta para a regra deduzida).
+      case "apontarLogin": {
+        const sistema = texto(corpo.sistema, 20);
+        if (!SISTEMAS.includes(sistema)) return resposta({ erro: "Sistema desconhecido." }, 400);
+        const id = await contaPorUsuario(corpo.usuario);
+        if (!id) return resposta({ erro: "Conta nao encontrada." }, 404);
+        const { data: conta } = await sb.from("acesso_conta").select("*").eq("id", id).single();
+        const login = texto(corpo.login, 160);
+
+        const real = await estadoReal();
+        const achado = login ? await acharNoSistema(sistema, login, real) : null;
+        if (login && !achado) {
+          return resposta({ erro: `Nao existe a conta "${login}" no ${sistema}.` }, 404);
+        }
+
+        // DUAS PESSOAS NO MESMO LOGIN e o mesmo estrago de outro jeito: as duas
+        // telas diriam "ok" e uma trocaria a senha da outra. O dono do
+        // apontamento tem de ser um so.
+        if (login) {
+          const { data: outros } = await sb.from("acesso_papel")
+            .select("conta_id, login").eq("sistema", sistema).neq("conta_id", id);
+          // Uma leitura so: com um SELECT por linha, acertar as dezessete
+          // divergencias custaria centenas de idas ao banco.
+          const ids = (outros ?? []).map((o: any) => o.conta_id);
+          const { data: donos } = ids.length
+            ? await sb.from("acesso_conta").select("*").in("id", ids)
+            : { data: [] as any[] };
+          const porId = new Map((donos ?? []).map((d: any) => [d.id, d]));
+          for (const o of outros ?? []) {
+            const dono = porId.get(o.conta_id);
+            if (!dono) continue;
+            if (normalizar(alvoNoSistema(dono, sistema, o)) === normalizar(login)) {
+              return resposta({ erro: `Esse login ja e de ${dono.nome || dono.usuario} no ${sistema}.` }, 409);
+            }
+          }
+        }
+
+        const { data: antes } = await sb.from("acesso_papel")
+          .select("*").eq("conta_id", id).eq("sistema", sistema).maybeSingle();
+        const { error } = await sb.from("acesso_papel").upsert({
+          conta_id: id, sistema,
+          // O PAPEL VEM DE LA, nao daqui: adotar a conta e aceitar o que ela e.
+          // Guardar o papel antigo faria a tela seguir mentindo, so que sobre
+          // outra coisa.
+          papel: sistema === "painel" ? "" : (achado?.papel ?? antes?.papel ?? ""),
+          permissoes: achado?.permissoes ?? antes?.permissoes ?? [],
+          login,
+          vendedor_id: antes?.vendedor_id ?? "",
+          ativo: antes?.ativo ?? true,
+        }, { onConflict: "conta_id,sistema" });
+        if (error) throw new Error(error.message);
+        return resposta({ ok: true, login, papel: achado?.papel ?? "" });
+      }
+
+      // -------------------------------------------------- senha de UM sistema
+      // A senha da pessoa nao e a mesma em todo lugar (ainda), e trocar as sete
+      // de uma vez para consertar uma so era o caminho mais caro possivel:
+      // quem tinha a senha do RH na cabeca perdia ela para consertar o PCP.
+      case "senhaDoSistema": {
+        const sistema = texto(corpo.sistema, 20);
+        if (!SISTEMAS.includes(sistema)) return resposta({ erro: "Sistema desconhecido." }, 400);
+        const id = await contaPorUsuario(corpo.usuario);
+        if (!id) return resposta({ erro: "Conta nao encontrada." }, 404);
+        const { data: conta } = await sb.from("acesso_conta").select("*").eq("id", id).single();
+        const { data: papel } = await sb.from("acesso_papel")
+          .select("*").eq("conta_id", id).eq("sistema", sistema).maybeSingle();
+        if (!papel) return resposta({ erro: `Essa pessoa nao tem acesso ao ${sistema}.` }, 404);
+
+        const login = alvoNoSistema(conta, sistema, papel);
+        const achado = await acharNoSistema(sistema, login);
+        if (!achado) {
+          return resposta({
+            erro: `Nao existe a conta "${login}" no ${sistema} — aponte para a conta certa antes de trocar a senha.`,
+          }, 404);
+        }
+        const senha = texto(corpo.senha, 80) || senhaTemporaria();
+        if (senha.length < 6) return resposta({ erro: "A senha precisa ter ao menos 6 caracteres." }, 400);
+
+        const r = await chamarEquipe({
+          acao: "salvarConta", sistema, usuario: login, nome: conta.nome,
+          // O papel que ESTA la, para uma troca de senha nunca virar promocao
+          // ou rebaixamento sem ninguem pedir.
+          papel: sistema === "painel"
+            ? (achado.permissoes?.includes("*") ? "tudo" : "")
+            : achado.papel,
+          permissoes: achado.permissoes ?? papel.permissoes ?? [],
+          senha, temporaria: true,
+        });
+        if (!r.ok) return resposta({ erro: r.erro || "Nao consegui trocar a senha ali." }, 400);
+        return resposta({ ok: true, senha, login });
       }
 
       // Nao existe "remover conta" de proposito. Enquanto equipe_contas e
