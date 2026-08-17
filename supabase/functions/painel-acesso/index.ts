@@ -27,7 +27,7 @@
 // ============================================================================
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
-import { verificarJwt } from "../_shared/cripto.ts";
+import { hashSenha, verificarJwt } from "../_shared/cripto.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -234,6 +234,48 @@ function senhaTemporaria() {
 // linha de papel que nenhuma tela le e ninguem descobre.
 const SISTEMAS = ["painel", "rh", "pcp", "brief", "dre", "compras", "pops", "central"];
 
+// ============================================================================
+// A PORTA DA FRENTE TAMBEM. Sem isto, trocar a senha de alguem nao trocava nada.
+//
+// A entrada unica (acesso-entrar) nao consulta equipe_contas nem painel_contas:
+// ela confere a senha no Supabase Auth (quem ja migrou) ou nos hashes de
+// `acesso_senha_legado` (quem nao migrou). Esta function escrevia so nos
+// sistemas -- entao "gerar nova senha" trocava as portas dos fundos e deixava
+// a da frente com a senha VELHA, funcionando, para sempre.
+//
+// Pior: o ramo do legado nunca filtrou `usado_em`. Carimbar a senha antiga como
+// usada, que era o que se fazia aqui, nao tirava nada de ninguem -- so dava a
+// impressao de ter tirado.
+//
+// Agora a senha nova vai para os TRES lugares, e a antiga e APAGADA:
+//   1. os sistemas (via equipe-auth, como antes);
+//   2. o Supabase Auth, quando a pessoa ja migrou;
+//   3. `acesso_senha_legado`, que passa a ter UMA linha: a nova.
+//
+// A linha 3 e o que faz a senha nova valer para quem ainda nao migrou: na
+// primeira entrada ela bate contra esse hash e vira a do Auth. As varias linhas
+// por origem existiam para a virada (a Barbara tinha senhas diferentes por
+// sistema); depois que a direcao define uma senha de proposito, ter as antigas
+// guardadas e so guardar chave de porta trocada.
+// ============================================================================
+async function senhaNaPortaDaFrente(conta: any, senha: string) {
+  const avisos: string[] = [];
+  if (conta.auth_user_id) {
+    const { error } = await sb.auth.admin.updateUserById(conta.auth_user_id, { password: senha });
+    // Aviso, nao excecao: as senhas dos sistemas JA foram trocadas quando esta
+    // funcao roda. Abortar aqui deixaria a pessoa com senha nova nos sistemas e
+    // ninguem sabendo que a da frente ficou para tras.
+    if (error) avisos.push(`nao consegui trocar a senha da entrada unica: ${error.message}`);
+  }
+  const reg = await hashSenha(senha);
+  await sb.from("acesso_senha_legado").delete().eq("conta_id", conta.id);
+  const { error: e2 } = await sb.from("acesso_senha_legado").insert({
+    conta_id: conta.id, origem: "central", hash: reg.hash, salt: reg.salt, iter: reg.iter,
+  });
+  if (e2) avisos.push(`nao consegui guardar a senha da entrada unica: ${e2.message}`);
+  return avisos;
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
   if (req.method !== "POST") return resposta({ erro: "use POST" }, 405);
@@ -431,6 +473,15 @@ Deno.serve(async (req: Request) => {
           }, { onConflict: "conta_id,sistema" });
           if (r.aviso) recusados.push({ sistema, erro: r.aviso });
         }
+        /* A PORTA DA FRENTE, tambem na criacao. Sem isto, a pessoa nascia
+           entrando por cada sistema no link direto e sendo RECUSADA na entrada
+           unica -- que e a porta que a equipe usa e a que o Painel tenta
+           primeiro. Nao se cria usuario no Supabase Auth aqui de proposito: a
+           primeira entrada faz isso, e e la que mora a regra de adotar a
+           identidade que a pessoa ja tem no RH em vez de criar uma segunda. */
+        const avisosNovo = await senhaNaPortaDaFrente(nova, senha);
+        for (const a of avisosNovo) recusados.push({ sistema: "entrada", erro: a });
+
         // A senha volta UMA vez, para a tela mostrar e a direcao passar adiante.
         // Ela nao fica guardada em lugar nenhum legivel.
         return resposta({ ok: true, conta: nova, senha, entraram, recusados });
@@ -473,9 +524,11 @@ Deno.serve(async (req: Request) => {
           if (r.ok) trocados.push(p.sistema);
           else recusados.push({ sistema: p.sistema, erro: r.erro || "nao consegui" });
         }
-        // A senha antiga guardada para a virada nao vale mais nada.
-        await sb.from("acesso_senha_legado")
-          .update({ usado_em: new Date().toISOString() }).eq("conta_id", id);
+        // A PORTA DA FRENTE. Antes aqui so se carimbava `usado_em`, e o carimbo
+        // nao tirava nada: a entrada unica aceita o hash antigo do mesmo jeito.
+        const avisos = await senhaNaPortaDaFrente(conta, senha);
+        for (const a of avisos) recusados.push({ sistema: "entrada", erro: a });
+        if (!avisos.length) trocados.push("entrada");
         return resposta({ ok: true, senha, trocados, recusados });
       }
 

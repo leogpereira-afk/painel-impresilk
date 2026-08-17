@@ -538,7 +538,10 @@ function Conta({ c, sistemas, soltas, aoMudar, aoAvisar, aoSenha }) {
   };
 
   const senhaAqui = async (sis) => {
-    if (!confirm(`Gerar uma senha nova para ${c.nome || c.usuario} SÓ no ${nomeSis(sis)}? As senhas dela nos outros sistemas não mudam.`)) return;
+    // Esta troca e mesmo so de um sistema: nao mexe na senha da ENTRADA (a que
+    // a pessoa digita no Painel e que abre todos). Dizer isso aqui evita a
+    // conclusao errada de que a senha antiga parou de valer em algum lugar.
+    if (!confirm(`Gerar uma senha nova para ${c.nome || c.usuario} SÓ no ${nomeSis(sis)}?\n\nVale para quem entra pelo link direto do ${nomeSis(sis)}. A senha de entrada dela (a do Painel, que abre todos) NÃO muda — para trocar essa, use "Nova senha em todos".`)) return;
     try {
       const r = await senhaDoSistema(c.usuario, sis);
       aoSenha({ senha: r.senha, nome: `${c.nome || c.usuario} no ${nomeSis(sis)} (login ${r.login})` });
@@ -547,7 +550,7 @@ function Conta({ c, sistemas, soltas, aoMudar, aoAvisar, aoSenha }) {
   };
 
   const novaSenha = async () => {
-    if (!confirm(`Gerar uma senha nova para ${c.nome || c.usuario} em TODOS os sistemas dela? A senha atual para de valer em todos.`)) return;
+    if (!confirm(`Gerar uma senha nova para ${c.nome || c.usuario} em TODOS os sistemas dela?\n\nA senha atual para de valer em todos — inclusive na entrada pelo Painel, que é a porta que a equipe usa.`)) return;
     try {
       const r = await definirSenha(c.usuario);
       aoSenha({ senha: r.senha, nome: c.nome || c.usuario });

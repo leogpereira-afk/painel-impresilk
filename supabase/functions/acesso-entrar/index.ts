@@ -62,6 +62,13 @@ const semAcento = (t: string) =>
 const DIAS_EQUIPE = 30;   // o mesmo prazo que a equipe-auth usa
 const HORAS_PAINEL = 12;  // o mesmo prazo que a painel-auth usa
 
+/* A CONTA DA DIRECAO, o mesmo nome que a painel-auth usa. Precisa estar aqui
+   porque `master` NAO pode ser deduzido das permissoes -- ver o comentario na
+   emissao do cracha do Painel, mais abaixo. Mesma variavel de ambiente e mesmo
+   padrao: divergir daqui faria as duas portas discordarem sobre quem e o dono. */
+const MASTER_PAINEL = normalizarUsuario(
+  Deno.env.get("PAINEL_AUTH_MASTER_USUARIO") || "leonardo");
+
 const sb = createClient(SUPABASE_URL, SERVICE_KEY, { auth: { persistSession: false } });
 
 const CORS = {
@@ -267,14 +274,40 @@ Deno.serve(async (req: Request) => {
     const crachas: Record<string, unknown> = {};
     for (const p of papeis ?? []) {
       if (p.sistema === "painel") {
-        const perms = Array.isArray(p.permissoes) ? p.permissoes : [];
+        /* DUAS COISAS QUE ESTAVAM ERRADAS AQUI, e as duas do mesmo jeito: esta
+           porta emitia o cracha do Painel a partir da tabela de INTENCAO
+           (acesso_papel), sem perguntar ao Painel.
+
+           1) `master: perms.includes("*")`. Marcar "Acesso total" para alguem
+              fazia dessa pessoa a DIRECAO na entrada unica -- e master abre a
+              tela de Acessos e a porta painel-acesso, ou seja, cadastrar e
+              tirar acesso nos oito sistemas. O dono decidiu (16/08/2026) que
+              administrar acesso e so dele; deduzir master de uma caixa de
+              permissao desfazia isso em um clique. `master` agora e o que
+              sempre foi na painel-auth: o nome da conta da direcao.
+
+           2) `perms` saia de acesso_papel. A Jessica tinha ali fluxo-caixa e
+              produtos, que painel_contas nao tem -- a mesma tabela dizendo o
+              que o sistema nao confirma. Agora a lista vem de painel_contas,
+              que e onde a painel-auth le. Duas portas, uma verdade.
+
+           Sem linha em painel_contas a pessoa NAO tem conta no Painel: nao se
+           emite cracha nenhum. Antes ela recebia um cracha de permissao vazia,
+           entrava e nao via tela alguma. */
+        const ehMaster = usuario === MASTER_PAINEL;
+        const { data: doPainel } = await sb.from("painel_contas")
+          .select("nome, permissoes, vendedor_id").eq("usuario", usuario).maybeSingle();
+        if (!doPainel && !ehMaster) continue;
+        const perms: string[] = ehMaster
+          ? ["*"]
+          : (Array.isArray(doPainel?.permissoes) ? doPainel!.permissoes : []);
+        const vend = doPainel?.vendedor_id || p.vendedor_id || "";
+        const nome = conta.nome || doPainel?.nome || usuario;
         crachas.painel = {
           token: await assinarJwt(
-            { sub: usuario, nome: conta.nome || usuario, master: perms.includes("*"),
-              perms, vend: p.vendedor_id || "" },
+            { sub: usuario, nome, master: ehMaster, perms, vend },
             PAINEL_SECRET, HORAS_PAINEL * 3600),
-          usuario, nome: conta.nome || usuario, permissoes: perms,
-          master: perms.includes("*"), vendedorId: p.vendedor_id || "",
+          usuario, nome, permissoes: perms, master: ehMaster, vendedorId: vend,
         };
       } else if (p.sistema !== "rh") {
         // RH fica de fora: la o cracha JA e o do Supabase Auth, que vai inteiro
