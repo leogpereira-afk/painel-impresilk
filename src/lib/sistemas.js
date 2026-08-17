@@ -9,9 +9,17 @@
 // devia. Foi assim que a Central do Leo passou semanas oferecendo "Criar a
 // conta la" para um sistema que nao tem onde criar conta.
 //
-// AGORA E UMA LINHA POR SISTEMA. Para acrescentar o proximo, copie um bloco
+// Em 17/08/2026 vieram para ca mais duas cópias que tinham ficado para tras: as
+// chaves de cracha e enderecos de entradaUnica.js, e uma lista de nomes em
+// pages/Acessos.jsx que parara em CINCO sistemas -- por isso a tabela de backup
+// mostrava "compras" e "pops" em minusculo ao lado de "Painel de Gestao".
+// Ninguem quebrou nada: a copia so envelheceu calada, que e como esse defeito
+// sempre chega.
+//
+// AGORA E UM BLOCO POR SISTEMA. Para acrescentar o proximo, copie um bloco
 // daqui, preencha, e a tela inteira passa a conhece-lo. O que ainda precisa ser
-// feito FORA daqui esta na lista no fim do arquivo -- leia antes.
+// feito FORA daqui esta na lista no fim do arquivo -- leia antes, e depois rode
+// `node painel/scripts/conferir-sistemas.mjs`, que reprova o que faltar.
 //
 // A ORDEM IMPORTA: e a ordem em que os sistemas aparecem na tela.
 
@@ -32,8 +40,19 @@ export const SISTEMAS = [
     // O painel nao usa papel: quem manda la e a lista de modulos (permissoes).
     papeis: [],
     papelInicial: "",
+    /* A equipe-auth guarda um papel DE FACHADA ("tudo") so para o Painel caber
+       na tabela dela -- ninguem faz login por aquela funcao aqui. Declarar a
+       fachada torna a excecao um DADO, e nao um "if (id === painel)" escondido
+       no conferidor. E impede o conserto errado: alguem que visse a acusacao de
+       divergencia poderia copiar "tudo" para ca, e a tela passaria a oferecer um
+       papel que o Painel nao entende. */
+    papelDeFachada: "tudo",
     // Sistemas que esta tela MOSTRA mas nao administra.
     soLeitura: false,
+    /* SEM `entradaUnica` DE PROPOSITO. O Painel e quem PLANTA os crachas dos
+       outros; nao planta em si mesmo. E `meusSistemas()` monta os atalhos
+       filtrando por quem tem `endereco` -- dar um ao Painel poria um atalho
+       para o Painel dentro do proprio Painel. */
   },
   {
     id: "rh",
@@ -43,6 +62,11 @@ export const SISTEMAS = [
     papeis: ["ADMIN_RH", "GESTOR", "COLABORADOR"],
     papelInicial: "COLABORADOR",
     soLeitura: false,
+    /* ENDERECO SIM, CHAVE NAO -- e isto e desenho, nao esquecimento. No RH o
+       cracha e a sessao do proprio Supabase Auth, que o Painel nao sabe
+       fabricar. O atalho leva a pessoa ate a porta e ela digita a senha uma vez
+       la. Sem `endereco` ela nem veria o atalho. */
+    entradaUnica: { endereco: "https://leogpereira-afk.github.io/impresilkrh/" },
   },
   {
     id: "pcp",
@@ -52,6 +76,13 @@ export const SISTEMAS = [
     papeis: ["admin", "pcp", "montagem", "operacao", "comercial"],
     papelInicial: "montagem",
     soLeitura: false,
+    /* ENTRADA UNICA: `chave` e o nome da gaveta do localStorage que ESTE app ja
+       le -- errar aqui deixa a pessoa na tela de login sem explicacao nenhuma.
+       `endereco` e o github.io DIRETO, nunca o atalho impresilk.com.br: o
+       atalho ainda sai por http e o 302 desceria a pessoa de HTTPS para HTTP no
+       caminho. Sistema sem `endereco` nao aparece nos atalhos de "Meus
+       sistemas"; sem `chave` nao recebe cracha plantado. */
+    entradaUnica: { endereco: "https://leogpereira-afk.github.io/impresilk/", chave: "impresilk_inst_cracha" },
   },
   {
     id: "brief",
@@ -64,6 +95,7 @@ export const SISTEMAS = [
     papeis: ["vendedor", "designer", "medidor", "admin"],
     papelInicial: "medidor",
     soLeitura: false,
+    entradaUnica: { endereco: "https://leogpereira-afk.github.io/brief-medicao/", chave: "app_sync_cracha" },
   },
   {
     id: "dre",
@@ -75,6 +107,7 @@ export const SISTEMAS = [
     papeis: ["equipe"],
     papelInicial: "equipe",
     soLeitura: false,
+    entradaUnica: { endereco: "https://leogpereira-afk.github.io/impresilk-dre/", chave: "impresilk_dre_cracha" },
   },
   {
     id: "compras",
@@ -84,6 +117,7 @@ export const SISTEMAS = [
     papeis: ["admin", "comprador", "solicitante"],
     papelInicial: "solicitante",
     soLeitura: false,
+    entradaUnica: { endereco: "https://leogpereira-afk.github.io/impresilk-compras/", chave: "compras_cracha" },
   },
   {
     id: "pops",
@@ -94,6 +128,7 @@ export const SISTEMAS = [
     papeis: ["admin", "gestor", "equipe"],
     papelInicial: "equipe",
     soLeitura: false,
+    entradaUnica: { endereco: "https://leogpereira-afk.github.io/pops-fabricacao/", chave: "pops_cracha" },
   },
   {
     id: "central",
@@ -112,6 +147,10 @@ export const SISTEMAS = [
     // App pessoal do dono, nao sistema da empresa: o atalho na lateral so
     // aparece para a direcao.
     pessoal: true,
+    /* SO LEITURA e mesmo assim ENTRA na entrada unica: o dono entra no Painel e
+       a Central abre junto. So-leitura vale para ADMINISTRAR (criar conta,
+       trocar senha por aqui), nao para entrar. */
+    entradaUnica: { endereco: "https://leogpereira-afk.github.io/vida-leo/", chave: "cl_token" },
   },
 ];
 
@@ -135,6 +174,20 @@ export const nomeCompletoSis = (id) => {
   return s.nomeCompleto || s.nome;
 };
 
+/* OS MAPAS DA ENTRADA UNICA, DERIVADOS DAQUI -- nao escritos a mao em outro
+   arquivo. Ate 17/08/2026 `entradaUnica.js` tinha as tres listas (chave,
+   endereco, nome) copiadas, e `pages/Acessos.jsx` tinha uma QUARTA copia dos
+   nomes -- essa parada em cinco sistemas, entao a tabela de backup mostrava
+   "compras" e "pops" em minusculo enquanto as outras linhas tinham nome de
+   gente. Ninguem quebrou nada; a copia so envelheceu calada, que e como esse
+   defeito sempre chega. */
+export const CHAVE_CRACHA = Object.fromEntries(
+  SISTEMAS.filter((s) => s.entradaUnica?.chave).map((s) => [s.id, s.entradaUnica.chave]),
+);
+export const ENDERECO_DIRETO = Object.fromEntries(
+  SISTEMAS.filter((s) => s.entradaUnica?.endereco).map((s) => [s.id, s.entradaUnica.endereco]),
+);
+
 /* PARA ACRESCENTAR UM SISTEMA NOVO, o bloco aqui em cima e o primeiro passo --
    e nao e o unico. Os outros, na ordem:
 
@@ -146,14 +199,25 @@ export const nomeCompletoSis = (id) => {
    3. Se o sistema tiver elenco proprio (gente que ele conhece alem das contas),
       o ramo que le esse elenco em painel-acesso/listar.
    4. Se ele espelhar o elenco na propria config, `TAB_CFG` na equipe-auth.
-   5. A chave de localStorage do cracha, em painel/src/lib/entradaUnica.js --
-      e essa so funciona enquanto o sistema for servido do MESMO endereco
-      (leogpereira-afk.github.io). Sistema em outro dominio nao recebe cracha
-      plantado, e a entrada unica para de valer para ele EM SILENCIO.
+   5. O secret SISTEMAS_BACKUP do Painel -- sem ele o backup diario nao cobre o
+      sistema novo, e nada na tela denuncia a falta.
+
+   (A chave de localStorage do cracha e o endereco SAIRAM desta lista em
+   17/08/2026: agora sao o campo `entradaUnica` do bloco aqui em cima, e
+   entradaUnica.js os LE daqui em vez de ter copia propria.)
 
    Os papeis aqui sao COPIA FIEL da lista fechada do equipe-auth. O servidor
    valida com includes(), sem normalizar: papel que nao esta la e recusado, e
    papel gravado so na tabela consolidada (que nao tem CHECK) nao e recusado por
    ninguem e simplesmente nao funciona em lugar nenhum. Ao mexer, confira na
    origem -- esta lista JA ESTEVE ERRADA (compras tinha os papeis do app antigo,
-   e pops nao tinha gestor). */
+   e pops nao tinha gestor).
+
+   E DEPOIS DE MEXER, RODE O CONFERIDOR:
+
+       node painel/scripts/conferir-sistemas.mjs
+
+   Ele compara este arquivo com as duas listas fechadas (painel-acesso e
+   equipe-auth) e com os papeis, e REPROVA apontando o que falta. Os passos 3 e
+   5 acima moram fora do codigo -- ele nao os alcanca, e diz isso na saida em
+   vez de fingir que conferiu. */

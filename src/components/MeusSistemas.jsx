@@ -12,7 +12,8 @@ import {
   ClipboardList, BookOpen, Factory, ShoppingCart, TrendingUp, Users, UserCircle,
   ExternalLink,
 } from "lucide-react";
-import { meusSistemas, enderecoDe, NOME_SISTEMA } from "../lib/entradaUnica.js";
+import { meusSistemas, enderecoDe } from "../lib/entradaUnica.js";
+import { nomeSis } from "../lib/sistemas.js";
 
 // Um icone por sistema, escolhido pelo que a pessoa FAZ la dentro -- e o que
 // permite achar o certo de relance, sem ler.
@@ -56,7 +57,7 @@ export default function MeusSistemas() {
                 <Icone size={24} strokeWidth={2.1} />
               </span>
               <span className="font-display text-sm font-semibold text-slate-800">
-                {NOME_SISTEMA[s] || s}
+                {nomeSis(s)}
               </span>
               {pedeSenha && (
                 <span className="-mt-1 text-[11px] leading-tight text-slate-400">pede senha</span>

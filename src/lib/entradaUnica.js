@@ -18,37 +18,13 @@
 // um ciclo entre os dois so daria certo por sorte de ordem do empacotador.
 // Quando a rede cai, o fetch estoura e quem traduz o erro e o login, em sessao.js.
 import { API } from "./api.js";
-
-// A chave de localStorage que cada app le. Sao os nomes que ja estao no ar --
-// mudar um aqui sem mudar no app deixa a pessoa na tela de login sem explicacao.
-const CHAVE = {
-  pcp: "impresilk_inst_cracha",
-  dre: "impresilk_dre_cracha",
-  brief: "app_sync_cracha",
-  compras: "compras_cracha",
-  pops: "pops_cracha",
-  // A Central do Léo: app pessoal, mas entra pela mesma porta que os outros.
-  // A chave é a que ela já lia (`cl_token`) — o que mudou é o que vai dentro.
-  central: "cl_token",
-};
-
-// Onde cada um mora. Endereco direto do github.io, e nao o atalho
-// impresilk.com.br/xxx: o atalho ainda sai por http e o 302 desceria a pessoa de
-// HTTPS para HTTP no caminho.
-const ENDERECO = {
-  pcp: "https://leogpereira-afk.github.io/impresilk/",
-  dre: "https://leogpereira-afk.github.io/impresilk-dre/",
-  brief: "https://leogpereira-afk.github.io/brief-medicao/",
-  compras: "https://leogpereira-afk.github.io/impresilk-compras/",
-  pops: "https://leogpereira-afk.github.io/pops-fabricacao/",
-  rh: "https://leogpereira-afk.github.io/impresilkrh/",
-  central: "https://leogpereira-afk.github.io/vida-leo/",
-};
-
-export const NOME_SISTEMA = {
-  pcp: "PCP", dre: "DRE", brief: "Brief", compras: "Compras",
-  pops: "POPs", rh: "RH", painel: "Painel", central: "Central do Léo",
-};
+/* AS TRES LISTAS DESTE ARQUIVO AGORA SAEM DO REGISTRO. Estavam escritas a mao
+   aqui, e a de nomes tinha ainda uma quarta copia em pages/Acessos.jsx que
+   parou em cinco sistemas. Sistema novo agora e UM bloco em lib/sistemas.js:
+   ganha a gaveta do cracha, o atalho e o nome de uma vez so. */
+// Nao ha ciclo: sistemas.js nao importa nada -- e uma tabela, so.
+// Quem precisa do NOME de um sistema chama `nomeSis` do registro direto.
+import { CHAVE_CRACHA as CHAVE, ENDERECO_DIRETO as ENDERECO } from "./sistemas.js";
 
 const K_SISTEMAS = "painel_meus_sistemas";
 

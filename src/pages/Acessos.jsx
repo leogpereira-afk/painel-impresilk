@@ -10,6 +10,7 @@ import { baixarBackup, restaurarBackup, lerArquivoBackup, statusBackup, backupHu
 import { Card, PageTitle, SectionTitle } from "../components/ui.jsx";
 import { useApp } from "../config/store.jsx";
 import AcessoUnico from "../components/AcessoUnico.jsx";
+import { nomeCompletoSis } from "../lib/sistemas.js";
 
 
 function Aviso({ tom, children }) {
@@ -207,13 +208,11 @@ export default function Acessos() {
   );
 }
 
-const NOME_SISTEMA = {
-  painel: "Painel de Gestao",
-  pcp: "PCP / Instalacao",
-  brief: "Brief de Medicao",
-  rh: "RH",
-  dre: "DRE",
-};
+/* AQUI HAVIA UMA LISTA DE NOMES escrita a mao, parada em CINCO sistemas. Os
+   sete entram no backup, entao Compras e POPs apareciam nesta tabela como
+   "compras" e "pops", em minusculo, ao lado de "Painel de Gestao" -- e quem
+   olhasse pensaria em erro do backup, nao em nome faltando. Agora vem do
+   registro: sistema novo entra na tabela com nome de gente no primeiro dia. */
 
 function quandoBR(iso) {
   if (!iso) return null;
@@ -273,7 +272,7 @@ function UltimoBackup({ status }) {
             {linhas.map(([k, s]) => (
               <tr key={k} className="border-t" style={{ borderColor: "var(--hairline)" }}>
                 <td className="px-3 py-2 font-display font-medium text-slate-800">
-                  {NOME_SISTEMA[k] || s.nome || k}
+                  {nomeCompletoSis(k) || s.nome || k}
                 </td>
                 <td className="px-3 py-2 text-slate-500">{quandoBR(s.em) || "—"}</td>
                 <td className="px-3 py-2">
