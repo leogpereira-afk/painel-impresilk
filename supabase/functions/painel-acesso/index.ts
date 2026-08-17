@@ -722,7 +722,7 @@ Deno.serve(async (req: Request) => {
 
         // O login gravado manda; so quem nao tem cai no palpite de sempre.
         const { data: papelAtual } = await sb.from("acesso_papel")
-          .select("login, vendedor_id").eq("conta_id", id).eq("sistema", sistema).maybeSingle();
+          .select("login, vendedor_id, permissoes").eq("conta_id", id).eq("sistema", sistema).maybeSingle();
         const login = texto(p.login, 160) || alvoNoSistema(conta, sistema, papelAtual);
 
         // Conta nova naquele sistema nasce com senha temporaria; conta que ja
@@ -747,7 +747,18 @@ Deno.serve(async (req: Request) => {
           acao: "salvarConta", sistema,
           usuario: login, nome: conta.nome,
           papel: papelNoSistema(sistema, p.papel, p.permissoes ?? []),
-          permissoes: Array.isArray(p.permissoes) ? p.permissoes : [],
+          /* AUSENTE TEM DE SER AUSENTE, e nao lista vazia. A painelSalvar da
+             equipe-auth decide assim:
+                 Array.isArray(body.permissoes) ? filtrar(body.permissoes)
+                                                : (atual?.permissoes ?? [])
+             ou seja, mandar `[]` APAGA os modulos de quem tem Painel; so a
+             CHAVE FALTANDO preserva. Enquanto so o quadro de caixinhas chamava
+             esta acao (e ele sempre manda a lista), a mina nao explodia --
+             qualquer botao novo que grave papel sem falar de modulo a pisaria,
+             e o efeito seria a pessoa perder o painel inteiro sem uma palavra. */
+          ...(p.permissoes === undefined
+            ? {}
+            : { permissoes: Array.isArray(p.permissoes) ? p.permissoes : [] }),
           // O vinculo com o vendedor ia SO para a tabela daqui, e a porta antiga
           // (painel-auth) le de painel_contas -- entao quem entrasse pelo link
           // direto do Painel ficava sem fila. Ausente continua preservando dos
@@ -761,6 +772,10 @@ Deno.serve(async (req: Request) => {
         // pedido inteiro faria esta tabela afirmar um acesso que nao existe.
         const pedidas = Array.isArray(p.permissoes) ? p.permissoes : [];
         const aceitas = pedidas.filter((x: string) => !(r.descartados ?? []).includes(x));
+        // Mesmo cuidado na tabela daqui: sem falar de modulo, mantem o que ha.
+        const permissoesGravar = p.permissoes === undefined
+          ? (papelAtual?.permissoes ?? [])
+          : aceitas;
         // vendedorId AUSENTE mantem o que esta gravado. Toda gravacao de papel
         // mandava "" e apagava o vinculo da vendedora -- e nenhuma tela grava
         // ele de volta, entao ela perdia a propria fila de acoes em silencio.
@@ -770,7 +785,7 @@ Deno.serve(async (req: Request) => {
           conta_id: id,
           sistema,
           papel: texto(p.papel, 40),
-          permissoes: aceitas,
+          permissoes: permissoesGravar,
           login: texto(p.login, 160) || (papelAtual?.login ?? ""),
           vendedor_id: p.vendedorId === undefined
             ? (papelAtual?.vendedor_id ?? "")

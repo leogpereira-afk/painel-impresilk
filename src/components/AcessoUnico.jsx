@@ -805,12 +805,74 @@ function contasDoSistema(sistema, contas, soltas, elenco) {
   };
 }
 
+/* Editar a pessoa sem sair da lista do sistema. Nasceu de "aqui tem que ter o
+   botao de editar tb": o dono via `thiago` e `montagem` como nome de gente e
+   tinha de ir para a outra aba so para arrumar. */
+function EditarNaLinha({ conta, sistema, login, soltas, aoSalvar, aoFechar }) {
+  const [nome, setNome] = useState(conta.nome || conta.usuario);
+  const [lg, setLg] = useState(login || "");
+  const [indo, setIndo] = useState(false);
+  const idLista = `soltas-linha-${sistema}`;
+  return (
+    <form
+      className="mt-2 w-full rounded-lg bg-slate-50 p-3"
+      onSubmit={async (e) => {
+        e.preventDefault();
+        setIndo(true);
+        try {
+          const ok = await aoSalvar({
+            nome: nome.trim() || conta.usuario,
+            ...(lg.trim() === (login || "") ? {} : { login: lg.trim() }),
+          });
+          if (ok) aoFechar();
+        } finally { setIndo(false); }
+      }}
+    >
+      <div className="grid gap-3 sm:grid-cols-2">
+        <div>
+          <label className="label" htmlFor={`ed-n-${sistema}-${conta.usuario}`}>
+            Nome da pessoa
+          </label>
+          <input id={`ed-n-${sistema}-${conta.usuario}`} className="input h-9"
+            value={nome} onChange={(e) => setNome(e.target.value)} autoFocus />
+          <p className="mt-1 text-xs text-slate-500">
+            É o nome que aparece dentro do {nomeSis(sistema)} e assina o que a pessoa faz lá.
+            Vale para todos os sistemas dela.
+          </p>
+        </div>
+        <div>
+          <label className="label" htmlFor={`ed-l-${sistema}-${conta.usuario}`}>
+            Login no {nomeSis(sistema)}
+          </label>
+          <input id={`ed-l-${sistema}-${conta.usuario}`} className="input h-9 font-mono text-sm"
+            list={idLista} value={lg} onChange={(e) => setLg(e.target.value)} />
+          <datalist id={idLista}>
+            {(soltas || []).map((s) => <option key={s.login} value={s.login} />)}
+          </datalist>
+          <p className="mt-1 text-xs text-slate-500">
+            Só aponta para uma conta que já existe lá — não cria nem renomeia nada.
+          </p>
+        </div>
+      </div>
+      <div className="mt-3 flex flex-wrap gap-2">
+        <button className="btn-primary h-9 px-3 text-xs" disabled={indo}>
+          {indo ? "Salvando..." : "Salvar"}
+        </button>
+        <button type="button" className="btn-ghost h-9 px-2 text-xs" onClick={aoFechar}>
+          Cancelar
+        </button>
+      </div>
+    </form>
+  );
+}
+
 /* UMA SECAO POR SISTEMA, que abre e fecha. Fechada, ela ja diz o essencial:
    quantas pessoas entram ali e se ha algo torto. Aberta, mostra nome por nome.
 
    Fechadas por padrao de proposito: oito listas abertas de uma vez sao uma
    parede de nomes, e a pergunta que se faz aqui e sempre sobre UM sistema. */
-function SecaoSistema({ sistema, dados, acoes, aberta, aoAlternar, endereco }) {
+function SecaoSistema({ sistema, dados, acoes, soltas, aberta, aoAlternar, endereco }) {
+  const [editando, setEditando] = useState(null);   // login da linha aberta
   return (
     <div className="overflow-hidden rounded-xl border" style={{ borderColor: "var(--hairline)" }}>
       <button
@@ -916,6 +978,10 @@ function SecaoSistema({ sistema, dados, acoes, aberta, aoAlternar, endereco }) {
                     {l.dono && !SO_LEITURA.has(sistema) && (
                       <span className="flex shrink-0 gap-1">
                         <button type="button" className="btn-ghost h-8 px-2 text-xs"
+                          onClick={() => setEditando((x) => (x === l.login ? null : l.login))}>
+                          <Pencil size={13} /> Editar
+                        </button>
+                        <button type="button" className="btn-ghost h-8 px-2 text-xs"
                           onClick={() => acoes.senha(l.dono.usuario, l.dono.nome || l.dono.usuario, sistema)}>
                           <KeyRound size={13} /> Senha
                         </button>
@@ -926,6 +992,14 @@ function SecaoSistema({ sistema, dados, acoes, aberta, aoAlternar, endereco }) {
                       </span>
                     )}
                   </div>
+                  {l.dono && editando === l.login && (
+                    <EditarNaLinha
+                      conta={l.dono} sistema={sistema} login={l.login}
+                      soltas={soltas?.[sistema]}
+                      aoFechar={() => setEditando(null)}
+                      aoSalvar={(campos) => acoes.editar(l.dono, sistema, { ...campos, papel: l.papel })}
+                    />
+                  )}
                 </LinhaLista>
               ))}
             </div>
@@ -1049,6 +1123,30 @@ export default function AcessoUnico({ aoAvisar }) {
         await removerPapel(usuario, sistema);
         await carregar();
       } catch (e) { aoAvisar({ tom: "erro", texto: e.message }); }
+    },
+    /* EDITAR A PESSOA A PARTIR DE UM SISTEMA. Duas coisas numa: o NOME, que e
+       o que aparece dentro do sistema (equipe_contas.nome vem de acesso_conta),
+       e o LOGIN daquele sistema.
+
+       O nome nao chega sozinho no sistema: `salvarConta` grava aqui, e quem
+       leva para la e a proxima gravacao de papel. Por isso as duas chamadas em
+       sequencia -- senao a tela mostraria "Thiago Cardoso" e o PCP continuaria
+       assinando "thiago". A segunda NAO fala de modulo de proposito: chave
+       ausente preserva (ver o comentario em painel-acesso/salvarPapel). */
+    async editar(conta, sistema, { nome, login, papel }) {
+      try {
+        if (nome !== undefined && nome !== conta.nome) {
+          await salvarConta({
+            usuario: conta.usuario, nome, tipo: conta.tipo,
+            colaborador: conta.colaborador || "", ativo: conta.ativo !== false,
+          });
+          await salvarPapel({ usuario: conta.usuario, sistema, papel: papel || "" });
+        }
+        if (login !== undefined) await apontarLogin(conta.usuario, sistema, login);
+        aoAvisar({ tom: "ok", texto: `${nome || conta.nome} atualizado no ${nomeSis(sistema)}.` });
+        await carregar();
+        return true;
+      } catch (e) { aoAvisar({ tom: "erro", texto: e.message }); return false; }
     },
     async apontar(usuario, nome, sistema, login) {
       try {
@@ -1219,6 +1317,7 @@ export default function AcessoUnico({ aoAvisar }) {
               endereco={ENDERECO[s]}
               dados={contasDoSistema(s, dados.contas, dados.soltas, dados.elenco)}
               acoes={acoes}
+              soltas={dados.soltas}
               aberta={!!abertos[s]}
               aoAlternar={() => setAbertos((a) => ({ ...a, [s]: !a[s] }))}
             />
