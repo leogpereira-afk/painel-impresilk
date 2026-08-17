@@ -255,6 +255,35 @@ Deno.serve(async (req: Request) => {
       // Supabase Auth. (Se ja adotou o usuario do RH acima, nada disto roda --
       // trocar a senha do RH pela do outro sistema seria recriar senha na marra.)
       if (!sessao) {
+      /* NAO CRIAR IDENTIDADE PARA QUEM JA TEM UMA.
+         Chegar aqui com `candidatos` cheio significa: a pessoa TEM conta no RH,
+         e a senha que ela digitou nao e a de la (o laco 2a teria adotado). O
+         hash antigo bateu, entao ela e ela mesma -- so digitou a senha de outro
+         sistema.
+
+         O que acontecia entao: `createUser` com `<usuario>@impresilk.local`, um
+         endereco DIFERENTE do `<nome completo>@rh.impresilk.local` que ela ja
+         tem. Endereco diferente nao colide, o GoTrue aceita, e a pessoa passa a
+         ter DUAS identidades -- a nova com a senha que acabou de digitar, a do
+         RH com a antiga. A partir dai cada porta abre com uma senha diferente e
+         ninguem entende por que. O comentario do laco 2a registra que foi
+         exatamente isso que aconteceu com a Jessica em 11/08; a correcao de la
+         fez o pareamento achar o candidato, mas nao fechou a criacao.
+
+         A guarda de conflito logo abaixo nao pega este caso: ela so dispara
+         quando o createUser FALHA, e aqui ele nao falha.
+
+         Recusar e melhor que adotar: adotar exigiria trocar a senha do RH pela
+         que ela digitou -- ou seja, deixar a senha do Brief reescrever a senha
+         do RH de alguem. */
+      if (candidatos.length) {
+        await registrar("*", usuario, "login-barrado", "tem conta no RH e usou senha de outro sistema");
+        return json({
+          erro: "Você já tem acesso ao RH, e é a senha de lá que vale para entrar por aqui. " +
+                "Se não lembra, peça à direção para gerar uma nova.",
+          conflito: true,
+        }, 409);
+      }
       const { data: criado, error: erroCriar } = await sb.auth.admin.createUser({
         email, password: senha, email_confirm: true,
         user_metadata: { usuario, nome: conta.nome },
