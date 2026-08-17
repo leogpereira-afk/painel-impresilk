@@ -86,10 +86,10 @@ export default function Acessos() {
           e so a troca da propria senha, e chamar isso de "Acessos" dava a
           entender que dava para liberar modulo por aqui. */}
       <PageTitle
-        titulo={ehDirecao ? "Acessos" : "Minha senha"}
+        titulo={ehDirecao ? "Sistemas de Acessos" : "Minha senha"}
         descricao={
           ehDirecao
-            ? "Sua senha e quem entra no painel, com o que cada um enxerga."
+            ? "Os sistemas da casa, quem entra em cada um e por onde. E a sua senha."
             : "Troque a sua senha de entrada no painel."
         }
       />

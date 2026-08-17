@@ -44,6 +44,7 @@ import logoColor from "../assets/brand/logo-color.png";
 import logoWhite from "../assets/brand/logo-white.png";
 import { useApp } from "../config/store.jsx";
 import { ehDirecao, podeAbrir, sair } from "../lib/sessao.js";
+import { SISTEMAS as SISTEMAS_CASA } from "../lib/sistemas.js";
 import { frescor } from "../lib/frescor.js";
 
 // Inicio fica solto no topo; o resto vive dentro do grupo "Gestao", que abre e
@@ -70,16 +71,23 @@ const GESTAO = [
 // Os enderecos sao os atalhos do dominio da empresa, que redirecionam para o
 // GitHub Pages. Passar pelo atalho e de proposito: se um sistema mudar de casa
 // de novo, muda so o redirecionamento -- nenhum link aqui dentro envelhece.
-const SISTEMAS = [
-  { rotulo: "DRE", icone: BarChart3, href: "https://impresilk.com.br/dre" },
-  { rotulo: "RH", icone: Users, href: "https://impresilk.com.br/rh" },
-  { rotulo: "PCP", icone: ClipboardList, href: "https://impresilk.com.br/pcp" },
-  { rotulo: "Compras", icone: ShoppingCart, href: "https://impresilk.com.br/compras" },
-  { rotulo: "Brief de Medição", icone: Ruler, href: "https://impresilk.com.br/brief" },
-  { rotulo: "Pops & Fabricação", icone: BookOpen, href: "https://impresilk.com.br/pops" },
-  // Painel pessoal do dono: so aparece para a direcao, nao e sistema da empresa.
-  { rotulo: "Central do Leo", icone: UserCircle, href: "https://leogpereira-afk.github.io/vida-leo/", soDirecao: true },
-];
+// Os NOMES e ENDERECOS saem do registro (lib/sistemas.js), nao de uma copia
+// aqui: esta era a SEXTA lista de sistemas do projeto, e listas copiadas
+// envelhecem caladas -- um sistema novo aparecia na tela de Acessos e sumia da
+// lateral, ou pior, ficava com o endereco velho depois de uma mudanca de casa.
+// O que continua morando aqui e o ICONE, que e escolha de interface.
+//
+// O Painel fica de fora: e onde a pessoa ja esta.
+const ICONE_SIS = {
+  dre: BarChart3, rh: Users, pcp: ClipboardList, compras: ShoppingCart,
+  brief: Ruler, pops: BookOpen, central: UserCircle,
+};
+const SISTEMAS = SISTEMAS_CASA
+  .filter((s) => s.id !== "painel" && s.url)
+  .map((s) => ({
+    rotulo: s.nomeCompleto || s.nome, icone: ICONE_SIS[s.id] || ArrowUpRight, href: s.url,
+    soDirecao: !!s.pessoal,
+  }));
 
 // Outra empresa do dono. Ficam num bloco separado no pe da lateral para nao se
 // misturarem com os sistemas da Impresilk -- e so a direcao enxerga.
@@ -329,7 +337,7 @@ function ConteudoLateral({ aoNavegar, sessao }) {
           }
         >
           <KeyRound size={17} strokeWidth={2.2} className="shrink-0" />
-          {ehDirecao(sessao) ? "Acessos" : "Minha senha"}
+          {ehDirecao(sessao) ? "Sistemas de Acessos" : "Minha senha"}
         </NavLink>
 
         {podeAbrir("configurações", sessao) && (

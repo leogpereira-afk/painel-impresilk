@@ -33,61 +33,20 @@ import {
 import { Card, SectionTitle, Empty } from "./ui.jsx";
 import { Selo, FaixaNumeros, LinhaLista } from "./lista.jsx";
 import { MODULOS, COM_DINHEIRO, somenteValidos } from "../lib/modulos.js";
+import { SISTEMAS as SISTEMAS_CASA, doSistema, nomeSis } from "../lib/sistemas.js";
 
-const NOME_SISTEMA = {
-  painel: "Painel", rh: "RH", pcp: "PCP", brief: "Brief",
-  dre: "DRE", compras: "Compras", pops: "POPs", central: "Central do Léo",
-};
-
-// Papeis que cada sistema aceita. COPIA FIEL da lista fechada do equipe-auth
-// (supabase/functions/equipe-auth/index.ts, const PAPEIS) -- o servidor valida
-// com includes(), sem normalizar: papel que nao esta la e recusado, e papel
-// gravado so na tabela nova (que nao tem CHECK) nao e recusado por ninguem e
-// simplesmente nao funciona em lugar nenhum.
-//
-// Esta lista JA ESTEVE ERRADA aqui: "compras" tinha compras/obra (os papeis do
-// app antigo) e "pops" nao tinha gestor. Ao mexer, confira na origem.
-const PAPEIS = {
-  brief: ["vendedor", "designer", "medidor", "admin"],
-  pcp: ["admin", "pcp", "montagem", "operacao", "comercial"],
-  compras: ["admin", "comprador", "solicitante"],
-  dre: ["equipe"],
-  pops: ["admin", "gestor", "equipe"],
-  rh: ["ADMIN_RH", "GESTOR", "COLABORADOR"],
-  // App pessoal do Leo: uma pessoa so, um papel so.
-  central: ["dono"],
-  // O painel nao usa papel: quem manda la e a lista de modulos (permissoes).
-  painel: [],
-};
-
-// COM O QUE A PESSOA COMECA ao marcar a caixa. Antes era o primeiro da lista --
-// e o primeiro de pcp, compras e pops e "admin", e o de rh e "ADMIN_RH". Um
-// clique numa caixa dava a chave do sistema inteiro, sem confirmar nada.
-// Comeca sempre pelo menor; subir e escolha explicita no seletor ao lado.
-const PAPEL_INICIAL = {
-  brief: "medidor",
-  pcp: "montagem",
-  compras: "solicitante",
-  dre: "equipe",
-  pops: "equipe",
-  rh: "COLABORADOR",
-  central: "dono",
-  painel: "",
-};
-
-const nomeSis = (s) => NOME_SISTEMA[s] || s;
+/* Nome, endereco, pagina de acessos, papeis e papel inicial de cada sistema
+   vinham de CINCO constantes escritas aqui. Agora saem todas de um registro so
+   -- lib/sistemas.js --, para que acrescentar um sistema seja um bloco la e nao
+   uma cacada por seis lugares. Ver a lista de passos no fim daquele arquivo. */
+const PAPEIS = Object.fromEntries(SISTEMAS_CASA.map((s) => [s.id, s.papeis]));
+const PAPEL_INICIAL = Object.fromEntries(SISTEMAS_CASA.map((s) => [s.id, s.papelInicial]));
 
 // Para comparar nome com login sem tropecar em acento e maiuscula -- a mesma
 // regra que o servidor usa. "Barbara Patrícia" tem de casar com "barbara patricia".
 const norma = (s) =>
   String(s || "").normalize("NFKD").replace(/[\u0300-\u036f]/g, "")
     .toLowerCase().replace(/\s+/g, " ").trim();
-
-// Sistemas que esta tela MOSTRA mas nao administra. A Central do Léo tem porta
-// propria (leo-sync) e nao mora em equipe_contas: criar conta ou trocar senha
-// nela por aqui fabricaria uma SEGUNDA senha, valida, para o app pessoal do
-// dono. O servidor recusa igual -- ver SO_LEITURA em painel-acesso.
-const SO_LEITURA = new Set(["central"]);
 
 /* POR ONDE A PESSOA ENTRA quando nao tem conta. Duas destas sao acesso de
    verdade e nao apareciam em lugar nenhum: o instalador do PCP toca no proprio
@@ -98,19 +57,6 @@ const COMO_ENTRA = {
   nome: { selo: "entra sem senha", tom: "warn", resumo: "entram sem senha" },
   link: { selo: "entra por link", tom: "warn", resumo: "entram por link" },
   cadastro: { selo: "", tom: "neutral", resumo: "" },
-};
-
-// Onde cada sistema mora, para abrir dali mesmo. A Central e o app pessoal do
-// dono e nao tem atalho no dominio da empresa.
-const ENDERECO = {
-  painel: "https://impresilk.com.br/painel",
-  rh: "https://impresilk.com.br/rh",
-  pcp: "https://impresilk.com.br/pcp",
-  brief: "https://impresilk.com.br/brief",
-  dre: "https://impresilk.com.br/dre",
-  compras: "https://impresilk.com.br/compras",
-  pops: "https://impresilk.com.br/pops",
-  central: "https://leogpereira-afk.github.io/vida-leo/",
 };
 
 // O estado de uma linha pessoa×sistema, em uma palavra. E o que decide a cor do
@@ -417,7 +363,7 @@ function LinhaSistema({ c, sis, p, soltas, vendedores, aoAlternar, aoPapel, aoMo
                 aqui: o botao chamaria a equipe-auth, que fabricaria uma segunda
                 senha valida para o app pessoal do dono. O servidor recusa; o
                 botao some para nao prometer. */}
-            {p.real?.existe && !SO_LEITURA.has(sis) && (
+            {p.real?.existe && !doSistema(sis).soLeitura && (
               <button type="button" onClick={() => aoSenha(sis)}
                 className="btn-ghost h-8 px-2 text-xs" title={`Nova senha só no ${nomeSis(sis)}`}>
                 <KeyRound size={13} /> Senha aqui
@@ -871,7 +817,7 @@ function EditarNaLinha({ conta, sistema, login, soltas, aoSalvar, aoFechar }) {
 
    Fechadas por padrao de proposito: oito listas abertas de uma vez sao uma
    parede de nomes, e a pergunta que se faz aqui e sempre sobre UM sistema. */
-function SecaoSistema({ sistema, dados, acoes, soltas, aberta, aoAlternar, endereco }) {
+function SecaoSistema({ sistema, dados, acoes, soltas, aberta, aoAlternar, endereco, acessos }) {
   const [editando, setEditando] = useState(null);   // login da linha aberta
   return (
     <div className="overflow-hidden rounded-xl border" style={{ borderColor: "var(--hairline)" }}>
@@ -926,7 +872,13 @@ function SecaoSistema({ sistema, dados, acoes, soltas, aberta, aoAlternar, ender
 
       {aberta && (
         <div className="border-t" style={{ borderColor: "var(--hairline)" }}>
-          <p className="flex flex-wrap items-center gap-x-2 px-4 pt-3 text-xs text-slate-500">
+          {/* OS DOIS ENDERECOS. "Abrir" leva a porta da frente; "acessos de la"
+              leva a tela onde se administra quem entra DENTRO do sistema -- que
+              e outra coisa e estava faltando. Nem todo sistema tem essa segunda
+              alcancavel por link (os apps vanilla sao tela unica com abas), e
+              nesses casos a tela DIZ o caminho de cliques em vez de oferecer um
+              link que cai na porta da frente e deixa a pessoa procurando. */}
+          <p className="flex flex-wrap items-center gap-x-3 gap-y-1 px-4 pt-3 text-xs text-slate-500">
             <span>
               Lido do próprio {nomeSis(sistema)}, não desta tabela — quem está aqui entra lá.
             </span>
@@ -936,6 +888,16 @@ function SecaoSistema({ sistema, dados, acoes, soltas, aberta, aoAlternar, ender
                 abrir o {nomeSis(sistema)} <ExternalLink size={11} />
               </a>
             )}
+            {acessos?.url ? (
+              <a href={acessos.url} target="_blank" rel="noreferrer"
+                className="inline-flex items-center gap-1 font-medium text-brand underline">
+                acessos dentro do {nomeSis(sistema)} <ExternalLink size={11} />
+              </a>
+            ) : acessos?.caminho ? (
+              <span className="text-slate-400">
+                acessos lá dentro: <b className="font-normal text-slate-600">{acessos.caminho}</b>
+              </span>
+            ) : null}
           </p>
 
           {dados.dentro.length === 0 ? (
@@ -975,7 +937,7 @@ function SecaoSistema({ sistema, dados, acoes, soltas, aberta, aoAlternar, ender
                     ) : null}
                     {l.ativo === false && <Selo tom="bad">desativada</Selo>}
                     {l.temporaria && <Selo tom="warn">senha temporária</Selo>}
-                    {l.dono && !SO_LEITURA.has(sistema) && (
+                    {l.dono && !doSistema(sistema).soLeitura && (
                       <span className="flex shrink-0 gap-1">
                         <button type="button" className="btn-ghost h-8 px-2 text-xs"
                           onClick={() => setEditando((x) => (x === l.login ? null : l.login))}>
@@ -1230,8 +1192,8 @@ export default function AcessoUnico({ aoAvisar }) {
   return (
     <Card>
       <SectionTitle
-        titulo={`Quem entra nos ${dados.sistemas.length} sistemas`}
-        sub="Uma linha por pessoa. O que muda de um sistema para outro é o papel — e o login, que nem sempre é o mesmo."
+        titulo="Sistemas de Acessos"
+        sub={`Os ${dados.sistemas.length} sistemas da casa e quem entra em cada um. O que muda de um sistema para outro é o papel — e o login, que nem sempre é o mesmo.`}
       />
 
       {/* AS ABAS VEM PRIMEIRO. Elas estavam la embaixo, depois do aviso, da faixa
@@ -1314,7 +1276,8 @@ export default function AcessoUnico({ aoAvisar }) {
             <SecaoSistema
               key={s}
               sistema={s}
-              endereco={ENDERECO[s]}
+              endereco={doSistema(s).url}
+              acessos={doSistema(s).acessos}
               dados={contasDoSistema(s, dados.contas, dados.soltas, dados.elenco)}
               acoes={acoes}
               soltas={dados.soltas}
