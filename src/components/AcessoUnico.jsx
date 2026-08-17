@@ -923,7 +923,16 @@ export default function AcessoUnico({ aoAvisar }) {
   const [busca, setBusca] = useState("");
   const [criando, setCriando] = useState(false);
   const [senhaNova, setSenhaNova] = useState(null);
-  const [lente, setLente] = useState("pessoa");
+  /* COMECA EM SISTEMAS. Foi a vista que o dono pediu -- "clico em RH e sei todo
+     mundo que esta la" -- e a que ele nao achou. A escolha fica lembrada neste
+     aparelho: quem vem administrar UMA pessoa nao quer trocar de aba toda vez. */
+  const [lente, setLente] = useState(() => {
+    try { return localStorage.getItem("painel_acessos_lente") || "sistema"; } catch { return "sistema"; }
+  });
+  const trocarLente = useCallback((id) => {
+    setLente(id);
+    try { localStorage.setItem("painel_acessos_lente", id); } catch { /* aba anonima */ }
+  }, []);
   // Quais secoes da lente por sistema estao abertas. Varias ao mesmo tempo e
   // permitido: comparar dois sistemas e uso legitimo, e fechar um para abrir
   // outro seria trabalho a toa.
@@ -1010,6 +1019,32 @@ export default function AcessoUnico({ aoAvisar }) {
         sub="Uma linha por pessoa. O que muda de um sistema para outro é o papel — e o login, que nem sempre é o mesmo."
       />
 
+      {/* AS ABAS VEM PRIMEIRO. Elas estavam la embaixo, depois do aviso, da faixa
+          de numeros e do alerta vermelho -- seis blocos de texto antes. O dono
+          rolou tudo, caiu na lista de pessoas e concluiu, com razao, que a aba
+          de sistemas nao tinha sido feita. Escolha que a pessoa nao encontra e
+          escolha que nao existe. */}
+      <div className="mb-4 flex gap-1 border-b" style={{ borderColor: "var(--hairline)" }}>
+        {[
+          ["sistema", "Sistemas", dados.sistemas.length],
+          ["pessoa", "Pessoas", dados.contas.length],
+        ].map(([id, rot, n]) => (
+          <button
+            key={id}
+            type="button"
+            onClick={() => trocarLente(id)}
+            aria-pressed={lente === id}
+            className={`-mb-px border-b-2 px-4 py-2.5 font-display text-sm font-semibold transition-colors ${
+              lente === id
+                ? "border-brand text-brand"
+                : "border-transparent text-slate-500 hover:text-slate-900"
+            }`}
+          >
+            {rot} <span className="tnum font-normal text-slate-400">{n}</span>
+          </button>
+        ))}
+      </div>
+
       <p className="mb-4 flex items-start gap-2 rounded-lg bg-warn-50 px-3 py-2 text-sm text-warn-700">
         <AlertTriangle size={15} className="mt-0.5 shrink-0" />
         <span>
@@ -1025,8 +1060,8 @@ export default function AcessoUnico({ aoAvisar }) {
           celulas={celulas}
           ativo={lente === "pessoa" ? recorte : null}
           aoEscolher={(id) => {
-            if (id === "soltas") { setLente("sistema"); return; }
-            setLente("pessoa");
+            if (id === "soltas") { trocarLente("sistema"); return; }
+            trocarLente("pessoa");
             setRecorte((a) => (a === id ? "todas" : id));
           }}
         />
@@ -1039,24 +1074,12 @@ export default function AcessoUnico({ aoAvisar }) {
             <b className="font-display">{numeros.foraDoLugar} acessos existem só nesta tela.</b>{" "}
             A pessoa aparece com o sistema marcado, mas não há conta com aquele login lá —
             então gerar senha para ela não alcança aquele sistema.{" "}
-            <button type="button" className="underline" onClick={() => { setLente("pessoa"); setRecorte("fora"); }}>
+            <button type="button" className="underline" onClick={() => { trocarLente("pessoa"); setRecorte("fora"); }}>
               ver quem
             </button>
           </span>
         </p>
       )}
-
-      <div className="mb-4 flex flex-wrap gap-2">
-        {[["pessoa", "Por pessoa"], ["sistema", "Por sistema"]].map(([id, rot]) => (
-          <button key={id} type="button" onClick={() => setLente(id)}
-            aria-pressed={lente === id}
-            className={`rounded-full px-3 py-1.5 text-sm transition-colors ${
-              lente === id ? "bg-brand text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-            }`}>
-            {rot}
-          </button>
-        ))}
-      </div>
 
       <SenhaNova senha={senhaNova?.senha} nome={senhaNova?.nome}
         aoFechar={() => setSenhaNova(null)} />

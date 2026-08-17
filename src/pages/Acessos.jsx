@@ -94,6 +94,26 @@ export default function Acessos() {
         }
       />
 
+      {/* A ORDEM MUDOU EM 16/08/2026. "Minha senha" vinha primeiro e ocupava a
+          tela inteira -- no celular, uma rolagem inteira de formulario antes de
+          qualquer coisa sobre acesso. Quem abre esta tela como direcao vem
+          resolver acesso de OUTRA pessoa; trocar a propria senha e o caso raro.
+          Para quem nao e direcao nada muda: la a propria senha e a tela toda. */}
+      {!ehDirecao ? null : (
+        <>
+          {msgConta && <Aviso tom={msgConta.tom}>{msgConta.texto}</Aviso>}
+
+          {/* UMA lista de gente, so.
+              Havia duas nesta pagina: um formulario "Novo/Editar acesso" com
+              usuario, nome e senha, e uma tabela "Quem tem acesso" -- as duas
+              mandando so no Painel -- e logo abaixo esta, que manda nos SETE.
+              Tres blocos pedindo as mesmas coisas, e nenhum deles dizendo qual
+              valia. Os dois primeiros sairam: o que eles faziam (modulos do
+              painel, senha, remover) agora esta dentro do cartao da pessoa. */}
+          <AcessoUnico aoAvisar={setMsgConta} />
+        </>
+      )}
+
       {/* Minha senha -- todo mundo */}
       <Card>
         <SectionTitle
@@ -182,22 +202,7 @@ export default function Acessos() {
         </form>
       </Card>
 
-      {!ehDirecao ? null : (
-        <>
-          {msgConta && <Aviso tom={msgConta.tom}>{msgConta.texto}</Aviso>}
-
-          {/* UMA lista de gente, so.
-              Havia duas nesta pagina: um formulario "Novo/Editar acesso" com
-              usuario, nome e senha, e uma tabela "Quem tem acesso" -- as duas
-              mandando so no Painel -- e logo abaixo esta, que manda nos SETE.
-              Tres blocos pedindo as mesmas coisas, e nenhum deles dizendo qual
-              valia. Os dois primeiros sairam: o que eles faziam (modulos do
-              painel, senha, remover) agora esta dentro do cartao da pessoa. */}
-          <AcessoUnico aoAvisar={setMsgConta} />
-
-          <BackupDados />
-        </>
-      )}
+      {!ehDirecao ? null : <BackupDados />}
     </div>
   );
 }
