@@ -206,6 +206,14 @@ console.log("\n3. Papeis (o registro diz ser copia FIEL da equipe-auth)");
       acusar(`"${s.id}": papeis diferentes\n      registro   : ${JSON.stringify(s.papeis)}\n      equipe-auth: ${JSON.stringify(naPorta)}`);
       continue;
     }
+    /* A LISTA DE PAPEIS DE COMANDO tem de bater com a da porta. A tela usa
+       `papeisAdmin` para decidir se "Criar a conta la" pode obedecer ao papel
+       marcado ou tem de cair no de operacao -- lista errada aqui volta a criar
+       admin sem ninguem pedir, que foi o defeito de 17/08/2026. */
+    const adminPorta = PAPEIS[s.id].admin || [];
+    if (!mesmos(s.papeisAdmin || [], adminPorta)) {
+      acusar(`"${s.id}": papeis de comando diferentes\n      registro   : ${JSON.stringify(s.papeisAdmin || [])}\n      equipe-auth: ${JSON.stringify(adminPorta)}`);
+    }
     /* MARCAR A CAIXA NAO PODE CONCEDER O PAPEL MAIS PODEROSO. O papel inicial
        tem de existir na lista e nao pode ser um dos que administram. */
     if (s.papelInicial) {

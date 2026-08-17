@@ -33,7 +33,7 @@ import {
 import { Card, SectionTitle, Empty } from "./ui.jsx";
 import { Selo, FaixaNumeros, LinhaLista } from "./lista.jsx";
 import { MODULOS, COM_DINHEIRO, somenteValidos } from "../lib/modulos.js";
-import { SISTEMAS as SISTEMAS_CASA, doSistema, nomeSis } from "../lib/sistemas.js";
+import { SISTEMAS as SISTEMAS_CASA, doSistema, nomeSis, papelAoCriar } from "../lib/sistemas.js";
 
 /* Nome, endereco, pagina de acessos, papeis e papel inicial de cada sistema
    vinham de CINCO constantes escritas aqui. Agora saem todas de um registro so
@@ -84,6 +84,14 @@ function lerFalha(e) {
 function estadoDoPapel(p) {
   if (!p?.real?.existe) return { chave: "fantasma", rotulo: "não existe lá", tom: "bad" };
   if (p.real.ativo === false) return { chave: "desativada", rotulo: "desativada", tom: "bad" };
+  /* CONTA QUE EXISTE E NAO ABRE NADA. No Painel quem manda e a lista de
+     modulos, entao conta sem nenhum modulo deixa a pessoa entrar e olhar uma
+     tela vazia -- e como isso NAO e erro de login, ela reclama que "o painel
+     nao abre" e ninguem acha o motivo. Marcado e vazio sao coisas diferentes, e
+     ate hoje a tela tratava as duas como acesso concedido. */
+  if (p.sistema === "painel" && !(p.real.permissoes?.length || p.permissoes?.length)) {
+    return { chave: "vazia", rotulo: "entra e não vê nada", tom: "bad" };
+  }
   if (p.real.temporaria) return { chave: "temporaria", rotulo: "senha temporária", tom: "warn" };
   return { chave: "ok", rotulo: "ok", tom: "ok" };
 }
@@ -499,6 +507,28 @@ function LinhaSistema({ c, sis, p, soltas, vendedores, aoAlternar, aoPapel, aoMo
         </div>
       )}
 
+      {/* EXISTE E NAO ABRE NADA. Sem isto o cartao mostra o selo verde de
+          "conta ok" numa linha que nao da acesso a coisa nenhuma -- e a pessoa
+          reclama que "o painel nao abre" enquanto a tela jura que esta tudo
+          certo. A saida e a mesma que ja existe: liberar as partes. */}
+      {p && estadoDoPapel(p).chave === "vazia" && !editando && (
+        <div className="mt-2 rounded-lg bg-bad-50 px-3 py-2 text-xs text-bad-700">
+          <p>
+            {c.nome || c.usuario} está marcada no Painel e <b>nenhuma parte foi liberada</b>: ela
+            entra com a senha certa e vê uma tela vazia. Como não é erro de login, o que chega até
+            você é “o painel não abre”.
+          </p>
+          <p className="mt-1">
+            <b>Marque as partes logo abaixo</b> para ela ver alguma coisa — ou tire do Painel.
+          </p>
+          <div className="mt-2">
+            <button type="button" className="btn-ghost h-8 px-2 text-xs" onClick={() => aoAlternar(sis)}>
+              <X size={13} /> Tirar da lista
+            </button>
+          </div>
+        </div>
+      )}
+
       {p && editando && (
         <TrocarLogin
           sistema={sis} atual={p.login} soltas={soltas}
@@ -611,10 +641,38 @@ function Conta({ c, sistemas, soltas, vendedores, acoes, aoMudar, aoAvisar, aoSe
 
   const criarLa = async (sis) => {
     const p = c.papeis.find((x) => x.sistema === sis);
-    if (!confirm(`Criar a conta "${p?.login}" no ${nomeSis(sis)}?\n\nSó faça isso se ${c.nome || c.usuario} REALMENTE não tem conta lá — se tiver com outro nome, use "Apontar para a conta certa", senão ficam duas.`)) return;
+    /* O PAPEL MARCADO NUMA LINHA QUE NUNCA EXISTIU NAO E DECISAO DE NINGUEM.
+       Ate 17/08/2026 este botao obedecia a `p.papel` cegamente -- e a
+       consolidacao de 05/08 tinha marcado ADMIN em 8 linhas do Compras e 7 do
+       POPs que nunca foram concedidas por ninguem (o log nao tem uma unica
+       criacao delas). Um clique aqui em cada uma faria oito pessoas aprovarem
+       ordem de compra.
+       Entao: papel de comando numa conta que nao existe cai para o de operacao,
+       e o aviso DIZ isso. Promover depois e um seletor nesta mesma linha. */
+    const { papel, marcado, rebaixado } = papelAoCriar(sis, p?.papel);
+    const recado = rebaixado
+      ? `Criar a conta "${p?.login}" no ${nomeSis(sis)} como ${papel}?\n\n`
+        + `Esta tela marca "${marcado}", que é o papel de comando do ${nomeSis(sis)} — `
+        + `mas essa marcação nunca virou conta, então ela não veio de uma decisão registrada.\n\n`
+        + `Vou criar no papel de trabalho (${papel}). Se ${c.nome || c.usuario} precisar mandar lá dentro, `
+        + `troque o papel nesta mesma linha depois.`
+      : `Criar a conta "${p?.login}" no ${nomeSis(sis)}${papel ? ` como ${papel}` : ""}?\n\n`
+        + `Só faça isso se ${c.nome || c.usuario} REALMENTE não tem conta lá — se tiver com outro nome, `
+        + `use "Apontar para a conta certa", senão ficam duas.`;
+    /* CRIAR PAINEL SEM MODULO E CRIAR UMA PORTA PARA UMA SALA VAZIA. O papel
+       nao manda no Painel -- quem manda e a lista de partes -- entao esta
+       criacao termina com a pessoa entrando e vendo tela em branco. Dizer isso
+       ANTES vale mais do que acusar depois: depois, quem reclama e ela. */
+    const painelSemParte =
+      sis === "painel" && !(p?.real?.permissoes?.length || p?.permissoes?.length);
+    const aviso = painelSemParte
+      ? "\n\nATENÇÃO: nenhuma parte do Painel está marcada para ela. Do jeito que está, "
+        + "ela entra e vê uma tela vazia. Depois de criar, marque as partes na mesma linha."
+      : "";
+    if (!confirm(recado + aviso)) return;
     try {
       const r = await salvarPapel(
-        { usuario: c.usuario, sistema: sis, papel: p?.papel || PAPEL_INICIAL[sis] || "" },
+        { usuario: c.usuario, sistema: sis, papel },
         { criar: true });
       if (r?.senha) aoSenha({ senha: r.senha, nome: `${c.nome || c.usuario} no ${nomeSis(sis)}` });
       await aoMudar();
@@ -1229,7 +1287,14 @@ export default function AcessoUnico({ aoAvisar }) {
       (n, c) => n + c.papeis.filter((p) => p.real?.existe && p.real.temporaria).length, 0);
     const soltas = Object.values(dados.soltas || {}).reduce((n, l) => n + l.length, 0);
     const naPorta = (dados.naPorta || []).length;
-    return { pessoas: contas.length, foraDoLugar, temporarias, soltas, naPorta };
+    // Conta que existe e nao abre nada -- ver estadoDoPapel.
+    const vazias = contas.reduce(
+      (n, c) => n + c.papeis.filter((p) => estadoDoPapel(p).chave === "vazia").length, 0);
+    /* QUANTAS PESSOAS, e nao quantas linhas. "13 acessos" pode ser uma pessoa
+       com treze problemas ou treze pessoas trancadas do lado de fora, e as duas
+       frases pedem reacoes diferentes. */
+    const pessoasFora = contas.filter((c) => c.papeis.some((p) => !p.real?.existe)).length;
+    return { pessoas: contas.length, foraDoLugar, temporarias, soltas, naPorta, vazias, pessoasFora };
   }, [dados]);
 
   const lista = useMemo(() => {
@@ -1238,7 +1303,13 @@ export default function AcessoUnico({ aoAvisar }) {
     return dados.contas.filter((c) => {
       if (q && !`${c.usuario} ${c.nome} ${c.colaborador} ${c.papeis.map((p) => p.login).join(" ")}`
         .toLowerCase().includes(q)) return false;
-      if (recorte === "fora") return c.papeis.some((p) => !p.real?.existe);
+      /* "Fora do lugar" tem de trazer TAMBEM a conta que existe e nao abre
+         nada: o botao do aviso vermelho manda para este recorte, e uma pessoa
+         acusada no topo que nao aparecesse na lista seria o mesmo desencontro
+         que esta tela existe para acabar. */
+      if (recorte === "fora") {
+        return c.papeis.some((p) => !p.real?.existe || estadoDoPapel(p).chave === "vazia");
+      }
       if (recorte === "temporaria") return c.papeis.some((p) => p.real?.existe && p.real.temporaria);
       return true;
     });
@@ -1303,6 +1374,47 @@ export default function AcessoUnico({ aoAvisar }) {
           </button>
         ))}
       </div>
+
+      {/* O QUE ESTA QUEBRADO, ANTES DE TUDO. O numero "Fora do lugar" ja existia
+          na faixa, mas numero em celula e placar, nao chamado: dava para olhar a
+          tela inteira e nao perceber que treze pessoas estao marcadas em
+          sistemas onde nao entram. Aqui vai por extenso, em vermelho, com o
+          caminho para resolver -- e some sozinho quando zerar. */}
+      {(numeros.foraDoLugar > 0 || numeros.vazias > 0) && (
+        <div className="mb-4 rounded-lg bg-bad-50 px-3 py-2.5 text-sm text-bad-700">
+          <p className="flex items-start gap-2">
+            <AlertTriangle size={15} className="mt-0.5 shrink-0" />
+            <span>
+              <b className="font-display">Tem acesso marcado aqui que não funciona lá.</b>{" "}
+              {numeros.foraDoLugar > 0 && (
+                <>
+                  {numeros.foraDoLugar === 1
+                    ? "Uma marcação promete"
+                    : `${numeros.foraDoLugar} marcações prometem`}{" "}
+                  acesso que o sistema não tem
+                  {numeros.pessoasFora > 1 ? ` (${numeros.pessoasFora} pessoas)` : ""} — a pessoa
+                  digita a senha e não entra, e gerar senha nova para ela não resolve.{" "}
+                </>
+              )}
+              {numeros.vazias > 0 && (
+                <>
+                  {numeros.vazias === 1 ? "Uma pessoa entra" : `${numeros.vazias} pessoas entram`}{" "}
+                  no Painel e não vê nada: a conta existe e nenhuma parte foi liberada.{" "}
+                </>
+              )}
+              <b>Resolver uma por uma é o certo</b> — cada uma tem saída diferente: apontar para a
+              conta que já existe lá, criar a conta, ou tirar da lista.
+            </span>
+          </p>
+          <button
+            type="button"
+            className="btn-outline mt-2 h-8 px-2 text-xs"
+            onClick={() => { trocarLente("pessoa"); setRecorte("fora"); }}
+          >
+            Ver quem está assim
+          </button>
+        </div>
+      )}
 
       <p className="mb-4 flex items-start gap-2 rounded-lg bg-warn-50 px-3 py-2 text-sm text-warn-700">
         <AlertTriangle size={15} className="mt-0.5 shrink-0" />

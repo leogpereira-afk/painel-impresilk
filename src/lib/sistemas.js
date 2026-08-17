@@ -40,6 +40,7 @@ export const SISTEMAS = [
     // O painel nao usa papel: quem manda la e a lista de modulos (permissoes).
     papeis: [],
     papelInicial: "",
+    papeisAdmin: [],
     /* A equipe-auth guarda um papel DE FACHADA ("tudo") so para o Painel caber
        na tabela dela -- ninguem faz login por aquela funcao aqui. Declarar a
        fachada torna a excecao um DADO, e nao um "if (id === painel)" escondido
@@ -61,6 +62,10 @@ export const SISTEMAS = [
     acessos: { url: "https://impresilk.com.br/rh/painel-controle", caminho: "aba Usuários e Permissões" },
     papeis: ["ADMIN_RH", "GESTOR", "COLABORADOR"],
     papelInicial: "COLABORADOR",
+    /* Quem administra acesso DE DENTRO do sistema. Vazio nao quer dizer
+       "ninguem manda": quer dizer que o acesso nao se administra la -- no RH
+       quem da e tira acesso e esta tela. */
+    papeisAdmin: [],
     soLeitura: false,
     /* ENDERECO SIM, CHAVE NAO -- e isto e desenho, nao esquecimento. No RH o
        cracha e a sessao do proprio Supabase Auth, que o Painel nao sabe
@@ -75,6 +80,9 @@ export const SISTEMAS = [
     acessos: { url: "", caminho: "Configurações → Acessos" },
     papeis: ["admin", "pcp", "montagem", "operacao", "comercial"],
     papelInicial: "montagem",
+    // Papeis de COMANDO: quem os tem administra acesso dentro do sistema.
+    // Copia fiel do `admin` da equipe-auth, conferida por conferir-sistemas.mjs.
+    papeisAdmin: ["admin"],
     soLeitura: false,
     /* ENTRADA UNICA: `chave` e o nome da gaveta do localStorage que ESTE app ja
        le -- errar aqui deixa a pessoa na tela de login sem explicacao nenhuma.
@@ -94,6 +102,7 @@ export const SISTEMAS = [
     acessos: { url: "", caminho: "Configurações → Equipe" },
     papeis: ["vendedor", "designer", "medidor", "admin"],
     papelInicial: "medidor",
+    papeisAdmin: ["admin"],
     soLeitura: false,
     entradaUnica: { endereco: "https://leogpereira-afk.github.io/brief-medicao/", chave: "app_sync_cracha" },
   },
@@ -106,6 +115,7 @@ export const SISTEMAS = [
     acessos: { url: "", caminho: "não tem — o DRE é uma porta só, e a senha se troca por aqui" },
     papeis: ["equipe"],
     papelInicial: "equipe",
+    papeisAdmin: [],
     soLeitura: false,
     entradaUnica: { endereco: "https://leogpereira-afk.github.io/impresilk-dre/", chave: "impresilk_dre_cracha" },
   },
@@ -116,6 +126,7 @@ export const SISTEMAS = [
     acessos: { url: "", caminho: "Configurações → Acessos" },
     papeis: ["admin", "comprador", "solicitante"],
     papelInicial: "solicitante",
+    papeisAdmin: ["admin"],
     soLeitura: false,
     entradaUnica: { endereco: "https://leogpereira-afk.github.io/impresilk-compras/", chave: "compras_cracha" },
   },
@@ -127,6 +138,7 @@ export const SISTEMAS = [
     acessos: { url: "", caminho: "Configurações → Pessoas" },
     papeis: ["admin", "gestor", "equipe"],
     papelInicial: "equipe",
+    papeisAdmin: ["admin"],
     soLeitura: false,
     entradaUnica: { endereco: "https://leogpereira-afk.github.io/pops-fabricacao/", chave: "pops_cracha" },
   },
@@ -138,6 +150,7 @@ export const SISTEMAS = [
     acessos: { url: "", caminho: "não se administra por aqui — porta própria (leo-sync)" },
     papeis: ["dono"],
     papelInicial: "dono",
+    papeisAdmin: [],
     /* SO LEITURA. A Central nao mora em equipe_contas: criar conta ou trocar
        senha nela por esta tela fabricaria uma SEGUNDA senha, valida, para o app
        pessoal do dono. O servidor recusa igual (SO_LEITURA em painel-acesso) --
@@ -173,6 +186,30 @@ export const nomeCompletoSis = (id) => {
   const s = doSistema(id);
   return s.nomeCompleto || s.nome;
 };
+
+/**
+ * Que papel dar ao CRIAR uma conta que ainda nao existe naquele sistema.
+ *
+ * Papel de comando marcado numa linha que nunca virou conta NAO e decisao de
+ * ninguem: a consolidacao de 05/08/2026 marcou "admin" em 8 linhas do Compras e
+ * 7 do POPs, e o log de acessos nao tem uma unica criacao delas. Obedecer a
+ * marca faria oito pessoas aprovarem ordem de compra com um clique cada.
+ *
+ * Entao a marca de comando cai para o papel de operacao, e quem chama DIZ isso
+ * a quem clicou (`rebaixado`). Promover depois e um seletor na mesma linha; o
+ * caminho contrario -- descobrir que alguem virou admin sem ninguem decidir --
+ * nao tem tela nenhuma.
+ */
+export function papelAoCriar(sistemaId, papelMarcado) {
+  const s = doSistema(sistemaId);
+  const marcado = papelMarcado || "";
+  const rebaixado = !!marcado && (s.papeisAdmin || []).includes(marcado);
+  return {
+    papel: rebaixado ? s.papelInicial || "" : marcado || s.papelInicial || "",
+    marcado,
+    rebaixado,
+  };
+}
 
 /* OS MAPAS DA ENTRADA UNICA, DERIVADOS DAQUI -- nao escritos a mao em outro
    arquivo. Ate 17/08/2026 `entradaUnica.js` tinha as tres listas (chave,
