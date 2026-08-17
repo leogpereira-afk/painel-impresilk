@@ -293,7 +293,29 @@ Deno.serve(async (req: Request) => {
           atualizado_em: new Date().toISOString(),
         }, { onConflict: "usuario" });
         if (error) throw new Error(error.message);
-        return json({ ok: true });
+        /* E TAMBEM NOS OUTROS SISTEMAS. Faltavam dois lugares: as linhas dela em
+           `equipe_contas` (uma POR SISTEMA -- Brief, PCP, POPs, Compras, DRE) e
+           os hashes antigos de `acesso_senha_legado`, que a entrada unica aceita
+           para quem ainda nao migrou. Sem estes, trocar a senha no Painel
+           deixava a antiga abrindo os outros cinco.
+           O mecanismo de hash e o mesmo (PBKDF2 120k, salt de 16 bytes, hex), de
+           proposito: reescrever isso seria enfraquecer.
+           Aviso, nao excecao: a senha do Painel e a do Auth ja foram gravadas. */
+        const avisos: string[] = [];
+        const { error: eEq } = await sb.from("equipe_contas")
+          .update({ ...reg, trocar_senha: false, atualizado_em: new Date().toISOString() })
+          .eq("usuario", chave);
+        if (eEq) avisos.push("outros sistemas: " + eEq.message);
+        const { data: pessoa } = await sb.from("acesso_conta")
+          .select("id").eq("usuario", chave).maybeSingle();
+        if (pessoa) {
+          await sb.from("acesso_senha_legado").delete().eq("conta_id", pessoa.id);
+          const { error: eLg } = await sb.from("acesso_senha_legado").insert({
+            conta_id: pessoa.id, origem: "propria", hash: reg.hash, salt: reg.salt, iter: reg.iter,
+          });
+          if (eLg) avisos.push("guarda da entrada unica: " + eLg.message);
+        }
+        return json({ ok: true, avisos: avisos.length ? avisos : undefined });
       }
 
       // Quem trabalha aqui -- so nome e usuario, para montar o "encaminhar para"

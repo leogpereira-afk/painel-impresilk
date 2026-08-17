@@ -252,8 +252,12 @@ Deno.serve(async (req: Request) => {
 
       // 2b) Primeira entrada: confere contra os hashes antigos. QUALQUER um
       //     serve -- a pessoa pode ter senhas diferentes por sistema.
+      /* `.is("usado_em", null)` e cinto: desde 16/08 quem define senha APAGA as
+         linhas antigas em vez de carimbar, entao nao deveria sobrar carimbada
+         nenhuma. Mas o carimbo existiu por semanas dando a impressao de revogar
+         sem revogar nada -- se sobrar uma, que ela nao valha. */
       const { data: legados } = sessao ? { data: [] } : await sb.from("acesso_senha_legado")
-        .select("origem, hash, salt, iter").eq("conta_id", conta.id);
+        .select("origem, hash, salt, iter").eq("conta_id", conta.id).is("usado_em", null);
       const lista = legados ?? [];
       let bateu = !!sessao;
       for (const l of lista) {
