@@ -43,7 +43,12 @@ for fn in "${FUNCOES[@]}"; do
   # O nome do arquivo tem de ser o CAMINHO RELATIVO que o import usa
   # ("../_shared/cripto.ts"), senao o bundle nao resolve e a function sobe morta.
   args=(-F "file=@$fn/index.ts;filename=index.ts;type=application/typescript")
-  if grep -q "_shared/cripto.ts" "$fn/index.ts"; then
+  # Procura o IMPORT, nao a mencao. Com `grep -q "_shared/cripto.ts"` bastava a
+  # palavra aparecer num comentario para o script anexar um arquivo que aquele
+  # repositorio nem tem -- e o curl morria com "Failed to open/read local data",
+  # que nao diz nada sobre a causa. Aconteceu com a equipe-auth, que so CITA o
+  # cripto.ts do painel para dizer que repete o mesmo mecanismo.
+  if grep -qE '^\s*import[^;]*_shared/cripto\.ts' "$fn/index.ts"; then
     args+=(-F "file=@_shared/cripto.ts;filename=../_shared/cripto.ts;type=application/typescript")
   fi
 

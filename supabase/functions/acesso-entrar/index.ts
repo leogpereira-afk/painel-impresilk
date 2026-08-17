@@ -89,6 +89,28 @@ const ERRO = "Usuario ou senha incorretos.";
 // (o PBKDF2 de 120 mil voltas leva ~100 ms; responder na hora denuncia).
 const FANTASMA = { hash: "0".repeat(64), salt: "00112233445566778899aabbccddeeff", iter: 120000 };
 
+/* O HISTORICO. Esta porta e a que a equipe usa -- e a unica das duas que nao
+   deixava rastro nenhum. O `equipe_acessos_log` registra entrada e falha de
+   login desde 03/08, mas so pelo login DIRETO de cada sistema; quem entra por
+   aqui era invisivel. Cinco sistemas apareciam com zero entradas no historico
+   enquanto havia trabalho gravado neles.
+
+   Custou concreto: em 16/08 o dono ficou trancado fora do PCP e a unica razao
+   de termos descoberto foi ele ter tentado, por acaso, o login direto -- que
+   registra. Se tivesse insistido so pela entrada unica, o log estaria mudo.
+
+   Escreve uma linha por sistema de cracha emitido (e assim o historico de cada
+   sistema mostra quem entrou nele), com `por` marcando a via. Embrulhado em
+   try: log e TESTEMUNHA, nao dono -- falha de log nao pode derrubar login. */
+async function registrar(sistema: string, usuario: string, acao: string, detalhe = "") {
+  try {
+    await sb.from("equipe_acessos_log")
+      .insert({ sistema, usuario, acao, por: "entrada-unica", detalhe });
+  } catch (e) {
+    console.warn("[acesso-entrar] log falhou:", (e as Error)?.message);
+  }
+}
+
 const enc = new TextEncoder();
 const b64url = (b: Uint8Array) => {
   let s = "";
@@ -136,6 +158,11 @@ Deno.serve(async (req: Request) => {
     // Conta inexistente ainda paga o preco do PBKDF2 (ver FANTASMA).
     if (!conta || conta.ativo === false) {
       await conferirSenha(senha, FANTASMA);
+      // "*" porque nao ha sistema: a tentativa e contra a entrada, nao contra
+      // um sistema. O detalhe distingue quem nao existe de quem foi desligado
+      // -- para quem tenta, a resposta continua sendo a mesma frase.
+      await registrar("*", usuario, "login-falhou", conta ? "conta desativada" : "usuario nao existe");
+      await registrar("*", usuario, "login-falhou", "senha errada");
       return json({ erro: ERRO }, 401);
     }
 
@@ -220,7 +247,8 @@ Deno.serve(async (req: Request) => {
       }
       if (!bateu) {
         if (!lista.length) await conferirSenha(senha, FANTASMA);
-        return json({ erro: ERRO }, 401);
+        await registrar("*", usuario, "login-falhou", "senha errada");
+      return json({ erro: ERRO }, 401);
       }
 
       // Bateu por hash antigo: a senha que a pessoa acabou de digitar vira a do
@@ -253,7 +281,8 @@ Deno.serve(async (req: Request) => {
       const { data, error } = await cliente.auth.signInWithPassword({ email, password: senha });
       if (error || !data?.session) {
         await sb.auth.admin.deleteUser(idAuth).catch(() => {});
-        return json({ erro: ERRO }, 401);
+        await registrar("*", usuario, "login-falhou", "senha errada");
+      return json({ erro: ERRO }, 401);
       }
       sessao = data.session;
 
@@ -319,6 +348,11 @@ Deno.serve(async (req: Request) => {
         };
       }
     }
+
+    // Uma linha por sistema, para o historico DAQUELE sistema mostrar quem
+    // entrou nele -- mesmo formato que a equipe-auth grava no login direto.
+    for (const s of Object.keys(crachas)) await registrar(s, usuario, "entrou");
+    if ((papeis ?? []).some((p: any) => p.sistema === "rh")) await registrar("rh", usuario, "entrou");
 
     return json({
       ok: true,

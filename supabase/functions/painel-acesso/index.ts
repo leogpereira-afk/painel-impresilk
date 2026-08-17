@@ -402,11 +402,27 @@ Deno.serve(async (req: Request) => {
           if (sobra.length) soltas[sis] = sobra;
         }
 
+        /* OS VENDEDORES, COMO O ERP OS ESCREVE. A tela precisa oferecer a lista
+           em vez de deixar digitar: o nome tem de bater EXATO (a comparacao so
+           junta espaco), e "Michelle Petrone" nao e "Michelle". Errar aqui nao
+           da erro -- da uma fila vazia, que parece so um dia sem orcamento. */
+        const { data: cache } = await sb.from("painel_cache")
+          .select("valor").eq("chave", "orcamentos").maybeSingle();
+        const conta_: Record<string, number> = {};
+        for (const o of (Array.isArray(cache?.valor) ? cache!.valor : []) as any[]) {
+          const v = texto(o?.vendedorId, 120);
+          if (v) conta_[v] = (conta_[v] ?? 0) + 1;
+        }
+        const vendedores = Object.entries(conta_)
+          .map(([nome, n]) => ({ nome, n }))
+          .sort((a, b) => b.n - a.n);
+
         return resposta({
           ok: true,
           sistemas: SISTEMAS,
           contas: contasFora,
           soltas,
+          vendedores,
           colaboradores: nomes,
         });
       }
@@ -650,6 +666,11 @@ Deno.serve(async (req: Request) => {
           usuario: login, nome: conta.nome,
           papel: papelNoSistema(sistema, p.papel, p.permissoes ?? []),
           permissoes: Array.isArray(p.permissoes) ? p.permissoes : [],
+          // O vinculo com o vendedor ia SO para a tabela daqui, e a porta antiga
+          // (painel-auth) le de painel_contas -- entao quem entrasse pelo link
+          // direto do Painel ficava sem fila. Ausente continua preservando dos
+          // dois lados.
+          ...(p.vendedorId === undefined ? {} : { vendedorId: texto(p.vendedorId, 120) }),
           ...(senha ? { senha, temporaria: true } : {}),
         });
         if (!r.ok) return resposta({ erro: r.erro || "Nao consegui dar esse acesso." }, 400);

@@ -356,8 +356,9 @@ function TrocarLogin({ sistema, atual, soltas, aoConfirmar, aoFechar }) {
    caixa e do papel, ela mostra COM QUE LOGIN a pessoa entra ali e se aquela
    conta existe. Quando nao existe, os tres caminhos ficam na cara -- apontar
    para a conta certa, criar la, ou tirar da lista. */
-function LinhaSistema({ c, sis, p, soltas, aoAlternar, aoPapel, aoModulos, aoApontar, aoSenha, aoCriarLa }) {
+function LinhaSistema({ c, sis, p, soltas, vendedores, aoAlternar, aoPapel, aoModulos, aoApontar, aoSenha, aoCriarLa, aoVendedor }) {
   const [editando, setEditando] = useState(false);
+  const [vendendo, setVendendo] = useState(false);
   const opcoes = PAPEIS[sis] || [];
   const est = p ? estadoDoPapel(p) : null;
 
@@ -413,6 +414,23 @@ function LinhaSistema({ c, sis, p, soltas, aoAlternar, aoPapel, aoModulos, aoApo
                   : `${somenteValidos(p.real.permissoes || p.permissoes).length} de ${MODULOS.length} partes`}
               </span>
             )}
+
+            {/* QUEM ELA É NO ERP. Sem isto a pessoa abre a mesa do time inteiro
+                em vez da própria fila -- e sem aviso nenhum, porque uma lista
+                cheia parece certa. Ficou 149 orçamentos assim com a Michelle.
+                O nome tem de ser EXATO como o Mubisys escreve: a comparação só
+                junta espaço, não normaliza acento nem sobrenome. */}
+            {sis === "painel" && p.real?.existe && (
+              <button type="button" onClick={() => setVendendo((x) => !x)}
+                title="A quem pertence a fila de orçamentos desta pessoa"
+                className={`rounded px-1.5 py-0.5 text-xs ${
+                  p.vendedor_id
+                    ? "bg-slate-100 text-slate-700 hover:bg-slate-200"
+                    : "bg-warn-50 text-warn-700 hover:bg-warn-100"
+                }`}>
+                {p.vendedor_id ? `fila de ${p.vendedor_id}` : "sem vendedor"}
+              </button>
+            )}
           </>
         )}
       </div>
@@ -451,6 +469,38 @@ function LinhaSistema({ c, sis, p, soltas, aoAlternar, aoPapel, aoModulos, aoApo
         />
       )}
 
+      {p && vendendo && sis === "painel" && (
+        <form
+          className="mt-2 w-full rounded-lg bg-slate-50 p-3"
+          onSubmit={async (e) => {
+            e.preventDefault();
+            const v = new FormData(e.currentTarget).get("vend");
+            if (await aoVendedor(String(v || "").trim())) setVendendo(false);
+          }}
+        >
+          <label className="label" htmlFor={`vd-${c.usuario}`}>
+            Quem esta pessoa é no ERP (dono da fila de orçamentos)
+          </label>
+          <div className="flex flex-wrap items-center gap-2">
+            <input id={`vd-${c.usuario}`} name="vend" className="input h-9 w-auto min-w-[12rem] flex-1"
+              list="vendedores-erp" defaultValue={p.vendedor_id || ""} autoFocus
+              placeholder="em branco = vê a mesa inteira" />
+            <datalist id="vendedores-erp">
+              {(vendedores || []).map((v) => <option key={v.nome} value={v.nome}>{v.n} orçamentos</option>)}
+            </datalist>
+            <button className="btn-primary h-9 px-3 text-xs">Salvar</button>
+            <button type="button" className="btn-ghost h-9 px-2 text-xs" onClick={() => setVendendo(false)}>
+              Cancelar
+            </button>
+          </div>
+          <p className="mt-2 text-xs text-slate-500">
+            Tem de ser <b>exatamente</b> como o Mubisys escreve — a lista acima vem de lá, com
+            quantos orçamentos cada nome tem. Deixando em branco, a pessoa passa a ver os
+            orçamentos de todo mundo.
+          </p>
+        </form>
+      )}
+
       {p && sis === "painel" && p.real?.existe && (
         <ModulosDoPainel
           permissoes={p.real.permissoes || p.permissoes || []}
@@ -461,7 +511,7 @@ function LinhaSistema({ c, sis, p, soltas, aoAlternar, aoPapel, aoModulos, aoApo
   );
 }
 
-function Conta({ c, sistemas, soltas, aoMudar, aoAvisar, aoSenha }) {
+function Conta({ c, sistemas, soltas, vendedores, aoMudar, aoAvisar, aoSenha }) {
   const [aberta, setAberta] = useState(false);
   const [f, setF] = useState(null);
 
@@ -545,6 +595,20 @@ function Conta({ c, sistemas, soltas, aoMudar, aoAvisar, aoSenha }) {
       if (r?.senha) aoSenha({ senha: r.senha, nome: `${c.nome || c.usuario} no ${nomeSis(sis)}` });
       await aoMudar();
     } catch (err) { aoAvisar({ tom: "erro", texto: err.message }); }
+  };
+
+  const trocarVendedor = async (vendedorId) => {
+    try {
+      await salvarPapel({ usuario: c.usuario, sistema: "painel", papel: "", vendedorId });
+      aoAvisar({
+        tom: "ok",
+        texto: vendedorId
+          ? `${c.nome || c.usuario} passa a ver a fila de "${vendedorId}".`
+          : `${c.nome || c.usuario} passa a ver os orçamentos de todo mundo.`,
+      });
+      await aoMudar();
+      return true;
+    } catch (err) { aoAvisar({ tom: "erro", texto: err.message }); return false; }
   };
 
   const senhaAqui = async (sis) => {
@@ -672,12 +736,14 @@ function Conta({ c, sistemas, soltas, aoMudar, aoAvisar, aoSenha }) {
                   key={sis} c={c} sis={sis}
                   p={c.papeis.find((x) => x.sistema === sis)}
                   soltas={soltas?.[sis]}
+                  vendedores={vendedores}
                   aoAlternar={alternarSistema}
                   aoPapel={trocarPapel}
                   aoModulos={trocarModulos}
                   aoApontar={apontar}
                   aoSenha={senhaAqui}
                   aoCriarLa={criarLa}
+                  aoVendedor={trocarVendedor}
                 />
               ))}
             </div>
@@ -1045,7 +1111,8 @@ export default function AcessoUnico({ aoAvisar }) {
             <div className="space-y-2">
               {lista.map((c) => (
                 <Conta key={c.usuario} c={c} sistemas={dados.sistemas} soltas={dados.soltas}
-                  aoMudar={carregar} aoAvisar={aoAvisar} aoSenha={setSenhaNova} />
+                  vendedores={dados.vendedores} aoMudar={carregar} aoAvisar={aoAvisar}
+                  aoSenha={setSenhaNova} />
               ))}
             </div>
           ) : (
