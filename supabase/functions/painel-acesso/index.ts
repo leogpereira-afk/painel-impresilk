@@ -737,6 +737,10 @@ Deno.serve(async (req: Request) => {
            e acesso que some SEM EXPLICACAO: a pessoa liga reclamando e ninguem
            sabe por que. Esta lista existe para a tela conseguir dizer o motivo,
            e para mostrar o que a regra NAO alcanca (conta sem ficha). */
+        const { data: contratos } = await sb.from("registros")
+          .select("id, nome:registro->>nome, fim:registro->>contratoFim, funcao:registro->>funcao, situacao:registro->>situacao")
+          .eq("colecao", "freelancers").eq("apagado", false);
+
         const { data: pendencias } = await sb.from("acesso_pendencias")
           .select("usuario, nome, tipo, pendencia, situacao_no_rh, valido_ate")
           .not("pendencia", "is", null);
@@ -751,6 +755,13 @@ Deno.serve(async (req: Request) => {
           vendedores,
           colaboradores: nomes,
           pendencias: pendencias ?? [],
+          /* OS CONTRATOS DE FREELANCER ABERTOS, para a tela OFERECER em vez de
+             pedir data. Só os não encerrados: oferecer contrato encerrado seria
+             convidar a amarrar acesso a um combinado que acabou. */
+          contratos: (contratos ?? [])
+            .filter((c: any) => String(c.situacao ?? "") !== "encerrado")
+            .map((c: any) => ({ id: c.id, nome: c.nome, fim: c.fim, funcao: c.funcao }))
+            .sort((a: any, b: any) => String(a.nome).localeCompare(String(b.nome), "pt-BR")),
         });
       }
 
@@ -777,8 +788,17 @@ Deno.serve(async (req: Request) => {
              terceirizado sem os dois (constraint acesso_conta_terceirizado_prazo)
              -- mandar o tipo sem eles daria erro cru do Postgres na cara da tela. */
           tipo: c.tipo === "funcao" ? "funcao" : c.tipo === "terceirizado" ? "terceirizado" : "pessoa",
+          /* O CONTRATO MANDA, E A DATA NAO SE DIGITA DUAS VEZES. Ordem do
+             Leonardo em 18/08/2026: "tem que ser apenas um". Com `freelancerId`,
+             a validade e LIDA do contrato no RH -- renovou la, a porta reabre
+             sozinha; encerrou, fecha. A data propria continua aceita para quem
+             nao tem contrato cadastrado, e o banco exige uma das duas. */
           ...(c.tipo === "terceirizado"
-            ? { valido_ate: texto(c.validoAte, 10) || null, responsavel: texto(c.responsavel, 120) }
+            ? {
+                freelancer_id: texto(c.freelancerId, 120) || null,
+                valido_ate: texto(c.freelancerId, 120) ? null : (texto(c.validoAte, 10) || null),
+                responsavel: texto(c.responsavel, 120),
+              }
             : {}),
           colaborador: texto(c.colaborador, 160),
           // A amarracao vai JUNTA com o nome -- ver amarrarNaFicha.
@@ -830,8 +850,17 @@ Deno.serve(async (req: Request) => {
              terceirizado sem os dois (constraint acesso_conta_terceirizado_prazo)
              -- mandar o tipo sem eles daria erro cru do Postgres na cara da tela. */
           tipo: c.tipo === "funcao" ? "funcao" : c.tipo === "terceirizado" ? "terceirizado" : "pessoa",
+          /* O CONTRATO MANDA, E A DATA NAO SE DIGITA DUAS VEZES. Ordem do
+             Leonardo em 18/08/2026: "tem que ser apenas um". Com `freelancerId`,
+             a validade e LIDA do contrato no RH -- renovou la, a porta reabre
+             sozinha; encerrou, fecha. A data propria continua aceita para quem
+             nao tem contrato cadastrado, e o banco exige uma das duas. */
           ...(c.tipo === "terceirizado"
-            ? { valido_ate: texto(c.validoAte, 10) || null, responsavel: texto(c.responsavel, 120) }
+            ? {
+                freelancer_id: texto(c.freelancerId, 120) || null,
+                valido_ate: texto(c.freelancerId, 120) ? null : (texto(c.validoAte, 10) || null),
+                responsavel: texto(c.responsavel, 120),
+              }
             : {}),
           colaborador: texto(c.colaborador, 160),
           // A amarracao vai JUNTA com o nome -- ver amarrarNaFicha.

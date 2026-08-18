@@ -152,9 +152,9 @@ function SenhaNova({ senha, nome, login, aoFechar }) {
   );
 }
 
-const VAZIA = { usuario: "", nome: "", tipo: "pessoa", colaborador: "", validoAte: "", responsavel: "" };
+const VAZIA = { usuario: "", nome: "", tipo: "pessoa", colaborador: "", freelancerId: "" };
 
-function NovaPessoa({ sistemas, vendedores, aoCriar, aoCancelar }) {
+function NovaPessoa({ sistemas, vendedores, contratos, aoCriar, aoCancelar }) {
   const [f, setF] = useState(VAZIA);
   const [vend, setVend] = useState("");
   const [papeis, setPapeis] = useState({});
@@ -214,23 +214,35 @@ function NovaPessoa({ sistemas, vendedores, aoCriar, aoCancelar }) {
             acesso dura para sempre por omissao -- que e como acesso esquecido
             vira porta aberta. O responsavel existe para haver a quem perguntar
             quando o prazo vencer. */}
+        {/* O CONTRATO VEM DO RH, E A DATA NAO SE DIGITA DE NOVO. Antes esta tela
+            pedia "vale ate" e "responsavel" -- os mesmos dois campos que a aba
+            de Contratos de freelancer ja guarda. Duas datas para o mesmo fato e
+            o comeco de toda divergencia: uma envelhece e ninguem descobre qual.
+            Escolhendo o contrato, a validade e LIDA de la a cada conferencia:
+            renovou no RH, a porta reabre sozinha; encerrou, fecha. */}
         {f.tipo === "terceirizado" && (
-          <>
-            <div>
-              <label className="label" htmlFor="np-v">Vale até</label>
-              <input id="np-v" type="date" className="input" value={f.validoAte || ""}
-                onChange={(e) => setF((x) => ({ ...x, validoAte: e.target.value }))} />
-              <p className="mt-1 text-xs text-slate-500">
-                Vencido, a porta fecha sozinha em todos os sistemas — sem depender de alguém lembrar.
+          <div className="sm:col-span-2">
+            <label className="label" htmlFor="np-ct">Contrato no RH</label>
+            <select id="np-ct" className="input" value={f.freelancerId || ""}
+              onChange={(e) => setF((x) => ({ ...x, freelancerId: e.target.value }))}>
+              <option value="">— escolha o contrato —</option>
+              {(contratos || []).map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.nome}{c.funcao ? ` · ${c.funcao}` : ""}{c.fim ? ` · vale até ${new Date(`${c.fim}T12:00:00`).toLocaleDateString("pt-BR")}` : ""}
+                </option>
+              ))}
+            </select>
+            {(contratos || []).length === 0 ? (
+              <p className="mt-1 text-xs text-warn-700">
+                Nenhum contrato aberto. Cadastre em <b>RH → Contratos de freelancer</b> primeiro — é de lá
+                que sai a data que fecha o acesso.
               </p>
-            </div>
-            <div>
-              <label className="label" htmlFor="np-r">Quem responde por ele aqui dentro</label>
-              <input id="np-r" className="input" value={f.responsavel || ""}
-                placeholder="Ex.: Leonardo"
-                onChange={(e) => setF((x) => ({ ...x, responsavel: e.target.value }))} />
-            </div>
-          </>
+            ) : (
+              <p className="mt-1 text-xs text-slate-500">
+                A validade sai do contrato. Renovou no RH, a porta reabre sozinha; encerrou, fecha.
+              </p>
+            )}
+          </div>
         )}
         <div>
           <label className="label" htmlFor="np-c">Quem é no RH</label>
@@ -1575,7 +1587,7 @@ export default function AcessoUnico({ aoAvisar }) {
       ) : (
         <>
           {criando ? (
-            <NovaPessoa sistemas={dados.sistemas} vendedores={dados.vendedores}
+            <NovaPessoa sistemas={dados.sistemas} vendedores={dados.vendedores} contratos={dados.contratos}
               aoCriar={criar} aoCancelar={() => setCriando(false)} />
           ) : (
             <button type="button" className="btn-primary mb-3" onClick={() => setCriando(true)}>

@@ -18,9 +18,12 @@ comment on column public.acesso_conta.responsavel is
    O colaborador tem o RH para encerrar o acesso dele; o terceirizado nao tem
    nada -- e sem prazo o acesso dura para sempre por omissao, que e como
    acesso esquecido vira porta aberta. */
-alter table public.acesso_conta drop constraint if exists acesso_conta_terceirizado_prazo;
-alter table public.acesso_conta add constraint acesso_conta_terceirizado_prazo
-  check (tipo <> 'terceirizado' or (valido_ate is not null and coalesce(responsavel,'') <> ''));
+/* A RESTRICAO DO PRAZO MORA NA MIGRACAO DO VINCULO (20260818f), e nao aqui.
+   Ela estava nos dois arquivos: reapliquei este DEPOIS daquele e a definicao
+   velha derrubou a nova em silencio -- terceirizado com contrato passou a ser
+   recusado, e eu quase conclui que a regra de revogacao e que estava quebrada.
+   Duas definicoes da mesma trava e a mesma doenca das copias que este dia
+   inteiro passou consertando; agora ela tem um dono so. */
 
 create or replace function public.acesso_revogado(p_sistema text, p_sub text, p_papel text default null)
 returns boolean
@@ -42,6 +45,9 @@ declare
   v_valido_ate date;
   v_ficha text;
   v_situacao text;
+  v_freela text;
+  v_encerrado boolean;
+  v_fim_contrato date;
 begin
   if coalesce(p_sub,'') = '' then return false; end if;
 
@@ -63,8 +69,8 @@ begin
   end if;
 
   -- 2) O QUADRO UNICO -- e onde o botao "desativar" da tela sempre grava.
-  select c.ativo, coalesce(p.ativo, true), c.tipo, c.valido_ate, c.colaborador_id
-    into v_pessoa_ativa, v_papel_ativo, v_tipo, v_valido_ate, v_ficha
+  select c.ativo, coalesce(p.ativo, true), c.tipo, c.valido_ate, c.colaborador_id, c.freelancer_id
+    into v_pessoa_ativa, v_papel_ativo, v_tipo, v_valido_ate, v_ficha, v_freela
     from acesso_conta c
     left join acesso_papel p on p.conta_id = c.id and p.sistema = p_sistema
    where lower(regexp_replace(c.usuario,'\s+',' ','g')) = v_norm
@@ -79,9 +85,24 @@ begin
   /* 4) PRAZO VENCIDO DO TERCEIRIZADO. Ele nao tem RH que o desligue, entao o
         proprio acesso tem data de fim. Vencido, a porta fecha sozinha -- sem
         depender de alguem lembrar. */
-  if v_achou_pessoa and v_tipo = 'terceirizado'
-     and v_valido_ate is not null and v_valido_ate < current_date then
-    return true;
+  if v_achou_pessoa and v_tipo = 'terceirizado' then
+    /* A DATA VEM DO CONTRATO quando ele existe -- ordem do Leonardo em
+       18/08/2026: "tem que ser apenas um". Antes a Central guardava uma copia
+       de `contratoFim`, e duas datas para o mesmo fato e o comeco de toda
+       divergencia: uma envelhece e ninguem descobre qual.
+       Renovou no RH? A porta reabre sozinha. Encerrou? Fecha na hora, sem
+       esperar o relogio -- encerrar e decisao de alguem. */
+    select r.registro->>'situacao' = 'encerrado',
+           nullif(r.registro->>'contratoFim','')::date
+      into v_encerrado, v_fim_contrato
+      from registros r
+     where r.colecao = 'freelancers' and r.id = v_freela and not r.apagado
+     limit 1;
+    if coalesce(v_encerrado, false) then return true; end if;
+    v_valido_ate := coalesce(v_fim_contrato, v_valido_ate);
+    if v_valido_ate is not null and v_valido_ate < current_date then
+      return true;
+    end if;
   end if;
 
   /* 5) DESLIGADO NO RH. E o que o desenho promete: a ficha manda. So vale com
