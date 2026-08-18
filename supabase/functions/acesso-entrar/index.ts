@@ -166,8 +166,32 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
-    const { data: conta } = await sb.from("acesso_conta")
+    let { data: conta } = await sb.from("acesso_conta")
       .select("*").eq("usuario", usuario).maybeSingle();
+
+    /* O APELIDO DA FICHA TAMBEM ABRE A PORTA.
+       Em 17/08/2026 o apelido virou o login unico da casa e nasce na ficha do
+       RH -- mas as contas foram criadas antes dele, e em uma delas os dois
+       divergem (Pedro Henrique entra como `pedro` e o apelido dele e
+       `pedrohenrique`). Aceitar os dois e o que evita ter de renomear conta, e
+       renomear conta orfanaria o historico que aponta para o nome antigo.
+
+       Conferido antes de ligar: nenhum apelido e o login de OUTRA pessoa. Sem
+       isso, digitar o apelido de alguem poderia abrir a conta de um terceiro --
+       que seria a pior falha possivel numa porta.
+
+       So procura por apelido quando o login nao achou nada: conta existente
+       sempre ganha, e ninguem passa a entrar em lugar diferente do de ontem. */
+    if (!conta) {
+      const { data: ficha } = await sb.from("registros")
+        .select("id").eq("colecao", "colaboradores").eq("apagado", false)
+        .eq("registro->>apelido", usuario).maybeSingle();
+      if (ficha?.id) {
+        const { data: porFicha } = await sb.from("acesso_conta")
+          .select("*").eq("colaborador_id", ficha.id).maybeSingle();
+        conta = porFicha ?? null;
+      }
+    }
 
     // Conta inexistente ainda paga o preco do PBKDF2 (ver FANTASMA).
     if (!conta || conta.ativo === false) {
