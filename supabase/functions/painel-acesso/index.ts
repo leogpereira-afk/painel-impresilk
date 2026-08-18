@@ -760,7 +760,17 @@ Deno.serve(async (req: Request) => {
         const linha: any = {
           usuario,
           nome: texto(c.nome, 120) || usuario,
-          tipo: c.tipo === "funcao" ? "funcao" : "pessoa",
+          /* TRES TIPOS, e nao dois. Ate 18/08/2026 esta linha forcava
+             pessoa|funcao nas DUAS escritas, entao o tipo `terceirizado` -- e a
+             regra 4 inteira, do prazo -- eram inalcançaveis: codigo vivo que
+             nenhum caminho conseguia acionar. Achado pela auditoria.
+             O prazo e o responsavel viajam junto porque o banco RECUSA
+             terceirizado sem os dois (constraint acesso_conta_terceirizado_prazo)
+             -- mandar o tipo sem eles daria erro cru do Postgres na cara da tela. */
+          tipo: c.tipo === "funcao" ? "funcao" : c.tipo === "terceirizado" ? "terceirizado" : "pessoa",
+          ...(c.tipo === "terceirizado"
+            ? { valido_ate: texto(c.validoAte, 10) || null, responsavel: texto(c.responsavel, 120) }
+            : {}),
           colaborador: texto(c.colaborador, 160),
           // A amarracao vai JUNTA com o nome -- ver amarrarNaFicha.
           ...(await amarrarNaFicha(texto(c.colaborador, 160))),
@@ -803,7 +813,17 @@ Deno.serve(async (req: Request) => {
         const linha = {
           usuario,
           nome: texto(c.nome, 120) || usuario,
-          tipo: c.tipo === "funcao" ? "funcao" : "pessoa",
+          /* TRES TIPOS, e nao dois. Ate 18/08/2026 esta linha forcava
+             pessoa|funcao nas DUAS escritas, entao o tipo `terceirizado` -- e a
+             regra 4 inteira, do prazo -- eram inalcançaveis: codigo vivo que
+             nenhum caminho conseguia acionar. Achado pela auditoria.
+             O prazo e o responsavel viajam junto porque o banco RECUSA
+             terceirizado sem os dois (constraint acesso_conta_terceirizado_prazo)
+             -- mandar o tipo sem eles daria erro cru do Postgres na cara da tela. */
+          tipo: c.tipo === "funcao" ? "funcao" : c.tipo === "terceirizado" ? "terceirizado" : "pessoa",
+          ...(c.tipo === "terceirizado"
+            ? { valido_ate: texto(c.validoAte, 10) || null, responsavel: texto(c.responsavel, 120) }
+            : {}),
           colaborador: texto(c.colaborador, 160),
           // A amarracao vai JUNTA com o nome -- ver amarrarNaFicha.
           ...(await amarrarNaFicha(texto(c.colaborador, 160))),

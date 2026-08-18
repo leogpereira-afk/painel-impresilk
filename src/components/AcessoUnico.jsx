@@ -152,7 +152,7 @@ function SenhaNova({ senha, nome, login, aoFechar }) {
   );
 }
 
-const VAZIA = { usuario: "", nome: "", tipo: "pessoa", colaborador: "" };
+const VAZIA = { usuario: "", nome: "", tipo: "pessoa", colaborador: "", validoAte: "", responsavel: "" };
 
 function NovaPessoa({ sistemas, vendedores, aoCriar, aoCancelar }) {
   const [f, setF] = useState(VAZIA);
@@ -204,10 +204,34 @@ function NovaPessoa({ sistemas, vendedores, aoCriar, aoCancelar }) {
           <label className="label" htmlFor="np-t">O que é esta conta</label>
           <select id="np-t" className="input" value={f.tipo}
             onChange={(e) => setF((x) => ({ ...x, tipo: e.target.value }))}>
-            <option value="pessoa">Uma pessoa</option>
+            <option value="pessoa">Uma pessoa do quadro</option>
+            <option value="terceirizado">Terceirizado (sem ficha no RH)</option>
             <option value="funcao">Porta compartilhada (uma função)</option>
           </select>
         </div>
+        {/* TERCEIRIZADO PEDE PRAZO E RESPONSAVEL, e o banco recusa sem os dois.
+            Nao e burocracia: ele nao tem RH que o desligue. Sem data de fim, o
+            acesso dura para sempre por omissao -- que e como acesso esquecido
+            vira porta aberta. O responsavel existe para haver a quem perguntar
+            quando o prazo vencer. */}
+        {f.tipo === "terceirizado" && (
+          <>
+            <div>
+              <label className="label" htmlFor="np-v">Vale até</label>
+              <input id="np-v" type="date" className="input" value={f.validoAte || ""}
+                onChange={(e) => setF((x) => ({ ...x, validoAte: e.target.value }))} />
+              <p className="mt-1 text-xs text-slate-500">
+                Vencido, a porta fecha sozinha em todos os sistemas — sem depender de alguém lembrar.
+              </p>
+            </div>
+            <div>
+              <label className="label" htmlFor="np-r">Quem responde por ele aqui dentro</label>
+              <input id="np-r" className="input" value={f.responsavel || ""}
+                placeholder="Ex.: Leonardo"
+                onChange={(e) => setF((x) => ({ ...x, responsavel: e.target.value }))} />
+            </div>
+          </>
+        )}
         <div>
           <label className="label" htmlFor="np-c">Quem é no RH</label>
           <input id="np-c" className="input" list="rh-colaboradores" value={f.colaborador}
