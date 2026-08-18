@@ -5,25 +5,34 @@
 // (a function recusa). A daqui e conforto; a que vale e a de la, porque o
 // navegador esta sempre sob controle de quem usa.
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, lazy, Suspense } from "react";
 import { Routes, Route, Navigate } from "react-router-dom";
 import { Lock } from "lucide-react";
 import Layout from "./components/Layout.jsx";
 import Home from "./pages/Home.jsx";
-import ContasAtrasadas from "./pages/ContasAtrasadas.jsx";
-import Orcamentos from "./pages/Orcamentos.jsx";
-import Configuracoes from "./pages/Configuracoes.jsx";
 import Login from "./pages/Login.jsx";
-import Acessos from "./pages/Acessos.jsx";
-import Ativos from "./pages/Ativos.jsx";
-import Bancos from "./pages/Bancos.jsx";
-import Marketing from "./pages/Marketing.jsx";
-import Licitacoes from "./pages/Licitacoes.jsx";
-import Glossario from "./pages/Glossario.jsx";
-import Compromissos from "./pages/Compromissos.jsx";
-import Gestao from "./pages/Gestao.jsx";
-import Manutencoes from "./pages/Manutencoes.jsx";
-import Patrimonio from "./pages/Patrimonio.jsx";
+
+/* CADA TELA VIRA UM ARQUIVO, e so desce quando alguem abre.
+   Ate 18/08/2026 as 17 paginas entravam no MESMO arquivo: 313 kB comprimidos
+   para quem so queria ver contas atrasadas -- vinham junto orcamentos, fluxo,
+   gestao, patrimonio e a propria tela de Acessos. Numa rede de obra isso e a
+   diferenca entre abrir e desistir.
+   Login e Home ficam estaticos de proposito: sao a primeira coisa que todo
+   mundo ve, e adiar o que ja vai ser pedido so acrescenta uma ida a rede. */
+const ContasAtrasadas = lazy(() => import("./pages/ContasAtrasadas.jsx"));
+const Orcamentos = lazy(() => import("./pages/Orcamentos.jsx"));
+const Configuracoes = lazy(() => import("./pages/Configuracoes.jsx"));
+const Acessos = lazy(() => import("./pages/Acessos.jsx"));
+const Ativos = lazy(() => import("./pages/Ativos.jsx"));
+const Bancos = lazy(() => import("./pages/Bancos.jsx"));
+const Marketing = lazy(() => import("./pages/Marketing.jsx"));
+const Licitacoes = lazy(() => import("./pages/Licitacoes.jsx"));
+const Glossario = lazy(() => import("./pages/Glossario.jsx"));
+const Compromissos = lazy(() => import("./pages/Compromissos.jsx"));
+const Gestao = lazy(() => import("./pages/Gestao.jsx"));
+const Manutencoes = lazy(() => import("./pages/Manutencoes.jsx"));
+const Patrimonio = lazy(() => import("./pages/Patrimonio.jsx"));
+
 import { getSessao, aoMudarSessao, podeAbrir } from "./lib/sessao.js";
 import { Card } from "./components/ui.jsx";
 
@@ -59,6 +68,12 @@ export default function App() {
 
   return (
     <Layout sessao={sessao}>
+      {/* O Suspense e OBRIGATORIO com rota preguicosa: sem ele, a primeira
+          troca de tela derruba o painel inteiro em vez de esperar o arquivo.
+          O aviso e discreto de proposito -- a espera e de milissegundos numa
+          rede boa, e uma tarja grande piscando a cada clique incomoda mais do
+          que a espera que ela anuncia. */}
+      <Suspense fallback={<p className="p-6 text-sm text-slate-400">Carregando…</p>}>
       <Routes>
         <Route path="/" element={<Home />} />
         <Route
@@ -158,6 +173,7 @@ export default function App() {
         <Route path="/documentos" element={<Ativos />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
+      </Suspense>
     </Layout>
   );
 }

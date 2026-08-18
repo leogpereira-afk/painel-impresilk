@@ -6,7 +6,7 @@
 // clicaveis, ha busca por empresa, e cada linha de titulo expande com os
 // detalhes. A lista de titulos vem logo abaixo do painel de numeros.
 
-import { useMemo, useRef, useState } from "react";
+import { useMemo, useRef, useState, lazy, Suspense } from "react";
 import {
   AlertTriangle,
   Phone,
@@ -17,16 +17,11 @@ import {
   Search,
   X,
 } from "lucide-react";
-import {
-  ResponsiveContainer,
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  Tooltip,
-  CartesianGrid,
-  ReferenceLine,
-} from "recharts";
+/* O GRAFICO DESCE SOZINHO, e so quando esta pagina monta. A `recharts` custa
+   ~100 kB comprimidos por causa de UM grafico no fim da pagina -- ver
+   components/CurvaDso.jsx. Importada aqui em cima, ela entrava na frente da
+   tabela: quem abre esta tela quer ver quanto tem a receber, nao a curva. */
+const CurvaDso = lazy(() => import("../components/CurvaDso.jsx"));
 import { useApp } from "../config/store.jsx";
 import { calcContasAtrasadas, agruparDividas } from "../lib/calc/contasAtrasadas.js";
 import { moeda, numero, dataLonga, dataCurta, rotuloMes, ymdLocal, MESES } from "../lib/format.js";
@@ -1291,43 +1286,9 @@ export default function ContasAtrasadas() {
             titulo="Curva do DSO"
             sub="Prazo medio de recebimento ao longo dos dias, contra a meta."
           />
-          <div style={{ width: "100%", height: 260 }}>
-            <ResponsiveContainer>
-              <LineChart data={vm.dsoHistorico} margin={{ top: 10, right: 16, left: 0, bottom: 0 }}>
-                <CartesianGrid stroke="#eef2f7" vertical={false} />
-                <XAxis
-                  dataKey="mes"
-                  tick={{ fontSize: 12, fill: "#94a3b8" }}
-                  tickLine={false}
-                  axisLine={{ stroke: "#e2e8f0" }}
-                />
-                <YAxis
-                  tick={{ fontSize: 12, fill: "#94a3b8" }}
-                  tickLine={false}
-                  axisLine={false}
-                  width={36}
-                />
-                <Tooltip
-                  formatter={(v) => [`${v} dias`, "DSO"]}
-                  contentStyle={{ borderRadius: 12, border: "1px solid #e2e8f0", fontSize: 13 }}
-                />
-                <ReferenceLine
-                  y={k.dsoMeta}
-                  stroke="#94a3b8"
-                  strokeDasharray="4 4"
-                  label={{ value: "meta", position: "right", fontSize: 11, fill: "#94a3b8" }}
-                />
-                <Line
-                  type="monotone"
-                  dataKey="dso"
-                  stroke={MARCA}
-                  strokeWidth={2.4}
-                  dot={{ r: 3, fill: MARCA }}
-                  activeDot={{ r: 5 }}
-                />
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
+          <Suspense fallback={<div style={{ height: 260 }} className="grid place-items-center text-sm text-slate-400">Carregando o gráfico…</div>}>
+            <CurvaDso dados={vm.dsoHistorico} meta={k.dsoMeta} cor={MARCA} />
+          </Suspense>
         </Card>
       ) : (
         <Card>
