@@ -513,18 +513,24 @@ Deno.serve(async (req: Request) => {
            hoje), com o proprio dono (direcao) e com o Nailton (afastado, que
            volta). Fora ficam so `inativo` e `abandono`. */
         const NO_QUADRO = new Set(["ativo", "experiencia", "direcao", "atestado-medico"]);
+        /* SO O NOME E A SITUACAO, e nao a ficha inteira. Pedir `registro` trazia
+           as 88 fichas COMPLETAS -- salario, CPF, endereco, telefone do conjuge --
+           para extrair dois campos. Meio megabyte por abertura de tela, de dado
+           que esta tela nao tem o que fazer com ele: 512 KB viraram 7 KB.
+           Menos tempo E menos exposicao: o que nao viaja nao vaza. */
         const { data: colabs } = await sb.from("registros")
-          .select("id, registro").eq("colecao", "colaboradores").eq("apagado", false);
-        const fichas = (colabs ?? []).filter((r: any) => NO_QUADRO.has(String(r.registro?.statusId ?? "")));
+          .select("id, nome:registro->>nome, situacao:registro->>statusId")
+          .eq("colecao", "colaboradores").eq("apagado", false);
+        const fichas = (colabs ?? []).filter((r: any) => NO_QUADRO.has(String(r.situacao ?? "")));
         const nomes = [...new Set(fichas
-          .map((r: any) => String(r.registro?.nome ?? "").trim())
+          .map((r: any) => String(r.nome ?? "").trim())
           .filter(Boolean))].sort((a, b) => a.localeCompare(b, "pt-BR"));
         /* O NOME DA FICHA MANDA. `acesso_conta.colaborador` e uma copia do nome
            feita no dia em que a conta foi amarrada -- corrigir um acento no RH
            deixava a tela mostrando o texto velho para sempre. Com o id como
            chave, o nome pode mudar a vontade: a tela le o atual daqui. */
         const nomeDaFicha = new Map(
-          (colabs ?? []).map((r: any) => [String(r.id), String(r.registro?.nome ?? "").trim()]),
+          (colabs ?? []).map((r: any) => [String(r.id), String(r.nome ?? "").trim()]),
         );
 
         // A VERDADE, perguntada aos sistemas. Sem isto a tela so repetia a
@@ -594,16 +600,19 @@ Deno.serve(async (req: Request) => {
            em vez de deixar digitar: o nome tem de bater EXATO (a comparacao so
            junta espaco), e "Michelle Petrone" nao e "Michelle". Errar aqui nao
            da erro -- da uma fila vazia, que parece so um dia sem orcamento. */
-        const { data: cache } = await sb.from("painel_cache")
-          .select("valor").eq("chave", "orcamentos").maybeSingle();
-        const conta_: Record<string, number> = {};
-        for (const o of (Array.isArray(cache?.valor) ? cache!.valor : []) as any[]) {
-          const v = texto(o?.vendedorId, 120);
-          if (v) conta_[v] = (conta_[v] ?? 0) + 1;
-        }
-        const vendedores = Object.entries(conta_)
-          .map(([nome, n]) => ({ nome, n }))
-          .sort((a, b) => b.n - a.n);
+        /* A CONTAGEM VEM PRONTA DO BANCO. Antes esta linha lia `painel_cache`
+           INTEIRO -- 1,39 MB de orcamentos -- para produzir 8 nomes e 8 numeros,
+           a cada abertura da tela. Medido em 18/08/2026: 217 bytes fazem o mesmo.
+           A agregacao mora no Postgres porque o PostgREST nao agrega dentro de
+           jsonb: pedir de fora obriga a trazer o array todo e contar aqui. */
+        const { data: vend } = await sb.rpc("painel_vendedores");
+        // `n` e nao `orcamentos`: e o nome que a tela le (AcessoUnico.jsx:275,
+        // "{v.n} orcamentos"). Trocar o rotulo aqui nao daria erro -- daria
+        // "undefined orcamentos" no seletor, calado.
+        const vendedores = (vend ?? []).map((v: any) => ({
+          nome: String(v.vendedor ?? ""),
+          n: Number(v.orcamentos ?? 0),
+        }));
 
         /* QUEM MAIS O SISTEMA CONHECE.
            Ate aqui esta tela mostrava so quem tem CONTA -- e cada sistema tem
