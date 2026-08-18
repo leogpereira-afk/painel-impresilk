@@ -1375,6 +1375,33 @@ export default function AcessoUnico({ aoAvisar }) {
         ))}
       </div>
 
+      {/* O QUE A FICHA DO RH DECIDIU SOZINHA.
+          Desde 17/08 a porta fecha por conta propria quando a ficha diz
+          "inativo" ou quando o prazo do terceirizado vence -- e acesso que fecha
+          sozinho e acesso que some SEM EXPLICACAO: quem chega aqui e a pessoa
+          ligando para reclamar, e ninguem sabe o motivo. Este bloco existe para
+          o motivo estar escrito antes da ligacao. */}
+      {(dados.pendencias ?? []).length > 0 && (
+        <div className="mb-4 rounded-lg bg-warn-50 px-3 py-2.5 text-sm text-warn-700">
+          <p className="flex items-start gap-2">
+            <AlertTriangle size={15} className="mt-0.5 shrink-0" />
+            <span>
+              <b className="font-display">A ficha do RH mudou o acesso de alguém.</b> Estas contas
+              precisam de decisão sua — a porta já agiu sozinha nas duas primeiras situações:
+            </span>
+          </p>
+          <ul className="mt-2 space-y-1 pl-6">
+            {(dados.pendencias ?? []).map((p) => (
+              <li key={p.usuario} className="text-xs">
+                <b className="font-mono">{p.usuario}</b>
+                {p.nome ? ` (${p.nome})` : ""} — {p.pendencia}
+                {p.valido_ate ? ` em ${new Date(`${p.valido_ate}T12:00:00`).toLocaleDateString("pt-BR")}` : ""}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
       {/* O QUE ESTA QUEBRADO, ANTES DE TUDO. O numero "Fora do lugar" ja existia
           na faixa, mas numero em celula e placar, nao chamado: dava para olhar a
           tela inteira e nao perceber que treze pessoas estao marcadas em

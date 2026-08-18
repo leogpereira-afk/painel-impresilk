@@ -639,6 +639,16 @@ Deno.serve(async (req: Request) => {
           .filter((e: any) => e.falhas > 0)
           .sort((a: any, b: any) => b.falhas - a.falhas);
 
+        /* O QUE A FICHA DO RH JA DECIDIU E NINGUEM VIU ACONTECER.
+           `acesso_revogado` fecha a porta sozinha quando a ficha diz `inativo`
+           ou quando o prazo do terceirizado vence -- e acesso que fecha sozinho
+           e acesso que some SEM EXPLICACAO: a pessoa liga reclamando e ninguem
+           sabe por que. Esta lista existe para a tela conseguir dizer o motivo,
+           e para mostrar o que a regra NAO alcanca (conta sem ficha). */
+        const { data: pendencias } = await sb.from("acesso_pendencias")
+          .select("usuario, nome, tipo, pendencia, situacao_no_rh, valido_ate")
+          .not("pendencia", "is", null);
+
         return resposta({
           ok: true,
           sistemas: SISTEMAS,
@@ -648,6 +658,7 @@ Deno.serve(async (req: Request) => {
           elenco,
           vendedores,
           colaboradores: nomes,
+          pendencias: pendencias ?? [],
         });
       }
 
