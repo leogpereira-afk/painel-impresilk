@@ -131,9 +131,21 @@ const normalizar = (s: unknown): string =>
 // erra criando conta nova em vez de mexer na que existe. Por isso tudo que
 // escreve confere `existeNoSistema` antes.
 const alvoNoSistema = (conta: any, sistema: string, papel?: any) => {
+  /* NO RH A IDENTIDADE E A FICHA, e nao um login digitado -- por isso este ramo
+     vem ANTES do login gravado. Casar por nome ja estava quebrado em producao,
+     nao era risco futuro: `perfis` guarda "leonardo goncalves" sem cedilha e a
+     Central guardava "Leonardo Gonçalves" com, e DUAS das seis linhas do RH nao
+     casavam. Quem nao casa e tratado como "nao existe la" -- e ai a tela oferece
+     criar conta para quem ja tem uma.
+     `perfis.colaborador_id` e `acesso_conta.colaborador_id` apontam para a mesma
+     ficha; comparados por id, casam seis de seis. O nome fica de rede para conta
+     que ainda nao tenha id. */
+  if (sistema === "rh") {
+    return texto(conta.colaborador_id, 120) || texto(conta.colaborador, 160);
+  }
   const gravado = texto(papel?.login, 160);
   if (gravado) return gravado;
-  return sistema === "rh" ? texto(conta.colaborador, 160) : texto(conta.usuario, 60);
+  return texto(conta.usuario, 60);
 };
 
 // O painel nao tem papel: tem lista de modulos. A equipe-auth so entende
@@ -194,12 +206,25 @@ async function estadoReal(): Promise<MapaReal> {
 
   // No RH quem manda e a linha de perfis; a senha mora no Supabase Auth.
   const { data: perfis } = await sb.from("perfis")
-    .select("usuario, nome, perfil, atualizado_em");
+    .select("usuario, nome, perfil, atualizado_em, colaborador_id, ativo");
   for (const c of perfis ?? []) {
-    por("rh")[normalizar(c.usuario)] = {
-      login: c.usuario, papel: c.perfil ?? "", ativo: true, temporaria: false,
-      em: c.atualizado_em, nome: c.nome || c.usuario,
+    const real: Real = {
+      // `login` e so EXIBICAO -- e o nome, que e o que a tela mostra em "entra
+      // como". Quem casa e a chave do mapa, logo abaixo.
+      login: c.usuario, papel: c.perfil ?? "",
+      /* `ativo` era CRAVADO em true porque `perfis` nao tinha essa coluna. Ela
+         passou a existir em 17/08/2026, e continuar cravando escondia justamente
+         quem foi desativado no RH -- a tela mostraria verde para quem nao entra
+         mais. */
+      ativo: c.ativo !== false,
+      temporaria: false, em: c.atualizado_em, nome: c.nome || c.usuario,
     };
+    /* DUAS CHAVES PARA A MESMA LINHA, e as duas fazem falta. A do id e a que
+       vale: e ela que casa com `alvoNoSistema`. A do nome fica de rede para
+       conta que ainda nao tenha `colaborador_id` -- sem ela, essa conta cairia
+       em "nao existe no RH" e a tela ofereceria criar uma segunda. */
+    if (c.colaborador_id) por("rh")[normalizar(c.colaborador_id)] = real;
+    por("rh")[normalizar(c.usuario)] = real;
   }
 
   /* A CENTRAL NAO TEM TABELA DE CONTAS, e nao e esquecimento: o app pessoal do
@@ -327,6 +352,38 @@ async function senhaNaPortaDaFrente(conta: any, senha: string) {
   return avisos;
 }
 
+/**
+ * Acha a ficha do RH pelo nome e devolve o que AMARRA a conta a ela.
+ *
+ * Sem isto, so as 14 contas preenchidas a mao em 17/08/2026 teriam id: toda
+ * conta criada dali em diante nasceria amarrada por NOME de novo, e o defeito
+ * voltaria pela porta da frente -- um cadastro por vez, sem ninguem notar.
+ *
+ * `id_pessoa` sao os 6 primeiros digitos do CPF, decisao do Leonardo: identifica
+ * sem espalhar o documento pelos oito sistemas, pela tela de acessos e pela
+ * copia diaria. `colaborador_id` vai junto como rede -- se alguem corrigir um
+ * CPF digitado errado, a conta nao fica orfa.
+ *
+ * Ficha nao encontrada devolve vazio em vez de estourar: amarrar e opcional
+ * (terceirizado e conta de funcao nao tem ficha), e recusar aqui trancaria o
+ * cadastro de quem nao e do quadro.
+ */
+async function amarrarNaFicha(nomeColaborador: string) {
+  const alvo = normalizar(nomeColaborador);
+  if (!alvo) return {};
+  const { data } = await sb.from("registros")
+    .select("id, registro").eq("colecao", "colaboradores").eq("apagado", false);
+  const acha = (data ?? []).filter((r: any) => normalizar(String(r.registro?.nome ?? "")) === alvo);
+  // DOIS HOMONIMOS: nao escolher. Amarrar na pessoa errada liga o acesso de uma
+  // a ficha da outra, e o desligamento passa a valer para quem nao saiu.
+  if (acha.length !== 1) return {};
+  const cpf = String(acha[0].registro?.cpf ?? "").replace(/\D/g, "");
+  return {
+    colaborador_id: String(acha[0].id),
+    ...(cpf.length === 11 ? { id_pessoa: cpf.slice(0, 6) } : {}),
+  };
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
   if (req.method !== "POST") return resposta({ erro: "use POST" }, 405);
@@ -369,13 +426,35 @@ Deno.serve(async (req: Request) => {
         const { data: senhas } = await sb.from("acesso_senha_legado")
           .select("conta_id, origem, usado_em");
 
-        // Nomes do RH para o campo de amarrar. So o NOME: a ficha de la tem
-        // salario, CPF e endereco, e nada disso tem o que fazer nesta tela.
+        /* Nomes do RH para o campo de amarrar. So o NOME: a ficha de la tem
+           salario, CPF e endereco, e nada disso tem o que fazer nesta tela.
+
+           `apagado = false` porque as fichas repetidas foram UNIFICADAS, nao
+           removidas (17/08/2026: Kelly, Jose Adilando e Demerval tinham cinco
+           fichas a mais entre os tres). Sem este filtro elas voltariam a
+           aparecer na lista de escolha, e amarrar alguem a uma ficha morta
+           desligaria a conta do RH em silencio.
+
+           SO QUEM NAO FOI DESLIGADO, decisao do Leonardo. E "nao desligado" NAO
+           e o mesmo que `ativo`: das 93 fichas, 24 estao `ativo`, 7 em
+           `experiencia`, 3 na `direcao` e 1 em `atestado-medico`. Filtrar por
+           `ativo` sumiria com a Karen e a Michelle (experiencia, trabalhando
+           hoje), com o proprio dono (direcao) e com o Nailton (afastado, que
+           volta). Fora ficam so `inativo` e `abandono`. */
+        const NO_QUADRO = new Set(["ativo", "experiencia", "direcao", "atestado-medico"]);
         const { data: colabs } = await sb.from("registros")
-          .select("registro").eq("colecao", "colaboradores");
-        const nomes = [...new Set((colabs ?? [])
+          .select("id, registro").eq("colecao", "colaboradores").eq("apagado", false);
+        const fichas = (colabs ?? []).filter((r: any) => NO_QUADRO.has(String(r.registro?.statusId ?? "")));
+        const nomes = [...new Set(fichas
           .map((r: any) => String(r.registro?.nome ?? "").trim())
           .filter(Boolean))].sort((a, b) => a.localeCompare(b, "pt-BR"));
+        /* O NOME DA FICHA MANDA. `acesso_conta.colaborador` e uma copia do nome
+           feita no dia em que a conta foi amarrada -- corrigir um acento no RH
+           deixava a tela mostrando o texto velho para sempre. Com o id como
+           chave, o nome pode mudar a vontade: a tela le o atual daqui. */
+        const nomeDaFicha = new Map(
+          (colabs ?? []).map((r: any) => [String(r.id), String(r.registro?.nome ?? "").trim()]),
+        );
 
         // A VERDADE, perguntada aos sistemas. Sem isto a tela so repetia a
         // tabela consolidada -- e era ela que estava mentindo.
@@ -385,6 +464,8 @@ Deno.serve(async (req: Request) => {
 
         const contasFora = (contas ?? []).map((c: any) => ({
           ...c,
+          // O nome ATUAL da ficha, nao a copia congelada no dia da amarracao.
+          colaborador: nomeDaFicha.get(String(c.colaborador_id ?? "")) || c.colaborador,
           papeis: (papeis ?? []).filter((p: any) => p.conta_id === c.id).map((p: any) => {
             const login = alvoNoSistema(c, p.sistema, p);
             const chave = normalizar(login);
@@ -587,6 +668,8 @@ Deno.serve(async (req: Request) => {
           nome: texto(c.nome, 120) || usuario,
           tipo: c.tipo === "funcao" ? "funcao" : "pessoa",
           colaborador: texto(c.colaborador, 160),
+          // A amarracao vai JUNTA com o nome -- ver amarrarNaFicha.
+          ...(await amarrarNaFicha(texto(c.colaborador, 160))),
           ativo: c.ativo === undefined ? (antes?.ativo ?? true) : c.ativo !== false,
           atualizado_em: new Date().toISOString(),
         };
@@ -628,6 +711,8 @@ Deno.serve(async (req: Request) => {
           nome: texto(c.nome, 120) || usuario,
           tipo: c.tipo === "funcao" ? "funcao" : "pessoa",
           colaborador: texto(c.colaborador, 160),
+          // A amarracao vai JUNTA com o nome -- ver amarrarNaFicha.
+          ...(await amarrarNaFicha(texto(c.colaborador, 160))),
           ativo: true,
           atualizado_em: new Date().toISOString(),
         };
