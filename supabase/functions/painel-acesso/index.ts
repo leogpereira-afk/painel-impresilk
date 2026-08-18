@@ -498,11 +498,23 @@ Deno.serve(async (req: Request) => {
         // Quase sempre e a mesma pessoa com o nome escrito de outro jeito (o
         // `leo` do PCP e o `leonardo` de todo o resto), e por isso elas voltam
         // para a tela em vez de serem apagadas caladas.
+        /* UMA CONTA PODE SER ALCANCAVEL POR MAIS DE UMA CHAVE, e contar chaves
+           em vez de contas faz a mesma pessoa aparecer como conta sem dono ao
+           lado de si mesma. O RH passou a ser indexado pelo id da ficha E pelo
+           nome (a rede para conta que ainda nao tem id): o `reivindicados`
+           marca so a chave do id, a do nome sobrava, e a tela acusava SEIS
+           contas sem dono no RH quando as seis tinham dono.
+           Entao a conta so e "solta" quando NENHUMA das chaves dela foi
+           reivindicada -- e o mapa por objeto tambem tira a duplicata. */
         const soltas: Record<string, Real[]> = {};
         for (const sis of SISTEMAS) {
-          const sobra = Object.entries(real[sis] ?? {})
-            .filter(([chave]) => !reivindicados[sis]?.has(chave))
-            .map(([, r]) => r)
+          const temDono = new Map<Real, boolean>();
+          for (const [chave, r] of Object.entries(real[sis] ?? {})) {
+            temDono.set(r, (temDono.get(r) ?? false) || !!reivindicados[sis]?.has(chave));
+          }
+          const sobra = [...temDono.entries()]
+            .filter(([, tem]) => !tem)
+            .map(([r]) => r)
             .sort((a, b) => a.login.localeCompare(b.login, "pt-BR"));
           if (sobra.length) soltas[sis] = sobra;
         }
