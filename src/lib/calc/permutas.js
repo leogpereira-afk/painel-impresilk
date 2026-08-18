@@ -39,9 +39,18 @@ const num = (v) => {
 
 export const soDigitos = (v) => String(v ?? "").replace(/\D/g, "");
 
-/** O que a O.S. vale: a soma dos itens dela, do jeito que o resto do painel soma. */
+/* O que a O.S. vale: a soma dos itens dela, do jeito que o resto do painel soma
+   -- ARREDONDADA AO CENTAVO.
+
+   O arredondamento não é preciosismo. O cache guarda o rateio das uniões de
+   itens, e ele sai com cauda binária: uma O.S. de R$ 7.340,44 é guardada como
+   7340.4400000000005. Na tela some, porque a formatação corta em dois dígitos.
+   Na CONTA não some: a permuta soma dezenas dessas e compara o congelado com o
+   vivo. Sem arredondar, a cauda vira diferença e a tela acusaria "mudou no ERP"
+   numa O.S. que ninguém tocou. */
 export function valorDaOS(os) {
-  return (os?.itens || []).reduce((s, it) => s + num(it.valorTotal), 0);
+  const bruto = (os?.itens || []).reduce((s, it) => s + num(it.valorTotal), 0);
+  return Math.round(bruto * 100) / 100;
 }
 
 /** Nome de cliente comparável: sem acento, sem caixa, sem espaço sobrando. */

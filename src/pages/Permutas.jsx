@@ -34,10 +34,29 @@ import {
   chaveCliente, clientesDasOrdens, fichaDaOS, resumoDaPermuta, resumoGeral,
   ordensDosClientes, donoPorOS,
 } from "../lib/calc/permutas.js";
-import { moeda, paraNumero, paraCampo, dataCurta } from "../lib/format.js";
+import { moedaCheia, paraNumero, paraCampo, dataCurta, dataLonga } from "../lib/format.js";
 import { Card, PageTitle, SectionTitle, Empty, CarregandoModulo } from "../components/ui.jsx";
 
 const novoId = () => `permuta-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+
+/* AQUI O CENTAVO CONTA, ao contrário do resto do painel.
+   Nas outras telas o dinheiro é grandeza -- R$ 1,2 milhão a receber, e o
+   `moeda()` corta os centavos porque eles não mudam decisão nenhuma. A permuta
+   é uma CONTA, que tem que fechar com o parceiro: crédito de R$ 12.000,50
+   aparecendo como "R$ 12.001" é meio real inventado, e a primeira coisa que o
+   parceiro faz é conferir. Todo número desta tela sai com centavo. */
+const dinheiro = moedaCheia;
+
+/* A DATA AQUI PRECISA DO ANO, ao contrário do resto do painel.
+   As outras telas olham o mês corrente e `dataCurta` (dd/MM) basta. Uma permuta
+   dura o tempo que o crédito durar -- a lista mistura 2025 e 2026, e "30/09"
+   ao lado de "05/08" parece anterior quando é um ano depois. Ano igual ao de
+   hoje continua curto, para não poluir o caso comum. */
+const dataDaOS = (iso) => {
+  if (!iso) return "";
+  const ano = String(iso).slice(0, 4);
+  return ano === String(new Date().getFullYear()) ? dataCurta(iso) : dataLonga(iso);
+};
 
 /* CNPJ só para conferir com o olho, não para copiar em documento: o cache pode
    trazer CPF de pessoa física no mesmo campo. Formata os dois. */
@@ -77,7 +96,7 @@ function Saldo({ valor, grande }) {
   return (
     <div>
       <div className={`${grande ? "text-3xl" : "text-xl"} font-semibold tabular-nums ${positivo ? "text-ok-700" : "text-bad-700"}`}>
-        {moeda(valor)}
+        {dinheiro(valor)}
       </div>
       <div className="text-xs text-slate-500">{positivo ? "ainda tem para gastar" : "consumiu além do crédito"}</div>
     </div>
@@ -123,7 +142,7 @@ function CartaoPermuta({ p, aoAbrir }) {
         <Barra pct={p.pct} />
         <div className="flex justify-between text-[11px] text-slate-500">
           <span>
-            {moeda(p.consumido)} usados de {moeda(p.credito)}
+            {dinheiro(p.consumido)} usados de {dinheiro(p.credito)}
           </span>
           <span>
             {p.linhas.length} {p.linhas.length === 1 ? "O.S." : "O.S."}
@@ -145,7 +164,7 @@ function LinhaAceita({ l, aoTirar }) {
           <span className="truncate text-xs text-slate-500">{l.cliente}</span>
           {l.mudou && (
             <span className="rounded bg-warn-50 px-1.5 py-0.5 text-[11px] text-warn-700">
-              era {moeda(l.congelado)} no aceite
+              era {dinheiro(l.congelado)} no aceite
             </span>
           )}
           {l.sumiu && (
@@ -157,9 +176,9 @@ function LinhaAceita({ l, aoTirar }) {
             <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[11px] text-slate-500">valor do aceite</span>
           )}
         </div>
-        <div className="text-[11px] text-slate-400">{dataCurta(l.data)}</div>
+        <div className="text-[11px] text-slate-400">{dataDaOS(l.data)}</div>
       </div>
-      <span className="shrink-0 tabular-nums text-slate-700">{moeda(l.valor)}</span>
+      <span className="shrink-0 tabular-nums text-slate-700">{dinheiro(l.valor)}</span>
       <button
         type="button"
         onClick={() => aoTirar(l)}
@@ -198,9 +217,9 @@ function LinhaEscolher({ o, aoMarcar }) {
             </span>
           )}
         </div>
-        <div className="text-[11px] text-slate-400">{dataCurta(o.data)}</div>
+        <div className="text-[11px] text-slate-400">{dataDaOS(o.data)}</div>
       </div>
-      <span className="shrink-0 tabular-nums text-slate-700">{moeda(o.valor)}</span>
+      <span className="shrink-0 tabular-nums text-slate-700">{dinheiro(o.valor)}</span>
     </label>
   );
 }
@@ -421,7 +440,7 @@ export default function Permutas() {
             </div>
             <div>
               <div className="mb-1 text-xs text-slate-500">Já usou em O.S.</div>
-              <div className="text-xl font-semibold tabular-nums text-slate-800">{moeda(resumo.consumido)}</div>
+              <div className="text-xl font-semibold tabular-nums text-slate-800">{dinheiro(resumo.consumido)}</div>
               <div className="text-xs text-slate-500">{resumo.linhas.length} O.S. aceitas</div>
             </div>
             <div>
@@ -498,7 +517,7 @@ export default function Permutas() {
                         )}
                       </span>
                       <span className="shrink-0 text-[11px] text-slate-400">
-                        {c.qtd} O.S. · {moeda(c.total)}
+                        {c.qtd} O.S. · {dinheiro(c.total)}
                       </span>
                     </button>
                   ))}

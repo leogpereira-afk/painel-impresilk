@@ -122,6 +122,23 @@ test("diferença de centavo não é 'mudou'", () => {
   assert.equal(resumoDaPermuta(p, [os(1, "Alfa", 300)]).mudaram, 0);
 });
 
+test("a cauda binária do rateio não vira 'mudou no ERP'", () => {
+  // O cache guarda exatamente isto quando a O.S. tem união de itens rateada.
+  const comCauda = { id: 1, numero: "21", cliente: "Alfa", data: "2026-07-06",
+                     itens: [{ valorTotal: 7340.4400000000005 }] };
+  assert.equal(valorDaOS(comCauda), 7340.44);
+  const p = { credito: 10000, os: { 1: fichaDaOS(comCauda) } };
+  const r = resumoDaPermuta(p, [comCauda]);
+  assert.equal(r.mudaram, 0, "a mesma O.S. intocada não pode aparecer como alterada");
+  assert.equal(r.consumido, 7340.44);
+});
+
+test("somar muitas O.S. não acumula centavo fantasma", () => {
+  const ordens = Array.from({ length: 30 }, (_, i) => os(i + 1, "Alfa", 10.1));
+  const p = { credito: 1000, os: Object.fromEntries(ordens.map((o) => [o.id, fichaDaOS(o)])) };
+  assert.equal(resumoDaPermuta(p, ordens).consumido, 303);
+});
+
 test("O.S. cancelada no ERP some do cache e a permuta DENUNCIA", () => {
   const p = { credito: 1000, os: { 1: { numero: "21", cliente: "Alfa", valor: 300 } } };
   const r = resumoDaPermuta(p, [os(2, "Alfa", 100)]); // a 1 não está mais lá
