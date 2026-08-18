@@ -27,7 +27,7 @@
 // ============================================================================
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
-import { hashSenha, verificarJwt } from "../_shared/cripto.ts";
+import { hashSenha, verificarJwt, crachaRevogado } from "../_shared/cripto.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -289,7 +289,14 @@ async function estadoReal(): Promise<MapaReal> {
    em equipe_contas pela equipe-auth -- que ainda nao tem "central" na lista
    EXTERNOS -- e fabricaria uma SEGUNDA senha, valida, para o app pessoal do
    dono. Enquanto o outro lado nao fecha, quem fecha e este. */
-const SO_LEITURA = new Set(["central"]);
+/* SO LEITURA: sistemas que esta tela MOSTRA mas NAO administra.
+   `dre` entrou em 18/08/2026, junto com a aposentadoria da conta compartilhada.
+   Sem isto o desenho ficava metade feito: `estadoReal` passou a ler o DRE pela
+   linha de acesso, mas `senhaDoSistema` e `definirSenha` ainda achavam a linha e
+   mandavam senha para a `equipe-auth`, que RECRIAVA em equipe_contas a conta com
+   senha que acabara de ser apagada -- e a tela nao a enxergaria mais, porque o
+   ramo novo nao le equipe_contas. Uma conta com senha, viva, invisivel. */
+const SO_LEITURA = new Set(["central", "dre"]);
 const RECADO_SO_LEITURA =
   "A Central do Léo é o app pessoal do dono e tem porta própria (leo-sync). " +
   "Ela aparece aqui só para registro: não se cria conta nem se troca senha dela por esta tela.";
@@ -415,6 +422,32 @@ async function amarrarNaFicha(nomeColaborador: string) {
   };
 }
 
+/**
+ * O ALVO PARA ESCREVER — que NAO e o mesmo de ler, e confundir os dois foi o
+ * defeito mais caro de 18/08/2026.
+ *
+ * `alvoNoSistema` passou a devolver o `colaborador_id` no RH, porque e por ele
+ * que a leitura casa (o nome quebrava: `perfis` guarda "leonardo goncalves" sem
+ * cedilha). Só que TODO caminho de escrita continuou mandando esse mesmo valor
+ * para a `equipe-auth`, e la o RH e procurado por `perfis.usuario`, que e o NOME
+ * COMPLETO. Nenhuma linha casava -- e o pior: `update` que atinge zero linhas
+ * NAO devolve erro no PostgREST, entao `desativar` empurrava "rh" em `feitos` e
+ * a tela dizia que tinha fechado o RH de alguem que continuava entrando.
+ *
+ * Aqui o caminho e id -> ficha -> nome: parte do id (que e a chave) e resolve
+ * para o texto que a porta do RH espera. Sem ficha, cai no nome guardado.
+ */
+async function alvoParaEscrever(conta: any, sistema: string, papel?: any): Promise<string> {
+  if (sistema !== "rh") return alvoNoSistema(conta, sistema, papel);
+  const ficha = texto(conta.colaborador_id, 120);
+  if (ficha) {
+    const { data } = await sb.from("perfis").select("usuario")
+      .eq("colaborador_id", ficha).maybeSingle();
+    if (data?.usuario) return String(data.usuario);
+  }
+  return texto(conta.colaborador, 160);
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
   if (req.method !== "POST") return resposta({ erro: "use POST" }, 405);
@@ -432,6 +465,13 @@ Deno.serve(async (req: Request) => {
      entra nos sistemas. Ver ehDirecao em src/lib/sessao.js. */
   if (sessao.master !== true) {
     return resposta({ erro: "Apenas a direcao." }, 403);
+  }
+  /* E O CRACHA AINDA VALE? Esta porta administra quem entra nos oito sistemas --
+     era a unica do Painel, junto com o backup, que conferia a assinatura e nao
+     perguntava pela revogacao. Um cracha de direcao dura 12h: bastava ele estar
+     no bolso de alguem para administrar acesso mesmo depois de encerrado. */
+  if (await crachaRevogado(sb, "painel", sessao)) {
+    return resposta({ erro: "Seu acesso foi encerrado.", semSessao: true }, 401);
   }
 
   let corpo: any = {};
@@ -786,7 +826,7 @@ Deno.serve(async (req: Request) => {
           const r = await chamarEquipe({
             acao: "salvarConta",
             sistema,
-            usuario: alvoNoSistema(linha, sistema),
+            usuario: await alvoParaEscrever(linha, sistema),
             nome: linha.nome,
             papel: papelNoSistema(sistema, p.papel, p.permissoes ?? []),
             permissoes: Array.isArray(p.permissoes) ? p.permissoes : [],
@@ -835,7 +875,7 @@ Deno.serve(async (req: Request) => {
         const recusados: { sistema: string; erro: string }[] = [];
         const real = await estadoReal();
         for (const p of papeis ?? []) {
-          const login = alvoNoSistema(conta, p.sistema, p);
+          const login = await alvoParaEscrever(conta, p.sistema, p);
           /* NAO CRIAR CONTA AQUI. Este era o pior efeito da divergencia: quando
              o login nao existia no sistema, a equipe-auth recebia senha junto e
              CRIAVA uma conta com aquele nome. O dono clicava "gerar nova senha",
@@ -895,14 +935,26 @@ Deno.serve(async (req: Request) => {
             continue;
           }
           if (p.sistema === "rh") {
-            const alvoRh = alvoNoSistema(conta, "rh", p);
-            const { error } = await sb.from("perfis").update({ ativo })
-              .eq("usuario", normalizar(alvoRh));
+            /* ESCREVER PELA FICHA, e CONFERIR QUE ATINGIU ALGUEM.
+               `update` que nao acha ninguem devolve sucesso com zero linhas -- e
+               foi assim que esta tela passou a dizer "fechei o RH" para gente que
+               continuava entrando. `.select()` faz o PostgREST devolver as linhas
+               atingidas, e lista vazia aqui e RECUSA, nao sucesso. */
+            const ficha = texto(conta.colaborador_id, 120);
+            const consulta = sb.from("perfis").update({ ativo });
+            const { data: linhas, error } = ficha
+              ? await consulta.eq("colaborador_id", ficha).select("user_id")
+              : await consulta.eq("usuario", normalizar(texto(conta.colaborador, 160))).select("user_id");
             if (error) recusados.push({ sistema: "rh", erro: error.message });
-            else feitos.push("rh");
+            else if (!linhas?.length) {
+              recusados.push({
+                sistema: "rh",
+                erro: 'nao achei o perfil desta pessoa no RH -- confira "Quem e no RH" na ficha dela',
+              });
+            } else feitos.push("rh");
             continue;
           }
-          const login = alvoNoSistema(conta, p.sistema, p);
+          const login = await alvoParaEscrever(conta, p.sistema, p);
           // Sem conta la nao ha o que desativar. Deixar seguir devolvia o erro
           // "Defina uma senha de ao menos 6 caracteres" -- verdadeiro para a
           // equipe-auth e incompreensivel para quem so queria desligar alguem.
@@ -946,7 +998,8 @@ Deno.serve(async (req: Request) => {
         // O login gravado manda; so quem nao tem cai no palpite de sempre.
         const { data: papelAtual } = await sb.from("acesso_papel")
           .select("login, vendedor_id, permissoes").eq("conta_id", id).eq("sistema", sistema).maybeSingle();
-        const login = texto(p.login, 160) || alvoNoSistema(conta, sistema, papelAtual);
+        // ESCRITA: o RH e procurado la por nome, nao por id -- ver alvoParaEscrever.
+        const login = texto(p.login, 160) || await alvoParaEscrever(conta, sistema, papelAtual);
 
         // Conta nova naquele sistema nasce com senha temporaria; conta que ja
         // existe nao tem a senha mexida.
@@ -1034,7 +1087,7 @@ Deno.serve(async (req: Request) => {
         // linha SO daqui e devolvia {ok:true} -- a pessoa continuava entrando.
         const { data: papelRem } = await sb.from("acesso_papel")
           .select("login").eq("conta_id", id).eq("sistema", sistema).maybeSingle();
-        const alvoRem = alvoNoSistema(conta, sistema, papelRem);
+        const alvoRem = await alvoParaEscrever(conta, sistema, papelRem);
         if (await acharNoSistema(sistema, alvoRem)) {
           const r = await chamarEquipe({ acao: "removerConta", sistema, usuario: alvoRem });
           if (!r.ok) return resposta({ erro: r.erro || "Nao consegui tirar esse acesso." }, 400);
@@ -1118,7 +1171,7 @@ Deno.serve(async (req: Request) => {
           .select("*").eq("conta_id", id).eq("sistema", sistema).maybeSingle();
         if (!papel) return resposta({ erro: `Essa pessoa nao tem acesso ao ${sistema}.` }, 404);
 
-        const login = alvoNoSistema(conta, sistema, papel);
+        const login = await alvoParaEscrever(conta, sistema, papel);
         const achado = await acharNoSistema(sistema, login);
         if (!achado) {
           return resposta({

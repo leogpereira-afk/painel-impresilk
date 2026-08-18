@@ -22,7 +22,7 @@
 // ============================================================================
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
-import { verificarJwt } from "../_shared/cripto.ts";
+import { verificarJwt, crachaRevogado } from "../_shared/cripto.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -330,6 +330,14 @@ Deno.serve(async (req: Request) => {
   if (corpo.action === "status") {
     const m = String(req.headers.get("authorization") ?? "").match(/^Bearer\s+(.+)$/i);
     const s = m && JWT_SECRET ? await verificarJwt(m[1], JWT_SECRET) : null;
+    /* CRACHA VALIDO NAO E CRACHA QUE AINDA VALE. Esta era a unica porta do
+       Painel que conferia a assinatura e nao perguntava se o acesso foi
+       revogado -- as outras quatro (dados, gestao, config, ativos) perguntam.
+       O cracha do Painel dura 12h: alguem desligado de manha seguia lendo o
+       status do backup ate a tarde, e o backup diz o que a casa guarda e onde. */
+    if (s && await crachaRevogado(sb, "painel", s)) {
+      return resposta({ erro: "Seu acesso foi encerrado.", semSessao: true }, 401);
+    }
     if (!s) return resposta({ erro: "Entre no sistema.", semSessao: true }, 401);
     return resposta({ ok: true, status: await lerStatus() });
   }

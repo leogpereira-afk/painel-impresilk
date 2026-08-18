@@ -119,7 +119,12 @@ export const SISTEMAS = [
     papeis: ["equipe"],
     papelInicial: "equipe",
     papeisAdmin: [],
-    soLeitura: false,
+    /* SO LEITURA desde 18/08/2026: o DRE nao guarda conta. Marcar quem entra
+       continua valendo (e a linha de acesso que vira cracha), mas "gerar senha"
+       ali RECRIARIA a conta compartilhada que acabou de ser aposentada -- e a
+       tela nao a veria mais, porque ela passou a ler o DRE pela linha de acesso.
+       O servidor recusa igual (SO_LEITURA em painel-acesso). */
+    soLeitura: true,
     entradaUnica: { endereco: "https://leogpereira-afk.github.io/impresilk-dre/", chave: "impresilk_dre_cracha" },
   },
   {
