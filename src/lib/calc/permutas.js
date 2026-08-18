@@ -1,0 +1,221 @@
+/* A CONTA DA PERMUTA.
+ *
+ * Permuta é troca: o parceiro nos dá alguma coisa (um espaço, um serviço, uma
+ * mercadoria) e passa a ter crédito para gastar conosco em comunicação visual.
+ * A pergunta que a tela responde é uma só: QUANTO AINDA SOBRA.
+ *
+ *   saldo = crédito − soma das O.S. que a direção ACEITOU nesta permuta
+ *
+ * Três decisões deste arquivo merecem explicação, porque cada uma nasceu de um
+ * jeito de errar que já custou caro nos outros módulos.
+ *
+ * 1. ACEITAR É UM ATO, NÃO UM FILTRO.
+ *    Seria mais fácil somar "todas as O.S. do cliente X". Estaria errado: o
+ *    mesmo cliente compra na permuta E compra pagando. Quem sabe qual é qual é
+ *    a direção, O.S. por O.S. Por isso a permuta guarda a LISTA das aceitas —
+ *    nunca uma regra que as deduza. Deduzir acesso pelo nome já criou sósia na
+ *    Central de Acessos; deduzir permuta pelo cliente criaria saldo falso.
+ *
+ * 2. O VALOR É CONGELADO NO ACEITE, MAS CONFERIDO CONTRA O ERP.
+ *    Se a tela lesse o valor sempre do cache, uma O.S. que saísse da janela do
+ *    cache (ele começa em 2025-01-01) sumiria do saldo sozinha — a permuta
+ *    encolheria sem ninguém mexer nela. Se lesse só o congelado, uma correção
+ *    legítima no ERP nunca apareceria. Então guarda o congelado E confere:
+ *    quando os dois discordam, o número que vale é o do ERP e a tela DIZ que
+ *    mudou. O que não pode acontecer é o saldo mudar em silêncio.
+ *
+ * 3. CNPJ QUALIFICA, NOME IDENTIFICA.
+ *    O cache identifica a O.S. pelo nome do cliente, e uma permuta costuma
+ *    abranger mais de um CNPJ do mesmo dono. A permuta guarda a lista de
+ *    clientes que ela abrange; o CNPJ entra para desempatar razões sociais
+ *    parecidas, quando o ERP o fornece. Vazio é resposta legítima (pessoa
+ *    física sem cadastro completo), então nada aqui pode EXIGIR CNPJ.
+ */
+
+const num = (v) => {
+  const n = typeof v === "number" ? v : parseFloat(String(v ?? "").replace(",", "."));
+  return Number.isFinite(n) ? n : 0;
+};
+
+export const soDigitos = (v) => String(v ?? "").replace(/\D/g, "");
+
+/** O que a O.S. vale: a soma dos itens dela, do jeito que o resto do painel soma. */
+export function valorDaOS(os) {
+  return (os?.itens || []).reduce((s, it) => s + num(it.valorTotal), 0);
+}
+
+/** Nome de cliente comparável: sem acento, sem caixa, sem espaço sobrando. */
+export function chaveCliente(nome) {
+  return String(nome ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+    .replace(/\s+/g, " ")
+    .toUpperCase();
+}
+
+/* Os clientes que existem nas ordens, um por nome, com o CNPJ e o tamanho da
+   carteira. É a lista que a direção percorre para escolher de quem é a permuta.
+   Uma razão social pode aparecer com CNPJ preenchido numas O.S. e vazio
+   noutras; guardamos TODOS os que aparecem para a tela poder mostrar quando há
+   mais de um — sinal de que dois cadastros diferentes usam o mesmo nome. */
+export function clientesDasOrdens(ordens) {
+  const mapa = new Map();
+  for (const os of ordens || []) {
+    if (os?.cancelada) continue;
+    const nome = String(os?.cliente || "").trim();
+    if (!nome) continue;
+    const k = chaveCliente(nome);
+    let c = mapa.get(k);
+    if (!c) {
+      c = { chave: k, nome, cnpjs: new Set(), qtd: 0, total: 0, ultima: "" };
+      mapa.set(k, c);
+    }
+    const cnpj = soDigitos(os.cnpj);
+    if (cnpj) c.cnpjs.add(cnpj);
+    c.qtd += 1;
+    c.total += valorDaOS(os);
+    const d = String(os.data || "");
+    if (d > c.ultima) c.ultima = d;
+  }
+  return [...mapa.values()]
+    .map((c) => ({ ...c, cnpjs: [...c.cnpjs] }))
+    .sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR"));
+}
+
+/** A ficha de uma O.S. como ela é guardada dentro da permuta (o congelado). */
+export function fichaDaOS(os) {
+  return {
+    numero: String(os?.numero ?? ""),
+    cliente: String(os?.cliente ?? ""),
+    cnpj: soDigitos(os?.cnpj),
+    data: String(os?.data ?? ""),
+    valor: valorDaOS(os),
+  };
+}
+
+/* AS LINHAS DA PERMUTA, prontas para a tela.
+ *
+ * Cada O.S. aceita vira uma linha que sabe se ainda existe no ERP e se o valor
+ * mudou desde o aceite. `valor` é o número que ENTRA no saldo.
+ *
+ * SUMIR DO CACHE QUER DIZER CANCELADA — e isso importa em dinheiro. A carga do
+ * cache DESCARTA a O.S. cancelada (mubi-cache-background: `.filter((o) =>
+ * !o.cancelada)` e o `mapaOS.delete` da carga leve), e a janela do cache começa
+ * em 2025-01-01 e nunca encolhe. Como só dá para ACEITAR uma O.S. que está no
+ * cache, toda aceita nasceu dentro da janela: se depois ela some, foi cancelada
+ * no ERP. Aí o crédito da permuta está sendo consumido por um serviço que não
+ * existe mais, e a direção precisa ver isso — não é detalhe técnico.
+ *
+ * MAS SÓ DÁ PARA DIZER ISSO SE A LISTA CHEGOU. Quando as ordens não carregam
+ * (sessão sem o módulo, cache frio, ERP fora), `ordens` vem vazia — e aí TODAS
+ * as O.S. da permuta pareceriam canceladas de uma vez. Lista vazia não é
+ * resposta: é ausência de resposta. Nesse caso a conta usa o valor congelado e
+ * a tela diz que não deu para conferir. */
+export function linhasDaPermuta(permuta, ordens) {
+  const conferivel = Array.isArray(ordens) && ordens.length > 0;
+  const porId = new Map(conferivel ? ordens.map((o) => [String(o.id), o]) : []);
+  const aceitas = permuta?.os || {};
+  return Object.entries(aceitas)
+    .map(([id, ficha]) => {
+      const viva = porId.get(String(id));
+      const congelado = num(ficha?.valor);
+      const atual = viva ? valorDaOS(viva) : null;
+      // O ERP manda: quando ele responde, ele é a verdade. O congelado só
+      // sustenta a linha que o ERP não confirmou.
+      const valor = atual === null ? congelado : atual;
+      // Centavos de arredondamento não são "mudança de valor".
+      const mudou = atual !== null && Math.abs(atual - congelado) >= 0.01;
+      return {
+        id: String(id),
+        numero: String(ficha?.numero ?? viva?.numero ?? ""),
+        cliente: String(viva?.cliente || ficha?.cliente || ""),
+        cnpj: soDigitos(viva?.cnpj || ficha?.cnpj),
+        data: String(viva?.data || ficha?.data || ""),
+        valor,
+        congelado,
+        mudou,
+        // Continua contando no saldo: foi aceita, e o crédito foi dado como
+        // gasto. Quem decide tirar é a direção, no botão -- não a tela sozinha.
+        sumiu: conferivel && !viva,
+        // Não deu para conferir com o ERP nesta carga.
+        semConferir: !conferivel,
+      };
+    })
+    .sort((a, b) => String(b.data).localeCompare(String(a.data)));
+}
+
+/* O RESUMO: crédito, quanto já foi gasto, quanto sobra.
+ *
+ * `saldo` positivo = o parceiro ainda tem crédito conosco.
+ * `saldo` negativo = ele já consumiu mais do que trouxe (a empresa está a
+ * receber a diferença). Os dois casos são normais; a tela precisa distinguir. */
+export function resumoDaPermuta(permuta, ordens) {
+  const linhas = linhasDaPermuta(permuta, ordens);
+  const credito = num(permuta?.credito);
+  const consumido = linhas.reduce((s, l) => s + l.valor, 0);
+  return {
+    linhas,
+    credito,
+    consumido,
+    saldo: credito - consumido,
+    // Quanto do crédito já virou serviço, para a barra. Sem crédito lançado a
+    // barra não tem denominador: devolve null em vez de fingir 0% ou 100%.
+    pct: credito > 0 ? Math.min(1, consumido / credito) : null,
+    // O que a tela precisa avisar em vez de esconder.
+    mudaram: linhas.filter((l) => l.mudou).length,
+    sumiram: linhas.filter((l) => l.sumiu).length,
+    semConferir: linhas.some((l) => l.semConferir),
+  };
+}
+
+/* Todas as permutas com o seu resumo, para a lista de abertura. As que ainda
+   têm saldo vêm primeiro: é onde a direção precisa olhar. */
+export function resumoGeral(permutas, ordens) {
+  return Object.entries(permutas || {})
+    .map(([id, p]) => ({ id, ...p, ...resumoDaPermuta(p, ordens) }))
+    .sort((a, b) => {
+      if (!!a.encerrada !== !!b.encerrada) return a.encerrada ? 1 : -1;
+      return b.saldo - a.saldo;
+    });
+}
+
+/* As O.S. de um conjunto de clientes, para a tela de escolher.
+ *
+ * `jaAceitas` marca as que já entraram em ALGUMA permuta — inclusive em outra,
+ * porque a mesma O.S. não pode abater dois créditos. Quem já está nesta permuta
+ * aparece marcada; quem está em outra aparece bloqueada, com o nome de onde. */
+export function ordensDosClientes(ordens, chaves, donoPorOS, permutaAtual) {
+  const querem = new Set(chaves || []);
+  if (!querem.size) return [];
+  return (ordens || [])
+    .filter((o) => !o.cancelada && querem.has(chaveCliente(o.cliente)))
+    .map((o) => {
+      const dono = donoPorOS?.get(String(o.id)) || null;
+      return {
+        id: String(o.id),
+        numero: String(o.numero ?? ""),
+        cliente: String(o.cliente ?? ""),
+        cnpj: soDigitos(o.cnpj),
+        data: String(o.data ?? ""),
+        valor: valorDaOS(o),
+        nesta: dono?.id === permutaAtual,
+        // Nome da OUTRA permuta que já usou esta O.S. Null quando está livre.
+        presaEm: dono && dono.id !== permutaAtual ? dono.nome : null,
+      };
+    })
+    .sort((a, b) => String(b.data).localeCompare(String(a.data)));
+}
+
+/* Quem é o dono de cada O.S. já aceita, em todas as permutas. Uma O.S. só pode
+   abater um crédito: sem este índice, aceitar a mesma O.S. em duas permutas
+   apagaria dinheiro de verdade — e nenhuma das duas telas mostraria erro. */
+export function donoPorOS(permutas) {
+  const mapa = new Map();
+  for (const [id, p] of Object.entries(permutas || {})) {
+    for (const osId of Object.keys(p?.os || {})) {
+      if (!mapa.has(osId)) mapa.set(osId, { id, nome: p?.nome || "sem nome" });
+    }
+  }
+  return mapa;
+}

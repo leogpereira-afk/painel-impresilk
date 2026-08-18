@@ -39,6 +39,7 @@ import {
   BookOpen,
   CalendarCheck,
   Compass,
+  Handshake,
 } from "lucide-react";
 import logoColor from "../assets/brand/logo-color.png";
 import logoWhite from "../assets/brand/logo-white.png";
@@ -63,6 +64,7 @@ const GESTAO = [
   { to: "/glossario", rotulo: "Glossário", icone: BookOpen, modulo: "glossario" },
   { to: "/manutencoes", rotulo: "Manutenções", icone: Wrench, modulo: "manutencoes" },
   { to: "/patrimonio", rotulo: "Patrimônio", icone: Tag, modulo: "patrimonio" },
+  { to: "/permutas", rotulo: "Permutas", icone: Handshake, modulo: "permutas" },
   { to: "/documentos", rotulo: "Documentos e ativos", icone: FileCheck2 },
 ];
 

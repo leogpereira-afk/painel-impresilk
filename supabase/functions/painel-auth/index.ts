@@ -45,7 +45,7 @@ const sb = createClient(SUPABASE_URL, SERVICE_KEY, { auth: { persistSession: fal
 // fluxo-caixa e produtos sairam: as telas nao existem mais no painel (menu e
 // rotas removidos). Conta antiga pode ter o id guardado; ele simplesmente nao
 // abre nada, e some na proxima gravacao.
-const MODULOS = ["gestao", "contas-atrasadas", "orcamentos", "bancos", "marketing", "licitacoes", "glossario", "compromissos", "manutencoes", "patrimonio", "configuracoes"];
+const MODULOS = ["gestao", "contas-atrasadas", "orcamentos", "bancos", "marketing", "licitacoes", "glossario", "compromissos", "manutencoes", "patrimonio", "permutas", "configuracoes"];
 
 // Mensagem UNICA para qualquer falha de login: usuario inexistente e senha
 // errada precisam ser indistinguiveis, senao da para descobrir quem tem acesso.

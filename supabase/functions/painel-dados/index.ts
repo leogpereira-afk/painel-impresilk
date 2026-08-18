@@ -42,17 +42,31 @@ const json = (corpo: unknown, status = 200) =>
   new Response(JSON.stringify(corpo), { status, headers: { ...CORS, "content-type": "application/json" } });
 
 // Porteiro: cracha valido E permissao para o modulo pedido.
-async function exigirSessao(req: Request, modulo: string) {
+/* `modulo` aceita UMA lista porque a mesma fonte serve a mais de um modulo. As
+   ordens de servico sao o caso: quem tem "permutas" precisa delas para escolher
+   as O.S. que entram na permuta, e quem tinha "produtos" ja as lia. Sem isso, a
+   tela de Permutas abriria vazia para todo mundo que nao e direcao -- e o store
+   trata 403 como "fonte negada", em SILENCIO, entao o defeito nao apareceria
+   como erro: apareceria como cliente nenhum na lista. */
+async function exigirSessao(req: Request, modulo: string | string[]) {
   if (!JWT_SECRET) {
     console.error("painel-dados: PAINEL_JWT_SECRET ausente -- recusando tudo (fail-closed)");
     return { resposta: json({ erro: "Login nao configurado no servidor." }, 503) };
   }
   const m = String(req.headers.get("authorization") ?? "").match(/^Bearer\s+(.+)$/i);
   const s = m ? await verificarJwt(m[1], JWT_SECRET) : null;
-  if (s && await crachaRevogado(sb, "painel", s)) return null;
+  /* Cracha revogado sai pela MESMA porta da sessao ausente: 401 com semSessao,
+     que e o sinal que faz o cliente deslogar sozinho. Antes isto devolvia
+     `null`, e o `g.resposta` de cada ramo estourava TypeError -- fechava a
+     porta (o 500 nao entrega dado), mas o navegador ficava preso numa tela de
+     erro generico com um cracha que ja nao vale, sem nunca voltar ao login. */
+  if (s && await crachaRevogado(sb, "painel", s)) {
+    return { resposta: json({ erro: "Seu acesso foi encerrado.", semSessao: true }, 401) };
+  }
   if (!s) return { resposta: json({ erro: "Entre no sistema.", semSessao: true }, 401) };
   const perms: string[] = s.perms || [];
-  const pode = s.master === true || perms.includes("*") || perms.includes(modulo);
+  const aceitos = Array.isArray(modulo) ? modulo : [modulo];
+  const pode = s.master === true || perms.includes("*") || aceitos.some((x) => perms.includes(x));
   if (!pode) return { resposta: json({ erro: "Voce nao tem acesso a este modulo." }, 403) };
   return { sessao: s };
 }
@@ -151,7 +165,10 @@ Deno.serve(async (req: Request) => {
       }
 
       case "produtos": {
-        const g = await exigirSessao(req, "produtos");
+        // "produtos" e modulo APOSENTADO (ver APOSENTADOS em src/lib/modulos.js):
+        // ninguem consegue mais receber esse id, entao na pratica so master/`*`
+        // carregava as ordens. "permutas" e o modulo vivo que precisa delas.
+        const g = await exigirSessao(req, ["produtos", "permutas"]);
         if (g.resposta) return g.resposta;
         const [os, status] = await Promise.all([lerCacheComData("ordens"), lerCache("status")]);
         talvezAquecer(status);

@@ -20,6 +20,7 @@ export const MODULOS = [
   { id: "glossario", nome: "Glossário", sub: "os termos de comunicação visual explicados" },
   { id: "manutencoes", nome: "Manutenções", sub: "carros, máquinas e prédio: gasto e histórico" },
   { id: "patrimonio", nome: "Patrimônio", sub: "o que a empresa tem, por setor, com etiqueta e valor" },
+  { id: "permutas", nome: "Permutas", sub: "o que o parceiro nos deu, as O.S. que ele já gastou e o saldo" },
   { id: "configuracoes", nome: "Configurações", sub: "motivos, régua de cobrança e parâmetros — vale para todo mundo" },
 ];
 

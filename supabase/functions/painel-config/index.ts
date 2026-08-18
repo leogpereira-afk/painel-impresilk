@@ -37,7 +37,7 @@ const sb = createClient(SUPABASE_URL, SERVICE_KEY, { auth: { persistSession: fal
 // "assinaturas" sao as contas dos SISTEMAS (Supabase, GitHub, Claude...): dia
 // do vencimento, valor e o mes que ja foi pago. Mesmo mecanismo, um registro
 // por servico.
-const OVERLAYS = new Set(["ov_rec", "ov_orc", "marketing", "bancos", "glossario", "compromissos", "manutencoes", "patrimonio", "setores", "assinaturas"]);
+const OVERLAYS = new Set(["ov_rec", "ov_orc", "marketing", "bancos", "glossario", "compromissos", "manutencoes", "patrimonio", "setores", "assinaturas", "permutas"]);
 // Chaves em que cada pessoa so enxerga e mexe no que E DELA. A vendedora nao
 // pode ver a agenda da colega, e a direcao ve tudo. Isso e checado no
 // SERVIDOR: filtrar so na tela seria conforto, nao separacao.
@@ -181,6 +181,7 @@ Deno.serve(async (req: Request) => {
     // Duas chaves, um modulo so: os setores existem para o patrimonio.
     patrimonio: "patrimonio",
     setores: "patrimonio",
+    permutas: "permutas",
     // As contas dos sistemas sao assunto da direcao: moram na tela de Gestao.
     assinaturas: "gestao",
   };
@@ -371,6 +372,46 @@ Deno.serve(async (req: Request) => {
               }
               (camposLimpos as any).pagos = atualPagos;
               delete (camposLimpos as any).pagosPatch;
+            }
+            /* `osPatch` aceita e tira O.S. da permuta, uma a uma (null tira).
+               NAO e feito aqui: e feito NO BANCO, pela funcao
+               `permuta_mexer_os`, e sai por este `continue` sem passar pelo
+               ler-calcular-gravar de baixo.
+
+               POR QUE: o merge desta funcao le o registro, calcula o fundido e
+               grava -- tres passos. Isso resolve o cliente com estado velho (a
+               aba aberta ha dez minutos), que e o caso do `pagosPatch` acima.
+               NAO resolve duas chamadas de verdade simultaneas: as duas leem o
+               mesmo registro antes de qualquer uma gravar. Provado contra a
+               producao antes desta mudanca -- dois aceites disparados juntos,
+               O.S. 111 e 222, terminaram so com a 222 no registro. Numa
+               permuta isso e dinheiro: a O.S. some, para de abater o credito e
+               o saldo sobe sozinho, sem erro nenhum na tela.
+
+               No banco os tres passos viram um, com a linha travada. Nada
+               passa no meio.
+
+               O SERVIDOR NAO CONFERE O VALOR de cada O.S.: ele guarda o que a
+               direcao aceitou. Quem confere contra o ERP e a tela, a cada
+               carga, e ela MOSTRA a divergencia (ver linhasDaPermuta). Conferir
+               aqui exigiria o cache de ordens dentro do painel-config -- e
+               recusar por divergencia trancaria o lancamento por causa de uma
+               correcao legitima no ERP. */
+            if (camposLimpos.osPatch && typeof camposLimpos.osPatch === "object") {
+              const { data: novoReg, error: erroOS } = await sb.rpc("permuta_mexer_os", {
+                p_id: id,
+                p_patch: camposLimpos.osPatch,
+              });
+              if (erroOS) throw new Error(erroOS.message);
+              if (novoReg === null) {
+                return resposta({ erro: "Essa permuta nao existe mais -- recarregue a tela." }, 409);
+              }
+              // Os outros campos do mesmo pedido seriam gravados pelo caminho
+              // de baixo, que reescreve o registro INTEIRO -- e desfaria o que
+              // a funcao acabou de fazer. A tela manda `osPatch` sozinho (ver
+              // `mexerNasOS` em services/permutas.js); se vier acompanhado, o
+              // acompanhante e ignorado de proposito.
+              continue;
             }
             const fundido: any = { ...(data?.registro ?? {}), ...camposLimpos };
             if (POR_DONO.has(chave)) {

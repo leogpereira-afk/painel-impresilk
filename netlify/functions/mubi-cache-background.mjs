@@ -171,6 +171,8 @@ function itemProduto(it, categoriaPorNome, valorTotal) {
   };
 }
 
+const soDigitos = (v) => String(v ?? "").replace(/\D/g, "");
+
 export function normOS(os, i, categoriaPorNome) {
   const itens = [];
   for (const it of Array.isArray(os.itens) ? os.itens : []) {
@@ -205,6 +207,17 @@ export function normOS(os, i, categoriaPorNome) {
     id: String(os.id ?? `os-${i}`),
     numero: String(os.sequencial_ordem || os.sequencial_orcamento || os.id || ""),
     cliente: String(os.cliente || "Cliente"),
+    // O CNPJ/CPF de quem comprou. A O.S. e identificada pelo NOME do cliente em
+    // todo o painel, e nome nao e chave: a mesma empresa aparece como duas
+    // razoes sociais (SPE ... e ... CONSTRUTORA) e duas empresas do mesmo grupo
+    // aparecem como uma so na hora de somar. Na tela de Permutas isso decide o
+    // saldo, porque uma permuta costuma abranger mais de um CNPJ do mesmo dono.
+    //
+    // O ERP nomeia esse campo de quatro jeitos conforme o cadastro; a mesma
+    // lista que o PCP usa em pcp-mubisys. Vazio e resposta legitima (pessoa
+    // fisica sem cadastro completo), entao a tela nao pode EXIGIR o CNPJ --
+    // ele qualifica o nome, nao substitui.
+    cnpj: soDigitos(os.cpf_cnpj ?? os.cpfcnpj ?? os.cnpj ?? os.cpf ?? ""),
     // Quem vendeu. O contas-receber do Mubisys nao tem vendedor: a cobranca
     // descobre com quem falar ligando o titulo (campo `despesa` = numero da OS)
     // a esta OS. Ver src/lib/calc/contasAtrasadas.js.
