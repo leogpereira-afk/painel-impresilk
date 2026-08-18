@@ -143,6 +143,12 @@ const alvoNoSistema = (conta: any, sistema: string, papel?: any) => {
   if (sistema === "rh") {
     return texto(conta.colaborador_id, 120) || texto(conta.colaborador, 160);
   }
+  /* O DRE NAO TEM MAIS CONTA COM SENHA. Decisao do Leonardo em 18/08/2026: quem
+     entra la entra pelo cracha do Painel, e a senha compartilhada (`equipe`) foi
+     aposentada. O cracha carrega o USUARIO DA CONTA como `sub` -- nunca o login
+     por sistema --, entao e o usuario que tem de casar. Obedecer a um login
+     gravado aqui faria a tela procurar um nome que o cracha nao carrega. */
+  if (sistema === "dre") return texto(conta.usuario, 60);
   const gravado = texto(papel?.login, 160);
   if (gravado) return gravado;
   return texto(conta.usuario, 60);
@@ -225,6 +231,31 @@ async function estadoReal(): Promise<MapaReal> {
        em "nao existe no RH" e a tela ofereceria criar uma segunda. */
     if (c.colaborador_id) por("rh")[normalizar(c.colaborador_id)] = real;
     por("rh")[normalizar(c.usuario)] = real;
+  }
+
+  /* O DRE TAMBEM NAO TEM MAIS TABELA DE CONTAS. Ate 18/08/2026 ele era uma
+     porta com uma senha so (`equipe` em equipe_contas); o Leonardo aposentou a
+     senha e passou a entrada para o cracha do Painel. Sem este ramo, TODO MUNDO
+     marcado no DRE apareceria como "nao existe la" -- e a tela ofereceria criar
+     uma conta num sistema que nao guarda conta nenhuma.
+     Aqui, como na Central, a propria linha de acesso e a verdade. */
+  {
+    const { data: doDre } = await sb.from("acesso_papel")
+      .select("conta_id, papel, ativo").eq("sistema", "dre");
+    if (doDre?.length) {
+      const { data: donos } = await sb.from("acesso_conta")
+        .select("id, usuario, nome, ativo, atualizado_em")
+        .in("id", doDre.map((p: any) => p.conta_id));
+      for (const p of doDre) {
+        const d = (donos ?? []).find((x: any) => x.id === p.conta_id);
+        if (!d) continue;
+        por("dre")[normalizar(d.usuario)] = {
+          login: d.usuario, papel: p.papel ?? "equipe",
+          ativo: d.ativo !== false && p.ativo !== false,
+          temporaria: false, em: d.atualizado_em, nome: d.nome || d.usuario,
+        };
+      }
+    }
   }
 
   /* A CENTRAL NAO TEM TABELA DE CONTAS, e nao e esquecimento: o app pessoal do

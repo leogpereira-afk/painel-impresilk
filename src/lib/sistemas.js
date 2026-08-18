@@ -110,9 +110,12 @@ export const SISTEMAS = [
     id: "dre",
     nome: "DRE",
     url: "https://impresilk.com.br/dre",
-    // O DRE e uma PORTA, nao um quadro de gente: uma senha da equipe. Nao ha
-    // pagina de acessos la dentro, e isso e desenho.
-    acessos: { url: "", caminho: "não tem — o DRE é uma porta só, e a senha se troca por aqui" },
+    /* O DRE NAO GUARDA CONTA. Ate 18/08/2026 era uma porta com UMA senha
+       compartilhada (`equipe`). O Leonardo aposentou a senha: quem entra la
+       entra com o cracha do Painel, e quem entra e quem estiver marcado aqui.
+       Nao ha pagina de acessos la dentro, e agora isso e ainda mais verdade --
+       nao ha o que administrar de dentro. */
+    acessos: { url: "", caminho: "não tem — entra-se com a senha do Painel, e quem entra se marca aqui" },
     papeis: ["equipe"],
     papelInicial: "equipe",
     papeisAdmin: [],
