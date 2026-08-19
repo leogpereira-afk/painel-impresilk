@@ -44,7 +44,7 @@ import {
   fichaDaOS, resumoDaPermuta, resumoGeral, ordensDosClientes, donoPorOS,
 } from "../lib/calc/permutas.js";
 import { moedaCheia, paraNumero, dataCurta, dataLonga } from "../lib/format.js";
-import { Card, PageTitle, SectionTitle, Empty, CarregandoModulo } from "../components/ui.jsx";
+import { Card, PageTitle, SectionTitle, Empty, CarregandoModulo, BotaoPDF, CabecalhoImpressao } from "../components/ui.jsx";
 
 const novoId = (p) => `${p}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
 
@@ -125,21 +125,34 @@ function Barra({ pct }) {
 }
 
 function CartaoPermuta({ p, aoAbrir }) {
+  /* ESTOUROU O CRÉDITO: o cartão INTEIRO fica vermelho, não só o número.
+     Numa lista de permutas a direção passa o olho pelo conjunto -- um número
+     vermelho de 20px no meio de um cartão branco some no meio dos outros, e
+     "consumiu além do crédito" é exatamente o estado que não pode passar
+     despercebido: é dinheiro que a empresa tem a receber e ninguém está
+     cobrando. Encerrada não conta: ali o saldo negativo já foi resolvido. */
+  const estourou = p.saldo < 0 && !p.encerrada;
   return (
     <button
       type="button"
       onClick={() => aoAbrir(p.id)}
-      className="w-full rounded-xl border border-slate-200 bg-white p-4 text-left transition hover:border-brand-300 hover:shadow-sm"
+      className={`w-full rounded-xl border p-4 text-left transition hover:shadow-sm ${
+        estourou
+          ? "border-bad-300 bg-bad-50 hover:border-bad-400"
+          : "border-slate-200 bg-white hover:border-brand-300"
+      }`}
     >
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0">
           <div className="flex items-center gap-2">
-            <span className="truncate font-medium text-slate-800">{p.nome || "Sem nome"}</span>
+            <span className={`truncate font-medium ${estourou ? "text-bad-800" : "text-slate-800"}`}>
+              {p.nome || "Sem nome"}
+            </span>
             {p.encerrada && (
               <span className="shrink-0 rounded-full bg-slate-100 px-2 py-0.5 text-[11px] text-slate-500">encerrada</span>
             )}
           </div>
-          <div className="mt-0.5 truncate text-xs text-slate-500">
+          <div className={`mt-0.5 truncate text-xs ${estourou ? "text-bad-700" : "text-slate-500"}`}>
             {(p.clientes || []).length
               ? (p.clientes || []).map((c) => c.nome).join(" · ")
               : "sem cliente ligado ainda"}
@@ -149,11 +162,15 @@ function CartaoPermuta({ p, aoAbrir }) {
       </div>
       <div className="mt-3 space-y-1.5">
         <Barra pct={p.pct} />
-        <div className="flex flex-wrap justify-between gap-x-3 text-[11px] text-slate-500">
+        <div className={`flex flex-wrap justify-between gap-x-3 text-[11px] ${estourou ? "text-bad-700" : "text-slate-500"}`}>
           <span>{dinheiro(p.consumido)} usados de {dinheiro(p.credito)}</span>
           <span>
             {p.linhas.length} O.S.
-            {p.lancamentos.length > 0 && <span> · {p.lancamentos.length} manual</span>}
+            {/* Crédito e consumo contados SEPARADOS. Somados viravam "1 manual"
+                num lançamento que era crédito -- e ler "manual" ao lado do que
+                foi gasto sugere gasto. */}
+            {p.creditos.length > 0 && <span> · {p.creditos.length} crédito</span>}
+            {p.consumos.length > 0 && <span> · {p.consumos.length} consumo</span>}
             {(p.anexos || []).length > 0 && <span> · {p.anexos.length} anexo</span>}
             {p.mudaram > 0 && <span className="ml-1 text-warn-700">· {p.mudaram} mudou</span>}
             {p.sumiram > 0 && <span className="ml-1 text-bad-700">· {p.sumiram} sumiu</span>}
@@ -642,13 +659,20 @@ export default function Permutas() {
     () => ordensDosClientes(ordens, chavesDaPermuta, donos, aberta),
     [ordens, chavesDaPermuta, donos, aberta],
   );
+  /* A O.S. JÁ ACEITA SAI DAQUI. Ela aparecia marcada, e ficar marcada não
+     ajuda em nada: a lista de escolher existe para achar o que FALTA. Com 25
+     aceitas numa carteira de 40, a pessoa percorre a lista inteira caçando as
+     15 que ainda não entraram. Quem já entrou está logo acima, em "O.S. que
+     entram nesta permuta", e sai de lá pelo botão de tirar. */
   const paraEscolherFiltradas = useMemo(() => {
+    const livres = paraEscolher.filter((o) => !o.nesta);
     const t = buscaOS.trim().toLowerCase();
-    if (!t) return paraEscolher;
-    return paraEscolher.filter(
+    if (!t) return livres;
+    return livres.filter(
       (o) => o.numero.toLowerCase().includes(t) || o.cliente.toLowerCase().includes(t),
     );
   }, [paraEscolher, buscaOS]);
+  const jaAceitasAqui = useMemo(() => paraEscolher.filter((o) => o.nesta).length, [paraEscolher]);
 
   const clientesAchados = useMemo(() => {
     const jaTem = new Set(chavesDaPermuta);
@@ -689,6 +713,18 @@ export default function Permutas() {
         <input ref={arquivoRef} type="file" className="hidden" onChange={(e) => anexar(e.target.files?.[0])} />
 
         <Card className="space-y-4">
+          {/* SÓ NO PAPEL. Na tela o nome da permuta está no campo ao lado, que
+              o `@media print` esconde por ser `input` -- sem isto o PDF saía
+              sem dizer de quem é. */}
+          <CabecalhoImpressao
+            titulo={`Impresilk — Permuta: ${permuta.nome || "sem nome"}`}
+            linhas={[
+              (permuta.clientes || []).map((c) => c.nome).join(" · ") || "sem cliente ligado",
+              `Emitido em ${dataLonga(hojeISO())}`,
+              `Crédito ${dinheiro(resumo.credito)} · consumido ${dinheiro(resumo.consumido)} · saldo ${dinheiro(resumo.saldo)}`,
+              resumo.saldo < 0 ? "O parceiro consumiu além do crédito." : null,
+            ]}
+          />
           <div className="flex flex-wrap items-start justify-between gap-4">
             <input
               className="input max-w-sm flex-1 text-lg font-medium"
@@ -701,6 +737,12 @@ export default function Permutas() {
               <button type="button" className="btn-ghost" onClick={() => setVerHistorico((v) => !v)}>
                 <History size={15} /> Histórico
               </button>
+              {/* O PDF é a TELA impressa, não um documento paralelo: o que o
+                  parceiro recebe é exatamente o que a direção está vendo. Um
+                  gerador separado vira uma segunda verdade que ninguém lembra
+                  de atualizar junto. O `@media print` do index.css tira botões
+                  e campos; o que sobra é a conta. */}
+              <BotaoPDF titulo="Gera um PDF desta permuta para enviar ao parceiro" />
               <button
                 type="button"
                 className="btn-ghost"
@@ -769,7 +811,7 @@ export default function Permutas() {
         )}
 
         {/* ------------------------------------------------- de quem é */}
-        <Card className="space-y-3">
+        <Card className="space-y-3 sem-impressao">
           <SectionTitle
             titulo="Clientes desta permuta"
             sub="Uma permuta pode abranger mais de um CNPJ do mesmo dono — some todos aqui."
@@ -945,10 +987,10 @@ export default function Permutas() {
         </Card>
 
         {/* ------------------------------------------------- escolher */}
-        <Card className="space-y-3">
+        <Card className="space-y-3 sem-impressao">
           <SectionTitle
             titulo="Escolher O.S."
-            sub="Só as dos clientes acima. Marque as que fazem parte da permuta — o mesmo cliente também compra pagando."
+            sub="O que ainda NÃO entrou, dos clientes acima. Marque as que fazem parte da permuta — o mesmo cliente também compra pagando."
             acao={
               paraEscolher.length > 8 && (
                 <div className="relative">
@@ -1006,7 +1048,9 @@ export default function Permutas() {
             <Empty>
               {buscaOS.trim()
                 ? "Nenhuma O.S. com esse número ou nome."
-                : `Esses clientes não têm O.S. a partir de ${dataLonga(desde)}.`}
+                : jaAceitasAqui > 0
+                  ? `Todas as ${jaAceitasAqui} O.S. desses clientes já entraram na permuta.`
+                  : `Esses clientes não têm O.S. a partir de ${dataLonga(desde)}.`}
             </Empty>
           )}
         </Card>
