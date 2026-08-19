@@ -6,7 +6,7 @@
 // clicaveis, ha busca por empresa, e cada linha de titulo expande com os
 // detalhes. A lista de titulos vem logo abaixo do painel de numeros.
 
-import { useMemo, useRef, useState, lazy, Suspense } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, lazy, Suspense } from "react";
 import {
   AlertTriangle,
   Phone,
@@ -24,6 +24,10 @@ import {
 const CurvaDso = lazy(() => import("../components/CurvaDso.jsx"));
 import { useApp } from "../config/store.jsx";
 import { calcContasAtrasadas, agruparDividas } from "../lib/calc/contasAtrasadas.js";
+import {
+  carteiraDeCobranca, resumoDaCarteira, chaveCliente as chaveCob, SITUACOES, CANAIS,
+} from "../lib/calc/cobrancas.js";
+import { lerCobrancas, salvarChamado } from "../services/cobrancas.js";
 import { moeda, numero, dataLonga, dataCurta, rotuloMes, ymdLocal, MESES } from "../lib/format.js";
 import { Selo, Avatar, Dinheiro, FaixaNumeros, LinhaLista } from "../components/lista.jsx";
 import {
@@ -39,6 +43,154 @@ import {
   CabecalhoImpressao,
   AvisoDadoParado,
 } from "../components/ui.jsx";
+
+/* UM CARTÃO POR CLIENTE QUE DEVE, com o que já foi tentado.
+ *
+ * A tela respondia "quem deve". Não respondia "o que eu já tentei com este" --
+ * e é essa que trava a cobrança: ligar de novo sem saber que o cliente
+ * prometeu pagar dia 20 queima a relação e o tempo. Aqui o histórico sai da
+ * cabeça de quem ligou e vira registro, com quem falou e quando carimbados
+ * pelo servidor.
+ */
+function CartaoCobranca({ c, aberto, aoAbrir, aoRegistrar, aoApagar, salvando }) {
+  const alerta = c.promessaVencida ? "bad" : c.semChamado ? "warn" : null;
+  return (
+    <div
+      className={`rounded-xl border p-4 ${
+        alerta === "bad" ? "border-bad-300 bg-bad-50"
+        : alerta === "warn" ? "border-warn-200 bg-warn-50"
+        : "border-slate-200 bg-white"
+      }`}
+    >
+      <button type="button" onClick={() => aoAbrir(aberto ? null : c.chave)} className="w-full text-left">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <div className="truncate font-medium text-slate-800">{c.cliente}</div>
+            <div className="mt-0.5 text-xs text-slate-500">
+              {numero(c.qtd)} {c.qtd === 1 ? "título" : "títulos"} · maior atraso {numero(c.maiorAtraso)} dias
+            </div>
+          </div>
+          <div className="shrink-0 text-right">
+            <div className="text-xl font-semibold tabular-nums text-slate-800">{moeda(c.valor)}</div>
+          </div>
+        </div>
+
+        <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px]">
+          {c.promessaVencida && (
+            <Selo tom="bad">prometeu {dataCurta(c.ultimo.promessa)} e não pagou</Selo>
+          )}
+          {c.semChamado && <Selo tom="warn">nunca chamado</Selo>}
+          {!c.semChamado && !c.promessaVencida && c.situacaoRotulo && (
+            <Selo tom={c.situacaoTom}>{c.situacaoRotulo}</Selo>
+          )}
+          {c.diasSemContato !== null && (
+            <span className="text-slate-500">
+              último contato há {numero(c.diasSemContato)} {c.diasSemContato === 1 ? "dia" : "dias"}
+              {c.ultimo?.canal ? ` · ${c.ultimo.canal}` : ""}
+            </span>
+          )}
+        </div>
+
+        {c.ultimo?.resumo && !aberto && (
+          <div className="mt-1.5 line-clamp-2 text-xs text-slate-600">“{c.ultimo.resumo}”</div>
+        )}
+      </button>
+
+      {aberto && (
+        <div className="mt-3 space-y-3 border-t border-slate-200 pt-3">
+          <FormChamado cliente={c} aoSalvar={aoRegistrar} salvando={salvando} />
+          {c.chamados.length > 0 && (
+            <ol className="space-y-2">
+              {c.chamados.map((ch) => (
+                <li key={ch.id} className="flex gap-3 text-sm">
+                  <span className="w-24 shrink-0 text-[11px] tabular-nums text-slate-400">
+                    {ch.data ? dataLonga(ch.data) : "—"}
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="text-slate-700">
+                      {ch.canal && <b>{ch.canal}</b>}
+                      {ch.contato && ` com ${ch.contato}`}
+                      {ch.resumo && ` — ${ch.resumo}`}
+                    </span>
+                    <span className="block text-[11px] text-slate-400">
+                      {SITUACOES.find((x) => x.id === ch.situacao)?.rotulo || ch.situacao}
+                      {ch.promessa && ` · pagaria em ${dataLonga(ch.promessa)}`}
+                      {ch.quemNome && ` · anotado por ${ch.quemNome}`}
+                    </span>
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => aoApagar(c, ch)}
+                    className="shrink-0 self-start rounded p-1 text-slate-300 hover:bg-bad-50 hover:text-bad-600"
+                    aria-label="Apagar este chamado"
+                  >
+                    ✕
+                  </button>
+                </li>
+              ))}
+            </ol>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+const CHAMADO_VAZIO = { data: "", canal: "Ligação", contato: "", resumo: "", situacao: "semResposta", promessa: "" };
+
+/* O formulário de um chamado. `situacao` é escolha fechada de propósito: campo
+   livre vira cinco jeitos de escrever "prometeu pagar" e aí não dá para
+   filtrar nem contar. Só "Prometeu pagar" pede data. */
+function FormChamado({ cliente, aoSalvar, salvando }) {
+  const [f, setF] = useState(() => ({ ...CHAMADO_VAZIO, data: ymdLocal(new Date()) }));
+  const sit = SITUACOES.find((x) => x.id === f.situacao);
+  return (
+    <div className="grid gap-2 rounded-lg bg-white/70 p-3 sm:grid-cols-[9rem_9rem_1fr]">
+      <input type="date" className="input" value={f.data} onChange={(e) => setF({ ...f, data: e.target.value })} />
+      <select className="input" value={f.canal} onChange={(e) => setF({ ...f, canal: e.target.value })}>
+        {CANAIS.map((c) => <option key={c} value={c}>{c}</option>)}
+      </select>
+      <input
+        className="input"
+        placeholder="Com quem falou"
+        value={f.contato}
+        onChange={(e) => setF({ ...f, contato: e.target.value })}
+      />
+      <select
+        className="input sm:col-span-2"
+        value={f.situacao}
+        onChange={(e) => setF({ ...f, situacao: e.target.value, promessa: "" })}
+      >
+        {SITUACOES.map((x) => <option key={x.id} value={x.id}>{x.rotulo}</option>)}
+      </select>
+      {sit?.pedeData ? (
+        <input
+          type="date"
+          className="input"
+          title="Data em que prometeu pagar"
+          value={f.promessa}
+          onChange={(e) => setF({ ...f, promessa: e.target.value })}
+        />
+      ) : <div className="hidden sm:block" />}
+      <input
+        className="input sm:col-span-3"
+        placeholder="O que ficou combinado"
+        value={f.resumo}
+        onChange={(e) => setF({ ...f, resumo: e.target.value })}
+      />
+      <div className="sm:col-span-3">
+        <button
+          type="button"
+          className="btn"
+          disabled={salvando}
+          onClick={() => aoSalvar(cliente, f, () => setF({ ...CHAMADO_VAZIO, data: ymdLocal(new Date()) }))}
+        >
+          Salvar chamado
+        </button>
+      </div>
+    </div>
+  );
+}
 
 // Cor de barra por grupo de causa.
 function tomDoGrupo(grupo) {
@@ -96,6 +248,20 @@ export default function ContasAtrasadas() {
   const [anoSel, setAnoSel] = useState(""); // ano de vencimento (AAAA)
   const [mesSel, setMesSel] = useState(""); // mes de vencimento (01-12)
   const [visao, setVisao] = useState("mes"); // dash das dividas: ano | mes | cliente
+
+  /* A CARTEIRA DE COBRANÇA. Carregada uma vez, à parte do cache do ERP: são as
+     anotações da direção, não dado do Mubisys. */
+  const [cobrancas, setCobrancas] = useState(null);
+  const [clienteAberto, setClienteAberto] = useState(null);
+  const [salvandoChamado, setSalvandoChamado] = useState(false);
+  const [avisoCob, setAvisoCob] = useState(null);
+  useEffect(() => {
+    let vivo = true;
+    lerCobrancas()
+      .then((c) => vivo && setCobrancas(c))
+      .catch((e) => vivo && setAvisoCob(e.message));
+    return () => { vivo = false; };
+  }, []);
   const titulosRef = useRef(null);
 
   const vm = useMemo(
@@ -229,6 +395,54 @@ export default function ContasAtrasadas() {
   // que o gestor esta olhando (e nao sobre um total que nao esta na tela).
   const dividas = useMemo(() => agruparDividas(titulosFiltrados), [titulosFiltrados]);
 
+  /* A CARTEIRA usa TODOS os atrasados, não os filtrados: cobrar é percorrer a
+     dívida inteira cliente a cliente, e um filtro de tela ligado na aba ao lado
+     esconderia gente que precisa de ligação -- sem dizer que escondeu. */
+  const carteira = useMemo(
+    () => (vm ? carteiraDeCobranca(vm.titulos, cobrancas || {}, ymdLocal(new Date())) : []),
+    [vm, cobrancas],
+  );
+  const resumoCob = useMemo(() => resumoDaCarteira(carteira), [carteira]);
+
+  const registrarChamado = useCallback(async (c, form, limpar) => {
+    setAvisoCob(null);
+    setSalvandoChamado(true);
+    try {
+      const id = `ch-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+      /* O pacote que o SERVIDOR devolve vira o novo estado -- nunca o objeto
+         montado aqui. Duas abas anotando ligações do mesmo dia não se apagam. */
+      setCobrancas(await salvarChamado(chaveCob(c.cliente), {
+        cliente: c.cliente,
+        chamadoId: id,
+        chamado: {
+          data: form.data || ymdLocal(new Date()),
+          canal: form.canal,
+          contato: String(form.contato || "").trim().slice(0, 120),
+          resumo: String(form.resumo || "").trim().slice(0, 500),
+          situacao: form.situacao,
+          promessa: form.situacao === "prometeu" ? form.promessa : "",
+        },
+      }));
+      limpar?.();
+    } catch (e) {
+      setAvisoCob(e.message);
+    } finally {
+      setSalvandoChamado(false);
+    }
+  }, []);
+
+  const apagarChamado = useCallback(async (c, ch) => {
+    if (!window.confirm("Apagar este chamado do histórico?")) return;
+    setAvisoCob(null);
+    try {
+      setCobrancas(await salvarChamado(chaveCob(c.cliente), {
+        cliente: c.cliente, chamadoId: ch.id, chamado: null,
+      }));
+    } catch (e) {
+      setAvisoCob(e.message);
+    }
+  }, []);
+
   // Anos disponiveis (dos titulos, nao inventados), para o seletor.
   const anosDisponiveis = useMemo(() => {
     if (!vm) return [];
@@ -323,6 +537,7 @@ export default function ContasAtrasadas() {
         <Segmented
           opcoes={[
             { valor: "lista", rotulo: `A cobrar (${numero(k.qtd)})` },
+            { valor: "cobranca", rotulo: `Cobrança (${numero(carteira.length)})` },
             { valor: "analise", rotulo: "Análise" },
           ]}
           valor={aba}
@@ -927,6 +1142,73 @@ export default function ContasAtrasadas() {
           dívida, ranking, motivos, padrões, idade, plano, cobrar hoje, DSO)
           empilhados embaixo da lista: leitura de reunião ocupando a tela de
           quem está cobrando. Nada foi apagado -- mudou de lugar. */}
+      {/* ------------------------------------------------------- COBRANÇA */}
+      {aba === "cobranca" && (
+        <div className="space-y-4 sem-impressao">
+          {avisoCob && (
+            <Card className="text-sm text-bad-700">{avisoCob}</Card>
+          )}
+
+          {/* Os três números que MUDAM O QUE SE FAZ AGORA. Não são três jeitos
+              de somar a mesma dívida: o primeiro é ligar hoje, o segundo é
+              começar, o terceiro é esperar. */}
+          <div className="grid gap-3 sm:grid-cols-3">
+            <Card className="p-4">
+              <div className="text-xs text-slate-500">Prometeram e não pagaram</div>
+              <div className={`mt-1 text-2xl font-semibold tabular-nums ${resumoCob.quebradas ? "text-bad-700" : "text-slate-800"}`}>
+                {moeda(resumoCob.valorQuebrado)}
+              </div>
+              <div className="mt-0.5 text-xs text-slate-500">
+                {numero(resumoCob.quebradas)} {resumoCob.quebradas === 1 ? "cliente" : "clientes"} · ligue hoje
+              </div>
+            </Card>
+            <Card className="p-4">
+              <div className="text-xs text-slate-500">Nunca foram chamados</div>
+              <div className={`mt-1 text-2xl font-semibold tabular-nums ${resumoCob.semChamado ? "text-warn-700" : "text-slate-800"}`}>
+                {moeda(resumoCob.valorSemChamado)}
+              </div>
+              <div className="mt-0.5 text-xs text-slate-500">
+                {numero(resumoCob.semChamado)} {resumoCob.semChamado === 1 ? "cliente" : "clientes"} · a cobrança nem começou
+              </div>
+            </Card>
+            <Card className="p-4">
+              <div className="text-xs text-slate-500">Prometeram, data não chegou</div>
+              <div className="mt-1 text-2xl font-semibold tabular-nums text-ok-700">
+                {moeda(resumoCob.valorAguardando)}
+              </div>
+              <div className="mt-0.5 text-xs text-slate-500">
+                {numero(resumoCob.aguardando)} {resumoCob.aguardando === 1 ? "cliente" : "clientes"} · não ligar, esperar
+              </div>
+            </Card>
+          </div>
+
+          <SectionTitle
+            titulo="Carteira de cobrança"
+            sub="Um cartão por cliente que deve. Clique para ver o histórico e anotar a ligação — quem falou e quando ficam registrados."
+          />
+
+          {cobrancas === null ? (
+            <Empty>Carregando o histórico de cobrança…</Empty>
+          ) : carteira.length ? (
+            <div className="grid gap-3 sm:grid-cols-2">
+              {carteira.map((c) => (
+                <CartaoCobranca
+                  key={c.chave}
+                  c={c}
+                  aberto={clienteAberto === c.chave}
+                  aoAbrir={setClienteAberto}
+                  aoRegistrar={registrarChamado}
+                  aoApagar={apagarChamado}
+                  salvando={salvandoChamado}
+                />
+              ))}
+            </div>
+          ) : (
+            <Empty>Nenhum título vencido — nada a cobrar.</Empty>
+          )}
+        </div>
+      )}
+
       {aba === "analise" && (
       <>
       {/* Onde a divida esta: mesmo recorte da lista acima, visto por tres
