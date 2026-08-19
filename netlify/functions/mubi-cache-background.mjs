@@ -38,6 +38,64 @@ import { mubiGetTudo, mubiConfigurado, hojeMais, num } from "./lib/mubi.js";
 
 // ---- normalizacoes (campos reais do Mubisys, confirmados em 2026-07-14) ----
 
+/* O CONTROLE: quanto cada fonte ABATEU nesta carga.
+ *
+ * Existe porque este defeito ja apareceu TRES vezes, em tres lugares, com a
+ * mesma cara: o painel usando o valor CHEIO onde a realidade e o liquido --
+ * a O.S. sem o desconto (R$ 1,9 milhao), o recebivel sem o pagamento parcial
+ * (R$ 41 mil), o orcamento sem o desconto (R$ 27 mil so em 2026). Todas as
+ * tres passaram batido porque o numero errado era PLAUSIVEL: ninguem olha um
+ * total e sabe que ele deveria ser menor.
+ *
+ * A conferencia nao tenta adivinhar o certo -- ela CONTA quanto foi abatido e
+ * grava no `status`. Se um dia alguem voltar a usar o campo cheio, o numero
+ * vira zero, e zero num campo que sempre teve valor e a denuncia. Uma tela que
+ * mostra "abatidos R$ 0,00 em 0 titulos" na semana seguinte a "R$ 41 mil em 11"
+ * diz sozinha o que aconteceu.
+ *
+ * Nao derruba a carga: e um TERMOMETRO, nao uma trava. Recusar a carga porque a
+ * contagem mudou trocaria um erro silencioso por um painel vazio. */
+export function conferirAbatimentos({ recebiveis = [], pagar = [], ordens = [], orcamentos = [] }) {
+  const cem = (n) => Math.round(n * 100) / 100;
+  const conta = (lista, campo) => {
+    const comAbate = lista.filter((x) => num(x?.[campo]) > 0);
+    return {
+      total: lista.length,
+      abatidos: comAbate.length,
+      valor: cem(comAbate.reduce((s, x) => s + num(x[campo]), 0)),
+    };
+  };
+  return {
+    // Titulo pago em parte: o que sobrou e o que se cobra.
+    recebiveis: conta(recebiveis, "pago"),
+    pagar: conta(pagar, "pago"),
+    // O.S. e orcamento: desconto no cabecalho do ERP.
+    ordens: conta(ordens, "desconto"),
+    orcamentos: conta(orcamentos, "desconto"),
+  };
+}
+
+/* O QUE AINDA SE DEVE NUM TITULO: o valor menos o que ja foi pago.
+ *
+ * Serve a receber E a pagar -- sao o mesmo formato no ERP. Existe como funcao
+ * para a regra ter UM dono: em 19/08/2026 o contas a receber somava R$ 41 mil
+ * que os clientes ja tinham pago, e o contas a pagar tinha o mesmo defeito
+ * apenas dormindo, porque nenhuma conta estava parcelada naquele dia.
+ *
+ * O PAGO VEM DA LISTA. `valor_pagamento` (topo) as vezes vem zerado e as vezes
+ * traz so a ULTIMA parcela: num titulo real da VITTASAUDE ele dizia 1.500 e a
+ * lista somava 4.500. O topo entra so como rede, quando a lista nao veio.
+ *
+ * NUNCA NEGATIVO: pagar mais que o titulo (juros e multa por fora) deixa saldo
+ * ZERO. Negativo viraria credito que a tela somaria ao contrario. */
+function restaDoTitulo(t) {
+  const titulo = num(t?.valor_titulo);
+  const lista = Array.isArray(t?.pagamentos) ? t.pagamentos : [];
+  const somaLista = lista.reduce((s, p) => s + num(p?.valor), 0);
+  const pago = Math.round((somaLista || num(t?.valor_pagamento)) * 100) / 100;
+  return { titulo, pago, valor: Math.max(0, Math.round((titulo - pago) * 100) / 100) };
+}
+
 /* O QUE O CLIENTE AINDA DEVE -- não o valor do título.
  *
  * Um título vencido pode já ter sido pago EM PARTE, e continua VENCIDO no ERP
@@ -61,16 +119,7 @@ import { mubiGetTudo, mubiConfigurado, hojeMais, num } from "./lib/mubi.js";
  * de origem desconhecida, e é assim que um erro destes dura meses.
  */
 export function normRecebivel(r, i) {
-  const titulo = num(r.valor_titulo);
-  const pagos = Array.isArray(r.pagamentos) ? r.pagamentos : [];
-  const somaLista = pagos.reduce((s, p) => s + num(p?.valor), 0);
-  // O topo entra só como rede quando a lista não veio: melhor abater algo
-  // conhecido do que cobrar o cheio.
-  const pago = Math.round((somaLista || num(r.valor_pagamento)) * 100) / 100;
-  /* NUNCA NEGATIVO. Pagamento maior que o título acontece quando o cliente paga
-     com juros e multa por fora; o que ele DEVE, aí, é zero -- e não um crédito
-     que a tela somaria ao contrário. */
-  const resta = Math.max(0, Math.round((titulo - pago) * 100) / 100);
+  const { titulo, pago, valor: resta } = restaDoTitulo(r);
   return {
     id: String(r.id ?? `rec-${i}`),
     cliente: String(r.origem || "Cliente"),
@@ -86,7 +135,7 @@ export function normRecebivel(r, i) {
   };
 }
 
-function normPagar(s, i) {
+export function normPagar(s, i) {
   // origem = nome do credor (PREFEITURA, SIMPLES NACIONAL, um colaborador...);
   // despesa = o que e (IPTU, DARF). A tela precisa dos dois: o nome era jogado
   // fora e a busca por "fornecedor" nunca casava.
@@ -97,7 +146,15 @@ function normPagar(s, i) {
     fornecedor: fornecedor || "Sem credor",
     descricao: despesa || fornecedor || "Saida",
     categoria: String(s.centro_custo || s.tipo || "Fornecedor"),
-    valor: num(s.valor_titulo),
+    /* O QUE AINDA FALTA PAGAR, pela mesma regra do contas a receber: o titulo
+       menos o que ja foi pago. Em 19/08/2026 nenhuma conta a pagar tinha
+       pagamento parcial -- mas o endpoint e o MESMO (`pagamentos[]`, e o
+       `valor_pagamento` do topo com a mesma armadilha da ultima parcela). Ficar
+       certo por sorte nao e ficar certo: no dia em que aparecer o primeiro
+       parcelado, o fluxo de caixa passaria a projetar saida a mais em silencio. */
+    valor: restaDoTitulo(s).valor,
+    valorTitulo: restaDoTitulo(s).titulo,
+    pago: restaDoTitulo(s).pago,
     vencimento: String(s.data_vencimento || ""),
     tipo: "pagar",
   };
@@ -146,14 +203,21 @@ export function normOrcamento(o, i) {
       : s.includes("aberto")
         ? "aberto"
         : "ganho";
+  /* O VALOR DO ORCAMENTO E O FINAL: total menos desconto -- a mesma regra da
+     O.S., pelo mesmo motivo. `valor_total` e o BRUTO. Conferido contra o ERP em
+     19/08/2026: 38 de 200 orcamentos de 2026 tem desconto no cabecalho,
+     R$ 27.311 so nessa amostra. Sem descontar, o funil e a conversao mostram
+     um numero que nunca foi proposto ao cliente. */
   const vt = num(o.valor_total);
-  const valor =
+  const bruto =
     vt > 0
       ? vt
       : (Array.isArray(o.itens) ? o.itens : []).reduce(
           (acc, it) => acc + (num(it.valor_final) || num(it.sub_total)),
           0
         );
+  const descontoOrc = num(o.valor_desconto);
+  const valor = Math.max(0, Math.round((bruto - descontoOrc) * 100) / 100);
   const vendedor = String(o.vendedor || "").trim() || "Sem vendedor";
   return {
     id: String(o.id ?? `orc-${i}`),
@@ -170,6 +234,10 @@ export function normOrcamento(o, i) {
     // --- campos que o ERP ja tinha e o painel ignorava ---
     // Margem: o que sobra de verdade. Faturamento alto com margem baixa nao e
     // prioridade; sem isto a mesa de acao ordenaria pelo numero errado.
+    // Bruto e desconto ao lado do resultado, pelo mesmo motivo da O.S.: guardar
+    // so o liquido faz a conta virar numero de origem desconhecida.
+    valorBruto: bruto,
+    desconto: descontoOrc,
     margem: num(o.valor_margem),
     custo: num(o.valor_custo),
     // Validade em dias a partir do cadastro: da a urgencia real do que esta na mesa.

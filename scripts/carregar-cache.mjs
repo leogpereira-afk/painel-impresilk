@@ -26,7 +26,7 @@
 import {
   etapaRapidos, etapaCompleta, etapaRealizado, calcDso, normOrcamento, normOS, chaveProduto,
   SEM_CATEGORIA, FORA_CATALOGO,
-  etapaHistoricoOS, fatiasPorAno,
+  etapaHistoricoOS, fatiasPorAno, conferirAbatimentos,
 } from "../netlify/functions/mubi-cache-background.mjs";
 import { mubiGetTudo, mubiConfigurado, hojeMais } from "../netlify/functions/lib/mubi.js";
 
@@ -476,8 +476,24 @@ async function main() {
     await gravar("dso_hist", [...hist.filter((p) => p && p.dia !== dia), { dia, dso }].slice(-180));
   }
 
+  /* O CONTROLE DOS ABATIMENTOS, gravado a cada carga.
+     Tres vezes o painel usou o valor CHEIO onde a realidade era o liquido -- e
+     as tres passaram batido porque o numero errado era plausivel. Isto conta
+     quanto foi abatido em cada fonte: se um dia virar zero num campo que
+     sempre teve valor, a denuncia esta na tela. */
+  const abatimentos = conferirAbatimentos({
+    recebiveis: rapidos.recebiveis ?? [],
+    pagar: rapidos.pagar ?? [],
+    ordens: pesados.ordens ?? [],
+    orcamentos: pesados.orcamentos ?? [],
+  });
+  for (const [fonte, a] of Object.entries(abatimentos)) {
+    if (a.total) console.log(`   ${fonte}: ${a.abatidos}/${a.total} abatidos, R$ ${a.valor}`);
+  }
+
   const falhas = [...(rapidos.falhas ?? []), ...(pesados.falhas ?? []), ...recusados];
   await gravar("status", {
+    abatimentos,
     em: new Date().toISOString(), // horario do ULTIMO sucesso (frescor real)
     ok: true,
     modo: MODO,
