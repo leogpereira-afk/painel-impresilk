@@ -176,6 +176,65 @@ Deno.serve(async (req: Request) => {
         return json({ itens: os.valor, atualizadoEm: os.em ?? status?.em ?? null });
       }
 
+      /* A BUSCA DE O.S. DA TELA DE PERMUTAS.
+         Le a TABELA `painel_ordens`, nao o cache. O cache guarda 2025 em
+         diante num vetor JSON que viaja inteiro no login; o historico desde
+         2020 sao ~19.500 O.S. e ~10 MB, e nao pode entrar nesse caminho -- o
+         painel abre com 85 kB e isso o multiplicaria por cem para todo mundo
+         por causa de uma tela que so a direcao usa.
+
+         Aqui desce SO o que foi pedido: os clientes que casam com o que a
+         pessoa digitou, ou as O.S. de um cliente escolhido. */
+      case "ordensBusca": {
+        const g = await exigirSessao(req, ["permutas"]);
+        if (g.resposta) return g.resposta;
+        const url = new URL(req.url);
+        const desde = String(url.searchParams.get("desde") ?? "").slice(0, 10);
+        const clientes = String(url.searchParams.get("clientes") ?? "")
+          .split("|").map((x) => x.trim()).filter(Boolean).slice(0, 20);
+        const termo = String(url.searchParams.get("termo") ?? "").trim().slice(0, 80);
+
+        /* POR ID: as O.S. que as permutas ja aceitaram, para a tela de abertura
+           poder conferir TODOS os saldos contra o ERP de uma vez. Sem isto ela
+           mostraria a soma congelada e teria de admitir que nao conferiu --
+           com a lista aberta na frente, e a hora em que uma O.S. cancelada
+           precisa aparecer. */
+        const ids = String(url.searchParams.get("ids") ?? "")
+          .split("|").map((x) => x.trim()).filter(Boolean).slice(0, 1000);
+        if (ids.length) {
+          const { data, error } = await sb.from("painel_ordens")
+            .select("id, numero, cliente, cnpj, data, valor")
+            .in("id", ids);
+          if (error) throw new Error(error.message);
+          return json({ itens: data ?? [] });
+        }
+
+        // Com clientes escolhidos: as O.S. DELES. Sem clientes: a lista de
+        // nomes que casam com o termo, para a pessoa escolher.
+        if (clientes.length) {
+          let q = sb.from("painel_ordens")
+            .select("id, numero, cliente, cnpj, data, valor")
+            .in("cliente_chave", clientes)
+            .order("data", { ascending: false })
+            .limit(2000);
+          if (/^\d{4}-\d{2}-\d{2}$/.test(desde)) q = q.gte("data", desde);
+          const { data, error } = await q;
+          if (error) throw new Error(error.message);
+          return json({ itens: data ?? [] });
+        }
+
+        if (termo.length < 2) return json({ clientes: [] });
+        /* Agrupar por cliente e somar no banco. Trazer as linhas e agrupar
+           aqui obrigaria a puxar a carteira inteira de cada nome que casa --
+           um "a" traria as vinte mil. */
+        const { data, error } = await sb.rpc("painel_ordens_clientes", {
+          p_termo: termo,
+          p_desde: /^\d{4}-\d{2}-\d{2}$/.test(desde) ? desde : null,
+        });
+        if (error) throw new Error(error.message);
+        return json({ clientes: data ?? [] });
+      }
+
       case "orcamentos": {
         const g = await exigirSessao(req, "orcamentos");
         if (g.resposta) return g.resposta;

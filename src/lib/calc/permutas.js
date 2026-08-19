@@ -49,6 +49,15 @@ export const soDigitos = (v) => String(v ?? "").replace(/\D/g, "");
    vivo. Sem arredondar, a cauda vira diferença e a tela acusaria "mudou no ERP"
    numa O.S. que ninguém tocou. */
 export function valorDaOS(os) {
+  /* DUAS FORMAS DO MESMO DADO. O cache do painel guarda a O.S. com os `itens`
+     (é deles que saem faturamento por produto e categoria). A tabela
+     `painel_ordens`, que a busca da permuta lê, guarda só o `valor` -- os
+     itens é que fazem o histórico de 2020 pesar 10 MB, e a permuta não precisa
+     deles. A conta aceita as duas para que a mesma função sirva à tela e aos
+     testes, e para que trocar a origem não mude o número. */
+  if (os && os.itens == null && os.valor != null) {
+    return Math.round(num(os.valor) * 100) / 100;
+  }
   const bruto = (os?.itens || []).reduce((s, it) => s + num(it.valorTotal), 0);
   return Math.round(bruto * 100) / 100;
 }
@@ -154,6 +163,32 @@ export function linhasDaPermuta(permuta, ordens) {
     .sort((a, b) => String(b.data).localeCompare(String(a.data)));
 }
 
+/* OS LANÇAMENTOS MANUAIS: o que mexeu no saldo sem passar por O.S.
+ *
+ * Nem toda troca vira ordem de serviço. O parceiro leva um brinde, a Impresilk
+ * presta um favor, sobra um acerto em dinheiro, o crédito é aumentado no meio
+ * do contrato. Sem um lugar para isso, esses valores ficam de fora e o saldo
+ * da tela nunca bate com o saldo real -- e um saldo que não bate deixa de ser
+ * consultado em duas semanas.
+ *
+ * `tipo` só tem dois valores e eles são OPOSTOS de propósito:
+ *   "consumo" — abate o crédito (o parceiro levou algo)
+ *   "credito" — aumenta o crédito (nós levamos algo dele, ou ele repôs)
+ * Guardar sinal no valor seria mais curto e pior: um menos digitado sem querer
+ * viraria crédito, e ninguém enxerga um sinal no meio de uma lista de números.
+ */
+export function linhasDosLancamentos(permuta) {
+  return Object.entries(permuta?.lancamentos || {})
+    .map(([id, l]) => ({
+      id,
+      data: String(l?.data ?? ""),
+      descricao: String(l?.descricao ?? ""),
+      valor: Math.round(num(l?.valor) * 100) / 100,
+      tipo: l?.tipo === "credito" ? "credito" : "consumo",
+    }))
+    .sort((a, b) => String(b.data).localeCompare(String(a.data)));
+}
+
 /* O RESUMO: crédito, quanto já foi gasto, quanto sobra.
  *
  * `saldo` positivo = o parceiro ainda tem crédito conosco.
@@ -161,13 +196,25 @@ export function linhasDaPermuta(permuta, ordens) {
  * receber a diferença). Os dois casos são normais; a tela precisa distinguir. */
 export function resumoDaPermuta(permuta, ordens) {
   const linhas = linhasDaPermuta(permuta, ordens);
-  const credito = num(permuta?.credito);
-  const consumido = linhas.reduce((s, l) => s + l.valor, 0);
+  const lancamentos = linhasDosLancamentos(permuta);
+  const lancado = lancamentos.reduce((s, l) => s + (l.tipo === "credito" ? -l.valor : l.valor), 0);
+  const creditoBase = num(permuta?.credito);
+  const emOS = linhas.reduce((s, l) => s + l.valor, 0);
+  // Centavo redondo em cada parcela e no total: a soma tem que bater com o que
+  // a tela mostra linha a linha, senão a conferência com o parceiro trava num
+  // centavo que ninguém acha.
+  const consumido = Math.round((emOS + lancado) * 100) / 100;
+  const credito = Math.round(creditoBase * 100) / 100;
   return {
     linhas,
+    lancamentos,
     credito,
+    emOS: Math.round(emOS * 100) / 100,
+    // Quanto veio de lançamento manual, separado, para a tela poder mostrar de
+    // onde o consumo saiu. Positivo abate, negativo devolve.
+    lancado: Math.round(lancado * 100) / 100,
     consumido,
-    saldo: credito - consumido,
+    saldo: Math.round((credito - consumido) * 100) / 100,
     // Quanto do crédito já virou serviço, para a barra. Sem crédito lançado a
     // barra não tem denominador: devolve null em vez de fingir 0% ou 100%.
     pct: credito > 0 ? Math.min(1, consumido / credito) : null,

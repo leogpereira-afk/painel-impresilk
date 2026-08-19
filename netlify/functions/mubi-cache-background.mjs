@@ -369,6 +369,60 @@ async function catalogoCategorias() {
   return new Map(catalogo.map((p) => [chaveProduto(p.nome), String(p.categoria || "").trim()]));
 }
 
+/* O CNPJ DOS CLIENTES, numa chamada so.
+ *
+ * O endpoint `ordem-servico` NAO manda o documento na listagem: provado em
+ * 19/08/2026, quando 58 O.S. foram renormalizadas com o campo novo e as 58
+ * voltaram vazias. Ele mora no cadastro de clientes.
+ *
+ * Buscar O.S. por O.S. seria impossivel (19 mil chamadas de 25-40s cada).
+ * Buscar o cadastro inteiro e UMA chamada paginada, do mesmo tamanho do
+ * catalogo de produtos que a carga ja faz.
+ *
+ * A juncao e pelo NOME normalizado, que e a unica chave que a O.S. carrega.
+ * Nome nao e chave boa -- e por isso que dois clientes com a mesma razao social
+ * ficam de fora aqui (sem CNPJ) em vez de receberem um chute. O CNPJ nesta tela
+ * QUALIFICA o nome; nao o substitui.
+ *
+ * Falhar aqui NAO derruba a carga: sem CNPJ a permuta funciona pelo nome.
+ */
+async function cnpjPorNomeDeCliente() {
+  try {
+    const clientes = await mubiGetTudo("cliente");
+    if (!clientes.length) {
+      console.warn("cadastro de clientes veio vazio -- O.S. ficam sem CNPJ nesta carga");
+      return new Map();
+    }
+    const porNome = new Map();
+    const repetidos = new Set();
+    for (const c of clientes) {
+      const nome = String(c.nome || c.razao_social || c.cliente || "").trim();
+      const doc = String(c.cpf_cnpj ?? c.cpfcnpj ?? c.cnpj ?? c.cpf ?? "").replace(/\D/g, "");
+      if (!nome || !doc) continue;
+      const k = chaveClienteOS(nome);
+      const ja = porNome.get(k);
+      if (ja && ja !== doc) { repetidos.add(k); continue; }
+      porNome.set(k, doc);
+    }
+    // Razao social repetida com documentos diferentes: nenhum dos dois vale.
+    for (const k of repetidos) porNome.delete(k);
+    if (repetidos.size) {
+      console.warn(`${repetidos.size} nomes de cliente com CNPJ diferente entre si -- ficaram sem documento`);
+    }
+    return porNome;
+  } catch (e) {
+    console.warn("cadastro de clientes falhou:", e?.message || e);
+    return new Map();
+  }
+}
+
+export const chaveClienteOS = (nome) =>
+  String(nome ?? "")
+    .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+    .trim().replace(/\s+/g, " ").toUpperCase();
+
+export { cnpjPorNomeDeCliente };
+
 // ---------------------------------------------------------------------------
 // FLUXO REALIZADO MES A MES: o que de fato ENTROU (contas-receber PAGO) e SAIU
 // (contas-pagar PAGO), agrupado pelo mes do PAGAMENTO.
@@ -506,6 +560,33 @@ export async function etapaRealizado(anoBase = new Date().getUTCFullYear(), ante
     },
     falhas,
   };
+}
+
+/* SO O HISTORICO DE O.S., para a busca da permuta alcancar 2020.
+ *
+ * Etapa SEPARADA da carga normal por causa do relogio: a completa ja leva
+ * ~25 min e o job tem teto de 45. Puxar 2020-2024 sao ~15 mil O.S. a mais,
+ * mais ou menos 30 paginas de 25-40s -- juntas as duas estourariam.
+ *
+ * Nao mexe em `painel_cache` NENHUM. So devolve as O.S. normalizadas para
+ * quem chamou gravar na TABELA. O cache continua sendo 2025 em diante, que e
+ * ate onde as outras telas precisam e ate onde cabe viajar no login.
+ *
+ * `ate` existe para a carga poder ser fatiada por ano se um dia o volume
+ * crescer: cada fatia e uma corrida, e o upsert por id torna reenvio inofensivo.
+ */
+export async function etapaHistoricoOS(desde, ate) {
+  const base = { status: "TODOS", filtrodata: "CADASTRO" };
+  const [categoriaPorNome, brutas] = await Promise.all([
+    catalogoCategorias(),
+    mubiGetTudo("ordem-servico", { ...base, datainicial: desde, datafinal: ate }, 500),
+  ]);
+  // A cancelada nao entra -- mesma regra da carga normal. Quem ja aceitou uma
+  // O.S. que depois foi cancelada continua vendo o abatimento na permuta, com
+  // o aviso: quem decide tirar e a direcao (ver linhasDaPermuta).
+  const ordens = brutas.map((os, i) => normOS(os, i, categoriaPorNome)).filter((o) => !o.cancelada);
+  const canceladas = brutas.filter((os) => /cancel/i.test(String(os.status || ""))).map((os) => String(os.id));
+  return { ordens, canceladas, brutas: brutas.length };
 }
 
 export async function etapaCompleta() {

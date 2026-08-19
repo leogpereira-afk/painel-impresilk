@@ -20,6 +20,7 @@ import {
   resumoGeral,
   ordensDosClientes,
   donoPorOS,
+  linhasDosLancamentos,
 } from "./permutas.js";
 
 const os = (id, cliente, valor, extra = {}) => ({
@@ -155,6 +156,56 @@ test("LISTA VAZIA NÃO É 'TUDO CANCELADO'", () => {
     assert.equal(r.semConferir, true, `${JSON.stringify(nada)}: tem que assumir que não conferiu`);
     assert.equal(r.consumido, 500, "e o saldo se sustenta no congelado");
   }
+});
+
+// ------------------------------------------------ os lançamentos manuais
+
+test("lançamento de consumo abate; de crédito, aumenta", () => {
+  const ordens = [os(1, "Alfa", 300)];
+  const p = {
+    credito: 1000,
+    os: { 1: fichaDaOS(ordens[0]) },
+    lancamentos: {
+      a: { data: "2026-08-01", descricao: "brinde sem O.S.", valor: 150, tipo: "consumo" },
+      b: { data: "2026-08-02", descricao: "ele repôs", valor: 50, tipo: "credito" },
+    },
+  };
+  const r = resumoDaPermuta(p, ordens);
+  assert.equal(r.emOS, 300);
+  assert.equal(r.lancado, 100, "150 abatendo menos 50 devolvendo");
+  assert.equal(r.consumido, 400);
+  assert.equal(r.saldo, 600);
+});
+
+test("tipo desconhecido cai em consumo, não some da conta", () => {
+  // Registro velho ou corrompido não pode virar dinheiro invisível: um valor
+  // que não abate nem credita seria um saldo alto sem explicação na tela.
+  const p = { credito: 1000, os: {}, lancamentos: { a: { valor: 200, tipo: "sei-la" } } };
+  assert.equal(resumoDaPermuta(p, [os(1, "Alfa", 1)]).saldo, 800);
+});
+
+test("lançamento com vírgula e sem valor não quebram a conta", () => {
+  const p = { credito: 1000, os: {}, lancamentos: {
+    a: { valor: "150,50", tipo: "consumo" },
+    b: { valor: "", tipo: "consumo" },
+    c: { tipo: "credito" },
+  } };
+  assert.equal(resumoDaPermuta(p, [os(1, "Alfa", 1)]).saldo, 849.5);
+});
+
+test("só lançamentos, sem O.S. nenhuma, já dá saldo", () => {
+  const p = { credito: 500, lancamentos: { a: { valor: 120, tipo: "consumo" } } };
+  const r = resumoDaPermuta(p, [os(1, "Alfa", 1)]);
+  assert.equal(r.linhas.length, 0);
+  assert.equal(r.saldo, 380);
+});
+
+test("os lançamentos vêm do mais novo para o mais velho", () => {
+  const p = { lancamentos: {
+    a: { data: "2026-01-05", descricao: "velho", valor: 1, tipo: "consumo" },
+    b: { data: "2026-08-05", descricao: "novo", valor: 1, tipo: "consumo" },
+  } };
+  assert.deepEqual(linhasDosLancamentos(p).map((l) => l.descricao), ["novo", "velho"]);
 });
 
 // -------------------------------------------------- a O.S. só abate uma vez

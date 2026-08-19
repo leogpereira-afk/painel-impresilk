@@ -323,6 +323,48 @@ Deno.serve(async (req: Request) => {
           return resposta({ ok: true, valor: merged });
         }
 
+        /* PERMUTA NAO PASSA PELO MERGE GENERICO.
+           Duas razoes, e as duas sao de confianca no numero:
+
+           1. O merge le, calcula e grava em tres passos. Perde escrita
+              simultanea -- provado contra a producao: dois aceites de O.S.
+              disparados juntos terminaram com um so no registro, sem erro
+              nenhum. Numa permuta isso e credito que deixa de ser abatido.
+
+           2. O HISTORICO tem que ser verdade. Se ele viesse do cliente, a
+              parte interessada reescreveria a propria conta -- e um historico
+              assim nao serve para conferir com o parceiro. Quem carimba autor,
+              hora e o QUE MUDOU e o banco, comparando o registro antigo com o
+              pedido (ver `permuta_mexer`).
+
+           A tela manda `osPatch`, `lancPatch` e os campos no MESMO pedido; a
+           funcao aplica tudo numa transacao com a linha travada. */
+        if (chave === "permutas") {
+          const barrado = barraChave(chave);
+          if (barrado) return barrado;
+          const quem = String(sessao?.sub ?? "");
+          const quemNome = String(sessao?.nome || quem);
+          for (const [id, campos] of Object.entries(patch)) {
+            const c = (campos ?? {}) as Record<string, unknown>;
+            const { osPatch, lancPatch, criar, ...limpos } = c;
+            const { data: reg, error } = await sb.rpc("permuta_mexer", {
+              p_id: id,
+              p_quem: quem,
+              p_quem_nome: quemNome,
+              p_campos: limpos,
+              p_os: (osPatch ?? {}) as Record<string, unknown>,
+              p_lancamentos: (lancPatch ?? {}) as Record<string, unknown>,
+              p_anexo: null,
+              p_criar: criar === true,
+            });
+            if (error) throw new Error(error.message);
+            if (reg === null) {
+              return resposta({ erro: "Essa permuta nao existe mais -- recarregue a tela." }, 409);
+            }
+          }
+          return resposta({ ok: true, valor: await lerOverlay(chave, donoDaVez(chave)) });
+        }
+
         if (OVERLAYS.has(chave)) {
           const barrado = barraChave(chave);
           if (barrado) return barrado;
@@ -372,46 +414,6 @@ Deno.serve(async (req: Request) => {
               }
               (camposLimpos as any).pagos = atualPagos;
               delete (camposLimpos as any).pagosPatch;
-            }
-            /* `osPatch` aceita e tira O.S. da permuta, uma a uma (null tira).
-               NAO e feito aqui: e feito NO BANCO, pela funcao
-               `permuta_mexer_os`, e sai por este `continue` sem passar pelo
-               ler-calcular-gravar de baixo.
-
-               POR QUE: o merge desta funcao le o registro, calcula o fundido e
-               grava -- tres passos. Isso resolve o cliente com estado velho (a
-               aba aberta ha dez minutos), que e o caso do `pagosPatch` acima.
-               NAO resolve duas chamadas de verdade simultaneas: as duas leem o
-               mesmo registro antes de qualquer uma gravar. Provado contra a
-               producao antes desta mudanca -- dois aceites disparados juntos,
-               O.S. 111 e 222, terminaram so com a 222 no registro. Numa
-               permuta isso e dinheiro: a O.S. some, para de abater o credito e
-               o saldo sobe sozinho, sem erro nenhum na tela.
-
-               No banco os tres passos viram um, com a linha travada. Nada
-               passa no meio.
-
-               O SERVIDOR NAO CONFERE O VALOR de cada O.S.: ele guarda o que a
-               direcao aceitou. Quem confere contra o ERP e a tela, a cada
-               carga, e ela MOSTRA a divergencia (ver linhasDaPermuta). Conferir
-               aqui exigiria o cache de ordens dentro do painel-config -- e
-               recusar por divergencia trancaria o lancamento por causa de uma
-               correcao legitima no ERP. */
-            if (camposLimpos.osPatch && typeof camposLimpos.osPatch === "object") {
-              const { data: novoReg, error: erroOS } = await sb.rpc("permuta_mexer_os", {
-                p_id: id,
-                p_patch: camposLimpos.osPatch,
-              });
-              if (erroOS) throw new Error(erroOS.message);
-              if (novoReg === null) {
-                return resposta({ erro: "Essa permuta nao existe mais -- recarregue a tela." }, 409);
-              }
-              // Os outros campos do mesmo pedido seriam gravados pelo caminho
-              // de baixo, que reescreve o registro INTEIRO -- e desfaria o que
-              // a funcao acabou de fazer. A tela manda `osPatch` sozinho (ver
-              // `mexerNasOS` em services/permutas.js); se vier acompanhado, o
-              // acompanhante e ignorado de proposito.
-              continue;
             }
             const fundido: any = { ...(data?.registro ?? {}), ...camposLimpos };
             if (POR_DONO.has(chave)) {
@@ -544,6 +546,57 @@ Deno.serve(async (req: Request) => {
         return resposta({ ok: true, valor: await lerOverlay(chave, donoDaVez(chave)) });
       }
 
+      /* ANEXAR A NOTA DO QUE COMPRAMOS DO PARCEIRO.
+         A permuta e uma troca: de um lado as O.S. que ele consumiu, do outro o
+         que a Impresilk comprou dele. O que sustenta o CREDITO e esse segundo
+         lado -- a nota, o contrato, o print do combinado. Sem ele o credito e
+         um numero que alguem digitou, e o parceiro nao tem como conferir.
+
+         Os bytes vao para o bucket e so a referencia entra no registro: um PDF
+         dentro do JSON incharia a linha e viajaria em TODA leitura da tela.
+         Mesma escolha da conversa dos compromissos. */
+      case "permutaAnexo": {
+        if (!sessao) return resposta({ erro: "Entre no sistema.", semSessao: true }, 401);
+        const barrado = barraChave("permutas");
+        if (barrado) return barrado;
+        const id = String(corpo.id ?? "");
+        if (!id) return resposta({ erro: "informe a permuta" }, 400);
+
+        const base64 = String(corpo.base64 ?? "");
+        if (!base64) return resposta({ erro: "Escolha um arquivo." }, 400);
+        if (base64.length > MAX_ARQUIVO) {
+          return resposta({ erro: "Arquivo muito grande (limite ~3 MB)." }, 413);
+        }
+        const nomeArq = String(corpo.nome ?? "documento").slice(0, 180);
+        const mime = String(corpo.mime ?? "application/octet-stream");
+        const chaveArq = `permuta/${id}/${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+        const bytes = Uint8Array.from(atob(base64), (c) => c.charCodeAt(0));
+        const { error: erroUp } = await sb.storage.from(BUCKET)
+          .upload(chaveArq, bytes, { contentType: mime, upsert: false });
+        if (erroUp) throw new Error("upload: " + erroUp.message);
+
+        // Quem carimba autor e hora e a funcao, junto com o evento do
+        // historico -- do mesmo jeito que os outros movimentos da permuta.
+        const { data: reg, error } = await sb.rpc("permuta_mexer", {
+          p_id: id,
+          p_quem: String(sessao.sub ?? ""),
+          p_quem_nome: String(sessao.nome || sessao.sub || ""),
+          p_campos: {},
+          p_os: {},
+          p_lancamentos: {},
+          p_anexo: { chave: chaveArq, nome: nomeArq, mime },
+          p_criar: false,
+        });
+        if (error) throw new Error(error.message);
+        if (reg === null) {
+          // A permuta sumiu entre o upload e a gravacao: nao deixa byte orfao
+          // no bucket, que ninguem mais teria como achar nem apagar.
+          await sb.storage.from(BUCKET).remove([chaveArq]).catch(() => {});
+          return resposta({ erro: "Essa permuta nao existe mais." }, 409);
+        }
+        return resposta({ ok: true, valor: await lerOverlay("permutas", null) });
+      }
+
       // Baixar um anexo da conversa. A permissao e a MESMA do compromisso: a
       // chave do arquivo tem de estar no historico do registro que a pessoa
       // pode abrir -- pedir uma chave de outro compromisso nao adianta.
@@ -552,18 +605,30 @@ Deno.serve(async (req: Request) => {
         const id = String(corpo.id ?? "");
         const arquivoChave = String(corpo.arquivo ?? "");
         if (!sessao) return resposta({ erro: "Entre no sistema.", semSessao: true }, 401);
-        if (!POR_DONO.has(chave)) return resposta({ erro: "chave sem conversa" }, 400);
+        // Permuta tem anexo mas nao tem dono: o modulo E a permissao.
+        if (!POR_DONO.has(chave) && chave !== "permutas") {
+          return resposta({ erro: "chave sem anexo" }, 400);
+        }
         const barrado = barraChave(chave);
         if (barrado) return barrado;
-        const barradoDono = await barraDono(chave, id);
-        if (barradoDono) return barradoDono;
+        if (POR_DONO.has(chave)) {
+          const barradoDono = await barraDono(chave, id);
+          if (barradoDono) return barradoDono;
+        }
 
         const { data } = await sb.from("painel_registros").select("registro")
           .eq("colecao", chave).eq("id", id).maybeSingle();
-        const hist: any[] = Array.isArray((data?.registro as any)?.historico)
-          ? (data!.registro as any).historico : [];
-        const ev = hist.find((e) => e?.arquivo?.chave === arquivoChave);
-        if (!ev) return resposta({ erro: "arquivo nao encontrado" }, 404);
+        /* A CHAVE PEDIDA TEM QUE ESTAR NESTE REGISTRO. Sem esta amarra, quem
+           tem o modulo baixaria qualquer arquivo do bucket adivinhando a
+           chave -- inclusive de compromisso alheio. Na permuta o anexo mora em
+           `anexos`; no compromisso, dentro do `historico`. */
+        const reg = (data?.registro as any) ?? null;
+        const doAnexo = (Array.isArray(reg?.anexos) ? reg.anexos : [])
+          .find((a: any) => a?.chave === arquivoChave);
+        const doHistorico = (Array.isArray(reg?.historico) ? reg.historico : [])
+          .find((e: any) => e?.arquivo?.chave === arquivoChave)?.arquivo;
+        const achado = doAnexo || doHistorico;
+        if (!achado) return resposta({ erro: "arquivo nao encontrado" }, 404);
 
         const { data: arq, error } = await sb.storage.from(BUCKET).download(arquivoChave);
         if (error || !arq) return resposta({ erro: "arquivo nao encontrado" }, 404);
@@ -572,7 +637,7 @@ Deno.serve(async (req: Request) => {
         const BLOCO = 0x8000;
         for (let i = 0; i < buf.length; i += BLOCO) s += String.fromCharCode(...buf.subarray(i, i + BLOCO));
         // base64 PURO, sem prefixo data: -- mesmo contrato do painel-ativos.
-        return resposta({ ok: true, base64: btoa(s), mime: ev.arquivo.mime, nome: ev.arquivo.nome });
+        return resposta({ ok: true, base64: btoa(s), mime: achado.mime, nome: achado.nome });
       }
 
       // Remocao por id: apaga UMA linha do overlay. Existe porque remover via
@@ -591,12 +656,16 @@ Deno.serve(async (req: Request) => {
         // Os anexos da conversa vao junto: sem isto ficam bytes no bucket que
         // nenhuma tela lista, ninguem apaga e ninguem sabe que existem (foi o
         // que aconteceu com os arquivos dos ativos ate 04/08).
-        if (POR_DONO.has(chave)) {
+        if (POR_DONO.has(chave) || chave === "permutas") {
           const { data } = await sb.from("painel_registros").select("registro")
             .eq("colecao", chave).eq("id", id).maybeSingle();
-          const hist: any[] = Array.isArray((data?.registro as any)?.historico)
-            ? (data!.registro as any).historico : [];
-          const chaves = hist.map((e) => e?.arquivo?.chave).filter(Boolean);
+          const reg = (data?.registro as any) ?? {};
+          const hist: any[] = Array.isArray(reg.historico) ? reg.historico : [];
+          const anexos: any[] = Array.isArray(reg.anexos) ? reg.anexos : [];
+          const chaves = [
+            ...hist.map((e) => e?.arquivo?.chave),
+            ...anexos.map((a) => a?.chave),
+          ].filter(Boolean);
           if (chaves.length) await sb.storage.from(BUCKET).remove(chaves).catch(() => {});
         }
         const { error } = await sb.from("painel_registros").delete()

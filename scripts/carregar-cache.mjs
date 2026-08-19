@@ -26,6 +26,8 @@
 import {
   etapaRapidos, etapaCompleta, etapaRealizado, calcDso, normOrcamento, normOS, chaveProduto,
   SEM_CATEGORIA, FORA_CATALOGO,
+  etapaHistoricoOS,
+  cnpjPorNomeDeCliente,
 } from "../netlify/functions/mubi-cache-background.mjs";
 import { mubiGetTudo, mubiConfigurado, hojeMais } from "../netlify/functions/lib/mubi.js";
 
@@ -39,9 +41,15 @@ const TOKEN = process.env.PAINEL_TOKEN;
                  foi pago. Fica separado porque sao ~11 paginas por ano por
                  endpoint e a completa ja leva ~25 min; juntas encostariam no
                  teto de 45 min do job. */
-const MODO = process.argv.includes("--realizado") ? "realizado"
+const MODO = process.argv.includes("--historico") ? "historico"
+  : process.argv.includes("--realizado") ? "realizado"
   : process.argv.includes("--completo") ? "completo"
   : "incremental";
+
+/* De quando puxar o historico de O.S. A direcao escolhe na tela de Permutas
+   (fica em painel_config_global) e o job usa. O padrao existe para a primeira
+   corrida ter um valor sensato sem ninguem configurar nada. */
+const HISTORICO_DESDE_PADRAO = "2020-01-01";
 
 if (!TOKEN) { console.error("PAINEL_TOKEN ausente"); process.exit(1); }
 if (!mubiConfigurado()) { console.error("Mubisys nao configurado (MUBI_*)"); process.exit(1); }
@@ -86,6 +94,48 @@ async function gravar(chave, valor, recusados) {
     return;
   }
   console.log(`   ${chave}: ${r.itens ?? "ok"}`);
+}
+
+/* AS O.S. TAMBEM VAO PARA A TABELA `painel_ordens`.
+   O vetor do cache viaja inteiro para o navegador no login e por isso so pode
+   ir ate onde as OUTRAS telas precisam (2025). A tela de Permutas precisa do
+   historico -- 2020 sao ~19.500 O.S., ~10 MB -- e le da tabela, por cliente.
+   A mesma carga alimenta as duas: um dado so, duas formas. */
+const chaveCliente = (nome) =>
+  String(nome ?? "")
+    .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+    .trim().replace(/\s+/g, " ").toUpperCase();
+
+const valorDaOS = (o) => {
+  const bruto = (o.itens ?? []).reduce((s, it) => s + (Number(it.valorTotal) || 0), 0);
+  return Math.round(bruto * 100) / 100;
+};
+
+async function gravarOrdensTabela(ordens, cnpjPorCliente) {
+  if (!Array.isArray(ordens) || !ordens.length) return 0;
+  const LOTE = 1000;
+  let total = 0;
+  for (let i = 0; i < ordens.length; i += LOTE) {
+    const linhas = ordens.slice(i, i + LOTE).map((o) => {
+      const ck = chaveCliente(o.cliente);
+      return {
+        id: String(o.id),
+        numero: String(o.numero ?? ""),
+        cliente: String(o.cliente ?? ""),
+        clienteChave: ck,
+        // O endpoint `ordem-servico` do ERP NAO manda o CNPJ na listagem --
+        // provado em 19/08/2026: 58 O.S. renormalizadas, 58 com o campo vazio.
+        // Ele vem do cadastro de clientes, puxado uma vez por carga.
+        cnpj: String(o.cnpj || cnpjPorCliente?.get(ck) || ""),
+        data: String(o.data ?? "").slice(0, 10),
+        valor: valorDaOS(o),
+        vendedor: String(o.vendedor ?? ""),
+      };
+    });
+    const r = await chamar({ action: "ordens", linhas });
+    total += r.gravadas ?? 0;
+  }
+  return total;
 }
 
 // Janela de 7 dias mesclada no cache atual, por id. Substitui a etapaIncremental
@@ -234,7 +284,43 @@ async function cargaDoRealizado() {
   console.log(`pronto em ${Math.round((Date.now() - inicio) / 1000)}s`);
 }
 
+/* A CARGA DO HISTORICO.
+   Corrida propria, e nao um pedaco da completa, porque a completa ja usa 25 dos
+   45 minutos do job. Enche a TABELA `painel_ordens` -- nunca o cache, que
+   viaja no login e por isso fica em 2025 em diante. */
+async function cargaDoHistorico() {
+  const inicio = Date.now();
+  // A data vem de onde a direcao a escreveu (painel_config_global), lida pelo
+  // passa-fio do painel-cache. A variavel de ambiente existe para uma corrida
+  // pontual sem mexer na configuracao de todo mundo.
+  const doPainel = (await chamar({ action: "cfgHistorico" })).historicoDesde;
+  const desde = process.env.HISTORICO_DESDE || doPainel || HISTORICO_DESDE_PADRAO;
+  const ate = process.env.HISTORICO_ATE || hojeMais(0);
+  console.log(`carga do historico de O.S.: ${desde} ate ${ate}`);
+
+  const cnpjPorCliente = await cnpjPorNomeDeCliente();
+  console.log(`   CNPJ de ${cnpjPorCliente.size} clientes do cadastro`);
+
+  const { ordens, canceladas, brutas } = await etapaHistoricoOS(desde, ate);
+  console.log(`   ${brutas} O.S. no ERP, ${ordens.length} validas, ${canceladas.length} canceladas`);
+
+  const gravadas = await gravarOrdensTabela(ordens, cnpjPorCliente);
+  // A cancelada some da tabela: senao continuaria na lista de escolha da
+  // permuta como se ainda existisse.
+  if (canceladas.length) {
+    for (let i = 0; i < canceladas.length; i += 1000) {
+      await chamar({ action: "ordensApagar", ids: canceladas.slice(i, i + 1000) });
+    }
+  }
+  const comCnpj = ordens.filter((o) => cnpjPorCliente.get(
+    String(o.cliente ?? "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().replace(/\s+/g, " ").toUpperCase()
+  )).length;
+  console.log(`   gravadas ${gravadas} linhas (${comCnpj} com CNPJ)`);
+  console.log(`pronto em ${Math.round((Date.now() - inicio) / 1000)}s`);
+}
+
 async function main() {
+  if (MODO === "historico") return cargaDoHistorico();
   if (MODO === "realizado") return cargaDoRealizado();
 
   const inicio = Date.now();
@@ -272,6 +358,22 @@ async function main() {
   await gravar("bancos", rapidos.bancos, recusados);
   await gravar("orcamentos", pesados.orcamentos, recusados);
   await gravar("ordens", pesados.ordens, recusados);
+
+  /* A TABELA ANDA JUNTO. Sem isto, a O.S. de hoje entraria no cache (e nas
+     outras telas) mas nao na busca da permuta, que so veria ate a ultima carga
+     de historico -- e ninguem entenderia por que a O.S. de ontem "nao existe". */
+  if (Array.isArray(pesados.ordens) && pesados.ordens.length) {
+    try {
+      const cnpjPorCliente = await cnpjPorNomeDeCliente();
+      const n = await gravarOrdensTabela(pesados.ordens, cnpjPorCliente);
+      console.log(`   painel_ordens: ${n} linhas`);
+    } catch (e) {
+      // Falhar aqui NAO derruba a carga: o cache ja gravou, e as outras telas
+      // dependem dele. A permuta fica com a busca um pouco atrasada.
+      console.warn("   painel_ordens falhou:", e?.message || e);
+      recusados.push("painel_ordens");
+    }
+  }
 
   // DSO: sem recebiveis novos, mantem o anterior em vez de calcular sobre lista
   // vazia (que daria 0 e mentiria na curva).
