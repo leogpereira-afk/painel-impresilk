@@ -34,7 +34,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowLeft, Plus, Trash2, Search, X, Check, AlertTriangle, Handshake, Building2,
-  Archive, Paperclip, History, Download, CalendarRange,
+  Archive, Paperclip, History, Download, CalendarRange, ChevronDown,
 } from "lucide-react";
 import {
   lerPermutas, mexerNaPermuta, removerPermuta, anexarNaPermuta, lerAnexo,
@@ -44,7 +44,7 @@ import {
   fichaDaOS, resumoDaPermuta, resumoGeral, ordensDosClientes, donoPorOS,
 } from "../lib/calc/permutas.js";
 import { moedaCheia, paraNumero, dataCurta, dataLonga } from "../lib/format.js";
-import { Card, PageTitle, SectionTitle, Empty, CarregandoModulo, BotaoPDF, CabecalhoImpressao } from "../components/ui.jsx";
+import { Card, PageTitle, Empty, CarregandoModulo, BotaoPDF, CabecalhoImpressao } from "../components/ui.jsx";
 
 const novoId = (p) => `${p}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
 
@@ -376,6 +376,46 @@ const quandoFoi = (iso) => {
   return `${dataLonga(iso)} ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
 };
 
+/* SEÇÃO QUE RECOLHE. A tela de uma permuta é alta -- crédito, consumo, O.S.
+   aceitas, o que falta escolher, histórico -- e a direção quase sempre quer o
+   saldo, não tudo. Clicar no título recolhe.
+
+   O CONTEÚDO CONTINUA MONTADO, escondido pela classe `.recolhido`, e não
+   desmontado por um `&&`. Duas razões: recolher e reabrir não perde o que
+   estava digitado no formulário aberto ali dentro; e, principalmente, o PDF
+   sai completo -- `.recolhido` volta a aparecer no `@media print`. Recolher é
+   um gesto de leitura, não uma decisão sobre o que o parceiro recebe.
+
+   A escolha fica guardada no aparelho: quem trabalha com o consumo recolhido
+   não quer reabri-lo a cada visita. */
+function Secao({ id, titulo, sub, acao, aberta, aoAlternar, children }) {
+  return (
+    <Card className="space-y-3">
+      <div className="flex items-start justify-between gap-3">
+        <button
+          type="button"
+          onClick={() => aoAlternar(id)}
+          aria-expanded={aberta}
+          className="group flex min-w-0 flex-1 items-start gap-2 text-left"
+        >
+          <ChevronDown
+            size={16}
+            className={`mt-0.5 shrink-0 text-slate-400 transition-transform group-hover:text-slate-600 ${
+              aberta ? "" : "-rotate-90"
+            }`}
+          />
+          <span className="min-w-0">
+            <span className="block font-display font-medium text-slate-800">{titulo}</span>
+            {sub && <span className="block text-xs text-slate-500">{sub}</span>}
+          </span>
+        </button>
+        {acao && <div className="shrink-0 sem-impressao">{acao}</div>}
+      </div>
+      <div className={aberta ? "space-y-3" : "recolhido"}>{children}</div>
+    </Card>
+  );
+}
+
 function Historico({ eventos }) {
   if (!eventos.length) return <Empty>Nada registrado ainda.</Empty>;
   return (
@@ -414,7 +454,25 @@ export default function Permutas() {
   const [achados, setAchados] = useState([]);
   const [buscaOS, setBuscaOS] = useState("");
   const [formLanc, setFormLanc] = useState(null);
-  const [verHistorico, setVerHistorico] = useState(false);
+  /* Quais seções estão abertas. Guardado no aparelho porque a preferência é de
+     quem trabalha, não da sessão: recolher o consumo e reabri-lo a cada visita
+     seria pior que não recolher. Chave por seção, para acrescentar uma nova sem
+     mexer no que já estava salvo. */
+  const [abertas, setAbertas] = useState(() => {
+    const padrao = { credito: true, consumo: true, aceitas: true, clientes: true, escolher: true, historico: false };
+    try {
+      return { ...padrao, ...JSON.parse(localStorage.getItem("permutas_secoes") || "{}") };
+    } catch {
+      return padrao;
+    }
+  });
+  const alternar = useCallback((id) => {
+    setAbertas((a) => {
+      const novo = { ...a, [id]: !a[id] };
+      try { localStorage.setItem("permutas_secoes", JSON.stringify(novo)); } catch { /* aba anônima */ }
+      return novo;
+    });
+  }, []);
   const arquivoRef = useRef(null);
 
   /* ATÉ ONDE O PAINEL TEM O.S. GUARDADA. Sem isto a tela não consegue
@@ -700,7 +758,7 @@ export default function Permutas() {
       <div className="space-y-5">
         <button
           type="button"
-          onClick={() => { setAberta(null); setVerHistorico(false); }}
+          onClick={() => setAberta(null)}
           className="flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-800"
         >
           <ArrowLeft size={15} /> Todas as permutas
@@ -734,9 +792,6 @@ export default function Permutas() {
               onBlur={(e) => mexer(aberta, { campos: { nome: e.target.value } })}
             />
             <div className="flex items-center gap-2">
-              <button type="button" className="btn-ghost" onClick={() => setVerHistorico((v) => !v)}>
-                <History size={15} /> Histórico
-              </button>
               {/* O PDF é a TELA impressa, não um documento paralelo: o que o
                   parceiro recebe é exatamente o que a direção está vendo. Um
                   gerador separado vira uma segunda verdade que ninguém lembra
@@ -800,22 +855,24 @@ export default function Permutas() {
           )}
         </Card>
 
-        {verHistorico && (
-          <Card className="space-y-3">
-            <SectionTitle
-              titulo="Histórico da operação"
-              sub="Escrito pelo servidor a cada mudança — é o que sustenta a conversa com o parceiro."
-            />
-            <Historico eventos={eventos} />
-          </Card>
-        )}
+        <Secao
+          id="historico"
+          titulo="Histórico da operação"
+          sub="Escrito pelo servidor a cada mudança — é o que sustenta a conversa com o parceiro."
+          aberta={abertas.historico}
+          aoAlternar={alternar}
+        >
+          <Historico eventos={eventos} />
+        </Secao>
 
         {/* ------------------------------------------------- de quem é */}
-        <Card className="space-y-3 sem-impressao">
-          <SectionTitle
-            titulo="Clientes desta permuta"
-            sub="Uma permuta pode abranger mais de um CNPJ do mesmo dono — some todos aqui."
-          />
+        <Secao
+          id="clientes"
+          titulo="Clientes desta permuta"
+          sub="Uma permuta pode abranger mais de um CNPJ do mesmo dono — some todos aqui."
+          aberta={abertas.clientes}
+          aoAlternar={alternar}
+        >
           <div className="flex flex-wrap gap-2">
             {(permuta.clientes || []).map((c) => (
               <span key={c.chave} className="flex items-center gap-1.5 rounded-full bg-slate-100 py-1 pl-3 pr-1.5 text-sm text-slate-700">
@@ -875,11 +932,16 @@ export default function Permutas() {
               </div>
             )}
           </div>
-        </Card>
+        </Secao>
 
         {/* ------------------------------------------------- as aceitas */}
-        <Card className="space-y-2">
-          <SectionTitle titulo="O.S. que entram nesta permuta" sub="É o que abate o crédito." />
+        <Secao
+          id="aceitas"
+          titulo="O.S. que entram nesta permuta"
+          sub="É o que abate o crédito."
+          aberta={abertas.aceitas}
+          aoAlternar={alternar}
+        >
           {resumo.linhas.length ? (
             <div>
               {resumo.linhas.map((l) => (
@@ -889,25 +951,27 @@ export default function Permutas() {
           ) : (
             <Empty>Nenhuma O.S. aceita ainda. Marque abaixo as que fazem parte da troca.</Empty>
           )}
-        </Card>
+        </Secao>
 
         {/* -------------------------------- o que o parceiro nos deu */}
-        <Card className="space-y-3">
-          <SectionTitle
-            titulo="O que o parceiro nos deu"
-            sub="Cada coisa que virou crédito, com a data, o que foi e a nota. A soma é o crédito dele."
-            acao={
-              formLanc?.tipo !== "credito" && (
-                <button
-                  type="button"
-                  className="btn-ghost"
-                  onClick={() => setFormLanc({ ...LANC_VAZIO, tipo: "credito", data: hojeISO() })}
-                >
-                  <Plus size={15} strokeWidth={2.4} /> Lançar crédito
-                </button>
-              )
-            }
-          />
+        <Secao
+          id="credito"
+          titulo="O que o parceiro nos deu"
+          sub="Cada coisa que virou crédito, com a data, o que foi e a nota. A soma é o crédito dele."
+          aberta={abertas.credito}
+          aoAlternar={alternar}
+          acao={
+            formLanc?.tipo !== "credito" && (
+              <button
+                type="button"
+                className="btn-ghost"
+                onClick={() => { if (!abertas.credito) alternar("credito"); setFormLanc({ ...LANC_VAZIO, tipo: "credito", data: hojeISO() }); }}
+              >
+                <Plus size={15} strokeWidth={2.4} /> Lançar crédito
+              </button>
+            )
+          }
+        >
           {formLanc?.tipo === "credito" && (
             <FormLancamento
               form={formLanc}
@@ -941,25 +1005,27 @@ export default function Permutas() {
               zerar o valor antigo — senão passa a contar duas vezes.
             </div>
           )}
-        </Card>
+        </Secao>
 
         {/* -------------------------------- o que ele gastou fora de O.S. */}
-        <Card className="space-y-3">
-          <SectionTitle
-            titulo="Consumo sem O.S."
-            sub="O que abateu o crédito sem passar por ordem de serviço — um brinde entregue, um acerto."
-            acao={
-              formLanc?.tipo !== "consumo" && (
-                <button
-                  type="button"
-                  className="btn-ghost"
-                  onClick={() => setFormLanc({ ...LANC_VAZIO, tipo: "consumo", data: hojeISO() })}
-                >
-                  <Plus size={15} strokeWidth={2.4} /> Lançar consumo
-                </button>
-              )
-            }
-          />
+        <Secao
+          id="consumo"
+          titulo="Consumo sem O.S."
+          sub="O que abateu o crédito sem passar por ordem de serviço — um brinde entregue, um acerto."
+          aberta={abertas.consumo}
+          aoAlternar={alternar}
+          acao={
+            formLanc?.tipo !== "consumo" && (
+              <button
+                type="button"
+                className="btn-ghost"
+                onClick={() => { if (!abertas.consumo) alternar("consumo"); setFormLanc({ ...LANC_VAZIO, tipo: "consumo", data: hojeISO() }); }}
+              >
+                <Plus size={15} strokeWidth={2.4} /> Lançar consumo
+              </button>
+            )
+          }
+        >
           {formLanc?.tipo === "consumo" && (
             <FormLancamento
               form={formLanc}
@@ -984,27 +1050,29 @@ export default function Permutas() {
           ) : (
             formLanc?.tipo !== "consumo" && <Empty>Nenhum consumo fora de O.S.</Empty>
           )}
-        </Card>
+        </Secao>
 
         {/* ------------------------------------------------- escolher */}
-        <Card className="space-y-3 sem-impressao">
-          <SectionTitle
-            titulo="Escolher O.S."
-            sub="O que ainda NÃO entrou, dos clientes acima. Marque as que fazem parte da permuta — o mesmo cliente também compra pagando."
-            acao={
-              paraEscolher.length > 8 && (
-                <div className="relative">
-                  <Search size={14} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
-                  <input
-                    className="input h-8 w-44 pl-8 text-sm"
-                    placeholder="nº ou cliente"
-                    value={buscaOS}
-                    onChange={(e) => setBuscaOS(e.target.value)}
-                  />
-                </div>
-              )
-            }
-          />
+        <Secao
+          id="escolher"
+          titulo="Escolher O.S."
+          sub="O que ainda NÃO entrou, dos clientes acima. Marque as que fazem parte da permuta — o mesmo cliente também compra pagando."
+          aberta={abertas.escolher}
+          aoAlternar={alternar}
+          acao={
+            paraEscolher.length > 8 && (
+              <div className="relative">
+                <Search size={14} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                <input
+                  className="input h-8 w-44 pl-8 text-sm"
+                  placeholder="nº ou cliente"
+                  value={buscaOS}
+                  onChange={(e) => setBuscaOS(e.target.value)}
+                />
+              </div>
+            )
+          }
+        >
 
           <div className="flex flex-wrap items-center gap-2 rounded-lg bg-slate-50 px-3 py-2 text-sm">
             <CalendarRange size={15} className="shrink-0 text-slate-400" />
@@ -1053,7 +1121,7 @@ export default function Permutas() {
                   : `Esses clientes não têm O.S. a partir de ${dataLonga(desde)}.`}
             </Empty>
           )}
-        </Card>
+        </Secao>
 
         {salvando && <div className="text-xs text-slate-400">salvando…</div>}
       </div>
