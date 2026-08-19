@@ -105,16 +105,26 @@ function Aviso({ aviso, aoFechar }) {
   );
 }
 
-/* O número que a tela existe para dar. Positivo = o parceiro ainda tem crédito;
-   negativo = ele já consumiu além, e a diferença é nossa a receber. */
+/* O número que a tela existe para dar, E O QUE ELE QUER DIZER.
+ *
+ * Positivo: o parceiro ainda tem crédito conosco -- ele pode gastar.
+ * Negativo: entregamos mais do que ele nos deu, então ELE ESTÁ NOS DEVENDO.
+ *
+ * A primeira versão dizia "consumiu além do crédito". Está correto e é inútil:
+ * descreve o que aconteceu, não o que fazer. Quem lê a tela precisa saber que
+ * aquilo é dinheiro A RECEBER, com nome e valor, para poder cobrar. "Consumiu
+ * além" some no meio de uma lista; "está devendo" faz alguém pegar o telefone.
+ */
 function Saldo({ valor, grande }) {
   const positivo = valor >= 0;
   return (
     <div>
       <div className={`${grande ? "text-3xl" : "text-xl"} font-semibold tabular-nums ${positivo ? "text-ok-700" : "text-bad-700"}`}>
-        {dinheiro(valor)}
+        {dinheiro(Math.abs(valor))}
       </div>
-      <div className="text-xs text-slate-500">{positivo ? "ainda tem para gastar" : "consumiu além do crédito"}</div>
+      <div className={`text-xs ${positivo ? "text-slate-500" : "text-bad-700"}`}>
+        {positivo ? "ainda tem para gastar" : "está nos devendo"}
+      </div>
     </div>
   );
 }
@@ -135,9 +145,9 @@ function CartaoPermuta({ p, aoAbrir }) {
   /* ESTOUROU O CRÉDITO: o cartão INTEIRO fica vermelho, não só o número.
      Numa lista de permutas a direção passa o olho pelo conjunto -- um número
      vermelho de 20px no meio de um cartão branco some no meio dos outros, e
-     "consumiu além do crédito" é exatamente o estado que não pode passar
-     despercebido: é dinheiro que a empresa tem a receber e ninguém está
-     cobrando. Encerrada não conta: ali o saldo negativo já foi resolvido. */
+     o parceiro DEVENDO é exatamente o estado que não pode passar despercebido:
+     é dinheiro a receber e ninguém está cobrando. Encerrada não conta: ali o
+     negativo já foi resolvido. */
   const estourou = p.saldo < 0 && !p.encerrada;
   return (
     <button
@@ -559,7 +569,7 @@ function ExtratoImpresso({ e, permuta }) {
           <tr>
             <td style={{ ...td, fontWeight: 700, borderTop: "2px solid #333" }}>
               {e.balanca.lado === "a-receber"
-                ? "Consumido ALÉM do crédito — a Impresilk tem a receber"
+                ? "SALDO DEVEDOR — o parceiro deve à Impresilk"
                 : e.balanca.lado === "zerada"
                   ? "Balança zerada"
                   : "Crédito que o parceiro ainda tem"}
@@ -1013,7 +1023,7 @@ export default function Permutas() {
               (permuta.clientes || []).map((c) => c.nome).join(" · ") || "sem cliente ligado",
               `Emitido em ${dataLonga(hojeISO())}`,
               `Crédito ${dinheiro(resumo.credito)} · consumido ${dinheiro(resumo.consumido)} · saldo ${dinheiro(resumo.saldo)}`,
-              resumo.saldo < 0 ? "O parceiro consumiu além do crédito." : null,
+              resumo.saldo < 0 ? `SALDO DEVEDOR: o parceiro deve ${dinheiro(Math.abs(resumo.saldo))} à Impresilk.` : null,
             ]}
           />
           <div className="flex flex-wrap items-start justify-between gap-4">
@@ -1415,9 +1425,9 @@ export default function Permutas() {
           </Card>
 
           <Card className="p-4">
-            <div className="text-xs text-slate-500">Consumido além do crédito</div>
-            <div className={`mt-1 text-2xl font-semibold tabular-nums ${totais.alemDoCredito > 0 ? "text-bad-700" : "text-slate-800"}`}>
-              {dinheiro(totais.alemDoCredito)}
+            <div className="text-xs text-slate-500">Os parceiros estão nos devendo</div>
+            <div className={`mt-1 text-2xl font-semibold tabular-nums ${totais.aReceber > 0 ? "text-bad-700" : "text-slate-800"}`}>
+              {dinheiro(totais.aReceber)}
             </div>
             <div className="mt-0.5 text-xs text-slate-500">
               {totais.semCredito > 0 ? (
@@ -1426,9 +1436,9 @@ export default function Permutas() {
                    dezenas de milhares em O.S. */
                 <span className="text-warn-700">
                   {totais.semCredito} {totais.semCredito === 1 ? "permuta está" : "permutas estão"} sem crédito lançado —
-                  confira antes de ler este número como prejuízo
+                  confira antes de cobrar
                 </span>
-              ) : "serviço entregue acima do que o parceiro deu"}
+              ) : "entregamos mais do que recebemos — é a receber"}
             </div>
           </Card>
         </div>

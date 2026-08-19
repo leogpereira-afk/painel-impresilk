@@ -35,7 +35,7 @@ test("crédito a usar soma só os saldos POSITIVOS", () => {
 });
 
 test("o que passou do crédito sai separado, e em positivo", () => {
-  assert.equal(totaisDasPermutas(REAL).alemDoCredito, 83433.73);
+  assert.equal(totaisDasPermutas(REAL).aReceber, 83433.73);
 });
 
 test("NÃO devolve a soma dos saldos — seria −81 mil e não diria nada", () => {
@@ -43,7 +43,7 @@ test("NÃO devolve a soma dos saldos — seria −81 mil e não diria nada", () 
   const somaIngenua = REAL.reduce((n, p) => n + p.saldo, 0);
   assert.ok(Math.abs(somaIngenua + 81195.61) < 0.01, "confirma que a soma ingênua dá −81.195,61");
   // O que a tela mostra são os dois lados, e a diferença entre eles é a soma.
-  assert.equal(Math.round((t.aUsar - t.alemDoCredito) * 100) / 100, -81195.61);
+  assert.equal(Math.round((t.aUsar - t.aReceber) * 100) / 100, -81195.61);
 });
 
 test("conta quantas permutas estão SEM CRÉDITO lançado", () => {
@@ -68,7 +68,7 @@ test("crédito zero SEM consumo não conta como pendência", () => {
 test("lista vazia devolve zeros, não estoura", () => {
   const t = totaisDasPermutas([]);
   assert.deepEqual(
-    { q: t.quantas, p: t.permutado, a: t.aUsar, x: t.alemDoCredito },
+    { q: t.quantas, p: t.permutado, a: t.aUsar, x: t.aReceber },
     { q: 0, p: 0, a: 0, x: 0 },
   );
   assert.deepEqual(totaisDasPermutas(null).quantas, 0);

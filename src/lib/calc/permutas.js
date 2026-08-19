@@ -373,17 +373,21 @@ export function totaisDasPermutas(lista) {
     permutado: 0,     // o que os parceiros deram
     consumido: 0,     // o que já virou O.S. e lançamento
     aUsar: 0,         // soma só dos saldos POSITIVOS
-    alemDoCredito: 0, // soma dos negativos, em positivo
+    /* O QUE OS PARCEIROS DEVEM, em positivo. Chamava-se `aReceber`, que
+       descreve o mecanismo -- consumiram mais do que o crédito -- e não o
+       dinheiro. Quem lê a tela precisa da segunda coisa: é valor A RECEBER,
+       com nome e telefone, não um fato consumado. */
+    aReceber: 0,
     semCredito: 0,    // permutas com consumo e nenhum crédito lançado
   };
   for (const p of vivas) {
     t.permutado += p.credito || 0;
     t.consumido += p.consumido || 0;
     if (p.saldo > 0) t.aUsar += p.saldo;
-    else if (p.saldo < 0) t.alemDoCredito += -p.saldo;
+    else if (p.saldo < 0) t.aReceber += -p.saldo;
     if (!(p.credito > 0) && (p.consumido || 0) > 0) t.semCredito++;
   }
-  for (const k of ["permutado", "consumido", "aUsar", "alemDoCredito"]) t[k] = cem(t[k]);
+  for (const k of ["permutado", "consumido", "aUsar", "aReceber"]) t[k] = cem(t[k]);
   return t;
 }
 
