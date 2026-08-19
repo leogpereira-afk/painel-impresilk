@@ -41,7 +41,7 @@ import {
   buscarClientes, buscarOrdensDe, buscarOrdensPorId, lerCobertura,
 } from "../services/permutas.js";
 import {
-  fichaDaOS, resumoDaPermuta, resumoGeral, ordensDosClientes, donoPorOS, extratoDaPermuta,
+  fichaDaOS, resumoDaPermuta, resumoGeral, totaisDasPermutas, ordensDosClientes, donoPorOS, extratoDaPermuta,
 } from "../lib/calc/permutas.js";
 import { moedaCheia, paraNumero, dataCurta, dataLonga } from "../lib/format.js";
 import { Card, PageTitle, Empty, CarregandoModulo, BotaoPDF, CabecalhoImpressao } from "../components/ui.jsx";
@@ -705,6 +705,7 @@ export default function Permutas() {
 
   const donos = useMemo(() => donoPorOS(mapa || {}), [mapa]);
   const lista = useMemo(() => resumoGeral(mapa || {}, ordens), [mapa, ordens]);
+  const totais = useMemo(() => totaisDasPermutas(lista), [lista]);
   const resumo = useMemo(
     () => (permuta ? resumoDaPermuta(permuta, ordens) : null),
     [permuta, ordens],
@@ -1387,6 +1388,51 @@ export default function Permutas() {
       />
 
       <Aviso aviso={aviso} aoFechar={() => setAviso(null)} />
+
+      {/* OS TRÊS NÚMEROS DO TOPO.
+          NÃO existe um "saldo total" aqui, e é decisão. Somar os saldos das
+          cinco permutas da base dá −R$ 81 mil, misturando "R$ 2.238 ainda para
+          gastar na Maple Bear" com "R$ 56 mil consumidos além na Vila 61" — o
+          resultado não é crédito disponível nem dívida, e não responde
+          pergunta nenhuma. Os dois lados aparecem separados. */}
+      {lista.length > 0 && (
+        <div className="grid gap-3 sm:grid-cols-3">
+          <Card className="p-4">
+            <div className="text-xs text-slate-500">Total permutado</div>
+            <div className="mt-1 text-2xl font-semibold tabular-nums text-slate-800">{dinheiro(totais.permutado)}</div>
+            <div className="mt-0.5 text-xs text-slate-500">
+              o que os parceiros deram · {totais.quantas} {totais.quantas === 1 ? "permuta" : "permutas"}
+              {totais.encerradas > 0 && ` (${totais.encerradas} encerrada${totais.encerradas > 1 ? "s" : ""} fora da conta)`}
+            </div>
+          </Card>
+
+          <Card className="p-4">
+            <div className="text-xs text-slate-500">Crédito para usar</div>
+            <div className="mt-1 text-2xl font-semibold tabular-nums text-ok-700">{dinheiro(totais.aUsar)}</div>
+            <div className="mt-0.5 text-xs text-slate-500">
+              somando só quem ainda tem saldo · já consumido {dinheiro(totais.consumido)}
+            </div>
+          </Card>
+
+          <Card className="p-4">
+            <div className="text-xs text-slate-500">Consumido além do crédito</div>
+            <div className={`mt-1 text-2xl font-semibold tabular-nums ${totais.alemDoCredito > 0 ? "text-bad-700" : "text-slate-800"}`}>
+              {dinheiro(totais.alemDoCredito)}
+            </div>
+            <div className="mt-0.5 text-xs text-slate-500">
+              {totais.semCredito > 0 ? (
+                /* Sem este aviso o número acima parece prejuízo, e na base real
+                   ele é cadastro faltando: duas permutas com crédito zero e
+                   dezenas de milhares em O.S. */
+                <span className="text-warn-700">
+                  {totais.semCredito} {totais.semCredito === 1 ? "permuta está" : "permutas estão"} sem crédito lançado —
+                  confira antes de ler este número como prejuízo
+                </span>
+              ) : "serviço entregue acima do que o parceiro deu"}
+            </div>
+          </Card>
+        </div>
+      )}
 
       {lista.length ? (
         <div className="grid gap-3 sm:grid-cols-2">

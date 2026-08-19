@@ -345,6 +345,48 @@ export function resumoGeral(permutas, ordens) {
     });
 }
 
+/* OS TOTAIS DE TODAS AS PERMUTAS — os números do topo da tela.
+ *
+ * NÃO SOMA OS SALDOS. Somar daria um número que não responde pergunta nenhuma:
+ * na base real de 19/08/2026, "R$ 2.238 ainda para gastar na Maple Bear" mais
+ * "R$ 56.452 consumidos além do crédito na Vila 61" fecham em −R$ 81 mil, e
+ * esse −81 mil não é nem crédito disponível nem dívida — é a mistura de dois
+ * fatos opostos.
+ *
+ * Saldo positivo e saldo negativo são coisas diferentes:
+ *   positivo = crédito que ainda dá para gastar;
+ *   negativo = serviço entregue além do que o parceiro deu (ou crédito que
+ *              ninguém lançou ainda).
+ * Por isso eles saem separados, e quem lê decide o que fazer com cada um.
+ *
+ * `semCredito` é o que impede o número de mentir: duas permutas da base têm
+ * crédito ZERO e consumo de dezenas de milhares. Elas não significam que a
+ * casa gastou demais — significam que o crédito não foi lançado. Sem esse
+ * aviso, o "além do crédito" parece prejuízo e é cadastro faltando.
+ */
+export function totaisDasPermutas(lista) {
+  const cem = (n) => Math.round(n * 100) / 100;
+  const vivas = (lista || []).filter((p) => !p.encerrada);
+  const t = {
+    quantas: vivas.length,
+    encerradas: (lista || []).length - vivas.length,
+    permutado: 0,     // o que os parceiros deram
+    consumido: 0,     // o que já virou O.S. e lançamento
+    aUsar: 0,         // soma só dos saldos POSITIVOS
+    alemDoCredito: 0, // soma dos negativos, em positivo
+    semCredito: 0,    // permutas com consumo e nenhum crédito lançado
+  };
+  for (const p of vivas) {
+    t.permutado += p.credito || 0;
+    t.consumido += p.consumido || 0;
+    if (p.saldo > 0) t.aUsar += p.saldo;
+    else if (p.saldo < 0) t.alemDoCredito += -p.saldo;
+    if (!(p.credito > 0) && (p.consumido || 0) > 0) t.semCredito++;
+  }
+  for (const k of ["permutado", "consumido", "aUsar", "alemDoCredito"]) t[k] = cem(t[k]);
+  return t;
+}
+
 /* As O.S. de um conjunto de clientes, para a tela de escolher.
  *
  * `jaAceitas` marca as que já entraram em ALGUMA permuta — inclusive em outra,
