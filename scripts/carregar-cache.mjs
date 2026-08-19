@@ -295,54 +295,81 @@ async function cargaDoRealizado() {
    Corrida propria, e nao um pedaco da completa, porque a completa ja usa 25 dos
    45 minutos do job. Enche a TABELA `painel_ordens` -- nunca o cache, que
    viaja no login e por isso fica em 2025 em diante. */
+/* A CARGA DO HISTORICO.
+   Corrida propria, e nao um pedaco da completa, porque a completa ja usa 25 dos
+   45 minutos do job.
+
+   ELA ESCREVE O PROPRIO DIARIO em `historico_status`. O motivo de uma falha
+   ficava so no log do Actions, que exige admin no repositorio -- duas corridas
+   se perderam com "exit code 1" e nada mais, e eu passei a adivinhar em vez de
+   ler. Escrito no banco, o motivo fica onde quem esta consertando alcanca. */
 async function cargaDoHistorico() {
   const inicio = Date.now();
-  /* A data vem das PROPRIAS permutas: a mais antiga que alguma delas pediu,
-     lida pelo passa-fio do painel-cache. Assim a direcao escolhe no lugar onde
-     a decisao importa (dentro da permuta) e a carga obedece sozinha -- sem uma
-     segunda configuracao para lembrar de mexer. A variavel de ambiente existe
-     para uma corrida pontual, tipo a primeira. */
-  const doPainel = (await chamar({ action: "cfgHistorico" })).historicoDesde;
-  const desde = process.env.HISTORICO_DESDE || doPainel || HISTORICO_DESDE_PADRAO;
-  const ate = process.env.HISTORICO_ATE || hojeMais(0);
-  const fatias = fatiasPorAno(desde, ate);
-  console.log(`carga do historico de O.S.: ${desde} ate ${ate} -- ${fatias.length} ano(s)`);
+  const diario = { comecou: new Date().toISOString(), passo: "inicio", anos: [], erro: null };
+  const anotar = async (extra) => {
+    Object.assign(diario, extra, { ms: Date.now() - inicio });
+    // Nunca deixar a anotacao derrubar a carga: ela existe para CONTAR o que
+    // aconteceu, e um erro aqui nao pode virar o erro que se conta.
+    try { await chamar({ chave: "historico_status", valor: diario }); } catch { /* ignora */ }
+  };
 
-  /* O catalogo e puxado UMA vez e emprestado a todas as fatias: sao 47
-     produtos, e refaze-lo por ano seria seis chamadas identicas ao ERP. */
-  const categoriaPorNome = await catalogoCategorias();
+  try {
+    await anotar({ passo: "lendo a data das permutas" });
+    const doPainel = (await chamar({ action: "cfgHistorico" })).historicoDesde;
+    const desde = process.env.HISTORICO_DESDE || doPainel || HISTORICO_DESDE_PADRAO;
+    const ate = process.env.HISTORICO_ATE || hojeMais(0);
+    const fatias = fatiasPorAno(desde, ate);
+    console.log(`carga do historico de O.S.: ${desde} ate ${ate} -- ${fatias.length} ano(s)`);
+    await anotar({ passo: "catalogo de produtos", desde, ate, anosPrevistos: fatias.map((f) => f.ano) });
 
-  /* ANO A ANO, e cada ano GRAVADO ANTES do proximo comecar.
-     Se o job estourar o tempo ou o ERP cair no meio, o que ja veio fica na
-     tabela -- e rodar de novo completa o resto, porque a gravacao e upsert por
-     id. A primeira versao pedia tudo de uma vez e, ao falhar, nao deixava nada:
-     20 minutos de ERP jogados fora e a tela igual ao que era. */
-  let total = 0;
-  const falharam = [];
-  for (const f of fatias) {
-    try {
-      const { ordens, canceladas, brutas } = await etapaHistoricoOS(f.de, f.ate, categoriaPorNome);
-      const n = await gravarOrdensTabela(ordens);
-      if (canceladas.length) {
-        for (let i = 0; i < canceladas.length; i += 1000) {
-          await chamar({ action: "ordensApagar", ids: canceladas.slice(i, i + 1000) });
+    /* O catalogo e puxado UMA vez e emprestado a todas as fatias: sao 47
+       produtos, e refaze-lo por ano seria seis chamadas identicas ao ERP. */
+    const categoriaPorNome = await catalogoCategorias();
+
+    /* ANO A ANO, e cada ano GRAVADO ANTES do proximo comecar.
+       Se o job estourar o tempo ou o ERP cair no meio, o que ja veio fica na
+       tabela -- e rodar de novo completa o resto, porque a gravacao e upsert
+       por id. A primeira versao pedia tudo de uma vez e, ao falhar, nao deixava
+       nada: 20 minutos de ERP jogados fora e a tela igual ao que era. */
+    let total = 0;
+    const falharam = [];
+    for (const f of fatias) {
+      await anotar({ passo: `ano ${f.ano}` });
+      try {
+        const { ordens, canceladas, brutas } = await etapaHistoricoOS(f.de, f.ate, categoriaPorNome);
+        const n = await gravarOrdensTabela(ordens);
+        if (canceladas.length) {
+          for (let i = 0; i < canceladas.length; i += 1000) {
+            await chamar({ action: "ordensApagar", ids: canceladas.slice(i, i + 1000) });
+          }
         }
+        total += n;
+        const comCnpj = ordens.filter((o) => o.cnpj).length;
+        console.log(`   ${f.ano}: ${brutas} no ERP -> ${n} gravadas (${comCnpj} com CNPJ), ${canceladas.length} canceladas`);
+        diario.anos.push({ ano: f.ano, brutas, gravadas: n, comCnpj, canceladas: canceladas.length });
+      } catch (e) {
+        // Um ano que falha NAO derruba os outros. Fica registrado -- silencio
+        // aqui viraria "carga ok" com um buraco de um ano no meio.
+        const motivo = String(e?.message || e).slice(0, 500);
+        console.warn(`   ${f.ano}: FALHOU -- ${motivo}`);
+        diario.anos.push({ ano: f.ano, erro: motivo });
+        falharam.push(f.ano);
       }
-      total += n;
-      const comCnpj = ordens.filter((o) => o.cnpj).length;
-      console.log(`   ${f.ano}: ${brutas} no ERP -> ${n} gravadas (${comCnpj} com CNPJ), ${canceladas.length} canceladas`);
-    } catch (e) {
-      // Um ano que falha NAO derruba os outros. Fica registrado para a linha
-      // final poder dizer o que faltou -- silencio aqui viraria "carga ok" com
-      // um buraco de um ano no meio.
-      console.warn(`   ${f.ano}: FALHOU -- ${e?.message || e}`);
-      falharam.push(f.ano);
     }
-  }
 
-  console.log(`gravadas ${total} linhas em ${Math.round((Date.now() - inicio) / 1000)}s`);
-  if (falharam.length) {
-    console.error(`anos que NAO vieram: ${falharam.join(", ")} -- rode de novo para completar`);
+    console.log(`gravadas ${total} linhas em ${Math.round((Date.now() - inicio) / 1000)}s`);
+    await anotar({ passo: "fim", total, falharam, ok: falharam.length === 0 });
+    if (falharam.length) {
+      console.error(`anos que NAO vieram: ${falharam.join(", ")} -- rode de novo para completar`);
+      process.exit(1);
+    }
+  } catch (e) {
+    /* Falha ANTES ou FORA do laco dos anos -- e foi exatamente aqui que as
+       duas corridas morreram sem deixar rastro legivel. `stack` vai junto
+       porque "Cannot read properties of undefined" sem a linha nao ajuda. */
+    const motivo = String(e?.message || e).slice(0, 500);
+    console.error(`carga do historico morreu no passo "${diario.passo}": ${motivo}`);
+    await anotar({ erro: motivo, pilha: String(e?.stack || "").slice(0, 1200), ok: false });
     process.exit(1);
   }
 }

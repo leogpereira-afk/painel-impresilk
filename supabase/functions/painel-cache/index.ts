@@ -37,6 +37,12 @@ const json = (o: unknown, s = 200) =>
 const CHAVES = new Set([
   "recebiveis", "pagar", "bancos", "orcamentos", "ordens",
   "fluxo_mensal", "status", "dso_hist", "lock",
+  /* O DIARIO DA CARGA DO HISTORICO. Ela roda no GitHub Actions e, quando
+     falha, o motivo fica no log do job -- que so quem tem admin no
+     repositorio consegue abrir. Duas corridas se perderam assim: "exit code
+     1" e nada mais. Agora a propria carga escreve aqui o que aconteceu, ano a
+     ano, e o motivo fica onde qualquer um que possa ler o banco alcanca. */
+  "historico_status",
 ]);
 
 // Chaves em que uma lista VAZIA quase nunca e a verdade -- e quando e, quem
