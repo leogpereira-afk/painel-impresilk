@@ -283,6 +283,17 @@ const CONTA_O_EVENTO = {
   reabriu: () => "reabriu a permuta",
 };
 
+/* Data E HORA no fuso de quem lê.
+   O servidor carimba em UTC. A primeira versão misturava as duas réguas --
+   `dataLonga` converte para o fuso local, mas a hora saía do texto cru
+   ("18/08/2026 00:29" quando aqui eram 21:29 do dia 18). Num histórico que
+   existe para conferir com o parceiro, hora errada é pior que hora nenhuma. */
+const quandoFoi = (iso) => {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  return `${dataLonga(iso)} ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+};
+
 function Historico({ eventos }) {
   if (!eventos.length) return <Empty>Nada registrado ainda.</Empty>;
   return (
@@ -290,7 +301,7 @@ function Historico({ eventos }) {
       {eventos.map((e, i) => (
         <li key={`${e.em}-${i}`} className="flex gap-3 text-sm">
           <span className="w-32 shrink-0 text-[11px] tabular-nums text-slate-400">
-            {dataLonga(e.em)} {String(e.em).slice(11, 16)}
+            {quandoFoi(e.em)}
           </span>
           <span className="min-w-0 text-slate-600">
             <span className="font-medium text-slate-800">{e.quemNome || e.quem}</span>{" "}
