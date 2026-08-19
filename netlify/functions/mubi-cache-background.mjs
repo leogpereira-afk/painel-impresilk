@@ -38,14 +38,48 @@ import { mubiGetTudo, mubiConfigurado, hojeMais, num } from "./lib/mubi.js";
 
 // ---- normalizacoes (campos reais do Mubisys, confirmados em 2026-07-14) ----
 
-function normRecebivel(r, i) {
+/* O QUE O CLIENTE AINDA DEVE -- não o valor do título.
+ *
+ * Um título vencido pode já ter sido pago EM PARTE, e continua VENCIDO no ERP
+ * com o `valor_titulo` cheio. Conferido contra o ERP em 19/08/2026: 11 dos 146
+ * vencidos tinham pagamento parcial, e não eram trocados --
+ *
+ *   ZEROTRINTAEOITOBURGUER  28.000 pagou 21.000  resta   7.000
+ *   FCO UNIDADE 1           16.000 pagou  5.333  resta  10.667
+ *   VINICIUS L. DE LEMOS     7.500 pagou  4.500  resta   3.000
+ *
+ * -- e o painel cobrava o valor cheio dos três. Ligar para o cliente pedindo
+ * R$ 28 mil quando ele deve R$ 7 mil é o pior erro que esta tela pode cometer.
+ *
+ * O PAGO VEM DA LISTA `pagamentos[]`, não de `valor_pagamento`. O campo do topo
+ * às vezes vem zerado e às vezes traz só a ÚLTIMA parcela: na VITTASAUDE ele
+ * diz 1.500 e a lista soma 4.500. A agregação do fluxo realizado já tinha
+ * descoberto isso e percorre a lista; aqui era o único lugar que ainda não.
+ *
+ * `valorTitulo` e `pago` ficam gravados ao lado do resultado pelo mesmo motivo
+ * do bruto/desconto da O.S.: guardar só o líquido faz a conta virar um número
+ * de origem desconhecida, e é assim que um erro destes dura meses.
+ */
+export function normRecebivel(r, i) {
+  const titulo = num(r.valor_titulo);
+  const pagos = Array.isArray(r.pagamentos) ? r.pagamentos : [];
+  const somaLista = pagos.reduce((s, p) => s + num(p?.valor), 0);
+  // O topo entra só como rede quando a lista não veio: melhor abater algo
+  // conhecido do que cobrar o cheio.
+  const pago = Math.round((somaLista || num(r.valor_pagamento)) * 100) / 100;
+  /* NUNCA NEGATIVO. Pagamento maior que o título acontece quando o cliente paga
+     com juros e multa por fora; o que ele DEVE, aí, é zero -- e não um crédito
+     que a tela somaria ao contrário. */
+  const resta = Math.max(0, Math.round((titulo - pago) * 100) / 100);
   return {
     id: String(r.id ?? `rec-${i}`),
     cliente: String(r.origem || "Cliente"),
     cnpj: String(r.origem_cnpj || ""),
     nf: String(r.numero_nota_fiscal || ""),
     os: String(r.despesa || ""),
-    valor: num(r.valor_titulo),
+    valor: resta,
+    valorTitulo: titulo,
+    pago,
     emissao: String(r.data_despesa || r.data_cadastro || ""),
     vencimento: String(r.data_vencimento || ""),
     situacao: "aberto",

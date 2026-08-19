@@ -160,6 +160,12 @@ export function calcContasAtrasadas(recebiveis, overrides, config, dsoHist = [],
         vendedores,
         vendedor: vendedores.join(", "),
         valor: r.valor,
+        /* O QUE JÁ FOI PAGO deste título. Vai adiante para a tela poder
+           mostrar a conta -- "R$ 28.000 − R$ 21.000 pago" -- em vez de um
+           líquido sem origem. Título antigo do cache, gravado antes do campo
+           existir, vem sem: aí a tela não mostra nada, que é o certo. */
+        valorTitulo: r.valorTitulo ?? null,
+        pago: r.pago ?? 0,
         dias: r.dias,
         emissao: r.emissao,
         vencimento: r.vencimento,

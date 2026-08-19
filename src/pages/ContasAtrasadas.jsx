@@ -119,8 +119,11 @@ function CartaoCobranca({ c, aberto, aoAbrir, aoRegistrar, aoApagar, salvando })
                     {t.dias > 0 ? `${numero(t.dias)} dias` : "a vencer"}
                   </span>
                   <span className="min-w-0 flex-1 truncate text-xs text-slate-400">
-                    {[t.cobrado && "já marcado como cobrado", t.motivoId && t.motivoNome]
-                      .filter(Boolean).join(" · ")}
+                    {[
+                      t.pago > 0 && `de ${moeda(t.valorTitulo)} · ${moeda(t.pago)} já pago`,
+                      t.cobrado && "já marcado como cobrado",
+                      t.motivoId && t.motivoNome,
+                    ].filter(Boolean).join(" · ")}
                   </span>
                   <span className="shrink-0 tabular-nums text-slate-700">{moeda(t.valor)}</span>
                 </li>
@@ -1064,8 +1067,18 @@ export default function ContasAtrasadas() {
                            115 vezes -- ruído que treina o olho a pular a linha
                            inteira. Em quem já foi cobrado ela é acusação útil:
                            falou-se com o cliente e não se anotou por quê. */
+                        /* PAGAMENTO PARCIAL À VISTA. Um título de R$ 28.000
+                           com R$ 21.000 pagos vale R$ 7.000 -- e ligar pedindo
+                           28 mil é o pior erro que esta tela pode cometer.
+                           Mostrar a conta é o que deixa a pessoa conferir com o
+                           cliente sem abrir o ERP. */
                         abaixo={
-                          t.motivoId ? t.motivoNome
+                          t.pago > 0 ? (
+                            <span className="text-ok-700">
+                              de {moeda(t.valorTitulo)} · {moeda(t.pago)} já pago
+                            </span>
+                          )
+                          : t.motivoId ? t.motivoNome
                           : t.cobrado ? <span className="text-warn-700">cobrado, sem motivo</span>
                           : null
                         }
