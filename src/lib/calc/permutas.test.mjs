@@ -47,6 +47,34 @@ test("item sem valor não vira NaN e não contamina o saldo", () => {
   assert.equal(valorDaOS({ itens: [{ valorTotal: "abc" }] }), 0);
 });
 
+/* A REGRA DO DESCONTO, com os numeros reais da O.S. 19386 (Empominas).
+   Ela existe porque o painel guardou 2.138,64 numa O.S. de 2.000,00 e isso
+   consumiu R$ 138,64 a mais do credito do parceiro. Se alguem um dia voltar a
+   usar o bruto, este teste reprova antes de chegar na tela. */
+test("O.S. com desconto vale o VALOR FINAL, nunca o bruto", () => {
+  const os19386 = { id: "1", numero: "19386", cliente: "EMPOMINAS",
+                    data: "2025-06-03", bruto: 2138.64, desconto: 138.64, valor: 2000 };
+  assert.equal(valorDaOS(os19386), 2000, "2.138,64 - 138,64");
+  const f = fichaDaOS(os19386);
+  assert.equal(f.valor, 2000);
+  assert.equal(f.bruto, 2138.64, "o bruto fica guardado para a conta ser conferivel");
+  assert.equal(f.desconto, 138.64);
+});
+
+test("sem desconto a ficha nao carrega campo vazio", () => {
+  const f = fichaDaOS({ id: "2", numero: "1", valor: 500, bruto: 500, desconto: 0 });
+  assert.equal(f.valor, 500);
+  assert.equal("desconto" in f, false, "registro so guarda o que tem o que dizer");
+});
+
+test("o desconto chega na linha da tela, viva ou congelada", () => {
+  const p = { lancamentos: {}, os: { "1": { numero: "19386", valor: 2000, bruto: 2138.64, desconto: 138.64 } } };
+  // Sem o ERP na mao, a linha ainda sabe explicar o numero.
+  const soCongelado = resumoDaPermuta(p, [os(9, "Outro", 1)]).linhas[0];
+  assert.equal(soCongelado.desconto, 138.64);
+  assert.equal(soCongelado.bruto, 2138.64);
+});
+
 test("o valor de VENDA do ERP manda sobre a soma dos itens", () => {
   // A 21076 real: o ERP diz 2.767,83 e os itens somam 2.651,73.
   const osReal = { id: 1, numero: "21076", cliente: "H2", data: "2025-11-25",

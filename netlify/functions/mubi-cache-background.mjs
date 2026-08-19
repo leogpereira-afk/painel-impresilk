@@ -207,22 +207,33 @@ export function normOS(os, i, categoriaPorNome) {
     id: String(os.id ?? `os-${i}`),
     numero: String(os.sequencial_ordem || os.sequencial_orcamento || os.id || ""),
 
-    /* O VALOR DE VENDA DA O.S., pelo cabecalho do ERP.
-       Nao e a soma dos `itens` daqui. Os itens existem para responder "quanto
-       vendemos de lona, de ACM, de servico" -- e para isso eles tem de ser
-       rateados, agrupados e classificados. O que o CLIENTE deve e outra
-       pergunta, e o ERP ja a responde num campo so.
-
-       Na maioria das O.S. os dois numeros batem (conferi 200 contra o ERP em
-       19/08/2026, inclusive 26 com desconto no cabecalho -- o desconto ja vem
-       aplicado no item). Mas nao em todas: a 21076 tem total 2.767,83 com itens
-       somando 2.651,73, e a 21022 tem 1.736,46 com itens somando 1.404,70 --
-       sem desconto e sem frete nas duas. Alguma coisa entra no total que nao
-       esta na lista de itens da listagem.
-
-       Para a tela de Permutas isso e o saldo do parceiro, entao vale o numero
-       do ERP: e o que esta na nota e o que ele vai conferir. */
-    valor: num(os.valor_total),
+    /* O VALOR FINAL DA O.S.: bruto menos desconto. E o que o cliente deve.
+     *
+     * A 19386 (Empominas, 03/06/2025) mostra a regra inteira:
+     *     itens ......... 1.443,00 + 695,64 = 2.138,64   = `valor_total`
+     *     descontos .....                      138,64    = `valor_desconto`
+     *     valor final ...                    2.000,00
+     *
+     * O ERP NAO TEM CAMPO DE VALOR FINAL -- a tela dele calcula, e nos tambem.
+     * `valor_total` e o BRUTO, igual a soma dos itens. Foi por isso que o erro
+     * durou: conferi 200 O.S. comparando `valor_total` com a soma dos itens,
+     * vi que batiam mesmo nas 26 com desconto, e conclui que o desconto ja
+     * vinha aplicado. Batiam porque sao a mesma coisa. O controle que escolhi
+     * nao detectava o erro que eu procurava.
+     *
+     * O BRUTO E O DESCONTO VAO JUNTO, e nao so o resultado: guardar so o final
+     * faz a conta virar um numero de origem desconhecida, que e o que permitiu
+     * isto passar. Com os tres, a tela mostra "2.138,64 - 138,64" e qualquer
+     * pessoa confere contra o PDF do ERP.
+     *
+     * `valor_frete` fica de FORA de proposito: nao encontrei nenhuma O.S. com
+     * frete para saber se ele ja esta dentro do `valor_total` ou se soma por
+     * cima, e somar sem saber arrisca cobrar duas vezes. Se aparecer uma, o
+     * proprio `bruto` gravado denuncia a diferenca contra o PDF.
+     */
+    valorBruto: num(os.valor_total),
+    desconto: num(os.valor_desconto),
+    valor: Math.round((num(os.valor_total) - num(os.valor_desconto)) * 100) / 100,
 
     cliente: String(os.cliente || "Cliente"),
     /* O CNPJ/CPF de quem comprou. A O.S. e identificada pelo NOME do cliente em

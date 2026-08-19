@@ -185,7 +185,18 @@ function LinhaAceita({ l, aoTirar }) {
             <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[11px] text-slate-500">valor do aceite</span>
           )}
         </div>
-        <div className="text-[11px] text-slate-400">{dataDaOS(l.data)}</div>
+        <div className="text-[11px] text-slate-400">
+          {dataDaOS(l.data)}
+          {/* A CONTA À VISTA quando houve desconto. "R$ 2.000,00" sozinho não
+              responde de onde saiu, e foi guardar só o resultado que deixou o
+              desconto passar batido. Assim a direção confere contra o PDF do
+              ERP na frente do parceiro, sem abrir o ERP. */}
+          {l.desconto > 0 && (
+            <span className="ml-2">
+              {dinheiro(l.bruto)} − {dinheiro(l.desconto)} de desconto
+            </span>
+          )}
+        </div>
       </div>
       <span className="shrink-0 tabular-nums text-slate-700">{dinheiro(l.valor)}</span>
       <button

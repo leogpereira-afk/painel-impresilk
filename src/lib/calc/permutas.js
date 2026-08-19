@@ -107,12 +107,18 @@ export function clientesDasOrdens(ordens) {
 
 /** A ficha de uma O.S. como ela é guardada dentro da permuta (o congelado). */
 export function fichaDaOS(os) {
+  const desconto = Math.round(num(os?.desconto) * 100) / 100;
   return {
     numero: String(os?.numero ?? ""),
     cliente: String(os?.cliente ?? ""),
     cnpj: soDigitos(os?.cnpj),
     data: String(os?.data ?? ""),
     valor: valorDaOS(os),
+    /* A CONTA FICA GUARDADA, não só o resultado. "R$ 2.000,00" sozinho não
+       responde de onde saiu; "2.138,64 − 138,64" responde, e é o que a direção
+       confere contra o PDF do ERP na frente do parceiro. Foi guardar só o
+       resultado que deixou o desconto passar batido. */
+    ...(desconto > 0 ? { bruto: Math.round(num(os?.bruto) * 100) / 100, desconto } : {}),
   };
 }
 
@@ -157,6 +163,10 @@ export function linhasDaPermuta(permuta, ordens) {
         valor,
         congelado,
         mudou,
+        // Quanto o ERP abateu nesta O.S. A tela mostra para a conta poder ser
+        // conferida sem abrir o ERP.
+        desconto: Math.round(num(viva?.desconto ?? ficha?.desconto) * 100) / 100,
+        bruto: Math.round(num(viva?.bruto ?? ficha?.bruto) * 100) / 100,
         // Continua contando no saldo: foi aceita, e o crédito foi dado como
         // gasto. Quem decide tirar é a direção, no botão -- não a tela sozinha.
         sumiu: conferivel && !viva,

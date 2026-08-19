@@ -203,7 +203,7 @@ Deno.serve(async (req: Request) => {
           .split("|").map((x) => x.trim()).filter(Boolean).slice(0, 1000);
         if (ids.length) {
           const { data, error } = await sb.from("painel_ordens")
-            .select("id, numero, cliente, cnpj, data, valor")
+            .select("id, numero, cliente, cnpj, data, valor, bruto, desconto")
             .in("id", ids);
           if (error) throw new Error(error.message);
           return json({ itens: data ?? [] });
@@ -213,7 +213,7 @@ Deno.serve(async (req: Request) => {
         // nomes que casam com o termo, para a pessoa escolher.
         if (clientes.length) {
           let q = sb.from("painel_ordens")
-            .select("id, numero, cliente, cnpj, data, valor")
+            .select("id, numero, cliente, cnpj, data, valor, bruto, desconto")
             .in("cliente_chave", clientes)
             .order("data", { ascending: false })
             .limit(2000);

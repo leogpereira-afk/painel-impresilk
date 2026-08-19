@@ -105,17 +105,16 @@ const chaveCliente = (nome) =>
     .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
     .trim().replace(/\s+/g, " ").toUpperCase();
 
-/* O VALOR DE VENDA da O.S., que e o que a permuta abate do credito do parceiro.
-   Vem do cabecalho do ERP (`valor_total`, ja normalizado como `valor` pelo
-   normOS) e NAO da soma dos itens: conferindo 200 O.S. contra o ERP em
-   19/08/2026, duas tinham total maior que a soma dos itens sem ser desconto nem
-   frete. A soma fica como caminho de volta para O.S. do cache antigo, gravado
-   antes de o campo existir -- sem ela elas passariam a valer zero. */
+/* O VALOR FINAL da O.S. -- bruto menos desconto -- que e o que a permuta abate
+   do credito do parceiro. Vem do cabecalho do ERP, ja calculado pelo normOS.
+   A soma dos itens fica como caminho de volta para O.S. do cache antigo,
+   gravada antes de o campo existir: sem ela elas passariam a valer zero e o
+   saldo da permuta subiria sozinho. */
 const valorDaOS = (o) => {
-  const bruto = o?.valor != null && o.valor !== ""
+  const v = o?.valor != null && o.valor !== ""
     ? Number(o.valor) || 0
     : (o.itens ?? []).reduce((s, it) => s + (Number(it.valorTotal) || 0), 0);
-  return Math.round(bruto * 100) / 100;
+  return Math.round(v * 100) / 100;
 };
 
 async function gravarOrdensTabela(ordens) {
@@ -136,6 +135,11 @@ async function gravarOrdensTabela(ordens) {
         cnpj: String(o.cnpj || ""),
         data: String(o.data ?? "").slice(0, 10),
         valor: valorDaOS(o),
+        // O bruto e o desconto vao JUNTO, e nao so o resultado: guardar so o
+        // final faz a conta virar um numero de origem desconhecida -- que foi
+        // o que permitiu o desconto passar batido por dois dias.
+        bruto: Math.round((Number(o.valorBruto) || valorDaOS(o)) * 100) / 100,
+        desconto: Math.round((Number(o.desconto) || 0) * 100) / 100,
         vendedor: String(o.vendedor ?? ""),
       };
     });
@@ -346,7 +350,14 @@ async function cargaDoHistorico() {
         total += n;
         const comCnpj = ordens.filter((o) => o.cnpj).length;
         console.log(`   ${f.ano}: ${brutas} no ERP -> ${n} gravadas (${comCnpj} com CNPJ), ${canceladas.length} canceladas`);
-        diario.anos.push({ ano: f.ano, brutas, gravadas: n, comCnpj, canceladas: canceladas.length });
+        /* QUANTAS TINHAM DESCONTO, e quanto foi abatido. Se um dia a regra
+           parar de valer, isto vira zero e aparece no diario -- em vez de
+           voltar a inflar o saldo das permutas em silencio. */
+        const comDesc = ordens.filter((o) => (Number(o.desconto) || 0) > 0);
+        const abatido = Math.round(comDesc.reduce((s, o) => s + Number(o.desconto), 0) * 100) / 100;
+        console.log(`      ${comDesc.length} com desconto, R$ ${abatido} abatidos`);
+        diario.anos.push({ ano: f.ano, brutas, gravadas: n, comCnpj,
+                           canceladas: canceladas.length, comDesconto: comDesc.length, abatido });
       } catch (e) {
         // Um ano que falha NAO derruba os outros. Fica registrado -- silencio
         // aqui viraria "carga ok" com um buraco de um ano no meio.
