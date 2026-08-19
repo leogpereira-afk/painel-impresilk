@@ -28,6 +28,10 @@ export const MODULOS = [
 // avisar a direção do peso do que está marcando.
 export const COM_DINHEIRO = new Set([
   "contas-atrasadas", "orcamentos", "bancos", "gestao",
+  // Permuta mostra o crédito do parceiro, o valor de cada O.S. que ele gastou
+  // e o saldo. Sem o aviso de R$, quem concede o módulo não vê que está
+  // abrindo dinheiro — e o aviso existe justamente para isso.
+  "permutas",
 ]);
 
 // Ids que já foram módulos e não são mais (as telas saíram do menu e das rotas

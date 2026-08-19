@@ -55,6 +55,29 @@ const diaSP = (d: Date | string = new Date()): string =>
 
 // ---------------------------------------------------------------- leitura local
 
+/* QUAIS COLECOES EXISTEM DE VERDADE NO BANCO.
+ *
+ * Serve para o backup conferir a si mesmo. Ja aconteceu DUAS vezes de uma
+ * colecao nova nascer e nao entrar aqui: `assinaturas` ficou um dia fora (a
+ * auditoria pegou) e `permutas` passou meses -- em 19/08/2026 fui procurar um
+ * dado de permuta no backup, nao achei nada, e quase conclui que a gravacao
+ * estava falhando. Ausencia de copia parece ausencia de dado.
+ *
+ * Lista a mao envelhece calada. Perguntar ao banco, nao.
+ */
+async function colecoesNoBanco(): Promise<string[]> {
+  const vistas = new Set<string>();
+  const PASSO = 1000;
+  for (let de = 0; ; de += PASSO) {
+    const { data, error } = await sb.from("painel_registros").select("colecao")
+      .order("colecao").range(de, de + PASSO - 1);
+    if (error) throw new Error(error.message);
+    for (const r of data ?? []) vistas.add(String(r.colecao));
+    if ((data ?? []).length < PASSO) break;
+  }
+  return [...vistas].sort();
+}
+
 async function linhasDe(colecao: string): Promise<Record<string, unknown>> {
   const out: Record<string, unknown> = {};
   const PASSO = 1000;
@@ -103,6 +126,15 @@ async function montarBackupPainel() {
       // pagos. Nasceu em 15/08 e ficou UM dia fora do backup -- a auditoria
       // pegou antes de virar perda.
       assinaturas: await linhasDe("assinaturas"),
+      /* PERMUTAS ficou de fora desde que nasceu, e e a segunda vez que uma
+         colecao nova nasce sem entrar aqui -- `assinaturas` ficou um dia fora
+         e a auditoria pegou; esta passou despercebida ate 19/08/2026, quando
+         fui procurar um dado de permuta no backup e nao achei NADA. Quase
+         conclui que a gravacao estava falhando: o backup nao copiava, e
+         ausencia de copia parece ausencia de dado.
+         O que se perde aqui e credito de parceiro -- quanto ele nos deu e
+         quanto ja gastou. Nao ha de onde reconstruir. */
+      permutas: await linhasDe("permutas"),
       // Os BYTES dos arquivos ficam no bucket (duraveis); um backup diario
       // deles incharia o repositorio. Mesma decisao do original com as fotos.
     },
@@ -263,26 +295,34 @@ async function backupDoHub() {
   // 1) o proprio painel. Cada sistema falha sozinho.
   try {
     const bkp = await montarBackupPainel();
+    /* Confere o backup contra o banco ANTES de reportar sucesso: um backup que
+       nao copiou tudo nao e um backup bom com um detalhe, e a diferenca precisa
+       aparecer para alguem. `config` nao mora em painel_registros, entao nao
+       entra na comparacao. */
+    const copiadas = new Set(Object.keys(bkp.painel));
+    const naoCopiadas = (await colecoesNoBanco()).filter((c) => {
+      // os nomes no backup nem sempre sao iguais aos do banco (ativo -> ativos,
+      // arquivo -> arquivosMeta): confere pelos dois jeitos.
+      return !copiadas.has(c) && !copiadas.has(`${c}s`) && !copiadas.has(`${c}sMeta`);
+    });
     const gh = await enviarParaGithub("painel", bkp);
     porSistema.painel = {
       em: agora, ok: gh.ok,
       // Conta TUDO o que foi salvo. Ficou parado nas quatro colecoes originais
       // enquanto o backup ja levava mais quatro: a direcao abria a tela, via
       // "132 registros" e nao tinha como saber se as abas novas entraram.
+      /* Contagem DERIVADA do que foi salvo, nao de uma lista a mao. A lista
+         anterior ficou parada nas quatro colecoes originais enquanto o backup
+         ja levava mais quatro, e a direcao via "132 registros" sem ter como
+         saber se as abas novas entraram. Colecao nova agora entra na conta
+         sozinha. */
       registros:
-        Object.keys(bkp.painel.ov_rec).length +
-        Object.keys(bkp.painel.ov_orc).length +
-        Object.keys(bkp.painel.ativos).length +
-        Object.keys(bkp.painel.arquivosMeta).length +
-        Object.keys(bkp.painel.marketing).length +
-        Object.keys(bkp.painel.bancos).length +
-        Object.keys(bkp.painel.glossario).length +
-        Object.keys(bkp.painel.compromissos).length +
-        Object.keys(bkp.painel.manutencoes).length +
-        Object.keys(bkp.painel.patrimonio).length +
-        Object.keys(bkp.painel.setores).length +
-        Object.keys(bkp.contas).length +
-        (bkp.painel.config ? 1 : 0),
+        Object.values(bkp.painel)
+          .reduce((n, v) => n + (v && typeof v === "object" ? Object.keys(v).length : 0), 0) +
+        Object.keys(bkp.contas).length,
+      /* O que existe no banco e o backup NAO copiou. Vazio e o esperado; com
+         algo dentro, a tela de backup tem o que mostrar antes de virar perda. */
+      colecoesForaDoBackup: naoCopiadas,
       erro: gh.ok ? null : (gh as any).motivo,
     };
   } catch (e) {

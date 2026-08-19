@@ -285,6 +285,19 @@ function UltimoBackup({ status }) {
                       ok{typeof s.registros === "number" ? ` · ${s.registros} reg.` : ""}
                     </span>
                   )}
+                  {/* COLEÇÃO QUE O BACKUP NÃO COPIOU. Só aparece quando existe,
+                      e é a diferença entre "está tudo salvo" e "está salvo o que
+                      alguém lembrou de listar". Já aconteceu duas vezes: as
+                      assinaturas ficaram um dia fora, as permutas ficaram meses
+                      — e nada na tela dizia. */}
+                  {Array.isArray(s.colecoesForaDoBackup) && s.colecoesForaDoBackup.length > 0 && (
+                    <span
+                      className="ml-1.5 chip-bad"
+                      title={`Existe no banco e NÃO está sendo copiado: ${s.colecoesForaDoBackup.join(", ")}`}
+                    >
+                      {s.colecoesForaDoBackup.length} fora do backup
+                    </span>
+                  )}
                 </td>
               </tr>
             ))}
