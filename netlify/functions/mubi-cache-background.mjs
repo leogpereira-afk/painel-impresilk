@@ -207,17 +207,24 @@ export function normOS(os, i, categoriaPorNome) {
     id: String(os.id ?? `os-${i}`),
     numero: String(os.sequencial_ordem || os.sequencial_orcamento || os.id || ""),
     cliente: String(os.cliente || "Cliente"),
-    // O CNPJ/CPF de quem comprou. A O.S. e identificada pelo NOME do cliente em
-    // todo o painel, e nome nao e chave: a mesma empresa aparece como duas
-    // razoes sociais (SPE ... e ... CONSTRUTORA) e duas empresas do mesmo grupo
-    // aparecem como uma so na hora de somar. Na tela de Permutas isso decide o
-    // saldo, porque uma permuta costuma abranger mais de um CNPJ do mesmo dono.
-    //
-    // O ERP nomeia esse campo de quatro jeitos conforme o cadastro; a mesma
-    // lista que o PCP usa em pcp-mubisys. Vazio e resposta legitima (pessoa
-    // fisica sem cadastro completo), entao a tela nao pode EXIGIR o CNPJ --
-    // ele qualifica o nome, nao substitui.
-    cnpj: soDigitos(os.cpf_cnpj ?? os.cpfcnpj ?? os.cnpj ?? os.cpf ?? ""),
+    /* O CNPJ/CPF de quem comprou. A O.S. e identificada pelo NOME do cliente em
+       todo o painel, e nome nao e chave: a mesma empresa aparece como duas
+       razoes sociais (SPE ... e ... CONSTRUTORA) e duas empresas do mesmo grupo
+       aparecem como uma so na hora de somar. Na tela de Permutas isso decide o
+       saldo, porque uma permuta costuma abranger mais de um CNPJ do mesmo dono.
+
+       O CAMPO CHAMA `cliente_cnpj_cpf`. Conferido contra o ERP em 19/08/2026,
+       pedindo uma O.S. e lendo os nomes de campo que voltaram. A primeira
+       versao copiou a lista de nomes do PCP (`cpf_cnpj`, `cpfcnpj`, `cnpj`,
+       `cpf`) -- nenhum deles existe aqui, e o resultado foi um campo sempre
+       vazio que eu quase reportei como "o ERP nao manda CNPJ". Os outros nomes
+       ficam como rede, porque o PCP os le em algum cadastro.
+
+       Vazio e resposta legitima (pessoa fisica sem cadastro completo), entao a
+       tela nao pode EXIGIR o CNPJ -- ele qualifica o nome, nao substitui. */
+    cnpj: soDigitos(
+      os.cliente_cnpj_cpf ?? os.cpf_cnpj ?? os.cpfcnpj ?? os.cnpj ?? os.cpf ?? "",
+    ),
     // Quem vendeu. O contas-receber do Mubisys nao tem vendedor: a cobranca
     // descobre com quem falar ligando o titulo (campo `despesa` = numero da OS)
     // a esta OS. Ver src/lib/calc/contasAtrasadas.js.
@@ -358,7 +365,7 @@ export const chaveProduto = (nome) =>
     .trim()
     .toLowerCase();
 
-async function catalogoCategorias() {
+export async function catalogoCategorias() {
   const catalogo = await mubiGetTudo("produto");
   // Lista vazia nao e catalogo: o ERP pode responder 200 com [] e, seguindo,
   // TODO item do ano viraria "Fora do catalogo". Melhor a carga completa falhar
@@ -368,60 +375,6 @@ async function catalogoCategorias() {
   // categoria vazia no ERP e produto fora do catalogo sao problemas diferentes.
   return new Map(catalogo.map((p) => [chaveProduto(p.nome), String(p.categoria || "").trim()]));
 }
-
-/* O CNPJ DOS CLIENTES, numa chamada so.
- *
- * O endpoint `ordem-servico` NAO manda o documento na listagem: provado em
- * 19/08/2026, quando 58 O.S. foram renormalizadas com o campo novo e as 58
- * voltaram vazias. Ele mora no cadastro de clientes.
- *
- * Buscar O.S. por O.S. seria impossivel (19 mil chamadas de 25-40s cada).
- * Buscar o cadastro inteiro e UMA chamada paginada, do mesmo tamanho do
- * catalogo de produtos que a carga ja faz.
- *
- * A juncao e pelo NOME normalizado, que e a unica chave que a O.S. carrega.
- * Nome nao e chave boa -- e por isso que dois clientes com a mesma razao social
- * ficam de fora aqui (sem CNPJ) em vez de receberem um chute. O CNPJ nesta tela
- * QUALIFICA o nome; nao o substitui.
- *
- * Falhar aqui NAO derruba a carga: sem CNPJ a permuta funciona pelo nome.
- */
-async function cnpjPorNomeDeCliente() {
-  try {
-    const clientes = await mubiGetTudo("cliente");
-    if (!clientes.length) {
-      console.warn("cadastro de clientes veio vazio -- O.S. ficam sem CNPJ nesta carga");
-      return new Map();
-    }
-    const porNome = new Map();
-    const repetidos = new Set();
-    for (const c of clientes) {
-      const nome = String(c.nome || c.razao_social || c.cliente || "").trim();
-      const doc = String(c.cpf_cnpj ?? c.cpfcnpj ?? c.cnpj ?? c.cpf ?? "").replace(/\D/g, "");
-      if (!nome || !doc) continue;
-      const k = chaveClienteOS(nome);
-      const ja = porNome.get(k);
-      if (ja && ja !== doc) { repetidos.add(k); continue; }
-      porNome.set(k, doc);
-    }
-    // Razao social repetida com documentos diferentes: nenhum dos dois vale.
-    for (const k of repetidos) porNome.delete(k);
-    if (repetidos.size) {
-      console.warn(`${repetidos.size} nomes de cliente com CNPJ diferente entre si -- ficaram sem documento`);
-    }
-    return porNome;
-  } catch (e) {
-    console.warn("cadastro de clientes falhou:", e?.message || e);
-    return new Map();
-  }
-}
-
-export const chaveClienteOS = (nome) =>
-  String(nome ?? "")
-    .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
-    .trim().replace(/\s+/g, " ").toUpperCase();
-
-export { cnpjPorNomeDeCliente };
 
 // ---------------------------------------------------------------------------
 // FLUXO REALIZADO MES A MES: o que de fato ENTROU (contas-receber PAGO) e SAIU
@@ -565,28 +518,66 @@ export async function etapaRealizado(anoBase = new Date().getUTCFullYear(), ante
 /* SO O HISTORICO DE O.S., para a busca da permuta alcancar 2020.
  *
  * Etapa SEPARADA da carga normal por causa do relogio: a completa ja leva
- * ~25 min e o job tem teto de 45. Puxar 2020-2024 sao ~15 mil O.S. a mais,
- * mais ou menos 30 paginas de 25-40s -- juntas as duas estourariam.
+ * ~25 min e o job tem teto de 45. Nao mexe em `painel_cache` NENHUM -- so
+ * devolve as O.S. normalizadas para quem chamou gravar na TABELA. O cache
+ * continua sendo 2025 em diante, que e ate onde as outras telas precisam e ate
+ * onde cabe viajar no login.
  *
- * Nao mexe em `painel_cache` NENHUM. So devolve as O.S. normalizadas para
- * quem chamou gravar na TABELA. O cache continua sendo 2025 em diante, que e
- * ate onde as outras telas precisam e ate onde cabe viajar no login.
+ * UMA FATIA POR CHAMADA, E FATIA PEQUENA. A primeira versao pedia o periodo
+ * inteiro de uma vez, com 500 por pagina, e a corrida morreu. Medindo o ERP
+ * direto (19/08/2026):
  *
- * `ate` existe para a carga poder ser fatiada por ano se um dia o volume
- * crescer: cada fatia e uma corrida, e o upsert por id torna reenvio inofensivo.
+ *   500 O.S. desde 2025 ......... 63 s
+ *   100 O.S. desde 2020 ......... 23 s
+ *   500 O.S. desde 2020 ......... nao voltou em 150 s
+ *
+ * O custo cresce com o TAMANHO DA PAGINA e com o tamanho do intervalo, e as
+ * duas coisas juntas passam de qualquer paciencia. Fatiado por ano e com
+ * pagina menor, cada chamada volta em segundos -- e, o que importa mais, uma
+ * fatia que falhe nao leva as outras junto: quem chama grava ano a ano e o
+ * upsert por id torna reenvio inofensivo.
+ *
+ * (Ressalva honesta sobre esses numeros: eu os medi em sequencia, martelando o
+ * mesmo ERP. Parte da lentidao do fim pode ter sido eu. A conclusao que
+ * sustenta o desenho e a comparacao de baixo para cima, nao o valor absoluto.)
  */
-export async function etapaHistoricoOS(desde, ate) {
+export const PAGINA_HISTORICO = 100;
+
+export async function etapaHistoricoOS(desde, ate, categoriaPorNome) {
   const base = { status: "TODOS", filtrodata: "CADASTRO" };
-  const [categoriaPorNome, brutas] = await Promise.all([
-    catalogoCategorias(),
-    mubiGetTudo("ordem-servico", { ...base, datainicial: desde, datafinal: ate }, 500),
-  ]);
+  const cat = categoriaPorNome ?? (await catalogoCategorias());
+  const brutas = await mubiGetTudo(
+    "ordem-servico",
+    { ...base, datainicial: desde, datafinal: ate },
+    PAGINA_HISTORICO,
+  );
   // A cancelada nao entra -- mesma regra da carga normal. Quem ja aceitou uma
   // O.S. que depois foi cancelada continua vendo o abatimento na permuta, com
   // o aviso: quem decide tirar e a direcao (ver linhasDaPermuta).
-  const ordens = brutas.map((os, i) => normOS(os, i, categoriaPorNome)).filter((o) => !o.cancelada);
-  const canceladas = brutas.filter((os) => /cancel/i.test(String(os.status || ""))).map((os) => String(os.id));
+  const ordens = brutas.map((os, i) => normOS(os, i, cat)).filter((o) => !o.cancelada);
+  const canceladas = brutas
+    .filter((os) => /cancel/i.test(String(os.status || "")))
+    .map((os) => String(os.id));
   return { ordens, canceladas, brutas: brutas.length };
+}
+
+/* As fatias de ano entre duas datas, da mais NOVA para a mais velha.
+   Mais nova primeiro porque e a que a direcao vai usar antes: se a corrida
+   estourar o tempo no meio, o que ficou de fora e o passado distante, nao o
+   ano passado. */
+export function fatiasPorAno(desde, ate) {
+  const a0 = Number(String(desde).slice(0, 4));
+  const a1 = Number(String(ate).slice(0, 4));
+  if (!Number.isFinite(a0) || !Number.isFinite(a1) || a1 < a0) return [];
+  const fatias = [];
+  for (let a = a1; a >= a0; a--) {
+    fatias.push({
+      ano: a,
+      de: a === a0 ? String(desde) : `${a}-01-01`,
+      ate: a === a1 ? String(ate) : `${a}-12-31`,
+    });
+  }
+  return fatias;
 }
 
 export async function etapaCompleta() {

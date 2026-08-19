@@ -26,8 +26,7 @@
 import {
   etapaRapidos, etapaCompleta, etapaRealizado, calcDso, normOrcamento, normOS, chaveProduto,
   SEM_CATEGORIA, FORA_CATALOGO,
-  etapaHistoricoOS,
-  cnpjPorNomeDeCliente,
+  etapaHistoricoOS, fatiasPorAno, catalogoCategorias,
 } from "../netlify/functions/mubi-cache-background.mjs";
 import { mubiGetTudo, mubiConfigurado, hojeMais } from "../netlify/functions/lib/mubi.js";
 
@@ -111,7 +110,7 @@ const valorDaOS = (o) => {
   return Math.round(bruto * 100) / 100;
 };
 
-async function gravarOrdensTabela(ordens, cnpjPorCliente) {
+async function gravarOrdensTabela(ordens) {
   if (!Array.isArray(ordens) || !ordens.length) return 0;
   const LOTE = 1000;
   let total = 0;
@@ -123,10 +122,10 @@ async function gravarOrdensTabela(ordens, cnpjPorCliente) {
         numero: String(o.numero ?? ""),
         cliente: String(o.cliente ?? ""),
         clienteChave: ck,
-        // O endpoint `ordem-servico` do ERP NAO manda o CNPJ na listagem --
-        // provado em 19/08/2026: 58 O.S. renormalizadas, 58 com o campo vazio.
-        // Ele vem do cadastro de clientes, puxado uma vez por carga.
-        cnpj: String(o.cnpj || cnpjPorCliente?.get(ck) || ""),
+        // O CNPJ vem na propria O.S. (`cliente_cnpj_cpf`), ja normalizado pelo
+        // normOS. A primeira versao ia busca-lo no cadastro de clientes -- 22
+        // paginas, ~88 s -- porque eu procurava o campo com o nome errado.
+        cnpj: String(o.cnpj || ""),
         data: String(o.data ?? "").slice(0, 10),
         valor: valorDaOS(o),
         vendedor: String(o.vendedor ?? ""),
@@ -298,27 +297,46 @@ async function cargaDoHistorico() {
   const doPainel = (await chamar({ action: "cfgHistorico" })).historicoDesde;
   const desde = process.env.HISTORICO_DESDE || doPainel || HISTORICO_DESDE_PADRAO;
   const ate = process.env.HISTORICO_ATE || hojeMais(0);
-  console.log(`carga do historico de O.S.: ${desde} ate ${ate}`);
+  const fatias = fatiasPorAno(desde, ate);
+  console.log(`carga do historico de O.S.: ${desde} ate ${ate} -- ${fatias.length} ano(s)`);
 
-  const cnpjPorCliente = await cnpjPorNomeDeCliente();
-  console.log(`   CNPJ de ${cnpjPorCliente.size} clientes do cadastro`);
+  /* O catalogo e puxado UMA vez e emprestado a todas as fatias: sao 47
+     produtos, e refaze-lo por ano seria seis chamadas identicas ao ERP. */
+  const categoriaPorNome = await catalogoCategorias();
 
-  const { ordens, canceladas, brutas } = await etapaHistoricoOS(desde, ate);
-  console.log(`   ${brutas} O.S. no ERP, ${ordens.length} validas, ${canceladas.length} canceladas`);
-
-  const gravadas = await gravarOrdensTabela(ordens, cnpjPorCliente);
-  // A cancelada some da tabela: senao continuaria na lista de escolha da
-  // permuta como se ainda existisse.
-  if (canceladas.length) {
-    for (let i = 0; i < canceladas.length; i += 1000) {
-      await chamar({ action: "ordensApagar", ids: canceladas.slice(i, i + 1000) });
+  /* ANO A ANO, e cada ano GRAVADO ANTES do proximo comecar.
+     Se o job estourar o tempo ou o ERP cair no meio, o que ja veio fica na
+     tabela -- e rodar de novo completa o resto, porque a gravacao e upsert por
+     id. A primeira versao pedia tudo de uma vez e, ao falhar, nao deixava nada:
+     20 minutos de ERP jogados fora e a tela igual ao que era. */
+  let total = 0;
+  const falharam = [];
+  for (const f of fatias) {
+    try {
+      const { ordens, canceladas, brutas } = await etapaHistoricoOS(f.de, f.ate, categoriaPorNome);
+      const n = await gravarOrdensTabela(ordens);
+      if (canceladas.length) {
+        for (let i = 0; i < canceladas.length; i += 1000) {
+          await chamar({ action: "ordensApagar", ids: canceladas.slice(i, i + 1000) });
+        }
+      }
+      total += n;
+      const comCnpj = ordens.filter((o) => o.cnpj).length;
+      console.log(`   ${f.ano}: ${brutas} no ERP -> ${n} gravadas (${comCnpj} com CNPJ), ${canceladas.length} canceladas`);
+    } catch (e) {
+      // Um ano que falha NAO derruba os outros. Fica registrado para a linha
+      // final poder dizer o que faltou -- silencio aqui viraria "carga ok" com
+      // um buraco de um ano no meio.
+      console.warn(`   ${f.ano}: FALHOU -- ${e?.message || e}`);
+      falharam.push(f.ano);
     }
   }
-  const comCnpj = ordens.filter((o) => cnpjPorCliente.get(
-    String(o.cliente ?? "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().replace(/\s+/g, " ").toUpperCase()
-  )).length;
-  console.log(`   gravadas ${gravadas} linhas (${comCnpj} com CNPJ)`);
-  console.log(`pronto em ${Math.round((Date.now() - inicio) / 1000)}s`);
+
+  console.log(`gravadas ${total} linhas em ${Math.round((Date.now() - inicio) / 1000)}s`);
+  if (falharam.length) {
+    console.error(`anos que NAO vieram: ${falharam.join(", ")} -- rode de novo para completar`);
+    process.exit(1);
+  }
 }
 
 async function main() {
@@ -366,8 +384,7 @@ async function main() {
      de historico -- e ninguem entenderia por que a O.S. de ontem "nao existe". */
   if (Array.isArray(pesados.ordens) && pesados.ordens.length) {
     try {
-      const cnpjPorCliente = await cnpjPorNomeDeCliente();
-      const n = await gravarOrdensTabela(pesados.ordens, cnpjPorCliente);
+      const n = await gravarOrdensTabela(pesados.ordens);
       console.log(`   painel_ordens: ${n} linhas`);
     } catch (e) {
       // Falhar aqui NAO derruba a carga: o cache ja gravou, e as outras telas

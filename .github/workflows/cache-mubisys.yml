@@ -63,6 +63,13 @@ jobs:
           cache: npm
       - run: npm ci
 
+      # `node --check` valida sintaxe e nada mais: um import de nome que o
+      # modulo nao exporta passa verde e so explode com as chaves, no meio da
+      # corrida. Foi assim que a primeira carga do historico morreu depois de
+      # 89 s de ERP. Isto roda em segundos e falha antes de gastar a API.
+      - name: Conferir que os imports resolvem
+        run: node scripts/conferir-imports.mjs
+
       - name: Carregar
         env:
           PAINEL_TOKEN: ${{ secrets.PAINEL_TOKEN }}
