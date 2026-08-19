@@ -105,8 +105,16 @@ const chaveCliente = (nome) =>
     .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
     .trim().replace(/\s+/g, " ").toUpperCase();
 
+/* O VALOR DE VENDA da O.S., que e o que a permuta abate do credito do parceiro.
+   Vem do cabecalho do ERP (`valor_total`, ja normalizado como `valor` pelo
+   normOS) e NAO da soma dos itens: conferindo 200 O.S. contra o ERP em
+   19/08/2026, duas tinham total maior que a soma dos itens sem ser desconto nem
+   frete. A soma fica como caminho de volta para O.S. do cache antigo, gravado
+   antes de o campo existir -- sem ela elas passariam a valer zero. */
 const valorDaOS = (o) => {
-  const bruto = (o.itens ?? []).reduce((s, it) => s + (Number(it.valorTotal) || 0), 0);
+  const bruto = o?.valor != null && o.valor !== ""
+    ? Number(o.valor) || 0
+    : (o.itens ?? []).reduce((s, it) => s + (Number(it.valorTotal) || 0), 0);
   return Math.round(bruto * 100) / 100;
 };
 

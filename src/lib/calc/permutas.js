@@ -49,13 +49,17 @@ export const soDigitos = (v) => String(v ?? "").replace(/\D/g, "");
    vivo. Sem arredondar, a cauda vira diferença e a tela acusaria "mudou no ERP"
    numa O.S. que ninguém tocou. */
 export function valorDaOS(os) {
-  /* DUAS FORMAS DO MESMO DADO. O cache do painel guarda a O.S. com os `itens`
-     (é deles que saem faturamento por produto e categoria). A tabela
-     `painel_ordens`, que a busca da permuta lê, guarda só o `valor` -- os
-     itens é que fazem o histórico de 2020 pesar 10 MB, e a permuta não precisa
-     deles. A conta aceita as duas para que a mesma função sirva à tela e aos
-     testes, e para que trocar a origem não mude o número. */
-  if (os && os.itens == null && os.valor != null) {
+  /* O VALOR DE VENDA, e não a soma dos itens.
+     Os dois quase sempre coincidem, mas não sempre: conferindo 200 O.S. contra
+     o ERP em 19/08/2026, duas tinham total maior que a soma dos itens sem ser
+     desconto nem frete (a 21076, R$ 116,10 a mais; a 21022, R$ 331,76). Numa
+     permuta isso é o saldo do parceiro -- vale o número que está na nota, que é
+     o que o ERP chama de `valor_total`.
+
+     A soma dos itens fica como CAMINHO DE VOLTA, para registro antigo gravado
+     antes de o campo existir: sem ela, uma O.S. já aceita passaria a valer zero
+     e o saldo subiria sozinho. */
+  if (os && os.valor != null && os.valor !== "") {
     return Math.round(num(os.valor) * 100) / 100;
   }
   const bruto = (os?.itens || []).reduce((s, it) => s + num(it.valorTotal), 0);

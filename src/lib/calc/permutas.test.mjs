@@ -47,6 +47,19 @@ test("item sem valor não vira NaN e não contamina o saldo", () => {
   assert.equal(valorDaOS({ itens: [{ valorTotal: "abc" }] }), 0);
 });
 
+test("o valor de VENDA do ERP manda sobre a soma dos itens", () => {
+  // A 21076 real: o ERP diz 2.767,83 e os itens somam 2.651,73.
+  const osReal = { id: 1, numero: "21076", cliente: "H2", data: "2025-11-25",
+                   valor: 2767.83, itens: [{ valorTotal: 2651.73 }] };
+  assert.equal(valorDaOS(osReal), 2767.83);
+});
+
+test("O.S. antiga, gravada antes do campo existir, ainda vale os itens", () => {
+  // Sem o caminho de volta ela passaria a valer zero e o saldo subiria sozinho.
+  assert.equal(valorDaOS({ itens: [{ valorTotal: 300 }] }), 300);
+  assert.equal(valorDaOS({ valor: "", itens: [{ valorTotal: 300 }] }), 300);
+});
+
 // ----------------------------------------------------------- o mesmo cliente
 
 test("acento e caixa não fazem dois clientes de um", () => {

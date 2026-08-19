@@ -206,6 +206,24 @@ export function normOS(os, i, categoriaPorNome) {
   return {
     id: String(os.id ?? `os-${i}`),
     numero: String(os.sequencial_ordem || os.sequencial_orcamento || os.id || ""),
+
+    /* O VALOR DE VENDA DA O.S., pelo cabecalho do ERP.
+       Nao e a soma dos `itens` daqui. Os itens existem para responder "quanto
+       vendemos de lona, de ACM, de servico" -- e para isso eles tem de ser
+       rateados, agrupados e classificados. O que o CLIENTE deve e outra
+       pergunta, e o ERP ja a responde num campo so.
+
+       Na maioria das O.S. os dois numeros batem (conferi 200 contra o ERP em
+       19/08/2026, inclusive 26 com desconto no cabecalho -- o desconto ja vem
+       aplicado no item). Mas nao em todas: a 21076 tem total 2.767,83 com itens
+       somando 2.651,73, e a 21022 tem 1.736,46 com itens somando 1.404,70 --
+       sem desconto e sem frete nas duas. Alguma coisa entra no total que nao
+       esta na lista de itens da listagem.
+
+       Para a tela de Permutas isso e o saldo do parceiro, entao vale o numero
+       do ERP: e o que esta na nota e o que ele vai conferir. */
+    valor: num(os.valor_total),
+
     cliente: String(os.cliente || "Cliente"),
     /* O CNPJ/CPF de quem comprou. A O.S. e identificada pelo NOME do cliente em
        todo o painel, e nome nao e chave: a mesma empresa aparece como duas
