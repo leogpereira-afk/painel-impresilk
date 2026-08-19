@@ -290,9 +290,11 @@ async function cargaDoRealizado() {
    viaja no login e por isso fica em 2025 em diante. */
 async function cargaDoHistorico() {
   const inicio = Date.now();
-  // A data vem de onde a direcao a escreveu (painel_config_global), lida pelo
-  // passa-fio do painel-cache. A variavel de ambiente existe para uma corrida
-  // pontual sem mexer na configuracao de todo mundo.
+  /* A data vem das PROPRIAS permutas: a mais antiga que alguma delas pediu,
+     lida pelo passa-fio do painel-cache. Assim a direcao escolhe no lugar onde
+     a decisao importa (dentro da permuta) e a carga obedece sozinha -- sem uma
+     segunda configuracao para lembrar de mexer. A variavel de ambiente existe
+     para uma corrida pontual, tipo a primeira. */
   const doPainel = (await chamar({ action: "cfgHistorico" })).historicoDesde;
   const desde = process.env.HISTORICO_DESDE || doPainel || HISTORICO_DESDE_PADRAO;
   const ate = process.env.HISTORICO_ATE || hojeMais(0);

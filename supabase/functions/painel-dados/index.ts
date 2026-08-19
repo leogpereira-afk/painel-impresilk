@@ -223,6 +223,19 @@ Deno.serve(async (req: Request) => {
           return json({ itens: data ?? [] });
         }
 
+        /* ATE ONDE O PAINEL TEM O.S. GUARDADA.
+           Vai junto com toda resposta porque sem isso a tela nao consegue
+           distinguir "esse cliente nao tem O.S. nesse periodo" de "o painel
+           ainda nao foi buscar esse periodo no ERP" -- e as duas aparecem
+           iguais: lista vazia. A permuta pode procurar desde 2018; se a carga
+           do historico so trouxe 2025, a tela precisa DIZER isso em vez de
+           deixar a direcao concluir que o cliente nunca comprou. */
+        if (url.searchParams.get("cobertura") === "1") {
+          const { data, error } = await sb.rpc("painel_ordens_cobertura");
+          if (error) throw new Error(error.message);
+          return json({ cobertura: data?.[0] ?? null });
+        }
+
         if (termo.length < 2) return json({ clientes: [] });
         /* Agrupar por cliente e somar no banco. Trazer as linhas e agrupar
            aqui obrigaria a puxar a carteira inteira de cada nome que casa --

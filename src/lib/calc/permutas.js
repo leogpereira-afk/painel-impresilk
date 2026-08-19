@@ -185,6 +185,9 @@ export function linhasDosLancamentos(permuta) {
       descricao: String(l?.descricao ?? ""),
       valor: Math.round(num(l?.valor) * 100) / 100,
       tipo: l?.tipo === "credito" ? "credito" : "consumo",
+      // A nota do que foi. Mora DENTRO da entrada porque um documento solto
+      // numa gaveta da permuta não diz a qual entrada pertence.
+      anexo: l?.anexo || null,
     }))
     .sort((a, b) => String(b.data).localeCompare(String(a.data)));
 }
@@ -197,8 +200,23 @@ export function linhasDosLancamentos(permuta) {
 export function resumoDaPermuta(permuta, ordens) {
   const linhas = linhasDaPermuta(permuta, ordens);
   const lancamentos = linhasDosLancamentos(permuta);
-  const lancado = lancamentos.reduce((s, l) => s + (l.tipo === "credito" ? -l.valor : l.valor), 0);
-  const creditoBase = num(permuta?.credito);
+  const creditos = lancamentos.filter((l) => l.tipo === "credito");
+  const consumos = lancamentos.filter((l) => l.tipo !== "credito");
+
+  /* O CRÉDITO É A SOMA DAS ENTRADAS, não um campo.
+     Era um número solto no topo da permuta, e um número solto não responde "de
+     onde saiu esse crédito" -- que é a primeira pergunta que o parceiro faz.
+     Agora cada coisa que ele nos deu é uma entrada com data, o que foi e a
+     nota; o total é a soma.
+
+     `permuta.credito` continua sendo SOMADO quando existe: e o que foi lançado
+     antes desta mudança. Ignorá-lo faria dinheiro real sumir do saldo em
+     silêncio -- e a tela mostra essa parcela separada, para nunca virar um
+     valor sem origem. */
+  const creditoAntigo = num(permuta?.credito);
+  const creditoLancado = creditos.reduce((s, l) => s + l.valor, 0);
+  const creditoBase = creditoAntigo + creditoLancado;
+  const lancado = consumos.reduce((s, l) => s + l.valor, 0);
   const emOS = linhas.reduce((s, l) => s + l.valor, 0);
   // Centavo redondo em cada parcela e no total: a soma tem que bater com o que
   // a tela mostra linha a linha, senão a conferência com o parceiro trava num
@@ -208,6 +226,9 @@ export function resumoDaPermuta(permuta, ordens) {
   return {
     linhas,
     lancamentos,
+    creditos,
+    consumos,
+    creditoAntigo: Math.round(creditoAntigo * 100) / 100,
     credito,
     emOS: Math.round(emOS * 100) / 100,
     // Quanto veio de lançamento manual, separado, para a tela poder mostrar de

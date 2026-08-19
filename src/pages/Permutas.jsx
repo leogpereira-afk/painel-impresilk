@@ -36,15 +36,14 @@ import {
   ArrowLeft, Plus, Trash2, Search, X, Check, AlertTriangle, Handshake, Building2,
   Archive, Paperclip, History, Download, CalendarRange,
 } from "lucide-react";
-import { useApp } from "../config/store.jsx";
 import {
   lerPermutas, mexerNaPermuta, removerPermuta, anexarNaPermuta, lerAnexo,
-  buscarClientes, buscarOrdensDe, buscarOrdensPorId,
+  buscarClientes, buscarOrdensDe, buscarOrdensPorId, lerCobertura,
 } from "../services/permutas.js";
 import {
   fichaDaOS, resumoDaPermuta, resumoGeral, ordensDosClientes, donoPorOS,
 } from "../lib/calc/permutas.js";
-import { moedaCheia, paraNumero, paraCampo, dataCurta, dataLonga } from "../lib/format.js";
+import { moedaCheia, paraNumero, dataCurta, dataLonga } from "../lib/format.js";
 import { Card, PageTitle, SectionTitle, Empty, CarregandoModulo } from "../components/ui.jsx";
 
 const novoId = (p) => `${p}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
@@ -202,20 +201,37 @@ function LinhaAceita({ l, aoTirar }) {
   );
 }
 
-function LinhaLancamento({ l, aoTirar }) {
+/* Uma entrada do razão da permuta: data, o que foi, quanto, e a nota.
+   A NOTA MORA AQUI, não numa gaveta da permuta. Um documento solto não diz a
+   qual entrada pertence -- e é justamente isso que o parceiro pergunta quando
+   confere: "esses R$ 7.000 são de quê?". */
+function LinhaLancamento({ l, aoTirar, aoAnexar, aoBaixar }) {
   const credito = l.tipo === "credito";
   return (
     <div className="flex items-center gap-3 border-b border-slate-100 py-2.5 last:border-0">
       <div className="min-w-0 flex-1">
-        <div className="flex flex-wrap items-center gap-x-2">
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
           <span className="truncate font-medium text-slate-800">{l.descricao || "(sem descrição)"}</span>
-          <span
-            className={`rounded px-1.5 py-0.5 text-[11px] ${
-              credito ? "bg-ok-50 text-ok-700" : "bg-slate-100 text-slate-500"
-            }`}
-          >
-            {credito ? "aumenta o crédito" : "abate o crédito"}
-          </span>
+          {l.anexo ? (
+            <button
+              type="button"
+              onClick={() => aoBaixar(l.anexo)}
+              className="flex items-center gap-1 rounded bg-slate-100 px-1.5 py-0.5 text-[11px] text-slate-600 hover:bg-slate-200"
+              title={`Baixar ${l.anexo.nome}`}
+            >
+              <Download size={11} />
+              <span className="max-w-40 truncate">{l.anexo.nome}</span>
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={() => aoAnexar(l)}
+              className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+              title="Anexar a nota deste lançamento"
+            >
+              <Paperclip size={11} /> anexar nota
+            </button>
+          )}
         </div>
         <div className="text-[11px] text-slate-400">{dataDaOS(l.data)}</div>
       </div>
@@ -231,6 +247,44 @@ function LinhaLancamento({ l, aoTirar }) {
       >
         <Trash2 size={15} />
       </button>
+    </div>
+  );
+}
+
+/* O formulário de uma entrada. Mesmo para os dois lados: o que muda é o rótulo
+   e o `tipo` já fixado por quem abriu -- lançar crédito na lista de consumo é
+   um erro que ninguém percebe olhando um saldo. */
+function FormLancamento({ form, setForm, aoSalvar, aoCancelar, salvando }) {
+  const credito = form.tipo === "credito";
+  return (
+    <div className="grid gap-3 rounded-lg border border-slate-200 bg-slate-50 p-3 sm:grid-cols-[1fr_9rem_10rem]">
+      <input
+        className="input"
+        autoFocus
+        placeholder={credito ? "O que ele nos deu? (ex.: projeto arquitetônico)" : "O que foi? (ex.: 200 canecas entregues)"}
+        value={form.descricao}
+        onChange={(e) => setForm((f) => ({ ...f, descricao: e.target.value }))}
+      />
+      <input
+        className="input tabular-nums"
+        inputMode="decimal"
+        placeholder="0,00"
+        value={form.valor}
+        onChange={(e) => setForm((f) => ({ ...f, valor: e.target.value }))}
+      />
+      <input
+        type="date"
+        className="input"
+        value={form.data}
+        onChange={(e) => setForm((f) => ({ ...f, data: e.target.value }))}
+      />
+      <div className="flex items-center gap-2 sm:col-span-3">
+        <button type="button" className="btn" onClick={aoSalvar} disabled={salvando}>
+          {credito ? "Lançar crédito" : "Lançar consumo"}
+        </button>
+        <button type="button" className="btn-ghost" onClick={aoCancelar}>Cancelar</button>
+        <span className="text-xs text-slate-400">a nota você anexa na linha, depois de salvar</span>
+      </div>
     </div>
   );
 }
@@ -318,7 +372,6 @@ function Historico({ eventos }) {
 const LANC_VAZIO = { descricao: "", valor: "", data: "", tipo: "consumo" };
 
 export default function Permutas() {
-  const { config, updateConfig } = useApp();
   const [mapa, setMapa] = useState(null);
   const [erro, setErro] = useState(null);
   const [aviso, setAviso] = useState(null);
@@ -336,23 +389,35 @@ export default function Permutas() {
   const [verHistorico, setVerHistorico] = useState(false);
   const arquivoRef = useRef(null);
 
-  /* DESDE QUANDO PROCURAR. Fica na configuração do painel (um dono só) porque
-     a mesma data manda na carga do histórico: mudar aqui e a carga de domingo
-     passa a puxar de lá. */
-  const desde = String(config?.historicoDesde || "2020-01-01").slice(0, 10);
-  const podeMudarData = !!config && typeof updateConfig === "function";
+  /* ATÉ ONDE O PAINEL TEM O.S. GUARDADA. Sem isto a tela não consegue
+     distinguir "esse cliente não comprou nesse período" de "o painel ainda não
+     foi buscar esse período no ERP" -- as duas dão lista vazia, e concluir a
+     primeira quando é a segunda faz a direção achar que um cliente antigo
+     nunca comprou nada. */
+  const [cobertura, setCobertura] = useState(null);
 
   useEffect(() => {
     let vivo = true;
     lerPermutas()
       .then((m) => vivo && setMapa(m))
       .catch((e) => vivo && setErro(e.message));
+    lerCobertura()
+      .then((c) => vivo && setCobertura(c))
+      .catch(() => {});
     return () => {
       vivo = false;
     };
   }, []);
 
   const permuta = aberta ? mapa?.[aberta] : null;
+
+  /* DE QUANDO PROCURAR: campo DA PERMUTA, não da tela.
+     Cada troca tem o seu período -- a permuta do rádio começou em 2021, a da
+     gráfica no mês passado, e uma data só servia mal às duas. Vazio quer dizer
+     "tudo o que o painel tem". A mais antiga entre todas as permutas é também
+     a que manda na carga do histórico (ver `permutas_historico_desde`), então
+     escolher aqui é escolher em um lugar só. */
+  const desde = String(permuta?.desde || "").slice(0, 10);
 
   /* As chaves como TEXTO, e não como array, para o efeito abaixo não disparar
      a cada render: um array novo com o mesmo conteúdo é sempre "diferente" nas
@@ -505,8 +570,22 @@ export default function Permutas() {
     if (ok) setFormLanc(null);
   }, [aberta, formLanc, mexer]);
 
+  /* ANEXAR A NOTA DE UMA ENTRADA.
+     O `<input type=file>` é um só, escondido, e guarda em `alvoAnexo` a qual
+     lançamento o próximo arquivo pertence. Um input por linha seria mais
+     direto de ler, mas a permuta pode ter dezenas de entradas e cada input
+     carrega o seu próprio estado -- e um deles com o valor antigo já anexa o
+     arquivo errado na linha errada. Com um só, o alvo é explícito. */
+  const alvoAnexo = useRef(null);
+  const pedirArquivo = useCallback((lanc) => {
+    alvoAnexo.current = lanc?.id || null;
+    arquivoRef.current?.click();
+  }, []);
+
   const anexar = useCallback(
     async (file) => {
+      const lancId = alvoAnexo.current;
+      alvoAnexo.current = null;
       if (!aberta || !file) return;
       setAviso(null);
       setSalvando(true);
@@ -516,6 +595,7 @@ export default function Permutas() {
         const BLOCO = 0x8000;
         for (let i = 0; i < buf.length; i += BLOCO) bin += String.fromCharCode(...buf.subarray(i, i + BLOCO));
         setMapa(await anexarNaPermuta(aberta, {
+          lancId,
           nome: file.name, mime: file.type || "application/octet-stream", base64: btoa(bin),
         }));
         setAviso({ tom: "ok", texto: `"${file.name}" anexado.` });
@@ -593,6 +673,10 @@ export default function Permutas() {
 
         <Aviso aviso={aviso} aoFechar={() => setAviso(null)} />
 
+        {/* Um input de arquivo para a tela inteira; `alvoAnexo` diz de qual
+            lançamento é o próximo arquivo. */}
+        <input ref={arquivoRef} type="file" className="hidden" onChange={(e) => anexar(e.target.files?.[0])} />
+
         <Card className="space-y-4">
           <div className="flex flex-wrap items-start justify-between gap-4">
             <input
@@ -628,25 +712,23 @@ export default function Permutas() {
 
           <div className="grid gap-4 sm:grid-cols-3">
             <div>
-              <label className="mb-1 block text-xs text-slate-500" htmlFor="credito-permuta">
-                Crédito do parceiro
-              </label>
-              <input
-                id="credito-permuta"
-                className="input tabular-nums"
-                inputMode="decimal"
-                placeholder="0,00"
-                defaultValue={paraCampo(resumo.credito)}
-                key={`credito-${aberta}`}
-                onBlur={(e) => mexer(aberta, { campos: { credito: paraNumero(e.target.value) } })}
-              />
+              <div className="mb-1 text-xs text-slate-500">Crédito do parceiro</div>
+              <div className="text-xl font-semibold tabular-nums text-slate-800">{dinheiro(resumo.credito)}</div>
+              <div className="text-xs text-slate-500">
+                {resumo.creditos.length
+                  ? `${resumo.creditos.length} ${resumo.creditos.length === 1 ? "lançamento" : "lançamentos"}`
+                  : "nada lançado ainda"}
+                {resumo.creditoAntigo > 0 && (
+                  <> · {dinheiro(resumo.creditoAntigo)} lançado antes desta tela</>
+                )}
+              </div>
             </div>
             <div>
               <div className="mb-1 text-xs text-slate-500">Já usou</div>
               <div className="text-xl font-semibold tabular-nums text-slate-800">{dinheiro(resumo.consumido)}</div>
               <div className="text-xs text-slate-500">
                 {resumo.linhas.length} O.S.
-                {resumo.lancado !== 0 && <> · {dinheiro(Math.abs(resumo.lancado))} manual</>}
+                {resumo.lancado !== 0 && <> · {dinheiro(resumo.lancado)} manual</>}
               </div>
             </div>
             <div>
@@ -674,45 +756,6 @@ export default function Permutas() {
             <Historico eventos={eventos} />
           </Card>
         )}
-
-        {/* -------------------------------------- o que sustenta o crédito */}
-        <Card className="space-y-3">
-          <SectionTitle
-            titulo="Documentos do crédito"
-            sub="A nota do que compramos do parceiro, o contrato, o combinado por escrito."
-            acao={
-              <>
-                <input
-                  ref={arquivoRef}
-                  type="file"
-                  className="hidden"
-                  onChange={(e) => anexar(e.target.files?.[0])}
-                />
-                <button type="button" className="btn-ghost" onClick={() => arquivoRef.current?.click()} disabled={salvando}>
-                  <Paperclip size={15} /> Anexar
-                </button>
-              </>
-            }
-          />
-          {anexos.length ? (
-            <div className="flex flex-wrap gap-2">
-              {anexos.map((a) => (
-                <button
-                  key={a.chave}
-                  type="button"
-                  onClick={() => baixar(a)}
-                  className="flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-1.5 text-sm text-slate-700 hover:border-brand-300 hover:bg-slate-50"
-                  title={`${a.nome} — anexado por ${a.quemNome || a.quem} em ${dataLonga(a.em)}`}
-                >
-                  <Download size={14} className="text-slate-400" />
-                  <span className="max-w-56 truncate">{a.nome}</span>
-                </button>
-              ))}
-            </div>
-          ) : (
-            <Empty>Nenhum documento anexado. Sem ele, o crédito é um número que alguém digitou.</Empty>
-          )}
-        </Card>
 
         {/* ------------------------------------------------- de quem é */}
         <Card className="space-y-3">
@@ -795,72 +838,98 @@ export default function Permutas() {
           )}
         </Card>
 
-        {/* ------------------------------------------- lançamentos manuais */}
+        {/* -------------------------------- o que o parceiro nos deu */}
         <Card className="space-y-3">
           <SectionTitle
-            titulo="Lançamentos manuais"
-            sub="O que mexeu no saldo sem passar por O.S. — um brinde entregue, um acerto, um crédito reposto."
+            titulo="O que o parceiro nos deu"
+            sub="Cada coisa que virou crédito, com a data, o que foi e a nota. A soma é o crédito dele."
             acao={
-              !formLanc && (
-                <button type="button" className="btn-ghost" onClick={() => setFormLanc({ ...LANC_VAZIO, data: hojeISO() })}>
-                  <Plus size={15} strokeWidth={2.4} /> Lançar
+              formLanc?.tipo !== "credito" && (
+                <button
+                  type="button"
+                  className="btn-ghost"
+                  onClick={() => setFormLanc({ ...LANC_VAZIO, tipo: "credito", data: hojeISO() })}
+                >
+                  <Plus size={15} strokeWidth={2.4} /> Lançar crédito
                 </button>
               )
             }
           />
-
-          {formLanc && (
-            <div className="grid gap-3 rounded-lg border border-slate-200 bg-slate-50 p-3 sm:grid-cols-[1fr_9rem_11rem]">
-              <input
-                className="input"
-                placeholder="O que foi? (ex.: 200 canecas entregues)"
-                value={formLanc.descricao}
-                onChange={(e) => setFormLanc((f) => ({ ...f, descricao: e.target.value }))}
-              />
-              <input
-                className="input tabular-nums"
-                inputMode="decimal"
-                placeholder="0,00"
-                value={formLanc.valor}
-                onChange={(e) => setFormLanc((f) => ({ ...f, valor: e.target.value }))}
-              />
-              <select
-                className="input"
-                value={formLanc.tipo}
-                onChange={(e) => setFormLanc((f) => ({ ...f, tipo: e.target.value }))}
-              >
-                <option value="consumo">abate o crédito</option>
-                <option value="credito">aumenta o crédito</option>
-              </select>
-              <div className="flex items-center gap-2 sm:col-span-3">
-                <input
-                  type="date"
-                  className="input w-40"
-                  value={formLanc.data}
-                  onChange={(e) => setFormLanc((f) => ({ ...f, data: e.target.value }))}
-                />
-                <button type="button" className="btn" onClick={salvarLancamento} disabled={salvando}>
-                  Salvar lançamento
-                </button>
-                <button type="button" className="btn-ghost" onClick={() => setFormLanc(null)}>
-                  Cancelar
-                </button>
-              </div>
-            </div>
+          {formLanc?.tipo === "credito" && (
+            <FormLancamento
+              form={formLanc}
+              setForm={setFormLanc}
+              aoSalvar={salvarLancamento}
+              aoCancelar={() => setFormLanc(null)}
+              salvando={salvando}
+            />
           )}
-
-          {resumo.lancamentos.length ? (
+          {resumo.creditos.length ? (
             <div>
-              {resumo.lancamentos.map((l) => (
+              {resumo.creditos.map((l) => (
                 <LinhaLancamento
                   key={l.id}
                   l={l}
                   aoTirar={(x) => mexer(aberta, { lancPatch: { [x.id]: null } })}
+                  aoAnexar={pedirArquivo}
+                  aoBaixar={baixar}
                 />
               ))}
             </div>
           ) : (
-            !formLanc && <Empty>Nenhum lançamento manual.</Empty>
+            formLanc?.tipo !== "credito" && (
+              <Empty>Nada lançado ainda — sem isto o saldo fica negativo, porque só há consumo.</Empty>
+            )
+          )}
+          {resumo.creditoAntigo > 0 && (
+            <div className="rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-600">
+              Há {dinheiro(resumo.creditoAntigo)} de crédito lançado antes desta tela existir, sem data nem
+              documento. Ele conta no saldo. Para documentá-lo, lance como entrada acima e me avise para eu
+              zerar o valor antigo — senão passa a contar duas vezes.
+            </div>
+          )}
+        </Card>
+
+        {/* -------------------------------- o que ele gastou fora de O.S. */}
+        <Card className="space-y-3">
+          <SectionTitle
+            titulo="Consumo sem O.S."
+            sub="O que abateu o crédito sem passar por ordem de serviço — um brinde entregue, um acerto."
+            acao={
+              formLanc?.tipo !== "consumo" && (
+                <button
+                  type="button"
+                  className="btn-ghost"
+                  onClick={() => setFormLanc({ ...LANC_VAZIO, tipo: "consumo", data: hojeISO() })}
+                >
+                  <Plus size={15} strokeWidth={2.4} /> Lançar consumo
+                </button>
+              )
+            }
+          />
+          {formLanc?.tipo === "consumo" && (
+            <FormLancamento
+              form={formLanc}
+              setForm={setFormLanc}
+              aoSalvar={salvarLancamento}
+              aoCancelar={() => setFormLanc(null)}
+              salvando={salvando}
+            />
+          )}
+          {resumo.consumos.length ? (
+            <div>
+              {resumo.consumos.map((l) => (
+                <LinhaLancamento
+                  key={l.id}
+                  l={l}
+                  aoTirar={(x) => mexer(aberta, { lancPatch: { [x.id]: null } })}
+                  aoAnexar={pedirArquivo}
+                  aoBaixar={baixar}
+                />
+              ))}
+            </div>
+          ) : (
+            formLanc?.tipo !== "consumo" && <Empty>Nenhum consumo fora de O.S.</Empty>
           )}
         </Card>
 
@@ -883,6 +952,35 @@ export default function Permutas() {
               )
             }
           />
+
+          <div className="flex flex-wrap items-center gap-2 rounded-lg bg-slate-50 px-3 py-2 text-sm">
+            <CalendarRange size={15} className="shrink-0 text-slate-400" />
+            <span className="text-slate-600">Procurar O.S. desta permuta a partir de</span>
+            <input
+              type="date"
+              className="input h-8 w-40 text-sm"
+              defaultValue={desde}
+              key={`desde-${aberta}`}
+              onBlur={(e) => {
+                const d = e.target.value;
+                if (d === desde) return;
+                mexer(aberta, { campos: { desde: /^\d{4}-\d{2}-\d{2}$/.test(d) ? d : "" } });
+              }}
+            />
+            {!desde && <span className="text-xs text-slate-400">vazio = tudo o que o painel tem</span>}
+          </div>
+
+          {/* O QUE O PAINEL REALMENTE TEM. Uma permuta pode pedir 2018 e o
+              painel ter guardado só de 2025 -- e aí a lista vem vazia pelo
+              motivo errado. Dizer isso é a diferença entre "esse cliente não
+              comprou" e "eu ainda não fui buscar". */}
+          {cobertura?.desde && desde && desde < String(cobertura.desde) && (
+            <div className="rounded-lg bg-warn-50 px-3 py-2 text-xs text-warn-800">
+              Você pediu a partir de {dataLonga(desde)}, mas o painel só tem O.S. guardada desde{" "}
+              {dataLonga(cobertura.desde)}. O que estiver antes disso não aparece aqui até a carga do
+              histórico rodar (domingo de madrugada, ou pelo botão “Run workflow” no GitHub).
+            </div>
+          )}
           {!chavesDaPermuta.length ? (
             <Empty>Ligue um cliente acima para ver as O.S. dele.</Empty>
           ) : buscandoOS ? (
@@ -921,34 +1019,6 @@ export default function Permutas() {
       />
 
       <Aviso aviso={aviso} aoFechar={() => setAviso(null)} />
-
-      {/* A DATA DE CORTE DA BUSCA. Vale para procurar aqui E para a carga que
-          traz o histórico do ERP -- por isso não é um filtro de tela: mudar
-          aqui muda de quando o painel passa a guardar O.S. */}
-      <Card className="flex flex-wrap items-center gap-3 text-sm">
-        <CalendarRange size={16} className="shrink-0 text-slate-400" />
-        <span className="text-slate-600">Procurar O.S. a partir de</span>
-        <input
-          type="date"
-          className="input w-44"
-          defaultValue={desde}
-          disabled={!podeMudarData}
-          onBlur={(e) => {
-            const d = e.target.value;
-            if (!/^\d{4}-\d{2}-\d{2}$/.test(d) || d === desde) return;
-            /* `updateConfig` recebe uma FUNÇÃO que devolve a config nova --
-               ele já clona antes de chamar. Passar um objeto solto substituiria
-               o pacote inteiro e apagaria as regras de todo mundo (motivos de
-               perda, régua de cobrança, parâmetros). */
-            updateConfig((c) => ({ ...c, historicoDesde: d }));
-            setAviso({
-              tom: "ok",
-              texto: `Busca a partir de ${dataLonga(d)}. O painel passa a guardar O.S. desde essa data na próxima carga do histórico (domingo de madrugada, ou pelo botão no GitHub).`,
-            });
-          }}
-        />
-        <span className="text-xs text-slate-400">vale para a busca e para o que o painel guarda do ERP</span>
-      </Card>
 
       {lista.length ? (
         <div className="grid gap-3 sm:grid-cols-2">

@@ -60,10 +60,12 @@ export const mexerNaPermuta = (id, { campos = {}, osPatch, lancPatch, criar } = 
 export const removerPermuta = (id) =>
   chamar("removerId", { chave: "permutas", id }).then(() => true);
 
-/* A nota do que a Impresilk comprou do parceiro -- o que SUSTENTA o crédito.
+/* A nota de UMA entrada de crédito -- o que sustenta aquele valor.
+   `lancId` diz a qual lançamento ela pertence: nota solta não responde "esses
+   R$ 7.000 são de quê?", que é o que o parceiro pergunta ao conferir.
    Os bytes vão para o bucket; no registro entra só a referência. */
-export const anexarNaPermuta = (id, { nome, mime, base64 }) =>
-  chamar("permutaAnexo", { id, nome, mime, base64 }).then((r) => r.valor || {});
+export const anexarNaPermuta = (id, { lancId, nome, mime, base64 }) =>
+  chamar("permutaAnexo", { id, lancId, nome, mime, base64 }).then((r) => r.valor || {});
 
 export const lerAnexo = (id, arquivo) =>
   chamar("lerArquivo", { chave: "permutas", id, arquivo });
@@ -84,6 +86,12 @@ async function buscar(params) {
   if (!resp.ok) throw new Error(body?.erro || mensagemDoStatus(resp.status));
   return body;
 }
+
+/* Até onde o painel TEM O.S. guardada. A tela precisa disto para não deixar
+   "esse cliente não comprou nesse período" e "o painel ainda não foi buscar
+   esse período no ERP" aparecerem iguais — as duas dão lista vazia, e só uma
+   delas quer dizer que não há O.S. */
+export const lerCobertura = () => buscar({ cobertura: "1" }).then((r) => r.cobertura || null);
 
 /** Clientes cujo nome casa com o termo, com quanto cada um já comprou. */
 export const buscarClientes = (termo, desde) =>

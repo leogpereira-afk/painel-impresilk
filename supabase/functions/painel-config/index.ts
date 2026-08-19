@@ -546,11 +546,13 @@ Deno.serve(async (req: Request) => {
         return resposta({ ok: true, valor: await lerOverlay(chave, donoDaVez(chave)) });
       }
 
-      /* ANEXAR A NOTA DO QUE COMPRAMOS DO PARCEIRO.
+      /* ANEXAR A NOTA DE UM LANCAMENTO DE CREDITO.
          A permuta e uma troca: de um lado as O.S. que ele consumiu, do outro o
-         que a Impresilk comprou dele. O que sustenta o CREDITO e esse segundo
-         lado -- a nota, o contrato, o print do combinado. Sem ele o credito e
-         um numero que alguem digitou, e o parceiro nao tem como conferir.
+         que a Impresilk comprou dele. O credito nao e um numero solto -- e uma
+         LISTA de entradas, cada uma com data, o que foi e a sua nota. Sem a
+         nota o credito e um numero que alguem digitou, e o parceiro nao tem
+         como conferir; e sem estar presa a UMA entrada, a nota nao diz a qual
+         delas pertence.
 
          Os bytes vao para o bucket e so a referencia entra no registro: um PDF
          dentro do JSON incharia a linha e viajaria em TODA leitura da tela.
@@ -567,6 +569,7 @@ Deno.serve(async (req: Request) => {
         if (base64.length > MAX_ARQUIVO) {
           return resposta({ erro: "Arquivo muito grande (limite ~3 MB)." }, 413);
         }
+        const lancId = corpo.lancId ? String(corpo.lancId) : null;
         const nomeArq = String(corpo.nome ?? "documento").slice(0, 180);
         const mime = String(corpo.mime ?? "application/octet-stream");
         const chaveArq = `permuta/${id}/${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
@@ -584,13 +587,18 @@ Deno.serve(async (req: Request) => {
           p_campos: {},
           p_os: {},
           p_lancamentos: {},
-          p_anexo: { chave: chaveArq, nome: nomeArq, mime },
+          p_anexo: { chave: chaveArq, nome: nomeArq, mime, ...(lancId ? { lancId } : {}) },
           p_criar: false,
         });
-        if (error) throw new Error(error.message);
+        /* Permuta ou lancamento sumiram entre o upload e a gravacao: apaga os
+           bytes. Sem isto viram lixo que nenhuma tela lista, ninguem apaga e
+           ninguem sabe que existe -- foi o que aconteceu com os arquivos dos
+           ativos ate 04/08. */
+        if (error) {
+          await sb.storage.from(BUCKET).remove([chaveArq]).catch(() => {});
+          return resposta({ erro: "Esse lancamento nao existe mais -- recarregue a tela." }, 409);
+        }
         if (reg === null) {
-          // A permuta sumiu entre o upload e a gravacao: nao deixa byte orfao
-          // no bucket, que ninguem mais teria como achar nem apagar.
           await sb.storage.from(BUCKET).remove([chaveArq]).catch(() => {});
           return resposta({ erro: "Essa permuta nao existe mais." }, 409);
         }
@@ -625,9 +633,13 @@ Deno.serve(async (req: Request) => {
         const reg = (data?.registro as any) ?? null;
         const doAnexo = (Array.isArray(reg?.anexos) ? reg.anexos : [])
           .find((a: any) => a?.chave === arquivoChave);
+        // A nota do credito mora DENTRO do lancamento a que pertence.
+        const doLancamento = Object.values(reg?.lancamentos ?? {})
+          .map((l: any) => l?.anexo)
+          .find((a: any) => a?.chave === arquivoChave);
         const doHistorico = (Array.isArray(reg?.historico) ? reg.historico : [])
           .find((e: any) => e?.arquivo?.chave === arquivoChave)?.arquivo;
-        const achado = doAnexo || doHistorico;
+        const achado = doAnexo || doLancamento || doHistorico;
         if (!achado) return resposta({ erro: "arquivo nao encontrado" }, 404);
 
         const { data: arq, error } = await sb.storage.from(BUCKET).download(arquivoChave);
@@ -662,9 +674,11 @@ Deno.serve(async (req: Request) => {
           const reg = (data?.registro as any) ?? {};
           const hist: any[] = Array.isArray(reg.historico) ? reg.historico : [];
           const anexos: any[] = Array.isArray(reg.anexos) ? reg.anexos : [];
+          const lancs: any[] = Object.values(reg.lancamentos ?? {});
           const chaves = [
             ...hist.map((e) => e?.arquivo?.chave),
             ...anexos.map((a) => a?.chave),
+            ...lancs.map((l) => l?.anexo?.chave),
           ].filter(Boolean);
           if (chaves.length) await sb.storage.from(BUCKET).remove(chaves).catch(() => {});
         }

@@ -160,21 +160,32 @@ test("LISTA VAZIA NÃO É 'TUDO CANCELADO'", () => {
 
 // ------------------------------------------------ os lançamentos manuais
 
-test("lançamento de consumo abate; de crédito, aumenta", () => {
+test("o crédito é a SOMA das entradas, e o consumo abate", () => {
   const ordens = [os(1, "Alfa", 300)];
   const p = {
-    credito: 1000,
     os: { 1: fichaDaOS(ordens[0]) },
     lancamentos: {
       a: { data: "2026-08-01", descricao: "brinde sem O.S.", valor: 150, tipo: "consumo" },
-      b: { data: "2026-08-02", descricao: "ele repôs", valor: 50, tipo: "credito" },
+      b: { data: "2026-08-02", descricao: "projeto arquitetônico", valor: 7000, tipo: "credito" },
+      c: { data: "2026-08-03", descricao: "6 meses de veiculação", valor: 3000, tipo: "credito" },
     },
   };
   const r = resumoDaPermuta(p, ordens);
+  assert.equal(r.credito, 10000, "duas entradas de crédito somam");
+  assert.equal(r.creditos.length, 2);
   assert.equal(r.emOS, 300);
-  assert.equal(r.lancado, 100, "150 abatendo menos 50 devolvendo");
-  assert.equal(r.consumido, 400);
-  assert.equal(r.saldo, 600);
+  assert.equal(r.lancado, 150, "só o consumo manual");
+  assert.equal(r.consumido, 450);
+  assert.equal(r.saldo, 9550);
+});
+
+test("o crédito lançado ANTES desta tela não some do saldo", () => {
+  // Registro da versão em que o crédito era um campo solto. Ignorá-lo faria
+  // dinheiro real desaparecer em silêncio.
+  const p = { credito: 5000, lancamentos: { a: { valor: 1000, tipo: "credito" } } };
+  const r = resumoDaPermuta(p, [os(1, "Alfa", 1)]);
+  assert.equal(r.credito, 6000);
+  assert.equal(r.creditoAntigo, 5000, "e fica separado, para não virar valor sem origem");
 });
 
 test("tipo desconhecido cai em consumo, não some da conta", () => {
@@ -184,6 +195,11 @@ test("tipo desconhecido cai em consumo, não some da conta", () => {
   assert.equal(resumoDaPermuta(p, [os(1, "Alfa", 1)]).saldo, 800);
 });
 
+test("editar o texto de um lançamento não perde a nota anexada", () => {
+  const p = { lancamentos: { a: { valor: 100, tipo: "credito", anexo: { chave: "k", nome: "nf.pdf" } } } };
+  assert.equal(resumoDaPermuta(p, [os(1, "Alfa", 1)]).creditos[0].anexo.nome, "nf.pdf");
+});
+
 test("lançamento com vírgula e sem valor não quebram a conta", () => {
   const p = { credito: 1000, os: {}, lancamentos: {
     a: { valor: "150,50", tipo: "consumo" },
@@ -191,6 +207,16 @@ test("lançamento com vírgula e sem valor não quebram a conta", () => {
     c: { tipo: "credito" },
   } };
   assert.equal(resumoDaPermuta(p, [os(1, "Alfa", 1)]).saldo, 849.5);
+});
+
+test("permuta sem nenhum crédito lançado dá saldo negativo do que gastou", () => {
+  // Foi o estado real da Maple Bear: R$ 7.000 de projeto consumido, crédito
+  // ainda por lançar. Tem que aparecer no vermelho, não como zero.
+  const p = { lancamentos: { a: { valor: 7000, tipo: "consumo", descricao: "Projeto arquitetônico" } } };
+  const r = resumoDaPermuta(p, [os(1, "Alfa", 1)]);
+  assert.equal(r.credito, 0);
+  assert.equal(r.saldo, -7000);
+  assert.equal(r.pct, null, "sem crédito não há denominador para a barra");
 });
 
 test("só lançamentos, sem O.S. nenhuma, já dá saldo", () => {

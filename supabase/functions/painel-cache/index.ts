@@ -92,14 +92,19 @@ Deno.serve(async (req: Request) => {
     if (error) return json({ erro: error.message }, 500);
     return json({ ok: true, gravadas: limpas.length });
   }
-  /* De quando puxar o historico de O.S. A direcao escolhe na tela de
-     Permutas, e quem GUARDA e o painel_config_global -- um dono so. A carga
-     precisa ler, e ela nao tem a chave do banco: so este passa-fio, de
-     leitura, com o mesmo token que ja a autoriza a gravar cache. */
+  /* De quando puxar o historico de O.S.: a MAIS ANTIGA que alguma permuta
+     pediu. A data mora dentro de cada permuta, porque cada troca tem o seu
+     periodo -- e e ela que manda aqui tambem. Dois lugares para a mesma
+     decisao dariam o pior dos mundos: a direcao poe 2018 numa permuta, a carga
+     continua trazendo de 2025, e ninguem entende por que a O.S. de 2018 "nao
+     existe".
+
+     A carga nao tem a chave do banco: este e o passa-fio, de leitura, com o
+     mesmo token que ja a autoriza a gravar cache. */
   if (body && body.action === "cfgHistorico") {
-    const { data } = await sb.from("painel_config_global")
-      .select("config").eq("id", true).maybeSingle();
-    const d = String((data?.config as any)?.historicoDesde ?? "");
+    const { data, error } = await sb.rpc("permutas_historico_desde");
+    if (error) return json({ erro: error.message }, 500);
+    const d = String(data ?? "").slice(0, 10);
     return json({ ok: true, historicoDesde: /^\d{4}-\d{2}-\d{2}$/.test(d) ? d : null });
   }
 
