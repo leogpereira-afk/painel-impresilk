@@ -701,20 +701,49 @@ export default function Permutas() {
     [permuta, ordens],
   );
 
+  /* O MAPA MAIS NOVO, FORA DO CICLO DE DESENHO.
+     `mapa` só chega às funções pelo fechamento do render, e entre um clique e
+     o seguinte ele ainda é o antigo — a resposta do primeiro não voltou. Quem
+     precisa montar uma lista a partir do que já está gravado lê DAQUI. */
+  const mapaRef = useRef(null);
+  /* Cinco caminhos diferentes chamam setMapa (carga inicial, gravação, anexo,
+     edição do nome). O ref tem de acompanhar TODOS, senão quem lê dele pode
+     montar a lista a partir de um estado que já não vale. O `mexer` ainda
+     atribui direto, antes do setMapa, porque o próximo da fila não pode
+     esperar o próximo desenho. */
+  useEffect(() => { mapaRef.current = mapa; }, [mapa]);
+
   /* Toda gravação usa o pacote que o SERVIDOR devolveu, nunca o objeto montado
-     aqui: se outra aba mexeu na permuta ao lado, o retorno já traz as duas. */
-  const mexer = useCallback(async (id, o) => {
-    setAviso(null);
-    setSalvando(true);
-    try {
-      setMapa(await mexerNaPermuta(id, o));
-      return true;
-    } catch (e) {
-      setAviso({ tom: "erro", texto: e.message });
-      return false;
-    } finally {
-      setSalvando(false);
-    }
+     aqui: se outra aba mexeu na permuta ao lado, o retorno já traz as duas.
+
+     E as gravações vão em FILA, uma de cada vez. Sem isso, dois cliques
+     seguidos partiam os dois do mesmo retrato: o Leonardo marcou duas pessoas
+     em 19/08/2026 e só ficou uma, porque a segunda gravou o array de clientes
+     por cima do da primeira (o servidor funde raso, `v_reg || p_campos`).
+     A fila garante que a segunda só monta a lista dela depois de a primeira
+     já estar gravada e refletida no mapaRef. */
+  const filaRef = useRef(Promise.resolve());
+  const mexer = useCallback((id, o) => {
+    const proxima = filaRef.current.then(async () => {
+      setAviso(null);
+      setSalvando(true);
+      try {
+        const novo = typeof o === "function" ? await mexerNaPermuta(id, o(mapaRef.current?.[id])) 
+                                             : await mexerNaPermuta(id, o);
+        mapaRef.current = novo;   // antes do setMapa: o próximo da fila já lê o novo
+        setMapa(novo);
+        return true;
+      } catch (e) {
+        setAviso({ tom: "erro", texto: e.message });
+        return false;
+      } finally {
+        setSalvando(false);
+      }
+    });
+    // A fila não pode morrer numa falha: o `catch` acima já devolve false, mas
+    // uma rejeição inesperada travaria todas as gravações seguintes.
+    filaRef.current = proxima.then(() => {}, () => {});
+    return proxima;
   }, []);
 
   const criar = useCallback(async () => {
@@ -749,28 +778,41 @@ export default function Permutas() {
     [aberta, ordens, mexer],
   );
 
+  /* A lista sai do registro MAIS NOVO (o retorno do servidor guardado em
+     mapaRef), nunca do `permuta` do render. Era daí que vinha o defeito: dois
+     cliques rápidos partiam do mesmo retrato vazio e o segundo gravava por
+     cima do primeiro.
+
+     A busca NÃO fecha a cada clique, de propósito: marcar várias pessoas
+     seguidas é o caso de uso ("marquei duas pessoas"), e fechar obrigaria a
+     buscar de novo para cada uma. Quem já foi marcado some da lista sozinho
+     (clientesAchados filtra por quem já está na permuta), então a lista vai
+     encurtando conforme se clica. */
   const ligarCliente = useCallback(
     async (c) => {
-      if (!aberta || !permuta) return;
-      const atuais = permuta.clientes || [];
-      if (atuais.some((x) => x.chave === c.chave)) return;
-      await mexer(aberta, {
-        campos: { clientes: [...atuais, { chave: c.chave, nome: c.nome, cnpjs: c.cnpjs || [] }] },
+      if (!aberta) return;
+      await mexer(aberta, (atual) => {
+        const atuais = atual?.clientes || [];
+        // Conferido contra a lista nova: com a velha, clicar duas vezes na
+        // mesma pessoa passava pela checagem e duplicava.
+        if (atuais.some((x) => x.chave === c.chave)) return { campos: {} };
+        return { campos: { clientes: [...atuais, { chave: c.chave, nome: c.nome, cnpjs: c.cnpjs || [] }] } };
       });
-      setBuscaCliente("");
-      setAchados([]);
     },
-    [aberta, permuta, mexer],
+    [aberta, mexer],
   );
 
   /* Tirar o cliente NÃO tira as O.S. dele que já foram aceitas: o crédito foi
      gasto de verdade, e sumir com ele aqui faria o saldo subir sozinho. */
   const desligarCliente = useCallback(
     async (chave) => {
-      if (!aberta || !permuta) return;
-      await mexer(aberta, { campos: { clientes: (permuta.clientes || []).filter((x) => x.chave !== chave) } });
+      if (!aberta) return;
+      // Mesmo motivo do ligar: a lista sai do registro mais novo.
+      await mexer(aberta, (atual) => ({
+        campos: { clientes: (atual?.clientes || []).filter((x) => x.chave !== chave) },
+      }));
     },
-    [aberta, permuta, mexer],
+    [aberta, mexer],
   );
 
   const salvarLancamento = useCallback(async () => {
@@ -1049,6 +1091,10 @@ export default function Permutas() {
                   <button
                     key={c.chave}
                     type="button"
+                    /* NÃO travar durante o salvamento: travado, o segundo
+                       clique seria IGNORADO em vez de enfileirado, e a pessoa
+                       perderia a marcação de novo — por outro caminho. Quem
+                       garante que as duas ficam é a fila do `mexer`. */
                     onClick={() => ligarCliente(c)}
                     className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm hover:bg-slate-50"
                   >
