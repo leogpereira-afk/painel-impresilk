@@ -712,31 +712,11 @@ export default function ContasAtrasadas() {
             </div>
           </div>
 
-          {/* O QUE VENCE NA SEMANA — a ligação que evita o atraso inteiro.
-              O dado já vinha carregado (o cache traz pendentes a 90 dias) e era
-              descartado no cálculo. O número que importa não é o total: é
-              quanto disso é de cliente que JÁ está devendo. Esse é quem não
-              deveria receber trabalho novo sem uma conversa. */}
-          {vm.aVencer?.qtd > 0 && aba === "lista" && (
-            <div
-              className="hidden sm:flex flex flex-wrap items-center gap-x-4 gap-y-1 rounded-xl border px-3 py-2.5"
-              style={{ borderColor: "var(--hairline)" }}
-            >
-              <span className="font-display text-sm font-semibold text-slate-800">
-                Vence nos próximos 7 dias
-              </span>
-              <span className="text-sm text-slate-600">
-                {numero(vm.aVencer.qtd)} título(s) ·{" "}
-                <strong className="tabular-nums text-slate-900">{moeda(vm.aVencer.valor)}</strong>
-              </span>
-              {vm.aVencer.deQuemJaDeve > 0 && (
-                <span className="chip-bad">
-                  {numero(vm.aVencer.deQuemJaDeve)} de quem já está devendo ·{" "}
-                  {moeda(vm.aVencer.valorDeQuemJaDeve)}
-                </span>
-              )}
-            </div>
-          )}
+          {/* A FAIXA "Vence nos próximos 7 dias" SAIU DAQUI: o quarto cartão
+              lá em cima já diz o mesmo número, o mesmo valor e o mesmo "3 de
+              quem já deve". Era a mesma informação duas vezes, e a segunda
+              empurrava a lista para baixo da dobra -- numa tela que existe para
+              percorrer títulos. */}
 
           {/* A CARTEIRA DE CADA VENDEDOR, A UM CLIQUE.
               O filtro por vendedor já existia — dentro de um seletor, escondido
@@ -790,7 +770,7 @@ export default function ContasAtrasadas() {
               botão; no computador continua aberta. */}
           <button
             type="button"
-            className="btn-ghost sm:hidden"
+            className="btn-ghost"
             onClick={() => setMaisFiltros((v) => !v)}
             aria-expanded={maisFiltros}
           >
@@ -798,8 +778,14 @@ export default function ContasAtrasadas() {
             {maisFiltros ? "Esconder filtros" : "Filtros"}
             {temFiltro && <span className="ml-1 h-1.5 w-1.5 rounded-full bg-brand" />}
           </button>
+
+          {/* A CAIXA CINZA RECOLHE TAMBÉM NO COMPUTADOR. Ela era `sm:flex` --
+              escondia no celular e ficava SEMPRE aberta no desktop, que é onde
+              a cobrança acontece. Somadas à busca, à faixa de vencimento e aos
+              chips de vendedor, eram seis faixas de controle antes do primeiro
+              título. Quem cobra abre a tela para ver a LISTA. */}
           <div
-            className={`${maisFiltros ? "flex" : "hidden"} flex-wrap items-center gap-x-4 gap-y-2 rounded-xl border bg-slate-50/70 px-3 py-2.5 sm:flex`}
+            className={`${maisFiltros ? "flex" : "hidden"} w-full flex-wrap items-center gap-x-4 gap-y-2 rounded-xl border bg-slate-50/70 px-3 py-2.5`}
             style={{ borderColor: "var(--hairline)" }}
           >
             {/* "Todos", "Pendentes" e "Reincidentes" saíram daqui: são os
@@ -886,33 +872,11 @@ export default function ContasAtrasadas() {
               />
             </div>
 
-            {/* QUEM vendeu: isola a carteira de cobranca de cada vendedor.
-                Aparece SEMPRE que existe vendedor — antes so com dois ou mais,
-                e quem entrava numa conta ligada a vendedor ficava sem o seletor
-                justamente na tela em que ele mais serve. */}
-            {opcoesVendedor.length > 0 && (
-              <>
-                <span className="hidden h-5 w-px bg-slate-200 sm:block" aria-hidden="true" />
-                <div className="flex items-center gap-2">
-                  <label className="label-filtro" htmlFor="vendedor-titulos">
-                    Vendedor
-                  </label>
-                  <select
-                    id="vendedor-titulos"
-                    value={vendedorSel}
-                    onChange={(e) => setVendedorSel(e.target.value)}
-                    className={`filtro ${vendedorSel ? "filtro-ativo" : ""}`}
-                  >
-                    <option value="">Todos</option>
-                    {opcoesVendedor.map((v) => (
-                      <option key={v.nome} value={v.nome}>
-                        {v.nome} ({v.qtd ?? 0})
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </>
-            )}
+            {/* O SELETOR DE VENDEDOR SAIU DAQUI: os chips logo acima já fazem
+                a mesma escolha, e melhor -- mostram o valor de cada carteira,
+                que é o que decide por quem começar. Duas formas do mesmo filtro
+                na mesma tela é a pessoa tendo de descobrir se são a mesma
+                coisa. */}
 
             {filtro === "acima" && (
               <>
@@ -954,6 +918,30 @@ export default function ContasAtrasadas() {
               </>
             )}
           </span>
+          {/* OS FILTROS LIGADOS SE ANUNCIAM AQUI, e num lugar só. Com a caixa
+              cinza recolhida no computador, um filtro ativo ficaria invisível --
+              a tela mostrando 12 de 115 títulos sem dizer por quê. Cada um sai
+              com o X que o desliga. */}
+          {filtro === "acima" && (
+            <button className="chip-warn" onClick={() => setFiltro("todos")}>
+              acima de {diasMin} dias <X size={12} />
+            </button>
+          )}
+          {anoSel && (
+            <button className="chip-warn" onClick={() => setAnoSel("")}>
+              ano: {anoSel} <X size={12} />
+            </button>
+          )}
+          {mesSel && (
+            <button className="chip-warn" onClick={() => setMesSel("")}>
+              mês: {MESES[Number(mesSel) - 1]} <X size={12} />
+            </button>
+          )}
+          {vendedorSel && (
+            <button className="chip-warn" onClick={() => setVendedorSel("")}>
+              vendedor: {vendedorSel} <X size={12} />
+            </button>
+          )}
           {faixaSel && (
             <button className="chip-warn" onClick={() => setFaixaSel(null)}>
               idade: {faixaSel.faixa} <X size={12} />
@@ -1070,7 +1058,17 @@ export default function ContasAtrasadas() {
                       <Dinheiro
                         valor={t.valor}
                         formatar={numero}
-                        abaixo={t.motivoId ? t.motivoNome : <span className="text-slate-400">sem motivo</span>}
+                        /* "sem motivo" SÓ quando o título já foi cobrado. Antes
+                           saía embaixo de TODO valor, e como quase nenhum tem
+                           motivo classificado, era a mesma frase cinza repetida
+                           115 vezes -- ruído que treina o olho a pular a linha
+                           inteira. Em quem já foi cobrado ela é acusação útil:
+                           falou-se com o cliente e não se anotou por quê. */
+                        abaixo={
+                          t.motivoId ? t.motivoNome
+                          : t.cobrado ? <span className="text-warn-700">cobrado, sem motivo</span>
+                          : null
+                        }
                       />
                     </div>
 
