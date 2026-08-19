@@ -94,11 +94,13 @@ const SISTEMAS = SISTEMAS_CASA
 // Outra empresa do dono. Ficam num bloco separado no pe da lateral para nao se
 // misturarem com os sistemas da Impresilk -- e so a direcao enxerga.
 //
-// A Domo mudou de casa em 31/07: o endereco no Netlify hoje e so um aviso de
-// mudanca. O Diamond continua no Netlify.
+// A Domo mudou de casa em 31/07 e o Diamond em 16/08 -- os dois estao no
+// github.io agora. O endereco antigo do Diamond (diamond-vendas.netlify.app)
+// NAO e mais um aviso de mudanca: o site foi apagado na zeragem do Netlify e
+// responde 404, entao este link ficou levando a lugar nenhum ate 19/08.
 const DOMO = [
   { rotulo: "Domo Construtora", icone: HardHat, href: "https://leogpereira-afk.github.io/domo/" },
-  { rotulo: "Diamond Vendas", icone: Building2, href: "https://diamond-vendas.netlify.app" },
+  { rotulo: "Diamond Vendas", icone: Building2, href: "https://leogpereira-afk.github.io/diamond/" },
 ];
 
 function useTema() {
