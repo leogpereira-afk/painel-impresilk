@@ -117,12 +117,34 @@ const valorDaOS = (o) => {
   return Math.round(v * 100) / 100;
 };
 
+/* SO GRAVA O QUE ELA MESMA NORMALIZOU NESTA CORRIDA.
+ *
+ * `painel_ordens` tem DOIS escritores: a carga do historico, que busca a O.S.
+ * no ERP e traz `valor_total` e `valor_desconto`, e a carga incremental de 20
+ * em 20 minutos, que MESCLA a janela de 7 dias no cache e reescreve o vetor
+ * inteiro -- inclusive as O.S. antigas, que vieram do cache guardado e nao tem
+ * cabecalho nenhum.
+ *
+ * Sem esta trava, a incremental desfazia a do historico: em 19/08/2026 ela
+ * passou por cima de 4.869 linhas as 10:57 e zerou 1.536 descontos que a carga
+ * das 02:15 tinha acabado de trazer. Nada reclamou -- os dois numeros eram
+ * "coerentes" (bruto = valor, desconto = 0), so que errados.
+ *
+ * `valorBruto` so existe em O.S. que passaram pelo `normOS` DESTA versao, com o
+ * cabecalho do ERP na mao. Quem nao tem, ja esta na tabela com dado melhor: o
+ * certo e nao encostar. */
 async function gravarOrdensTabela(ordens) {
   if (!Array.isArray(ordens) || !ordens.length) return 0;
+  const comCabecalho = ordens.filter((o) => o?.valorBruto != null);
+  const pulou = ordens.length - comCabecalho.length;
+  if (pulou) {
+    console.log(`   painel_ordens: ${pulou} O.S. sem cabecalho do ERP -- nao toquei (ja estao la com dado melhor)`);
+  }
+  if (!comCabecalho.length) return 0;
   const LOTE = 1000;
   let total = 0;
-  for (let i = 0; i < ordens.length; i += LOTE) {
-    const linhas = ordens.slice(i, i + LOTE).map((o) => {
+  for (let i = 0; i < comCabecalho.length; i += LOTE) {
+    const linhas = comCabecalho.slice(i, i + LOTE).map((o) => {
       const ck = chaveCliente(o.cliente);
       return {
         id: String(o.id),
@@ -138,7 +160,7 @@ async function gravarOrdensTabela(ordens) {
         // O bruto e o desconto vao JUNTO, e nao so o resultado: guardar so o
         // final faz a conta virar um numero de origem desconhecida -- que foi
         // o que permitiu o desconto passar batido por dois dias.
-        bruto: Math.round((Number(o.valorBruto) || valorDaOS(o)) * 100) / 100,
+        bruto: Math.round(Number(o.valorBruto) * 100) / 100,
         desconto: Math.round((Number(o.desconto) || 0) * 100) / 100,
         vendedor: String(o.vendedor ?? ""),
       };
