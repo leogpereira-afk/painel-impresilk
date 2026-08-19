@@ -91,6 +91,14 @@ Deno.serve(async (req: Request) => {
       cnpj: String(o?.cnpj ?? ""),
       data: String(o?.data ?? "").slice(0, 10) || null,
       valor: Number(o?.valor) || 0,
+      /* Bruto e desconto entram JUNTO do final. Sem eles ninguem confere o
+         numero contra o PDF do ERP sem abrir o ERP -- e foi guardar so o
+         resultado que deixou o desconto passar batido por dois dias.
+         `bruto` cai para `valor` quando a O.S. vem do cache antigo, que nao
+         tinha o campo: assim a invariante `bruto >= valor` vale sempre e a
+         trava do banco (20260819d) nao recusa carga legitima. */
+      bruto: Number(o?.bruto) || Number(o?.valor) || 0,
+      desconto: Number(o?.desconto) || 0,
       vendedor: String(o?.vendedor ?? ""),
       atualizado_em: new Date().toISOString(),
     })).filter((o: any) => o.id);
