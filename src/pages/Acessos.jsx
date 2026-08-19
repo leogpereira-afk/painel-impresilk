@@ -298,6 +298,24 @@ function UltimoBackup({ status }) {
                       {s.colecoesForaDoBackup.length} fora do backup
                     </span>
                   )}
+                  {/* O QUE TEM DENTRO. "323 reg." exige acreditar; a lista
+                      mostra. Nasceu de um pedido direto — as permutas já
+                      estavam salvas e a tela não tinha como provar. */}
+                  {s.porColecao && Object.keys(s.porColecao).length > 0 && (
+                    <details className="mt-1">
+                      <summary className="cursor-pointer text-[11px] text-slate-400 hover:text-slate-600">
+                        ver o que foi salvo
+                      </summary>
+                      <ul className="mt-1 grid gap-x-4 gap-y-0.5 text-[11px] text-slate-500 sm:grid-cols-2">
+                        {Object.entries(s.porColecao).map(([nome, n]) => (
+                          <li key={nome} className="flex justify-between gap-2">
+                            <span>{nome}</span>
+                            <span className="tabular-nums">{n}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </details>
+                  )}
                 </td>
               </tr>
             ))}

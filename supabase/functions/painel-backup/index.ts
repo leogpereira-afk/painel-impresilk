@@ -317,12 +317,27 @@ async function backupDoHub() {
          saber se as abas novas entraram. Colecao nova agora entra na conta
          sozinha. */
       registros:
-        Object.values(bkp.painel)
-          .reduce((n, v) => n + (v && typeof v === "object" ? Object.keys(v).length : 0), 0) +
+        Object.entries(bkp.painel)
+          /* `config` e um objeto de AJUSTES, nao uma colecao de registros:
+             contar as chaves dele inflava o total em 7 (8 chaves no lugar de
+             1). O numero na tela diz "reg." e precisa querer dizer isso. */
+          .reduce((n, [k, v]) => n + (k === "config" ? (v ? 1 : 0)
+            : (v && typeof v === "object" ? Object.keys(v).length : 0)), 0) +
         Object.keys(bkp.contas).length,
       /* O que existe no banco e o backup NAO copiou. Vazio e o esperado; com
          algo dentro, a tela de backup tem o que mostrar antes de virar perda. */
       colecoesForaDoBackup: naoCopiadas,
+      /* O QUE TEM DENTRO, colecao por colecao. Nasceu de um pedido direto: o
+         Leonardo olhou "Painel de Gestao - 323 reg." e pediu para "adicionar
+         permuta aqui" -- ela ja estava sendo salva desde a versao anterior, mas
+         a tela nao tinha como provar. Numero total exige confianca; a lista
+         mostra. E e ela que responde "as permutas estao no backup?" sem
+         ninguem precisar abrir o arquivo no GitHub. */
+      porColecao: Object.fromEntries(
+        Object.entries(bkp.painel)
+          .map(([k, v]) => [k, v && typeof v === "object" ? Object.keys(v).length : 0])
+          .sort((a, b) => String(a[0]).localeCompare(String(b[0]), "pt-BR")),
+      ),
       erro: gh.ok ? null : (gh as any).motivo,
     };
   } catch (e) {
