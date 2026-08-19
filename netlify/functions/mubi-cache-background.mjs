@@ -572,9 +572,17 @@ export async function etapaRealizado(anoBase = new Date().getUTCFullYear(), ante
  */
 export const PAGINA_HISTORICO = 100;
 
-export async function etapaHistoricoOS(desde, ate, categoriaPorNome) {
+export async function etapaHistoricoOS(desde, ate) {
   const base = { status: "TODOS", filtrodata: "CADASTRO" };
-  const cat = categoriaPorNome ?? (await catalogoCategorias());
+  /* SEM CATALOGO DE PRODUTOS, de proposito.
+     O catalogo existe para classificar ITENS por categoria, e a tabela
+     `painel_ordens` -- a unica coisa que esta etapa alimenta -- nao guarda
+     item nenhum: guarda numero, cliente, data e valor. Buscar o catalogo aqui
+     nao mudava um numero sequer, e virou ponto unico de falha: em 19/08/2026 o
+     ERP devolveu 500 em `produto` e a carga inteira morreu antes de pedir a
+     primeira O.S., com sete anos de historico esperando por um dado que ela ia
+     jogar fora. Dependencia que nao muda o resultado nao entra no caminho. */
+  const cat = new Map();
   const brutas = await mubiGetTudo(
     "ordem-servico",
     { ...base, datainicial: desde, datafinal: ate },

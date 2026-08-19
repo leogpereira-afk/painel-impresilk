@@ -14,7 +14,7 @@ const ALVOS = [
     nomes: [
       "etapaRapidos", "etapaCompleta", "etapaRealizado", "calcDso",
       "normOrcamento", "normOS", "chaveProduto", "SEM_CATEGORIA", "FORA_CATALOGO",
-      "etapaHistoricoOS", "fatiasPorAno", "catalogoCategorias", "PAGINA_HISTORICO",
+      "etapaHistoricoOS", "fatiasPorAno", "PAGINA_HISTORICO",
     ],
   },
   {

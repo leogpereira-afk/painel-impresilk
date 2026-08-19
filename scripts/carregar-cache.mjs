@@ -26,7 +26,7 @@
 import {
   etapaRapidos, etapaCompleta, etapaRealizado, calcDso, normOrcamento, normOS, chaveProduto,
   SEM_CATEGORIA, FORA_CATALOGO,
-  etapaHistoricoOS, fatiasPorAno, catalogoCategorias,
+  etapaHistoricoOS, fatiasPorAno,
 } from "../netlify/functions/mubi-cache-background.mjs";
 import { mubiGetTudo, mubiConfigurado, hojeMais } from "../netlify/functions/lib/mubi.js";
 
@@ -324,11 +324,7 @@ async function cargaDoHistorico() {
     const ate = process.env.HISTORICO_ATE || hojeMais(0);
     const fatias = fatiasPorAno(desde, ate);
     console.log(`carga do historico de O.S.: ${desde} ate ${ate} -- ${fatias.length} ano(s)`);
-    await anotar({ passo: "catalogo de produtos", desde, ate, anosPrevistos: fatias.map((f) => f.ano) });
-
-    /* O catalogo e puxado UMA vez e emprestado a todas as fatias: sao 47
-       produtos, e refaze-lo por ano seria seis chamadas identicas ao ERP. */
-    const categoriaPorNome = await catalogoCategorias();
+    await anotar({ passo: "buscando O.S.", desde, ate, anosPrevistos: fatias.map((f) => f.ano) });
 
     /* ANO A ANO, e cada ano GRAVADO ANTES do proximo comecar.
        Se o job estourar o tempo ou o ERP cair no meio, o que ja veio fica na
@@ -340,7 +336,7 @@ async function cargaDoHistorico() {
     for (const f of fatias) {
       await anotar({ passo: `ano ${f.ano}` });
       try {
-        const { ordens, canceladas, brutas } = await etapaHistoricoOS(f.de, f.ate, categoriaPorNome);
+        const { ordens, canceladas, brutas } = await etapaHistoricoOS(f.de, f.ate);
         const n = await gravarOrdensTabela(ordens);
         if (canceladas.length) {
           for (let i = 0; i < canceladas.length; i += 1000) {
