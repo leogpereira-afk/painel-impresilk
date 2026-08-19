@@ -49,69 +49,70 @@ Deno.serve(async (req: Request) => {
   if (req.method !== "POST") return json({ erro: "use POST" }, 405);
   if (!TOKEN || req.headers.get("x-token") !== TOKEN) return json({ erro: "nao autorizado" }, 401);
 
-  /* AS O.S. TAMBEM VIRAM LINHA, alem de entrar no vetor do cache.
-     `painel_ordens` existe para a busca da tela de Permutas alcancar 2020 sem
-     inchar o login: o vetor do cache viaja INTEIRO para o navegador, a tabela
-     nao. Ver 20260818h_painel_ordens.sql.
-
-     Chega em LOTES porque a carga do historico manda ~19.500 linhas: um corpo
-     unico estouraria o limite de tamanho da funcao. Cada lote e um upsert por
-     id -- reenviar o mesmo lote nao duplica, e uma corrida que morra no meio
-     deixa o que ja subiu, sem inconsistencia.
-
-     NAO APAGA o que nao veio. Uma carga leve traz 7 dias; se ela limpasse o
-     resto, a tabela encolheria para uma semana toda vez -- e a permuta perderia
-     as O.S. que ja tinha aceitado da lista de escolha. */
-  if (req.method === "POST") {
-    const espiar = await req.clone().json().catch(() => null);
-    if (espiar && espiar.action === "ordens") {
-      const linhas = Array.isArray(espiar.linhas) ? espiar.linhas : [];
-      if (!linhas.length) return json({ ok: true, gravadas: 0 });
-      if (linhas.length > 2000) return json({ erro: "lote grande demais (max 2000)" }, 413);
-      const limpas = linhas.map((o: any) => ({
-        id: String(o?.id ?? ""),
-        numero: String(o?.numero ?? ""),
-        cliente: String(o?.cliente ?? ""),
-        cliente_chave: String(o?.clienteChave ?? ""),
-        cnpj: String(o?.cnpj ?? ""),
-        data: String(o?.data ?? "").slice(0, 10) || null,
-        valor: Number(o?.valor) || 0,
-        vendedor: String(o?.vendedor ?? ""),
-        atualizado_em: new Date().toISOString(),
-      })).filter((o: any) => o.id);
-      const { error } = await sb.from("painel_ordens").upsert(limpas, { onConflict: "id" });
-      if (error) return json({ erro: error.message }, 500);
-      return json({ ok: true, gravadas: limpas.length });
-    }
-    /* De quando puxar o historico de O.S. A direcao escolhe na tela de
-       Permutas, e quem GUARDA e o painel_config_global -- um dono so. A carga
-       precisa ler, e ela nao tem a chave do banco: so este passa-fio, de
-       leitura, com o mesmo token que ja a autoriza a gravar cache. */
-    if (espiar && espiar.action === "cfgHistorico") {
-      const { data } = await sb.from("painel_config_global")
-        .select("config").eq("id", true).maybeSingle();
-      const d = String((data?.config as any)?.historicoDesde ?? "");
-      return json({ ok: true, historicoDesde: /^\d{4}-\d{2}-\d{2}$/.test(d) ? d : null });
-    }
-
-    /* O CANCELAMENTO TEM QUE APAGAR A LINHA. A carga descarta a O.S. cancelada
-       antes de normalizar, entao ela simplesmente para de vir -- e sem isto
-       ficaria na tabela para sempre, aparecendo na lista de escolha da permuta
-       como se ainda existisse. */
-    if (espiar && espiar.action === "ordensApagar") {
-      const ids = (Array.isArray(espiar.ids) ? espiar.ids : []).map(String).filter(Boolean);
-      if (!ids.length) return json({ ok: true, apagadas: 0 });
-      const { error } = await sb.from("painel_ordens").delete().in("id", ids.slice(0, 2000));
-      if (error) return json({ erro: error.message }, 500);
-      return json({ ok: true, apagadas: ids.length });
-    }
-  }
-
+  /* O CORPO E LIDO UMA VEZ SO. A primeira versao das acoes de `painel_ordens`
+     espiava por `req.clone().json()` antes desta linha -- e isso fazia o JSON
+     ser PARSEADO DUAS VEZES em toda chamada, inclusive na gravacao do cache de
+     ordens, que sao 2,6 MB. Custo puro, dentro de uma funcao com teto de tempo
+     e memoria. Uma leitura, um objeto, todas as acoes olhando para ele. */
   let body: any;
   try {
     body = await req.json();
   } catch {
     return json({ erro: "json invalido" }, 400);
+  }
+  /* AS O.S. TAMBEM VIRAM LINHA, alem de entrar no vetor do cache.
+   `painel_ordens` existe para a busca da tela de Permutas alcancar 2020 sem
+   inchar o login: o vetor do cache viaja INTEIRO para o navegador, a tabela
+   nao. Ver 20260818h_painel_ordens.sql.
+
+   Chega em LOTES porque a carga do historico manda ~19.500 linhas: um corpo
+   unico estouraria o limite de tamanho da funcao. Cada lote e um upsert por
+   id -- reenviar o mesmo lote nao duplica, e uma corrida que morra no meio
+   deixa o que ja subiu, sem inconsistencia.
+
+   NAO APAGA o que nao veio. Uma carga leve traz 7 dias; se ela limpasse o
+   resto, a tabela encolheria para uma semana toda vez -- e a permuta perderia
+   as O.S. que ja tinha aceitado da lista de escolha. */
+  if (body && body.action === "ordens") {
+    const linhas = Array.isArray(body.linhas) ? body.linhas : [];
+    if (!linhas.length) return json({ ok: true, gravadas: 0 });
+    if (linhas.length > 2000) return json({ erro: "lote grande demais (max 2000)" }, 413);
+    const limpas = linhas.map((o: any) => ({
+      id: String(o?.id ?? ""),
+      numero: String(o?.numero ?? ""),
+      cliente: String(o?.cliente ?? ""),
+      cliente_chave: String(o?.clienteChave ?? ""),
+      cnpj: String(o?.cnpj ?? ""),
+      data: String(o?.data ?? "").slice(0, 10) || null,
+      valor: Number(o?.valor) || 0,
+      vendedor: String(o?.vendedor ?? ""),
+      atualizado_em: new Date().toISOString(),
+    })).filter((o: any) => o.id);
+    const { error } = await sb.from("painel_ordens").upsert(limpas, { onConflict: "id" });
+    if (error) return json({ erro: error.message }, 500);
+    return json({ ok: true, gravadas: limpas.length });
+  }
+  /* De quando puxar o historico de O.S. A direcao escolhe na tela de
+     Permutas, e quem GUARDA e o painel_config_global -- um dono so. A carga
+     precisa ler, e ela nao tem a chave do banco: so este passa-fio, de
+     leitura, com o mesmo token que ja a autoriza a gravar cache. */
+  if (body && body.action === "cfgHistorico") {
+    const { data } = await sb.from("painel_config_global")
+      .select("config").eq("id", true).maybeSingle();
+    const d = String((data?.config as any)?.historicoDesde ?? "");
+    return json({ ok: true, historicoDesde: /^\d{4}-\d{2}-\d{2}$/.test(d) ? d : null });
+  }
+
+  /* O CANCELAMENTO TEM QUE APAGAR A LINHA. A carga descarta a O.S. cancelada
+     antes de normalizar, entao ela simplesmente para de vir -- e sem isto
+     ficaria na tabela para sempre, aparecendo na lista de escolha da permuta
+     como se ainda existisse. */
+  if (body && body.action === "ordensApagar") {
+    const ids = (Array.isArray(body.ids) ? body.ids : []).map(String).filter(Boolean);
+    if (!ids.length) return json({ ok: true, apagadas: 0 });
+    const { error } = await sb.from("painel_ordens").delete().in("id", ids.slice(0, 2000));
+    if (error) return json({ erro: error.message }, 500);
+    return json({ ok: true, apagadas: ids.length });
   }
 
   // Leitura. O Actions consulta o "status" para decidir entre carga completa e
