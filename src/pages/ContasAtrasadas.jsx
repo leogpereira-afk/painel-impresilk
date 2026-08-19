@@ -26,6 +26,7 @@ import { useApp } from "../config/store.jsx";
 import { calcContasAtrasadas, agruparDividas } from "../lib/calc/contasAtrasadas.js";
 import {
   carteiraDeCobranca, resumoDaCarteira, chaveCliente as chaveCob, SITUACOES, CANAIS,
+  ordenarCarteira, filtrarCarteira, ORDENS,
 } from "../lib/calc/cobrancas.js";
 import { lerCobrancas, salvarChamado } from "../services/cobrancas.js";
 import { moeda, numero, dataLonga, dataCurta, rotuloMes, ymdLocal, MESES } from "../lib/format.js";
@@ -98,6 +99,35 @@ function CartaoCobranca({ c, aberto, aoAbrir, aoRegistrar, aoApagar, salvando })
 
       {aberto && (
         <div className="mt-3 space-y-3 border-t border-slate-200 pt-3">
+          {/* OS TÍTULOS EM ABERTO. Sem eles a ligação é cega: o cliente
+              pergunta "qual nota?" e a resposta está em outra aba. Aqui já vem
+              nota, O.S., vencimento e quanto atrasou. */}
+          <div>
+            <div className="mb-1 text-xs font-medium text-slate-600">
+              {numero(c.qtd)} {c.qtd === 1 ? "título em aberto" : "títulos em aberto"}
+            </div>
+            <ol className="rounded-lg bg-white/70">
+              {[...c.titulos].sort((a, b) => b.dias - a.dias).map((t) => (
+                <li key={t.id} className="flex items-baseline gap-2 border-b border-slate-100 px-2 py-1.5 text-sm last:border-0">
+                  <span className="w-28 shrink-0 text-xs text-slate-500">
+                    {t.nf ? `NF ${t.nf}` : t.os ? `O.S. ${t.os}` : `#${t.id}`}
+                  </span>
+                  <span className="w-24 shrink-0 text-xs tabular-nums text-slate-500">
+                    {t.vencimento ? dataLonga(t.vencimento) : "sem vencimento"}
+                  </span>
+                  <span className={`w-24 shrink-0 text-xs tabular-nums ${t.dias > 60 ? "text-bad-700" : "text-slate-500"}`}>
+                    {t.dias > 0 ? `${numero(t.dias)} dias` : "a vencer"}
+                  </span>
+                  <span className="min-w-0 flex-1 truncate text-xs text-slate-400">
+                    {[t.cobrado && "já marcado como cobrado", t.motivoId && t.motivoNome]
+                      .filter(Boolean).join(" · ")}
+                  </span>
+                  <span className="shrink-0 tabular-nums text-slate-700">{moeda(t.valor)}</span>
+                </li>
+              ))}
+            </ol>
+          </div>
+
           <FormChamado cliente={c} aoSalvar={aoRegistrar} salvando={salvando} />
           {c.chamados.length > 0 && (
             <ol className="space-y-2">
@@ -253,6 +283,10 @@ export default function ContasAtrasadas() {
      anotações da direção, não dado do Mubisys. */
   const [cobrancas, setCobrancas] = useState(null);
   const [clienteAberto, setClienteAberto] = useState(null);
+  const [buscaCob, setBuscaCob] = useState("");
+  const [ordemCob, setOrdemCob] = useState("acao");
+  const [deCob, setDeCob] = useState("");
+  const [ateCob, setAteCob] = useState("");
   const [salvandoChamado, setSalvandoChamado] = useState(false);
   const [avisoCob, setAvisoCob] = useState(null);
   useEffect(() => {
@@ -402,7 +436,16 @@ export default function ContasAtrasadas() {
     () => (vm ? carteiraDeCobranca(vm.titulos, cobrancas || {}, ymdLocal(new Date())) : []),
     [vm, cobrancas],
   );
-  const resumoCob = useMemo(() => resumoDaCarteira(carteira), [carteira]);
+  /* RECORTE E ORDEM, nesta ordem: filtrar antes de ordenar, porque o filtro de
+     data RECONTA valor e atraso de cada cartão -- ordenar antes poria a lista
+     em ordem de números que o recorte vai mudar. */
+  const carteiraVista = useMemo(
+    () => ordenarCarteira(filtrarCarteira(carteira, { termo: buscaCob, de: deCob, ate: ateCob }), ordemCob),
+    [carteira, buscaCob, deCob, ateCob, ordemCob],
+  );
+  /* Os números do topo seguem o RECORTE, não a carteira inteira: um resumo que
+     ignora o filtro faz a soma da tela não fechar com a lista embaixo dela. */
+  const resumoCob = useMemo(() => resumoDaCarteira(carteiraVista), [carteiraVista]);
 
   const registrarChamado = useCallback(async (c, form, limpar) => {
     setAvisoCob(null);
@@ -1184,14 +1227,60 @@ export default function ContasAtrasadas() {
 
           <SectionTitle
             titulo="Carteira de cobrança"
-            sub="Um cartão por cliente que deve. Clique para ver o histórico e anotar a ligação — quem falou e quando ficam registrados."
+            sub="Um cartão por cliente que deve. Clique para ver os títulos em aberto, o histórico e anotar a ligação."
           />
+
+          <Card className="flex flex-wrap items-end gap-3">
+            <div className="min-w-56 flex-1">
+              <label className="mb-1 block text-xs text-slate-500" htmlFor="cob-busca">Cliente</label>
+              <input
+                id="cob-busca"
+                className="input"
+                placeholder="Procurar pelo nome…"
+                value={buscaCob}
+                onChange={(e) => setBuscaCob(e.target.value)}
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs text-slate-500" htmlFor="cob-de">Vence de</label>
+              <input id="cob-de" type="date" className="input w-40" value={deCob} onChange={(e) => setDeCob(e.target.value)} />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs text-slate-500" htmlFor="cob-ate">até</label>
+              <input id="cob-ate" type="date" className="input w-40" value={ateCob} onChange={(e) => setAteCob(e.target.value)} />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs text-slate-500" htmlFor="cob-ordem">Ordenar por</label>
+              <select id="cob-ordem" className="input w-52" value={ordemCob} onChange={(e) => setOrdemCob(e.target.value)}>
+                {ORDENS.map((o) => <option key={o.id} value={o.id}>{o.rotulo}</option>)}
+              </select>
+            </div>
+            {(buscaCob || deCob || ateCob || ordemCob !== "acao") && (
+              <button
+                type="button"
+                className="btn-ghost"
+                onClick={() => { setBuscaCob(""); setDeCob(""); setAteCob(""); setOrdemCob("acao"); }}
+              >
+                Limpar
+              </button>
+            )}
+            {/* O RECORTE TEM DE SE ANUNCIAR. Um filtro de data ligado muda os
+                três números do topo, e sem esta linha a direção lê "R$ 245 mil
+                a cobrar" achando que é a dívida inteira. */}
+            {(deCob || ateCob) && (
+              <div className="w-full text-xs text-warn-700">
+                Mostrando só títulos que vencem
+                {deCob && ` de ${dataLonga(deCob)}`}
+                {ateCob && ` até ${dataLonga(ateCob)}`} — os números acima seguem este recorte.
+              </div>
+            )}
+          </Card>
 
           {cobrancas === null ? (
             <Empty>Carregando o histórico de cobrança…</Empty>
-          ) : carteira.length ? (
+          ) : carteiraVista.length ? (
             <div className="grid gap-3 sm:grid-cols-2">
-              {carteira.map((c) => (
+              {carteiraVista.map((c) => (
                 <CartaoCobranca
                   key={c.chave}
                   c={c}
@@ -1204,7 +1293,11 @@ export default function ContasAtrasadas() {
               ))}
             </div>
           ) : (
-            <Empty>Nenhum título vencido — nada a cobrar.</Empty>
+            <Empty>
+              {carteira.length
+                ? "Nenhum cliente com esse recorte. Limpe o filtro para ver a carteira inteira."
+                : "Nenhum título vencido — nada a cobrar."}
+            </Empty>
           )}
         </div>
       )}

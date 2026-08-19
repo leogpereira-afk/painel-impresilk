@@ -108,15 +108,80 @@ export function carteiraDeCobranca(titulos, cobrancas, hoje) {
     };
   });
 
-  /* A ORDEM É A DA AÇÃO, não a do valor. Primeiro quem prometeu e não cumpriu
-     (a conversa já existe e foi quebrada), depois quem nunca foi chamado, e só
-     então o resto por valor. Ordenar só por dinheiro põe no topo o cliente com
-     quem se falou ontem. */
-  return cartoes.sort((a, b) => {
-    if (a.promessaVencida !== b.promessaVencida) return a.promessaVencida ? -1 : 1;
-    if (a.semChamado !== b.semChamado) return a.semChamado ? -1 : 1;
-    return b.valor - a.valor;
-  });
+  return ordenarCarteira(cartoes, "acao");
+}
+
+/* AS ORDENS POSSÍVEIS. `acao` é o padrão e é opinião: primeiro quem prometeu e
+   não cumpriu (a conversa já existe e foi quebrada), depois quem nunca foi
+   chamado, e só então o resto por valor. Ordenar só por dinheiro põe no topo o
+   cliente com quem se falou ontem.
+
+   As outras existem porque a pergunta muda: numa manhã de cobrança grande vale
+   o valor; numa faxina de carteira vale o número de títulos; para achar quem
+   está esquecido vale o tempo sem contato. */
+export const ORDENS = [
+  { id: "acao", rotulo: "O que fazer agora" },
+  { id: "valor", rotulo: "Maior valor" },
+  { id: "titulos", rotulo: "Mais títulos" },
+  { id: "atraso", rotulo: "Maior atraso" },
+  { id: "recente", rotulo: "Contato mais recente" },
+  { id: "esquecido", rotulo: "Mais tempo sem contato" },
+];
+
+export function ordenarCarteira(cartoes, ordem) {
+  const c = [...cartoes];
+  /* Quem NUNCA foi contatado não tem "há quantos dias": em `recente` ele vai
+     para o fim (não há contato para ser recente) e em `esquecido` vai para o
+     COMEÇO, porque zero contato é o esquecimento máximo. Tratar null como zero
+     inverteria os dois. */
+  const semContatoNoFim = (x) => (x.diasSemContato === null ? Number.POSITIVE_INFINITY : x.diasSemContato);
+  switch (ordem) {
+    case "valor":     return c.sort((a, b) => b.valor - a.valor);
+    case "titulos":   return c.sort((a, b) => b.qtd - a.qtd || b.valor - a.valor);
+    case "atraso":    return c.sort((a, b) => b.maiorAtraso - a.maiorAtraso || b.valor - a.valor);
+    case "recente":   return c.sort((a, b) => semContatoNoFim(a) - semContatoNoFim(b) || b.valor - a.valor);
+    case "esquecido": return c.sort((a, b) => semContatoNoFim(b) - semContatoNoFim(a) || b.valor - a.valor);
+    default:
+      return c.sort((a, b) => {
+        if (a.promessaVencida !== b.promessaVencida) return a.promessaVencida ? -1 : 1;
+        if (a.semChamado !== b.semChamado) return a.semChamado ? -1 : 1;
+        return b.valor - a.valor;
+      });
+  }
+}
+
+/* O RECORTE: nome do cliente e janela de vencimento.
+ *
+ * O filtro de data corta TÍTULOS, e o cartão é recontado com o que sobrou --
+ * não é um filtro de cartões. Se ele apenas escondesse clientes, o valor
+ * mostrado continuaria sendo o da dívida inteira e a soma da tela não fecharia
+ * com a lista. Cliente que fica sem nenhum título no período sai. */
+export function filtrarCarteira(cartoes, { termo = "", de = "", ate = "" } = {}) {
+  const t = chaveCliente(termo);
+  const recorta = de || ate;
+  let fora = cartoes;
+  if (t.length >= 2) fora = fora.filter((c) => c.chave.includes(t));
+  if (!recorta) return fora;
+
+  return fora
+    .map((c) => {
+      const titulos = c.titulos.filter((x) => {
+        const v = String(x?.vencimento ?? "").slice(0, 10);
+        if (!v) return false;
+        if (de && v < de) return false;
+        if (ate && v > ate) return false;
+        return true;
+      });
+      if (!titulos.length) return null;
+      return {
+        ...c,
+        titulos,
+        qtd: titulos.length,
+        valor: Math.round(titulos.reduce((s, x) => s + num(x.valor), 0) * 100) / 100,
+        maiorAtraso: titulos.reduce((m, x) => Math.max(m, num(x.dias)), 0),
+      };
+    })
+    .filter(Boolean);
 }
 
 function diasEntre(de, ate) {

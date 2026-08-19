@@ -3,7 +3,10 @@
  */
 import test from "node:test";
 import assert from "node:assert/strict";
-import { chaveCliente, chamadosDoCliente, carteiraDeCobranca, resumoDaCarteira } from "./cobrancas.js";
+import {
+  chaveCliente, chamadosDoCliente, carteiraDeCobranca, resumoDaCarteira,
+  ordenarCarteira, filtrarCarteira,
+} from "./cobrancas.js";
 
 const HOJE = "2026-08-19";
 const t = (cliente, valor, dias = 10) => ({ cliente, valor, dias });
@@ -93,4 +96,59 @@ test("chamado sem campo nenhum não vira NaN nem undefined na tela", () => {
   const cs = chamadosDoCliente({ chamados: { a: {} } });
   assert.equal(cs.length, 1);
   assert.deepEqual([cs[0].data, cs[0].canal, cs[0].resumo], ["", "", ""]);
+});
+
+// ------------------------------------------------------ ordenar e filtrar
+
+const tv = (cliente, valor, dias, venc) => ({ cliente, valor, dias, vencimento: venc });
+
+test("cada ordem responde a uma pergunta diferente", () => {
+  const cob = { BETA: { chamados: { b: { data: "2026-08-18" } } } };
+  const c = carteiraDeCobranca(
+    [tv("Alfa", 100, 200, "2026-01-10"), tv("Alfa", 100, 5, "2026-08-10"),
+     tv("Beta", 900, 10, "2026-08-05"), tv("Gama", 500, 3, "2026-08-15")],
+    cob, HOJE);
+  assert.deepEqual(ordenarCarteira(c, "valor").map((x) => x.cliente), ["Beta", "Gama", "Alfa"]);
+  assert.deepEqual(ordenarCarteira(c, "titulos").map((x) => x.cliente)[0], "Alfa");
+  assert.deepEqual(ordenarCarteira(c, "atraso").map((x) => x.cliente)[0], "Alfa");
+});
+
+test("quem nunca foi contatado é o MAIS esquecido, e nunca o mais recente", () => {
+  // Tratar "sem contato" como zero dias inverteria os dois.
+  const cob = { BETA: { chamados: { b: { data: "2026-08-18" } } } };
+  const c = carteiraDeCobranca([tv("Alfa", 100, 5, "2026-08-01"), tv("Beta", 900, 5, "2026-08-01")], cob, HOJE);
+  assert.equal(ordenarCarteira(c, "recente")[0].cliente, "Beta", "Beta falou ontem");
+  assert.equal(ordenarCarteira(c, "esquecido")[0].cliente, "Alfa", "Alfa nunca foi chamado");
+});
+
+test("buscar por nome ignora acento e caixa", () => {
+  const c = carteiraDeCobranca([tv("Construções Alfa", 100, 5, "2026-08-01"), tv("Beta", 50, 5, "2026-08-01")], {}, HOJE);
+  assert.deepEqual(filtrarCarteira(c, { termo: "construcoes" }).map((x) => x.cliente), ["Construções Alfa"]);
+  assert.deepEqual(filtrarCarteira(c, { termo: "a" }).length, 2, "termo curto não filtra");
+});
+
+test("o filtro de data RECONTA o cartão, não só esconde cliente", () => {
+  // Se apenas escondesse, o valor mostrado seria o da dívida inteira e a soma
+  // da tela não fecharia com a lista.
+  const c = carteiraDeCobranca(
+    [tv("Alfa", 100, 200, "2025-01-10"), tv("Alfa", 400, 5, "2026-08-10")], {}, HOJE);
+  assert.equal(c[0].valor, 500);
+  const so2026 = filtrarCarteira(c, { de: "2026-01-01" });
+  assert.equal(so2026[0].valor, 400);
+  assert.equal(so2026[0].qtd, 1);
+  assert.equal(so2026[0].maiorAtraso, 5, "o maior atraso também é recontado");
+});
+
+test("cliente sem nenhum título no período SAI da lista", () => {
+  const c = carteiraDeCobranca(
+    [tv("Alfa", 100, 5, "2026-08-10"), tv("Beta", 900, 900, "2021-01-01")], {}, HOJE);
+  assert.deepEqual(filtrarCarteira(c, { de: "2026-01-01" }).map((x) => x.cliente), ["Alfa"]);
+});
+
+test("título sem vencimento não sobrevive a um filtro de data", () => {
+  // Sem data não dá para afirmar que está no período: incluir seria inventar.
+  const c = carteiraDeCobranca([{ cliente: "Alfa", valor: 100, dias: 5 }], {}, HOJE);
+  assert.equal(c.length, 1);
+  assert.equal(filtrarCarteira(c, { de: "2020-01-01" }).length, 0);
+  assert.equal(filtrarCarteira(c, {}).length, 1, "sem filtro ele continua lá");
 });
