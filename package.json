@@ -8,7 +8,8 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "lint": "eslint src"
+    "lint": "eslint src",
+    "conferir": "node scripts/conferir-sistemas.mjs"
   },
   "dependencies": {
     "@netlify/blobs": "^8.2.0",

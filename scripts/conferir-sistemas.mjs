@@ -37,6 +37,8 @@ const HOME = process.env.HOME;
 const ARQUIVOS = {
   registro: resolve(PAINEL, "src/lib/sistemas.js"),
   servidor: resolve(PAINEL, "supabase/functions/painel-acesso/index.ts"),
+  modulosTela: resolve(PAINEL, "src/lib/modulos.js"),
+  modulosServidor: resolve(PAINEL, "supabase/functions/painel-auth/index.ts"),
   porta: resolve(HOME, "Projetos/vida-leo/supabase/functions/equipe-auth/index.ts"),
 };
 
@@ -253,6 +255,52 @@ console.log("\n4. Entrada unica (crachas plantados e atalhos)");
   const semChave = SISTEMAS.filter((s) => s.entradaUnica?.endereco && !s.entradaUnica.chave).map((s) => s.id);
   if (problemas === antes) {
     ok(`enderecos ok; sem cracha plantado (entra digitando a senha la): ${semChave.join(", ") || "(nenhum)"}`);
+  }
+}
+
+// ------------------------------------------------- 4b. os MODULOS do painel
+/* A MESMA DOENCA DOS SISTEMAS, num nivel abaixo.
+ *
+ * A lista de modulos do painel tambem mora em TRES arquivos: a tela
+ * (src/lib/modulos.js), a porta do painel (painel-auth) e a porta de login
+ * (equipe-auth, no outro repo). O filtro do equipe-auth descarta o que nao
+ * conhece, e a tela mostra a caixa marcada sem ter concedido nada.
+ *
+ * Ja aconteceu DUAS vezes: com cinco modulos de uma vez (gestao, glossario,
+ * compromissos, manutencoes, patrimonio) e com `permutas` em 19/08/2026 --
+ * essa custou dois dias, porque o defeito parecia estar na tela de Permutas.
+ *
+ * O `descartados` da resposta avisa DEPOIS do clique. Isto aqui pega ANTES do
+ * commit, que e onde o erro nasce.
+ */
+console.log("\n4b. Os modulos do painel nas tres listas");
+{
+  const lista = (txt, nome) => {
+    const m = txt.match(new RegExp(nome + "\\s*(?::[^=]*)?=\\s*\\[([\\s\\S]*?)\\]"));
+    if (!m) return null;
+    return [...m[1].matchAll(/["']([a-z0-9-]+)["']/g)].map((x) => x[1]);
+  };
+  const daTela = lista(ler("modulos.js", ARQUIVOS.modulosTela), "MODULOS");
+  const daPorta = lista(ler("painel-auth", ARQUIVOS.modulosServidor), "MODULOS");
+  const doLogin = lista(porta, "MODULOS_PAINEL");
+
+  if (!daTela || !daPorta || !doLogin) {
+    acusar("nao consegui ler alguma das tres listas de modulos (o formato mudou?)");
+  } else {
+    const todos = [...new Set([...daTela, ...daPorta, ...doLogin])].sort();
+    let divergiu = 0;
+    for (const id of todos) {
+      const onde = [
+        daTela.includes(id) ? null : "tela",
+        daPorta.includes(id) ? null : "painel-auth",
+        doLogin.includes(id) ? null : "equipe-auth",
+      ].filter(Boolean);
+      if (onde.length) {
+        acusar(`modulo "${id}" falta em: ${onde.join(", ")} — marcar a caixa nao vai conceder nada`);
+        divergiu++;
+      }
+    }
+    if (!divergiu) ok(`os ${todos.length} modulos estao nas tres listas`);
   }
 }
 
