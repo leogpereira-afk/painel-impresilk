@@ -102,7 +102,17 @@ export default function Acessos() {
           Para quem nao e direcao nada muda: la a propria senha e a tela toda. */}
       {!ehDirecao ? null : (
         <>
-          {msgConta && <Aviso tom={msgConta.tom}>{msgConta.texto}</Aviso>}
+          {/* GRUDADO NO TOPO. A lista de gente é longa e o cartão da pessoa
+              fica bem abaixo: quem marcava um módulo na Karen recebia o aviso
+              aqui em cima, fora do campo de visão, e o clique parecia não ter
+              feito nada. Foi assim que a direção passou dois dias achando que
+              a marcação de Permutas simplesmente "não pegava" — o servidor
+              estava recusando e dizendo, e ninguém via. */}
+          {msgConta && (
+            <div className="sticky top-2 z-30" role="status" aria-live="polite">
+              <Aviso tom={msgConta.tom}>{msgConta.texto}</Aviso>
+            </div>
+          )}
 
           {/* UMA lista de gente, so.
               Havia duas nesta pagina: um formulario "Novo/Editar acesso" com

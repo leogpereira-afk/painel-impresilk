@@ -664,9 +664,22 @@ function Conta({ c, sistemas, soltas, vendedores, acoes, aoMudar, aoAvisar, aoSe
     }
     try {
       const r = await salvarPapel({ usuario: c.usuario, sistema: "painel", papel: "", permissoes });
-      // Modulo que o servidor nao conhece era descartado calado: a caixa ficava
-      // marcada e a pessoa nao ganhava nada.
-      if (r?.aviso) aoAvisar({ tom: "erro", texto: r.aviso });
+      /* CONFIRMA O EFEITO, e nao a ausencia de erro.
+         O servidor devolve em `descartados` o modulo que ele nao conhece --
+         a caixa fica marcada e a pessoa nao ganha nada. Isso aconteceu com
+         `permutas` em 19/08/2026 e custou dois dias de procura na tela errada.
+         Agora a tela DIZ, nos dois sentidos: o que entrou e o que foi recusado. */
+      if (r?.aviso) {
+        aoAvisar({ tom: "erro", texto: r.aviso });
+      } else {
+        const nome = c.nome || c.usuario;
+        aoAvisar({
+          tom: "ok",
+          texto: permissoes.includes("*")
+            ? `${nome} agora tem acesso total ao painel.`
+            : `Acesso de ${nome} salvo: ${permissoes.length} ${permissoes.length === 1 ? "parte" : "partes"} do painel.`,
+        });
+      }
       await aoMudar();
     } catch (err) { aoAvisar({ tom: "erro", texto: err.message }); }
   };
