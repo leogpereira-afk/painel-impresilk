@@ -82,8 +82,15 @@ function Aviso({ aviso, aoFechar }) {
   if (!aviso) return null;
   const erro = aviso.tom === "erro";
   return (
+    /* GRUDADO NO TOPO DA TELA. O aviso ficava no fluxo da página, e a página
+       de permuta é longa: quem estava rolando na lista de O.S. lá embaixo
+       recebia um erro que aparecia fora do campo de visão, e o clique parecia
+       simplesmente não ter feito nada. Erro que não é visto é erro que não
+       existe para quem usa. */
     <Card
-      className={`flex items-start justify-between gap-3 text-sm ${
+      role="status"
+      aria-live="polite"
+      className={`sticky top-2 z-20 flex items-start justify-between gap-3 text-sm shadow-lg ${
         erro ? "border-bad-200 bg-bad-50 text-bad-700" : "border-ok-200 bg-ok-50 text-ok-700"
       }`}
     >
@@ -575,6 +582,14 @@ export default function Permutas() {
   const [mapa, setMapa] = useState(null);
   const [erro, setErro] = useState(null);
   const [aviso, setAviso] = useState(null);
+  /* O "deu certo" some sozinho depois de alguns segundos; o ERRO fica até a
+     pessoa fechar. Aviso bom que gruda vira ruído e ensina a ignorar a faixa —
+     e aí o erro, quando vier, também passa batido. */
+  useEffect(() => {
+    if (aviso?.tom !== "ok") return;
+    const t = setTimeout(() => setAviso((a) => (a?.tom === "ok" ? null : a)), 4000);
+    return () => clearTimeout(t);
+  }, [aviso]);
   const [aberta, setAberta] = useState(null);
   const [salvando, setSalvando] = useState(false);
 
@@ -728,14 +743,18 @@ export default function Permutas() {
       setAviso(null);
       setSalvando(true);
       try {
-        const novo = typeof o === "function" ? await mexerNaPermuta(id, o(mapaRef.current?.[id])) 
+        const novo = typeof o === "function" ? await mexerNaPermuta(id, o(mapaRef.current?.[id]))
                                              : await mexerNaPermuta(id, o);
         mapaRef.current = novo;   // antes do setMapa: o próximo da fila já lê o novo
         setMapa(novo);
-        return true;
+        // Devolve o REGISTRO gravado, não um "true". Quem chamou precisa poder
+        // conferir se o que pediu está lá — "não deu erro" nunca foi prova de
+        // que gravou, e é exatamente por confiar nisso que a marcação sumia
+        // sem ninguém ver.
+        return novo?.[id] ?? null;
       } catch (e) {
         setAviso({ tom: "erro", texto: e.message });
-        return false;
+        return null;
       } finally {
         setSalvando(false);
       }
@@ -773,7 +792,27 @@ export default function Permutas() {
     async (o, ligar) => {
       if (!aberta) return;
       const bruta = ordens.find((x) => String(x.id) === String(o.id));
-      await mexer(aberta, { osPatch: { [o.id]: ligar ? fichaDaOS(bruta || o) : null } });
+      const ficha = ligar ? fichaDaOS(bruta || o) : null;
+      /* A O.S. só pode ir como OBJETO. O banco percorre o patch chave a chave e
+         só aplica o que for objeto ou nulo — qualquer outra coisa ele PULA em
+         silêncio, e o clique não faz nada sem dizer por quê. */
+      if (ligar && (!ficha || typeof ficha !== "object")) {
+        setAviso({ tom: "erro", texto: `Não consegui montar a ficha da O.S. ${o.numero || o.id}. Recarregue a página e tente de novo.` });
+        return;
+      }
+      const gravado = await mexer(aberta, { osPatch: { [o.id]: ficha } });
+      // Mesma régua do cliente: confere o efeito, não a ausência de erro.
+      if (gravado) {
+        const tem = !!(gravado.os || {})[o.id];
+        if (ligar !== tem) {
+          setAviso({
+            tom: "erro",
+            texto: ligar
+              ? `Não consegui aceitar a O.S. ${o.numero || o.id}. Tente de novo e, se repetir, me avise.`
+              : `Não consegui tirar a O.S. ${o.numero || o.id}. Tente de novo e, se repetir, me avise.`,
+          });
+        }
+      }
     },
     [aberta, ordens, mexer],
   );
@@ -791,13 +830,26 @@ export default function Permutas() {
   const ligarCliente = useCallback(
     async (c) => {
       if (!aberta) return;
-      await mexer(aberta, (atual) => {
+      const gravado = await mexer(aberta, (atual) => {
         const atuais = atual?.clientes || [];
         // Conferido contra a lista nova: com a velha, clicar duas vezes na
         // mesma pessoa passava pela checagem e duplicava.
         if (atuais.some((x) => x.chave === c.chave)) return { campos: {} };
         return { campos: { clientes: [...atuais, { chave: c.chave, nome: c.nome, cnpjs: c.cnpjs || [] }] } };
       });
+      /* CONFERE O EFEITO, não a ausência de erro.
+         Era daqui que vinha o pior do defeito: a marcação sumia e a tela não
+         dizia nada, porque "não deu erro" era tratado como "gravou". Se o nome
+         não estiver no registro que o servidor devolveu, a pessoa fica sabendo
+         na hora — em vez de descobrir semanas depois que o saldo está errado. */
+      if (!gravado) return; // o erro da rede já foi mostrado pelo mexer
+      const entrou = (gravado.clientes || []).some((x) => x.chave === c.chave);
+      setAviso(entrou
+        ? { tom: "ok", texto: `${c.nome} marcado(a). Agora são ${(gravado.clientes || []).length} nesta permuta.` }
+        : {
+            tom: "erro",
+            texto: `Não consegui marcar ${c.nome}. O servidor respondeu sem erro, mas o nome não ficou na permuta — tente de novo e, se repetir, me avise.`,
+          });
     },
     [aberta, mexer],
   );
