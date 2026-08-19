@@ -41,7 +41,7 @@ import {
   buscarClientes, buscarOrdensDe, buscarOrdensPorId, lerCobertura,
 } from "../services/permutas.js";
 import {
-  fichaDaOS, resumoDaPermuta, resumoGeral, ordensDosClientes, donoPorOS,
+  fichaDaOS, resumoDaPermuta, resumoGeral, ordensDosClientes, donoPorOS, extratoDaPermuta,
 } from "../lib/calc/permutas.js";
 import { moedaCheia, paraNumero, dataCurta, dataLonga } from "../lib/format.js";
 import { Card, PageTitle, Empty, CarregandoModulo, BotaoPDF, CabecalhoImpressao } from "../components/ui.jsx";
@@ -388,9 +388,9 @@ const quandoFoi = (iso) => {
 
    A escolha fica guardada no aparelho: quem trabalha com o consumo recolhido
    não quer reabri-lo a cada visita. */
-function Secao({ id, titulo, sub, acao, aberta, aoAlternar, children }) {
+function Secao({ id, titulo, sub, acao, aberta, aoAlternar, semImpressao, children }) {
   return (
-    <Card className="space-y-3">
+    <Card className={`space-y-3 ${semImpressao ? "sem-impressao" : ""}`}>
       <div className="flex items-start justify-between gap-3">
         <button
           type="button"
@@ -432,6 +432,138 @@ function Historico({ eventos }) {
         </li>
       ))}
     </ol>
+  );
+}
+
+/* O EXTRATO, que SÓ existe no papel.
+ *
+ * A tela é dividida por tarefa -- lançar crédito, escolher O.S., ver consumo --
+ * porque é assim que se trabalha. O papel é dividido por CONTA, porque é assim
+ * que se confere com o parceiro: o que ele nos deu de um lado, tudo o que ele
+ * consumiu do outro (O.S. e lançamento manual na MESMA lista, por data), e a
+ * balança fechando. Separados, o parceiro teria de somar duas colunas para
+ * saber quanto gastou.
+ *
+ * Tabela HTML de propósito: quebra de página no meio de uma lista de trinta
+ * O.S. é o caso normal, e é o que o navegador sabe fazer com `<table>`.
+ */
+const th = { textAlign: "left", fontSize: "8pt", fontWeight: 700, padding: "3px 6px", borderBottom: "1px solid #999" };
+const td = { fontSize: "8.5pt", padding: "3px 6px", borderBottom: "1px solid #eee" };
+const tdN = { ...td, textAlign: "right", fontVariantNumeric: "tabular-nums" };
+
+function ExtratoImpresso({ e, permuta }) {
+  return (
+    <div className="apenas-impressao" style={{ marginTop: 10 }}>
+      <h2 style={{ fontSize: "11pt", margin: "10px 0 4px" }}>O que o parceiro nos deu</h2>
+      {e.creditos.length ? (
+        <table style={{ width: "100%", borderCollapse: "collapse" }}>
+          <thead>
+            <tr>
+              <th style={{ ...th, width: "5.5rem" }}>Data</th>
+              <th style={th}>O que foi</th>
+              <th style={{ ...th, width: "11rem" }}>Documento</th>
+              <th style={{ ...th, textAlign: "right", width: "7rem" }}>Valor</th>
+            </tr>
+          </thead>
+          <tbody>
+            {e.creditos.map((c, i) => (
+              <tr key={i}>
+                <td style={td}>{dataLonga(c.data)}</td>
+                <td style={td}>{c.descricao}</td>
+                <td style={td}>{c.nota || "—"}</td>
+                <td style={tdN}>{dinheiro(c.valor)}</td>
+              </tr>
+            ))}
+            <tr>
+              <td style={{ ...td, fontWeight: 700 }} colSpan={3}>Total recebido</td>
+              <td style={{ ...tdN, fontWeight: 700 }}>{dinheiro(e.balanca.recebemos)}</td>
+            </tr>
+          </tbody>
+        </table>
+      ) : (
+        <p style={{ fontSize: "9pt" }}>Nenhum crédito lançado.</p>
+      )}
+
+      <h2 style={{ fontSize: "11pt", margin: "14px 0 4px" }}>O que ele consumiu</h2>
+      {e.consumo.length ? (
+        <table style={{ width: "100%", borderCollapse: "collapse" }}>
+          <thead>
+            <tr>
+              <th style={{ ...th, width: "5.5rem" }}>Data</th>
+              <th style={{ ...th, width: "8rem" }}>Documento</th>
+              <th style={th}>Cliente / descrição</th>
+              <th style={{ ...th, textAlign: "right", width: "6.5rem" }}>Bruto</th>
+              <th style={{ ...th, textAlign: "right", width: "6.5rem" }}>Desconto</th>
+              <th style={{ ...th, textAlign: "right", width: "7rem" }}>Valor</th>
+            </tr>
+          </thead>
+          <tbody>
+            {e.consumo.map((c, i) => (
+              <tr key={i}>
+                <td style={td}>{dataLonga(c.data)}</td>
+                <td style={td}>{c.documento}</td>
+                <td style={td}>
+                  {c.descricao}
+                  {c.alerta && <span style={{ fontWeight: 700 }}> ({c.alerta})</span>}
+                </td>
+                <td style={tdN}>{c.desconto > 0 ? dinheiro(c.bruto) : "—"}</td>
+                <td style={tdN}>{c.desconto > 0 ? `− ${dinheiro(c.desconto)}` : "—"}</td>
+                <td style={tdN}>{dinheiro(c.valor)}</td>
+              </tr>
+            ))}
+            <tr>
+              <td style={{ ...td, fontWeight: 700 }} colSpan={5}>Total consumido</td>
+              <td style={{ ...tdN, fontWeight: 700 }}>{dinheiro(e.balanca.entregamos)}</td>
+            </tr>
+          </tbody>
+        </table>
+      ) : (
+        <p style={{ fontSize: "9pt" }}>Nenhum consumo lançado.</p>
+      )}
+
+      {/* Por cliente só quando há mais de um: com um só, seria repetir o total. */}
+      {(permuta.clientes || []).length > 1 && e.porCliente.length > 1 && (
+        <>
+          <h2 style={{ fontSize: "11pt", margin: "14px 0 4px" }}>Consumo por empresa</h2>
+          <table style={{ width: "60%", borderCollapse: "collapse" }}>
+            <tbody>
+              {e.porCliente.map((c) => (
+                <tr key={c.nome}>
+                  <td style={td}>{c.nome}</td>
+                  <td style={tdN}>{dinheiro(c.valor)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </>
+      )}
+
+      <h2 style={{ fontSize: "11pt", margin: "14px 0 4px" }}>Balança comercial</h2>
+      <table style={{ width: "60%", borderCollapse: "collapse" }}>
+        <tbody>
+          <tr>
+            <td style={td}>O parceiro nos deu</td>
+            <td style={tdN}>{dinheiro(e.balanca.recebemos)}</td>
+          </tr>
+          <tr>
+            <td style={td}>Nós entregamos</td>
+            <td style={tdN}>{dinheiro(e.balanca.entregamos)}</td>
+          </tr>
+          <tr>
+            <td style={{ ...td, fontWeight: 700, borderTop: "2px solid #333" }}>
+              {e.balanca.lado === "a-receber"
+                ? "Consumido ALÉM do crédito — a Impresilk tem a receber"
+                : e.balanca.lado === "zerada"
+                  ? "Balança zerada"
+                  : "Crédito que o parceiro ainda tem"}
+            </td>
+            <td style={{ ...tdN, fontWeight: 700, borderTop: "2px solid #333" }}>
+              {dinheiro(Math.abs(e.balanca.diferenca))}
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
   );
 }
 
@@ -560,6 +692,12 @@ export default function Permutas() {
   const lista = useMemo(() => resumoGeral(mapa || {}, ordens), [mapa, ordens]);
   const resumo = useMemo(
     () => (permuta ? resumoDaPermuta(permuta, ordens) : null),
+    [permuta, ordens],
+  );
+  /* O extrato só é montado quando há permuta aberta -- ele existe para o papel,
+     e o papel só sai de dentro de uma. */
+  const extrato = useMemo(
+    () => (permuta ? extratoDaPermuta(permuta, ordens) : null),
     [permuta, ordens],
   );
 
@@ -856,6 +994,7 @@ export default function Permutas() {
         </Card>
 
         <Secao
+          semImpressao
           id="historico"
           titulo="Histórico da operação"
           sub="Escrito pelo servidor a cada mudança — é o que sustenta a conversa com o parceiro."
@@ -936,6 +1075,7 @@ export default function Permutas() {
 
         {/* ------------------------------------------------- as aceitas */}
         <Secao
+          semImpressao
           id="aceitas"
           titulo="O.S. que entram nesta permuta"
           sub="É o que abate o crédito."
@@ -955,6 +1095,7 @@ export default function Permutas() {
 
         {/* -------------------------------- o que o parceiro nos deu */}
         <Secao
+          semImpressao
           id="credito"
           titulo="O que o parceiro nos deu"
           sub="Cada coisa que virou crédito, com a data, o que foi e a nota. A soma é o crédito dele."
@@ -1009,6 +1150,7 @@ export default function Permutas() {
 
         {/* -------------------------------- o que ele gastou fora de O.S. */}
         <Secao
+          semImpressao
           id="consumo"
           titulo="Consumo sem O.S."
           sub="O que abateu o crédito sem passar por ordem de serviço — um brinde entregue, um acerto."
@@ -1122,6 +1264,11 @@ export default function Permutas() {
             </Empty>
           )}
         </Secao>
+
+        {/* O EXTRATO fica por ÚLTIMO no DOM mas é a única coisa que vai ao
+            papel: as seções acima são `sem-impressao`. Assim a tela continua
+            organizada por tarefa e a folha, por conta. */}
+        {extrato && <ExtratoImpresso e={extrato} permuta={permuta} />}
 
         {salvando && <div className="text-xs text-slate-400">salvando…</div>}
       </div>

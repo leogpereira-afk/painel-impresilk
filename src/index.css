@@ -248,12 +248,16 @@ html.dark ::-webkit-scrollbar-thumb {
    Convencao: .sem-impressao some no papel; .apenas-impressao so existe nele. */
 .apenas-impressao { display: none; }
 
-/* Secao recolhida na tela de Permutas. NAO usa `hidden` do Tailwind de
-   proposito: o conteudo tem de continuar indo para o PAPEL. Recolher e um
-   gesto de LEITURA -- a tela e alta e a direcao quer ver o saldo sem rolar --
-   e nao uma decisao sobre o que o parceiro recebe. Com `display:none` puro, um
-   PDF pedido com as O.S. recolhidas sairia sem as O.S., que e justamente o que
-   ele existe para mostrar. */
+/* Secao recolhida na tela de Permutas -- gesto de LEITURA: a tela e alta e a
+   direcao quer o saldo sem rolar.
+
+   O conteudo fica MONTADO, so escondido, e nao desmontado por um `&&`: assim
+   reabrir nao perde o que estava digitado no formulario ali dentro.
+
+   O PAPEL nao depende disto. O PDF da permuta e o `ExtratoImpresso`, um bloco
+   proprio que existe SO na impressao -- as secoes de trabalho saem da folha
+   inteiras. Foi assim justamente para o que esta na tela nao decidir o que o
+   parceiro recebe. */
 .recolhido { display: none; }
 
 @media print {
@@ -282,8 +286,7 @@ html.dark ::-webkit-scrollbar-thumb {
     padding: 0 !important; color: inherit !important; }
 
   .apenas-impressao { display: block; }
-  /* O que estiver recolhido na tela volta a existir no papel. */
-  .recolhido { display: block !important; }
+
   td .apenas-impressao,
   span.apenas-impressao { display: inline; }
 

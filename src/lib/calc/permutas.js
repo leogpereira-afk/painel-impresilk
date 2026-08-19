@@ -260,6 +260,80 @@ export function resumoDaPermuta(permuta, ordens) {
   };
 }
 
+/* O EXTRATO DA PERMUTA — a conta consolidada, para o papel.
+ *
+ * A tela é dividida por TAREFA (lançar crédito, escolher O.S., ver consumo),
+ * porque é assim que se trabalha. O papel é dividido por CONTA, porque é assim
+ * que se confere com o parceiro: de um lado o que ele nos deu, do outro tudo o
+ * que ele consumiu -- O.S. e lançamento manual na MESMA lista, em ordem de
+ * data. Separados, o parceiro tem de somar duas colunas para saber quanto
+ * gastou; juntos, ele lê de cima para baixo.
+ *
+ * A BALANÇA COMERCIAL é o resumo em uma linha: quanto entrou, quanto saiu, e
+ * de que lado está a diferença. É o que responde "e aí, quem deve a quem".
+ */
+export function extratoDaPermuta(permuta, ordens) {
+  const r = resumoDaPermuta(permuta, ordens);
+
+  // Tudo o que ele consumiu, numa lista só, do mais antigo para o mais novo --
+  // ordem de extrato, não de tela (lá o recente vem primeiro).
+  const consumo = [
+    ...r.linhas.map((l) => ({
+      data: String(l.data).slice(0, 10),
+      documento: `O.S. ${l.numero}`,
+      descricao: l.cliente,
+      bruto: l.bruto || l.valor,
+      desconto: l.desconto || 0,
+      valor: l.valor,
+      alerta: l.sumiu ? "cancelada no ERP" : l.mudou ? "valor mudou no ERP" : null,
+    })),
+    ...r.consumos.map((l) => ({
+      data: String(l.data).slice(0, 10),
+      documento: "Lançamento manual",
+      descricao: l.descricao || "(sem descrição)",
+      bruto: l.valor,
+      desconto: 0,
+      valor: l.valor,
+      alerta: null,
+    })),
+  ].sort((a, b) => a.data.localeCompare(b.data));
+
+  const creditos = r.creditos
+    .map((c) => ({
+      data: String(c.data).slice(0, 10),
+      descricao: c.descricao || "(sem descrição)",
+      valor: c.valor,
+      nota: c.anexo?.nome || null,
+    }))
+    .sort((a, b) => a.data.localeCompare(b.data));
+
+  /* Consumo por CLIENTE. Uma permuta abrange mais de um CNPJ do mesmo dono, e
+     na hora de conferir ele quer saber quanto saiu por cada empresa dele. Só
+     entra no papel quando há mais de um -- com um só, seria repetir o total. */
+  const porCliente = [...consumo.reduce((m, c) => {
+    const k = c.documento.startsWith("O.S.") ? c.descricao : "Lançamentos manuais";
+    m.set(k, (m.get(k) || 0) + c.valor);
+    return m;
+  }, new Map())]
+    .map(([nome, valor]) => ({ nome, valor: Math.round(valor * 100) / 100 }))
+    .sort((a, b) => b.valor - a.valor);
+
+  return {
+    ...r,
+    creditos,
+    consumo,
+    porCliente,
+    // A BALANÇA: o que entrou, o que saiu, e de que lado sobra.
+    balanca: {
+      recebemos: r.credito,
+      entregamos: r.consumido,
+      diferenca: r.saldo,
+      // Quem está devendo a quem, em palavras -- a cor não vai para o papel.
+      lado: r.saldo > 0 ? "credito-do-parceiro" : r.saldo < 0 ? "a-receber" : "zerada",
+    },
+  };
+}
+
 /* Todas as permutas com o seu resumo, para a lista de abertura. As que ainda
    têm saldo vêm primeiro: é onde a direção precisa olhar. */
 export function resumoGeral(permutas, ordens) {

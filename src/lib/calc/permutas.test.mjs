@@ -21,6 +21,7 @@ import {
   ordensDosClientes,
   donoPorOS,
   linhasDosLancamentos,
+  extratoDaPermuta,
 } from "./permutas.js";
 
 const os = (id, cliente, valor, extra = {}) => ({
@@ -319,6 +320,71 @@ test("O.S. cancelada não entra na lista de escolher", () => {
     [chaveCliente("Alfa")], new Map(), "p1",
   );
   assert.deepEqual(lista.map((l) => l.id), ["2"]);
+});
+
+// ------------------------------------------------- o extrato, que vai ao papel
+
+test("o extrato junta O.S. e lançamento manual numa lista só, por data", () => {
+  const ordens = [os(1, "Alfa Ltda", 300, { data: "2026-03-10" }),
+                  os(2, "Alfa Filial", 500, { data: "2026-01-05" })];
+  const p = {
+    os: { 1: fichaDaOS(ordens[0]), 2: fichaDaOS(ordens[1]) },
+    lancamentos: {
+      c1: { data: "2025-12-01", descricao: "espaço em rádio", valor: 4000, tipo: "credito" },
+      x1: { data: "2026-02-01", descricao: "brindes", valor: 150, tipo: "consumo" },
+    },
+  };
+  const e = extratoDaPermuta(p, ordens);
+  // A lista de consumo tem as duas O.S. E o manual, do mais antigo ao mais novo.
+  assert.deepEqual(e.consumo.map((c) => c.documento),
+    ["O.S. 22", "Lançamento manual", "O.S. 21"]);
+  assert.deepEqual(e.consumo.map((c) => c.data),
+    ["2026-01-05", "2026-02-01", "2026-03-10"]);
+  assert.equal(e.creditos.length, 1);
+});
+
+test("a balança comercial diz de que lado está a diferença", () => {
+  const sobra = extratoDaPermuta(
+    { lancamentos: { c: { valor: 5000, tipo: "credito" }, x: { valor: 1000, tipo: "consumo" } } },
+    [os(9, "Z", 1)],
+  );
+  assert.equal(sobra.balanca.recebemos, 5000);
+  assert.equal(sobra.balanca.entregamos, 1000);
+  assert.equal(sobra.balanca.diferenca, 4000);
+  assert.equal(sobra.balanca.lado, "credito-do-parceiro");
+
+  const estourou = extratoDaPermuta(
+    { lancamentos: { c: { valor: 1000, tipo: "credito" }, x: { valor: 1500, tipo: "consumo" } } },
+    [os(9, "Z", 1)],
+  );
+  assert.equal(estourou.balanca.lado, "a-receber");
+  assert.equal(estourou.balanca.diferenca, -500);
+
+  const zerada = extratoDaPermuta(
+    { lancamentos: { c: { valor: 800, tipo: "credito" }, x: { valor: 800, tipo: "consumo" } } },
+    [os(9, "Z", 1)],
+  );
+  assert.equal(zerada.balanca.lado, "zerada");
+});
+
+test("o extrato separa o consumo por cliente, para permuta de vários CNPJs", () => {
+  const ordens = [os(1, "Alfa Ltda", 300), os(2, "Alfa Participações", 700)];
+  const p = { os: { 1: fichaDaOS(ordens[0]), 2: fichaDaOS(ordens[1]) },
+              lancamentos: { x: { valor: 50, tipo: "consumo", descricao: "brinde" } } };
+  const e = extratoDaPermuta(p, ordens);
+  assert.deepEqual(e.porCliente,
+    [{ nome: "Alfa Participações", valor: 700 },
+     { nome: "Alfa Ltda", valor: 300 },
+     { nome: "Lançamentos manuais", valor: 50 }]);
+});
+
+test("O.S. com desconto leva bruto e desconto para o papel", () => {
+  const comDesc = { id: "1", numero: "19386", cliente: "EMPOMINAS", data: "2025-06-03",
+                    bruto: 2138.64, desconto: 138.64, valor: 2000 };
+  const e = extratoDaPermuta({ os: { 1: fichaDaOS(comDesc) } }, [comDesc]);
+  assert.equal(e.consumo[0].bruto, 2138.64);
+  assert.equal(e.consumo[0].desconto, 138.64);
+  assert.equal(e.consumo[0].valor, 2000);
 });
 
 // ------------------------------------------------------------------- a lista
