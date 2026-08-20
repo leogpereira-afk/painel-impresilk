@@ -543,3 +543,45 @@ test("cadastro duplicado no mesmo ano não faz o cartão comparar com a gêmea",
   assert.equal(m.get(1).anoAnterior, "2022", "pula a gêmea de 2026");
   assert.equal(m.get(2).anoAnterior, "2022");
 });
+
+test("valor que não virou produto nenhum é DITO, não escondido num balde 'Outros'", () => {
+  /* O caso real: 146 O.S. da base têm a soma dos itens MENOR que o cabeçalho --
+     é a "união" do Mubisys sem sub-item nomeado, que o normalizador descarta.
+     Numa O.S. específica isso já chega a 61% dela. Inventar um produto "Outros"
+     para o resto foi exatamente o que escondeu esse defeito por meses. */
+  const o = { id: 1, numero: "21442", cliente: "A", data: "2026-01-20",
+              bruto: 15572.47, valor: 15572.47,
+              itens: [item("Placa PVC", 2, 6021.20)] };
+  const c = { os: { 1: fichaDaOS(o) } };
+  const p = produtosDaCampanha(c, [o]);
+  assert.equal(p.total, 6021.2, "o ranking mostra só o que tem dono");
+  assert.equal(p.brutoDasLidas, 15572.47);
+  assert.equal(p.naoAtribuido, 9551.27, "e o resto aparece como resto");
+  assert.equal(p.fecha, false);
+  assert.equal(p.completo, false, "não pode se apresentar como o quadro inteiro");
+  assert.equal(p.itens.length, 1, "nenhum produto inventado");
+});
+
+test("quando fecha, fecha -- e um centavo de rateio não vira alarme", () => {
+  const o = { id: 1, numero: "1", cliente: "A", data: "2026-01-20", bruto: 1000,
+              itens: [item("X", 1, 666.67), item("Y", 1, 333.33)] };
+  const c = { os: { 1: fichaDaOS(o) } };
+  const p = produtosDaCampanha(c, [o]);
+  assert.equal(p.naoAtribuido, 0);
+  assert.equal(p.fecha, true);
+  assert.equal(p.completo, true);
+});
+
+test("O.S. sem item não entra na conta do que fecha -- ela já é contada em semItens", () => {
+  /* Somar o bruto dela no denominador faria a O.S. inteira virar "não
+     atribuído", misturando duas coisas diferentes: "não tem item" e "tem item
+     mas falta valor". */
+  const comIt = { id: 1, numero: "1", cliente: "A", data: "2026-01-01", bruto: 100,
+                  itens: [item("X", 1, 100)] };
+  const semIt = { id: 2, numero: "2", cliente: "B", data: "2026-01-02", bruto: 500, itens: [] };
+  const c = { os: { 1: fichaDaOS(comIt), 2: fichaDaOS(semIt) } };
+  const p = produtosDaCampanha(c, [comIt, semIt]);
+  assert.equal(p.brutoDasLidas, 100, "só as lidas");
+  assert.equal(p.naoAtribuido, 0);
+  assert.equal(p.cobertura.semItens, 1, "a outra aparece aqui, que é o lugar dela");
+});

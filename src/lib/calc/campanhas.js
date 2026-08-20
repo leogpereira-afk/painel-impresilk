@@ -528,6 +528,7 @@ export function produtosDaCampanha(campanha, ordens) {
   const porId = new Map((ordens || []).map((o) => [String(o.id), o]));
 
   const cobertura = { aceitas: aceitas.length, comItens: 0, semItens: 0, foraDaBusca: 0 };
+  let brutoDasLidas = 0;
   const mapa = new Map();
   for (const id of aceitas) {
     const o = porId.get(id);
@@ -537,6 +538,12 @@ export function produtosDaCampanha(campanha, ordens) {
     const itens = Array.isArray(o.itens) ? o.itens : [];
     if (!itens.length) { cobertura.semItens += 1; continue; }
     cobertura.comItens += 1;
+    /* O BRUTO DO CABEÇALHO das mesmas O.S., para conferir contra a soma dos
+       itens. São dois números de caminhos DIFERENTES -- um vem do topo da O.S.,
+       o outro da lista de itens -- então a comparação consegue falhar. Comparar
+       um total consigo mesmo já me fez "provar" que um desconto estava aplicado
+       quando não estava. */
+    brutoDasLidas += num(o.bruto ?? o.valorBruto ?? o.valor);
     for (const it of itens) {
       const nome = String(it?.produto ?? "").trim();
       if (!nome) continue;
@@ -556,13 +563,32 @@ export function produtosDaCampanha(campanha, ordens) {
     .map((g) => ({ ...g, quantidade: cem(g.quantidade), valor: cem(g.valor), os: g.os.size }))
     .sort((a, b) => b.valor - a.valor);
 
+  const total = cem(itens.reduce((s, i) => s + i.valor, 0));
+  /* O QUE NÃO CHEGOU A PRODUTO NENHUM.
+   *
+   * Em 146 das 20.819 O.S. da base (0,7%) a soma dos itens dá MENOS que o
+   * cabeçalho -- nunca mais. É a "união de itens" do Mubisys que vem sem
+   * nenhum sub-item nomeado: o normalizador não tem a que produto atribuir o
+   * valor e o descarta. No total são 0,21% do faturamento, mas numa O.S.
+   * específica já chega a 61% dela.
+   *
+   * NÃO INVENTO UM PRODUTO "OUTROS" para o resto: foi exatamente um balde
+   * "Outros" com 23% do faturamento que escondeu esse mesmo defeito por meses.
+   * Um valor sem dono aparece como valor sem dono, e a tela diz quanto.
+   */
+  const naoAtribuido = Math.max(0, cem(brutoDasLidas - total));
   return {
     itens,
     cobertura,
-    total: cem(itens.reduce((s, i) => s + i.valor, 0)),
+    total,
+    brutoDasLidas: cem(brutoDasLidas),
+    naoAtribuido,
+    // Fecha? Um centavo de folga para arredondamento do rateio das uniões.
+    fecha: naoAtribuido <= 0.05,
     // A tela precisa saber se pode chamar isto de "os produtos da campanha" ou
     // se tem de dizer "dos que já foram lidos".
-    completo: cobertura.semItens === 0 && cobertura.foraDaBusca === 0 && cobertura.comItens > 0,
+    completo: cobertura.semItens === 0 && cobertura.foraDaBusca === 0 && cobertura.comItens > 0
+      && naoAtribuido <= 0.05,
   };
 }
 

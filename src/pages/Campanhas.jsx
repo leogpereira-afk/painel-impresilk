@@ -805,9 +805,22 @@ function Produtos({ produtos, categorias, porCategoria, aoTrocar }) {
           )}
         </div>
       )}
-      {produtos.completo && produtos.total > 0 && (
+      {/* O QUE NÃO CHEGOU A PRODUTO NENHUM. A linha antiga dizia só "soma dos
+          itens: X", o que fazia parecer que X era a campanha inteira. Em 146
+          O.S. da base a soma dos itens dá MENOS que o cabeçalho (união do ERP
+          sem sub-item nomeado) -- e numa delas isso é 61% da O.S. */}
+      {produtos.naoAtribuido > 0 && (
+        <div className="rounded-lg bg-warn-50 px-3 py-2 text-xs text-warn-800">
+          {dinheiro(produtos.naoAtribuido)} das O.S. lidas não estão em produto nenhum — no ERP são
+          itens agrupados sem o produto nomeado dentro. O ranking acima soma {dinheiro(produtos.total)}
+          {" "}de {dinheiro(produtos.brutoDasLidas)}. Não inventei um “Outros” para o resto: valor sem
+          dono aparece como valor sem dono.
+        </div>
+      )}
+      {produtos.total > 0 && produtos.fecha && (
         <div className="text-xs text-slate-400">
-          Soma dos itens: {dinheiro(produtos.total)} — é o bruto, antes do desconto da O.S.
+          Soma dos itens: {dinheiro(produtos.total)} — fecha com o bruto das O.S. lidas (antes do
+          desconto de cada uma).
         </div>
       )}
     </div>
@@ -927,7 +940,10 @@ function ExtratoImpresso({ e, produtos, categorias, meses }) {
             <p style={{ fontSize: "8.5pt", marginTop: 4 }}>
               Lido de {produtos.cobertura.comItens} das {produtos.cobertura.aceitas} O.S. desta campanha
               {produtos.cobertura.semItens > 0 && ` — ${produtos.cobertura.semItens} sem itens carregados do ERP`}
-              {produtos.cobertura.foraDaBusca > 0 && ` — ${produtos.cobertura.foraDaBusca} fora do período ou canceladas`}.
+              {produtos.cobertura.foraDaBusca > 0 && ` — ${produtos.cobertura.foraDaBusca} fora do período ou canceladas`}
+              {/* A ressalva vai ao PAPEL também: a folha circula sem a tela ao
+                  lado, e um ranking pela metade impresso parece completo. */}
+              {produtos.naoAtribuido > 0 && ` — ${dinheiro(produtos.naoAtribuido)} em itens agrupados sem produto nomeado no ERP, fora do ranking`}.
             </p>
           )}
         </>
