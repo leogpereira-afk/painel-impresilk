@@ -41,7 +41,8 @@ import {
   buscarClientes, buscarOrdensDe, buscarOrdensPorId, lerCobertura,
 } from "../services/permutas.js";
 import {
-  fichaDaOS, resumoDaPermuta, resumoGeral, totaisDasPermutas, ordensDosClientes, donoPorOS, extratoDaPermuta,
+  fichaDaOS, resumoDaPermuta, resumoGeral, totaisDasPermutas, ordensDosClientes, donoPorOS,
+  extratoDaPermuta, linhasPorCliente,
 } from "../lib/calc/permutas.js";
 import { moedaCheia, paraNumero, dataCurta, dataLonga } from "../lib/format.js";
 import { Card, PageTitle, Empty, CarregandoModulo, BotaoPDF, CabecalhoImpressao } from "../components/ui.jsx";
@@ -195,6 +196,50 @@ function CartaoPermuta({ p, aoAbrir }) {
         </div>
       </div>
     </button>
+  );
+}
+
+/* UM PAINEL POR CNPJ nas O.S. aceitas.
+ *
+ * Uma permuta grande abrange várias empresas do mesmo dono -- a do material
+ * político tem cinco candidaturas, cada uma com o seu CNPJ. Numa lista corrida
+ * as O.S. das cinco ficam intercaladas por data, e "quanto saiu por esta
+ * candidatura" -- a pergunta que se faz conferindo com o parceiro -- exige
+ * somar à mão.
+ *
+ * NASCE RECOLHIDO quando há mais de um grupo: aí a primeira coisa que se vê são
+ * cinco linhas com cinco totais, em vez de vinte e cinco linhas misturadas. Com
+ * um grupo só, agrupar não separa nada e ele já abre.
+ */
+function GrupoCliente({ g, aberto, aoAlternar, aoTirar }) {
+  return (
+    <div className="border-b border-slate-100 last:border-0">
+      <button
+        type="button"
+        onClick={() => aoAlternar(g.chave)}
+        aria-expanded={aberto}
+        className="flex w-full items-center gap-2 py-2.5 text-left hover:bg-slate-50"
+      >
+        <ChevronDown
+          size={15}
+          className={`shrink-0 text-slate-400 transition-transform ${aberto ? "" : "-rotate-90"}`}
+        />
+        <span className="min-w-0 flex-1">
+          <span className="block truncate font-medium text-slate-800">{g.cliente}</span>
+          <span className="text-[11px] text-slate-400">
+            {g.cnpj ? formatarDoc(g.cnpj) : "sem CNPJ no cadastro"} · {g.qtd} O.S.
+          </span>
+        </span>
+        <span className="shrink-0 font-medium tabular-nums text-slate-700">{dinheiro(g.valor)}</span>
+      </button>
+      {aberto && (
+        <div className="pb-1 pl-6">
+          {g.linhas.map((l) => (
+            <LinhaAceita key={l.id} l={l} aoTirar={aoTirar} />
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -611,6 +656,13 @@ export default function Permutas() {
   const [achados, setAchados] = useState([]);
   const [buscaOS, setBuscaOS] = useState("");
   const [formLanc, setFormLanc] = useState(null);
+  /* Quais grupos de CNPJ estão abertos dentro das O.S. aceitas. Vazio = todos
+     recolhidos, que é como a seção nasce quando há mais de um CNPJ. */
+  const [gruposAbertos, setGruposAbertos] = useState({});
+  const alternarGrupo = useCallback(
+    (k) => setGruposAbertos((g) => ({ ...g, [k]: !g[k] })),
+    [],
+  );
   /* Quais seções estão abertas. Guardado no aparelho porque a preferência é de
      quem trabalha, não da sessão: recolher o consumo e reabri-lo a cada visita
      seria pior que não recolher. Chave por seção, para acrescentar uma nova sem
@@ -725,6 +777,13 @@ export default function Permutas() {
   const extrato = useMemo(
     () => (permuta ? extratoDaPermuta(permuta, ordens) : null),
     [permuta, ordens],
+  );
+  /* As O.S. aceitas agrupadas por CNPJ. Só vira painel quando há mais de um --
+     com um cliente só, agrupar não separa nada e o grupo seria uma linha extra
+     entre a pessoa e a lista. */
+  const gruposAceitas = useMemo(
+    () => (permuta ? linhasPorCliente(resumo?.linhas || [], permuta.clientes || []) : []),
+    [permuta, resumo],
   );
 
   /* O MAPA MAIS NOVO, FORA DO CICLO DE DESENHO.
@@ -1191,14 +1250,26 @@ export default function Permutas() {
           aberta={abertas.aceitas}
           aoAlternar={alternar}
         >
-          {resumo.linhas.length ? (
+          {!resumo.linhas.length ? (
+            <Empty>Nenhuma O.S. aceita ainda. Marque abaixo as que fazem parte da troca.</Empty>
+          ) : gruposAceitas.length > 1 ? (
+            <div>
+              {gruposAceitas.map((g) => (
+                <GrupoCliente
+                  key={g.chave}
+                  g={g}
+                  aberto={!!gruposAbertos[g.chave]}
+                  aoAlternar={alternarGrupo}
+                  aoTirar={(x) => marcarOS(x, false)}
+                />
+              ))}
+            </div>
+          ) : (
             <div>
               {resumo.linhas.map((l) => (
                 <LinhaAceita key={l.id} l={l} aoTirar={(x) => marcarOS(x, false)} />
               ))}
             </div>
-          ) : (
-            <Empty>Nenhuma O.S. aceita ainda. Marque abaixo as que fazem parte da troca.</Empty>
           )}
         </Secao>
 

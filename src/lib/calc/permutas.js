@@ -260,6 +260,45 @@ export function resumoDaPermuta(permuta, ordens) {
   };
 }
 
+/* AS O.S. ACEITAS, AGRUPADAS POR CLIENTE (que é por CNPJ).
+ *
+ * Uma permuta grande abrange várias empresas do mesmo dono -- a do material
+ * político tem cinco candidaturas, cada uma com o seu CNPJ. Numa lista corrida,
+ * as O.S. das cinco ficam intercaladas por data e não dá para responder "quanto
+ * saiu por esta candidatura", que é a pergunta que se faz na hora de conferir
+ * com o parceiro.
+ *
+ * O CNPJ vem da linha da O.S. quando existe; senão, do cliente ligado à
+ * permuta. Vazio é resposta legítima (pessoa física sem cadastro), e aí o grupo
+ * se identifica só pelo nome.
+ *
+ * A ordem é por VALOR, do maior para o menor: numa permuta o que interessa é
+ * quem consumiu mais do crédito.
+ */
+export function linhasPorCliente(linhas, clientes) {
+  const docDoCliente = new Map(
+    (clientes || [])
+      .filter((c) => (c.cnpjs || []).length === 1)
+      .map((c) => [c.chave, c.cnpjs[0]]),
+  );
+  const grupos = new Map();
+  for (const l of linhas || []) {
+    const k = chaveCliente(l.cliente) || "(sem cliente)";
+    let g = grupos.get(k);
+    if (!g) {
+      g = { chave: k, cliente: l.cliente || "(sem cliente)", cnpj: "", qtd: 0, valor: 0, linhas: [] };
+      grupos.set(k, g);
+    }
+    g.qtd += 1;
+    g.valor += num(l.valor);
+    if (!g.cnpj) g.cnpj = soDigitos(l.cnpj) || docDoCliente.get(k) || "";
+    g.linhas.push(l);
+  }
+  return [...grupos.values()]
+    .map((g) => ({ ...g, valor: Math.round(g.valor * 100) / 100 }))
+    .sort((a, b) => b.valor - a.valor);
+}
+
 /* O EXTRATO DA PERMUTA — a conta consolidada, para o papel.
  *
  * A tela é dividida por TAREFA (lançar crédito, escolher O.S., ver consumo),

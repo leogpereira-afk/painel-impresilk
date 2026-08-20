@@ -401,3 +401,54 @@ test("a lista abre pelas que ainda têm saldo e joga a encerrada para o fim", ()
   );
   assert.deepEqual(g.map((p) => p.nome), ["Cheia", "Gasta", "Velha"]);
 });
+
+// ------------------------------------ as O.S. agrupadas por cliente (CNPJ)
+
+import { linhasPorCliente } from "./permutas.js";
+
+test("agrupa as O.S. aceitas por cliente, do maior valor para o menor", () => {
+  const linhas = [
+    { id: "1", numero: "23051", cliente: "ELEICAO PEDRO", valor: 300, cnpj: "68237251000128" },
+    { id: "2", numero: "23026", cliente: "ELEICAO RUY", valor: 49495, cnpj: "68345471000175" },
+    { id: "3", numero: "23053", cliente: "ELEICAO GILBERTO", valor: 8500, cnpj: "" },
+    { id: "4", numero: "23027", cliente: "ELEICAO GILBERTO", valor: 2700, cnpj: "" },
+  ];
+  const g = linhasPorCliente(linhas, []);
+  assert.deepEqual(g.map((x) => x.cliente), ["ELEICAO RUY", "ELEICAO GILBERTO", "ELEICAO PEDRO"]);
+  assert.equal(g[1].qtd, 2);
+  assert.equal(g[1].valor, 11200, "as duas do Gilberto somam no grupo dele");
+});
+
+test("o CNPJ vem da O.S.; sem ele, do cliente ligado à permuta", () => {
+  const linhas = [
+    { id: "1", cliente: "ALFA", valor: 100, cnpj: "11111111000199" },
+    { id: "2", cliente: "BETA", valor: 90, cnpj: "" },
+  ];
+  const g = linhasPorCliente(linhas, [{ chave: "BETA", nome: "Beta", cnpjs: ["22222222000188"] }]);
+  assert.equal(g.find((x) => x.cliente === "ALFA").cnpj, "11111111000199");
+  assert.equal(g.find((x) => x.cliente === "BETA").cnpj, "22222222000188", "caiu para o do cliente");
+});
+
+test("cliente com DOIS CNPJs não recebe chute nenhum", () => {
+  // Dois documentos na mesma razão social é cadastro repetido: escolher um
+  // seria afirmar o que não se sabe.
+  const g = linhasPorCliente(
+    [{ id: "1", cliente: "ALFA", valor: 100, cnpj: "" }],
+    [{ chave: "ALFA", nome: "Alfa", cnpjs: ["11111111000199", "22222222000188"] }],
+  );
+  assert.equal(g[0].cnpj, "");
+});
+
+test("acento e caixa não partem um cliente em dois grupos", () => {
+  const g = linhasPorCliente([
+    { id: "1", cliente: "Construções Alfa", valor: 100 },
+    { id: "2", cliente: "CONSTRUCOES ALFA", valor: 50 },
+  ], []);
+  assert.equal(g.length, 1);
+  assert.equal(g[0].valor, 150);
+});
+
+test("lista vazia dá nenhum grupo, não um grupo vazio", () => {
+  assert.deepEqual(linhasPorCliente([], []), []);
+  assert.deepEqual(linhasPorCliente(null, null), []);
+});
