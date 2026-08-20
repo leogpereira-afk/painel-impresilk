@@ -29,7 +29,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowLeft, Plus, Trash2, Search, X, AlertTriangle, Megaphone, Building2,
   Archive, Paperclip, Download, CalendarRange, Trophy, TrendingUp, TrendingDown, Minus,
-  Crown, Check,
+  Crown, Check, Link2,
 } from "lucide-react";
 import {
   lerCampanhas, mexerNaCampanha, removerCampanha, anexarNaCampanha, lerAnexoCampanha,
@@ -40,6 +40,7 @@ import {
   resumoDaCampanha, resumoGeralCampanhas, compradoresDaCampanha, extratoDaCampanha,
   anosDasCampanhas, totaisDoAno, comparativoPorAno, edicoesDoMesmoEvento, anosRepetidos,
   maiorComprador, comprasPorMes, produtosDaCampanha, categoriasDosProdutos,
+  membrosDoEvento, candidatasAVincular, comparativoDeEdicoes,
 } from "../lib/calc/campanhas.js";
 import { paraNumero, dataLonga } from "../lib/format.js";
 import { Card, PageTitle, Empty, CarregandoModulo, BotaoPDF, CabecalhoImpressao } from "../components/ui.jsx";
@@ -100,7 +101,7 @@ function Meta({ vendido, meta, pct }) {
 /* O CARTÃO DA LISTA. Responde as duas metades da pergunta sem abrir: quanto
    rendeu e quantos compraram. O nome do maior comprador entra porque é o que
    distingue "um evento" de "um cliente grande com nome de evento". */
-function CartaoCampanha({ c, aoAbrir }) {
+function CartaoCampanha({ c, aoAbrir, contra }) {
   const lider = c.porCliente[0] || null;
   return (
     <button
@@ -143,6 +144,21 @@ function CartaoCampanha({ c, aoAbrir }) {
         <div className="mt-2 truncate text-xs text-slate-500">
           Maior: {lider.cliente} · {dinheiro(lider.valor)}
           {c.maiorFatia != null && ` (${Math.round(c.maiorFatia * 100)}%)`}
+        </div>
+      )}
+
+      {/* A COMPARAÇÃO NA ÚLTIMA LINHA: "cresceu?" é a pergunta que se faz
+          batendo o olho na lista, e até aqui ela obrigava a abrir a campanha.
+          Só aparece quando existe edição anterior LIGADA -- e é por isso que
+          vincular precisa ser possível à mão: na base real o ano está dentro do
+          nome ("Política 2026 - Deputados"), então elas nunca se acham
+          sozinhas pelo nome. */}
+      {contra && (
+        <div className="mt-2 flex flex-wrap items-center gap-x-2 border-t border-slate-100 pt-2">
+          <Variacao variacao={contra.variacao} anoAnterior={contra.anoAnterior} diferenca={contra.diferenca} />
+          <span className="truncate text-[11px] text-slate-400">
+            {contra.anoAnterior} fez {dinheiro(contra.vendidoAnterior)} · {contra.edicoes} edições
+          </span>
         </div>
       )}
 
@@ -387,17 +403,21 @@ function Edicoes({ edicoes, atual, aoAbrir, repetidos = [] }) {
      demais não têm contra o que conferir. O comentário antigo prometia o
      oposto ("usa exatamente os números da tela de fora"). */
   const temCongelado = edicoes.some((e) => e.semConferir);
+  /* Do mais ANTIGO para o mais novo: a comparação se lê descendo, e cada linha
+     mede contra a de cima. Com a ordem invertida, "anterior" tinha de olhar
+     para baixo -- e virar uma sem virar a outra trocaria o sinal de todas. */
   const todas = [{ ...atual, ehAtual: true }, ...edicoes].sort((a, b) =>
-    String(b.ano || "").localeCompare(String(a.ano || "")));
+    String(a.ano || "").localeCompare(String(b.ano || "")));
   const teto = Math.max(...todas.map((e) => e.vendido), 1);
   return (
     <div className="space-y-2">
       {todas.map((e, i) => {
-        /* O PRÓXIMO DE ANO DIFERENTE, não o próximo da lista. Com um cadastro
-           duplicado (duas campanhas com o mesmo nome no mesmo ano), o próximo
-           da lista era a própria gêmea e a linha imprimia "-33% vs 2022"
-           contra ela mesma. */
-        const anterior = todas.slice(i + 1).find((x) => String(x.ano || "") !== String(e.ano || "")) || null;
+        /* O ANTERIOR DE ANO DIFERENTE, olhando para TRÁS. Com um cadastro
+           duplicado (duas campanhas com o mesmo nome no mesmo ano), o vizinho
+           direto era a própria gêmea e a linha imprimia "-33% vs 2022" contra
+           ela mesma. */
+        const anterior = [...todas.slice(0, i)].reverse()
+          .find((x) => String(x.ano || "") !== String(e.ano || "")) || null;
         const dif = anterior ? Math.round((e.vendido - anterior.vendido) * 100) / 100 : null;
         const varia = anterior && anterior.vendido > 0 ? (e.vendido - anterior.vendido) / anterior.vendido : null;
         return (
@@ -516,6 +536,76 @@ function FormEdicao({ anoAtual, anosUsados, aoCriar, aoCancelar, salvando }) {
           é só ajustar as datas para as do evento.
         </div>
       )}
+    </div>
+  );
+}
+
+/* VINCULAR UMA CAMPANHA QUE JÁ EXISTE a este evento.
+ *
+ * O botão "Outra edição" cria uma nova. Este resolve o caso que é a regra na
+ * base real: as edições JÁ estão cadastradas, com o ano dentro do nome
+ * ("Política 2026 - Deputados" e "Política 2022 - Deputados"). Nomes
+ * diferentes, nenhum vínculo — e a tela dizia "esta é a única edição" para um
+ * evento com quatro.
+ *
+ * Mostra o nome COM o ano e o valor: é assim que ele reconhece qual é qual
+ * numa lista de vinte campanhas com nomes parecidos.
+ */
+function FormVincular({ candidatas, aoVincular, aoCancelar, salvando }) {
+  const [busca, setBusca] = useState("");
+  const t = busca.trim().toLowerCase();
+  const filtradas = t
+    ? candidatas.filter((c) => `${c.nome} ${c.ano}`.toLowerCase().includes(t))
+    : candidatas;
+  if (!candidatas.length) {
+    return (
+      <div className="mb-3 rounded-lg bg-slate-50 p-3 text-sm text-slate-500">
+        Não há outra campanha para vincular — todas as que existem já estão neste evento.
+        <button type="button" className="ml-2 underline hover:text-slate-800" onClick={aoCancelar}>
+          Fechar
+        </button>
+      </div>
+    );
+  }
+  return (
+    <div className="mb-3 space-y-2 rounded-lg bg-slate-50 p-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <span className="text-sm text-slate-600">Qual campanha é a mesma coisa, em outro ano?</span>
+        <button type="button" className="btn-ghost h-8 px-3 text-sm" onClick={aoCancelar}>Cancelar</button>
+      </div>
+      {candidatas.length > 6 && (
+        <input
+          className="input h-9 text-sm"
+          placeholder="filtrar pelo nome ou ano…"
+          value={busca}
+          autoFocus
+          onChange={(e) => setBusca(e.target.value)}
+        />
+      )}
+      <div className="max-h-64 overflow-y-auto rounded-lg border border-slate-200 bg-white">
+        {filtradas.length ? filtradas.map((c) => (
+          <button
+            key={c.id}
+            type="button"
+            disabled={salvando}
+            onClick={() => aoVincular(c)}
+            className="flex w-full items-center justify-between gap-3 border-b border-slate-100 px-3 py-2 text-left text-sm last:border-0 hover:bg-slate-50 disabled:opacity-50"
+          >
+            <span className="min-w-0">
+              <span className="block truncate text-slate-800">{c.nome || "sem nome"}</span>
+              <span className="text-[11px] text-slate-400">
+                {c.ano || "sem ano"} · {c.linhas.length} O.S.
+                {/* Já ligada a outras: vincular arrasta o GRUPO inteiro, e ele
+                    precisa saber disso antes de clicar. */}
+                {c.jaLigadas > 1 && ` · já ligada a ${c.jaLigadas - 1} outra${c.jaLigadas > 2 ? "s" : ""}`}
+              </span>
+            </span>
+            <span className="shrink-0 tabular-nums text-slate-700">{dinheiro(c.vendido)}</span>
+          </button>
+        )) : (
+          <div className="px-3 py-2 text-sm text-slate-400">Nenhuma com esse nome ou ano.</div>
+        )}
+      </div>
     </div>
   );
 }
@@ -966,6 +1056,7 @@ export default function Campanhas() {
   const [formVenda, setFormVenda] = useState(null);
   const [prodPorCategoria, setProdPorCategoria] = useState(false);
   const [criandoEdicao, setCriandoEdicao] = useState(false);
+  const [vinculando, setVinculando] = useState(false);
   /* O ANO ESCOLHIDO na lista. Nasce vazio e vira o ano corrente assim que os
      dados chegam SE houver campanha nele -- num 2027 sem nada cadastrado,
      abrir num ano vazio faria a tela parecer quebrada. Ver o efeito abaixo. */
@@ -1081,7 +1172,8 @@ export default function Campanhas() {
   useEffect(() => {
     if (escolheuAno.current || !anos.length) return;
     escolheuAno.current = true;
-    setAnoSel(anos.some((a) => a.ano === String(ANO_HOJE)) ? String(ANO_HOJE) : anos[0].ano);
+    // Os anos vêm em ordem crescente, então o mais RECENTE é o último.
+    setAnoSel(anos.some((a) => a.ano === String(ANO_HOJE)) ? String(ANO_HOJE) : anos[anos.length - 1].ano);
   }, [anos]);
 
   /* O ANO ESCOLHIDO PODE DEIXAR DE EXISTIR -- basta corrigir o ano da última
@@ -1111,6 +1203,9 @@ export default function Campanhas() {
     [comparativo, anoSel],
   );
   const totalGeral = useMemo(() => totaisDoAno(lista, "todos"), [lista]);
+  /* Cada cartão contra a edição anterior DELE. Uma passada para a lista inteira:
+     por cartão seria refazer o agrupamento de eventos N vezes. */
+  const contraAnterior = useMemo(() => comparativoDeEdicoes(lista), [lista]);
   const semAno = totalGeral.semAno;
   /* A O.S. REPETIDA INFLA OS DOIS NÚMEROS, e o controle só olhava o recorte.
      Escolhendo 2026, o cartão "Todas as campanhas" continuava somando a mesma
@@ -1119,8 +1214,12 @@ export default function Campanhas() {
   const repetidasGeral = totalGeral.repetidas;
   /* O ano que mais vendeu. Empate fica com o mais RECENTE: entre dois anos
      iguais, o que interessa à direção é o de agora. */
+  /* Empate fica com o mais RECENTE: entre dois anos iguais, o que interessa à
+     direção é o de agora. Com a lista crescente o mais novo vem por último,
+     então o `>=` é o que segura o empate no lugar certo -- com `>` o empate
+     ficaria com o mais antigo. */
   const melhorAno = useMemo(
-    () => comparativo.reduce((m, l) => (!m || l.vendido > m.vendido ? l : m), null),
+    () => comparativo.reduce((m, l) => (!m || l.vendido >= m.vendido ? l : m), null),
     [comparativo],
   );
   const resumo = useMemo(() => (campanha ? resumoDaCampanha(campanha, ordens) : null), [campanha, ordens]);
@@ -1134,11 +1233,12 @@ export default function Campanhas() {
      mostra", que é justamente o que não são. */
   const lider = useMemo(() => (resumo ? maiorComprador(resumo) : null), [resumo]);
   const meses = useMemo(() => comprasPorMes(resumo?.linhas || []), [resumo]);
-  /* Por DATA, do mais recente para o mais antigo -- na tela se olha "o que
-     entrou por último"; no papel o extrato vai do começo ao fim, que é como se
-     confere. As duas ordens existem de propósito. */
+  /* Por DATA, do começo do evento para o fim -- a MESMA direção da curva
+     mensal logo acima. Estavam opostas: a curva ia de jan para out da esquerda
+     para a direita, e a lista embaixo dela começava em out. Ler as duas juntas
+     obrigava a inverter o tempo no meio do caminho. */
   const porData = useMemo(
-    () => [...(resumo?.linhas || [])].sort((a, b) => String(b.data).localeCompare(String(a.data))),
+    () => [...(resumo?.linhas || [])].sort((a, b) => String(a.data).localeCompare(String(b.data))),
     [resumo],
   );
   const produtos = useMemo(
@@ -1146,6 +1246,16 @@ export default function Campanhas() {
     [campanha, ordens],
   );
   const categorias = useMemo(() => (produtos ? categoriasDosProdutos(produtos) : []), [produtos]);
+
+  /* As que ainda podem ser vinculadas, com quantas cada uma já arrasta junto. */
+  const candidatas = useMemo(() => {
+    if (!aberta || !campanha) return [];
+    const eu = { id: aberta, nome: campanha.nome, ano: campanha.ano, evento: campanha.evento };
+    return candidatasAVincular(lista, eu).map((c) => ({
+      ...c,
+      jaLigadas: membrosDoEvento(lista, c).length,
+    }));
+  }, [lista, aberta, campanha]);
 
   const edicoes = useMemo(
     () => (aberta ? edicoesDoMesmoEvento(lista, { id: aberta, nome: campanha?.nome, ano: campanha?.ano }) : []),
@@ -1246,6 +1356,52 @@ export default function Campanhas() {
       }
     },
     [aberta, mexer],
+  );
+
+  /* VINCULAR UMA CAMPANHA QUE JÁ EXISTE a este evento.
+   *
+   * CARIMBA O GRUPO INTEIRO DELA, não só ela. Se a outra já estava ligada a uma
+   * terceira, mexer só nela arrancaria a terceira do grupo e o vínculo antigo
+   * sumiria calado -- o tipo de perda que ninguém percebe até a comparação
+   * ficar errada meses depois.
+   *
+   * Em fila (o `mexer` já é), uma gravação por campanha: são poucas, e cada uma
+   * precisa do seu próprio evento de histórico dizendo que foi ligada.
+   */
+  const vincular = useCallback(
+    async (outra) => {
+      if (!aberta) return;
+      const atual = mapaRef.current?.[aberta];
+      const ancora = atual?.evento || aberta;
+      if (!atual?.evento) {
+        const ok = await mexer(aberta, { campos: { evento: ancora } });
+        if (!ok || ok.evento !== ancora) {
+          setAviso({ tom: "erro", texto: "Não consegui preparar o vínculo. Tente de novo e, se repetir, me avise." });
+          return;
+        }
+      }
+      /* O grupo da OUTRA sai da lista mais nova, não do render: entre abrir o
+         seletor e clicar, outra aba pode ter mexido. */
+      const listaAgora = resumoGeralCampanhas(mapaRef.current || {}, ordens, ANO_HOJE);
+      const alvos = membrosDoEvento(listaAgora, outra);
+      let falharam = 0;
+      for (const alvo of alvos) {
+        const ok = await mexer(alvo.id, { campos: { evento: ancora } });
+        if (!ok || ok.evento !== ancora) falharam += 1;
+      }
+      setVinculando(false);
+      if (falharam) {
+        setAviso({ tom: "erro", texto: `${alvos.length - falharam} de ${alvos.length} ficaram ligadas. Abra de novo e vincule a que faltou.` });
+      } else {
+        setAviso({
+          tom: "ok",
+          texto: alvos.length === 1
+            ? `“${outra.nome || "sem nome"}” (${outra.ano || "sem ano"}) agora é edição deste evento.`
+            : `${alvos.length} campanhas ligadas a este evento.`,
+        });
+      }
+    },
+    [aberta, ordens, mexer],
   );
 
   const apagar = useCallback(async (id, nome) => {
@@ -1674,17 +1830,38 @@ export default function Campanhas() {
           aberta={abertas.edicoes}
           aoAlternar={alternar}
           acao={
-            !criandoEdicao && (
-              <button
-                type="button"
-                className="btn-ghost"
-                onClick={() => { if (!abertas.edicoes) alternar("edicoes"); setCriandoEdicao(true); }}
-              >
-                <Plus size={15} strokeWidth={2.4} /> Outra edição
-              </button>
+            !criandoEdicao && !vinculando && (
+              <div className="flex items-center gap-1.5">
+                {/* VINCULAR vem primeiro porque é o caso mais comum na base
+                    real: as edições já estão cadastradas, só não se acham (o
+                    ano mora dentro do nome). Criar é para a que ainda não
+                    existe. */}
+                <button
+                  type="button"
+                  className="btn-ghost"
+                  onClick={() => { if (!abertas.edicoes) alternar("edicoes"); setVinculando(true); }}
+                >
+                  <Link2 size={15} /> Vincular existente
+                </button>
+                <button
+                  type="button"
+                  className="btn-ghost"
+                  onClick={() => { if (!abertas.edicoes) alternar("edicoes"); setCriandoEdicao(true); }}
+                >
+                  <Plus size={15} strokeWidth={2.4} /> Outra edição
+                </button>
+              </div>
             )
           }
         >
+          {vinculando && (
+            <FormVincular
+              candidatas={candidatas}
+              aoVincular={vincular}
+              aoCancelar={() => setVinculando(false)}
+              salvando={salvando}
+            />
+          )}
           {criandoEdicao && (
             <FormEdicao
               anoAtual={campanha.ano}
@@ -1702,10 +1879,11 @@ export default function Campanhas() {
               repetidos={anosRepetidos(edicoes)}
             />
           ) : (
-            !criandoEdicao && (
+            !criandoEdicao && !vinculando && (
               <Empty>
-                Esta é a única edição deste evento. Use “Outra edição” para cadastrar a de um ano
-                anterior — elas ficam ligadas, e a comparação aparece aqui.
+                Esta é a única edição deste evento. Se a de outro ano já está cadastrada, use
+                “Vincular existente” — o nome com o ano dentro (“Política 2026 — Deputados”) faz com
+                que elas não se achem sozinhas. Se ainda não existe, use “Outra edição”.
               </Empty>
             )
           )}
@@ -2173,7 +2351,7 @@ export default function Campanhas() {
               <div className="mt-1 text-2xl font-semibold tabular-nums text-slate-800">{dinheiro(totalGeral.vendido)}</div>
               <div className="mt-0.5 text-xs text-slate-500">
                 {totalGeral.quantas} {totalGeral.quantas === 1 ? "campanha registrada" : "campanhas registradas"}
-                {anos.length > 1 && `, de ${anos[anos.length - 1].ano} a ${anos[0].ano}`}
+                {anos.length > 1 && `, de ${anos[0].ano} a ${anos[anos.length - 1].ano}`}
               </div>
             </Card>
           )}
@@ -2255,7 +2433,7 @@ export default function Campanhas() {
       {listaDoAno.length ? (
         <div className="grid gap-3 sm:grid-cols-2">
           {listaDoAno.map((c) => (
-            <CartaoCampanha key={c.id} c={c} aoAbrir={setAberta} />
+            <CartaoCampanha key={c.id} c={c} aoAbrir={setAberta} contra={contraAnterior.get(c.id)} />
           ))}
         </div>
       ) : lista.length ? (

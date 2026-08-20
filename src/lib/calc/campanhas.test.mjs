@@ -6,7 +6,7 @@ import assert from "node:assert/strict";
 import {
   resumoDaCampanha, resumoGeralCampanhas, totaisDasCampanhas, compradoresDaCampanha, fichaDaOS,
   extratoDaCampanha, anosDasCampanhas, totaisDoAno, comparativoPorAno, edicoesDoMesmoEvento,
-  anosRepetidos, maiorComprador, comprasPorMes, produtosDaCampanha, categoriasDosProdutos,
+  anosRepetidos, membrosDoEvento, candidatasAVincular, comparativoDeEdicoes, maiorComprador, comprasPorMes, produtosDaCampanha, categoriasDosProdutos,
 } from "./campanhas.js";
 
 const os = (id, cliente, valor, extra = {}) => ({
@@ -162,10 +162,12 @@ const monta = (...cs) => {
   return resumoGeralCampanhas(mapa, ordens, 2026);
 };
 
-test("os anos vêm do mais novo para o mais velho, sem inventar os vazios", () => {
+test("os anos vêm do mais ANTIGO para o mais novo, sem inventar os vazios", () => {
+  /* Tempo se lê para a frente: começar pelo mais recente obriga quem lê a
+     inverter a linha do tempo na cabeça para ver se cresceu. */
   const lista = monta(campanha(1, "Eleições", "2026", [100]), campanha(2, "Eleições", "2022", [80]),
                       campanha(3, "Festa", "2026", [20]));
-  assert.deepEqual(anosDasCampanhas(lista), [{ ano: "2026", quantas: 2 }, { ano: "2022", quantas: 1 }],
+  assert.deepEqual(anosDasCampanhas(lista), [{ ano: "2022", quantas: 1 }, { ano: "2026", quantas: 2 }],
     "2023, 2024 e 2025 não existem — não pode aparecer ano sem campanha");
 });
 
@@ -210,18 +212,20 @@ test("a comparação é contra a EDIÇÃO ANTERIOR, não contra o ano−1", () =
   /* Eleição é de 2 em 2 anos. Comparar 2026 com 2025 (sem eleição) daria
      −100% e mandaria a direção investigar uma queda que nunca existiu. */
   const lista = monta(campanha(1, "Eleições", "2026", [150]), campanha(2, "Eleições", "2022", [100]));
-  const [novo, velho] = comparativoPorAno(lista);
+  const [velho, novo] = comparativoPorAno(lista);   // ascendente: a antiga vem primeiro
+  assert.equal(velho.ano, "2022");
+  assert.equal(velho.variacao, null, "a linha mais antiga não tem contra o que comparar");
+  assert.equal(velho.anoAnterior, null);
   assert.equal(novo.ano, "2026");
   assert.equal(novo.anoAnterior, "2022", "pula 2025, 2024 e 2023: não houve campanha");
   assert.equal(novo.diferenca, 50);
   assert.equal(novo.variacao, 0.5);
-  assert.equal(velho.variacao, null, "a linha mais antiga não tem contra o que comparar");
-  assert.equal(velho.anoAnterior, null);
 });
 
 test("edição anterior que vendeu zero não vira percentual infinito", () => {
   const lista = monta(campanha(1, "Eleições", "2026", [150]), campanha(2, "Eleições", "2022", []));
-  const [novo] = comparativoPorAno(lista);
+  const novo = comparativoPorAno(lista).at(-1);   // a mais nova é a ÚLTIMA
+  assert.equal(novo.ano, "2026");
   assert.equal(novo.diferenca, 150, "a diferença em reais existe");
   assert.equal(novo.variacao, null, "o percentual, não");
 });
@@ -288,10 +292,11 @@ test("o quadro ano a ano compara TOTAL DE ANO, inclusive com evento diferente no
     campanha(2, "Festa da Cidade", "2025", [20000]),
     campanha(3, "Eleição", "2024", [400000]),
   );
-  const [a26, a25] = comparativoPorAno(lista);
+  const [a24, a25, a26] = comparativoPorAno(lista);
+  assert.equal(a24.anoAnterior, null, "a mais antiga abre a lista");
+  assert.equal(a25.anoAnterior, "2024");
   assert.equal(a26.anoAnterior, "2025", "2025 teve campanha, então NÃO é pulado");
   assert.equal(Math.round(a26.variacao * 100), 2150, "é comparação de total de ano, e a tela diz isso");
-  assert.equal(a25.anoAnterior, "2024");
 });
 
 test("a comparação do MESMO EVENTO é outra pergunta, e acha a edição certa", () => {
@@ -477,4 +482,64 @@ test("eventos diferentes com vínculos diferentes não se misturam", () => {
     campanha(2, "Festa", "2024", [20], { evento: "B" }),
   );
   assert.deepEqual(edicoesDoMesmoEvento(lista, lista.find((c) => c.id === 1)), []);
+});
+
+/* ------------------------- vincular campanhas que já existem, e o cartão */
+
+test("o ano dentro do NOME é o caso real: elas nunca se acham sozinhas", () => {
+  /* É a nomenclatura do Léo na base de verdade: "Política 2026 - Deputados".
+     A de 2022 se chama "Política 2022 - Deputados" -- nome diferente, nenhum
+     vínculo. Sem um jeito de vincular à mão, a comparação nunca existe. */
+  const lista = monta(
+    campanha(1, "Política 2026 - Deputados", "2026", [268638.85]),
+    campanha(2, "Política 2022 - Deputados", "2022", [180000]),
+  );
+  assert.deepEqual(edicoesDoMesmoEvento(lista, lista.find((c) => c.id === 1)), []);
+  assert.deepEqual(candidatasAVincular(lista, lista.find((c) => c.id === 1)).map((c) => c.ano), ["2022"]);
+});
+
+test("vincular carimba o grupo INTEIRO do outro, não só ele", () => {
+  /* B e C já eram um evento. Ligando B em A, se só B fosse carimbado, C ficaria
+     órfão e o vínculo B–C sumiria calado. */
+  const lista = monta(
+    campanha(1, "A 2026", "2026", [10], { evento: "evA" }),
+    campanha(2, "B 2024", "2024", [20], { evento: "evB" }),
+    campanha(3, "C 2022", "2022", [30], { evento: "evB" }),
+  );
+  const membros = membrosDoEvento(lista, lista.find((c) => c.id === 2));
+  assert.deepEqual(membros.map((c) => c.id).sort(), [2, 3], "B e C vêm juntos, para os dois serem carimbados");
+});
+
+test("candidatas não oferecem quem já está no evento", () => {
+  const lista = monta(
+    campanha(1, "X", "2026", [10], { evento: "e1" }),
+    campanha(2, "X renomeada", "2024", [20], { evento: "e1" }),
+    campanha(3, "Outra", "2022", [30]),
+  );
+  assert.deepEqual(candidatasAVincular(lista, lista.find((c) => c.id === 1)).map((c) => c.id), [3]);
+});
+
+test("o cartão compara com a edição anterior DELE, sem abrir a campanha", () => {
+  const lista = monta(
+    campanha(1, "Política - Deputados", "2026", [268638.85], { evento: "pol" }),
+    campanha(2, "Política - Deputados", "2022", [180000], { evento: "pol" }),
+    campanha(3, "Festa", "2026", [5000]),
+  );
+  const m = comparativoDeEdicoes(lista);
+  assert.equal(m.get(1).anoAnterior, "2022");
+  assert.equal(m.get(1).diferenca, 88638.85);
+  assert.equal(Math.round(m.get(1).variacao * 1000) / 1000, 0.492);   // 88.638,85 / 180.000
+  assert.equal(m.get(2), null, "a mais antiga não tem contra o que comparar");
+  assert.equal(m.get(3), null, "campanha de evento único também não");
+});
+
+test("cadastro duplicado no mesmo ano não faz o cartão comparar com a gêmea", () => {
+  const lista = monta(
+    campanha(1, "Ev", "2026", [100], { evento: "e" }),
+    campanha(2, "Ev", "2026", [40], { evento: "e" }),
+    campanha(3, "Ev", "2022", [50], { evento: "e" }),
+  );
+  const m = comparativoDeEdicoes(lista);
+  assert.equal(m.get(1).anoAnterior, "2022", "pula a gêmea de 2026");
+  assert.equal(m.get(2).anoAnterior, "2022");
 });

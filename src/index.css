@@ -351,3 +351,18 @@ html.dark ::-webkit-scrollbar-thumb {
 .dark .border-bad-200 { border-color: rgba(220, 38, 38, 0.30); }
 .dark .bg-brand\/10 { background-color: rgba(112, 118, 240, 0.18); }
 .dark .text-brand { color: #9ba1f6; }
+/* O TOM 50 DA MARCA faltava aqui inteiro -- nem puro, nem com opacidade. Quem
+   usasse `bg-brand-50` no escuro recebia o valor CRU do tema claro
+   (rgba(238,240,254,...)), quase branco, com o texto claro por cima: o
+   destaque virava a linha mais apagada da tabela, ao contrario do que ele
+   existe para fazer. Estava assim na busca do Contas Atrasadas (bg-brand-50/40,
+   o campo aceso) antes de a tabela de Campanhas cair no mesmo buraco.
+
+   ESTA LISTA E MANTIDA A MAO, uma variante por vez -- e e essa a armadilha:
+   `bg-x-50` funciona, `bg-x-50/60` e OUTRA classe e escapa calada. Ao usar um
+   tom 50 novo (ou uma opacidade nova de um que ja existe), acrescente aqui e
+   confira no tema escuro; nao ha erro de build nem de lint para isso. */
+.dark .bg-brand-50,
+.dark .bg-brand-50\/40,
+.dark .bg-brand-50\/60,
+.dark .bg-brand-100 { background-color: rgba(112, 118, 240, 0.16); }

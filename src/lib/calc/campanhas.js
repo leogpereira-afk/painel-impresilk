@@ -183,7 +183,10 @@ export function extratoDaCampanha(campanha, ordens) {
    que consegue reprovar.
 */
 
-/** Os anos que têm campanha, do mais novo para o mais velho. */
+/* Os anos que têm campanha, do mais ANTIGO para o mais novo.
+   Tempo se lê para a frente: numa sequência de anos, começar pelo mais recente
+   obriga quem lê a inverter a linha do tempo na cabeça para ver se cresceu.
+   Vale para os chips, para o quadro ano a ano e para as edições. */
 export function anosDasCampanhas(lista) {
   const conta = new Map();
   for (const c of lista || []) {
@@ -193,7 +196,7 @@ export function anosDasCampanhas(lista) {
   }
   return [...conta.entries()]
     .map(([ano, quantas]) => ({ ano, quantas }))
-    .sort((a, b) => b.ano.localeCompare(a.ano));
+    .sort((a, b) => a.ano.localeCompare(b.ano));
 }
 
 /* Os números de UM ano, ou de todos.
@@ -255,8 +258,8 @@ export function totaisDoAno(lista, ano) {
   };
 }
 
-/* A TABELA DE COMPARAÇÃO: uma linha por ano, da mais nova para a mais velha,
-   com a variação contra o ANO ANTERIOR QUE TEVE CAMPANHA (a linha de baixo).
+/* A TABELA DE COMPARAÇÃO: uma linha por ano, da mais ANTIGA para a mais nova,
+   com a variação contra o ANO ANTERIOR QUE TEVE CAMPANHA (a linha de CIMA).
    Ano sem campanha nenhuma é pulado; ano com campanha de outro evento NÃO é --
    ver o cabeçalho da seção. É comparação de total de ano, e a tela diz isso
    com estas palavras.
@@ -267,7 +270,10 @@ export function comparativoPorAno(lista) {
   const anos = anosDasCampanhas(lista).map((a) => a.ano);
   const linhas = anos.map((ano) => ({ ...totaisDoAno(lista, ano) }));
   return linhas.map((l, i) => {
-    const antes = linhas[i + 1] || null;
+    /* Ascendente: a edição anterior é a de ÍNDICE MENOR. Virar a ordem sem
+       virar isto compararia cada ano com o SEGUINTE -- o sinal de toda
+       variação inverteria e nenhum erro apareceria. */
+    const antes = linhas[i - 1] || null;
     return {
       ...l,
       anoAnterior: antes ? antes.ano : null,
@@ -341,7 +347,7 @@ function gruposDeEvento(lista) {
   return { achar, raiz: (c) => achar(`id:${c.id}`) };
 }
 
-/* As OUTRAS edições do mesmo evento, da mais nova para a mais velha.
+/* As OUTRAS edições do mesmo evento, da mais ANTIGA para a mais nova.
  *
  * Nunca inclui a própria campanha, nem uma sem ano de 4 dígitos: sem ano ela
  * não pode ser "a edição anterior" de nada -- e era o que acontecia, a aberta
@@ -358,7 +364,70 @@ export function edicoesDoMesmoEvento(lista, campanha) {
       const a = String(c.ano || "").trim();
       return c.id !== campanha?.id && /^\d{4}$/.test(a) && a !== ano && g.raiz(c) === minha;
     })
-    .sort((a, b) => String(b.ano || "").trim().localeCompare(String(a.ano || "").trim()));
+    .sort((a, b) => String(a.ano || "").trim().localeCompare(String(b.ano || "").trim()));
+}
+
+/* TODAS AS CAMPANHAS DE UM GRUPO, incluindo ela mesma.
+   Serve para VINCULAR: ao ligar B ao evento de A, não basta carimbar B -- se B
+   já tinha um grupo (com C), carimbar só B arrancaria B de C e o vínculo
+   antigo sumiria calado. Carimbam-se todos os membros. */
+export function membrosDoEvento(lista, campanha) {
+  const g = gruposDeEvento([...(lista || []), campanha].filter(Boolean));
+  const minha = g.raiz(campanha);
+  return (lista || []).filter((c) => g.raiz(c) === minha);
+}
+
+/* AS QUE AINDA PODEM SER VINCULADAS a este evento: as que já não estão nele.
+   O ano entra no rótulo porque é assim que ele reconhece a edição -- na base
+   real o nome carrega o ano ("Política 2026 - Deputados"), e é justamente por
+   isso que elas não se acham sozinhas. */
+export function candidatasAVincular(lista, campanha) {
+  const dentro = new Set(membrosDoEvento(lista, campanha).map((c) => c.id));
+  return (lista || [])
+    .filter((c) => c.id !== campanha?.id && !dentro.has(c.id))
+    .sort((a, b) => String(a.ano || "").localeCompare(String(b.ano || "")) || b.vendido - a.vendido);
+}
+
+/* A COMPARAÇÃO DE CADA CAMPANHA CONTRA A EDIÇÃO ANTERIOR DELA, para a lista.
+ *
+ * O cartão precisa responder "cresceu?" sem abrir. Calculado de uma vez para a
+ * lista inteira: por cartão seria refazer o agrupamento N vezes.
+ *
+ * A anterior é a próxima de ano DIFERENTE -- com cadastro duplicado no mesmo
+ * ano, a "anterior" seria a própria gêmea e o cartão diria "-33%" contra ela
+ * mesma. */
+export function comparativoDeEdicoes(lista) {
+  const g = gruposDeEvento(lista || []);
+  const porGrupo = new Map();
+  for (const c of lista || []) {
+    const k = g.raiz(c);
+    if (!porGrupo.has(k)) porGrupo.set(k, []);
+    porGrupo.get(k).push(c);
+  }
+  const saida = new Map();
+  for (const membros of porGrupo.values()) {
+    const comAno = membros
+      .filter((c) => /^\d{4}$/.test(String(c.ano || "").trim()))
+      .sort((a, b) => String(a.ano || "").trim().localeCompare(String(b.ano || "").trim()));
+    comAno.forEach((c, i) => {
+      /* Para TRÁS, e pulando o mesmo ano: com cadastro duplicado a "anterior"
+         seria a própria gêmea, e o cartão diria "-33%" contra ela mesma. */
+      const antes = [...comAno.slice(0, i)].reverse()
+        .find((x) => String(x.ano || "").trim() !== String(c.ano || "").trim());
+      saida.set(c.id, antes
+        ? {
+            anoAnterior: String(antes.ano || "").trim(),
+            vendidoAnterior: antes.vendido,
+            diferenca: Math.round((c.vendido - antes.vendido) * 100) / 100,
+            // Zero não vira percentual: uma edição que vendeu R$ 0 não tem
+            // crescimento, tem um valor novo.
+            variacao: antes.vendido > 0 ? (c.vendido - antes.vendido) / antes.vendido : null,
+            edicoes: comAno.length,
+          }
+        : null);
+    });
+  }
+  return saida;
 }
 
 /* DUAS CAMPANHAS COM O MESMO NOME NO MESMO ANO são cadastro duplicado, não
