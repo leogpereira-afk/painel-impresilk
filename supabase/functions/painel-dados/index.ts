@@ -263,6 +263,11 @@ Deno.serve(async (req: Request) => {
         const { data, error } = await sb.rpc("painel_ordens_clientes", {
           p_termo: termo,
           p_desde: /^\d{4}-\d{2}-\d{2}$/.test(desde) ? desde : null,
+          /* O FIM TAMBEM CORTA AQUI. Sem isto o "12 O.S. · R$ 84.000" ao lado
+             do nome contava o que o cliente comprou DEPOIS do evento, enquanto
+             a lista de O.S. logo abaixo ja cortava -- duas reguas para o mesmo
+             periodo na mesma tela. */
+          p_ate: /^\d{4}-\d{2}-\d{2}$/.test(ate) ? ate : null,
         });
         if (error) throw new Error(error.message);
         return json({ clientes: data ?? [] });

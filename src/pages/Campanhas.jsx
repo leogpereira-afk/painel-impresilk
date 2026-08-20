@@ -28,7 +28,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowLeft, Plus, Trash2, Search, X, AlertTriangle, Megaphone, Building2,
-  Archive, Paperclip, Download, CalendarRange, Trophy,
+  Archive, Paperclip, Download, CalendarRange, Trophy, TrendingUp, TrendingDown, Minus,
+  Package, Crown, CalendarDays,
 } from "lucide-react";
 import {
   lerCampanhas, mexerNaCampanha, removerCampanha, anexarNaCampanha, lerAnexoCampanha,
@@ -36,8 +37,9 @@ import {
 } from "../services/campanhas.js";
 import { fichaDaOS, ordensDosClientes, donoPorOS } from "../lib/calc/permutas.js";
 import {
-  resumoDaCampanha, resumoGeralCampanhas, totaisDasCampanhas, compradoresDaCampanha,
-  extratoDaCampanha,
+  resumoDaCampanha, resumoGeralCampanhas, compradoresDaCampanha, extratoDaCampanha,
+  anosDasCampanhas, totaisDoAno, comparativoPorAno, edicoesDoMesmoEvento, anosRepetidos,
+  maiorComprador, comprasPorMes, produtosDaCampanha, categoriasDosProdutos,
 } from "../lib/calc/campanhas.js";
 import { paraNumero, dataLonga } from "../lib/format.js";
 import { Card, PageTitle, Empty, CarregandoModulo, BotaoPDF, CabecalhoImpressao } from "../components/ui.jsx";
@@ -111,6 +113,11 @@ function CartaoCampanha({ c, aoAbrir }) {
             {c.linhas.length > 0 && ` · ${c.linhas.length} O.S.`}
             {c.semOS > 0 && " · tem venda sem O.S."}
           </div>
+          {(c.desde || c.ate) && (
+            <div className="mt-0.5 text-[11px] text-slate-400">
+              {c.desde ? dataDaOS(c.desde) : "início não informado"} — {c.ate ? dataDaOS(c.ate) : "hoje"}
+            </div>
+          )}
         </div>
         <div className="shrink-0 text-right">
           <div className="text-lg font-semibold tabular-nums text-slate-800">{dinheiro(c.vendido)}</div>
@@ -220,6 +227,228 @@ function FormVenda({ form, setForm, aoSalvar, aoCancelar, salvando }) {
   );
 }
 
+/* A VARIAÇÃO CONTRA A EDIÇÃO ANTERIOR.
+ *
+ * Sempre com o ANO ao lado do percentual: "+50%" sozinho faz o leitor supor
+ * que a comparação é com o ano passado, e no caso dele quase nunca é --
+ * eleição é de dois em dois anos. "+50% vs 2022" não deixa supor nada.
+ *
+ * Sem edição anterior não aparece nada. "0%" ali seria afirmar estabilidade
+ * que ninguém mediu. */
+function Variacao({ variacao, anoAnterior, diferenca }) {
+  if (anoAnterior == null) return <span className="text-xs text-slate-400">primeira edição</span>;
+  const subiu = (diferenca || 0) > 0;
+  const desceu = (diferenca || 0) < 0;
+  const Icone = subiu ? TrendingUp : desceu ? TrendingDown : Minus;
+  const tom = subiu ? "text-ok-700" : desceu ? "text-bad-700" : "text-slate-500";
+  return (
+    <span className={`inline-flex items-center gap-1 text-xs font-medium tabular-nums ${tom}`}>
+      <Icone size={13} className="shrink-0" />
+      {variacao != null
+        ? `${subiu ? "+" : ""}${Math.round(variacao * 100)}%`
+        : `${subiu ? "+" : ""}${dinheiro(diferenca || 0)}`}
+      <span className="font-normal text-slate-400">vs {anoAnterior}</span>
+    </span>
+  );
+}
+
+/* O SELETOR DE ANO. Chips, não um `<select>`: são poucos anos, e a lista deles
+   é informação -- ver de cara que existe campanha em 2022 e em 2026, e nenhuma
+   em 2023, já responde meia pergunta. Um menu fechado esconderia isso.
+
+   "Todos" existe porque a história inteira também é uma pergunta legítima. */
+function SeletorAno({ anos, valor, aoEscolher, temSemAno }) {
+  /* SÓ SOME quando não há o que escolher: um ano e nenhuma campanha fora dele.
+     A régua era `anos.length < 2`, e com isso apagar o ano de uma campanha (o
+     campo aceita vazio) fazia o seletor INTEIRO sumir -- inclusive o chip
+     "Todos os anos", que era o único caminho até ela. A campanha ficava
+     inalcançável, e a faixa amarela mandava clicar num botão que não existia
+     mais na tela. */
+  if (anos.length < 2 && !temSemAno) return null;
+  const chip = (id, rotulo, sub) => (
+    <button
+      key={id}
+      type="button"
+      onClick={() => aoEscolher(id)}
+      aria-pressed={valor === id}
+      className={`rounded-full px-3 py-1.5 text-sm transition ${
+        valor === id
+          ? "bg-brand-600 text-white"
+          : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+      }`}
+    >
+      {rotulo}
+      {sub != null && (
+        <span className={`ml-1.5 text-[11px] ${valor === id ? "text-white/70" : "text-slate-400"}`}>{sub}</span>
+      )}
+    </button>
+  );
+  return (
+    <div className="flex flex-wrap items-center gap-2 sem-impressao">
+      {anos.map((a) => chip(a.ano, a.ano, a.quantas))}
+      {chip("todos", "Todos os anos", null)}
+      {temSemAno > 0 && (
+        <span className="text-xs text-warn-700">
+          {temSemAno === 1 ? "1 campanha sem ano" : `${temSemAno} campanhas sem ano`} — só aparece em “Todos os anos”
+        </span>
+      )}
+    </div>
+  );
+}
+
+/* O QUADRO COMPARATIVO: uma linha por ano, sempre TODOS os anos.
+ *
+ * Fica fora do recorte de propósito. O seletor acima foca, mas nada pode
+ * sumir sem a pessoa mandar: se o comparativo também filtrasse, escolher 2026
+ * deixaria a tela sem nada com que comparar -- justamente o que ela veio
+ * fazer aqui. */
+function Comparativo({ linhas, anoSel, aoEscolher }) {
+  if (linhas.length < 2) return null;
+  const teto = Math.max(...linhas.map((l) => l.vendido), 1);
+  return (
+    <Card className="space-y-3">
+      <div className="flex items-center gap-2">
+        <CalendarRange size={15} className="text-slate-400" />
+        <span className="text-sm font-medium text-slate-800">Ano a ano</span>
+        {/* O QUE ESTE QUADRO É, com estas palavras. Ele dizia "cada ano contra a
+            edição anterior — não contra o ano anterior do calendário", e era
+            falso: basta a festa da cidade existir em 2025 para a eleição de
+            2026 ser comparada com ela. A comparação por EVENTO tem lugar
+            próprio, dentro de cada campanha. */}
+        <span className="text-xs text-slate-400">
+          total de cada ano contra o ano anterior que teve campanha — para comparar o mesmo evento entre
+          anos, abra a campanha
+        </span>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-[34rem] text-sm">
+          <thead>
+            <tr className="text-left text-xs text-slate-500">
+              <th className="pb-1 font-normal">Ano</th>
+              <th className="pb-1 font-normal">Vendido</th>
+              <th className="pb-1 text-right font-normal">Campanhas</th>
+              <th className="pb-1 text-right font-normal">Compradores</th>
+              <th className="pb-1 text-right font-normal">O.S.</th>
+              <th className="pb-1 text-right font-normal">Contra a anterior</th>
+            </tr>
+          </thead>
+          <tbody>
+            {linhas.map((l) => (
+              <tr
+                key={l.ano}
+                onClick={() => aoEscolher(l.ano)}
+                className={`cursor-pointer border-t border-slate-100 hover:bg-slate-50 ${
+                  anoSel === l.ano ? "bg-brand-50/60" : ""
+                }`}
+              >
+                <td className="py-2 font-medium text-slate-800">{l.ano}</td>
+                <td className="py-2">
+                  <span className="block tabular-nums text-slate-800">{dinheiro(l.vendido)}</span>
+                  {/* A barra é relativa ao MAIOR ano, não à soma: com seis anos,
+                      barras sobre a soma ficam todas invisíveis. */}
+                  <span className="mt-0.5 block h-1.5 w-full max-w-[10rem] overflow-hidden rounded-full bg-slate-100 sem-impressao">
+                    <span className="block h-full rounded-full bg-brand-400" style={{ width: `${Math.max(2, (l.vendido / teto) * 100)}%` }} />
+                  </span>
+                </td>
+                <td className="py-2 text-right tabular-nums text-slate-600">{l.quantas}</td>
+                <td className="py-2 text-right tabular-nums text-slate-600">{l.compradores}</td>
+                <td className="py-2 text-right tabular-nums text-slate-600">{l.os}</td>
+                <td className="py-2 text-right">
+                  <Variacao variacao={l.variacao} anoAnterior={l.anoAnterior} diferenca={l.diferenca} />
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </Card>
+  );
+}
+
+/* ESTA EDIÇÃO CONTRA AS ANTERIORES.
+ *
+ * Casa pelo NOME -- e isso é uma dedução, do mesmo tipo que já criou sósia na
+ * Central de Acessos. A diferença está no que se faz com ela: aqui ninguém é
+ * somado nem ganha acesso, é só uma comparação ao lado, e a tela DIZ que o
+ * critério é o nome. Se o evento foi cadastrado como "Eleições 2022" num ano e
+ * "Eleição Municipal" no outro, as duas não se encontram -- e o rodapé explica
+ * o que fazer em vez de deixar a pessoa achando que não houve edição anterior.
+ */
+function Edicoes({ edicoes, atual, aoAbrir, repetidos = [] }) {
+  if (!edicoes.length) return null;
+  /* As outras edições podem estar com o valor CONGELADO na marcação: com uma
+     campanha aberta, o painel só busca as O.S. dos compradores dela, e as
+     demais não têm contra o que conferir. O comentário antigo prometia o
+     oposto ("usa exatamente os números da tela de fora"). */
+  const temCongelado = edicoes.some((e) => e.semConferir);
+  const todas = [{ ...atual, ehAtual: true }, ...edicoes].sort((a, b) =>
+    String(b.ano || "").localeCompare(String(a.ano || "")));
+  const teto = Math.max(...todas.map((e) => e.vendido), 1);
+  return (
+    <div className="space-y-2">
+      {todas.map((e, i) => {
+        /* O PRÓXIMO DE ANO DIFERENTE, não o próximo da lista. Com um cadastro
+           duplicado (duas campanhas com o mesmo nome no mesmo ano), o próximo
+           da lista era a própria gêmea e a linha imprimia "-33% vs 2022"
+           contra ela mesma. */
+        const anterior = todas.slice(i + 1).find((x) => String(x.ano || "") !== String(e.ano || "")) || null;
+        const dif = anterior ? Math.round((e.vendido - anterior.vendido) * 100) / 100 : null;
+        const varia = anterior && anterior.vendido > 0 ? (e.vendido - anterior.vendido) / anterior.vendido : null;
+        return (
+          <div key={e.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
+            <button
+              type="button"
+              onClick={() => !e.ehAtual && aoAbrir(e.id)}
+              disabled={e.ehAtual}
+              className={`w-14 shrink-0 text-left font-medium tabular-nums ${
+                e.ehAtual ? "text-slate-800" : "text-brand-600 hover:underline"
+              }`}
+            >
+              {e.ano || "—"}
+            </button>
+            {/* A BARRA SOME NO CELULAR. Com as três colunas fixas ao lado ela
+                sobrava com uns 8px de largura: um sliver que não compara nada e
+                ainda empurra o resto. Os números continuam todos ali. */}
+            <span className="hidden min-w-0 flex-1 sm:block">
+              <span className="block h-1.5 overflow-hidden rounded-full bg-slate-100 sem-impressao">
+                <span
+                  className={`block h-full rounded-full ${e.ehAtual ? "bg-brand-500" : "bg-slate-300"}`}
+                  style={{ width: `${Math.max(2, (e.vendido / teto) * 100)}%` }}
+                />
+              </span>
+            </span>
+            <span className="ml-auto w-24 shrink-0 text-right text-xs tabular-nums text-slate-400 sm:ml-0">
+              {e.compradores} {e.compradores === 1 ? "comprador" : "compradores"}
+            </span>
+            <span className="w-28 shrink-0 text-right font-medium tabular-nums text-slate-800">
+              {dinheiro(e.vendido)}
+            </span>
+            <span className="w-28 shrink-0 text-right">
+              <Variacao variacao={varia} anoAnterior={anterior ? anterior.ano : null} diferenca={dif} />
+            </span>
+          </div>
+        );
+      })}
+      {repetidos.length > 0 && (
+        <div className="rounded-lg bg-warn-50 px-3 py-2 text-xs text-warn-800">
+          Há mais de uma campanha com este nome em {repetidos.join(", ")} — provavelmente cadastro
+          duplicado. Junte as duas, senão o mesmo evento conta duas vezes no ano.
+        </div>
+      )}
+      <div className="border-t border-slate-100 pt-2 text-xs text-slate-400">
+        As edições são encontradas pelo NOME da campanha. Se uma edição antiga foi cadastrada com outro
+        nome, ela não aparece aqui — renomeie as duas igual para elas se encontrarem.
+        {temCongelado && (
+          <>
+            {" "}Com uma campanha aberta o painel só carrega as O.S. dos compradores DELA, então as outras
+            edições aparecem com o valor congelado na marcação — feche a campanha para conferi-las contra o ERP.
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
 /* O RANKING: a metade da pergunta que a tela existe para responder.
    A barra é relativa ao MAIOR, não à soma -- com vinte compradores, barras
    sobre a soma ficam todas invisíveis e a comparação some. */
@@ -263,6 +492,167 @@ function Ranking({ itens, semOS }) {
   );
 }
 
+/* QUANDO A CAMPANHA VENDEU, mês a mês.
+ *
+ * Uma campanha não vende parelho: a eleição concentra em agosto e setembro, a
+ * festa da cidade na semana dela. O total do evento esconde isso inteiro, e é
+ * a curva que diz quando montar equipe na próxima.
+ *
+ * Meses vazios NO MEIO aparecem: sem eles, compras em janeiro e abril viram
+ * duas barras coladas e a campanha parece contínua.
+ */
+const MES_CURTO = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
+const rotuloMes = (mes) => {
+  const [a, m] = String(mes).split("-");
+  return `${MES_CURTO[Number(m) - 1] || m}/${String(a).slice(2)}`;
+};
+
+function CurvaMensal({ meses }) {
+  if (meses.length < 2) return null;
+  const teto = Math.max(...meses.map((m) => m.valor), 1);
+  const pico = meses.reduce((p, m) => (m.valor > p.valor ? m : p), meses[0]);
+  return (
+    <div className="space-y-2">
+      <div className="flex items-end gap-1 overflow-x-auto pb-1" style={{ minHeight: "5rem" }}>
+        {meses.map((m) => (
+          <div key={m.mes} className="flex min-w-[2.2rem] flex-1 flex-col items-center gap-1">
+            <span className="text-[10px] tabular-nums text-slate-400">
+              {m.valor > 0 ? dinheiro(m.valor).replace("R$ ", "") : ""}
+            </span>
+            <span
+              className={`w-full rounded-t ${m.mes === pico.mes ? "bg-brand-500" : "bg-brand-200"}`}
+              /* Altura mínima de 2px só para o mês COM venda: mês zerado tem de
+                 ficar visivelmente vazio, senão a curva mente sobre a pausa. */
+              style={{ height: `${m.valor > 0 ? Math.max(2, (m.valor / teto) * 56) : 0}px` }}
+              title={`${rotuloMes(m.mes)}: ${dinheiro(m.valor)} em ${m.qtd} O.S.`}
+            />
+            <span className="whitespace-nowrap text-[10px] text-slate-400">{rotuloMes(m.mes)}</span>
+          </div>
+        ))}
+      </div>
+      <div className="text-xs text-slate-500">
+        Mês mais forte: <span className="font-medium text-slate-700">{rotuloMes(pico.mes)}</span> com{" "}
+        {dinheiro(pico.valor)} em {pico.qtd} {pico.qtd === 1 ? "O.S." : "O.S."}
+      </div>
+    </div>
+  );
+}
+
+/* AS COMPRAS EM ORDEM DE DATA. A lista de cima está agrupada por CNPJ (para
+   conferir com cada comprador); esta é a linha do tempo do evento -- o que
+   entrou, e quando. São as mesmas O.S. lidas por duas perguntas diferentes. */
+function LinhaCompra({ l }) {
+  return (
+    <div className="flex items-center gap-3 border-b border-slate-100 py-2 text-sm last:border-0">
+      <span className="w-20 shrink-0 text-xs tabular-nums text-slate-400">{dataDaOS(l.data)}</span>
+      <span className="w-20 shrink-0 font-medium text-slate-700">{l.numero}</span>
+      <span className="min-w-0 flex-1 truncate text-slate-600">{l.cliente}</span>
+      {l.sumiu && (
+        <span className="shrink-0 rounded bg-bad-50 px-1.5 py-0.5 text-[11px] text-bad-700">cancelada</span>
+      )}
+      <span className="w-28 shrink-0 text-right tabular-nums text-slate-800">{dinheiro(l.valor)}</span>
+    </div>
+  );
+}
+
+/* O RANKING DOS PRODUTOS.
+ *
+ * A cobertura vai JUNTO, sempre. Um ranking pela metade parece completo, e a
+ * direção decidiria o estoque da próxima eleição com metade da venda
+ * invisível. "Sem item" e "ainda não carregado" são causas opostas que na tela
+ * apareceriam iguais -- zero não é resultado.
+ */
+function Produtos({ produtos, categorias, porCategoria, aoTrocar }) {
+  const { cobertura } = produtos;
+  const lista = porCategoria ? categorias : produtos.itens;
+  const teto = Math.max(...lista.map((x) => x.valor), 1);
+  return (
+    <div className="space-y-3">
+      <div className="flex flex-wrap items-center gap-2 sem-impressao">
+        {[["produto", "Por produto"], ["categoria", "Por categoria"]].map(([id, rot]) => (
+          <button
+            key={id}
+            type="button"
+            onClick={() => aoTrocar(id)}
+            aria-pressed={porCategoria === (id === "categoria")}
+            className={`rounded-full px-3 py-1 text-xs transition ${
+              porCategoria === (id === "categoria")
+                ? "bg-brand-600 text-white"
+                : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+            }`}
+          >
+            {rot}
+          </button>
+        ))}
+      </div>
+
+      {lista.length ? (
+        <div className="space-y-2">
+          {lista.slice(0, 20).map((x) => (
+            <div key={x.chave || x.categoria} className="flex items-center gap-3 text-sm">
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-slate-800">{x.produto || x.categoria}</span>
+                <span className="mt-0.5 block h-1.5 overflow-hidden rounded-full bg-slate-100 sem-impressao">
+                  <span className="block h-full rounded-full bg-brand-400" style={{ width: `${Math.max(2, (x.valor / teto) * 100)}%` }} />
+                </span>
+                {!porCategoria && x.categoria && (
+                  <span className="text-[11px] text-slate-400">{x.categoria}</span>
+                )}
+              </span>
+              <span className="w-20 shrink-0 text-right text-xs tabular-nums text-slate-400">
+                {x.quantidade % 1 === 0 ? x.quantidade : x.quantidade.toFixed(2)} un.
+              </span>
+              <span className="w-28 shrink-0 text-right font-medium tabular-nums text-slate-800">
+                {dinheiro(x.valor)}
+              </span>
+            </div>
+          ))}
+          {lista.length > 20 && (
+            <div className="text-xs text-slate-400">
+              e mais {lista.length - 20} {porCategoria ? "categorias" : "produtos"} — o PDF traz a lista inteira.
+            </div>
+          )}
+        </div>
+      ) : (
+        <Empty>
+          {cobertura.aceitas === 0
+            ? "Marque as O.S. da campanha para ver o que foi vendido."
+            : "Nenhum item lido nas O.S. desta campanha."}
+        </Empty>
+      )}
+
+      {/* O QUE ESTE RANKING NÃO COBRE. Sem esta linha, um ranking de metade da
+          campanha se apresenta como o todo. */}
+      {(cobertura.semItens > 0 || cobertura.foraDaBusca > 0) && (
+        <div className="rounded-lg bg-warn-50 px-3 py-2 text-xs text-warn-800">
+          Lido de {cobertura.comItens} das {cobertura.aceitas} O.S. desta campanha.
+          {cobertura.semItens > 0 && (
+            <>
+              {" "}
+              {cobertura.semItens} ainda não {cobertura.semItens === 1 ? "teve" : "tiveram"} os itens
+              carregados do ERP — a carga do histórico roda domingo de madrugada e preenche.
+            </>
+          )}
+          {cobertura.foraDaBusca > 0 && (
+            <>
+              {" "}
+              {cobertura.foraDaBusca}{" "}
+              {cobertura.foraDaBusca === 1 ? "não apareceu na busca" : "não apareceram na busca"} — ou{" "}
+              {cobertura.foraDaBusca === 1 ? "foi cancelada" : "foram canceladas"} no ERP, ou{" "}
+              {cobertura.foraDaBusca === 1 ? "está" : "estão"} fora do período da campanha.
+            </>
+          )}
+        </div>
+      )}
+      {produtos.completo && produtos.total > 0 && (
+        <div className="text-xs text-slate-400">
+          Soma dos itens: {dinheiro(produtos.total)} — é o bruto, antes do desconto da O.S.
+        </div>
+      )}
+    </div>
+  );
+}
+
 /* O EXTRATO, que SÓ existe no papel.
  *
  * A tela é dividida por tarefa (ligar cliente, escolher O.S.); o papel é
@@ -276,7 +666,7 @@ const th = { textAlign: "left", fontSize: "8pt", fontWeight: 700, padding: "3px 
 const td = { fontSize: "8.5pt", padding: "3px 6px", borderBottom: "1px solid #eee" };
 const tdN = { ...td, textAlign: "right", fontVariantNumeric: "tabular-nums" };
 
-function ExtratoImpresso({ e }) {
+function ExtratoImpresso({ e, produtos, categorias, meses }) {
   return (
     <div className="apenas-impressao" style={{ marginTop: 10 }}>
       <h2 style={{ fontSize: "11pt", margin: "10px 0 4px" }}>Quem comprou</h2>
@@ -331,6 +721,86 @@ function ExtratoImpresso({ e }) {
                 <td style={{ ...td, fontWeight: 700 }} colSpan={3}>Total sem O.S.</td>
                 <td style={{ ...tdN, fontWeight: 700 }}>{dinheiro(e.semOS)}</td>
               </tr>
+            </tbody>
+          </table>
+        </>
+      )}
+
+      {/* OS PRODUTOS VÃO INTEIROS NO PAPEL, sem o corte de 20 da tela: a folha
+          é onde se decide o estoque da próxima edição, e um "e mais 34
+          produtos" ali não decide nada. */}
+      {produtos && produtos.itens.length > 0 && (
+        <>
+          <h2 style={{ fontSize: "11pt", margin: "14px 0 4px" }}>Produtos vendidos</h2>
+          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+            <thead>
+              <tr>
+                <th style={{ ...th, width: "2rem" }}>#</th>
+                <th style={th}>Produto</th>
+                <th style={{ ...th, width: "11rem" }}>Categoria</th>
+                <th style={{ ...th, textAlign: "right", width: "5rem" }}>Qtd.</th>
+                <th style={{ ...th, textAlign: "right", width: "4rem" }}>O.S.</th>
+                <th style={{ ...th, textAlign: "right", width: "7rem" }}>Valor</th>
+              </tr>
+            </thead>
+            <tbody>
+              {produtos.itens.map((p, i) => (
+                <tr key={p.chave}>
+                  <td style={td}>{i + 1}</td>
+                  <td style={td}>{p.produto}</td>
+                  <td style={td}>{p.categoria || "—"}</td>
+                  <td style={tdN}>{p.quantidade % 1 === 0 ? p.quantidade : p.quantidade.toFixed(2)}</td>
+                  <td style={tdN}>{p.os}</td>
+                  <td style={tdN}>{dinheiro(p.valor)}</td>
+                </tr>
+              ))}
+              <tr>
+                <td style={{ ...td, fontWeight: 700 }} colSpan={5}>Soma dos itens (bruto, antes do desconto)</td>
+                <td style={{ ...tdN, fontWeight: 700 }}>{dinheiro(produtos.total)}</td>
+              </tr>
+            </tbody>
+          </table>
+          {/* A RESSALVA VAI NO PAPEL TAMBÉM. Um ranking pela metade impresso
+              parece completo, e a folha circula sem a tela ao lado. */}
+          {!produtos.completo && (
+            <p style={{ fontSize: "8.5pt", marginTop: 4 }}>
+              Lido de {produtos.cobertura.comItens} das {produtos.cobertura.aceitas} O.S. desta campanha
+              {produtos.cobertura.semItens > 0 && ` — ${produtos.cobertura.semItens} sem itens carregados do ERP`}
+              {produtos.cobertura.foraDaBusca > 0 && ` — ${produtos.cobertura.foraDaBusca} fora do período ou canceladas`}.
+            </p>
+          )}
+        </>
+      )}
+
+      {categorias && categorias.length > 1 && (
+        <>
+          <h2 style={{ fontSize: "11pt", margin: "14px 0 4px" }}>Por categoria</h2>
+          <table style={{ width: "60%", borderCollapse: "collapse" }}>
+            <tbody>
+              {categorias.map((x) => (
+                <tr key={x.categoria}>
+                  <td style={td}>{x.categoria}</td>
+                  <td style={tdN}>{x.produtos} {x.produtos === 1 ? "produto" : "produtos"}</td>
+                  <td style={tdN}>{dinheiro(x.valor)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </>
+      )}
+
+      {meses && meses.length > 1 && (
+        <>
+          <h2 style={{ fontSize: "11pt", margin: "14px 0 4px" }}>Quando vendeu</h2>
+          <table style={{ width: "60%", borderCollapse: "collapse" }}>
+            <tbody>
+              {meses.map((m) => (
+                <tr key={m.mes}>
+                  <td style={td}>{rotuloMes(m.mes)}</td>
+                  <td style={tdN}>{m.qtd} {m.qtd === 1 ? "O.S." : "O.S."}</td>
+                  <td style={tdN}>{dinheiro(m.valor)}</td>
+                </tr>
+              ))}
             </tbody>
           </table>
         </>
@@ -423,10 +893,16 @@ export default function Campanhas() {
   const [achados, setAchados] = useState([]);
   const [buscaOS, setBuscaOS] = useState("");
   const [formVenda, setFormVenda] = useState(null);
+  const [prodPorCategoria, setProdPorCategoria] = useState(false);
+  /* O ANO ESCOLHIDO na lista. Nasce vazio e vira o ano corrente assim que os
+     dados chegam SE houver campanha nele -- num 2027 sem nada cadastrado,
+     abrir num ano vazio faria a tela parecer quebrada. Ver o efeito abaixo. */
+  const [anoSel, setAnoSel] = useState("");
   const [gruposAbertos, setGruposAbertos] = useState({});
   const alternarGrupo = useCallback((k) => setGruposAbertos((g) => ({ ...g, [k]: !g[k] })), []);
   const [abertas, setAbertas] = useState(() => {
-    const padrao = { ranking: true, aceitas: true, semOS: false, clientes: true, escolher: true, historico: false };
+    const padrao = { edicoes: true, ranking: true, produtos: true, quando: true, aceitas: true,
+                     semOS: false, clientes: true, escolher: true, historico: false };
     try {
       return { ...padrao, ...JSON.parse(localStorage.getItem("campanhas_secoes") || "{}") };
     } catch {
@@ -466,39 +942,52 @@ export default function Campanhas() {
      carteira inteira desde 2020 para uma eleição de 2026. Continua editável:
      campanha que começa a vender em novembro do ano anterior existe. */
   const desde = String(campanha?.desde || "").slice(0, 10);
+  /* ATÉ QUANDO. Uma campanha ACABA: a eleição termina em outubro, e a O.S. de
+     dezembro para o mesmo candidato é outra venda. Sem este corte, a lista de
+     escolher trazia a carteira inteira dele até hoje, e cada O.S. de fora do
+     evento era uma chance de marcar errado. Vazio = até hoje. */
+  const ate = String(campanha?.ate || "").slice(0, 10);
 
   const chavesTexto = (campanha?.clientes || []).map((c) => c.chave).sort().join("|");
   const chavesDaCampanha = useMemo(() => (chavesTexto ? chavesTexto.split("|") : []), [chavesTexto]);
 
-  const idsTexto = Object.values(mapa || {})
+  const idsTodos = Object.values(mapa || {})
     .flatMap((c) => Object.keys(c?.os || {}))
     .sort()
     .join("|");
+  /* SÓ IMPORTA NA LISTA. Com uma campanha aberta o efeito abaixo usa
+     `buscarOrdensDe`, e `idsTexto` não entra na conta -- mas estava nas
+     dependências assim mesmo: cada O.S. marcada mudava a string, o efeito
+     rodava de novo e a seção "Marcar O.S." piscava "Procurando as O.S." a
+     cada clique, com a lista sumindo debaixo do cursor. */
+  const idsTexto = aberta ? "" : idsTodos;
 
   useEffect(() => {
     let vivo = true;
     setBuscandoOS(true);
     const pedido = aberta
-      ? (chavesDaCampanha.length ? buscarOrdensDe(chavesDaCampanha, desde) : Promise.resolve([]))
+      ? (chavesDaCampanha.length ? buscarOrdensDe(chavesDaCampanha, desde, ate) : Promise.resolve([]))
       : buscarOrdensPorId(idsTexto ? [...new Set(idsTexto.split("|"))] : []);
     pedido
       .then((os) => vivo && setOrdens(os))
       .catch((e) => vivo && setAviso({ tom: "erro", texto: e.message }))
       .finally(() => vivo && setBuscandoOS(false));
     return () => { vivo = false; };
-  }, [aberta, chavesDaCampanha, desde, idsTexto]);
+  }, [aberta, chavesDaCampanha, desde, ate, idsTexto]);
 
   useEffect(() => {
     const t = buscaCliente.trim();
     if (t.length < 2) { setAchados([]); return undefined; }
     let vivo = true;
     const id = setTimeout(() => {
-      buscarClientes(t, desde)
+      /* O período da campanha vale também aqui: o total ao lado do nome tem de
+         ser o do EVENTO, não o da carteira inteira do cliente. */
+      buscarClientes(t, desde, ate)
         .then((cs) => vivo && setAchados(cs))
         .catch(() => vivo && setAchados([]));
     }, 280);
     return () => { vivo = false; clearTimeout(id); };
-  }, [buscaCliente, desde]);
+  }, [buscaCliente, desde, ate]);
 
   /* O MESMO CLIENTE PODE ESTAR EM VÁRIAS CAMPANHAS, e é o normal: o candidato
      comprou na eleição de 2022 e na de 2026. A MESMA O.S., não: ela foi
@@ -509,13 +998,87 @@ export default function Campanhas() {
      tirar de lá se foi engano. */
   const donos = useMemo(() => donoPorOS(mapa || {}), [mapa]);
   const lista = useMemo(() => resumoGeralCampanhas(mapa || {}, ordens, ANO_HOJE), [mapa, ordens]);
-  const totais = useMemo(() => totaisDasCampanhas(lista, ANO_HOJE), [lista]);
-  const rankingGeral = useMemo(
-    () => compradoresDaCampanha(lista.filter((c) => String(c.ano || "") === String(ANO_HOJE))),
-    [lista],
+
+  const anos = useMemo(() => anosDasCampanhas(lista), [lista]);
+  /* ABRIR NO ANO CORRENTE, mas só se ele existir. Sem esta escolha, quem
+     abrisse a tela num ano sem campanha veria zeros e concluiria que perdeu
+     tudo -- quando o certo é mostrar o ano mais recente que tem. Roda uma vez:
+     depois disso o ano é do Leonardo, e recarregar dado não pode arrastar a
+     escolha dele. */
+  const escolheuAno = useRef(false);
+  useEffect(() => {
+    if (escolheuAno.current || !anos.length) return;
+    escolheuAno.current = true;
+    setAnoSel(anos.some((a) => a.ano === String(ANO_HOJE)) ? String(ANO_HOJE) : anos[0].ano);
+  }, [anos]);
+
+  /* O ANO ESCOLHIDO PODE DEIXAR DE EXISTIR -- basta corrigir o ano da última
+     campanha dele, ou apagá-la. O recorte ficava apontando para o vazio: zero
+     cartões, zero reais, e nenhuma pista de que a escolha é que estava velha.
+     Cai para "todos", que é o único destino em que nada some. */
+  useEffect(() => {
+    if (!anoSel || anoSel === "todos" || !anos.length) return;
+    if (!anos.some((a) => a.ano === anoSel)) setAnoSel("todos");
+  }, [anos, anoSel]);
+
+  const totais = useMemo(() => totaisDoAno(lista, anoSel), [lista, anoSel]);
+  const comparativo = useMemo(() => comparativoPorAno(lista), [lista]);
+  /* A lista de cartões segue o recorte. O quadro comparativo NÃO -- ele é o
+     que dá a comparação, e filtrá-lo deixaria a tela sem contra o que
+     comparar justamente quando se escolhe um ano. */
+  const listaDoAno = useMemo(
+    () => (!anoSel || anoSel === "todos" ? lista : lista.filter((c) => String(c.ano || "") === anoSel)),
+    [lista, anoSel],
+  );
+  const rankingGeral = useMemo(() => compradoresDaCampanha(listaDoAno), [listaDoAno]);
+  /* A linha do ano escolhido dentro do comparativo -- é dela que sai a
+     variação mostrada junto do número grande. Em "todos" não há edição
+     anterior de que falar. */
+  const linhaDoAno = useMemo(
+    () => (anoSel && anoSel !== "todos" ? comparativo.find((l) => l.ano === anoSel) || null : null),
+    [comparativo, anoSel],
+  );
+  const totalGeral = useMemo(() => totaisDoAno(lista, "todos"), [lista]);
+  const semAno = totalGeral.semAno;
+  /* A O.S. REPETIDA INFLA OS DOIS NÚMEROS, e o controle só olhava o recorte.
+     Escolhendo 2026, o cartão "Todas as campanhas" continuava somando a mesma
+     O.S. de 2022 e 2026 sem uma palavra -- exatamente o número que fica
+     grande na tela. Agora os dois são conferidos. */
+  const repetidasGeral = totalGeral.repetidas;
+  /* O ano que mais vendeu. Empate fica com o mais RECENTE: entre dois anos
+     iguais, o que interessa à direção é o de agora. */
+  const melhorAno = useMemo(
+    () => comparativo.reduce((m, l) => (!m || l.vendido > m.vendido ? l : m), null),
+    [comparativo],
   );
   const resumo = useMemo(() => (campanha ? resumoDaCampanha(campanha, ordens) : null), [campanha, ordens]);
   const extrato = useMemo(() => (campanha ? extratoDaCampanha(campanha, ordens) : null), [campanha, ordens]);
+  /* As outras edições do MESMO evento. Saem da mesma `lista` da tela de fora,
+     MAS com uma campanha aberta o painel só carrega as O.S. dos compradores
+     DELA -- as outras edições não têm contra o que conferir e caem no valor
+     congelado na marcação (`semConferir`). Está certo para comparar (é o valor
+     que valia quando a O.S. entrou), e o rodapé do bloco diz isso. O
+     comentário antigo prometia "exatamente os números que a tela de fora
+     mostra", que é justamente o que não são. */
+  const lider = useMemo(() => (resumo ? maiorComprador(resumo) : null), [resumo]);
+  const meses = useMemo(() => comprasPorMes(resumo?.linhas || []), [resumo]);
+  /* Por DATA, do mais recente para o mais antigo -- na tela se olha "o que
+     entrou por último"; no papel o extrato vai do começo ao fim, que é como se
+     confere. As duas ordens existem de propósito. */
+  const porData = useMemo(
+    () => [...(resumo?.linhas || [])].sort((a, b) => String(b.data).localeCompare(String(a.data))),
+    [resumo],
+  );
+  const produtos = useMemo(
+    () => (campanha ? produtosDaCampanha(campanha, ordens) : null),
+    [campanha, ordens],
+  );
+  const categorias = useMemo(() => (produtos ? categoriasDosProdutos(produtos) : []), [produtos]);
+
+  const edicoes = useMemo(
+    () => (aberta ? edicoesDoMesmoEvento(lista, { id: aberta, nome: campanha?.nome, ano: campanha?.ano }) : []),
+    [lista, aberta, campanha],
+  );
 
   const mapaRef = useRef(null);
   useEffect(() => { mapaRef.current = mapa; }, [mapa]);
@@ -551,16 +1114,21 @@ export default function Campanhas() {
 
   const criar = useCallback(async () => {
     const id = novoId("campanha");
+    /* NASCE NO ANO QUE ESTÁ NA TELA. Nascia sempre no ano de hoje, e quem
+       estava revendo 2022 criava a campanha, preenchia tudo, voltava para a
+       lista -- e ela não estava lá, porque o recorte continuava em 2022 e ela
+       tinha nascido em 2026. Some sem erro nenhum: o pior tipo. */
+    const ano = /^\d{4}$/.test(anoSel) ? anoSel : String(ANO_HOJE);
     const ok = await mexer(id, {
       campos: {
-        nome: "Nova campanha", ano: String(ANO_HOJE), meta: 0, clientes: [],
+        nome: "Nova campanha", ano, meta: 0, clientes: [],
         // Já nasce recortada no ano: ver o comentário do `desde`.
-        desde: `${ANO_HOJE}-01-01`,
+        desde: `${ano}-01-01`,
       },
       criar: true,
     });
     if (ok) setAberta(id);
-  }, [mexer]);
+  }, [mexer, anoSel]);
 
   const apagar = useCallback(async (id, nome) => {
     if (!window.confirm(`Apagar a campanha "${nome || "sem nome"}"? O histórico, as vendas e os anexos vão junto.`)) return;
@@ -769,7 +1337,11 @@ export default function Campanhas() {
           <CabecalhoImpressao
             titulo={`Impresilk — Campanha: ${campanha.nome || "sem nome"}${campanha.ano ? ` (${campanha.ano})` : ""}`}
             linhas={[
+              desde || ate
+                ? `Período: ${desde ? dataLonga(desde) : "início não informado"} a ${ate ? dataLonga(ate) : "hoje"}`
+                : "Período não informado",
               `${resumo.compradores} ${resumo.compradores === 1 ? "comprador" : "compradores"} · ${resumo.linhas.length} O.S.`,
+              lider ? `Quem comprou mais: ${lider.cliente} — ${dinheiro(lider.valor)}` : null,
               `Emitido em ${dataLonga(hojeISO())}`,
               `Total vendido ${dinheiro(resumo.vendido)}`,
             ]}
@@ -846,13 +1418,35 @@ export default function Campanhas() {
               </div>
             </div>
             <div>
-              <div className="mb-1 text-xs text-slate-500">Compradores</div>
-              <div className="text-2xl font-semibold tabular-nums text-slate-800">{resumo.compradores}</div>
-              <div className="text-xs text-slate-500">
-                {resumo.maiorFatia != null
-                  ? `o maior levou ${Math.round(resumo.maiorFatia * 100)}%`
-                  : "ninguém marcado ainda"}
-              </div>
+              <div className="mb-1 text-xs text-slate-500">Quem comprou mais</div>
+              {lider ? (
+                <>
+                  <div className="flex items-baseline gap-1.5">
+                    <Crown size={15} className="shrink-0 self-center text-warn-500" />
+                    <span className="truncate text-lg font-semibold text-slate-800" title={lider.cliente}>
+                      {lider.cliente}
+                    </span>
+                  </div>
+                  <div className="text-xs text-slate-500">
+                    {dinheiro(lider.valor)}
+                    {lider.fatia != null && ` · ${Math.round(lider.fatia * 100)}% do que passou por O.S.`}
+                    {/* A distância para o segundo é o que responde "esta
+                        campanha é um cliente só ou é um mercado". O percentual
+                        sozinho não responde. */}
+                    {lider.sobreOSegundo != null && (
+                      <> · {dinheiro(lider.sobreOSegundo)} à frente do 2º</>
+                    )}
+                  </div>
+                  <div className="mt-0.5 text-xs text-slate-400">
+                    de {resumo.compradores} {resumo.compradores === 1 ? "comprador" : "compradores"}
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="text-2xl font-semibold tabular-nums text-slate-800">0</div>
+                  <div className="text-xs text-slate-500">nenhuma O.S. marcada ainda</div>
+                </>
+              )}
             </div>
             <div>
               <div className="mb-1 text-xs text-slate-500">Meta do evento</div>
@@ -884,6 +1478,25 @@ export default function Campanhas() {
           )}
         </Card>
 
+        {/* ------------------------------------------- contra as anteriores */}
+        {edicoes.length > 0 && (
+          <Secao
+            semImpressao
+            id="edicoes"
+            titulo="Esta edição contra as anteriores"
+            sub="O mesmo evento em outros anos — é a comparação que diz se cresceu."
+            aberta={abertas.edicoes}
+            aoAlternar={alternar}
+          >
+            <Edicoes
+              edicoes={edicoes}
+              atual={{ id: aberta, ano: campanha.ano, vendido: resumo.vendido, compradores: resumo.compradores }}
+              aoAbrir={setAberta}
+              repetidos={anosRepetidos(edicoes)}
+            />
+          </Secao>
+        )}
+
         {/* ------------------------------------------------- quem comprou */}
         <Secao
           semImpressao
@@ -894,6 +1507,48 @@ export default function Campanhas() {
           aoAlternar={alternar}
         >
           <Ranking itens={resumo.porCliente} semOS={resumo.semOS} />
+        </Secao>
+
+        {/* ------------------------------------------- o que foi vendido */}
+        <Secao
+          semImpressao
+          id="produtos"
+          titulo="Produtos vendidos"
+          sub="O que a campanha vendeu de verdade — é o que diz o que estocar e quem escalar na próxima."
+          aberta={abertas.produtos}
+          aoAlternar={alternar}
+        >
+          {produtos && (
+            <Produtos
+              produtos={produtos}
+              categorias={categorias}
+              porCategoria={prodPorCategoria}
+              aoTrocar={(id) => setProdPorCategoria(id === "categoria")}
+            />
+          )}
+        </Secao>
+
+        {/* ------------------------------------------------- quando vendeu */}
+        <Secao
+          semImpressao
+          id="quando"
+          titulo="Compras por data"
+          sub="A linha do tempo do evento — quando entrou cada O.S."
+          aberta={abertas.quando}
+          aoAlternar={alternar}
+        >
+          {!porData.length ? (
+            <Empty>Nenhuma O.S. marcada ainda.</Empty>
+          ) : (
+            <>
+              <CurvaMensal meses={meses} />
+              <div>
+                {porData.map((l) => (
+                  <LinhaCompra key={l.id} l={l} />
+                ))}
+              </div>
+            </>
+          )}
         </Secao>
 
         <Secao
@@ -971,7 +1626,8 @@ export default function Campanhas() {
             )}
             {buscaCliente.trim().length >= 2 && !clientesAchados.length && (
               <div className="mt-1 text-xs text-slate-400">
-                Nenhum cliente com esse nome nas O.S. a partir de {dataLonga(desde)}.
+                Nenhum cliente com esse nome nas O.S. de {desde ? dataLonga(desde) : "todo o período"}
+                {ate ? ` a ${dataLonga(ate)}` : ""}.
               </div>
             )}
           </div>
@@ -1077,21 +1733,49 @@ export default function Campanhas() {
             )
           }
         >
+          {/* O PERÍODO DO EVENTO, e não só o começo. A eleição acaba em
+              outubro; sem o corte de cima, a lista trazia a carteira inteira do
+              candidato até hoje e cada O.S. de fora do evento era uma chance de
+              marcar errado. As duas datas são as MESMAS que limitam a busca --
+              uma data só para "quando foi" e outra para "o que procurar" seriam
+              duas verdades para a mesma coisa. */}
           <div className="flex flex-wrap items-center gap-2 rounded-lg bg-slate-50 px-3 py-2 text-sm">
             <CalendarRange size={15} className="shrink-0 text-slate-400" />
-            <span className="text-slate-600">Procurar O.S. desta campanha a partir de</span>
+            <span className="text-slate-600">A campanha vai de</span>
             <input
               type="date"
               className="input h-8 w-40 text-sm"
               defaultValue={desde}
               key={`desde-${aberta}`}
+              aria-label="Data em que a campanha começou"
               onBlur={(e) => {
                 const d = e.target.value;
                 if (d === desde) return;
                 mexer(aberta, { campos: { desde: /^\d{4}-\d{2}-\d{2}$/.test(d) ? d : "" } });
               }}
             />
-            {!desde && <span className="text-xs text-slate-400">vazio = tudo o que o painel tem</span>}
+            <span className="text-slate-600">até</span>
+            <input
+              type="date"
+              className="input h-8 w-40 text-sm"
+              defaultValue={ate}
+              key={`ate-${aberta}`}
+              aria-label="Data em que a campanha acabou"
+              onBlur={(e) => {
+                const d = e.target.value;
+                if (d === ate) return;
+                mexer(aberta, { campos: { ate: /^\d{4}-\d{2}-\d{2}$/.test(d) ? d : "" } });
+              }}
+            />
+            {!ate && <span className="text-xs text-slate-400">vazio = até hoje</span>}
+            {/* PERÍODO INVERTIDO não é bloqueado, é DITO: travar o campo faria
+                o Leonardo brigar com a tela ao corrigir as duas datas em
+                ordem. Mas em silêncio a lista viria vazia sem motivo aparente. */}
+            {desde && ate && ate < desde && (
+              <span className="text-xs text-bad-700">
+                o fim está antes do começo — nenhuma O.S. vai aparecer
+              </span>
+            )}
           </div>
 
           {/* O QUE O PAINEL REALMENTE TEM: uma campanha de 2022 pode parecer um
@@ -1126,7 +1810,9 @@ export default function Campanhas() {
 
         {/* O EXTRATO fica por ÚLTIMO no DOM mas é a única coisa que vai ao
             papel: as seções acima são `sem-impressao`. */}
-        {extrato && <ExtratoImpresso e={extrato} />}
+        {extrato && (
+          <ExtratoImpresso e={extrato} produtos={produtos} categorias={categorias} meses={meses} />
+        )}
 
         {salvando && <div className="text-xs text-slate-400">salvando…</div>}
       </div>
@@ -1148,62 +1834,165 @@ export default function Campanhas() {
 
       <Aviso aviso={aviso} aoFechar={() => setAviso(null)} />
 
-      {/* OS NÚMEROS DO ANO, não de todos os tempos.
-          "Quanto a eleição de 2026 rendeu" não se compara com a soma de tudo o
-          que já foi vendido em evento desde 2020 — o total geral existe, mas
-          como rodapé. Campanha encerrada continua contando no ano dela: ela
-          aconteceu. */}
+      <SeletorAno anos={anos} valor={anoSel} aoEscolher={setAnoSel} temSemAno={semAno} />
+
+      {/* OS NÚMEROS DO RECORTE ESCOLHIDO.
+          "Quanto a eleição de 2026 rendeu" não se compara com a soma de tudo
+          o que já foi vendido em evento desde 2020 -- por isso o topo segue o
+          ano, e a variação contra a edição anterior fica ao lado do número, e
+          não numa tela separada. Campanha encerrada continua contando no ano
+          dela: ela aconteceu. */}
       {lista.length > 0 && (
         <div className="grid gap-3 sm:grid-cols-3">
           <Card className="p-4">
-            <div className="text-xs text-slate-500">Vendido em campanhas em {ANO_HOJE}</div>
-            <div className="mt-1 text-2xl font-semibold tabular-nums text-slate-800">{dinheiro(totais.vendidoNoAno)}</div>
-            <div className="mt-0.5 text-xs text-slate-500">
-              {totais.quantasNoAno} {totais.quantasNoAno === 1 ? "campanha" : "campanhas"} · {totais.osNoAno} O.S.
+            <div className="text-xs text-slate-500">
+              {totais.ano === "todos" ? "Vendido em campanhas (todos os anos)" : `Vendido em campanhas em ${totais.ano}`}
+            </div>
+            <div className="mt-1 text-2xl font-semibold tabular-nums text-slate-800">{dinheiro(totais.vendido)}</div>
+            <div className="mt-0.5 flex flex-wrap items-center gap-x-2 text-xs text-slate-500">
+              <span>
+                {totais.quantas} {totais.quantas === 1 ? "campanha" : "campanhas"} · {totais.os} O.S.
+                {totais.semOS > 0 && ` · ${dinheiro(totais.semOS)} sem O.S.`}
+              </span>
+              {linhaDoAno && <Variacao variacao={linhaDoAno.variacao} anoAnterior={linhaDoAno.anoAnterior} diferenca={linhaDoAno.diferenca} />}
             </div>
           </Card>
 
           <Card className="p-4">
-            <div className="text-xs text-slate-500">Compradores em {ANO_HOJE}</div>
-            <div className="mt-1 text-2xl font-semibold tabular-nums text-slate-800">{totais.compradoresNoAno}</div>
+            <div className="text-xs text-slate-500">
+              Compradores {totais.ano === "todos" ? "de todos os anos" : `em ${totais.ano}`}
+            </div>
+            <div className="mt-1 text-2xl font-semibold tabular-nums text-slate-800">{totais.compradores}</div>
             <div className="mt-0.5 text-xs text-slate-500">
               {/* DISTINTOS: o mesmo comprador em duas campanhas conta uma vez.
-                  Somar os compradores de cada uma inflaria o número. */}
-              empresas diferentes — quem comprou em duas campanhas conta uma vez
+                  Somar os compradores de cada uma inflaria o número.
+                  E a conta é pelo NOME no cadastro do ERP, não pelo CNPJ --
+                  dizia "empresas diferentes", que promete mais: dois CNPJs com
+                  a mesma razão social contam como um. */}
+              compradores diferentes, pelo nome no cadastro — quem comprou em duas campanhas conta uma vez
             </div>
           </Card>
 
-          <Card className="p-4">
-            <div className="text-xs text-slate-500">Todas as campanhas</div>
-            <div className="mt-1 text-2xl font-semibold tabular-nums text-slate-800">{dinheiro(totais.vendidoTotal)}</div>
-            <div className="mt-0.5 text-xs text-slate-500">
-              {totais.quantas} {totais.quantas === 1 ? "campanha registrada" : "campanhas registradas"}, todos os anos
-            </div>
-          </Card>
+          {/* O TERCEIRO CARTÃO MUDA COM O RECORTE, para nunca repetir o
+              primeiro. Num ano escolhido ele dá a história inteira (a moldura
+              do número de cima); em "todos os anos" isso SERIA O MESMO NÚMERO
+              duas vezes na mesma tela -- e número repetido faz quem lê procurar
+              a diferença que não existe. Ali ele passa a dar o melhor ano, que
+              é a pergunta seguinte natural. */}
+          {anoSel === "todos" && melhorAno ? (
+            <Card className="p-4">
+              <div className="text-xs text-slate-500">Melhor ano</div>
+              <div className="mt-1 flex items-baseline gap-2">
+                <span className="text-2xl font-semibold tabular-nums text-slate-800">{melhorAno.ano}</span>
+                <span className="text-sm tabular-nums text-slate-600">{dinheiro(melhorAno.vendido)}</span>
+              </div>
+              <div className="mt-0.5 text-xs text-slate-500">
+                {melhorAno.quantas} {melhorAno.quantas === 1 ? "campanha" : "campanhas"} ·{" "}
+                {melhorAno.compradores} {melhorAno.compradores === 1 ? "comprador" : "compradores"}
+              </div>
+            </Card>
+          ) : (
+            <Card className="p-4">
+              <div className="text-xs text-slate-500">Todas as campanhas</div>
+              <div className="mt-1 text-2xl font-semibold tabular-nums text-slate-800">{dinheiro(totalGeral.vendido)}</div>
+              <div className="mt-0.5 text-xs text-slate-500">
+                {totalGeral.quantas} {totalGeral.quantas === 1 ? "campanha registrada" : "campanhas registradas"}
+                {anos.length > 1 && `, de ${anos[anos.length - 1].ano} a ${anos[0].ano}`}
+              </div>
+            </Card>
+          )}
         </div>
       )}
 
-      {/* QUEM MAIS COMPROU NO ANO, somando as campanhas. É a pergunta feita de
-          fora para dentro: numa eleição interessa o candidato; no ano todo
-          interessa quem sustentou o faturamento de evento. Só aparece com mais
-          de uma campanha no ano — com uma só, seria repetir o ranking dela. */}
-      {totais.quantasNoAno > 1 && rankingGeral.length > 0 && (
+      {/* O CONTROLE QUE CONSEGUE FALHAR: a soma das campanhas contra as O.S.
+          distintas. Zero é o normal. Diferente de zero quer dizer que o número
+          grande acima está inflado, e a tela precisa dizer QUANTO — senão a
+          direção decide em cima de um faturamento que não existe. */}
+      {(totais.repetidas > 0 || repetidasGeral > 0) && (
+        <div className="rounded-lg bg-bad-50 px-3 py-2 text-xs text-bad-700">
+          {totais.repetidas > 0 ? (
+            <>
+              {totais.repetidas === 1
+                ? "1 O.S. está em mais de uma campanha deste recorte"
+                : `${totais.repetidas} O.S. estão em mais de uma campanha deste recorte`}{" "}
+              e por isso o total está {dinheiro(totais.valorRepetido)} a mais.{" "}
+            </>
+          ) : null}
+          {/* O cartão "Todas as campanhas" soma a lista INTEIRA. Escolhendo um
+              ano, uma O.S. repetida entre 2022 e 2026 não aparece no controle
+              do recorte e continuava inflando aquele número em silêncio. */}
+          {repetidasGeral > totais.repetidas && (
+            <>
+              Somando todos os anos são {repetidasGeral} O.S. repetidas, {dinheiro(totalGeral.valorRepetido)} a
+              mais no total geral.{" "}
+            </>
+          )}
+          Abra as campanhas e tire a O.S. de uma delas — cada venda pertence a um evento só.
+        </div>
+      )}
+
+      {/* CAMPANHA SEM ANO some de qualquer recorte, e o silêncio sobre isso é
+          o que faz a soma dos anos não fechar com o total geral. */}
+      {semAno > 0 && (
+        <div className="rounded-lg bg-warn-50 px-3 py-2 text-xs text-warn-800">
+          {semAno === 1 ? "Há 1 campanha sem ano preenchido" : `Há ${semAno} campanhas sem ano preenchido`}.{" "}
+          {anoSel === "todos"
+            /* Em "todos" ela ENTRA no número grande mas fica fora do quadro ano
+               a ano -- e é aí que a soma das linhas não fecha com o total. Eu
+               zerava o contador exatamente neste modo. */
+            ? "Ela entra no total acima, mas não no quadro ano a ano — por isso a soma das linhas não fecha com ele."
+            : "Ela não aparece neste recorte."}{" "}
+          <button
+            type="button"
+            className="underline hover:text-warn-900"
+            onClick={() => setAnoSel("todos")}
+            disabled={anoSel === "todos"}
+          >
+            {anoSel === "todos" ? "Está em “Todos os anos”" : "Ver em “Todos os anos”"}
+          </button>{" "}
+          e preencha o ano na ficha.
+        </div>
+      )}
+
+      <Comparativo linhas={comparativo} anoSel={anoSel} aoEscolher={setAnoSel} />
+
+      {/* QUEM MAIS COMPROU no recorte, somando as campanhas dele. É a pergunta
+          feita de fora para dentro: numa eleição interessa o candidato; no ano
+          todo interessa quem sustentou o faturamento de evento. Só aparece com
+          mais de uma campanha no recorte -- com uma só, seria repetir o
+          ranking dela. */}
+      {listaDoAno.length > 1 && rankingGeral.length > 0 && (
         <Card className="space-y-3">
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <Trophy size={15} className="text-slate-400" />
-            <span className="text-sm font-medium text-slate-800">Quem mais comprou em {ANO_HOJE}</span>
-            <span className="text-xs text-slate-400">somando as campanhas do ano</span>
+            <span className="text-sm font-medium text-slate-800">
+              Quem mais comprou {anoSel === "todos" ? "em campanhas" : `em ${anoSel}`}
+            </span>
+            <span className="text-xs text-slate-400">somando as campanhas do recorte</span>
           </div>
-          <Ranking itens={rankingGeral.slice(0, 10)} semOS={0} />
+          {/* O `semOS` do recorte, não zero: sem ele a coluna do ranking não
+              soma com o número grande logo acima e ninguém descobre por quê. */}
+          <Ranking itens={rankingGeral.slice(0, 10)} semOS={totais.semOS} />
         </Card>
       )}
 
-      {lista.length ? (
+      {listaDoAno.length ? (
         <div className="grid gap-3 sm:grid-cols-2">
-          {lista.map((c) => (
+          {listaDoAno.map((c) => (
             <CartaoCampanha key={c.id} c={c} aoAbrir={setAberta} />
           ))}
         </div>
+      ) : lista.length ? (
+        /* Tem campanha, só não NESTE ano. Dizer isso evita a leitura errada
+           ("sumiram") e mostra a saída no mesmo lugar. */
+        <Card className="py-8 text-center">
+          <div className="text-sm text-slate-500">
+            Nenhuma campanha em {anoSel}.{" "}
+            <button type="button" className="underline hover:text-slate-800" onClick={() => setAnoSel("todos")}>
+              Ver todos os anos
+            </button>
+          </div>
+        </Card>
       ) : (
         <Card className="py-10 text-center">
           <Megaphone size={28} className="mx-auto mb-3 text-slate-300" />

@@ -94,8 +94,8 @@ async function buscar(params) {
 export const lerCobertura = () => buscar({ cobertura: "1" }).then((r) => r.cobertura || null);
 
 /** Clientes cujo nome casa com o termo, com quanto cada um já comprou. */
-export const buscarClientes = (termo, desde) =>
-  buscar({ termo, desde }).then((r) => r.clientes || []);
+export const buscarClientes = (termo, desde, ate) =>
+  buscar({ termo, desde, ate }).then((r) => r.clientes || []);
 
 /* As O.S. de uma lista de ids. É como a tela de abertura confere TODOS os
    saldos contra o ERP -- sem isto ela mostraria a soma congelada de cada
@@ -104,6 +104,15 @@ export const buscarClientes = (termo, desde) =>
 export const buscarOrdensPorId = (ids) =>
   !ids?.length ? Promise.resolve([]) : buscar({ ids: ids.join("|") }).then((r) => r.itens || []);
 
-/** As O.S. dos clientes escolhidos (chaves normalizadas), da data em diante. */
-export const buscarOrdensDe = (chaves, desde) =>
-  buscar({ clientes: (chaves || []).join("|"), desde }).then((r) => r.itens || []);
+/* As O.S. dos clientes escolhidos (chaves normalizadas), dentro do período.
+   `ate` existe porque a campanha ACABA: uma eleição termina em outubro, e a
+   O.S. de dezembro para o mesmo candidato é outra venda.
+   `comItens` só é pedido pela campanha, para o ranking de produtos -- a lista
+   de escolher mostra número, cliente e valor, e carregar os itens de 2.000
+   O.S. para isso multiplicaria a resposta sem ninguém olhar. */
+export const buscarOrdensDe = (chaves, desde, ate, comItens) =>
+  buscar({
+    clientes: (chaves || []).join("|"),
+    desde, ate,
+    ...(comItens ? { itens: "1" } : {}),
+  }).then((r) => r.itens || []);

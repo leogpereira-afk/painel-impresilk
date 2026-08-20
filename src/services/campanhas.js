@@ -54,4 +54,12 @@ export const lerAnexoCampanha = (id, arquivo) =>
 
 /* A busca de O.S. é a MESMA da permuta -- mesma tabela, mesma Edge Function.
    Reexportada para a tela não ter de saber de qual módulo ela vem. */
-export { buscarClientes, buscarOrdensDe, buscarOrdensPorId, lerCobertura } from "./permutas.js";
+export { buscarClientes, buscarOrdensPorId, lerCobertura } from "./permutas.js";
+
+import { buscarOrdensDe as buscarOrdensDePermuta } from "./permutas.js";
+
+/* A campanha SEMPRE pede os itens: é deles que sai o ranking de produtos, que
+   responde "o que a gente vende nesse tipo de evento". A permuta não pede --
+   ela só pergunta quanto abateu, e os itens dobrariam a resposta à toa. */
+export const buscarOrdensDe = (chaves, desde, ate) =>
+  buscarOrdensDePermuta(chaves, desde, ate, true);

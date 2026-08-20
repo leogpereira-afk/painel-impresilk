@@ -154,3 +154,311 @@ export function extratoDaCampanha(campanha, ordens) {
     porData: [...r.linhas].sort((a, b) => String(a.data).localeCompare(String(b.data))),
   };
 }
+
+/* ------------------------------------------------------------ COMPARAR ANOS
+
+   "Geralmente conseguimos comparar e selecionar por anos" -- e no ramo dele o
+   ano não é uma linha do tempo contínua: eleição é de dois em dois anos, festa
+   da cidade é anual, e há anos sem campanha nenhuma.
+
+   SÃO DUAS PERGUNTAS DIFERENTES, e o arquivo responde as duas em lugares
+   separados de propósito:
+
+   1. `comparativoPorAno` compara TOTAL DE ANO com TOTAL DE ANO -- tudo o que
+      se vendeu em campanha em 2026 contra tudo o que se vendeu em 2025. Ele
+      pula apenas o ano que não teve campanha NENHUMA (senão a linha seria uma
+      queda de 100% contra o nada). Ele NÃO sabe de evento: se 2025 só teve a
+      festa da cidade e 2026 teve a eleição, a linha compara festa com eleição,
+      e é isso mesmo que um total de ano é.
+
+   2. `edicoesDoMesmoEvento` compara O MESMO EVENTO entre anos -- a eleição de
+      2026 contra a de 2022. É esta que responde "cresceu?".
+
+   Escrevi aqui, na primeira versão, que "NADA usa ano - 1" e que a comparação
+   era "sempre contra a edição anterior". Era falso: bastava existir a festa da
+   cidade em 2025 para o ano-1 voltar inteiro, e a tela mostrava "+2150% vs
+   2025" ao lado do faturamento -- eleição contra festa. O teste que eu tinha
+   escrito só montava anos VAZIOS no meio, ou seja, só o caso em que o código
+   acerta. Cada uma das duas perguntas agora tem o seu nome na tela e um teste
+   que consegue reprovar.
+*/
+
+/** Os anos que têm campanha, do mais novo para o mais velho. */
+export function anosDasCampanhas(lista) {
+  const conta = new Map();
+  for (const c of lista || []) {
+    const ano = String(c.ano || "").trim();
+    if (!/^\d{4}$/.test(ano)) continue;
+    conta.set(ano, (conta.get(ano) || 0) + 1);
+  }
+  return [...conta.entries()]
+    .map(([ano, quantas]) => ({ ano, quantas }))
+    .sort((a, b) => b.ano.localeCompare(a.ano));
+}
+
+/* Os números de UM ano, ou de todos.
+   `ano` vazio (ou "todos") junta tudo -- é o modo de olhar a história inteira.
+   Campanha SEM ano preenchido cai fora de qualquer recorte por ano, e a tela
+   precisa dizer isso: some sem aviso e o total do recorte não fecha com o
+   total geral, e ninguém descobre por quê. */
+export function totaisDoAno(lista, ano) {
+  const cem = (n) => Math.round(n * 100) / 100;
+  const todos = !ano || ano === "todos";
+  /* Compara APARADO dos dois lados. `anosDasCampanhas` já apara para montar os
+     chips; comparar cru aqui fazia o chip contar "2026 (2)" e o cartão somar só
+     uma, quando um registro chegava com "2026 " (restauração de backup ou
+     correção direta na tabela). Dois filtros com réguas diferentes sobre o
+     mesmo campo é sempre um número que não fecha. */
+  const oAno = String(ano ?? "").trim();
+  const dentro = todos ? (lista || []) : (lista || []).filter((c) => String(c.ano || "").trim() === oAno);
+  const semAno = (lista || []).filter((c) => !/^\d{4}$/.test(String(c.ano || "").trim())).length;
+
+  /* A MESMA O.S. EM DUAS CAMPANHAS INFLA O ANO -- e este total é a soma das
+     campanhas, então ela entraria duas vezes sem nada aparecer.
+     A tela BLOQUEIA marcar uma O.S. que já está em outra campanha, mas o
+     bloqueio só age na hora de marcar: duas abas marcando ao mesmo tempo
+     passam pelas duas, e dado antigo nunca passou por bloqueio nenhum.
+     Por isso o controle mora AQUI, e ele consegue falhar: compara a soma das
+     campanhas com a soma das O.S. DISTINTAS -- dois números que saem de
+     caminhos diferentes. Comparar um total consigo mesmo já me fez "provar"
+     que o desconto estava aplicado quando não estava. */
+  const vistas = new Set();
+  let repetidas = 0;
+  let valorRepetido = 0;
+  for (const c of dentro) {
+    for (const l of c.linhas || []) {
+      const k = String(l.id);
+      if (vistas.has(k)) { repetidas += 1; valorRepetido += l.valor; } else vistas.add(k);
+    }
+  }
+
+  return {
+    ano: todos ? "todos" : oAno,
+    quantas: dentro.length,
+    vendido: cem(dentro.reduce((s, c) => s + c.vendido, 0)),
+    // Compradores DISTINTOS: o mesmo candidato em duas campanhas do ano conta
+    // uma vez. Somar os de cada campanha inflaria o número.
+    compradores: new Set(dentro.flatMap((c) => c.porCliente.map((p) => p.chave))).size,
+    os: dentro.reduce((s, c) => s + c.linhas.length, 0),
+    // Quantas O.S. entraram em mais de uma campanha do recorte, e quanto isso
+    // está somando a mais. Zero é o normal; diferente de zero é dado para
+    // consertar, e a tela diz.
+    repetidas,
+    valorRepetido: cem(valorRepetido),
+    semOS: cem(dentro.reduce((s, c) => s + (c.semOS || 0), 0)),
+    /* Campanha sem ano vale nos DOIS modos, e por motivos diferentes:
+       - num ano escolhido, ela não aparece e a pessoa a procura;
+       - em "todos", ela ENTRA neste total mas fica de fora do quadro ano a ano,
+         e aí a soma das linhas não fecha com o número grande.
+       Eu zerava isto em "todos" justamente onde a divergência aparece. */
+    semAno,
+  };
+}
+
+/* A TABELA DE COMPARAÇÃO: uma linha por ano, da mais nova para a mais velha,
+   com a variação contra o ANO ANTERIOR QUE TEVE CAMPANHA (a linha de baixo).
+   Ano sem campanha nenhuma é pulado; ano com campanha de outro evento NÃO é --
+   ver o cabeçalho da seção. É comparação de total de ano, e a tela diz isso
+   com estas palavras.
+
+   `variacao` é null na linha mais antiga -- não há contra o que comparar, e
+   escrever 0% ali seria afirmar estabilidade que ninguém mediu. */
+export function comparativoPorAno(lista) {
+  const anos = anosDasCampanhas(lista).map((a) => a.ano);
+  const linhas = anos.map((ano) => ({ ...totaisDoAno(lista, ano) }));
+  return linhas.map((l, i) => {
+    const antes = linhas[i + 1] || null;
+    return {
+      ...l,
+      anoAnterior: antes ? antes.ano : null,
+      vendidoAnterior: antes ? antes.vendido : null,
+      diferenca: antes ? Math.round((l.vendido - antes.vendido) * 100) / 100 : null,
+      // Divisão por zero vira null, não Infinity: uma edição anterior que
+      // vendeu R$ 0 não tem percentual de crescimento, tem um valor novo.
+      variacao: antes && antes.vendido > 0 ? (l.vendido - antes.vendido) / antes.vendido : null,
+    };
+  });
+}
+
+/* AS OUTRAS EDIÇÕES DO MESMO EVENTO.
+ *
+ * Casa pelo NOME normalizado, e isso é uma dedução -- o mesmo tipo que já criou
+ * sósia na Central de Acessos. A diferença é o que se faz com ela: aqui ela só
+ * MOSTRA uma comparação ao lado, ninguém é somado nem tem acesso concedido, e a
+ * tela diz que o critério é o nome. Se o Leonardo escrever "Eleições 2022" num
+ * ano e "Eleição Municipal" no outro, as duas não se encontram -- e é por isso
+ * que a tela avisa o critério em vez de fingir que sabe.
+ *
+ * Nunca inclui a própria campanha, nem outra do MESMO ano: duas campanhas com o
+ * mesmo nome no mesmo ano são um cadastro duplicado, não uma edição anterior.
+ */
+export function edicoesDoMesmoEvento(lista, campanha) {
+  const nome = chaveCliente(campanha?.nome || "");
+  /* SEM ANO DE 4 DÍGITOS NÃO HÁ EDIÇÃO. Uma campanha com o ano em branco não
+     pode ser "a edição anterior" de coisa nenhuma -- e era o que acontecia: a
+     aberta aparecia como "primeira edição" e a linha de cima dizia "vs " sem
+     ano nenhum. */
+  const ano = String(campanha?.ano || "").trim();
+  if (!nome || !/^\d{4}$/.test(ano)) return [];
+  return (lista || [])
+    .filter((c) => {
+      const a = String(c.ano || "").trim();
+      return c.id !== campanha?.id && /^\d{4}$/.test(a) && a !== ano
+        && chaveCliente(c.nome || "") === nome;
+    })
+    .sort((a, b) => String(b.ano || "").trim().localeCompare(String(a.ano || "").trim()));
+}
+
+/* DUAS CAMPANHAS COM O MESMO NOME NO MESMO ANO são cadastro duplicado, não
+   duas edições. `edicoesDoMesmoEvento` deixa as duas passarem quando o ano
+   delas não é o da campanha aberta -- e aí a comparação encadeada compara uma
+   gêmea com a outra e imprime "-33% vs 2022" contra ela mesma.
+   Quem monta a cadeia precisa saber quais anos vieram repetidos para não
+   comparar dentro do mesmo ano e para poder avisar. */
+export function anosRepetidos(edicoes) {
+  const conta = new Map();
+  for (const e of edicoes || []) {
+    const a = String(e.ano || "").trim();
+    conta.set(a, (conta.get(a) || 0) + 1);
+  }
+  return [...conta.entries()].filter(([, n]) => n > 1).map(([a]) => a);
+}
+
+/* ------------------------------------------------- O QUE FOI VENDIDO, E QUANDO
+
+   Três perguntas que o total não responde:
+     quem comprou mais  ·  quando as compras aconteceram  ·  O QUE foi vendido
+*/
+
+/** O maior comprador da campanha, com a fatia dele. Null quando não há nenhum. */
+export function maiorComprador(resumo) {
+  const c = (resumo?.porCliente || [])[0];
+  if (!c) return null;
+  return {
+    ...c,
+    // Fatia sobre o que passou por O.S.: a venda sem O.S. não é de ninguém.
+    fatia: resumo.vendidoOS > 0 ? c.valor / resumo.vendidoOS : null,
+    // Quanto ele comprou a mais que o segundo -- é o que diz se a campanha se
+    // apoia numa perna só. "R$ 35 mil" sozinho não responde isso.
+    sobreOSegundo: (resumo.porCliente || [])[1]
+      ? Math.round((c.valor - resumo.porCliente[1].valor) * 100) / 100
+      : null,
+  };
+}
+
+/* AS COMPRAS MÊS A MÊS.
+   Uma campanha não vende parelho: a eleição concentra em agosto e setembro, a
+   festa da cidade na semana dela. Ver a curva é o que diz QUANDO montar equipe
+   na próxima -- e o total do evento, sozinho, esconde isso completamente.
+
+   Meses sem venda NO MEIO entram com zero: sem eles, três compras em janeiro,
+   abril e setembro desenham três barras coladas e a campanha parece contínua.
+   Fora das pontas não se inventa nada. */
+export function comprasPorMes(linhas) {
+  const cem = (n) => Math.round(n * 100) / 100;
+  const mapa = new Map();
+  for (const l of linhas || []) {
+    const mes = String(l.data || "").slice(0, 7);
+    if (!/^\d{4}-\d{2}$/.test(mes)) continue;
+    const m = mapa.get(mes) || { mes, qtd: 0, valor: 0 };
+    m.qtd += 1;
+    m.valor += l.valor;
+    mapa.set(mes, m);
+  }
+  if (!mapa.size) return [];
+  const chaves = [...mapa.keys()].sort();
+  const fim = chaves[chaves.length - 1];
+  const saida = [];
+  let atual = chaves[0];
+  // Guarda de segurança: 600 meses são 50 anos. Data corrompida no cadastro não
+  // pode virar um laço infinito na tela.
+  for (let i = 0; atual <= fim && i < 600; i += 1) {
+    saida.push(mapa.get(atual) || { mes: atual, qtd: 0, valor: 0 });
+    const [a, m] = atual.split("-").map(Number);
+    atual = m === 12 ? `${a + 1}-01` : `${a}-${String(m + 1).padStart(2, "0")}`;
+  }
+  return saida.map((m) => ({ ...m, valor: cem(m.valor) }));
+}
+
+/** Nome de produto comparável: sem acento, sem caixa, sem espaço dobrado. */
+export function chaveProduto(nome) {
+  return String(nome ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+    .replace(/\s+/g, " ")
+    .toUpperCase();
+}
+
+/* O RANKING DOS PRODUTOS VENDIDOS na campanha.
+ *
+ * Sai dos ITENS das O.S. marcadas, não do cabeçalho -- é a diferença entre
+ * saber QUANTO a eleição rendeu e saber que ela rendeu em placa de PVC.
+ *
+ * O QUE ELE DEVOLVE JUNTO, E POR QUÊ: um ranking vazio tem duas causas
+ * opostas -- "essas O.S. não têm item" e "a carga ainda não gravou os itens
+ * dessas O.S." -- e na tela as duas aparecem iguais. Sem a cobertura ao lado,
+ * um ranking pela metade parece completo, e a direção decide o estoque da
+ * próxima eleição com metade da venda invisível. Zero não é resultado.
+ */
+export function produtosDaCampanha(campanha, ordens) {
+  const cem = (n) => Math.round(n * 100) / 100;
+  const aceitas = Object.keys(campanha?.os || {}).map(String);
+  const porId = new Map((ordens || []).map((o) => [String(o.id), o]));
+
+  const cobertura = { aceitas: aceitas.length, comItens: 0, semItens: 0, foraDaBusca: 0 };
+  const mapa = new Map();
+  for (const id of aceitas) {
+    const o = porId.get(id);
+    // A O.S. não veio na busca: cancelada no ERP, ou fora do período da
+    // campanha. Os itens dela são desconhecidos, não inexistentes.
+    if (!o) { cobertura.foraDaBusca += 1; continue; }
+    const itens = Array.isArray(o.itens) ? o.itens : [];
+    if (!itens.length) { cobertura.semItens += 1; continue; }
+    cobertura.comItens += 1;
+    for (const it of itens) {
+      const nome = String(it?.produto ?? "").trim();
+      if (!nome) continue;
+      const k = chaveProduto(nome);
+      const g = mapa.get(k) || {
+        chave: k, produto: nome, categoria: String(it?.categoria ?? ""),
+        quantidade: 0, valor: 0, os: new Set(),
+      };
+      g.quantidade += num(it?.quantidade);
+      g.valor += num(it?.valorTotal);
+      g.os.add(id);
+      mapa.set(k, g);
+    }
+  }
+
+  const itens = [...mapa.values()]
+    .map((g) => ({ ...g, quantidade: cem(g.quantidade), valor: cem(g.valor), os: g.os.size }))
+    .sort((a, b) => b.valor - a.valor);
+
+  return {
+    itens,
+    cobertura,
+    total: cem(itens.reduce((s, i) => s + i.valor, 0)),
+    // A tela precisa saber se pode chamar isto de "os produtos da campanha" ou
+    // se tem de dizer "dos que já foram lidos".
+    completo: cobertura.semItens === 0 && cobertura.foraDaBusca === 0 && cobertura.comItens > 0,
+  };
+}
+
+/* AS CATEGORIAS, dobrando o ranking de produtos.
+   "Placa PVC 3mm" e "Placa PVC 5mm" são dois produtos e uma decisão só. */
+export function categoriasDosProdutos(produtos) {
+  const cem = (n) => Math.round(n * 100) / 100;
+  const mapa = new Map();
+  for (const p of produtos?.itens || []) {
+    const nome = p.categoria || "sem categoria";
+    const g = mapa.get(nome) || { categoria: nome, quantidade: 0, valor: 0, produtos: 0 };
+    g.quantidade += p.quantidade;
+    g.valor += p.valor;
+    g.produtos += 1;
+    mapa.set(nome, g);
+  }
+  return [...mapa.values()]
+    .map((g) => ({ ...g, quantidade: cem(g.quantidade), valor: cem(g.valor) }))
+    .sort((a, b) => b.valor - a.valor);
+}
