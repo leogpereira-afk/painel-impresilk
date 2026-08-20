@@ -193,6 +193,19 @@ Deno.serve(async (req: Request) => {
         const clientes = String(url.searchParams.get("clientes") ?? "")
           .split("|").map((x) => x.trim()).filter(Boolean).slice(0, 20);
         const termo = String(url.searchParams.get("termo") ?? "").trim().slice(0, 80);
+        /* ATE QUANDO. A campanha tem inicio E FIM -- uma eleicao acaba em
+           outubro, e a O.S. de dezembro para o mesmo cliente e outra venda.
+           Sem o corte de cima, a lista de escolher trazia a carteira inteira
+           do candidato desde o inicio do ano ate hoje. */
+        const ate = String(url.searchParams.get("ate") ?? "").slice(0, 10);
+        /* OS ITENS SO DESCEM QUANDO PEDIDOS (`itens=1`). A lista de escolher
+           mostra numero, cliente e valor -- carregar os itens de 2.000 O.S.
+           para isso multiplicaria a resposta por dez sem ninguem olhar. Quem
+           pede e o ranking de produtos da campanha aberta, que trabalha sobre
+           dezenas de O.S. ja marcadas. */
+        const comItens = url.searchParams.get("itens") === "1";
+        const COLUNAS = "id, numero, cliente, cnpj, data, valor, bruto, desconto";
+        const colunas = comItens ? `${COLUNAS}, itens` : COLUNAS;
 
         /* POR ID: as O.S. que as permutas ja aceitaram, para a tela de abertura
            poder conferir TODOS os saldos contra o ERP de uma vez. Sem isto ela
@@ -203,7 +216,7 @@ Deno.serve(async (req: Request) => {
           .split("|").map((x) => x.trim()).filter(Boolean).slice(0, 1000);
         if (ids.length) {
           const { data, error } = await sb.from("painel_ordens")
-            .select("id, numero, cliente, cnpj, data, valor, bruto, desconto")
+            .select(colunas)
             .in("id", ids);
           if (error) throw new Error(error.message);
           return json({ itens: data ?? [] });
@@ -213,11 +226,12 @@ Deno.serve(async (req: Request) => {
         // nomes que casam com o termo, para a pessoa escolher.
         if (clientes.length) {
           let q = sb.from("painel_ordens")
-            .select("id, numero, cliente, cnpj, data, valor, bruto, desconto")
+            .select(colunas)
             .in("cliente_chave", clientes)
             .order("data", { ascending: false })
             .limit(2000);
           if (/^\d{4}-\d{2}-\d{2}$/.test(desde)) q = q.gte("data", desde);
+          if (/^\d{4}-\d{2}-\d{2}$/.test(ate)) q = q.lte("data", ate);
           const { data, error } = await q;
           if (error) throw new Error(error.message);
           return json({ itens: data ?? [] });
@@ -233,7 +247,13 @@ Deno.serve(async (req: Request) => {
         if (url.searchParams.get("cobertura") === "1") {
           const { data, error } = await sb.rpc("painel_ordens_cobertura");
           if (error) throw new Error(error.message);
-          return json({ cobertura: data?.[0] ?? null });
+          /* QUANTAS O.S. JA TEM ITEM GRAVADO. Vai junto porque um ranking de
+             produtos VAZIO tem duas causas opostas -- "essas O.S. nao tem item"
+             e "a carga ainda nao passou por elas" -- e as duas aparecem iguais
+             na tela. Medicao que da zero pode ser "nao cheguei la": ja reportei
+             o sistema mais pesado da casa como o mais leve por nao distinguir. */
+          const { data: it } = await sb.rpc("ordens_cobertura_itens");
+          return json({ cobertura: { ...(data?.[0] ?? {}), itens: it?.[0] ?? null } });
         }
 
         if (termo.length < 2) return json({ clientes: [] });

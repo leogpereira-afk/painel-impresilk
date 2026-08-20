@@ -100,6 +100,28 @@ Deno.serve(async (req: Request) => {
       bruto: Number(o?.bruto) || Number(o?.valor) || 0,
       desconto: Number(o?.desconto) || 0,
       vendedor: String(o?.vendedor ?? ""),
+      /* OS ITENS, para o ranking de produtos das campanhas.
+         Chegam ja normalizados pelo normOS (com as unioes rateadas). Vem
+         PODADOS ao que a pergunta usa -- o item cru do ERP tem dezenas de
+         campos, e a tabela guardaria 20.800 O.S. de lixo.
+
+         AUSENTE NAO E VAZIO: quando a carga nao mandou `itens` (lote antigo,
+         ou uma O.S. do cache velho que nao tem cabecalho), o campo fica de
+         FORA do upsert e o que ja estava na linha permanece. Mandar `[]` aqui
+         apagaria os itens que uma carga boa ja tinha gravado -- foi assim que
+         a carga leve zerou 1.536 descontos. */
+      ...(Array.isArray(o?.itens) && o.itens.length
+        ? {
+            itens: o.itens.slice(0, 200).map((it: any) => ({
+              produto: String(it?.produto ?? "").slice(0, 160),
+              categoria: String(it?.categoria ?? "").slice(0, 80),
+              modelo: String(it?.modelo ?? "").slice(0, 80),
+              quantidade: Number(it?.quantidade) || 0,
+              valorUnit: Number(it?.valorUnit) || 0,
+              valorTotal: Number(it?.valorTotal) || 0,
+            })),
+          }
+        : {}),
       atualizado_em: new Date().toISOString(),
     })).filter((o: any) => o.id);
     const { error } = await sb.from("painel_ordens").upsert(limpas, { onConflict: "id" });

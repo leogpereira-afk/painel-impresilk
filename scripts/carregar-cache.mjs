@@ -163,6 +163,13 @@ async function gravarOrdensTabela(ordens) {
         bruto: Math.round(Number(o.valorBruto) * 100) / 100,
         desconto: Math.round((Number(o.desconto) || 0) * 100) / 100,
         vendedor: String(o.vendedor ?? ""),
+        /* OS ITENS VAO JUNTO. E o que responde "o que a gente vende nesse tipo
+           de evento" na tela de Campanhas -- placa, lona, adesivo. Sem eles a
+           campanha so sabe QUANTO vendeu, nunca O QUE.
+           `normOS` ja rateou as unioes do Mubisys, entao a soma dos itens
+           fecha com o bruto da O.S.; mandar o item cru traria de volta o balde
+           "Outros" de 23% que ja custou caro. */
+        itens: Array.isArray(o.itens) ? o.itens : [],
       };
     });
     const r = await chamar({ action: "ordens", linhas });
