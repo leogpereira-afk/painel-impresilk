@@ -44,6 +44,15 @@ on:
         description: "Historico a partir de (AAAA-MM-DD). Vazio = o que estiver na tela de Permutas"
         type: string
         default: ""
+      # ATE QUANDO. Existe porque a carga passou a levar os ITENS de cada O.S.
+      # (ranking de produtos das campanhas) e os 7 anos deixaram de caber nos 45
+      # minutos do job: ela morreu no ano 2020, com 2021 e 2020 pela metade.
+      # Com o fim, da para completar por faixa -- a gravacao e upsert por id,
+      # entao rodar de novo um ano que ja veio nao duplica nada.
+      historicoAte:
+        description: "Historico ATE (AAAA-MM-DD). Vazio = hoje. Use para completar so os anos que faltam"
+        type: string
+        default: ""
 
 concurrency:
   # Uma carga por vez. Duas simultaneas so castigam a API do Mubisys e podem
@@ -77,6 +86,7 @@ jobs:
           MUBI_PUBLIC_KEY: ${{ secrets.MUBI_PUBLIC_KEY }}
           MUBI_TOKEN: ${{ secrets.MUBI_TOKEN }}
           HISTORICO_DESDE: ${{ inputs.historicoDesde }}
+          HISTORICO_ATE: ${{ inputs.historicoAte }}
         run: |
           # O cron das 07:00 (e o botao "realizado") fazem SO o fluxo mes a mes.
           # O cron das 06:00 e o botao "completo" fazem a carga do ano.

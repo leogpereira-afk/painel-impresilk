@@ -124,9 +124,26 @@ Deno.serve(async (req: Request) => {
         : {}),
       atualizado_em: new Date().toISOString(),
     })).filter((o: any) => o.id);
-    const { error } = await sb.from("painel_ordens").upsert(limpas, { onConflict: "id" });
-    if (error) return json({ erro: error.message }, 500);
-    return json({ ok: true, gravadas: limpas.length });
+    /* DOIS UPSERTS, e nao um. A linha acima omite `itens` quando a carga nao
+       mandou nenhum -- e assim que "ausente" continua diferente de "vazio" e o
+       lote leve nao apaga os itens que uma carga boa ja gravou.
+       So que o PostgREST monta UMA lista de colunas com a UNIAO das chaves do
+       lote: bastava uma linha COM `itens` para a coluna entrar na lista, e as
+       linhas sem ela iam com NULL explicito -> `violates not-null constraint`,
+       e o lote INTEIRO de mil O.S. voltava 500. Foi o que derrubou 2021 e 2020
+       na carga do historico (anos antigos tem O.S. sem item nenhum, entao os
+       lotes vinham misturados; 2026-2022 passaram porque eram todos com item).
+       Separados, cada upsert tem um conjunto de chaves uniforme: o das linhas
+       sem `itens` nao inclui a coluna, entao no INSERT vale o default '[]' e no
+       conflito ela fica de fora do SET -- o valor que ja estava la permanece. */
+    const comItens = limpas.filter((o: any) => o.itens !== undefined);
+    const semItens = limpas.filter((o: any) => o.itens === undefined);
+    for (const grupo of [comItens, semItens]) {
+      if (!grupo.length) continue;
+      const { error } = await sb.from("painel_ordens").upsert(grupo, { onConflict: "id" });
+      if (error) return json({ erro: error.message }, 500);
+    }
+    return json({ ok: true, gravadas: limpas.length, comItens: comItens.length });
   }
   /* De quando puxar o historico de O.S.: a MAIS ANTIGA que alguma permuta
      pediu. A data mora dentro de cada permuta, porque cada troca tem o seu
