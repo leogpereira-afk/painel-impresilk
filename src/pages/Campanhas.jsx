@@ -29,7 +29,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowLeft, Plus, Trash2, Search, X, AlertTriangle, Megaphone, Building2,
   Archive, Paperclip, Download, CalendarRange, Trophy, TrendingUp, TrendingDown, Minus,
-  Package, Crown, CalendarDays,
+  Crown, Check,
 } from "lucide-react";
 import {
   lerCampanhas, mexerNaCampanha, removerCampanha, anexarNaCampanha, lerAnexoCampanha,
@@ -1291,6 +1291,59 @@ export default function Campanhas() {
     [aberta, ordens, mexer],
   );
 
+  /* MARCAR (OU TIRAR) VÁRIAS DE UMA VEZ.
+   *
+   * Continua sendo um ATO da direção, não uma regra: o que muda é que o ato
+   * cobre a lista que está na tela em vez de uma linha. A tela nunca deduz
+   * quais O.S. são do evento -- ela só deixa dizer "estas todas são".
+   *
+   * UMA GRAVAÇÃO SÓ, com o patch inteiro. Em laço, cada pedido parte do
+   * registro que leu e o seguinte grava por cima: foi assim que marcações do
+   * painel se atropelaram (ov_orc/ov_rec) e que uma marcação de cliente sumiu
+   * na permuta. O `osPatch` já aceita o mapa inteiro, e o banco percorre chave
+   * a chave dentro da MESMA transação com a linha travada.
+   */
+  const marcarVarias = useCallback(
+    async (linhas, ligar) => {
+      if (!aberta || !linhas.length) return;
+      const patch = {};
+      for (const o of linhas) {
+        if (!ligar) { patch[o.id] = null; continue; }
+        const bruta = ordens.find((x) => String(x.id) === String(o.id));
+        const ficha = fichaDaOS(bruta || o);
+        /* Uma ficha ruim no meio faria o banco PULAR aquela chave em silêncio
+           (ele só aplica objeto ou nulo) -- e o lote voltaria "sem erro" com
+           uma O.S. a menos. Melhor não gravar nada e dizer qual. */
+        if (!ficha || typeof ficha !== "object") {
+          setAviso({ tom: "erro", texto: `Não consegui montar a ficha da O.S. ${o.numero || o.id}. Recarregue a página e tente de novo.` });
+          return;
+        }
+        patch[o.id] = ficha;
+      }
+      const gravado = await mexer(aberta, { osPatch: patch });
+      if (!gravado) return;   // erro de rede já avisado pelo mexer
+      /* CONFERE O EFEITO, uma a uma. "Não deu erro" nunca foi prova de que
+         gravou, e num lote de quarenta uma que não entrou passaria batido --
+         a conta ficaria menor e ninguém saberia de quanto. */
+      const os = gravado.os || {};
+      const faltaram = linhas.filter((o) => !!os[o.id] !== ligar);
+      if (faltaram.length) {
+        setAviso({
+          tom: "erro",
+          texto: `${linhas.length - faltaram.length} de ${linhas.length} ${ligar ? "entraram" : "saíram"}. Não consegui ${ligar ? "marcar" : "tirar"}: ${faltaram.slice(0, 5).map((o) => o.numero || o.id).join(", ")}${faltaram.length > 5 ? ` e mais ${faltaram.length - 5}` : ""}. Tente de novo.`,
+        });
+      } else {
+        setAviso({
+          tom: "ok",
+          texto: ligar
+            ? `${linhas.length} O.S. entraram na campanha.`
+            : `${linhas.length} O.S. saíram da campanha.`,
+        });
+      }
+    },
+    [aberta, ordens, mexer],
+  );
+
   const ligarCliente = useCallback(
     async (c) => {
       if (!aberta) return;
@@ -1410,6 +1463,18 @@ export default function Campanhas() {
     return livres.filter((o) => o.numero.toLowerCase().includes(t) || o.cliente.toLowerCase().includes(t));
   }, [paraEscolher, buscaOS]);
   const jaMarcadasAqui = useMemo(() => paraEscolher.filter((o) => o.nesta).length, [paraEscolher]);
+  /* O QUE O BOTÃO "MARCAR TODAS" REALMENTE PEGA: o que está na tela AGORA,
+     menos as presas em outra campanha (que nem clicáveis são). O valor vai no
+     rótulo porque marcar quarenta O.S. muda o número do evento na hora. */
+  const podeMarcarTodas = useMemo(
+    () => paraEscolherFiltradas.filter((o) => !o.presaEm),
+    [paraEscolherFiltradas],
+  );
+  const presasNaLista = paraEscolherFiltradas.length - podeMarcarTodas.length;
+  const valorParaMarcar = useMemo(
+    () => Math.round(podeMarcarTodas.reduce((s, o) => s + (Number(o.valor) || 0), 0) * 100) / 100,
+    [podeMarcarTodas],
+  );
 
   const clientesAchados = useMemo(() => {
     const jaTem = new Set(chavesDaCampanha);
@@ -1790,6 +1855,26 @@ export default function Campanhas() {
           sub="É o que forma o total. Agrupadas por CNPJ quando há mais de um comprador."
           aberta={abertas.aceitas}
           aoAlternar={alternar}
+          acao={
+            /* A VÁLVULA DO LOTE. Marcar quarenta de uma vez é um clique;
+               desmarcar uma a uma seriam quarenta. Sem isto, um "marcar todas"
+               no cliente errado vira meia hora de conserto. */
+            resumo.linhas.length > 1 && (
+              <button
+                type="button"
+                className="btn-ghost"
+                disabled={salvando}
+                onClick={() => {
+                  if (!window.confirm(
+                    `Tirar as ${resumo.linhas.length} O.S. de “${campanha.nome || "esta campanha"}”? Elas voltam para a lista de marcar.`
+                  )) return;
+                  marcarVarias(resumo.linhas, false);
+                }}
+              >
+                <X size={15} /> Tirar todas
+              </button>
+            )
+          }
         >
           {!resumo.linhas.length ? (
             <Empty>Nenhuma O.S. marcada ainda. Marque abaixo as que são deste evento.</Empty>
@@ -1941,11 +2026,53 @@ export default function Campanhas() {
           ) : buscandoOS ? (
             <Empty>Procurando as O.S. desde {dataLonga(desde)}…</Empty>
           ) : paraEscolherFiltradas.length ? (
-            <div>
-              {paraEscolherFiltradas.map((o) => (
-                <LinhaEscolher key={o.id} o={o} aoMarcar={marcarOS} onde="campanha" />
-              ))}
-            </div>
+            <>
+              {/* MARCAR TODAS = todas as que ESTÃO NA TELA, e o botão diz
+                  quantas e quanto. "Todas" sem número é a promessa que faz
+                  alguém marcar quarenta achando que eram doze -- e com o filtro
+                  de busca ligado, "todas" quer dizer outra coisa a cada letra
+                  digitada. As presas em outra campanha ficam de fora: elas nem
+                  são clicáveis uma a uma. */}
+              {podeMarcarTodas.length > 1 && (
+                <div className="mb-2 flex flex-wrap items-center justify-between gap-2 rounded-lg bg-slate-50 px-3 py-2">
+                  <span className="text-xs text-slate-600">
+                    {buscaOS.trim()
+                      ? `${podeMarcarTodas.length} O.S. casam com “${buscaOS.trim()}”`
+                      : `${podeMarcarTodas.length} O.S. ainda fora da campanha`}
+                    {" · "}
+                    <span className="tabular-nums">{dinheiro(valorParaMarcar)}</span>
+                    {presasNaLista > 0 && (
+                      <span className="text-slate-400">
+                        {" "}({presasNaLista} {presasNaLista === 1 ? "está" : "estão"} em outra campanha e fica
+                        {presasNaLista === 1 ? "" : "m"} de fora)
+                      </span>
+                    )}
+                  </span>
+                  <button
+                    type="button"
+                    className="btn-ghost h-8 px-3 text-sm"
+                    disabled={salvando}
+                    onClick={() => {
+                      /* CONFIRMA porque isto mexe direto no número do evento, e
+                         desfazer quarenta uma a uma seria pior que o problema
+                         que o botão resolve (por isso existe o "Tirar todas"
+                         na seção de cima). */
+                      if (!window.confirm(
+                        `Marcar ${podeMarcarTodas.length} O.S. (${dinheiro(valorParaMarcar)}) como parte de “${campanha.nome || "esta campanha"}”?`
+                      )) return;
+                      marcarVarias(podeMarcarTodas, true);
+                    }}
+                  >
+                    <Check size={15} strokeWidth={2.4} /> Marcar as {podeMarcarTodas.length}
+                  </button>
+                </div>
+              )}
+              <div>
+                {paraEscolherFiltradas.map((o) => (
+                  <LinhaEscolher key={o.id} o={o} aoMarcar={marcarOS} onde="campanha" />
+                ))}
+              </div>
+            </>
           ) : (
             <Empty>
               {buscaOS.trim()

@@ -261,19 +261,64 @@ export const quandoFoi = (iso) => {
  * Tipo desconhecido não some: aparece cru. Um evento novo no servidor que a
  * tela ainda não sabe contar tem de ser VISTO -- histórico que engole o que
  * não entende deixa de servir para conferir. */
+/* UM CLIQUE, UMA LINHA -- mesmo quando o clique foi um lote.
+ *
+ * "Marcar todas" grava quarenta O.S. numa transação só, e o servidor carimba um
+ * evento por O.S. -- está certo: cada uma entrando é um fato, e é assim que se
+ * reconstrói o número depois. Só que quarenta linhas iguais no histórico
+ * enterram todo o resto, e o histórico existe para ser LIDO.
+ *
+ * Junta na leitura, nunca na gravação. Os eventos do mesmo lote têm o mesmo
+ * carimbo de hora exato (a função calcula `v_agora` uma vez só), então agrupar
+ * por tipo+quem+instante é exato, não é heurística. Os números vão na linha,
+ * para nada se perder.
+ */
+function agrupar(eventos) {
+  const saida = [];
+  for (const e of eventos) {
+    const ultimo = saida[saida.length - 1];
+    if (ultimo && ultimo.tipo === e.tipo && ultimo.em === e.em
+        && (ultimo.quemNome || ultimo.quem) === (e.quemNome || e.quem)
+        && (e.tipo === "aceitouOS" || e.tipo === "tirouOS")) {
+      ultimo.juntos.push(e);
+      continue;
+    }
+    saida.push({ ...e, juntos: [e] });
+  }
+  return saida;
+}
+
 export function Historico({ eventos, conta }) {
   if (!eventos.length) return <Empty>Nada registrado ainda.</Empty>;
   return (
     <ol className="space-y-2">
-      {eventos.map((e, i) => (
-        <li key={`${e.em}-${i}`} className="flex gap-3 text-sm">
-          <span className="w-32 shrink-0 text-[11px] tabular-nums text-slate-400">{quandoFoi(e.em)}</span>
-          <span className="min-w-0 text-slate-600">
-            <span className="font-medium text-slate-800">{e.quemNome || e.quem}</span>{" "}
-            {(conta[e.tipo] || (() => e.tipo))(e)}
-          </span>
-        </li>
-      ))}
+      {agrupar(eventos).map((e, i) => {
+        const n = e.juntos.length;
+        const total = e.juntos.reduce((s, x) => s + (Number(x.valor) || 0), 0);
+        const numeros = e.juntos.map((x) => x.numero).filter(Boolean);
+        return (
+          <li key={`${e.em}-${i}`} className="flex gap-3 text-sm">
+            <span className="w-32 shrink-0 text-[11px] tabular-nums text-slate-400">{quandoFoi(e.em)}</span>
+            <span className="min-w-0 text-slate-600">
+              <span className="font-medium text-slate-800">{e.quemNome || e.quem}</span>{" "}
+              {n === 1 ? (
+                (conta[e.tipo] || (() => e.tipo))(e)
+              ) : (
+                <>
+                  {e.tipo === "aceitouOS" ? "marcou" : "tirou"} {n} O.S. de uma vez ({moedaCheia(total)})
+                  {numeros.length > 0 && (
+                    <span className="text-slate-400">
+                      {" — "}
+                      {numeros.slice(0, 6).join(", ")}
+                      {numeros.length > 6 && ` e mais ${numeros.length - 6}`}
+                    </span>
+                  )}
+                </>
+              )}
+            </span>
+          </li>
+        );
+      })}
     </ol>
   );
 }
