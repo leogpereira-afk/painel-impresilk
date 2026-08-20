@@ -21,6 +21,7 @@ export const MODULOS = [
   { id: "manutencoes", nome: "Manutenções", sub: "carros, máquinas e prédio: gasto e histórico" },
   { id: "patrimonio", nome: "Patrimônio", sub: "o que a empresa tem, por setor, com etiqueta e valor" },
   { id: "permutas", nome: "Permutas", sub: "o que o parceiro nos deu, as O.S. que ele já gastou e o saldo" },
+  { id: "campanhas", nome: "Campanhas", sub: "quanto vendemos para cada evento e quem comprou" },
   { id: "configuracoes", nome: "Configurações", sub: "motivos, régua de cobrança e parâmetros — vale para todo mundo" },
 ];
 
@@ -32,6 +33,10 @@ export const COM_DINHEIRO = new Set([
   // e o saldo. Sem o aviso de R$, quem concede o módulo não vê que está
   // abrindo dinheiro — e o aviso existe justamente para isso.
   "permutas",
+  // Campanha mostra o faturamento do evento e quanto CADA comprador gastou --
+  // o que um concorrente pagaria para ver. Quem concede o módulo precisa saber
+  // que está abrindo isso.
+  "campanhas",
 ]);
 
 // Ids que já foram módulos e não são mais (as telas saíram do menu e das rotas

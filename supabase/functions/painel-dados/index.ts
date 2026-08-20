@@ -168,7 +168,7 @@ Deno.serve(async (req: Request) => {
         // "produtos" e modulo APOSENTADO (ver APOSENTADOS em src/lib/modulos.js):
         // ninguem consegue mais receber esse id, entao na pratica so master/`*`
         // carregava as ordens. "permutas" e o modulo vivo que precisa delas.
-        const g = await exigirSessao(req, ["produtos", "permutas"]);
+        const g = await exigirSessao(req, ["produtos", "permutas", "campanhas"]);
         if (g.resposta) return g.resposta;
         const [os, status] = await Promise.all([lerCacheComData("ordens"), lerCache("status")]);
         talvezAquecer(status);
@@ -186,7 +186,7 @@ Deno.serve(async (req: Request) => {
          Aqui desce SO o que foi pedido: os clientes que casam com o que a
          pessoa digitou, ou as O.S. de um cliente escolhido. */
       case "ordensBusca": {
-        const g = await exigirSessao(req, ["permutas"]);
+        const g = await exigirSessao(req, ["permutas", "campanhas"]);
         if (g.resposta) return g.resposta;
         const url = new URL(req.url);
         const desde = String(url.searchParams.get("desde") ?? "").slice(0, 10);

@@ -32,6 +32,7 @@ const Compromissos = lazy(() => import("./pages/Compromissos.jsx"));
 const Gestao = lazy(() => import("./pages/Gestao.jsx"));
 const Manutencoes = lazy(() => import("./pages/Manutencoes.jsx"));
 const Permutas = lazy(() => import("./pages/Permutas.jsx"));
+const Campanhas = lazy(() => import("./pages/Campanhas.jsx"));
 const Patrimonio = lazy(() => import("./pages/Patrimonio.jsx"));
 
 import { getSessao, aoMudarSessao, podeAbrir } from "./lib/sessao.js";
@@ -157,6 +158,14 @@ export default function App() {
           element={
             <Restrito modulo="permutas" sessao={sessao}>
               <Permutas />
+            </Restrito>
+          }
+        />
+        <Route
+          path="/campanhas"
+          element={
+            <Restrito modulo="campanhas" sessao={sessao}>
+              <Campanhas />
             </Restrito>
           }
         />

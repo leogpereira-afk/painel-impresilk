@@ -37,7 +37,7 @@ const sb = createClient(SUPABASE_URL, SERVICE_KEY, { auth: { persistSession: fal
 // "assinaturas" sao as contas dos SISTEMAS (Supabase, GitHub, Claude...): dia
 // do vencimento, valor e o mes que ja foi pago. Mesmo mecanismo, um registro
 // por servico.
-const OVERLAYS = new Set(["ov_rec", "ov_orc", "marketing", "bancos", "glossario", "compromissos", "manutencoes", "patrimonio", "setores", "assinaturas", "permutas", "cobrancas"]);
+const OVERLAYS = new Set(["ov_rec", "ov_orc", "marketing", "bancos", "glossario", "compromissos", "manutencoes", "patrimonio", "setores", "assinaturas", "permutas", "cobrancas", "campanhas"]);
 // Chaves em que cada pessoa so enxerga e mexe no que E DELA. A vendedora nao
 // pode ver a agenda da colega, e a direcao ve tudo. Isso e checado no
 // SERVIDOR: filtrar so na tela seria conforto, nao separacao.
@@ -182,6 +182,7 @@ Deno.serve(async (req: Request) => {
     patrimonio: "patrimonio",
     setores: "patrimonio",
     permutas: "permutas",
+    campanhas: "campanhas",
     // O diário de cobrança é conteúdo da tela de Contas Atrasadas.
     cobrancas: "contas-atrasadas",
     // As contas dos sistemas sao assunto da direcao: moram na tela de Gestao.
@@ -365,7 +366,12 @@ Deno.serve(async (req: Request) => {
           return resposta({ ok: true, valor: await lerOverlay(chave, donoDaVez(chave)) });
         }
 
-        if (chave === "permutas") {
+        /* PERMUTA E CAMPANHA: a mesma maquina (`troca_mexer`), porque e o
+           mesmo trabalho -- escolher clientes e aceitar O.S. uma a uma. O que
+           muda e a PERGUNTA que a tela faz com isso, e pergunta e conta, nao
+           gravacao. Um ramo so aqui e uma funcao so no banco: duplicar a regra
+           foi o que deixou o contas a pagar para tras hoje. */
+        if (chave === "permutas" || chave === "campanhas") {
           const barrado = barraChave(chave);
           if (barrado) return barrado;
           const quem = String(sessao?.sub ?? "");
@@ -373,7 +379,8 @@ Deno.serve(async (req: Request) => {
           for (const [id, campos] of Object.entries(patch)) {
             const c = (campos ?? {}) as Record<string, unknown>;
             const { osPatch, lancPatch, criar, ...limpos } = c;
-            const { data: reg, error } = await sb.rpc("permuta_mexer", {
+            const { data: reg, error } = await sb.rpc("troca_mexer", {
+              p_colecao: chave,
               p_id: id,
               p_quem: quem,
               p_quem_nome: quemNome,
@@ -385,7 +392,8 @@ Deno.serve(async (req: Request) => {
             });
             if (error) throw new Error(error.message);
             if (reg === null) {
-              return resposta({ erro: "Essa permuta nao existe mais -- recarregue a tela." }, 409);
+              const oQue = chave === "campanhas" ? "campanha" : "permuta";
+              return resposta({ erro: `Essa ${oQue} nao existe mais -- recarregue a tela.` }, 409);
             }
           }
           return resposta({ ok: true, valor: await lerOverlay(chave, donoDaVez(chave)) });
@@ -585,7 +593,10 @@ Deno.serve(async (req: Request) => {
          Mesma escolha da conversa dos compromissos. */
       case "permutaAnexo": {
         if (!sessao) return resposta({ erro: "Entre no sistema.", semSessao: true }, 401);
-        const barrado = barraChave("permutas");
+        // A mesma acao serve permuta e campanha: o anexo e a nota do que
+        // sustenta o lancamento, nos dois casos.
+        const colecao = corpo.chave === "campanhas" ? "campanhas" : "permutas";
+        const barrado = barraChave(colecao);
         if (barrado) return barrado;
         const id = String(corpo.id ?? "");
         if (!id) return resposta({ erro: "informe a permuta" }, 400);
@@ -606,7 +617,8 @@ Deno.serve(async (req: Request) => {
 
         // Quem carimba autor e hora e a funcao, junto com o evento do
         // historico -- do mesmo jeito que os outros movimentos da permuta.
-        const { data: reg, error } = await sb.rpc("permuta_mexer", {
+        const { data: reg, error } = await sb.rpc("troca_mexer", {
+          p_colecao: colecao,
           p_id: id,
           p_quem: String(sessao.sub ?? ""),
           p_quem_nome: String(sessao.nome || sessao.sub || ""),
@@ -628,7 +640,7 @@ Deno.serve(async (req: Request) => {
           await sb.storage.from(BUCKET).remove([chaveArq]).catch(() => {});
           return resposta({ erro: "Essa permuta nao existe mais." }, 409);
         }
-        return resposta({ ok: true, valor: await lerOverlay("permutas", null) });
+        return resposta({ ok: true, valor: await lerOverlay(colecao, null) });
       }
 
       // Baixar um anexo da conversa. A permissao e a MESMA do compromisso: a
@@ -640,7 +652,7 @@ Deno.serve(async (req: Request) => {
         const arquivoChave = String(corpo.arquivo ?? "");
         if (!sessao) return resposta({ erro: "Entre no sistema.", semSessao: true }, 401);
         // Permuta tem anexo mas nao tem dono: o modulo E a permissao.
-        if (!POR_DONO.has(chave) && chave !== "permutas") {
+        if (!POR_DONO.has(chave) && chave !== "permutas" && chave !== "campanhas") {
           return resposta({ erro: "chave sem anexo" }, 400);
         }
         const barrado = barraChave(chave);
@@ -694,7 +706,7 @@ Deno.serve(async (req: Request) => {
         // Os anexos da conversa vao junto: sem isto ficam bytes no bucket que
         // nenhuma tela lista, ninguem apaga e ninguem sabe que existem (foi o
         // que aconteceu com os arquivos dos ativos ate 04/08).
-        if (POR_DONO.has(chave) || chave === "permutas") {
+        if (POR_DONO.has(chave) || chave === "permutas" || chave === "campanhas") {
           const { data } = await sb.from("painel_registros").select("registro")
             .eq("colecao", chave).eq("id", id).maybeSingle();
           const reg = (data?.registro as any) ?? {};
