@@ -243,6 +243,11 @@ const CONTA_O_EVENTO = {
   mudouLanc: (e) => `alterou o lançamento "${e.descricao}" para ${dinheiro(e.valor)}`,
   tirouLanc: (e) => `tirou o lançamento "${e.descricao}" (${dinheiro(e.valor)})`,
   anexou: (e) => `anexou "${e.nome}"`,
+  /* O servidor carimba `periodo` desde que a data de busca virou campo da
+     permuta, e a tela imprimia a palavra "periodo" crua -- o `Historico` mostra
+     o tipo quando não sabe contar, de propósito, para um evento novo aparecer
+     em vez de sumir. Este aqui já tinha aparecido; faltava a frase. */
+  periodo: (e) => (e.para ? `passou a procurar O.S. a partir de ${dataLonga(e.para)}` : "tirou a data de início da busca"),
   encerrou: () => "encerrou a permuta",
   reabriu: () => "reabriu a permuta",
 };

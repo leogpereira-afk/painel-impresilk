@@ -292,19 +292,71 @@ export function comparativoPorAno(lista) {
  * Nunca inclui a própria campanha, nem outra do MESMO ano: duas campanhas com o
  * mesmo nome no mesmo ano são um cadastro duplicado, não uma edição anterior.
  */
+/* AS EDIÇÕES DE UM EVENTO: por VÍNCULO, e só depois por nome.
+ *
+ * A primeira versão casava só pelo nome -- dedução, do mesmo tipo que já criou
+ * registro-sósia na Central de Acessos. Funciona enquanto ninguém renomeia, e
+ * quebra calado quando alguém escreve "Eleição Municipal" num ano e "Eleições
+ * 2022" no outro: a tela diz "primeira edição" e a comparação some.
+ *
+ * Criando a edição DE DENTRO da campanha (o botão "Outra edição"), as duas
+ * passam a carregar o mesmo `evento`. Aí o vínculo é declarado, sobrevive a
+ * renomear, e o nome vira só um segundo caminho -- para as que já existiam e
+ * para as que forem cadastradas soltas com o mesmo nome.
+ *
+ * POR QUE UNION-FIND e não "casa se o evento OU o nome bate": as duas relações
+ * juntas não são transitivas. Com A(evento X, "Eleição"), B(evento X, renomeada
+ * para "Eleição Municipal") e C(sem evento, "Eleição"), a regra ingênua faz A
+ * ver B e C, mas B ver só A -- abrir uma ou outra daria listas diferentes para
+ * o mesmo evento, e ninguém descobriria por quê. Agrupar de verdade custa
+ * quinze linhas e acaba com a classe inteira de dúvida.
+ */
+function gruposDeEvento(lista) {
+  const pai = new Map();
+  const achar = (x) => {
+    while (pai.get(x) !== x) {
+      pai.set(x, pai.get(pai.get(x)));
+      x = pai.get(x);
+    }
+    return x;
+  };
+  const juntar = (a, b) => {
+    if (!pai.has(a)) pai.set(a, a);
+    if (!pai.has(b)) pai.set(b, b);
+    const ra = achar(a);
+    const rb = achar(b);
+    if (ra !== rb) pai.set(ra, rb);
+  };
+
+  for (const c of lista || []) {
+    const eu = `id:${c.id}`;
+    if (!pai.has(eu)) pai.set(eu, eu);
+    // Vínculo declarado (criado pelo botão "Outra edição").
+    if (c.evento) juntar(eu, `ev:${c.evento}`);
+    // Nome, para quem foi cadastrado solto. Campanha sem nome não junta nada:
+    // senão todas as "Nova campanha" recém-criadas virariam um evento só.
+    const nome = chaveCliente(c.nome || "");
+    if (nome) juntar(eu, `nome:${nome}`);
+  }
+  return { achar, raiz: (c) => achar(`id:${c.id}`) };
+}
+
+/* As OUTRAS edições do mesmo evento, da mais nova para a mais velha.
+ *
+ * Nunca inclui a própria campanha, nem uma sem ano de 4 dígitos: sem ano ela
+ * não pode ser "a edição anterior" de nada -- e era o que acontecia, a aberta
+ * aparecia como "primeira edição" e a linha de cima dizia "vs " sem ano.
+ * A do MESMO ano continua entrando: são duas de verdade, e cadastro duplicado
+ * tem de ser visto (ver `anosRepetidos`), não escondido. */
 export function edicoesDoMesmoEvento(lista, campanha) {
-  const nome = chaveCliente(campanha?.nome || "");
-  /* SEM ANO DE 4 DÍGITOS NÃO HÁ EDIÇÃO. Uma campanha com o ano em branco não
-     pode ser "a edição anterior" de coisa nenhuma -- e era o que acontecia: a
-     aberta aparecia como "primeira edição" e a linha de cima dizia "vs " sem
-     ano nenhum. */
   const ano = String(campanha?.ano || "").trim();
-  if (!nome || !/^\d{4}$/.test(ano)) return [];
+  if (!/^\d{4}$/.test(ano)) return [];
+  const g = gruposDeEvento([...(lista || []), campanha].filter(Boolean));
+  const minha = g.raiz(campanha);
   return (lista || [])
     .filter((c) => {
       const a = String(c.ano || "").trim();
-      return c.id !== campanha?.id && /^\d{4}$/.test(a) && a !== ano
-        && chaveCliente(c.nome || "") === nome;
+      return c.id !== campanha?.id && /^\d{4}$/.test(a) && a !== ano && g.raiz(c) === minha;
     })
     .sort((a, b) => String(b.ano || "").trim().localeCompare(String(a.ano || "").trim()));
 }

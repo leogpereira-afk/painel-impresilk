@@ -62,6 +62,12 @@ const CONTA_O_EVENTO = {
   mudouLanc: (e) => `alterou a venda "${e.descricao}" para ${dinheiro(e.valor)}`,
   tirouLanc: (e) => `tirou a venda "${e.descricao}" (${dinheiro(e.valor)})`,
   anexou: (e) => `anexou "${e.nome}"`,
+  /* AS DATAS DECIDEM QUAIS O.S. ENTRAM, então mudá-las muda o total do evento.
+     Uma linha de histórico que diz só "mudou o período" não deixa reconstruir
+     por que o número era outro semana passada -- por isso a data vai junto. */
+  periodo: (e) => (e.para ? `mudou o início da campanha para ${dataLonga(e.para)}` : "tirou a data de início"),
+  periodoFim: (e) => (e.para ? `mudou o fim da campanha para ${dataLonga(e.para)}` : "tirou a data de fim"),
+  ligouEvento: () => "ligou esta campanha às outras edições do mesmo evento",
   encerrou: () => "encerrou a campanha",
   reabriu: () => "reabriu a campanha",
 };
@@ -436,8 +442,9 @@ function Edicoes({ edicoes, atual, aoAbrir, repetidos = [] }) {
         </div>
       )}
       <div className="border-t border-slate-100 pt-2 text-xs text-slate-400">
-        As edições são encontradas pelo NOME da campanha. Se uma edição antiga foi cadastrada com outro
-        nome, ela não aparece aqui — renomeie as duas igual para elas se encontrarem.
+        As edições criadas pelo botão “Outra edição” ficam ligadas de verdade — o vínculo sobrevive a
+        renomear. As cadastradas soltas se encontram pelo NOME; se uma edição antiga foi cadastrada com
+        outro nome, renomeie as duas igual, ou crie a nova por aqui.
         {temCongelado && (
           <>
             {" "}Com uma campanha aberta o painel só carrega as O.S. dos compradores DELA, então as outras
@@ -445,6 +452,70 @@ function Edicoes({ edicoes, atual, aoAbrir, repetidos = [] }) {
           </>
         )}
       </div>
+    </div>
+  );
+}
+
+/* CRIAR OUTRA EDIÇÃO DESTE EVENTO, de dentro dele.
+ *
+ * É o caminho certo por dois motivos. O prático: não se redigita o nome, o ano
+ * já vem com as datas do ano inteiro, e cai direto na ficha nova. O que importa
+ * mais: as duas passam a carregar o mesmo `evento`, então o vínculo é
+ * DECLARADO. Criadas soltas, elas só se achavam pelo nome — e bastava escrever
+ * "Eleição Municipal" num ano e "Eleições 2022" no outro para a comparação
+ * sumir sem uma palavra.
+ */
+function FormEdicao({ anoAtual, anosUsados, aoCriar, aoCancelar, salvando }) {
+  const [ano, setAno] = useState("");
+  const limpo = ano.replace(/\D/g, "").slice(0, 4);
+  const completo = /^\d{4}$/.test(limpo);
+  const jaExiste = completo && anosUsados.includes(limpo);
+  const eDoAtual = completo && limpo === String(anoAtual || "");
+  return (
+    <div className="mb-3 space-y-2 rounded-lg bg-slate-50 p-3">
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-sm text-slate-600">Nova edição deste evento, no ano de</span>
+        <input
+          className="input h-9 w-24 text-center"
+          placeholder="AAAA"
+          inputMode="numeric"
+          maxLength={4}
+          autoFocus
+          value={ano}
+          onChange={(e) => setAno(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter" && completo && !jaExiste && !eDoAtual) aoCriar(limpo); }}
+        />
+        <button
+          type="button"
+          className="btn-primary h-9 px-3 text-sm"
+          disabled={!completo || jaExiste || eDoAtual || salvando}
+          onClick={() => aoCriar(limpo)}
+        >
+          Criar e abrir
+        </button>
+        <button type="button" className="btn-ghost h-9 px-3 text-sm" onClick={aoCancelar}>
+          Cancelar
+        </button>
+      </div>
+      {/* AVISAR ANTES, não depois: criar a segunda de 2022 é o cadastro
+          duplicado que a própria tela já denuncia mais abaixo. Melhor não
+          deixar acontecer do que explicar depois que aconteceu. */}
+      {eDoAtual && (
+        <div className="text-xs text-bad-700">
+          {limpo} é o ano desta campanha — escolha outro ano para a nova edição.
+        </div>
+      )}
+      {jaExiste && !eDoAtual && (
+        <div className="text-xs text-bad-700">
+          Já existe uma edição deste evento em {limpo}. Abra ela na lista acima em vez de criar outra.
+        </div>
+      )}
+      {completo && !jaExiste && !eDoAtual && (
+        <div className="text-xs text-slate-500">
+          Vai nascer com o mesmo nome, de 01/01/{limpo} a 31/12/{limpo}, e ligada a esta —
+          é só ajustar as datas para as do evento.
+        </div>
+      )}
     </div>
   );
 }
@@ -894,6 +965,7 @@ export default function Campanhas() {
   const [buscaOS, setBuscaOS] = useState("");
   const [formVenda, setFormVenda] = useState(null);
   const [prodPorCategoria, setProdPorCategoria] = useState(false);
+  const [criandoEdicao, setCriandoEdicao] = useState(false);
   /* O ANO ESCOLHIDO na lista. Nasce vazio e vira o ano corrente assim que os
      dados chegam SE houver campanha nele -- num 2027 sem nada cadastrado,
      abrir num ano vazio faria a tela parecer quebrada. Ver o efeito abaixo. */
@@ -1129,6 +1201,52 @@ export default function Campanhas() {
     });
     if (ok) setAberta(id);
   }, [mexer, anoSel]);
+
+  /* CRIAR OUTRA EDIÇÃO, ligada a esta.
+   *
+   * Duas gravações, nesta ordem e pela FILA do `mexer` (a segunda precisa ler o
+   * registro que a primeira deixou):
+   *   1. carimba `evento` na campanha aberta, se ela ainda não tiver. A primeira
+   *      edição criada vira a âncora do evento, e o id dela é a chave.
+   *   2. cria a nova com o mesmo `evento` e o mesmo nome.
+   *
+   * O ano vem do formulário. As datas nascem no ano inteiro (01/01 a 31/12)
+   * porque para uma edição antiga isso é o certo: sem o corte de cima, ligar um
+   * comprador traria tudo o que ele comprou daquele ano ATÉ HOJE.
+   */
+  const criarEdicao = useCallback(
+    async (ano) => {
+      if (!aberta) return;
+      const atual = mapaRef.current?.[aberta];
+      const evento = atual?.evento || aberta;
+      if (!atual?.evento) {
+        const ok = await mexer(aberta, { campos: { evento } });
+        /* Se a âncora não gravou, PARA. Criar a nova assim mesmo deixaria as
+           duas ligadas só pelo nome — que é exatamente o vínculo frágil que
+           este botão existe para substituir, e ninguém veria a diferença. */
+        if (!ok || ok.evento !== evento) {
+          setAviso({ tom: "erro", texto: "Não consegui ligar as duas edições. Tente de novo e, se repetir, me avise." });
+          return;
+        }
+      }
+      const id = novoId("campanha");
+      const nova = await mexer(id, {
+        campos: {
+          nome: atual?.nome || "Nova campanha",
+          ano, evento, meta: 0, clientes: [],
+          desde: `${ano}-01-01`,
+          ate: `${ano}-12-31`,
+        },
+        criar: true,
+      });
+      if (nova) {
+        setCriandoEdicao(false);
+        setAberta(id);
+        setAviso({ tom: "ok", texto: `Edição de ${ano} criada e ligada a esta. Ajuste as datas para as do evento.` });
+      }
+    },
+    [aberta, mexer],
+  );
 
   const apagar = useCallback(async (id, nome) => {
     if (!window.confirm(`Apagar a campanha "${nome || "sem nome"}"? O histórico, as vendas e os anexos vão junto.`)) return;
@@ -1478,24 +1596,55 @@ export default function Campanhas() {
           )}
         </Card>
 
-        {/* ------------------------------------------- contra as anteriores */}
-        {edicoes.length > 0 && (
-          <Secao
-            semImpressao
-            id="edicoes"
-            titulo="Esta edição contra as anteriores"
-            sub="O mesmo evento em outros anos — é a comparação que diz se cresceu."
-            aberta={abertas.edicoes}
-            aoAlternar={alternar}
-          >
+        {/* ------------------------------------------- as outras edições */}
+        {/* A SEÇÃO EXISTE MESMO SEM EDIÇÃO NENHUMA: é aqui que mora o botão de
+            criar a próxima (ou a antiga), e escondê-la enquanto não houver a
+            segunda deixaria o caminho invisível justo na hora de abrir o
+            evento pela primeira vez. */}
+        <Secao
+          semImpressao
+          id="edicoes"
+          titulo="Edições deste evento"
+          sub="O mesmo evento em outros anos — é a comparação que diz se cresceu."
+          aberta={abertas.edicoes}
+          aoAlternar={alternar}
+          acao={
+            !criandoEdicao && (
+              <button
+                type="button"
+                className="btn-ghost"
+                onClick={() => { if (!abertas.edicoes) alternar("edicoes"); setCriandoEdicao(true); }}
+              >
+                <Plus size={15} strokeWidth={2.4} /> Outra edição
+              </button>
+            )
+          }
+        >
+          {criandoEdicao && (
+            <FormEdicao
+              anoAtual={campanha.ano}
+              anosUsados={edicoes.map((e) => String(e.ano || ""))}
+              aoCriar={criarEdicao}
+              aoCancelar={() => setCriandoEdicao(false)}
+              salvando={salvando}
+            />
+          )}
+          {edicoes.length > 0 ? (
             <Edicoes
               edicoes={edicoes}
               atual={{ id: aberta, ano: campanha.ano, vendido: resumo.vendido, compradores: resumo.compradores }}
               aoAbrir={setAberta}
               repetidos={anosRepetidos(edicoes)}
             />
-          </Secao>
-        )}
+          ) : (
+            !criandoEdicao && (
+              <Empty>
+                Esta é a única edição deste evento. Use “Outra edição” para cadastrar a de um ano
+                anterior — elas ficam ligadas, e a comparação aparece aqui.
+              </Empty>
+            )
+          )}
+        </Secao>
 
         {/* ------------------------------------------------- quem comprou */}
         <Secao

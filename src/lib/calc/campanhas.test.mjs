@@ -427,3 +427,54 @@ test("as categorias dobram o ranking: dois produtos, uma decisão", () => {
   const cats = categoriasDosProdutos(produtosDaCampanha(c, ordens));
   assert.deepEqual(cats.map((x) => [x.categoria, x.valor, x.produtos]), [["Placa", 500, 2], ["Lona", 100, 1]]);
 });
+
+/* --------------------------------- o vínculo declarado entre edições */
+
+test("o vínculo declarado sobrevive a renomear -- o nome sozinho não sobrevivia", () => {
+  const lista = monta(
+    campanha(1, "Eleição Municipal", "2026", [100], { evento: "ev-1" }),
+    campanha(2, "Eleições 2022", "2022", [80], { evento: "ev-1" }),   // renomeada
+  );
+  const outras = edicoesDoMesmoEvento(lista, lista.find((c) => c.id === 1));
+  assert.deepEqual(outras.map((c) => c.ano), ["2022"],
+    "pelo nome elas nunca se achariam; pelo vínculo, sim");
+});
+
+test("cadastrada solta com o mesmo nome continua sendo achada", () => {
+  const lista = monta(
+    campanha(1, "Festa da Cidade", "2026", [100], { evento: "ev-9" }),
+    campanha(2, "festa da  cidade", "2024", [70]),   // sem vínculo, só o nome
+  );
+  assert.deepEqual(edicoesDoMesmoEvento(lista, lista.find((c) => c.id === 1)).map((c) => c.ano), ["2024"]);
+});
+
+test("as duas pontas veem a MESMA lista -- a regra ingênua dava listas diferentes", () => {
+  /* A(vínculo X, "Eleição") · B(vínculo X, renomeada) · C(sem vínculo, "Eleição").
+     Casando por "evento OU nome" sem agrupar, A via B e C, mas B via só A. */
+  const lista = monta(
+    campanha(1, "Eleição", "2026", [10], { evento: "X" }),
+    campanha(2, "Eleição Municipal", "2024", [20], { evento: "X" }),
+    campanha(3, "Eleição", "2022", [30]),
+  );
+  const deA = edicoesDoMesmoEvento(lista, lista.find((c) => c.id === 1)).map((c) => c.ano).sort();
+  const deB = edicoesDoMesmoEvento(lista, lista.find((c) => c.id === 2)).map((c) => c.ano).sort();
+  const deC = edicoesDoMesmoEvento(lista, lista.find((c) => c.id === 3)).map((c) => c.ano).sort();
+  assert.deepEqual(deA, ["2022", "2024"]);
+  assert.deepEqual(deB, ["2022", "2026"]);
+  assert.deepEqual(deC, ["2024", "2026"], "B e C se acham pelo caminho A, e as três fecham");
+});
+
+test("campanha sem nome não vira edição de todas as outras sem nome", () => {
+  /* "Nova campanha" nasce sem nome preenchido; se o vazio agrupasse, cada
+     campanha recém-criada apareceria como edição de todas as outras. */
+  const lista = monta(campanha(1, "", "2026", [10]), campanha(2, "", "2024", [20]));
+  assert.deepEqual(edicoesDoMesmoEvento(lista, lista.find((c) => c.id === 1)), []);
+});
+
+test("eventos diferentes com vínculos diferentes não se misturam", () => {
+  const lista = monta(
+    campanha(1, "Eleição", "2026", [10], { evento: "A" }),
+    campanha(2, "Festa", "2024", [20], { evento: "B" }),
+  );
+  assert.deepEqual(edicoesDoMesmoEvento(lista, lista.find((c) => c.id === 1)), []);
+});
