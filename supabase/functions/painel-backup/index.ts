@@ -105,39 +105,46 @@ async function montarBackupPainel() {
       atualizadoEm: c.atualizado_em,
     };
   }
+  /* AS COLECOES SAEM DO BANCO, nao de uma lista aqui.
+   *
+   * Esta lista era escrita a mao, e TRES vezes uma colecao nova nasceu fora
+   * dela: `assinaturas` ficou um dia fora (a auditoria pegou), `permutas`
+   * passou MESES -- em 19/08/2026 fui procurar um dado de permuta no backup e
+   * nao achei nada, quase concluindo que a gravacao estava falhando --, e
+   * `campanhas` nasceu fora ontem, com o Leo ja usando a tela.
+   *
+   * Ausencia de copia parece ausencia de dado, e a lista a mao envelhece
+   * calada: quem cria a colecao esta pensando na tela, nao no backup, e nada
+   * falha enquanto ninguem precisa restaurar. A funcao `colecoesNoBanco()`
+   * logo acima ja existia para o backup se CONFERIR -- ela passa a ser tambem
+   * a fonte do que copiar, e a conferencia vira redundancia de verdade em vez
+   * de duas listas com o mesmo defeito.
+   *
+   * Os dois apelidos existem porque o nome no backup nunca foi igual ao do
+   * banco (`ativo` -> `ativos`), e mudar isso agora quebraria a restauracao
+   * dos arquivos que ja estao la.
+   */
+  const APELIDO: Record<string, string> = { ativo: "ativos", arquivo: "arquivosMeta" };
+  const painel: Record<string, unknown> = {
+    // `config` nao mora em painel_registros; entra a parte.
+    config: cfg?.config ?? null,
+  };
+  for (const colecao of await colecoesNoBanco()) {
+    const nome = APELIDO[colecao] ?? colecao;
+    // Uma colecao chamada "config" no banco sobrescreveria a configuracao
+    // global. Nao existe hoje; se um dia existir, o backup avisa em vez de
+    // trocar uma coisa pela outra em silencio.
+    if (nome === "config") throw new Error('colecao "config" colide com a configuracao global do painel');
+    painel[nome] = await linhasDe(colecao);
+  }
+  // Os BYTES dos arquivos ficam no bucket (duraveis); um backup diario deles
+  // incharia o repositorio. Mesma decisao do original com as fotos.
+
   return {
     versao: VERSAO,
     sistema: "painel",
     exportadoEm: new Date().toISOString(),
-    painel: {
-      config: cfg?.config ?? null,
-      ov_rec: await linhasDe("ov_rec"),
-      ov_orc: await linhasDe("ov_orc"),
-      ativos: await linhasDe("ativo"),
-      arquivosMeta: await linhasDe("arquivo"),
-      marketing: await linhasDe("marketing"),
-      bancos: await linhasDe("bancos"),
-      glossario: await linhasDe("glossario"),
-      compromissos: await linhasDe("compromissos"),
-      manutencoes: await linhasDe("manutencoes"),
-      patrimonio: await linhasDe("patrimonio"),
-      setores: await linhasDe("setores"),
-      // Contas dos sistemas (Supabase, GitHub, Claude): dia, valor e meses
-      // pagos. Nasceu em 15/08 e ficou UM dia fora do backup -- a auditoria
-      // pegou antes de virar perda.
-      assinaturas: await linhasDe("assinaturas"),
-      /* PERMUTAS ficou de fora desde que nasceu, e e a segunda vez que uma
-         colecao nova nasce sem entrar aqui -- `assinaturas` ficou um dia fora
-         e a auditoria pegou; esta passou despercebida ate 19/08/2026, quando
-         fui procurar um dado de permuta no backup e nao achei NADA. Quase
-         conclui que a gravacao estava falhando: o backup nao copiava, e
-         ausencia de copia parece ausencia de dado.
-         O que se perde aqui e credito de parceiro -- quanto ele nos deu e
-         quanto ja gastou. Nao ha de onde reconstruir. */
-      permutas: await linhasDe("permutas"),
-      // Os BYTES dos arquivos ficam no bucket (duraveis); um backup diario
-      // deles incharia o repositorio. Mesma decisao do original com as fotos.
-    },
+    painel,
     contas,
   };
 }
@@ -432,7 +439,15 @@ Deno.serve(async (req: Request) => {
     const sistemas = st?.sistemas ?? {};
     const todosOk =
       Object.keys(sistemas).length > 0 && Object.values(sistemas).every((s: any) => s?.ok);
-    if (diaDoUltimo === hoje && todosOk) {
+    /* `forcar` refaz o backup do dia mesmo com um ja pronto.
+       Existe porque a trava por dia, sozinha, deixa um conserto sem efeito ate
+       o dia seguinte: hoje o backup rodou de manha SEM a colecao `campanhas`
+       (a lista de colecoes era escrita a mao e ela nasceu fora), e depois de
+       corrigir nao havia como refazer o arquivo -- so apagando o do dia, que e
+       destrutivo, ou esperando. O dia inteiro de dado novo ficaria sem copia.
+       Mesmo token da chamada normal: nao abre porta nova, so tira a trava que
+       protege contra repeticao inutil, nao contra repeticao PEDIDA. */
+    if (diaDoUltimo === hoje && todosOk && corpo.forcar !== true) {
       return resposta({ ok: true, pulou: "ja tem backup de hoje" });
     }
     return resposta({ ok: true, sistemas: await backupDoHub() });

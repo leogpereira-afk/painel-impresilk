@@ -39,7 +39,13 @@ const ARQUIVOS = {
   servidor: resolve(PAINEL, "supabase/functions/painel-acesso/index.ts"),
   modulosTela: resolve(PAINEL, "src/lib/modulos.js"),
   modulosServidor: resolve(PAINEL, "supabase/functions/painel-auth/index.ts"),
-  porta: resolve(HOME, "Projetos/vida-leo/supabase/functions/equipe-auth/index.ts"),
+  /* O equipe-auth mora em OUTRO repositorio. Na maquina do Leo ele esta em
+     ~/Projetos/vida-leo; na CI vem de um checkout, e o caminho chega por
+     VIDA_LEO. Sem isso este script so rodava aqui -- e era por isso que ele
+     dependia de alguem lembrar de rodar. */
+  porta: process.env.VIDA_LEO
+    ? resolve(process.env.VIDA_LEO, "supabase/functions/equipe-auth/index.ts")
+    : resolve(HOME, "Projetos/vida-leo/supabase/functions/equipe-auth/index.ts"),
 };
 
 let problemas = 0;

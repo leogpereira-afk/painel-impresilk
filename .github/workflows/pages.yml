@@ -20,6 +20,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      # A LISTA DE MODULOS DO PAINEL VIVE EM TRES ARQUIVOS, e um deles esta em
+      # OUTRO repositorio (vida-leo/equipe-auth). Sem esta copia, o verificador
+      # abaixo nao consegue ler a terceira lista.
+      - uses: actions/checkout@v4
+        with:
+          repository: leogpereira-afk/vida-leo
+          path: .externo/vida-leo
       - uses: actions/setup-node@v4
         with:
           node-version: 20
@@ -35,6 +42,21 @@ jobs:
       # O realizado tem de somar por PARCELA: o campo do topo perde as parcelas
       # e as vezes vem zerado. Grafico congelado nao da erro, so para de andar.
       - run: node scripts/conferir-realizado.mjs
+      # MODULO NOVO TEM DE ENTRAR NAS TRES LISTAS. Quando falta numa, salvar a
+      # permissao passa pelo filtro `permissoes.filter(p => LISTA.includes(p))`,
+      # que descarta o desconhecido SEM ERRO: a direcao marca a caixa, ve a
+      # caixa marcada, e a pessoa nao ganha acesso nenhum.
+      #
+      # Aconteceu com `permutas` (dois dias de caca ao defeito na tela errada) e
+      # de novo com `campanhas` -- nas duas vezes este script ja existia, ja
+      # acusava em uma linha e ja saia com codigo 1. So que ninguem o chamava, e
+      # "lembrar de rodar" nunca foi defesa. Agora ele bloqueia o deploy.
+      - name: As tres listas de modulos batem?
+        run: node scripts/conferir-sistemas.mjs
+        env:
+          # O script procura o equipe-auth em ~/Projetos/vida-leo quando roda na
+          # maquina do Leo; na CI ele vem do checkout acima.
+          VIDA_LEO: ${{ github.workspace }}/.externo/vida-leo
       - run: npm run build
         env:
           # No Pages o site vive em /painel-impresilk/. O vite.config le isto;
