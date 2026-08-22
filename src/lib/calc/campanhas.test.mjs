@@ -7,6 +7,7 @@ import {
   resumoDaCampanha, resumoGeralCampanhas, totaisDasCampanhas, compradoresDaCampanha, fichaDaOS,
   extratoDaCampanha, anosDasCampanhas, totaisDoAno, comparativoPorAno, edicoesDoMesmoEvento,
   anosRepetidos, membrosDoEvento, candidatasAVincular, comparativoDeEdicoes, maiorComprador, comprasPorMes, produtosDaCampanha, categoriasDosProdutos,
+  porProduto,
 } from "./campanhas.js";
 
 const os = (id, cliente, valor, extra = {}) => ({
@@ -584,4 +585,147 @@ test("O.S. sem item não entra na conta do que fecha -- ela já é contada em se
   assert.equal(p.brutoDasLidas, 100, "só as lidas");
   assert.equal(p.naoAtribuido, 0);
   assert.equal(p.cobertura.semItens, 1, "a outra aparece aqui, que é o lugar dela");
+});
+
+/* ------------------------------- o que foi comprado de verdade (produto+modelo) */
+
+const itemM = (produto, modelo, quantidade, valorTotal, categoria = "") =>
+  ({ produto, modelo, categoria, quantidade, valorUnit: valorTotal / quantidade, valorTotal });
+
+test("o ranking separa pelo MODELO -- é ele que diz o que foi comprado", () => {
+  /* No ERP o produto é a linha do catálogo ("Material Político 2026") e o que
+     foi vendido está no modelo. Agrupando só pelo produto, a campanha inteira
+     virava UMA linha de R$ 227 mil que não diz o que estocar. */
+  const o = { id: 1, numero: "1", cliente: "A", data: "2026-03-01", bruto: 100000, itens: [
+    itemM("Material Político 2026", "Adesivo Perfurado 60x33", 6300, 56633),
+    itemM("Material Político 2026", "Adesivo Parachoque 30x10", 65250, 33367),
+    itemM("Material Político 2026", "Bandeira 140X90", 1010, 10000),
+  ] };
+  const p = produtosDaCampanha({ os: { 1: fichaDaOS(o) } }, [o]);
+  assert.deepEqual(p.itens.map((x) => [x.rotulo, x.quantidade, x.valor]), [
+    ["Adesivo Perfurado 60x33", 6300, 56633],
+    ["Adesivo Parachoque 30x10", 65250, 33367],
+    ["Bandeira 140X90", 1010, 10000],
+  ]);
+  assert.equal(p.itens[0].produto, "Material Político 2026", "a linha do catálogo continua ali");
+});
+
+test("sem modelo, o produto continua sendo o rótulo", () => {
+  const o = { id: 1, numero: "1", cliente: "A", data: "2026-03-01", bruto: 500, itens: [
+    itemM("Totem", "", 1, 500),
+  ] };
+  const p = produtosDaCampanha({ os: { 1: fichaDaOS(o) } }, [o]);
+  assert.equal(p.itens[0].rotulo, "Totem");
+  assert.equal(p.itens[0].modelo, "");
+});
+
+test("modelo igual em produtos diferentes NÃO se junta", () => {
+  /* "Placa / Lona 440g" e "Banner / Lona 440g" são coisas diferentes. */
+  const o = { id: 1, numero: "1", cliente: "A", data: "2026-03-01", bruto: 300, itens: [
+    itemM("Placa", "Lona 440g", 1, 100),
+    itemM("Banner", "Lona 440g", 1, 200),
+  ] };
+  const p = produtosDaCampanha({ os: { 1: fichaDaOS(o) } }, [o]);
+  assert.equal(p.itens.length, 2);
+  assert.deepEqual(p.itens.map((x) => x.produto).sort(), ["Banner", "Placa"]);
+});
+
+test("o mesmo modelo em O.S. diferentes soma, e conta as O.S.", () => {
+  const a = { id: 1, numero: "1", cliente: "A", data: "2026-03-01", bruto: 100,
+              itens: [itemM("Mat", "Bandeira 140X90", 10, 100)] };
+  const b = { id: 2, numero: "2", cliente: "B", data: "2026-04-01", bruto: 250,
+              itens: [itemM("Mat", "Bandeira 140X90", 25, 250)] };
+  const p = produtosDaCampanha({ os: { 1: fichaDaOS(a), 2: fichaDaOS(b) } }, [a, b]);
+  assert.deepEqual(p.itens.map((x) => [x.rotulo, x.quantidade, x.valor, x.os]),
+    [["Bandeira 140X90", 35, 350, 2]]);
+});
+
+test("o rollup por produto NÃO soma quantidade -- adesivo com bandeira não tem unidade comum", () => {
+  /* Era o "192.778 un." que aparecia na tela: 6.300 adesivos somados com 1.010
+     bandeiras. Número que não significa nada. */
+  const o = { id: 1, numero: "1", cliente: "A", data: "2026-03-01", bruto: 66633, itens: [
+    itemM("Material Político 2026", "Adesivo Perfurado 60x33", 6300, 56633),
+    itemM("Material Político 2026", "Bandeira 140X90", 1010, 10000),
+    itemM("PDV", "Painel Backlight", 4, 5000),
+  ] };
+  const p = produtosDaCampanha({ os: { 1: fichaDaOS(o) } }, [o]);
+  const rollup = porProduto(p);
+  assert.deepEqual(rollup.map((x) => [x.rotulo, x.itens, x.valor]),
+    [["Material Político 2026", 2, 66633], ["PDV", 1, 5000]]);
+  assert.equal(rollup[0].quantidade, undefined, "não existe quantidade somada aqui");
+});
+
+test("a categoria também conta produtos, não unidades", () => {
+  const o = { id: 1, numero: "1", cliente: "A", data: "2026-03-01", bruto: 300, itens: [
+    itemM("Placa", "PVC 3mm", 2, 200, "Placas"),
+    itemM("Placa", "PVC 5mm", 1, 100, "Placas"),
+  ] };
+  const cats = categoriasDosProdutos(produtosDaCampanha({ os: { 1: fichaDaOS(o) } }, [o]));
+  assert.deepEqual(cats.map((x) => [x.categoria, x.produtos, x.valor]), [["Placas", 2, 300]]);
+  assert.equal(cats[0].quantidade, undefined);
+});
+
+test("O.S. de comprador DESLIGADO diz o motivo certo, não 'cancelada ou fora do período'", () => {
+  /* Caso real da campanha "Política 2026 - Deputados": 4 O.S. de um deputado
+     não apareciam no ranking. A tela mandava conferir o período — e todas as 19
+     estavam dentro dele. O comprador é que tinha saído da lista: a busca de
+     O.S. é por cliente, então elas ficaram inalcançáveis. Motivo errado manda
+     procurar no lugar errado. */
+  const dentro = { id: 1, numero: "1", cliente: "CANDIDATO A", data: "2026-03-01", bruto: 100,
+                   itens: [itemM("Mat", "Bandeira", 1, 100)] };
+  const c = {
+    clientes: [{ chave: "CANDIDATO A", nome: "CANDIDATO A", cnpjs: [] }],
+    os: {
+      1: fichaDaOS(dentro),
+      2: { numero: "2", cliente: "CANDIDATO B", valor: 6500 },   // desligado
+      3: { numero: "3", cliente: "CANDIDATO B", valor: 2700 },
+      9: { numero: "9", cliente: "CANDIDATO A", valor: 400 },    // ligado, mas some da busca
+    },
+  };
+  const p = produtosDaCampanha(c, [dentro]);
+  assert.equal(p.cobertura.foraDaBusca, 3);
+  assert.equal(p.cobertura.semComprador, 2, "duas são do comprador que saiu da lista");
+  assert.deepEqual(p.cobertura.compradores, ["CANDIDATO B"], "e a tela pode dizer o nome");
+});
+
+test("comprador ligado que some da busca NÃO é contado como desligado", () => {
+  /* Essa é cancelada no ERP ou fora do período de verdade -- confundir as duas
+     causas foi o defeito. */
+  const dentro = { id: 1, numero: "1", cliente: "A", data: "2026-03-01", bruto: 100,
+                   itens: [itemM("Mat", "X", 1, 100)] };
+  const c = {
+    clientes: [{ chave: "A", nome: "A", cnpjs: [] }],
+    os: { 1: fichaDaOS(dentro), 7: { numero: "7", cliente: "A", valor: 50 } },
+  };
+  const p = produtosDaCampanha(c, [dentro]);
+  assert.equal(p.cobertura.foraDaBusca, 1);
+  assert.equal(p.cobertura.semComprador, 0);
+  assert.deepEqual(p.cobertura.compradores, []);
+});
+
+test("comprador RENOMEADO no ERP é pego -- a lista de ligados sozinha não pega", () => {
+  /* Caso real da "Política 2026 - Deputados": a campanha foi montada quando o
+     cadastro dizia "ELEICA 2026 GILBERTO..." (sem o O). Alguém corrigiu para
+     "ELEICAO 2026 GILBERTO...", e o vínculo virou órfão em silêncio: ele
+     CONTINUA na lista, com o nome velho, e não casa com nenhuma O.S.
+     Comparar com a lista de ligados daria zero e mandaria procurar
+     cancelamento e período, onde não havia nada. */
+  const viva = { id: 1, numero: "1", cliente: "CANDIDATO A", data: "2026-03-01", bruto: 100,
+                 itens: [itemM("Mat", "Bandeira", 1, 100)] };
+  const c = {
+    clientes: [
+      { chave: "CANDIDATO A", nome: "CANDIDATO A", cnpjs: [] },
+      { chave: "ELEICA 2026 GILBERTO", nome: "ELEICA 2026 GILBERTO", cnpjs: [] },  // nome velho
+    ],
+    os: {
+      1: fichaDaOS(viva),
+      2: { numero: "2", cliente: "ELEICA 2026 GILBERTO", valor: 6500 },
+      3: { numero: "3", cliente: "ELEICA 2026 GILBERTO", valor: 2700 },
+    },
+  };
+  // a busca por "ELEICA 2026 GILBERTO" nao traz nada: no ERP ele virou "ELEICAO"
+  const p = produtosDaCampanha(c, [viva]);
+  assert.equal(p.cobertura.foraDaBusca, 2);
+  assert.equal(p.cobertura.semComprador, 2, "o vínculo dele está quebrado, mesmo estando na lista");
+  assert.deepEqual(p.cobertura.compradores, ["ELEICA 2026 GILBERTO"]);
 });

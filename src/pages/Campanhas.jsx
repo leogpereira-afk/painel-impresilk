@@ -39,7 +39,7 @@ import { fichaDaOS, ordensDosClientes, donoPorOS } from "../lib/calc/permutas.js
 import {
   resumoDaCampanha, resumoGeralCampanhas, compradoresDaCampanha, extratoDaCampanha,
   anosDasCampanhas, totaisDoAno, comparativoPorAno, edicoesDoMesmoEvento, anosRepetidos,
-  maiorComprador, comprasPorMes, produtosDaCampanha, categoriasDosProdutos,
+  maiorComprador, comprasPorMes, produtosDaCampanha, categoriasDosProdutos, porProduto,
   membrosDoEvento, candidatasAVincular, comparativoDeEdicoes,
 } from "../lib/calc/campanhas.js";
 import { paraNumero, dataLonga } from "../lib/format.js";
@@ -723,23 +723,43 @@ function LinhaCompra({ l }) {
  * invisível. "Sem item" e "ainda não carregado" são causas opostas que na tela
  * apareceriam iguais -- zero não é resultado.
  */
-function Produtos({ produtos, categorias, porCategoria, aoTrocar }) {
+/* TRÊS GRÃOS, e o mais FINO é o padrão.
+ *
+ * "Material Político 2026 · 192.778 un. · R$ 227.292" era uma linha só, 94% da
+ * campanha, e não respondia nada: no ERP esse é o nome da LINHA DO CATÁLOGO. O
+ * que foi comprado está no modelo -- Adesivo Perfurado 60x33, Bandeira 140X90,
+ * Adesivo Parachoque 30x10. É esse detalhe que diz o que cotar e o que estocar.
+ *
+ * Os dois rollups continuam existindo porque respondem outra coisa: o peso da
+ * linha inteira, e o peso da categoria. Mas nenhum deles soma QUANTIDADE --
+ * adesivo com bandeira não tem unidade comum, e "192.778 un." era exatamente
+ * essa soma sem sentido.
+ */
+const GRAOS = [
+  ["item", "Detalhado", "o que foi comprado, item a item"],
+  ["produto", "Por produto", "a linha do catálogo do ERP"],
+  ["categoria", "Por categoria", "placa, lona, adesivo"],
+];
+
+function Produtos({ produtos, categorias, grao, aoTrocar }) {
   const { cobertura } = produtos;
-  const lista = porCategoria ? categorias : produtos.itens;
+  const lista = grao === "categoria" ? categorias
+    : grao === "produto" ? porProduto(produtos)
+      : produtos.itens;
   const teto = Math.max(...lista.map((x) => x.valor), 1);
+  const detalhado = grao === "item";
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-center gap-2 sem-impressao">
-        {[["produto", "Por produto"], ["categoria", "Por categoria"]].map(([id, rot]) => (
+        {GRAOS.map(([id, rot, dica]) => (
           <button
             key={id}
             type="button"
             onClick={() => aoTrocar(id)}
-            aria-pressed={porCategoria === (id === "categoria")}
+            aria-pressed={grao === id}
+            title={dica}
             className={`rounded-full px-3 py-1 text-xs transition ${
-              porCategoria === (id === "categoria")
-                ? "bg-brand-600 text-white"
-                : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+              grao === id ? "bg-brand-600 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
             }`}
           >
             {rot}
@@ -749,30 +769,41 @@ function Produtos({ produtos, categorias, porCategoria, aoTrocar }) {
 
       {lista.length ? (
         <div className="space-y-2">
-          {lista.slice(0, 20).map((x) => (
+          {lista.slice(0, 30).map((x) => (
             <div key={x.chave || x.categoria} className="flex items-center gap-3 text-sm">
               <span className="min-w-0 flex-1">
-                <span className="block truncate text-slate-800">{x.produto || x.categoria}</span>
+                <span className="block truncate text-slate-800">{x.rotulo || x.categoria}</span>
                 <span className="mt-0.5 block h-1.5 overflow-hidden rounded-full bg-slate-100 sem-impressao">
                   <span className="block h-full rounded-full bg-brand-400" style={{ width: `${Math.max(2, (x.valor / teto) * 100)}%` }} />
                 </span>
-                {!porCategoria && x.categoria && (
-                  <span className="text-[11px] text-slate-400">{x.categoria}</span>
-                )}
+                {/* No detalhe, a linha de baixo diz de QUE produto do catálogo o
+                    item saiu -- sem isso "Adesivo Perfurado 60x33" fica solto e
+                    não dá para achar no ERP. */}
+                {(x.produto && x.produto !== x.rotulo) || x.categoria ? (
+                  <span className="truncate text-[11px] text-slate-400">
+                    {[x.produto !== x.rotulo ? x.produto : null, x.categoria || null]
+                      .filter(Boolean).join(" · ")}
+                  </span>
+                ) : null}
               </span>
-              <span className="w-20 shrink-0 text-right text-xs tabular-nums text-slate-400">
-                {x.quantidade % 1 === 0 ? x.quantidade : x.quantidade.toFixed(2)} un.
+              <span className="w-24 shrink-0 text-right text-xs tabular-nums text-slate-400">
+                {/* QUANTIDADE só no detalhe: nos rollups ela somaria adesivo com
+                    bandeira. Ali o que conta é quantos itens diferentes. */}
+                {detalhado
+                  ? `${x.quantidade % 1 === 0 ? x.quantidade.toLocaleString("pt-BR") : x.quantidade.toFixed(2)} un.`
+                  : `${x.itens ?? x.produtos} ${(x.itens ?? x.produtos) === 1 ? "item" : "itens"}`}
               </span>
               <span className="w-28 shrink-0 text-right font-medium tabular-nums text-slate-800">
                 {dinheiro(x.valor)}
               </span>
             </div>
           ))}
-          {lista.length > 20 && (
+          {lista.length > 30 && (
             <div className="text-xs text-slate-400">
-              e mais {lista.length - 20} {porCategoria ? "categorias" : "produtos"} — o PDF traz a lista inteira.
+              e mais {lista.length - 30} — o PDF traz a lista inteira.
             </div>
           )}
+
         </div>
       ) : (
         <Empty>
@@ -794,13 +825,32 @@ function Produtos({ produtos, categorias, porCategoria, aoTrocar }) {
               carregados do ERP — a carga do histórico roda domingo de madrugada e preenche.
             </>
           )}
-          {cobertura.foraDaBusca > 0 && (
+          {/* O MOTIVO CERTO, e não uma lista de suspeitos. A versão antiga dizia
+              só "cancelada ou fora do período", e na campanha real as 4 O.S.
+              estavam DENTRO do período: o comprador é que tinha saído da lista,
+              e a busca de O.S. é por cliente. Motivo errado manda procurar no
+              lugar errado -- eu mesmo fui conferir o período primeiro. */}
+          {cobertura.semComprador > 0 && (
             <>
               {" "}
-              {cobertura.foraDaBusca}{" "}
-              {cobertura.foraDaBusca === 1 ? "não apareceu na busca" : "não apareceram na busca"} — ou{" "}
-              {cobertura.foraDaBusca === 1 ? "foi cancelada" : "foram canceladas"} no ERP, ou{" "}
-              {cobertura.foraDaBusca === 1 ? "está" : "estão"} fora do período da campanha.
+              {cobertura.semComprador}{" "}
+              {cobertura.semComprador === 1 ? "é de um comprador" : "são de compradores"} que a busca não
+              alcança mais: <strong>{cobertura.compradores.slice(0, 3).join(", ")}</strong>
+              {cobertura.compradores.length > 3 && ` e mais ${cobertura.compradores.length - 3}`}.
+              {" "}Ou saiu da lista, ou <strong>o nome dele mudou no ERP</strong> e o vínculo ficou com o
+              nome velho. As O.S. continuam contando no total — para os itens voltarem, tire o nome
+              velho em “Compradores desta campanha” e procure o atual.
+            </>
+          )}
+          {cobertura.foraDaBusca > cobertura.semComprador && (
+            <>
+              {" "}
+              {cobertura.foraDaBusca - cobertura.semComprador}{" "}
+              {cobertura.foraDaBusca - cobertura.semComprador === 1
+                ? "não apareceu na busca — ou foi cancelada"
+                : "não apareceram na busca — ou foram canceladas"} no ERP, ou{" "}
+              {cobertura.foraDaBusca - cobertura.semComprador === 1 ? "está" : "estão"} fora do período
+              da campanha.
             </>
           )}
         </div>
@@ -910,8 +960,11 @@ function ExtratoImpresso({ e, produtos, categorias, meses }) {
             <thead>
               <tr>
                 <th style={{ ...th, width: "2rem" }}>#</th>
-                <th style={th}>Produto</th>
-                <th style={{ ...th, width: "11rem" }}>Categoria</th>
+                {/* O QUE FOI COMPRADO vem primeiro; a linha do catálogo do ERP
+                    fica ao lado, para achar lá dentro. */}
+                <th style={th}>Item</th>
+                <th style={{ ...th, width: "12rem" }}>Produto no ERP</th>
+                <th style={{ ...th, width: "9rem" }}>Categoria</th>
                 <th style={{ ...th, textAlign: "right", width: "5rem" }}>Qtd.</th>
                 <th style={{ ...th, textAlign: "right", width: "4rem" }}>O.S.</th>
                 <th style={{ ...th, textAlign: "right", width: "7rem" }}>Valor</th>
@@ -921,7 +974,8 @@ function ExtratoImpresso({ e, produtos, categorias, meses }) {
               {produtos.itens.map((p, i) => (
                 <tr key={p.chave}>
                   <td style={td}>{i + 1}</td>
-                  <td style={td}>{p.produto}</td>
+                  <td style={td}>{p.rotulo}</td>
+                  <td style={td}>{p.produto !== p.rotulo ? p.produto : "—"}</td>
                   <td style={td}>{p.categoria || "—"}</td>
                   <td style={tdN}>{p.quantidade % 1 === 0 ? p.quantidade : p.quantidade.toFixed(2)}</td>
                   <td style={tdN}>{p.os}</td>
@@ -929,7 +983,7 @@ function ExtratoImpresso({ e, produtos, categorias, meses }) {
                 </tr>
               ))}
               <tr>
-                <td style={{ ...td, fontWeight: 700 }} colSpan={5}>Soma dos itens (bruto, antes do desconto)</td>
+                <td style={{ ...td, fontWeight: 700 }} colSpan={6}>Soma dos itens (bruto, antes do desconto)</td>
                 <td style={{ ...tdN, fontWeight: 700 }}>{dinheiro(produtos.total)}</td>
               </tr>
             </tbody>
@@ -1070,7 +1124,8 @@ export default function Campanhas() {
   const [achados, setAchados] = useState([]);
   const [buscaOS, setBuscaOS] = useState("");
   const [formVenda, setFormVenda] = useState(null);
-  const [prodPorCategoria, setProdPorCategoria] = useState(false);
+  // Nasce no grão MAIS FINO: é o que responde "o que foi comprado".
+  const [graoProduto, setGraoProduto] = useState("item");
   const [criandoEdicao, setCriandoEdicao] = useState(false);
   const [vinculando, setVinculando] = useState(false);
   /* O ANO ESCOLHIDO na lista. Nasce vazio e vira o ano corrente assim que os
@@ -1930,8 +1985,8 @@ export default function Campanhas() {
             <Produtos
               produtos={produtos}
               categorias={categorias}
-              porCategoria={prodPorCategoria}
-              aoTrocar={(id) => setProdPorCategoria(id === "categoria")}
+              grao={graoProduto}
+              aoTrocar={setGraoProduto}
             />
           )}
         </Secao>

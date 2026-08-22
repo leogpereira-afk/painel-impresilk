@@ -527,14 +527,48 @@ export function produtosDaCampanha(campanha, ordens) {
   const aceitas = Object.keys(campanha?.os || {}).map(String);
   const porId = new Map((ordens || []).map((o) => [String(o.id), o]));
 
-  const cobertura = { aceitas: aceitas.length, comItens: 0, semItens: 0, foraDaBusca: 0 };
+  const cobertura = {
+    aceitas: aceitas.length, comItens: 0, semItens: 0, foraDaBusca: 0,
+    // Dentro do "fora da busca", QUAL é o motivo -- ver abaixo.
+    semComprador: 0, compradores: [],
+  };
   let brutoDasLidas = 0;
+  /* QUAIS COMPRADORES A BUSCA REALMENTE ALCANÇOU.
+   *
+   * Não é a lista de ligados: é quem VOLTOU com O.S. A diferença entre as duas
+   * é o defeito, e ele tem duas causas que a tela precisa saber juntar:
+   *
+   *   1. o comprador foi tirado da lista (as O.S. dele continuam no total, mas
+   *      a busca é por cliente e não as alcança mais);
+   *   2. O NOME DELE MUDOU NO ERP -- e este é o caso real que apareceu na
+   *      campanha "Política 2026 - Deputados": o cadastro dizia "ELEICA 2026
+   *      GILBERTO..." quando a campanha foi montada, alguém corrigiu para
+   *      "ELEICAO 2026 GILBERTO...", e o vínculo virou órfão em silêncio. Ele
+   *      continua na lista, com o nome velho, e não casa com nenhuma O.S.
+   *
+   * Comparar com a lista de ligados só pegaria a causa 1 -- e no caso real daria
+   * ZERO, mandando procurar cancelamento e período onde não havia nada.
+   * Órfão quase sempre é variante do mesmo nome: reconectar, nunca apagar. */
+  const alcancados = new Set((ordens || []).map((o) => chaveCliente(o.cliente)));
+  const semNome = new Set();
   const mapa = new Map();
   for (const id of aceitas) {
     const o = porId.get(id);
-    // A O.S. não veio na busca: cancelada no ERP, ou fora do período da
-    // campanha. Os itens dela são desconhecidos, não inexistentes.
-    if (!o) { cobertura.foraDaBusca += 1; continue; }
+    if (!o) {
+      cobertura.foraDaBusca += 1;
+      /* A ficha congelada guarda quem comprou. Se a busca não trouxe NENHUMA
+         O.S. desse comprador, o vínculo dele está quebrado -- e é isso que a
+         tela tem de dizer, em vez de "cancelada ou fora do período". */
+      const dono = chaveCliente((campanha?.os || {})[id]?.cliente || "");
+      if (dono && !alcancados.has(dono)) {
+        cobertura.semComprador += 1;
+        if (!semNome.has(dono)) {
+          semNome.add(dono);
+          cobertura.compradores.push(String((campanha.os[id] || {}).cliente || dono));
+        }
+      }
+      continue;
+    }
     const itens = Array.isArray(o.itens) ? o.itens : [];
     if (!itens.length) { cobertura.semItens += 1; continue; }
     cobertura.comItens += 1;
@@ -547,9 +581,28 @@ export function produtosDaCampanha(campanha, ordens) {
     for (const it of itens) {
       const nome = String(it?.produto ?? "").trim();
       if (!nome) continue;
-      const k = chaveProduto(nome);
+      /* O GRÃO É produto + MODELO, e não o produto sozinho.
+       *
+       * No ERP o `produto` é a linha do catálogo -- "Material Político 2026" --
+       * e o que foi vendido de verdade está no `modelo`: "Adesivo Perfurado
+       * 60x33", "Bandeira 140X90", "Adesivo Parachoque 30x10". Agrupando só
+       * pelo produto, a campanha inteira virava UMA linha de R$ 227 mil
+       * chamada "Material Político 2026", que não diz o que estocar nem o que
+       * cotar -- exatamente o que o ranking existe para responder.
+       *
+       * 99,3% dos itens da base têm modelo. Quando não tem, o produto sozinho
+       * é o grão, e o rótulo cai para ele.
+       *
+       * A chave leva os DOIS: dois produtos podem ter modelo de mesmo nome, e
+       * juntar "Placa / Lona 440g" com "Banner / Lona 440g" somaria coisas
+       * diferentes. */
+      const modelo = String(it?.modelo ?? "").trim();
+      const k = `${chaveProduto(nome)}|${chaveProduto(modelo)}`;
       const g = mapa.get(k) || {
-        chave: k, produto: nome, categoria: String(it?.categoria ?? ""),
+        chave: k, produto: nome, modelo,
+        // O que a tela mostra em destaque: o modelo é o que foi comprado.
+        rotulo: modelo || nome,
+        categoria: String(it?.categoria ?? ""),
         quantidade: 0, valor: 0, os: new Set(),
       };
       g.quantidade += num(it?.quantidade);
@@ -592,6 +645,34 @@ export function produtosDaCampanha(campanha, ordens) {
   };
 }
 
+/* O ROLLUP para a linha do catálogo do ERP.
+ *
+ * O grão do ranking é produto + modelo. Esta visão junta os modelos sob o
+ * produto -- útil para ver o peso da linha inteira ("Material Político 2026"
+ * foi 94% da campanha), inútil para saber o que comprar.
+ *
+ * NÃO SOMA QUANTIDADE. Somar 6.300 adesivos com 1.010 bandeiras dá "192.778
+ * un.", um número que não significa nada e que estava na tela. O que se conta
+ * aqui é quantos ITENS diferentes a linha tem. */
+export function porProduto(produtos) {
+  const cem = (n) => Math.round(n * 100) / 100;
+  const mapa = new Map();
+  for (const p of produtos?.itens || []) {
+    const g = mapa.get(p.produto) || {
+      chave: p.produto, rotulo: p.produto, categoria: p.categoria,
+      itens: 0, valor: 0, os: 0,
+    };
+    g.itens += 1;
+    g.valor += p.valor;
+    g.os = Math.max(g.os, p.os);
+    if (!g.categoria) g.categoria = p.categoria;
+    mapa.set(p.produto, g);
+  }
+  return [...mapa.values()]
+    .map((g) => ({ ...g, valor: cem(g.valor) }))
+    .sort((a, b) => b.valor - a.valor);
+}
+
 /* AS CATEGORIAS, dobrando o ranking de produtos.
    "Placa PVC 3mm" e "Placa PVC 5mm" são dois produtos e uma decisão só. */
 export function categoriasDosProdutos(produtos) {
@@ -599,13 +680,14 @@ export function categoriasDosProdutos(produtos) {
   const mapa = new Map();
   for (const p of produtos?.itens || []) {
     const nome = p.categoria || "sem categoria";
-    const g = mapa.get(nome) || { categoria: nome, quantidade: 0, valor: 0, produtos: 0 };
-    g.quantidade += p.quantidade;
+    const g = mapa.get(nome) || { categoria: nome, rotulo: nome, valor: 0, produtos: 0 };
+    // Sem somar quantidade, pelo mesmo motivo do rollup por produto: adesivo
+    // com bandeira não tem unidade comum.
     g.valor += p.valor;
     g.produtos += 1;
     mapa.set(nome, g);
   }
   return [...mapa.values()]
-    .map((g) => ({ ...g, quantidade: cem(g.quantidade), valor: cem(g.valor) }))
+    .map((g) => ({ ...g, valor: cem(g.valor) }))
     .sort((a, b) => b.valor - a.valor);
 }
