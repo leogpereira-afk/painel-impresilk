@@ -23,6 +23,8 @@ import {
   listarAtivos,
   salvarAtivo,
   removerAtivo,
+  listarLixeira,
+  restaurarAtivo,
   guardarArquivo,
   lerArquivo,
   arquivoParaBase64,
@@ -72,6 +74,7 @@ const vazio = (tipo) => ({
 
 export default function Ativos() {
   const [itens, setItens] = useState(null);
+  const [lixeira, setLixeira] = useState(null); // null = fechada
   const [erro, setErro] = useState(null);
   const [tipo, setTipo] = useState("documento");
   const [busca, setBusca] = useState("");
@@ -230,11 +233,11 @@ export default function Ativos() {
        cofre: a apolice apagada pode ser a unica copia digital. O Patrimonio,
        na mesma area, sempre confirmou; as duas telas se contradiziam no gesto
        mais perigoso. */
-    if (!window.confirm(`Apagar "${item.nome}"? O arquivo anexado vai junto, sem volta.`)) return;
+    if (!window.confirm(`Apagar "${item.nome}"? Vai para a lixeira e pode ser restaurado por 30 dias.`)) return;
     setMsg(null);
     try {
       await removerAtivo(item.id);
-      setMsg({ tom: "aviso", texto: `${item.nome} removido.` });
+      setMsg({ tom: "aviso", texto: `${item.nome} foi para a lixeira — dá para restaurar por 30 dias, no fim desta tela.` });
       setItens((atuais) => (atuais || []).filter((x) => x.id !== item.id));
       // Formulario aberto no item que acabou de ser apagado: salvar dali
       // RESSUSCITARIA o registro -- so que sem o arquivo, que ja se foi junto.
@@ -637,6 +640,55 @@ export default function Ativos() {
               );
             })}
           </div>
+        )}
+      </Card>
+
+      {/* A LIXEIRA DE 30 DIAS. Recolhida e carregada SO ao abrir: e socorro,
+          nao fluxo -- mas sem esta porta o soft-delete do servidor seria
+          recuperavel apenas por quem sabe chamar a API. */}
+      <Card>
+        <button
+          type="button"
+          className="flex w-full items-center justify-between text-left text-sm text-slate-500 hover:text-slate-800"
+          onClick={async () => {
+            if (lixeira === null) {
+              try { setLixeira(await listarLixeira()); }
+              catch (err) { setMsg({ tom: "erro", texto: err.message }); return; }
+            } else setLixeira(null);
+          }}
+        >
+          <span className="font-display font-medium">Lixeira</span>
+          <span className="text-xs">{lixeira === null ? "abrir" : "fechar"} · itens apagados ficam 30 dias</span>
+        </button>
+        {lixeira !== null && (
+          lixeira.length ? (
+            <div className="mt-3 space-y-2">
+              {lixeira.map((it) => (
+                <div key={it.id} className="flex items-center gap-3 border-t pt-2 text-sm" style={{ borderColor: "var(--hairline)" }}>
+                  <span className="min-w-0 flex-1 truncate text-slate-700">{it.nome}</span>
+                  <span className="shrink-0 text-xs text-slate-400">
+                    apagado {it._apagadoEm ? new Date(it._apagadoEm).toLocaleDateString("pt-BR") : ""}
+                  </span>
+                  <button
+                    type="button"
+                    className="btn-ghost h-8 px-3 text-sm"
+                    onClick={async () => {
+                      try {
+                        await restaurarAtivo(it.id);
+                        setLixeira((l) => (l || []).filter((x) => x.id !== it.id));
+                        setItens(await listarAtivos());
+                        setMsg({ tom: "ok", texto: `${it.nome} restaurado.` });
+                      } catch (err) { setMsg({ tom: "erro", texto: err.message }); }
+                    }}
+                  >
+                    Restaurar
+                  </button>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="mt-3 text-sm text-slate-400">Vazia.</p>
+          )
         )}
       </Card>
     </div>

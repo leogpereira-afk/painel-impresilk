@@ -282,6 +282,18 @@ Deno.serve(async (req: Request) => {
         return json({ itens: orc.valor, atualizadoEm: orc.em ?? status?.em ?? null });
       }
 
+      /* Os vendedores REAIS do ERP, para a tela de Configuracoes oferecer a
+         lista em vez de digitacao livre. Um espaco a mais no nome criava uma
+         linha zerada para sempre no funil -- "vendedor sem venda" que nao
+         existe. So quem calibra (modulo configuracoes) precisa disto. */
+      case "vendedoresErp": {
+        const g = await exigirSessao(req, "configuracoes");
+        if (g.resposta) return g.resposta;
+        const { data, error } = await sb.rpc("painel_vendedores");
+        if (error) throw new Error(error.message);
+        return json({ vendedores: (data ?? []).map((v: any) => ({ nome: v.vendedor, orcamentos: Number(v.orcamentos) })) });
+      }
+
       default:
         return json({ erro: `Modulo desconhecido: ${modulo || "(vazio)"}` }, 400);
     }

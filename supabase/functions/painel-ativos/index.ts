@@ -165,6 +165,21 @@ Deno.serve(async (req: Request) => {
   try {
     switch (corpo.action) {
       case "listar": {
+        /* A PURGA DA LIXEIRA mora aqui: o que passou de 30 dias sai de vez
+           (registro, meta e bytes). No listar porque e a chamada que TODA
+           sessao faz -- purga sem cron novo, e nunca mais de uma vez por
+           carga de tela. Falha de purga nao derruba a listagem. */
+        try {
+          const corte = new Date(Date.now() - 30 * 86400000).toISOString();
+          const { data: velhos } = await sb.from("painel_registros").select("id, registro")
+            .eq("colecao", "ativo_lixeira");
+          const purgar = (velhos ?? []).filter((r: any) => String(r.registro?._apagadoEm ?? "") < corte).map((r: any) => r.id);
+          if (purgar.length) {
+            await sb.from("painel_registros").delete().eq("colecao", "ativo_lixeira").in("id", purgar);
+            await sb.from("painel_registros").delete().eq("colecao", "arquivo_lixeira").in("id", purgar);
+            await sb.storage.from(BUCKET).remove(purgar).catch(() => {});
+          }
+        } catch { /* purga e manutencao, nao resposta */ }
         const itens: any[] = [];
         const PASSO = 1000;
         for (let de = 0; ; de += PASSO) {
@@ -287,18 +302,71 @@ Deno.serve(async (req: Request) => {
         return resposta({ ok: true, item: limpo });
       }
 
+      /* REMOVER E UMA LIXEIRA DE 30 DIAS, nao um delete. Este e o cofre:
+         apolice e alvara podem ser a UNICA copia digital, e a exclusao era
+         irreversivel num toque (a confirmacao da tela segura o dedo, nao o
+         engano ja confirmado). O registro vai para a colecao `ativo_lixeira`
+         com o carimbo de quando; o ARQUIVO fica no bucket ate a purga. A
+         propria rotina de listar purga o que passou de 30 dias -- sem cron
+         novo para vigiar. Restaurar e mover de volta. */
       case "remover": {
         const id = String(corpo.id ?? "");
         if (!id) return resposta({ erro: "id ausente" }, 400);
         { const b = await barraId(id); if (b) return b; }
-        // Mesma trava do lerArquivo: id que nao e de ativo nao apaga nada --
-        // o storage.remove no fim apagaria bytes de anexo de conversa alheia.
         if (!(await tipoDoId(id))) return resposta({ erro: "item nao encontrado" }, 404);
+        const { data: atual } = await sb.from("painel_registros").select("registro")
+          .eq("colecao", "ativo").eq("id", id).maybeSingle();
+        if (atual?.registro) {
+          await sb.from("painel_registros").upsert({
+            colecao: "ativo_lixeira", id,
+            registro: { ...(atual.registro as any), _apagadoEm: new Date().toISOString() },
+            atualizado_em: new Date().toISOString(),
+          }, { onConflict: "colecao,id" });
+        }
         await sb.from("painel_registros").delete().eq("colecao", "ativo").eq("id", id);
-        // O arquivo vai junto: deixar orfao so ocupa espaco e guarda um
-        // documento que o usuario mandou apagar.
+        // A META do arquivo vai junto para a lixeira poder restaurar; os BYTES
+        // ficam no bucket ate a purga dos 30 dias.
+        const { data: meta } = await sb.from("painel_registros").select("registro")
+          .eq("colecao", "arquivo").eq("id", id).maybeSingle();
+        if (meta?.registro) {
+          await sb.from("painel_registros").upsert({
+            colecao: "arquivo_lixeira", id, registro: meta.registro,
+            atualizado_em: new Date().toISOString(),
+          }, { onConflict: "colecao,id" });
+        }
         await sb.from("painel_registros").delete().eq("colecao", "arquivo").eq("id", id);
-        await sb.storage.from(BUCKET).remove([id]).catch(() => {});
+        return resposta({ ok: true, lixeira: true });
+      }
+
+      case "lixeira": {
+        const { data } = await sb.from("painel_registros").select("registro")
+          .eq("colecao", "ativo_lixeira").order("atualizado_em", { ascending: false });
+        const itens = (data ?? []).map((r: any) => r.registro).filter((i: any) => podeTipo(i?.tipo));
+        return resposta({ ok: true, itens });
+      }
+
+      case "restaurar": {
+        const id = String(corpo.id ?? "");
+        if (!id) return resposta({ erro: "id ausente" }, 400);
+        const { data: lix } = await sb.from("painel_registros").select("registro")
+          .eq("colecao", "ativo_lixeira").eq("id", id).maybeSingle();
+        if (!lix?.registro) return resposta({ erro: "nao esta na lixeira" }, 404);
+        const reg = { ...(lix.registro as any) };
+        delete reg._apagadoEm;
+        if (!podeTipo(reg?.tipo)) return resposta({ erro: "Voce nao tem acesso a este modulo." }, 403);
+        await sb.from("painel_registros").upsert({
+          colecao: "ativo", id, registro: reg, atualizado_em: new Date().toISOString(),
+        }, { onConflict: "colecao,id" });
+        const { data: metaLix } = await sb.from("painel_registros").select("registro")
+          .eq("colecao", "arquivo_lixeira").eq("id", id).maybeSingle();
+        if (metaLix?.registro) {
+          await sb.from("painel_registros").upsert({
+            colecao: "arquivo", id, registro: metaLix.registro,
+            atualizado_em: new Date().toISOString(),
+          }, { onConflict: "colecao,id" });
+        }
+        await sb.from("painel_registros").delete().eq("colecao", "ativo_lixeira").eq("id", id);
+        await sb.from("painel_registros").delete().eq("colecao", "arquivo_lixeira").eq("id", id);
         return resposta({ ok: true });
       }
 

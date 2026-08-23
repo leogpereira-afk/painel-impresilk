@@ -440,17 +440,16 @@ Deno.serve(async (req: Request) => {
               if (jaTem) {
                 (campos as any).codigo = jaTem;
               } else {
-                const sigla = String((campos as any)?.setorSigla ?? "GER")
-                  .toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 4) || "GER";
-                const { data: irmaos } = await sb.from("painel_registros")
-                  .select("registro").eq("colecao", "patrimonio");
-                let maior = 0;
-                for (const r of irmaos ?? []) {
-                  const c = String((r.registro as any)?.codigo ?? "");
-                  const m = c.match(new RegExp(`^${sigla}-(\\d+)$`));
-                  if (m) maior = Math.max(maior, Number(m[1]) || 0);
-                }
-                (campos as any).codigo = `${sigla}-${String(maior + 1).padStart(3, "0")}`;
+                /* NO BANCO, com advisory lock por sigla. A versao daqui lia o
+                   maior e somava 1 em dois passos: dois computadores
+                   cadastrando ao mesmo tempo saiam com a MESMA etiqueta -- e
+                   etiqueta e adesivo colado no bem, nao tem conserto barato.
+                   Falhar e melhor que duplicar: sem codigo, o erro sobe e a
+                   tela avisa. */
+                const sigla = String((campos as any)?.setorSigla ?? "GER");
+                const { data: etq, error: erroEtq } = await sb.rpc("patrimonio_proxima_etiqueta", { p_sigla: sigla });
+                if (erroEtq || !etq) throw new Error("nao consegui gerar a etiqueta: " + (erroEtq?.message ?? "vazio"));
+                (campos as any).codigo = etq as string;
               }
             }
 

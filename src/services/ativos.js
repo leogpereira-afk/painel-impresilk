@@ -20,6 +20,9 @@ async function chamar(action, dados = {}) {
 export const listarAtivos = () => chamar("listar").then((r) => r.itens || []);
 export const salvarAtivo = (item) => chamar("salvar", { item }).then((r) => r.item);
 export const removerAtivo = (id) => chamar("remover", { id });
+// A lixeira de 30 dias: o servidor guarda o apagado e purga sozinho.
+export const listarLixeira = () => chamar("lixeira").then((r) => r.itens || []);
+export const restaurarAtivo = (id) => chamar("restaurar", { id });
 export const guardarArquivo = (id, base64, mime, nome) =>
   chamar("guardarArquivo", { id, base64, mime, nome });
 export const lerArquivo = (id) => chamar("lerArquivo", { id });

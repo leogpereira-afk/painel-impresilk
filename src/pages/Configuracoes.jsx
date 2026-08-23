@@ -2,8 +2,11 @@
 // sozinho (o store persiste). Cada mudanca recalcula os outros modulos ao vivo.
 // So consome config + updateConfig + resetarConfig. Sem dados, sem calc.
 
-import { Plus, Trash2, Info } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Plus, Trash2, Info, AlertTriangle } from "lucide-react";
 import { useApp } from "../config/store.jsx";
+import { comCracha } from "../lib/sessao.js";
+import { API } from "../lib/api.js";
 import { Card, PageTitle, SectionTitle, Segmented } from "../components/ui.jsx";
 
 // Rotulo + campo, para manter o espacamento uniforme em todos os grids.
@@ -41,6 +44,20 @@ const TAGS_MOTIVO = [
 
 export default function Configuracoes() {
   const { config, updateConfig, resetarConfig } = useApp();
+
+  /* OS VENDEDORES REAIS DO ERP. No Mubisys o vendedorId do orçamento É o nome
+     -- um espaço a mais aqui e a linha do funil fica zerada para sempre,
+     parecendo "vendedor sem venda". A lista real vira datalist (sugere sem
+     prender) e um aviso por linha quando o nome digitado NÃO existe no ERP. */
+  const [vendReais, setVendReais] = useState(null);
+  useEffect(() => {
+    let vivo = true;
+    comCracha(`${API}/painel-dados?modulo=vendedoresErp`)
+      .then((r) => r.json())
+      .then((d) => vivo && setVendReais(Array.isArray(d.vendedores) ? d.vendedores.map((v) => v.nome) : null))
+      .catch(() => {});   // sem a lista, a tela segue como antes -- só sem sugestão
+    return () => { vivo = false; };
+  }, []);
 
   const p = config.parametros;
   const setParam = (chave, valor) =>
@@ -484,6 +501,7 @@ export default function Configuracoes() {
                 className="input"
                 value={v.nome}
                 placeholder="Nome do vendedor"
+                list="vendedores-erp"
                 onChange={(e) =>
                   updateConfig((c) => {
                     // O id acompanha o nome: no Mubisys o `vendedorId` do
@@ -495,6 +513,14 @@ export default function Configuracoes() {
                   })
                 }
               />
+              {vendReais && v.nome.trim() && !vendReais.includes(v.nome.trim()) && (
+                <span
+                  className="flex shrink-0 items-center gap-1 text-xs text-warn-700"
+                  title={`Nenhum orçamento no ERP com o vendedor "${v.nome.trim()}". Confira o nome — a linha do funil vai ficar zerada.`}
+                >
+                  <AlertTriangle size={13} /> não está no ERP
+                </span>
+              )}
               <BotaoRemover
                 onClick={() =>
                   updateConfig((c) => {
@@ -506,6 +532,11 @@ export default function Configuracoes() {
             </div>
           ))}
         </div>
+        {vendReais && (
+          <datalist id="vendedores-erp">
+            {vendReais.map((n) => <option key={n} value={n} />)}
+          </datalist>
+        )}
         <button
           className="btn-ghost mt-4"
           onClick={() =>

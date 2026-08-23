@@ -40,7 +40,11 @@ const VAZIO = {
   pixTipo: "CNPJ",
 };
 
-const ehCPF = (doc) => /^\d{3}\.\d{3}\.\d{3}-\d{2}$/.test(String(doc || ""));
+/* PELA CONTAGEM DE DÍGITOS, não pela pontuação. A mensagem sai do painel
+   direto para cliente e fornecedor: um CPF digitado sem pontos era rotulado
+   "CNPJ", e pagamento com o tipo errado trava no banco. 11 dígitos = CPF,
+   14 = CNPJ; qualquer outra coisa fica com o rótulo neutro. */
+const ehCPF = (doc) => String(doc || "").replace(/\D/g, "").length === 11;
 
 // O texto que chega para quem pediu os dados. Negrito do WhatsApp = *asteriscos*.
 function textoWhatsApp(b) {
