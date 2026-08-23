@@ -4,7 +4,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
-  resumoDaCampanha, resumoGeralCampanhas, totaisDasCampanhas, compradoresDaCampanha, fichaDaOS,
+  resumoDaCampanha, resumoGeralCampanhas, compradoresDaCampanha, fichaDaOS,
   extratoDaCampanha, anosDasCampanhas, totaisDoAno, comparativoPorAno, edicoesDoMesmoEvento,
   anosRepetidos, membrosDoEvento, candidatasAVincular, comparativoDeEdicoes, maiorComprador, comprasPorMes, produtosDaCampanha, categoriasDosProdutos,
   porProduto,
@@ -88,12 +88,13 @@ test("os totais do ano não somam o mesmo comprador duas vezes", () => {
     y: { nome: "Y", ano: "2026", os: { 2: fichaDaOS(ordens[1]), 3: fichaDaOS(ordens[2]) } },
     z: { nome: "Z", ano: "2025", os: {} },
   }, ordens, 2026);
-  const t = totaisDasCampanhas(lista, 2026);
-  assert.equal(t.quantas, 3);
-  assert.equal(t.quantasNoAno, 2);
-  assert.equal(t.vendidoNoAno, 350);
-  assert.equal(t.compradoresNoAno, 2, "A comprou nas duas e conta uma vez");
-  assert.equal(t.osNoAno, 3);
+  /* Migrado de totaisDasCampanhas (aposentada 23/08) para a viva. */
+  const t = totaisDoAno(lista, "2026");
+  assert.equal(t.quantas, 2);
+  assert.equal(t.vendido, 350);
+  assert.equal(t.compradores, 2, "A comprou nas duas e conta uma vez");
+  assert.equal(t.os, 3);
+  assert.equal(totaisDoAno(lista, "todos").quantas, 3);
 });
 
 test("o ranking soma o mesmo comprador de várias campanhas", () => {

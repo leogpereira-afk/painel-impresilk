@@ -235,24 +235,11 @@ export function Segmented({ opcoes, valor, onChange, className }) {
   );
 }
 
-// Chip de variacao percentual. Por padrao: positivo verde, negativo vermelho.
-export function DeltaBadge({ pct, className }) {
-  const positivo = pct >= 0;
-  const Icone = positivo ? ArrowUpRight : ArrowDownRight;
-  return (
-    <span
-      className={clsx(
-        "inline-flex items-center gap-1 rounded-full px-2 py-0.5 font-display text-xs font-semibold",
-        positivo ? "bg-ok-50 text-ok-700" : "bg-bad-50 text-bad-700",
-        className
-      )}
-    >
-      <Icone size={13} strokeWidth={2.6} />
-      {positivo ? "+" : ""}
-      {pct}%
-    </span>
-  );
-}
+/* DeltaBadge MORREU AQUI (23/08): exportado sem nenhum uso, e com a regra de
+   cor OPOSTA à do TrendArrow três componentes acima (lá, alta = vermelho,
+   porque DSO subindo é ruim). Duas réguas contraditórias no mesmo vocabulário
+   esperavam o próximo dev escolher a errada. Se um dia precisar de um selo de
+   variação, nasça ele ao lado do TrendArrow, com a MESMA semântica. */
 
 export function Empty({ children, className }) {
   return (

@@ -29,7 +29,7 @@ import {
   ordenarCarteira, filtrarCarteira, ORDENS,
 } from "../lib/calc/cobrancas.js";
 import { lerCobrancas, salvarChamado } from "../services/cobrancas.js";
-import { moeda, numero, dataLonga, dataCurta, rotuloMes, ymdLocal, MESES } from "../lib/format.js";
+import { moedaCheia, moeda, numero, dataLonga, dataCurta, rotuloMes, ymdLocal, MESES } from "../lib/format.js";
 import { Selo, Avatar, Dinheiro, FaixaNumeros, LinhaLista } from "../components/lista.jsx";
 import {
   Card,
@@ -125,7 +125,12 @@ function CartaoCobranca({ c, aberto, aoAbrir, aoRegistrar, aoApagar, salvando, e
                       t.motivoId && t.motivoNome,
                     ].filter(Boolean).join(" · ")}
                   </span>
-                  <span className="shrink-0 tabular-nums text-slate-700">{moeda(t.valor)}</span>
+                  {/* NA TELA o corte do centavo ajuda a varrer; NO PAPEL que
+                      vai ao cliente, R$ 7.001 em cima de um titulo de
+                      R$ 7.000,50 mina a cobranca inteira. Dois spans, um por
+                      midia. */}
+                  <span className="sem-impressao shrink-0 tabular-nums text-slate-700">{moeda(t.valor)}</span>
+                  <span className="apenas-impressao shrink-0 tabular-nums text-slate-700">{moedaCheia(t.valor)}</span>
                 </li>
               ))}
             </ol>
@@ -698,7 +703,7 @@ export default function ContasAtrasadas() {
           atualizadoEm={atualizadoEm}
           titulo="Impresilk - Contas a receber em atraso"
           linhas={[
-            `Emitido em ${dataLonga(ymdLocal(new Date()))} · ${numero(titulosFiltrados.length)} titulos · ${moeda(somaFiltrada)}`,
+            `Emitido em ${dataLonga(ymdLocal(new Date()))} · ${numero(titulosFiltrados.length)} titulos · ${moedaCheia(somaFiltrada)}`,
             `Recorte: ${resumoFiltros}${
               vm.antigas.qtd > 0 && !pediuPeriodo
                 ? ` · nao inclui ${numero(vm.antigas.qtd)} titulos anteriores a ${dataLonga(vm.antigas.corte)} (${moeda(vm.antigas.valor)})`

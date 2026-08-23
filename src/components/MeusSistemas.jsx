@@ -9,23 +9,14 @@
 // uma vez.
 
 import {
-  ClipboardList, BookOpen, Factory, ShoppingCart, TrendingUp, Users, UserCircle,
-  ExternalLink,
-} from "lucide-react";
+  } from "lucide-react";
 import { meusSistemas, enderecoDe } from "../lib/entradaUnica.js";
-import { nomeSis } from "../lib/sistemas.js";
+import { nomeSis, doSistema, CHAVE_CRACHA } from "../lib/sistemas.js";
+import { iconeDoSistema } from "./iconesDosSistemas.js";
 
-// Um icone por sistema, escolhido pelo que a pessoa FAZ la dentro -- e o que
-// permite achar o certo de relance, sem ler.
-const ICONE = {
-  brief: ClipboardList,   // a ficha da visita
-  pops: BookOpen,         // o procedimento, o manual
-  pcp: Factory,           // a producao e a instalacao
-  compras: ShoppingCart,
-  dre: TrendingUp,
-  rh: Users,
-  central: UserCircle,     // o app pessoal
-};
+// O ícone vem do REGISTRO (lib/sistemas.js), resolvido em
+// iconesDosSistemas.js. A tabela local que morava aqui divergia da lateral:
+// Brief era prancheta aqui e régua lá, lado a lado no mesmo desktop.
 
 export default function MeusSistemas() {
   const sistemas = meusSistemas();
@@ -36,8 +27,12 @@ export default function MeusSistemas() {
       <p className="label mb-3">Seus sistemas</p>
       <div className="flex flex-wrap justify-center gap-3">
         {sistemas.map((s) => {
-          const Icone = ICONE[s] || ExternalLink;
-          const pedeSenha = s === "rh";
+          const Icone = iconeDoSistema(doSistema(s));
+          /* DERIVADO DO FATO, não escrito à mão: pede senha quem tem endereço
+             e NÃO tem chave de crachá plantada pela entrada única. O `=== "rh"`
+             antigo mentiria no dia em que o RH ganhasse crachá — ou em que
+             outro sistema caísse na situação do RH. */
+          const pedeSenha = !CHAVE_CRACHA[s];
           return (
             <a
               key={s}

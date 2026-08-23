@@ -26,6 +26,10 @@
 export const SISTEMAS = [
   {
     id: "painel",
+    // O ícone do sistema, UM lugar só (nome do lucide-react). Havia duas
+    // tabelas (lateral e Home) e elas já divergiam: o ícone que a pessoa
+    // aprendia num lugar não valia no outro, na MESMA tela do desktop.
+    icone: "LayoutDashboard",
     nome: "Painel",
     nomeCompleto: "Painel de Gestão",
     // Onde o sistema mora, para abrir dali mesmo.
@@ -57,6 +61,7 @@ export const SISTEMAS = [
   },
   {
     id: "rh",
+    icone: "Users",
     nome: "RH",
     url: "https://impresilk.com.br/rh",
     acessos: { url: "https://impresilk.com.br/rh/painel-controle", caminho: "aba Usuários e Permissões" },
@@ -75,6 +80,7 @@ export const SISTEMAS = [
   },
   {
     id: "pcp",
+    icone: "ClipboardList",
     nome: "PCP",
     url: "https://impresilk.com.br/pcp",
     acessos: { url: "", caminho: "Configurações → Acessos" },
@@ -94,6 +100,7 @@ export const SISTEMAS = [
   },
   {
     id: "brief",
+    icone: "Ruler",
     // `nome` e o curto, que cabe na coluna da tabela de acessos; `nomeCompleto`
     // e como a casa chama o sistema, e e ele que vai na lateral e nos avisos.
     nome: "Brief",
@@ -108,6 +115,7 @@ export const SISTEMAS = [
   },
   {
     id: "dre",
+    icone: "BarChart3",
     nome: "DRE",
     url: "https://impresilk.com.br/dre",
     /* O DRE NAO GUARDA CONTA. Ate 18/08/2026 era uma porta com UMA senha
@@ -129,6 +137,7 @@ export const SISTEMAS = [
   },
   {
     id: "compras",
+    icone: "ShoppingCart",
     nome: "Compras",
     url: "https://impresilk.com.br/compras",
     acessos: { url: "", caminho: "Configurações → Acessos" },
@@ -140,6 +149,7 @@ export const SISTEMAS = [
   },
   {
     id: "pops",
+    icone: "BookOpen",
     nome: "POPs",
     nomeCompleto: "Pops & Fabricação",
     url: "https://impresilk.com.br/pops",
@@ -152,6 +162,7 @@ export const SISTEMAS = [
   },
   {
     id: "central",
+    icone: "UserCircle",
     nome: "Central do Léo",
     // App pessoal do dono: nao tem atalho no dominio da empresa.
     url: "https://leogpereira-afk.github.io/vida-leo/",

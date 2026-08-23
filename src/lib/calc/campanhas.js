@@ -102,23 +102,10 @@ export function resumoGeralCampanhas(campanhas, ordens, anoHoje) {
     });
 }
 
-/* OS NÚMEROS DO TOPO. Separados por ANO porque é assim que a pergunta é feita:
-   "quanto a eleição de 2026 rendeu" não se compara com o total de todos os
-   tempos. Campanha encerrada continua contando no ano dela -- ela aconteceu. */
-export function totaisDasCampanhas(lista, anoHoje) {
-  const cem = (n) => Math.round(n * 100) / 100;
-  const doAno = lista.filter((c) => String(c.ano || "") === String(anoHoje));
-  return {
-    quantas: lista.length,
-    vendidoTotal: cem(lista.reduce((s, c) => s + c.vendido, 0)),
-    quantasNoAno: doAno.length,
-    vendidoNoAno: cem(doAno.reduce((s, c) => s + c.vendido, 0)),
-    // Compradores DISTINTOS no ano: o mesmo candidato em duas campanhas conta
-    // uma vez. Somar os compradores de cada uma inflaria.
-    compradoresNoAno: new Set(doAno.flatMap((c) => c.porCliente.map((p) => p.chave))).size,
-    osNoAno: doAno.reduce((s, c) => s + c.linhas.length, 0),
-  };
-}
+/* totaisDasCampanhas MORREU AQUI (23/08). Era a versão pré-seletor-de-ano de
+   totaisDoAno, sem os dois controles que a viva ganhou (semAno e repetidas) --
+   a cópia que alguém um dia chamaria por engano e reintroduziria o total
+   inflado. O teste antigo dela migrou para totaisDoAno. */
 
 /* O RANKING DE COMPRADORES de uma campanha, ou de várias somadas.
    É o "quem comprou quanto" que a campanha existe para responder. */

@@ -355,75 +355,16 @@ Deno.serve(async (req: Request) => {
         return json({ pessoas });
       }
 
-      case "listarContas": {
-        if (!(await exigirMaster())) return json({ erro: "Apenas a direcao." }, 403);
-        const { data, error } = await sb.from("painel_contas").select("*").order("usuario");
-        if (error) throw new Error(error.message);
-        return json({ contas: (data ?? []).map(publica), modulos: MODULOS, master: MASTER_USUARIO });
-      }
-
-      case "salvarConta": {
-        if (!(await exigirMaster())) return json({ erro: "Apenas a direcao." }, 403);
-        const usuario = normalizarUsuario(body.usuario);
-        const nome = String(body.nome || "").trim() || usuario;
-        const senha = body.senha ? String(body.senha) : "";
-        const permissoes = Array.isArray(body.permissoes)
-          ? body.permissoes.filter((p: string) => p === "*" || MODULOS.includes(p))
-          : [];
-        if (!usuario) return json({ erro: "Informe o usuario." }, 400);
-        if (usuario === MASTER_USUARIO) {
-          // Nao e limitacao, e desenho: a direcao ja entra e ja ve tudo, entao
-          // cadastra-la de novo criaria duas contas com o mesmo nome disputando
-          // o login. A senha dela se troca em "Minha senha", dentro do painel.
-          return json({
-            erro: "Essa e a conta da direcao: ela ja entra e ja enxerga tudo. Para trocar a senha dela, use 'Minha senha' no alto desta pagina.",
-          }, 400);
-        }
-
-        const atual = await lerConta(usuario);
-        // Conta nova exige senha; conta existente pode ser editada sem trocar a
-        // senha (campo em branco = mantem a que ja tem).
-        if (!atual && senha.length < 6) return json({ erro: "Defina uma senha de ao menos 6 caracteres." }, 400);
-        if (senha && senha.length < 6) return json({ erro: "A senha precisa ter ao menos 6 caracteres." }, 400);
-
-        const reg = senha
-          ? await hashSenha(senha)
-          : { hash: atual!.hash, salt: atual!.salt, iter: atual!.iter };
-        /* Campo ausente no corpo = mantem o que ja estava; string vazia = desliga.
-
-           CONTRATO COM A TELA: `salvarConta` e um UPSERT do registro INTEIRO --
-           quem chama tem de mandar `permissoes` e `vendedorId` com os valores
-           ATUAIS da conta, nao com o formulario em branco. Em 04/08/2026 isso
-           mordeu: digitar "karen" no campo Usuario (caminho natural para trocar
-           a senha dela) mandava o form vazio e zerava permissoes e vinculo sem
-           avisar. O conserto ficou na TELA, que agora carrega os valores da
-           conta assim que o usuario digitado casa com uma existente.
-
-           NAO transformamos "string vazia" em "manter" aqui de proposito: seria
-           tirar da direcao a unica forma de REMOVER uma permissao ou desligar um
-           vinculo -- trocar um footgun por uma trava. Se um dia outro cliente
-           chamar esta API, ele tem de respeitar o mesmo contrato, ou mandar o
-           campo ausente. */
-        const vendedorId = body.vendedorId === undefined
-          ? atual?.vendedor_id || ""
-          : String(body.vendedorId || "").trim();
-
-        const { error } = await sb.from("painel_contas").upsert({
-          usuario, nome, permissoes, vendedor_id: vendedorId, ...reg,
-          atualizado_em: new Date().toISOString(),
-        }, { onConflict: "usuario" });
-        if (error) throw new Error(error.message);
-        return json({ ok: true });
-      }
-
-      case "removerConta": {
-        if (!(await exigirMaster())) return json({ erro: "Apenas a direcao." }, 403);
-        const usuario = normalizarUsuario(body.usuario);
-        if (!usuario) return json({ erro: "Informe o usuario." }, 400);
-        if (usuario === MASTER_USUARIO) return json({ erro: "A conta da direcao nao pode ser removida." }, 400);
-        await sb.from("painel_contas").delete().eq("usuario", usuario);
-        return json({ ok: true });
-      }
+      /* AS TRES ACTIONS DE ADMINISTRAR CONTA (listarContas/salvarConta/
+         removerConta) FORAM APOSENTADAS (23/08). Quem administra e SINCRONIZA a
+         senha nos tres lugares e a painel-acesso -- estas eram a versao antiga
+         e DIVERGENTE: gravavam so em painel_contas, e uma chamada por engano
+         deixava a pessoa com duas senhas validas em portas diferentes. O 410
+         nomeia o caminho novo em vez de sumir calado. */
+      case "listarContas":
+      case "salvarConta":
+      case "removerConta":
+        return json({ erro: "Esta acao mudou de casa: use a painel-acesso (tela Sistemas de Acessos)." }, 410);
 
       default:
         return json({ erro: `Acao desconhecida: ${action}` }, 400);

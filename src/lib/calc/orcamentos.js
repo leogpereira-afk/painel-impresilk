@@ -367,16 +367,6 @@ export function calcOrcamentos(orcamentos, overrides, config, opcoes = {}) {
 
   // ------------------------------------------------------------ a fila
   const naFila = doEscopo.filter((o) => o.balde != null);
-  const grupos = agrupar(naFila).sort(
-    (a, b) =>
-      ORDEM_BALDE[a.balde] - ORDEM_BALDE[b.balde] ||
-      b.dinheiro - a.dinheiro ||
-      b.valor - a.valor ||
-      String(a.cliente).localeCompare(String(b.cliente))
-  );
-
-  const porBalde = {};
-  for (const b of BALDES) porBalde[b.id] = grupos.filter((g) => g.balde === b.id).length;
 
   // ------------------------------------------------------------ agenda
   /* Só quem ainda está vivo: sem o corte por situação, um orçamento GANHO que
@@ -530,19 +520,6 @@ export function calcOrcamentos(orcamentos, overrides, config, opcoes = {}) {
       recallQtd: recall.length,
       recallValor: soma(recall, "valor"),
     },
-    fila: {
-      grupos,
-      kpis: {
-        clientes: grupos.length,
-        orcamentos: naFila.length,
-        valor: soma(naFila, "valor"),
-        // Os dois dinheiros NUNCA se somam: o que o ERP ja deu por perdido nao
-        // esta "em jogo", esta a recuperar. Somar inflaria a mesa em milhoes.
-        margemAberta: soma(naFila.filter((o) => o.situacao === "aberto"), "margem"),
-        margemRecall: soma(naFila.filter((o) => o.recall), "margem"),
-        porBalde,
-      },
-    },
     agenda,
     fechados,
     cobertura,
@@ -550,6 +527,5 @@ export function calcOrcamentos(orcamentos, overrides, config, opcoes = {}) {
     vendedoresDaBase,
     porVendedor,
     porMotivoPerda,
-    motivoLider: porMotivoPerda[0] || null,
   };
 }

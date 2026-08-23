@@ -17,16 +17,12 @@ import {
   Clock,
   Menu,
   X,
-  Users,
   BarChart3,
-  ClipboardList,
-  Ruler,
   ArrowUpRight,
   LogOut,
   RefreshCw,
   KeyRound,
   FileCheck2,
-  UserCircle,
   HardHat,
   Building2,
   ChevronDown,
@@ -35,13 +31,13 @@ import {
   Landmark,
   Megaphone,
   Gavel,
-  ShoppingCart,
   BookOpen,
   CalendarCheck,
   Compass,
   Flag,
   Handshake,
 } from "lucide-react";
+import { iconeDoSistema } from "./iconesDosSistemas.js";
 import logoColor from "../assets/brand/logo-color.png";
 import logoWhite from "../assets/brand/logo-white.png";
 import { useApp } from "../config/store.jsx";
@@ -82,14 +78,10 @@ const GESTAO = [
 // O que continua morando aqui e o ICONE, que e escolha de interface.
 //
 // O Painel fica de fora: e onde a pessoa ja esta.
-const ICONE_SIS = {
-  dre: BarChart3, rh: Users, pcp: ClipboardList, compras: ShoppingCart,
-  brief: Ruler, pops: BookOpen, central: UserCircle,
-};
 const SISTEMAS = SISTEMAS_CASA
   .filter((s) => s.id !== "painel" && s.url)
   .map((s) => ({
-    rotulo: s.nomeCompleto || s.nome, icone: ICONE_SIS[s.id] || ArrowUpRight, href: s.url,
+    rotulo: s.nomeCompleto || s.nome, icone: iconeDoSistema(s), href: s.url,
     soDirecao: !!s.pessoal,
   }));
 
@@ -481,6 +473,10 @@ export default function Layout({ children, sessao }) {
             </div>
 
             <div className="flex shrink-0 items-center gap-2">
+              {/* O selo vale MAIS no celular (o aparelho da decisão): número
+                  de demonstração sem selo é número falso passando por
+                  verdadeiro. Versão curta no telefone, inteira no desktop. */}
+              {modoDemo && <span className="chip-warn inline-flex sm:hidden">demo</span>}
               {modoDemo && <span className="chip-warn hidden sm:inline-flex">Modo demonstração</span>}
               {f && (
                 <span
