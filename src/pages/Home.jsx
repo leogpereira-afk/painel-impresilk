@@ -13,6 +13,8 @@ import { useNavigate } from "react-router-dom";
 import { AlertTriangle, ChevronRight } from "lucide-react";
 import { useApp } from "../config/store.jsx";
 import { listarAtivos } from "../services/ativos.js";
+import { statusBackup } from "../services/backup.js";
+import { ehDirecao } from "../lib/sessao.js";
 import { calcAtivos, TIPOS } from "../lib/calc/ativos.js";
 import { ymdLocal } from "../lib/format.js";
 import { Card, CarregandoModulo, ErroModulo } from "../components/ui.jsx";
@@ -63,6 +65,13 @@ export default function Home() {
   // alvara vence em silencio.
   const [criticos, setCriticos] = useState([]);
   const [falhouVencimentos, setFalhouVencimentos] = useState(false);
+  /* BACKUP PARADO, na tela que a direção VÊ. O alerta de 36h morava só na
+     tela de Acessos — que só se abre para mexer em conta. Aviso que não é
+     visto não é aviso: o disparo diário é cego (quem chama não lê a resposta)
+     e a casa já teve o backup morto por dias sem ninguém saber. Só a direção
+     busca (é assunto dela) e falha da consulta fica muda: o aviso de atraso
+     não pode nascer de uma queda de rede. */
+  const [backupParadoHoras, setBackupParadoHoras] = useState(null);
   useEffect(() => {
     let vivo = true;
     listarAtivos()
@@ -81,6 +90,20 @@ export default function Home() {
          vencendo" -- no único card que ninguém confere por conta própria, um
          alvará vencido sumia em silêncio. */
       .catch(() => { if (vivo) setFalhouVencimentos(true); });
+    if (ehDirecao()) {
+      statusBackup()
+        .then((st) => {
+          if (!vivo || !st) return;
+          const sistemas = st?.sistemas || (st?.em ? { painel: st } : {});
+          const idades = Object.values(sistemas)
+            .map((sx) => Date.parse(sx?.em || "") || 0)
+            .filter(Boolean)
+            .map((t) => (Date.now() - t) / 36e5);
+          const maisVelho = idades.length ? Math.max(...idades) : null;
+          if (maisVelho != null && maisVelho > 36) setBackupParadoHoras(Math.round(maisVelho));
+        })
+        .catch(() => {});
+    }
     return () => {
       vivo = false;
     };
@@ -102,6 +125,20 @@ export default function Home() {
         {fraseDoDia()}
       </p>
 
+      {backupParadoHoras != null && (
+        <button
+          onClick={() => navigate("/acessos")}
+          className="card card-hover mt-6 w-full max-w-lg border-l-4 border-l-bad-600 p-4 text-left"
+        >
+          <span className="flex items-center gap-2 text-sm">
+            <AlertTriangle size={16} className="shrink-0 text-bad-700" />
+            <span className="min-w-0 flex-1 text-slate-700">
+              <strong className="font-display">Backup parado.</strong> O mais velho tem{" "}
+              {backupParadoHoras}h — o normal é rodar todo dia. Toque para ver e rodar agora.
+            </span>
+          </span>
+        </button>
+      )}
       {falhouVencimentos && (
         <Card className="flex items-start gap-2 text-sm text-warn-700">
           <AlertTriangle size={15} className="mt-0.5 shrink-0" />
