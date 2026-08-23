@@ -188,6 +188,25 @@ Deno.serve(async (req: Request) => {
     // As contas dos sistemas sao assunto da direcao: moram na tela de Gestao.
     assinaturas: "gestao",
   };
+  /* AS MARCACOES EM MASSA DE COBRANCA/ORCAMENTO. Ler e MARCAR (merge) ov_rec
+     e ov_orc continua aberto a qualquer logado -- decisao documentada no
+     MODULO_DA_CHAVE. Mas `set` substitui a colecao INTEIRA e `removerId` apaga
+     um registro: com as duas fora do mapa de modulos, uma conta so com
+     glossario mandava set {chave:"ov_rec", valor:{}} e apagava TODAS as
+     promessas de pagamento e o historico de negociacao da casa, em silencio.
+     Apagamento em massa nao e marcacao: exige o modulo da tela dona. */
+  const MODULO_APAGAR: Record<string, string> = {
+    ov_rec: "contas-atrasadas",
+    ov_orc: "orcamentos",
+  };
+  const barraApagar = (chave: string) => {
+    if (!sessao) return null;   // o 401 de cada ramo cuida do sem-sessao
+    const m = MODULO_APAGAR[chave];
+    if (m && !temModulo(m)) {
+      return resposta({ erro: "Apagar marcacoes de " + m + " exige o modulo correspondente." }, 403);
+    }
+    return null;
+  };
   const barraChave = (chave: string) => {
     // Sem sessao, quem responde e o 401 de cada ramo: o cliente usa esse 401
     // (com semSessao) para deslogar sozinho. Trocar por 403 aqui esconderia a
@@ -286,6 +305,10 @@ Deno.serve(async (req: Request) => {
           // set substitui o overlay INTEIRO (o app usa para restaurar backup e
           // para limpar). Apagar as linhas e regravar e a traducao fiel disso.
           // Em chave por dono isso apagaria a agenda das colegas: so a direcao.
+          {
+            const barrado2 = barraApagar(chave);
+            if (barrado2) return barrado2;
+          }
           if (POR_DONO.has(chave) && !ehDirecao) {
             return resposta({ erro: "Voce nao pode substituir a lista inteira." }, 403);
           }
@@ -700,6 +723,10 @@ Deno.serve(async (req: Request) => {
         if (!OVERLAYS.has(chave)) return resposta({ erro: "chave nao gravavel" }, 403);
         const barrado = barraChave(chave);
         if (barrado) return barrado;
+        {
+          const barrado2 = barraApagar(chave);
+          if (barrado2) return barrado2;
+        }
         if (!id) return resposta({ erro: "informe o id" }, 400);
         const barradoDono = await barraDono(chave, id);
         if (barradoDono) return barradoDono;

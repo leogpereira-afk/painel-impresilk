@@ -19,7 +19,7 @@
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import {
-  assinarJwt, hashSenha, conferirSenha, normalizarUsuario, sessaoDoPedido,
+  assinarJwt, hashSenha, conferirSenha, normalizarUsuario, sessaoDoPedido, crachaRevogado,
 } from "../_shared/cripto.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
@@ -108,8 +108,19 @@ Deno.serve(async (req: Request) => {
   }
   const action = String(body.action || "");
 
-  const exigirMaster = async () => {
+  /* SESSAO VIVA = crachá válido E não revogado. Esta era a ÚNICA das três
+     portas do Painel que não perguntava pela revogação: painel-config e
+     painel-dados conferem a cada pedido, e aqui o crachá de até 12h de alguém
+     DESATIVADO continuava listando a equipe, trocando a própria senha e -- se
+     era master -- administrando contas. Desativar tem de valer nas três portas
+     no mesmo instante. */
+  const sessaoViva = async () => {
     const s = await sessaoDoPedido(req, JWT_SECRET);
+    if (!s) return null;
+    return (await crachaRevogado(sb, "painel", s)) ? null : s;
+  };
+  const exigirMaster = async () => {
+    const s = await sessaoViva();
     return s && s.master === true ? s : null;
   };
 
@@ -209,7 +220,7 @@ Deno.serve(async (req: Request) => {
       }
 
       case "eu": {
-        const s = await sessaoDoPedido(req, JWT_SECRET);
+        const s = await sessaoViva();
         if (!s) return json({ erro: "Sessao invalida ou expirada.", semSessao: true }, 401);
         return json({
           usuario: s.sub, nome: s.nome || s.sub,
@@ -219,7 +230,7 @@ Deno.serve(async (req: Request) => {
 
       // Exige a senha atual: um cracha roubado nao pode tomar a conta.
       case "trocarMinhaSenha": {
-        const s = await sessaoDoPedido(req, JWT_SECRET);
+        const s = await sessaoViva();
         // semSessao: true e o sinal que o cliente usa para deslogar e mostrar
         // "sua sessao expirou". Sem ele, quem passou das 12 horas do cracha
         // ficava preso numa tela de erro que nao dizia o que fazer.
@@ -323,7 +334,7 @@ Deno.serve(async (req: Request) => {
       // tarefa para a colega e preciso saber que ela existe. NAO devolve hash,
       // permissao nem vendedor: isso continua sendo coisa da direcao.
       case "listarPessoas": {
-        const s = await sessaoDoPedido(req, JWT_SECRET);
+        const s = await sessaoViva();
         if (!s) return json({ erro: "Entre no sistema.", semSessao: true }, 401);
         const { data, error } = await sb.from("painel_contas")
           .select("usuario, nome, permissoes").order("nome");

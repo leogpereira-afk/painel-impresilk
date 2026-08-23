@@ -267,6 +267,14 @@ Deno.serve(async (req: Request) => {
       // Devolve SO escopo empresa. Mesmo registro que o Painel edita: mexer de
       // um lado aparece no outro na hora, sem copia.
       case "taticasDaEmpresa": {
+        /* A PONTE (x-token) passa; SESSAO precisa ser gestor. Sem esta guarda,
+           qualquer conta logada -- inclusive colaborador, que a action "tudo"
+           corta cuidadosamente na identidade -- lia todas as taticas da
+           direcao: quem faz o que, atrasos, decisoes viradas em tarefa. A
+           regua estreita estava so na tela; a porta ficava larga. */
+        if (!pelaPonte) {
+          const b = soGestor(); if (b) return b;
+        }
         const emp = await empresaId(texto(corpo.empresa) || "Impresilk");
         if (!emp) return resposta({ erro: "Empresa nao cadastrada." }, 404);
         const { data } = await sb.from("gestao_tatica").select("*")

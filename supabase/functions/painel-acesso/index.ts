@@ -877,6 +877,11 @@ Deno.serve(async (req: Request) => {
         for (const p of pedidos) {
           const sistema = texto(p.sistema, 20);
           if (!SISTEMAS.includes(sistema)) continue;
+          // Mesma regra do salvarPapel: sistema aposentado nao ganha conta nova.
+          if (SO_LEITURA.has(sistema)) {
+            recusados.push({ sistema, erro: RECADO_SO_LEITURA });
+            continue;
+          }
           if (sistema === "rh" && !linha.colaborador) {
             recusados.push({ sistema, erro: "O RH so aceita conta ligada a uma ficha de colaborador. Preencha \"Quem e no RH\"." });
             continue;
@@ -933,6 +938,16 @@ Deno.serve(async (req: Request) => {
         const recusados: { sistema: string; erro: string }[] = [];
         const real = await estadoReal();
         for (const p of papeis ?? []) {
+          /* SISTEMA APOSENTADO NAO GANHA SENHA NOVA. A regra SO_LEITURA valia
+             em senhaDoSistema e aqui nao: "gerar senha em TODOS" para quem tem
+             papel no DRE mandava salvarConta com senha a equipe-auth, que
+             ACEITAVA -- ressuscitando uma credencial viva e invisivel no
+             sistema que a direcao aposentou em 18/08. Os numeros financeiros
+             da casa atras de uma senha que ninguem sabia que existia. */
+          if (SO_LEITURA.has(p.sistema)) {
+            recusados.push({ sistema: p.sistema, erro: RECADO_SO_LEITURA });
+            continue;
+          }
           const login = await alvoParaEscrever(conta, p.sistema, p);
           /* NAO CRIAR CONTA AQUI. Este era o pior efeito da divergencia: quando
              o login nao existia no sistema, a equipe-auth recebia senha junto e
@@ -1010,6 +1025,13 @@ Deno.serve(async (req: Request) => {
                 erro: 'nao achei o perfil desta pessoa no RH -- confira "Quem e no RH" na ficha dela',
               });
             } else feitos.push("rh");
+            continue;
+          }
+          /* Em sistema aposentado, DESATIVAR passa (reduz acesso) e REATIVAR
+             nao: religar uma conta no DRE e o mesmo buraco da senha nova, por
+             outro botao. */
+          if (ativo && SO_LEITURA.has(p.sistema)) {
+            recusados.push({ sistema: p.sistema, erro: RECADO_SO_LEITURA });
             continue;
           }
           const login = await alvoParaEscrever(conta, p.sistema, p);

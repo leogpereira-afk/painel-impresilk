@@ -252,7 +252,17 @@ Deno.serve(async (req: Request) => {
     const cliente = createClient(SUPABASE_URL, ANON_KEY, { auth: { persistSession: false } });
     if (conta.auth_user_id) {
       const { data, error } = await cliente.auth.signInWithPassword({ email, password: senha });
-      if (error || !data?.session) return json({ erro: ERRO }, 401);
+      if (error || !data?.session) {
+        /* REGISTRA A FALHA NO LOG. O freio de 15 minutos ja valia aqui -- o
+           porta_travada do topo consome ficha em TODA tentativa, antes dos
+           ramos --, mas este era o unico caminho que devolvia 401 mudo: senha
+           errada contra conta JA MIGRADA (o caminho da maioria, inclusive o da
+           direcao) nao deixava linha nenhuma em equipe_acessos_log. A tela de
+           Acessos mostra esse historico; um martelo de senhas contra conta
+           migrada era invisivel exatamente para quem vigia. */
+        await registrar("*", usuario, "login-falhou", "senha errada (conta migrada)");
+        return json({ erro: ERRO }, 401);
+      }
       sessao = data.session;
     } else {
       // 2a) A senha do RH nao esta em acesso_senha_legado: ela mora no GoTrue,
