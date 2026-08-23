@@ -465,6 +465,34 @@ export default function ContasAtrasadas() {
      ignora o filtro faz a soma da tela não fechar com a lista embaixo dela. */
   const resumoCob = useMemo(() => resumoDaCarteira(carteiraVista), [carteiraVista]);
 
+  /* MARCAR COBRADO ECOA NO DIÁRIO. A lista dizia "cobrado em 20/08" e o
+     cartão da Cobrança, do mesmo cliente, dizia "nunca foi chamado · a
+     cobrança nem começou" -- duas abas se contradizendo sobre o mesmo fato. O
+     eco é um chamado mínimo (data + texto padrão); se a gravação do diário
+     falhar, a marcação da lista FICA (é o gesto principal) e o aviso aparece.
+     Desmarcar não apaga o chamado: a ligação aconteceu; desfazer a marcação
+     não desfaz a conversa. */
+  const marcarCobrado = useCallback(async (t) => {
+    setOverrideRecebivel(t.id, { cobrado: true, cobradoEm: ymdLocal(new Date()) });
+    try {
+      const id = `ch-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+      setCobrancas(await salvarChamado(chaveCob(t.cliente), {
+        cliente: t.cliente,
+        chamadoId: id,
+        chamado: {
+          data: ymdLocal(new Date()),
+          canal: "Ligação",
+          contato: "",
+          resumo: `Marcado como cobrado na lista (título ${t.documento || t.id})`,
+          situacao: "semResposta",
+          promessa: "",
+        },
+      }));
+    } catch (e) {
+      setAvisoCob(`Marquei como cobrado, mas não consegui anotar no diário de cobrança: ${e.message}`);
+    }
+  }, [setOverrideRecebivel]);
+
   const registrarChamado = useCallback(async (c, form, limpar) => {
     setAvisoCob(null);
     setSalvandoChamado(true);
@@ -1113,10 +1141,8 @@ export default function ContasAtrasadas() {
                       ) : (
                         <button
                           className="btn-outline min-h-[44px] justify-center !border-ok-200 !text-ok-700 xl:min-h-[40px] xl:!px-2.5"
-                          onClick={() =>
-                            setOverrideRecebivel(t.id, { cobrado: true, cobradoEm: ymdLocal(new Date()) })
-                          }
-                          title="Marcar como cobrado"
+                          onClick={() => marcarCobrado(t)}
+                          title="Marcar como cobrado (anota no diário de cobrança também)"
                         >
                           <CheckCircle2 size={15} strokeWidth={2.4} />
                           <span className="xl:hidden">Cobrado</span>
@@ -1218,10 +1244,11 @@ export default function ContasAtrasadas() {
             <Card className="text-sm text-bad-700">{avisoCob}</Card>
           )}
 
-          {/* Os três números que MUDAM O QUE SE FAZ AGORA. Não são três jeitos
-              de somar a mesma dívida: o primeiro é ligar hoje, o segundo é
-              começar, o terceiro é esperar. */}
-          <div className="grid gap-3 sm:grid-cols-3">
+          {/* Os QUATRO números que mudam o que se faz agora -- e que SOMAM o
+              total da carteira. Eram três, e quem estava "negociando" ou
+              "contestou" não aparecia em nenhum: o CEO somava de cabeça e não
+              fechava, sem saber que a diferença tinha nome. */}
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <Card className="p-4">
               <div className="text-xs text-slate-500">Prometeram e não pagaram</div>
               <div className={`mt-1 text-2xl font-semibold tabular-nums ${resumoCob.quebradas ? "text-bad-700" : "text-slate-800"}`}>
@@ -1247,6 +1274,15 @@ export default function ContasAtrasadas() {
               </div>
               <div className="mt-0.5 text-xs text-slate-500">
                 {numero(resumoCob.aguardando)} {resumoCob.aguardando === 1 ? "cliente" : "clientes"} · não ligar, esperar
+              </div>
+            </Card>
+            <Card className="p-4">
+              <div className="text-xs text-slate-500">Em conversa</div>
+              <div className="mt-1 text-2xl font-semibold tabular-nums text-slate-800">
+                {moeda(resumoCob.valorEmConversa)}
+              </div>
+              <div className="mt-0.5 text-xs text-slate-500">
+                {numero(resumoCob.emConversa)} {resumoCob.emConversa === 1 ? "cliente" : "clientes"} · negociando, contestou ou sem resposta
               </div>
             </Card>
           </div>
@@ -1482,7 +1518,7 @@ export default function ContasAtrasadas() {
       <Card>
         <SectionTitle
           titulo="Por que estão atrasados"
-          sub="Distribuição do valor por origem da causa."
+          sub="Distribuição do valor por origem da causa — sobre TODA a dívida ativa, ignora os filtros da lista."
         />
         {vm.porOrigem.some((o) => o.valor > 0) ? (
           <div className="space-y-4">
@@ -1511,7 +1547,7 @@ export default function ContasAtrasadas() {
       <Card>
         <SectionTitle
           titulo="Padrões por motivo"
-          sub="O que mais trava o recebimento, por valor."
+          sub="O que mais trava o recebimento, por valor — sobre TODA a dívida ativa, ignora os filtros da lista."
         />
         {vm.porMotivo.length ? (
           <div className="space-y-4">
@@ -1535,7 +1571,7 @@ export default function ContasAtrasadas() {
       <Card>
         <SectionTitle
           titulo="Idade dos atrasos"
-          sub="Quanto mais velho o atraso, mais difícil recuperar. Clique numa faixa para ver os títulos."
+          sub="Quanto mais velho o atraso, mais difícil recuperar. Clique numa faixa para ver os títulos. Sobre TODA a dívida ativa, ignora os filtros da lista."
         />
         {vm.idade.some((f) => f.qtd > 0) ? (
           <div className="space-y-2">

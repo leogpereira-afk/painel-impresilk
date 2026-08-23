@@ -152,3 +152,29 @@ test("título sem vencimento não sobrevive a um filtro de data", () => {
   assert.equal(filtrarCarteira(c, { de: "2020-01-01" }).length, 0);
   assert.equal(filtrarCarteira(c, {}).length, 1, "sem filtro ele continua lá");
 });
+
+test("os quatro números do topo SOMAM o total — nenhum cliente fica sem card", () => {
+  /* Era o buraco: quem estava "negociando"/"contestou"/"não atendeu" (ou
+     prometeu SEM data) não aparecia em card nenhum, e a soma de cabeça do CEO
+     não fechava. Todo cartão cai em exatamente um dos quatro. */
+  const hoje = "2026-08-23";
+  const t = (cliente, valor) => ({ cliente, valor, dias: 10, vencimento: "2026-08-01" });
+  const ch = (situacao, promessa = "") => ({ chamados: { c1: { data: "2026-08-20", situacao, promessa } } });
+  const cartoes = carteiraDeCobranca(
+    [t("QUEBRADA", 100), t("NUNCA", 50), t("AGUARDA", 30), t("NEGOCIA", 20), t("PROMETEU SEM DATA", 7)],
+    {
+      QUEBRADA: ch("prometeu", "2026-08-21"),
+      AGUARDA: ch("prometeu", "2026-08-25"),
+      NEGOCIA: ch("negociar"),
+      "PROMETEU SEM DATA": ch("prometeu"),
+    },
+    hoje,
+  );
+  const r = resumoDaCarteira(cartoes);
+  assert.equal(r.valorQuebrado, 100);
+  assert.equal(r.valorSemChamado, 50);
+  assert.equal(r.valorAguardando, 30);
+  assert.equal(r.valorEmConversa, 27, "negociando + promessa sem data");
+  assert.equal(r.valorQuebrado + r.valorSemChamado + r.valorAguardando + r.valorEmConversa, r.total,
+    "os quatro fecham com o total — o controle que consegue falhar");
+});

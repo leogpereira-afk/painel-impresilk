@@ -489,9 +489,12 @@ function Placar({
         onClick={aoAlternar}
         aria-expanded={aberto}
       >
-        <span className="font-display font-semibold text-slate-900">Placar do mês</span>
+        {/* "Placar", sem o "do mês": o período é escolhível e a coorte é por
+            data de ENVIO -- o rótulo antigo prometia mês corrente e entregava
+            outra coisa. O período real está do lado, e a coorte, dita. */}
+        <span className="font-display font-semibold text-slate-900">Placar</span>
         <span className="tnum flex items-center gap-2 text-xs text-slate-500">
-          <span>{rotuloPeriodo} · </span>
+          <span>{rotuloPeriodo} · enviados no período · </span>
           {numero(k.ganhosQtd)} ganhos · {pct(k.conversao)} · {moeda(k.margemGanha)}
           <ChevronDown size={16} className={`shrink-0 transition-transform ${aberto ? "" : "-rotate-90"}`} />
         </span>

@@ -205,6 +205,11 @@ export function resumoDaCarteira(cartoes) {
     semChamado: 0, valorSemChamado: 0,
     // Prometeu e a data ainda não chegou: não ligar, esperar.
     aguardando: 0, valorAguardando: 0,
+    /* O QUARTO NÚMERO: em conversa (negociando, contestou, não atendeu,
+       prometeu sem data). Sem ele os três cards não somavam o total da
+       carteira -- o CEO somava de cabeça e não fechava, e a diferença ficava
+       sem nome. Todo cartão cai em exatamente UM dos quatro. */
+    emConversa: 0, valorEmConversa: 0,
   };
   for (const c of cartoes) {
     r.total += c.valor;
@@ -212,8 +217,8 @@ export function resumoDaCarteira(cartoes) {
     else if (c.semChamado) { r.semChamado += 1; r.valorSemChamado += c.valor; }
     else if (c.ultimo?.situacao === "prometeu" && c.ultimo.promessa) {
       r.aguardando += 1; r.valorAguardando += c.valor;
-    }
+    } else { r.emConversa += 1; r.valorEmConversa += c.valor; }
   }
-  for (const k of ["total", "valorQuebrado", "valorSemChamado", "valorAguardando"]) r[k] = cem(r[k]);
+  for (const k of ["total", "valorQuebrado", "valorSemChamado", "valorAguardando", "valorEmConversa"]) r[k] = cem(r[k]);
   return r;
 }
