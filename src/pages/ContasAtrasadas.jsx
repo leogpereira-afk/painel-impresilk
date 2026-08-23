@@ -29,6 +29,7 @@ import {
   ordenarCarteira, filtrarCarteira, ORDENS,
 } from "../lib/calc/cobrancas.js";
 import { lerCobrancas, salvarChamado } from "../services/cobrancas.js";
+import { Secao } from "../components/trocas.jsx";
 import { moedaCheia, moeda, numero, dataLonga, dataCurta, rotuloMes, ymdLocal, MESES } from "../lib/format.js";
 import { Selo, Avatar, Dinheiro, FaixaNumeros, LinhaLista } from "../components/lista.jsx";
 import {
@@ -306,6 +307,24 @@ export default function ContasAtrasadas() {
   const [ateCob, setAteCob] = useState("");
   const [salvandoChamado, setSalvandoChamado] = useState(false);
   const [avisoCob, setAvisoCob] = useState(null);
+  /* PREFERÊNCIA DO DONO (23/08): em análise, todo quadro recolhe e a tela
+     lembra a escolha. Chave por seção; default tudo aberto. */
+  const [abertasAnaliseCA, setAbertasAnaliseCA] = useState(() => {
+    const padrao = { ondeDivida: true, rankingDevedores: true, porQue: true, porMotivo: true,
+                     idade: true, plano: true, cobrarHoje: true, dso: true };
+    try {
+      return { ...padrao, ...JSON.parse(localStorage.getItem("contas_analise_secoes") || "{}") };
+    } catch {
+      return padrao;
+    }
+  });
+  const alternarAnaliseCA = useCallback((id) => {
+    setAbertasAnaliseCA((a) => {
+      const novo = { ...a, [id]: !a[id] };
+      try { localStorage.setItem("contas_analise_secoes", JSON.stringify(novo)); } catch { /* aba anônima */ }
+      return novo;
+    });
+  }, []);
   useEffect(() => {
     let vivo = true;
     lerCobrancas()
@@ -1375,8 +1394,8 @@ export default function ContasAtrasadas() {
       {/* Onde a divida esta: mesmo recorte da lista acima, visto por tres
           angulos. Clicar numa barra filtra a lista (ano/mes) ou busca o
           cliente, para o gestor ir do "onde" direto para o "quem". */}
-      <Card>
-        <SectionTitle
+      <Secao
+          id="ondeDivida"
           titulo="Onde esta a divida"
           sub={`${numero(titulosFiltrados.length)} títulos no recorte atual - ${moeda(
             somaFiltrada
@@ -1392,7 +1411,9 @@ export default function ContasAtrasadas() {
               onChange={setVisao}
             />
           }
-        />
+          aberta={abertasAnaliseCA.ondeDivida}
+          aoAlternar={alternarAnaliseCA}
+        >
         {dividas[visao === "ano" ? "porAno" : visao === "mes" ? "porMes" : "porCliente"].length ? (
           <div className="space-y-4">
             {(() => {
@@ -1446,14 +1467,16 @@ export default function ContasAtrasadas() {
         ) : (
           <Empty>Nenhum título no recorte atual.</Empty>
         )}
-      </Card>
+      </Secao>
 
       {/* Ranking de quem mais deve: a fila de cobranca, na ordem. */}
-      <Card>
-        <SectionTitle
+      <Secao
+          id="rankingDevedores"
           titulo="Ranking de devedores"
           sub="Quem mais deve no recorte atual, com o vendedor que atendeu."
-        />
+          aberta={abertasAnaliseCA.rankingDevedores}
+          aoAlternar={alternarAnaliseCA}
+        >
         {dividas.porCliente.length ? (
           <div className="overflow-x-auto">
             <table className="w-full min-w-[620px] border-collapse">
@@ -1517,14 +1540,16 @@ export default function ContasAtrasadas() {
         ) : (
           <Empty>Nenhum devedor no recorte atual.</Empty>
         )}
-      </Card>
+      </Secao>
 
       {/* Por que estao atrasados */}
-      <Card>
-        <SectionTitle
+      <Secao
+          id="porQue"
           titulo="Por que estão atrasados"
           sub="Distribuição do valor por origem da causa — sobre TODA a dívida ativa, ignora os filtros da lista."
-        />
+          aberta={abertasAnaliseCA.porQue}
+          aoAlternar={alternarAnaliseCA}
+        >
         {vm.porOrigem.some((o) => o.valor > 0) ? (
           <div className="space-y-4">
             {vm.porOrigem.map((o) => (
@@ -1546,14 +1571,16 @@ export default function ContasAtrasadas() {
         ) : (
           <Empty>Nada classificado por origem ainda.</Empty>
         )}
-      </Card>
+      </Secao>
 
       {/* Padroes por motivo */}
-      <Card>
-        <SectionTitle
+      <Secao
+          id="porMotivo"
           titulo="Padrões por motivo"
           sub="O que mais trava o recebimento, por valor — sobre TODA a dívida ativa, ignora os filtros da lista."
-        />
+          aberta={abertasAnaliseCA.porMotivo}
+          aoAlternar={alternarAnaliseCA}
+        >
         {vm.porMotivo.length ? (
           <div className="space-y-4">
             {vm.porMotivo.map((m) => (
@@ -1570,14 +1597,16 @@ export default function ContasAtrasadas() {
         ) : (
           <Empty>Sem motivos registrados.</Empty>
         )}
-      </Card>
+      </Secao>
 
       {/* Idade dos atrasos: cada faixa e um filtro clicavel */}
-      <Card>
-        <SectionTitle
+      <Secao
+          id="idade"
           titulo="Idade dos atrasos"
           sub="Quanto mais velho o atraso, mais difícil recuperar. Clique numa faixa para ver os títulos. Sobre TODA a dívida ativa, ignora os filtros da lista."
-        />
+          aberta={abertasAnaliseCA.idade}
+          aoAlternar={alternarAnaliseCA}
+        >
         {vm.idade.some((f) => f.qtd > 0) ? (
           <div className="space-y-2">
             {vm.idade.map((f) => {
@@ -1610,14 +1639,17 @@ export default function ContasAtrasadas() {
         ) : (
           <Empty>Nenhum título atrasado.</Empty>
         )}
-      </Card>
+      </Secao>
 
-      {/* Plano de acao */}
-      <section>
-        <SectionTitle
-          titulo="Plano de ação"
-          sub="Quatro frentes, cada uma com um próximo passo claro."
-        />
+      {/* Plano de acao -- era <section> cru (por isso escapou da conversao em
+          lote dos Cards); a regra vale igual: quadro de analise recolhe. */}
+      <Secao
+        id="plano"
+        titulo="Plano de ação"
+        sub="Quatro frentes, cada uma com um próximo passo claro."
+        aberta={abertasAnaliseCA.plano}
+        aoAlternar={alternarAnaliseCA}
+      >
         <div className="grid gap-4 sm:grid-cols-2">
           {vm.frentes.map((f) => {
             const vazia = f.soma === 0 && f.qtd === 0;
@@ -1677,14 +1709,16 @@ export default function ContasAtrasadas() {
             );
           })}
         </div>
-      </section>
+      </Secao>
 
       {/* Cobrar hoje */}
-      <Card>
-        <SectionTitle
+      <Secao
+          id="cobrarHoje"
           titulo="Cobrar hoje"
           sub="Os pendentes de maior valor, com a ação sugerida."
-        />
+          aberta={abertasAnaliseCA.cobrarHoje}
+          aoAlternar={alternarAnaliseCA}
+        >
         {vm.cobrarHoje.length ? (
           <ul className="divide-y" style={{ borderColor: "var(--hairline)" }}>
             {vm.cobrarHoje.map((c) => (
@@ -1720,27 +1754,33 @@ export default function ContasAtrasadas() {
         ) : (
           <Empty>Nenhuma cobrança pendente. Tudo em dia.</Empty>
         )}
-      </Card>
+      </Secao>
 
       {/* Curva do DSO: so com historico REAL acumulado no cache (um ponto/dia). */}
       {vm.dsoHistorico.length >= 2 ? (
-        <Card>
-          <SectionTitle
-            titulo="Curva do DSO"
+        <Secao
+          id="dso"
+          titulo="Curva do DSO"
             sub="Prazo medio de recebimento ao longo dos dias, contra a meta."
-          />
+          aberta={abertasAnaliseCA.dso}
+          aoAlternar={alternarAnaliseCA}
+        >
           <Suspense fallback={<div style={{ height: 260 }} className="grid place-items-center text-sm text-slate-400">Carregando o gráfico…</div>}>
             <CurvaDso dados={vm.dsoHistorico} meta={k.dsoMeta} cor={MARCA} />
           </Suspense>
-        </Card>
+        </Secao>
       ) : (
-        <Card>
-          <SectionTitle titulo="Curva do DSO" sub="Prazo medio de recebimento ao longo do tempo." />
+        <Secao
+          id="dso"
+          titulo="Curva do DSO" sub="Prazo medio de recebimento ao longo do tempo."
+          aberta={abertasAnaliseCA.dso}
+          aoAlternar={alternarAnaliseCA}
+        >
           <Empty>
             O histórico de DSO começa a ser registrado agora, um ponto por dia. A curva aparece
             assim que houver alguns dias acumulados.
           </Empty>
-        </Card>
+        </Secao>
       )}
       </>
       )}

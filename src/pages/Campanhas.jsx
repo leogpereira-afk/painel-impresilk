@@ -28,7 +28,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowLeft, Plus, Trash2, Search, X, AlertTriangle, Megaphone, Building2,
-  Archive, Paperclip, Download, CalendarRange, Trophy, TrendingUp, TrendingDown, Minus,
+  Archive, Paperclip, Download, CalendarRange, TrendingUp, TrendingDown, Minus,
   Crown, Check, Link2, Copy,
 } from "lucide-react";
 import {
@@ -346,21 +346,10 @@ function SeletorAno({ anos, valor, aoEscolher, temSemAno }) {
 function Comparativo({ linhas, anoSel, aoEscolher }) {
   if (linhas.length < 2) return null;
   const teto = Math.max(...linhas.map((l) => l.vendido), 1);
+  /* Sem Card nem título próprios: a Secao recolhível da aba Análise embrulha
+     este quadro -- preferência do dono, todo quadro de análise recolhe. */
   return (
-    <Card className="space-y-3">
-      <div className="flex items-center gap-2">
-        <CalendarRange size={15} className="text-slate-400" />
-        <span className="text-sm font-medium text-slate-800">Ano a ano</span>
-        {/* O QUE ESTE QUADRO É, com estas palavras. Ele dizia "cada ano contra a
-            edição anterior — não contra o ano anterior do calendário", e era
-            falso: basta a festa da cidade existir em 2025 para a eleição de
-            2026 ser comparada com ela. A comparação por EVENTO tem lugar
-            próprio, dentro de cada campanha. */}
-        <span className="text-xs text-slate-400">
-          total de cada ano contra o ano anterior que teve campanha — para comparar o mesmo evento entre
-          anos, abra a campanha
-        </span>
-      </div>
+    <div className="space-y-3">
       <div className="overflow-x-auto">
         <table className="w-full min-w-[34rem] text-sm">
           <thead>
@@ -402,7 +391,7 @@ function Comparativo({ linhas, anoSel, aoEscolher }) {
           </tbody>
         </table>
       </div>
-    </Card>
+    </div>
   );
 }
 
@@ -1163,6 +1152,24 @@ export default function Campanhas() {
      comparação concentrada numa aba própria: ano a ano, eventos vinculados e
      ranking. */
   const [abaLista, setAbaLista] = useState("campanhas");
+  /* PREFERÊNCIA DO DONO (23/08): em análise, TODO quadro recolhe -- e a tela
+     lembra a escolha. Chave por seção, para uma seção nova não apagar o que
+     já estava configurado. */
+  const [abertasAnalise, setAbertasAnalise] = useState(() => {
+    const padrao = { anoAAno: true, eventos: true, ranking: true };
+    try {
+      return { ...padrao, ...JSON.parse(localStorage.getItem("campanhas_analise_secoes") || "{}") };
+    } catch {
+      return padrao;
+    }
+  });
+  const alternarAnalise = useCallback((id) => {
+    setAbertasAnalise((a) => {
+      const novo = { ...a, [id]: !a[id] };
+      try { localStorage.setItem("campanhas_analise_secoes", JSON.stringify(novo)); } catch { /* aba anônima */ }
+      return novo;
+    });
+  }, []);
   const [gruposAbertos, setGruposAbertos] = useState({});
   const alternarGrupo = useCallback((k) => setGruposAbertos((g) => ({ ...g, [k]: !g[k] })), []);
   const [abertas, setAbertas] = useState(() => {
@@ -2491,23 +2498,32 @@ export default function Campanhas() {
 
       {abaLista === "analise" && (
         <>
-          {/* Clicar num ano do quadro LEVA ao ano: troca o recorte e volta
-              para a aba de campanhas -- é a pergunta "e o que tinha em 2024?"
-              respondida com um clique. */}
-          <Comparativo
-            linhas={comparativo}
-            anoSel={anoSel}
-            aoEscolher={(a) => { setAnoSel(a); setAbaLista("campanhas"); }}
-          />
+          {/* PREFERÊNCIA DO DONO: todo quadro de análise recolhe, e a escolha
+              fica no aparelho. Clicar num ano do quadro LEVA ao ano: troca o
+              recorte e volta para a aba de campanhas. */}
+          <Secao
+            id="anoAAno"
+            titulo="Ano a ano"
+            sub="Total de cada ano contra o ano anterior que teve campanha — para comparar o mesmo evento entre anos, veja os eventos abaixo."
+            aberta={abertasAnalise.anoAAno}
+            aoAlternar={alternarAnalise}
+          >
+            <Comparativo
+              linhas={comparativo}
+              anoSel={anoSel}
+              aoEscolher={(a) => { setAnoSel(a); setAbaLista("campanhas"); }}
+            />
+          </Secao>
 
           {/* OS EVENTOS VINCULADOS: cada evento com suas edições e a evolução
               -- a comparação que faz sentido, mesmo evento contra ele mesmo. */}
-          <Card className="space-y-4">
-            <div className="flex items-center gap-2">
-              <Link2 size={15} className="text-slate-400" />
-              <span className="text-sm font-medium text-slate-800">Eventos e suas edições</span>
-              <span className="text-xs text-slate-400">ligados pelo vínculo ou pelo nome — toque para abrir</span>
-            </div>
+          <Secao
+            id="eventos"
+            titulo="Eventos e suas edições"
+            sub="Ligados pelo vínculo ou pelo nome — toque numa edição para abrir."
+            aberta={abertasAnalise.eventos}
+            aoAlternar={alternarAnalise}
+          >
             {eventos.length ? eventos.map((ev) => (
               <div key={ev.rotulo + ev.total} className="space-y-1.5">
                 <div className="flex items-baseline justify-between gap-3">
@@ -2540,22 +2556,23 @@ export default function Campanhas() {
             )) : (
               <Empty>Nenhuma campanha ainda.</Empty>
             )}
-          </Card>
+          </Secao>
 
           {/* Quem mais comprou, na história inteira -- comparação de gente,
               não de ano. O recorte por ano mora na outra aba. */}
           {rankingGeral.length > 0 && (
-            <Card className="space-y-3">
-              <div className="flex flex-wrap items-center gap-2">
-                <Trophy size={15} className="text-slate-400" />
-                <span className="text-sm font-medium text-slate-800">Quem mais comprou, todos os anos</span>
-                <span className="text-xs text-slate-400">somando todas as campanhas</span>
-              </div>
+            <Secao
+              id="ranking"
+              titulo="Quem mais comprou, todos os anos"
+              sub="Somando todas as campanhas."
+              aberta={abertasAnalise.ranking}
+              aoAlternar={alternarAnalise}
+            >
               <Ranking itens={rankingGeral.slice(0, 10)} semOS={0} />
               {rankingGeral.length > 10 && (
                 <div className="text-xs text-slate-400">e mais {rankingGeral.length - 10} compradores.</div>
               )}
-            </Card>
+            </Secao>
           )}
         </>
       )}
