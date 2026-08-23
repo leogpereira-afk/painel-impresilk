@@ -9,7 +9,10 @@
 // plantada no servidor (painel-config, chave "glossario") e de la em diante
 // vale o que estiver la -- da para editar, acrescentar e apagar pela tela.
 
-export const CATEGORIAS = ["Material", "Impressão", "Acabamento", "Peça", "Produção", "Instalação", "Arte e processo", "Comercial"];
+// CATEGORIAS mudou de casa: data/glossarioCategorias.js (módulo pequeno).
+// Reexportada aqui para quem importar deste arquivo não quebrar -- mas quem
+// só precisa delas deve importar de lá, senão paga os 96 kB da semente.
+export { CATEGORIAS } from "./glossarioCategorias.js";
 
 export const GLOSSARIO = [
   // ---------------------------------------------------------------- materiais

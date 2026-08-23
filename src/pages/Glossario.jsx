@@ -8,7 +8,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Search, X, Plus, Pencil, Trash2, Lightbulb, AlertTriangle, BookOpen } from "lucide-react";
-import { GLOSSARIO as SEMENTE, CATEGORIAS } from "../data/glossario.js";
+import { CATEGORIAS } from "../data/glossarioCategorias.js";
 import { lerTermos, salvarTermo, salvarVarios, removerTermo } from "../services/glossario.js";
 import { Card, PageTitle, SectionTitle, Empty, CarregandoModulo } from "../components/ui.jsx";
 
@@ -37,6 +37,12 @@ export default function Glossario() {
       .then(async (m) => {
         if (!vivo) return;
         if (Object.keys(m).length > 0) return setMapa(m);
+        /* A SEMENTE desce por import() dinâmico, SÓ aqui: são 96 kB que a aba
+           inteira pagava em toda abertura -- no telefone, na frente do cliente
+           -- para um dado que só é necessário uma vez na vida do sistema
+           (servidor vazio). A aba caiu de ~98 kB para ~12 kB de JS. */
+        const { GLOSSARIO: SEMENTE } = await import("../data/glossario.js");
+        if (!vivo) return;
         const patch = {};
         SEMENTE.forEach((t, i) => {
           patch[`seed-${i + 1}`] = { ...t, ordem: i };
