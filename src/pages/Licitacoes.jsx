@@ -231,6 +231,9 @@ export default function Licitacoes() {
   );
 
   const remover = async (it) => {
+    // Apagava edital e historico sem volta -- inclusive de licitacao GANHA,
+    // que e registro de negocio. O Glossario ao lado ja confirmava.
+    if (!window.confirm(`Apagar a licitação "${it.nome || it.orgao || "sem nome"}"? O edital anexado vai junto.`)) return;
     setAviso(null);
     try {
       await removerAtivo(it.id);

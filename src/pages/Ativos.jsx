@@ -225,6 +225,12 @@ export default function Ativos() {
   }
 
   async function apagar(item) {
+    /* CONFIRMA ANTES: um toque na lixeira (colada no Editar, alvo de 8x8 no
+       celular) removia o item E o PDF do bucket permanentemente -- e este e o
+       cofre: a apolice apagada pode ser a unica copia digital. O Patrimonio,
+       na mesma area, sempre confirmou; as duas telas se contradiziam no gesto
+       mais perigoso. */
+    if (!window.confirm(`Apagar "${item.nome}"? O arquivo anexado vai junto, sem volta.`)) return;
     setMsg(null);
     try {
       await removerAtivo(item.id);

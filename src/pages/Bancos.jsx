@@ -229,6 +229,9 @@ export default function Bancos() {
   );
 
   const remover = async (b) => {
+    // Um toque errado apagava agencia, conta e chave Pix sem volta -- dado que
+    // so existe no servidor e ninguem sabe de cabeca. O resto do painel confirma.
+    if (!window.confirm(`Apagar a conta ${b.banco} — ${b.titular}? Sem volta.`)) return;
     setAviso(null);
     try {
       await removerBanco(b.id);

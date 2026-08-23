@@ -190,6 +190,8 @@ export default function Marketing() {
   };
 
   const remover = async (it) => {
+    // A logo apagada num toque pode ser a unica copia em alta resolucao.
+    if (!window.confirm(`Apagar "${it.nome}"? O arquivo vai junto, sem volta.`)) return;
     setAviso(null);
     try {
       await removerAtivo(it.id);
@@ -226,6 +228,7 @@ export default function Marketing() {
   };
 
   const tirarLink = async (id) => {
+    if (!window.confirm("Tirar este atalho do Drive?")) return;
     setAviso(null);
     try {
       await removerAtalho(id);

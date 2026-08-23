@@ -64,7 +64,18 @@ export default function Configuracoes() {
         titulo="Configurações"
         descricao="Todas as regras do painel vivem aqui. Cada mudança recalcula os módulos na hora."
         acao={
-          <button className="btn-outline" onClick={resetarConfig}>
+          <button
+            className="btn-outline"
+            onClick={() => {
+              /* CONFIRMA: um toque acidental (o botao fica no topo, no celular)
+                 apagava motivos, regua e vendedores calibrados e JA GRAVAVA na
+                 nuvem -- recuperar exigia restaurar um backup inteiro. */
+              if (!window.confirm(
+                "Restaurar TUDO para o padrão? Motivos, régua de cobrança e vendedores calibrados voltam ao de fábrica — e isso grava na hora."
+              )) return;
+              resetarConfig();
+            }}
+          >
             Restaurar padrão
           </button>
         }
@@ -305,12 +316,17 @@ export default function Configuracoes() {
                     type="number"
                     className="input tnum"
                     value={f.ateDias}
-                    onChange={(e) =>
+                    onChange={(e) => {
+                      /* A mesma guarda do setParamNum: vazio transitorio e
+                         negativo nao gravam. Number("") e 0, e um 0 fantasma
+                         aqui mudava a acao de cobranca sugerida em silencio. */
+                      const n = Number(e.target.value);
+                      if (e.target.value === "" || !Number.isFinite(n) || n < 0) return;
                       updateConfig((c) => {
-                        c.reguaCobranca[i].ateDias = Number(e.target.value);
+                        c.reguaCobranca[i].ateDias = n;
                         return c;
-                      })
-                    }
+                      });
+                    }}
                   />
                   <span className="shrink-0 text-sm text-slate-400">dias</span>
                 </div>
