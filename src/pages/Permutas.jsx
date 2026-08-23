@@ -481,10 +481,17 @@ export default function Permutas() {
   /* Os ids das O.S. já aceitas, também como texto pelo mesmo motivo. Na lista
      é o que permite conferir TODOS os saldos contra o ERP em vez de mostrar a
      soma congelada, justo na tela em que a direção bate o olho. */
-  const idsTexto = Object.values(mapa || {})
+  const idsTodos = Object.values(mapa || {})
     .flatMap((p) => Object.keys(p?.os || {}))
     .sort()
     .join("|");
+  /* SÓ IMPORTA NA LISTA. Com uma permuta aberta o efeito abaixo usa
+     `buscarOrdensDe`, e `idsTexto` não entra na conta -- mas estava nas
+     dependências assim mesmo: cada O.S. marcada mudava a string, o efeito
+     rodava de novo e a seção "Escolher O.S." piscava "Procurando…" a cada
+     clique, com a lista sumindo debaixo do cursor. Marcar 20 O.S. eram 20
+     buscas idênticas. A Campanhas já tinha esta trava; faltava na irmã. */
+  const idsTexto = aberta ? "" : idsTodos;
 
   useEffect(() => {
     let vivo = true;

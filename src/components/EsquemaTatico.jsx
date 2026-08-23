@@ -228,12 +228,18 @@ export default function EsquemaTatico({
     }
   };
 
+  /* O catch de verdade (com o aviso) mora em quem passou aoSalvar -- a Gestao
+     mostra a mensagem do servidor. Este catch vazio existe so para a rejeicao
+     que ELA relanca nao virar unhandled rejection no console.
+     E origem/decisaoId NAO vao no pedido de proposito: o servidor preserva o
+     que esta gravado quando o campo nao vem -- mandar daqui recriaria o
+     defeito que apagava o vinculo com a decisao da ata. */
   const concluir = (t) =>
     aoSalvar({
       id: t.id, escopo: t.escopo, empresa: escopo === "empresa" ? "Impresilk" : undefined,
       objetivoId: t.objetivo_id, titulo: t.titulo, responsavel: t.responsavel,
       prazo: t.prazo, status: t.status === "concluida" ? "aberta" : "concluida",
-    });
+    }).catch(() => {});
 
   const editar = (t) => setForm({
     id: t.id, titulo: t.titulo, responsavel: t.responsavel || "",

@@ -62,6 +62,7 @@ export default function Home() {
   // da saudacao, porque e a unica que ninguem lembra de ir olhar sozinho -- um
   // alvara vence em silencio.
   const [criticos, setCriticos] = useState([]);
+  const [falhouVencimentos, setFalhouVencimentos] = useState(false);
   useEffect(() => {
     let vivo = true;
     listarAtivos()
@@ -71,9 +72,15 @@ export default function Home() {
         // colecao mas nao tem vencimento -- sem este filtro eles entravam aqui
         // como "sem data" e empurravam o alvara de verdade para fora do aviso.
         const doModulo = (itens || []).filter((x) => TIPOS[x.tipo]);
-        setCriticos(calcAtivos(doModulo, ymdLocal(new Date())).criticos.slice(0, 4));
+        /* O TOTAL INTEIRO fica guardado; quem corta em 4 é a exibição. Cortar
+           aqui fazia o título dizer "4 precisam de atenção" quando eram 6 --
+           número mentindo para baixo e contradizendo a tela de Documentos. */
+        setCriticos(calcAtivos(doModulo, ymdLocal(new Date())).criticos);
       })
-      .catch(() => {});
+      /* FALHA VISÍVEL. O catch vazio deixava "servidor fora" idêntico a "nada
+         vencendo" -- no único card que ninguém confere por conta própria, um
+         alvará vencido sumia em silêncio. */
+      .catch(() => { if (vivo) setFalhouVencimentos(true); });
     return () => {
       vivo = false;
     };
@@ -95,6 +102,13 @@ export default function Home() {
         {fraseDoDia()}
       </p>
 
+      {falhouVencimentos && (
+        <Card className="flex items-start gap-2 text-sm text-warn-700">
+          <AlertTriangle size={15} className="mt-0.5 shrink-0" />
+          Não consegui conferir os vencimentos de documentos e manutenções agora — isto NÃO quer
+          dizer que está tudo em dia. Recarregue, ou confira na tela de Documentos.
+        </Card>
+      )}
       {criticos.length > 0 && (
         <button
           onClick={() => navigate("/documentos")}
@@ -110,7 +124,9 @@ export default function Home() {
             <ChevronRight size={16} className="shrink-0 text-slate-300" />
           </span>
           <span className="mt-2 block space-y-0.5">
-            {criticos.map((c) => (
+            {/* Quatro linhas bastam para o aviso; o TÍTULO acima carrega o
+                total verdadeiro, e este rodapé diz o que ficou de fora. */}
+            {criticos.slice(0, 4).map((c) => (
               <span key={c.id} className="flex items-center gap-2 text-sm">
                 <span className="min-w-0 flex-1 truncate text-slate-600">{c.nome}</span>
                 <span className={c.sit.nivel === "vencido" ? "text-bad-700" : "text-warn-700"}>
@@ -118,6 +134,11 @@ export default function Home() {
                 </span>
               </span>
             ))}
+            {criticos.length > 4 && (
+              <span className="block text-sm text-slate-400">
+                e mais {criticos.length - 4} — toque para ver todos
+              </span>
+            )}
           </span>
         </button>
       )}

@@ -1373,8 +1373,17 @@ export default function Gestao() {
             respFiltrado={pessoaFiltro}
             aoFiltrarResp={setPessoaFiltro}
             hojeISO={hojeISO}
-            aoSalvar={async (t) => { await salvarTatica(t); await carregar(); }}
-            aoRemover={async (id) => { await removerTatica(id); await carregar(); }}
+            /* COM CATCH E AVISO: concluir uma tatica sem objetivo falha no
+               servidor com a mensagem certa, e o clique nao fazia NADA na tela
+               -- a pessoa achava que concluiu e a tatica continuava aberta. */
+            aoSalvar={async (t) => {
+              try { await salvarTatica(t); await carregar(); }
+              catch (e) { setAviso({ tom: "erro", texto: e.message }); throw e; }
+            }}
+            aoRemover={async (id) => {
+              try { await removerTatica(id); await carregar(); }
+              catch (e) { setAviso({ tom: "erro", texto: e.message }); throw e; }
+            }}
           />
         </div>
       </div>

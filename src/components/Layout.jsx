@@ -346,7 +346,11 @@ function ConteudoLateral({ aoNavegar, sessao }) {
           {ehDirecao(sessao) ? "Sistemas de Acessos" : "Minha senha"}
         </NavLink>
 
-        {podeAbrir("configurações", sessao) && (
+        {/* SEM ACENTO: o id do módulo é "configuracoes" (src/lib/modulos.js).
+            Com acento, includes() dava sempre falso e o item NUNCA aparecia no
+            menu de quem recebeu o módulo sem ser direção -- permissão concedida
+            e invisível, sem erro em lugar nenhum. */}
+        {podeAbrir("configuracoes", sessao) && (
           <NavLink
             to="/configuracoes"
             onClick={aoNavegar}

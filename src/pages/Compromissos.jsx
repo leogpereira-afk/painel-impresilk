@@ -167,7 +167,12 @@ function Conversa({ c, sessao, enviando, aoEnviar, aoBaixar, aoWhatsApp }) {
           </div>
         )}
 
-        <Compositor enviando={enviando === c.id} aoEnviar={(t, a) => aoEnviar(c, t, a)} />
+        {/* `enviando` JA CHEGA AQUI COMO BOOLEANO (a pagina compara com o id
+            antes de passar). Comparar de novo com c.id dava sempre false: o
+            botao Enviar nunca desabilitava e, no 3G da rua, dois toques
+            mandavam recado e anexo em DOBRO -- e o "Enviando..." nunca
+            aparecia. */}
+        <Compositor enviando={enviando} aoEnviar={(t, a) => aoEnviar(c, t, a)} />
     </div>
   );
 }
@@ -666,7 +671,7 @@ export default function Compromissos() {
   const formSujo = () => {
     if (!form) return false;
     const base = form.id ? { ...VAZIO, ...(mapa?.[form.id] ?? {}), id: form.id } : VAZIO;
-    return ["titulo", "tipo", "cliente", "data", "hora", "obs"].some(
+    return ["titulo", "tipo", "cliente", "telefone", "data", "hora", "obs"].some(
       (k) => String(form[k] ?? "") !== String(base[k] ?? "")
     );
   };
@@ -695,6 +700,12 @@ export default function Compromissos() {
           titulo: form.titulo.trim(),
           tipo: form.tipo,
           cliente: form.cliente.trim(),
+          /* O TELEFONE VAI JUNTO. O campo existia no formulario e nunca entrava
+             aqui: a vendedora digitava o numero, ele evaporava no salvar, e os
+             botoes Ligar/WhatsApp da linha (que dependem de c.telefone) nunca
+             apareciam para nada cadastrado por esta tela -- um recurso inteiro
+             anunciado no formulario e morto em silencio. */
+          telefone: String(form.telefone || "").trim(),
           data: form.data,
           hora: form.hora,
           obs: form.obs.trim(),

@@ -51,6 +51,11 @@ jobs:
       # de novo com `campanhas` -- nas duas vezes este script ja existia, ja
       # acusava em uma linha e ja saia com codigo 1. So que ninguem o chamava, e
       # "lembrar de rodar" nunca foi defesa. Agora ele bloqueia o deploy.
+      # OS 138 TESTES DE CALCULO. Rodam em ~100ms e nunca eram chamados: nao
+      # havia script "test" e a CI nao os conhecia -- regressao na conta da
+      # permuta subia com o job verde. TZ=UTC porque teste que so passa no fuso
+      # da maquina do Leo ja deixou a CI do RH vermelha por 3 commits.
+      - run: npm test
       - name: As tres listas de modulos batem?
         run: node scripts/conferir-sistemas.mjs
         env:

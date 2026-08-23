@@ -244,11 +244,17 @@ export function calcManutencoes(itens, mapa, hojeISO) {
   const doMes = lancamentos.filter((l) => String(l.data || "").startsWith(mes));
   const doAno = lancamentos.filter((l) => String(l.data || "").startsWith(ano));
 
-  // Ranking: quem mais consumiu no ano. É a conta que justifica trocar um
-  // veículo ou renegociar um contrato de assistência.
+  /* Ranking: quem mais consumiu nos ÚLTIMOS 12 MESES -- é a conta que
+     justifica trocar um veículo ou renegociar um contrato de assistência, e o
+     título da tela diz exatamente isso.
+     Era por `noAno`, com a tela exibindo `doze`: ordenava por um número e
+     mostrava outro (R$ 100 do ano em cima de R$ 8.000 dos 12 meses), a barra
+     dividia pelo doze do "líder" errado e passava de 100%, e em janeiro o
+     filtro noAno>0 esvaziava o ranking -- na semana de decidir o orçamento,
+     que é o caso que a janela de 12 meses existe para cobrir. */
   const ranking = lista
-    .filter((i) => i.noAno > 0)
-    .sort((a, b) => b.noAno - a.noAno)
+    .filter((i) => i.doze > 0)
+    .sort((a, b) => b.doze - a.doze)
     .slice(0, 5);
 
   return {

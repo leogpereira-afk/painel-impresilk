@@ -53,7 +53,7 @@ import {
  * cabeça de quem ligou e vira registro, com quem falou e quando carimbados
  * pelo servidor.
  */
-function CartaoCobranca({ c, aberto, aoAbrir, aoRegistrar, aoApagar, salvando }) {
+function CartaoCobranca({ c, aberto, aoAbrir, aoRegistrar, aoApagar, salvando, erro }) {
   const alerta = c.promessaVencida ? "bad" : c.semChamado ? "warn" : null;
   return (
     <div
@@ -131,7 +131,7 @@ function CartaoCobranca({ c, aberto, aoAbrir, aoRegistrar, aoApagar, salvando })
             </ol>
           </div>
 
-          <FormChamado cliente={c} aoSalvar={aoRegistrar} salvando={salvando} />
+          <FormChamado cliente={c} aoSalvar={aoRegistrar} salvando={salvando} erro={erro} />
           {c.chamados.length > 0 && (
             <ol className="space-y-2">
               {c.chamados.map((ch) => (
@@ -174,7 +174,7 @@ const CHAMADO_VAZIO = { data: "", canal: "Ligação", contato: "", resumo: "", s
 /* O formulário de um chamado. `situacao` é escolha fechada de propósito: campo
    livre vira cinco jeitos de escrever "prometeu pagar" e aí não dá para
    filtrar nem contar. Só "Prometeu pagar" pede data. */
-function FormChamado({ cliente, aoSalvar, salvando }) {
+function FormChamado({ cliente, aoSalvar, salvando, erro }) {
   const [f, setF] = useState(() => ({ ...CHAMADO_VAZIO, data: ymdLocal(new Date()) }));
   const sit = SITUACOES.find((x) => x.id === f.situacao);
   return (
@@ -212,6 +212,15 @@ function FormChamado({ cliente, aoSalvar, salvando }) {
         onChange={(e) => setF({ ...f, resumo: e.target.value })}
       />
       <div className="sm:col-span-3">
+        {/* O ERRO MORA AQUI, colado no botão -- não no topo da aba. A gravação
+            falha no celular, na rua, com o formulário no meio de uma lista
+            longa: o aviso lá em cima ficava fora do campo de visão, a pessoa
+            achava que anotou a ligação e o registro se perdia calado. */}
+        {erro && (
+          <div className="mb-2 rounded-lg bg-bad-50 px-3 py-2 text-sm text-bad-700" role="alert">
+            Não salvou: {erro} — o chamado ainda está aqui, tente de novo.
+          </div>
+        )}
         <button
           type="button"
           className="btn"
@@ -432,11 +441,17 @@ export default function ContasAtrasadas() {
   // que o gestor esta olhando (e nao sobre um total que nao esta na tela).
   const dividas = useMemo(() => agruparDividas(titulosFiltrados), [titulosFiltrados]);
 
-  /* A CARTEIRA usa TODOS os atrasados, não os filtrados: cobrar é percorrer a
-     dívida inteira cliente a cliente, e um filtro de tela ligado na aba ao lado
-     esconderia gente que precisa de ligação -- sem dizer que escondeu. */
+  /* A CARTEIRA usa todos os atrasados SEM filtro de tela -- cobrar é percorrer
+     a dívida cliente a cliente, e um filtro ligado na aba ao lado esconderia
+     gente que precisa de ligação sem dizer que escondeu.
+
+     MAS o corte da dívida antiga (dataCorteAtrasados) NÃO é filtro de tela: é a
+     decisão da direção de tirar o calote de 2021-22 dos números. A carteira o
+     ignorava e contradizia a aba ao lado -- o cartão mandava "ligue hoje" para
+     dívida que a direção cortou, o contador da aba não fechava com a lista, e
+     os três números do topo inflavam. Mesma régua nas duas abas. */
   const carteira = useMemo(
-    () => (vm ? carteiraDeCobranca(vm.titulos, cobrancas || {}, ymdLocal(new Date())) : []),
+    () => (vm ? carteiraDeCobranca(vm.titulos.filter((t) => !t.antiga), cobrancas || {}, ymdLocal(new Date())) : []),
     [vm, cobrancas],
   );
   /* RECORTE E ORDEM, nesta ordem: filtrar antes de ordenar, porque o filtro de
@@ -1300,6 +1315,7 @@ export default function ContasAtrasadas() {
                   aoRegistrar={registrarChamado}
                   aoApagar={apagarChamado}
                   salvando={salvandoChamado}
+                  erro={clienteAberto === c.chave ? avisoCob : null}
                 />
               ))}
             </div>

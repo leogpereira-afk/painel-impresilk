@@ -13,7 +13,7 @@
  */
 
 import { ChevronDown, Trash2, X, Check, AlertTriangle, Paperclip } from "lucide-react";
-import { moedaCheia, dataCurta, dataLonga } from "../lib/format.js";
+import { moedaCheia, dataCurta, dataLonga, ymdLocal } from "../lib/format.js";
 import { Card, Empty } from "./ui.jsx";
 
 /* AQUI O CENTAVO CONTA, ao contrário do resto do painel. Nas outras telas o
@@ -40,7 +40,11 @@ export const formatarDoc = (d) => {
   return s;
 };
 
-export const hojeISO = () => new Date().toISOString().slice(0, 10);
+/* DIA LOCAL, não UTC. Com toISOString, depois das 21h (BRT) o lançamento de
+   crédito/venda e o "Emitido em" dos DOIS PDFs saíam com a data de AMANHÃ --
+   divergência com o ERP num extrato que se confere na frente do parceiro. A
+   regra certa já existia em format.js; esta era a segunda régua divergindo. */
+export const hojeISO = () => ymdLocal(new Date());
 export const novoId = (p) => `${p}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
 
 export function Aviso({ aviso, aoFechar }) {

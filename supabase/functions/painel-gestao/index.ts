@@ -416,16 +416,43 @@ Deno.serve(async (req: Request) => {
           responsavel: texto(t.responsavel, 120),
           prazo: dataOuNulo(t.prazo),
           status: ["aberta", "em_andamento", "concluida", "cancelada"].includes(t.status) ? t.status : "aberta",
-          origem: t.origem === "ata" ? "ata" : "manual",
-          decisao_id: t.decisaoId ?? null,
         };
-        if (t.id) linha.id = t.id;
-        else linha.criado_por = quem;
+        /* ORIGEM E DECISAO SO MUDAM QUANDO VEM NO PEDIDO. O upsert reescrevia
+           os dois em toda gravacao ('manual' e null), e o gesto mais comum da
+           tela -- marcar concluida -- APAGAVA o vinculo com a decisao da ata:
+           o chip 'ata' sumia, a decisao parava de contar como cumprida e
+           'Gerar acoes' voltava a criar tatica duplicada (a idempotencia e
+           pelo decisao_id que acabou de virar null). Campo ausente do objeto
+           fica intacto no UPDATE do upsert -- mesmo padrao do pagosPatch. */
+        if (t.id) {
+          linha.id = t.id;
+          if (t.origem !== undefined) linha.origem = t.origem === "ata" ? "ata" : "manual";
+          if (t.decisaoId !== undefined) linha.decisao_id = t.decisaoId ?? null;
+        } else {
+          linha.criado_por = quem;
+          linha.origem = t.origem === "ata" ? "ata" : "manual";
+          linha.decisao_id = t.decisaoId ?? null;
+        }
         // concluido_em e derivado do status: quem grava a data e o servidor, e
         // reabrir limpa a data (senao fica "concluida em" numa tatica aberta).
         linha.concluido_em = linha.status === "concluida" ? new Date().toISOString() : null;
 
         const { data, error } = await sb.from("gestao_tatica").upsert(linha).select().single();
+        /* O CICLO DA DECISAO FECHA AQUI. A decisao virava tatica, a tatica
+           concluia, e a decisao ficava 'aberta' para sempre: cumprida no
+           indicador (que olha a tatica) e pendente no pino, no chip da reuniao
+           e na pauta sugerida -- dois numeros na mesma tela se contradizendo, e
+           a pauta virando lista morta de coisas ja feitas. Reabrir a tatica
+           reabre a decisao pelo mesmo caminho. So mexe quando o vinculo existe:
+           tatica manual nao arrasta decisao nenhuma. */
+        if (!error && data?.decisao_id) {
+          await sb.from("gestao_decisao")
+            .update({ status: data.status === "concluida" ? "concluida" : "aberta" })
+            .eq("id", data.decisao_id)
+            // Cancelada fica cancelada: reabrir a tatica nao ressuscita uma
+            // decisao que a direcao descartou de proposito.
+            .neq("status", "cancelada");
+        }
         if (error) {
           if (String(error.message).includes("gestao_tatica_empresa_exige_vinculo")) {
             return resposta({ erro: "Tatica da empresa exige objetivo do ano." }, 400);

@@ -86,7 +86,15 @@ const dia = (iso) => {
    Primeira regra que casar vence, e a ordem é a da urgência. */
 export function estadoDe(o) {
   if (o.situacao === "ganho") return { chave: "ganho", rotulo: "Ganho", tom: "ok" };
-  if (o.recall) return { chave: "recall", rotulo: "Compra futura", tom: "warn" };
+  /* A URGENCIA ATRAVESSA A COMPRA FUTURA. O selo neutro "Compra futura"
+     engolia a promessa VENCIDA: quando a data passava, o item saia da Agenda e
+     nenhuma superficie de urgencia o mostrava -- justamente o gatilho da
+     ligacao no bolso de R$ 3,5 mi que so volta com alguem lembrando de ligar. */
+  if (o.recall) {
+    if (o.toqueAtrasado) return { chave: "recall-atrasado", rotulo: `Compra futura · prometido ${dia(o.proximoToque)}`, tom: "bad" };
+    if (o.toqueHoje) return { chave: "recall-hoje", rotulo: "Compra futura · hoje", tom: "warn" };
+    return { chave: "recall", rotulo: "Compra futura", tom: "warn" };
+  }
   if (o.situacao === "perdido") {
     return { chave: "perdido", rotulo: o.motivoPerdaNome || "Perdido", tom: "bad" };
   }
@@ -486,7 +494,13 @@ export function calcOrcamentos(orcamentos, overrides, config, opcoes = {}) {
      iguais, um deles inutil. Quem esta atrasado ja tem lugar no seu proprio
      numero; "sem retorno" e o que ainda nao virou divida. */
   const ehAtrasado = (o) => o.toqueAtrasado || o.vencido || (o.chamadoEm && !o.proximoToque);
-  const atrasados = abertos.filter(ehAtrasado);
+  /* A promessa furada de COMPRA FUTURA entra aqui tambem. `abertos` exclui os
+     recall (sao "perdidos" no ERP), entao a promessa vencida deles nao contava
+     em numero nenhum -- sumia de todas as superficies quando a data passava.
+     So a promessa furada e o chamado sem data: recall sem promessa nenhuma nao
+     e atraso, e espera. */
+  const recallFurado = recall.filter((o) => o.toqueAtrasado || (o.chamadoEm && !o.proximoToque));
+  const atrasados = [...abertos.filter(ehAtrasado), ...recallFurado];
   const semRetorno = abertos.filter((o) => !o.proximoToque && !o.chamadoEm && !ehAtrasado(o));
 
   return {
