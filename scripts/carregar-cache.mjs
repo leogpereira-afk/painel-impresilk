@@ -208,6 +208,7 @@ async function janelaDe7Dias() {
 
   const mapaOrc = new Map((orc.valor ?? []).map((o) => [o.id, o]));
   const mapaOS = new Map((os.valor ?? []).map((o) => [o.id, o]));
+  const osCanceladas = new Set();
 
   // Tres filtros de data: um orcamento aprovado hoje foi CADASTRADO ha meses e
   // nao apareceria numa janela so de cadastro.
@@ -280,7 +281,11 @@ async function janelaDe7Dias() {
       const brutos = await mubiGetTudo("ordem-servico", { ...janela, filtrodata: filtro }, 100);
       for (const [i, bruto] of brutos.entries()) {
         const o = normOS(bruto, i, categoriaPorNome);
-        if (o.cancelada) mapaOS.delete(o.id);
+        /* A cancelada sai do CACHE aqui -- e o id fica guardado para sair da
+           TABELA painel_ordens tambem. Sem isso, a O.S. cancelada hoje
+           continuava na tabela (e ABATENDO credito de permuta) por ate 7 dias,
+           ate a carga do historico de domingo passar por ela. */
+        if (o.cancelada) { mapaOS.delete(o.id); osCanceladas.add(String(o.id)); }
         else mapaOS.set(o.id, guardarCategoria ? guardarCategoria(o) : o);
       }
     }
@@ -295,6 +300,7 @@ async function janelaDe7Dias() {
   return {
     orcamentos: [...mapaOrc.values()],
     ordens: [...mapaOS.values()],
+    osCanceladas: [...osCanceladas],
     ...(catalogoOk ? {} : { falhas: ["catalogo-do-erp-fora"] }),
   };
 }
@@ -457,6 +463,17 @@ async function main() {
     try {
       const n = await gravarOrdensTabela(pesados.ordens);
       console.log(`   painel_ordens: ${n} linhas`);
+      /* O CANCELAMENTO TAMBEM ANDA JUNTO. O incremental tirava a cancelada do
+         cache e a deixava na tabela ate a carga de domingo -- por ate 7 dias a
+         O.S. cancelada continuava abatendo credito de permuta. Os ids ja estao
+         na mao; e o mesmo ordensApagar da carga do historico. */
+      const canc = pesados.osCanceladas || [];
+      if (canc.length) {
+        for (let i = 0; i < canc.length; i += 1000) {
+          await chamar({ action: "ordensApagar", ids: canc.slice(i, i + 1000) });
+        }
+        console.log(`   painel_ordens: ${canc.length} cancelada(s) removida(s)`);
+      }
     } catch (e) {
       // Falhar aqui NAO derruba a carga: o cache ja gravou, e as outras telas
       // dependem dele. A permuta fica com a busca um pouco atrasada.

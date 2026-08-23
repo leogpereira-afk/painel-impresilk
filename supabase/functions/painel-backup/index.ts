@@ -498,17 +498,20 @@ Deno.serve(async (req: Request) => {
         }
         const mapas: Array<[string, Record<string, unknown>]> = [];
         if (bk.versao >= 2) {
-          mapas.push(["ov_rec", p.ov_rec ?? {}], ["ov_orc", p.ov_orc ?? {}],
-                     ["ativo", p.ativos ?? {}], ["arquivo", p.arquivosMeta ?? {}]);
-          // Backups de antes destas abas nao tem as chaves; nada a restaurar.
-          if (p.marketing) mapas.push(["marketing", p.marketing]);
-          if (p.bancos) mapas.push(["bancos", p.bancos]);
-          if (p.glossario) mapas.push(["glossario", p.glossario]);
-          if (p.compromissos) mapas.push(["compromissos", p.compromissos]);
-          if (p.manutencoes) mapas.push(["manutencoes", p.manutencoes]);
-          if (p.patrimonio) mapas.push(["patrimonio", p.patrimonio]);
-          if (p.setores) mapas.push(["setores", p.setores]);
-          if (p.assinaturas) mapas.push(["assinaturas", p.assinaturas]);
+          /* A RESTAURACAO SAI DO ARQUIVO, nao de uma lista aqui. A exportacao
+             ja pergunta ao banco; esta volta era escrita a mao e NAO TINHA
+             permutas nem campanhas -- o arquivo continha as duas, o restaurar
+             as ignorava calado e respondia "Restaurado: N registros" com cara
+             de sucesso. No dia de precisar, o credito dos parceiros voltava
+             vazio. Mesma doenca corrigida na ida em 21/08, viva na volta.
+             Percorre-se o que o ARQUIVO tem, desfazendo os dois apelidos
+             historicos (ativos -> ativo, arquivosMeta -> arquivo); `config`
+             nao mora em painel_registros e fica de fora. */
+          const APELIDO_VOLTA: Record<string, string> = { ativos: "ativo", arquivosMeta: "arquivo" };
+          for (const [nome, mapa] of Object.entries(p)) {
+            if (nome === "config" || mapa == null || typeof mapa !== "object") continue;
+            mapas.push([APELIDO_VOLTA[nome] ?? nome, mapa as Record<string, unknown>]);
+          }
         } else {
           // v1: chaves de blob (ov_rec/ov_orc mapas; ativo_<id> soltos)
           mapas.push(["ov_rec", p.ov_rec ?? {}], ["ov_orc", p.ov_orc ?? {}]);

@@ -56,6 +56,10 @@ jobs:
       # permuta subia com o job verde. TZ=UTC porque teste que so passa no fuso
       # da maquina do Leo ja deixou a CI do RH vermelha por 3 commits.
       - run: npm test
+      # A volta do backup nao pode voltar a ser lista a mao (permutas ficou
+      # meses no arquivo sem que o restaurar a devolvesse). Parte estatica: le
+      # o codigo, sem rede.
+      - run: node scripts/conferir-restauro.mjs
       - name: As tres listas de modulos batem?
         run: node scripts/conferir-sistemas.mjs
         env:
@@ -67,6 +71,10 @@ jobs:
           # No Pages o site vive em /painel-impresilk/. O vite.config le isto;
           # o build do Netlify (sem a variavel) segue na raiz.
           BASE_PATH: /painel-impresilk/
+      # Classe de cor que nao existe nao da erro -- o Tailwind descarta calado,
+      # e foi assim que o trilho ambar e a barra da permuta estourada ficaram
+      # transparentes em 12 usos. Roda DEPOIS do build (confere o CSS compilado).
+      - run: node scripts/conferir-classes.mjs
       # SPA com BrowserRouter: refresh em rota interna vira 404 no Pages. O
       # 404.html com o proprio app faz qualquer caminho carregar o painel.
       - run: cp dist/index.html dist/404.html

@@ -10,7 +10,7 @@ import { baixarBackup, restaurarBackup, lerArquivoBackup, statusBackup, backupHu
 import { Card, PageTitle, SectionTitle } from "../components/ui.jsx";
 import { useApp } from "../config/store.jsx";
 import AcessoUnico from "../components/AcessoUnico.jsx";
-import { nomeCompletoSis } from "../lib/sistemas.js";
+import { nomeCompletoSis, SISTEMAS } from "../lib/sistemas.js";
 
 
 function Aviso({ tom, children }) {
@@ -254,6 +254,14 @@ function UltimoBackup({ status }) {
     );
   }
   const linhas = Object.entries(sistemas);
+  /* QUEM ESTÁ NO ELENCO E NÃO APARECEU NA ÚLTIMA RODADA. O registry do backup
+     (SISTEMAS_BACKUP, um secret) é invisível daqui -- e foi assim que sistema
+     novo ficou meses sem backup sem ninguém ver. O elenco da tela é o
+     src/lib/sistemas.js; quem está lá, não é só-leitura (central/dre,
+     aposentados, não têm o que copiar) e não veio na rodada vira linha
+     vermelha em vez de silêncio. */
+  const noStatus = new Set(Object.keys(sistemas));
+  const semBackup = SISTEMAS.filter((sx) => !sx.soLeitura && !noStatus.has(sx.id));
   /* O DISPARO DIÁRIO É CEGO: quem chama não lê a resposta, então uma noite
      inteira pode passar sem gravar nada e nada muda de cor. Aqui a própria data
      denuncia: passou de 36h, o aviso aparece. É o único lugar onde a direção
@@ -279,6 +287,17 @@ function UltimoBackup({ status }) {
       <div className="overflow-x-auto rounded-xl border" style={{ borderColor: "var(--hairline)" }}>
         <table className="w-full min-w-[440px] border-collapse text-sm">
           <tbody>
+            {semBackup.map((sx) => (
+              <tr key={`sem-${sx.id}`} className="border-t" style={{ borderColor: "var(--hairline)" }}>
+                <td className="px-3 py-2 font-display font-medium text-slate-800">
+                  {sx.nomeCompleto || sx.nome}
+                </td>
+                <td className="px-3 py-2 text-slate-500">—</td>
+                <td className="px-3 py-2">
+                  <span className="chip-bad">sem backup — não está no registro do backup</span>
+                </td>
+              </tr>
+            ))}
             {linhas.map(([k, s]) => (
               <tr key={k} className="border-t" style={{ borderColor: "var(--hairline)" }}>
                 <td className="px-3 py-2 font-display font-medium text-slate-800">
