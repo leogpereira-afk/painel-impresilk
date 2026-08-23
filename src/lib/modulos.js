@@ -21,7 +21,7 @@ export const MODULOS = [
   { id: "manutencoes", nome: "Manutenções", sub: "carros, máquinas e prédio: gasto e histórico" },
   { id: "patrimonio", nome: "Patrimônio", sub: "o que a empresa tem, por setor, com etiqueta e valor" },
   { id: "permutas", nome: "Permutas", sub: "o que o parceiro nos deu, as O.S. que ele já gastou e o saldo" },
-  { id: "campanhas", nome: "Campanhas", sub: "quanto vendemos para cada evento e quem comprou" },
+  { id: "campanhas", nome: "Campanhas", sub: "cada evento e quem comprou — e o padrão de venda da casa inteira, mês a mês desde 2020" },
   { id: "configuracoes", nome: "Configurações", sub: "motivos, régua de cobrança e parâmetros — vale para todo mundo" },
 ];
 
@@ -34,8 +34,10 @@ export const COM_DINHEIRO = new Set([
   // abrindo dinheiro — e o aviso existe justamente para isso.
   "permutas",
   // Campanha mostra o faturamento do evento e quanto CADA comprador gastou --
-  // o que um concorrente pagaria para ver. Quem concede o módulo precisa saber
-  // que está abrindo isso.
+  // e a aba Anos abre o faturamento da CASA INTEIRA desde 2020, mês a mês,
+  // com os maiores compradores e o mix de produtos de cada mês, sem nada
+  // marcado. E o que um concorrente pagaria para ver. Quem concede o módulo
+  // precisa saber que está abrindo isso.
   "campanhas",
 ]);
 

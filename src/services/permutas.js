@@ -77,15 +77,34 @@ export const lerAnexo = (id, arquivo) =>
  * histórico desde 2020 são ~19.500 O.S. e ~10 MB, e desce filtrado: só os
  * clientes que casam com o que foi digitado, ou as O.S. de quem foi escolhido.
  */
-async function buscar(params) {
+async function pedirDados(modulo, params) {
   const url = new URL(DADOS);
-  url.searchParams.set("modulo", "ordensBusca");
+  url.searchParams.set("modulo", modulo);
   for (const [k, v] of Object.entries(params)) if (v) url.searchParams.set(k, v);
   const resp = await comCracha(url.toString());
   const body = await resp.json().catch(() => null);
   if (!resp.ok) throw new Error(body?.erro || mensagemDoStatus(resp.status));
   return body;
 }
+
+const buscar = (params) => pedirDados("ordensBusca", params);
+
+/* A aba "ANOS" da tela de Campanhas: o padrão de consumo da casa, automático.
+   A base inteira (2020 até hoje) é somada NO BANCO e desce um panorama de
+   ~80 linhas -- mês, valor, O.S., clientes e a fatia ACUMULADA de campanha.
+   O detalhe de um mês (quem comprou, o que foi vendido) só desce ao abrir. */
+export const lerAnosPanorama = () =>
+  pedirDados("anosPanorama", {}).then((r) => ({
+    meses: r.meses || [],
+    anos: r.anos || [],
+    /* A régua vem JUNTO do panorama, na mesma resposta -- se ela viesse por
+       outra chamada, uma falha calada deixaria mês fora de cobertura passar
+       por "vendeu zero" (foi exatamente o defeito apontado na revisão). */
+    cobertura: r.cobertura || { desde: null, ate: null },
+  }));
+
+export const lerAnosMes = (mes) =>
+  pedirDados("anosMes", { mes }).then((r) => r.detalhe || null);
 
 /* Até onde o painel TEM O.S. guardada. A tela precisa disto para não deixar
    "esse cliente não comprou nesse período" e "o painel ainda não foi buscar

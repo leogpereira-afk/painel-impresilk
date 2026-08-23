@@ -314,6 +314,55 @@ Deno.serve(async (req: Request) => {
         return json({ vendedores: (data ?? []).map((v: any) => ({ nome: v.vendedor, orcamentos: Number(v.orcamentos) })) });
       }
 
+      /* A ABA "ANOS" -- o padrao de consumo, automatico. Nada de marcar O.S.
+         uma a uma: a base INTEIRA (painel_ordens, 2020 ate hoje) e somada no
+         banco e desce um panorama de ~80 linhas (mes, valor, O.S., clientes,
+         e a fatia ACUMULADA de campanha). O detalhe de um mes -- quem comprou
+         e o que foi vendido -- so desce quando o mes e aberto. */
+      case "anosPanorama": {
+        const g = await exigirSessao(req, "campanhas");
+        if (g.resposta) return g.resposta;
+        /* A REGUA DA COBERTURA VIAJA JUNTO. Mes sem linha so e "vendeu zero"
+           DENTRO da regua: do inicio da varredura (a mesma funcao que a carga
+           usa) ate o dia da ultima carga DA FONTE DAS ORDENS -- o carimbo
+           global `status.em` fica verde mesmo quando so outra fonte veio.
+           Fora dela, o painel nao tem o mes, e afirmar zero seria mentira. */
+        const [pan, regua, ordensCarga] = await Promise.all([
+          sb.rpc("painel_anos_panorama"),
+          sb.rpc("permutas_historico_desde"),
+          lerCacheComData("ordens"),
+        ]);
+        if (pan.error) throw new Error(pan.error.message);
+        const linhas = (pan.data ?? []).map((m: any) => ({
+          ano: m.ano, mes: m.mes, valor: Number(m.valor), os: Number(m.os),
+          clientes: Number(m.clientes),
+          valorCampanha: Number(m.valor_campanha), osCampanha: Number(m.os_campanha),
+        }));
+        // Dia LOCAL da casa (UTC-3): carga de 23h e do dia em que rodou, nao
+        // do dia seguinte em UTC -- na virada do mes isso mudaria a regua.
+        const ate = ordensCarga.em
+          ? new Date(new Date(ordensCarga.em).getTime() - 3 * 3600000).toISOString().slice(0, 10)
+          : null;
+        return json({
+          // mes=null e a linha do ANO (o distinct de clientes que a soma dos
+          // meses nao da); as demais sao os meses.
+          meses: linhas.filter((l: any) => l.mes),
+          anos: linhas.filter((l: any) => !l.mes).map(({ mes: _m, ...resto }: any) => resto),
+          cobertura: { desde: regua.data || "2020-01-01", ate },
+        });
+      }
+
+      case "anosMes": {
+        const g = await exigirSessao(req, "campanhas");
+        if (g.resposta) return g.resposta;
+        const mes = String(url.searchParams.get("mes") ?? "");
+        // Formato estrito: o parametro vai direto ao filtro do banco.
+        if (!/^\d{4}-\d{2}$/.test(mes)) return json({ erro: "Mes invalido (use AAAA-MM)." }, 400);
+        const { data, error } = await sb.rpc("painel_anos_mes", { p_mes: mes });
+        if (error) throw new Error(error.message);
+        return json({ detalhe: data ?? null });
+      }
+
       default:
         return json({ erro: `Modulo desconhecido: ${modulo || "(vazio)"}` }, 400);
     }

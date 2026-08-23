@@ -720,3 +720,100 @@ export function categoriasDosProdutos(produtos) {
     .map((g) => ({ ...g, valor: cem(g.valor) }))
     .sort((a, b) => b.valor - a.valor);
 }
+
+/* ------------------------------------------------------------- a aba "Anos"
+ *
+ * O padrão de consumo da casa, AUTOMÁTICO: nada de marcar O.S. -- o servidor
+ * soma a base inteira (painel_ordens, 2020 até hoje) e manda uma linha por
+ * mês com a fatia de campanha ACUMULADA. Aqui só se organiza e se responde:
+ * quanto vende em cada época, quantos compram, e quando o pico é eleição.
+ *
+ * ZERO NÃO É RESULTADO: mês sem linha DENTRO da cobertura é venda zero de
+ * verdade (a base tem todas as O.S.); mês antes da primeira O.S. guardada ou
+ * depois de hoje é `fora` -- o painel não tem esse mês, não "vendeu zero".
+ */
+
+const chaveMes = (ano, n) => `${ano}-${String(n).padStart(2, "0")}`;
+
+/* Os meses soltos do servidor viram anos completos, cada um com 12 casas.
+   `anosServidor` traz o distinct de clientes do ANO (não sai somando meses).
+   `cobertura` {desde, ate} é a régua REAL: desde = onde a varredura da carga
+   começa (não a primeira venda -- a primeira O.S. do ano quase nunca é dia
+   1º, e usar min(data) marcaria janeiro "pela metade" sem estar); ate = o
+   dia da última carga. `hoje` só serve de teto quando `ate` não veio.
+
+   Mês sem linha DENTRO da régua é venda zero de verdade. Fora dela é `fora`:
+   o painel não tem o mês -- inclusive entre a última carga e hoje, que é
+   exatamente onde uma carga parada fabricaria zeros falsos. E mês com linha
+   FORA da régua (data futura digitada errada no ERP) aparece, mas marcado
+   `parcial`: dado visível para investigar, nunca mês cheio numa média. */
+export function panoramaPorAno(meses, anosServidor, { desde, ate, hoje } = {}) {
+  const porMes = new Map((meses || []).map((m) => [m.mes, m]));
+  const porAno = new Map((anosServidor || []).map((a) => [String(a.ano), a]));
+  const mesDesde = (desde || "").slice(0, 7);
+  const fim = ate && hoje ? (ate < hoje ? ate : hoje) : ate || hoje || "";
+  const mesFim = fim.slice(0, 7);
+  const anos = [...new Set([...porMes.keys()].map((m) => m.slice(0, 4)))].sort();
+  return anos.map((ano) => {
+    const casas = [];
+    for (let n = 1; n <= 12; n++) {
+      const chave = chaveMes(ano, n);
+      const m = porMes.get(chave);
+      const foraDaRegua = (mesDesde && chave < mesDesde) || (mesFim && chave > mesFim);
+      // O fim da régua fecha o mês? Só se a carga alcançou o último dia dele.
+      const fimNoMeio = mesFim && chave === mesFim &&
+        fim.slice(8, 10) < String(new Date(Number(ano), n, 0).getDate()).padStart(2, "0");
+      casas.push({
+        mes: chave, n,
+        valor: m?.valor || 0, os: m?.os || 0, clientes: m?.clientes || 0,
+        valorCampanha: m?.valorCampanha || 0, osCampanha: m?.osCampanha || 0,
+        fora: foraDaRegua && !m, // com venda registrada o mês existe na tela...
+        // ...mas pela metade: primeiro mês de varredura quebrada no meio,
+        // mês em que a carga parou, e dado além da régua. A média pula todos.
+        parcial: (mesDesde && chave === mesDesde && (desde || "").slice(8, 10) !== "01") ||
+                 fimNoMeio || (foraDaRegua && !!m),
+      });
+    }
+    const doAno = porAno.get(ano);
+    const soma = (c) => casas.reduce((t, x) => t + x[c], 0);
+    const cem = (n) => Math.round(n * 100) / 100;
+    const comVenda = casas.filter((c) => c.valor > 0);
+    const pico = comVenda.length
+      ? comVenda.reduce((p, c) => (c.valor > p.valor ? c : p), comVenda[0])
+      : null;
+    return {
+      ano,
+      meses: casas,
+      valor: cem(doAno ? doAno.valor : soma("valor")),
+      os: doAno ? doAno.os : soma("os"),
+      // Sem a linha do ano não se INVENTA o distinct: null diz "não sei".
+      clientes: doAno ? doAno.clientes : null,
+      valorCampanha: cem(doAno ? doAno.valorCampanha : soma("valorCampanha")),
+      osCampanha: doAno ? doAno.osCampanha : soma("osCampanha"),
+      pico,
+    };
+  });
+}
+
+/* "Quanto vende NAQUELA ÉPOCA do ano": a média de cada mês-calendário nos anos
+   cobertos. Meses `fora` e meses PARCIAIS (o primeiro da base, o corrente)
+   ficam de fora da média -- meio fevereiro dentro da conta faria fevereiro
+   parecer fraco para sempre. `anos` diz sobre quantos anos cada média fala. */
+export function epocaDoAno(anosPanorama) {
+  const cem = (n) => Math.round(n * 100) / 100;
+  const casas = [];
+  for (let n = 1; n <= 12; n++) {
+    const cheios = (anosPanorama || [])
+      .map((a) => a.meses[n - 1])
+      .filter((m) => m && !m.fora && !m.parcial);
+    const soma = (c) => cheios.reduce((t, m) => t + m[c], 0);
+    casas.push({
+      n,
+      anos: cheios.length,
+      media: cheios.length ? cem(soma("valor") / cheios.length) : 0,
+      mediaCampanha: cheios.length ? cem(soma("valorCampanha") / cheios.length) : 0,
+      mediaClientes: cheios.length ? Math.round(soma("clientes") / cheios.length) : 0,
+    });
+  }
+  return casas;
+}

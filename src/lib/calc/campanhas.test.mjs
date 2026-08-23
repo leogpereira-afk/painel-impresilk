@@ -746,3 +746,120 @@ test("a aba Análise agrupa por evento vinculado, com a evolução dentro de cad
   assert.equal(ev[1].rotulo, "Fenics");
   assert.equal(ev[1].edicoes[0].variacao, null, "evento de uma edição só não inventa variação");
 });
+
+/* ------------------------------------------------------------- a aba "Anos" */
+
+import { panoramaPorAno, epocaDoAno } from "./campanhas.js";
+
+const mesP = (mes, valor, extra = {}) =>
+  ({ mes, valor, os: 1, clientes: 1, valorCampanha: 0, osCampanha: 0, ...extra });
+
+test("panoramaPorAno: mês sem venda dentro da cobertura é zero; antes dela é fora", () => {
+  const anos = panoramaPorAno(
+    [mesP("2020-02", 180), mesP("2020-04", 500)],
+    [{ ano: "2020", valor: 680, os: 2, clientes: 2, valorCampanha: 0, osCampanha: 0 }],
+    { desde: "2020-02-14", hoje: "2026-08-23" },
+  );
+  assert.equal(anos.length, 1);
+  const a = anos[0];
+  assert.equal(a.meses.length, 12, "todo ano tem 12 casas");
+  assert.equal(a.meses[0].fora, true, "jan/2020 é antes da base — o painel NÃO TEM, não vendeu zero");
+  assert.equal(a.meses[2].fora, false, "mar/2020 sem linha É venda zero de verdade");
+  assert.equal(a.meses[2].valor, 0);
+  assert.equal(a.meses[1].parcial, true, "fev/2020 começa dia 14 — mês pela metade avisa");
+  assert.equal(a.meses[3].parcial, false);
+  assert.equal(a.clientes, 2, "distinct do ano vem do servidor");
+  assert.equal(a.pico.mes, "2020-04");
+});
+
+test("panoramaPorAno: mês futuro é fora, mês corrente é parcial, ano sem rollup não inventa distinct", () => {
+  const anos = panoramaPorAno(
+    [mesP("2026-03", 900, { valorCampanha: 300, osCampanha: 1 })],
+    [], // servidor não mandou a linha do ano
+    { desde: "2020-02-14", hoje: "2026-08-23" },
+  );
+  const a = anos[0];
+  assert.equal(a.meses[8].fora, true, "set/2026 ainda não chegou");
+  assert.equal(a.meses[7].fora, false, "ago/2026 é o mês corrente — existe");
+  assert.equal(a.meses[7].parcial, true, "…mas está pela metade");
+  assert.equal(a.clientes, null, "sem a linha do ano, distinct não se inventa somando meses");
+  assert.equal(a.valor, 900, "o total ainda sai da soma dos meses");
+  assert.equal(a.valorCampanha, 300);
+});
+
+test("epocaDoAno: média pula fora e parciais, e conta sobre quantos anos fala", () => {
+  const anos = panoramaPorAno(
+    [mesP("2020-02", 180), mesP("2020-10", 400, { valorCampanha: 250, osCampanha: 1 }),
+     mesP("2021-10", 200), mesP("2021-02", 100)],
+    [],
+    { desde: "2020-02-14", hoje: "2021-12-31" },
+  );
+  const epoca = epocaDoAno(anos);
+  const out = epoca[9];
+  assert.equal(out.anos, 2, "outubro tem 2 anos cheios");
+  assert.equal(out.media, 300, "(400+200)/2");
+  assert.equal(out.mediaCampanha, 125, "a fatia acumulada de campanha entra na média");
+  const fev = epoca[1];
+  assert.equal(fev.anos, 1, "fev/2020 é parcial (base começa dia 14) — só 2021 conta");
+  assert.equal(fev.media, 100, "meio fevereiro na média faria o mês parecer fraco para sempre");
+  const jan = epoca[0];
+  assert.equal(jan.anos, 1, "jan/2020 está fora da base — só 2021 fala por janeiro");
+  assert.equal(jan.media, 0, "e 2021 não vendeu em janeiro: zero DE VERDADE");
+});
+
+test("carga parada: mês além da última carga é fora, o mês em que ela parou é parcial", () => {
+  // A carga parou em 30/06; hoje é 23/08. Julho NÃO virou "vendeu zero":
+  // o painel simplesmente não tem julho — e junho, truncado? Não: a carga
+  // alcançou 30/06, último dia do mês — junho é cheio.
+  const anos = panoramaPorAno(
+    [mesP("2026-05", 900), mesP("2026-06", 700)],
+    [],
+    { desde: "2020-01-01", ate: "2026-06-30", hoje: "2026-08-23" },
+  );
+  const a = anos[0];
+  assert.equal(a.meses[6].fora, true, "julho está além da última carga — o painel NÃO TEM, não vendeu zero");
+  assert.equal(a.meses[7].fora, true, "agosto idem");
+  assert.equal(a.meses[5].parcial, false, "a carga alcançou 30/06 — junho está inteiro");
+  const epoca = epocaDoAno(anos);
+  assert.equal(epoca[6].anos, 0, "julho não entra na média com zero falso");
+  assert.equal(epoca[5].anos, 1, "junho cheio entra");
+});
+
+test("carga parada NO MEIO do mês: o mês truncado é parcial e sai da média", () => {
+  const anos = panoramaPorAno(
+    [mesP("2026-07", 500)],
+    [],
+    { desde: "2020-01-01", ate: "2026-07-29", hoje: "2026-08-23" },
+  );
+  assert.equal(anos[0].meses[6].parcial, true, "julho até dia 29 está pela metade");
+  assert.equal(epocaDoAno(anos)[6].anos, 0, "mês truncado não conta como cheio na média");
+});
+
+test("mês futuro COM linha (data digitada errada no ERP) aparece, mas nunca como mês cheio", () => {
+  const anos = panoramaPorAno(
+    [mesP("2026-03", 900), mesP("2027-03", 500)],
+    [],
+    { desde: "2020-01-01", ate: "2026-08-23", hoje: "2026-08-23" },
+  );
+  const a27 = anos.find((a) => a.ano === "2027");
+  assert.equal(a27.meses[2].fora, false, "o dado existe — aparece para ser investigado");
+  assert.equal(a27.meses[2].parcial, true, "…mas marcado, nunca cheio");
+  const mar = epocaDoAno(anos)[2];
+  assert.equal(mar.anos, 1, "só 2026 fala por março");
+  assert.equal(mar.media, 900, "a O.S. de 2027 não puxa a média para baixo");
+});
+
+test("varredura começando dia 01: janeiro sem venda até dia 14 é zero DE VERDADE, não parcial", () => {
+  // A régua vem da varredura da carga (dia 01), não da primeira O.S. —
+  // min(data)=2020-02-14 marcava fev "pela metade" e jan como "fora" sendo
+  // que a carga varreu janeiro inteiro e ninguém comprou.
+  const anos = panoramaPorAno(
+    [mesP("2020-02", 180)],
+    [],
+    { desde: "2020-01-01", ate: "2020-12-31", hoje: "2026-08-23" },
+  );
+  const a = anos[0];
+  assert.equal(a.meses[0].fora, false, "janeiro foi varrido — zero é resultado");
+  assert.equal(a.meses[0].parcial, false);
+  assert.equal(a.meses[1].parcial, false, "fevereiro também está inteiro na varredura");
+});

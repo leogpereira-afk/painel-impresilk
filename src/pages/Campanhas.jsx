@@ -34,6 +34,7 @@ import {
 import {
   lerCampanhas, mexerNaCampanha, removerCampanha, anexarNaCampanha, lerAnexoCampanha,
   buscarClientes, buscarOrdensDe, buscarOrdensPorId, lerCobertura,
+  lerAnosPanorama, lerAnosMes,
 } from "../services/campanhas.js";
 import { fichaDaOS, ordensDosClientes, donoPorOS } from "../lib/calc/permutas.js";
 import {
@@ -41,6 +42,7 @@ import {
   anosDasCampanhas, totaisDoAno, comparativoPorAno, edicoesDoMesmoEvento, anosRepetidos,
   maiorComprador, comprasPorMes, produtosDaCampanha, categoriasDosProdutos, porProduto,
   membrosDoEvento, candidatasAVincular, comparativoDeEdicoes, eventosVinculados,
+  panoramaPorAno, epocaDoAno,
 } from "../lib/calc/campanhas.js";
 import { paraNumero, dataLonga } from "../lib/format.js";
 import { Card, PageTitle, Empty, CarregandoModulo, BotaoPDF, CabecalhoImpressao, AvisoDadoParado, Segmented } from "../components/ui.jsx";
@@ -1112,6 +1114,242 @@ function ExtratoImpresso({ e, produtos, categorias, meses }) {
 
 const VENDA_VAZIA = { descricao: "", valor: "", data: "" };
 
+/* ------------------------------------------------------------- a aba "Anos"
+ *
+ * O padrão de consumo da casa, AUTOMÁTICO (pedido do dono, 23/08): "você já
+ * lança automático todos os clientes que compraram de janeiro de 2020 até
+ * hoje... e as vendas de campanha entram ACUMULADAS dentro do mês, para eu
+ * saber que naquele mês as vendas foram de campanha".
+ *
+ * Nada aqui é marcado à mão: o servidor soma a base inteira (painel_ordens)
+ * e desce ~80 linhas de panorama; o detalhe de um mês -- quem comprou e o que
+ * foi vendido -- só desce quando o mês é clicado. A fatia âmbar de cada barra
+ * é o acumulado das O.S. que a direção marcou nas campanhas: quando o pico é
+ * eleição, a cor diz na hora.
+ */
+
+/* Rótulo curto para caber em cima de 12 barras: R$ 852.028,46 vira "852 mil".
+   O número exato mora no title e no detalhe do mês. */
+const mil = (v) => (v >= 1000 ? `${Math.round(v / 1000).toLocaleString("pt-BR")} mil` : String(Math.round(v)));
+
+/* As 12 barras de um ano (ou das médias), empilhadas: dia a dia embaixo,
+   campanha em âmbar por cima da base. Mês `fora` não é barra zerada -- o
+   painel NÃO TEM aquele mês, e ele aparece apagado com a explicação no title. */
+function BarrasAno({ casas, aoClicar, ativo }) {
+  const teto = Math.max(...casas.map((c) => c.valor), 1);
+  const ALT = 72;
+  return (
+    <div className="flex items-end gap-1 overflow-x-auto pb-1">
+      {casas.map((c) => {
+        const alt = c.valor > 0 ? Math.max(2, (c.valor / teto) * ALT) : 0;
+        const altCamp = c.valorCampanha > 0 ? Math.min(alt, Math.max(2, (c.valorCampanha / teto) * ALT)) : 0;
+        const clicavel = aoClicar && !c.fora;
+        const Tag = clicavel ? "button" : "div";
+        return (
+          <Tag
+            key={c.chave}
+            {...(clicavel ? { type: "button", onClick: () => aoClicar(c.chave) } : {})}
+            className={`flex min-w-[2.4rem] flex-1 flex-col items-center gap-1 rounded-md pt-1 ${
+              ativo === c.chave ? "bg-brand-50" : clicavel ? "hover:bg-slate-50" : ""
+            }`}
+            title={c.titulo}
+          >
+            <span className="text-[10px] tabular-nums text-slate-400">{c.valor > 0 ? mil(c.valor) : ""}</span>
+            <span className="flex w-full flex-col justify-end" style={{ height: `${ALT}px` }}>
+              {c.fora ? (
+                <span className="h-0.5 w-full rounded bg-slate-200" />
+              ) : (
+                <>
+                  <span
+                    className="w-full rounded-t bg-brand-300"
+                    style={{ height: `${Math.max(0, alt - altCamp)}px` }}
+                  />
+                  {altCamp > 0 && (
+                    <span
+                      className={`w-full bg-warn-400 ${alt - altCamp <= 0 ? "rounded-t" : ""}`}
+                      style={{ height: `${altCamp}px` }}
+                    />
+                  )}
+                </>
+              )}
+            </span>
+            <span className={`whitespace-nowrap text-[10px] ${c.fora ? "text-slate-300" : "text-slate-400"}`}>
+              {c.rotulo}
+              {c.parcial ? "*" : ""}
+            </span>
+          </Tag>
+        );
+      })}
+    </div>
+  );
+}
+
+function LegendaAnos({ temParcial }) {
+  return (
+    <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-slate-500">
+      <span className="inline-flex items-center gap-1.5">
+        <span className="h-2.5 w-2.5 rounded-sm bg-brand-300" /> vendas do dia a dia
+      </span>
+      <span className="inline-flex items-center gap-1.5">
+        <span className="h-2.5 w-2.5 rounded-sm bg-warn-400" /> vendas de campanha, acumuladas no mês
+      </span>
+      {temParcial && <span>* mês pela metade</span>}
+    </div>
+  );
+}
+
+/* As casas que as barras consomem, já com o title pronto -- conta pura. */
+function casasDoAno(a) {
+  return a.meses.map((m) => ({
+    chave: m.mes,
+    rotulo: MES_CURTO[m.n - 1],
+    valor: m.valor,
+    valorCampanha: m.valorCampanha,
+    fora: m.fora,
+    parcial: m.parcial,
+    titulo: m.fora
+      ? `${rotuloMes(m.mes)}: o painel não tem este mês`
+      : `${rotuloMes(m.mes)}: ${dinheiro(m.valor)} em ${m.os} O.S. · ${m.clientes} ${m.clientes === 1 ? "cliente" : "clientes"}${
+          m.valorCampanha > 0 ? ` · ${dinheiro(m.valorCampanha)} de campanha` : ""
+        }${m.parcial ? " · mês pela metade" : ""}`,
+  }));
+}
+
+function casasDaEpoca(epoca) {
+  return epoca.map((e) => ({
+    chave: String(e.n),
+    rotulo: MES_CURTO[e.n - 1],
+    valor: e.media,
+    valorCampanha: e.mediaCampanha,
+    fora: e.anos === 0,
+    parcial: false,
+    titulo:
+      e.anos === 0
+        ? `${MES_CURTO[e.n - 1]}: nenhum ano cheio ainda`
+        : `${MES_CURTO[e.n - 1]}: média de ${dinheiro(e.media)} · ~${e.mediaClientes} clientes · sobre ${e.anos} ${e.anos === 1 ? "ano" : "anos"}${
+            e.mediaCampanha > 0 ? ` · ${dinheiro(e.mediaCampanha)} de campanha em média` : ""
+          }`,
+  }));
+}
+
+/* O MÊS ABERTO: quem comprou e o que foi vendido, vindo do servidor só agora.
+   A linha âmbar cumpre o pedido ao pé da letra: o acumulado de campanha do
+   mês, para a leitura ser "esse pico foi eleição" sem abrir nada mais. */
+function MesDetalhe({ mes, detalhe, erro, aoFechar }) {
+  const pctCamp =
+    detalhe && detalhe.total > 0 && detalhe.campanha?.valor > 0
+      ? Math.round((detalhe.campanha.valor / detalhe.total) * 100)
+      : 0;
+  return (
+    <div className="space-y-3 rounded-xl border border-slate-200 bg-slate-50/60 p-3">
+      <div className="flex items-center justify-between gap-3">
+        <span className="font-display text-sm font-medium text-slate-800">
+          {rotuloMes(mes)}
+          {detalhe && (
+            <span className="ml-2 font-sans text-xs font-normal text-slate-500">
+              {dinheiro(detalhe.total)} em {detalhe.os} O.S. · {detalhe.clientesQtd}{" "}
+              {detalhe.clientesQtd === 1 ? "cliente" : "clientes"}
+            </span>
+          )}
+        </span>
+        <button type="button" onClick={aoFechar} className="shrink-0 rounded-md p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600" aria-label="Fechar o mês">
+          <X size={14} />
+        </button>
+      </div>
+
+      {erro ? (
+        <div className="text-xs text-bad-600">{erro}</div>
+      ) : !detalhe ? (
+        <div className="text-xs text-slate-400">Buscando o mês no servidor…</div>
+      ) : (
+        <>
+          {detalhe.campanha?.valor > 0 && (
+            <div className="rounded-lg bg-warn-50 px-3 py-2 text-xs text-warn-800">
+              <span className="font-medium">{dinheiro(detalhe.campanha.valor)}</span> em {detalhe.campanha.os} O.S.
+              foram vendas de campanha acumuladas neste mês — {pctCamp}% do mês.
+            </div>
+          )}
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-1">
+              <div className="text-xs font-medium uppercase tracking-wide text-slate-400">Quem comprou</div>
+              <div className="max-h-72 space-y-0.5 overflow-y-auto pr-1">
+                {detalhe.clientes.map((c) => (
+                  <div key={c.chave || c.nome} className="flex items-baseline gap-2 text-xs">
+                    <span className="min-w-0 flex-1 truncate text-slate-700" title={c.nome}>
+                      {c.nome}
+                      {c.valorCampanha > 0 && (
+                        <span
+                          className="ml-1.5 rounded bg-warn-100 px-1 py-px text-[10px] text-warn-800"
+                          title={`${dinheiro(c.valorCampanha)} deste cliente foram vendas de campanha`}
+                        >
+                          campanha
+                        </span>
+                      )}
+                    </span>
+                    <span className="shrink-0 tabular-nums text-slate-500">
+                      {c.os > 1 ? `${c.os} O.S. · ` : ""}
+                      {dinheiro(c.valor)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+              {detalhe.clientesFora > 0 && (
+                <div className="text-[11px] text-slate-400">
+                  e mais {detalhe.clientesFora} {detalhe.clientesFora === 1 ? "comprador" : "compradores"} no mês.
+                </div>
+              )}
+            </div>
+            <div className="space-y-1">
+              <div className="text-xs font-medium uppercase tracking-wide text-slate-400">O que foi vendido</div>
+              <div className="max-h-72 space-y-0.5 overflow-y-auto pr-1">
+                {detalhe.produtos.map((pr) => (
+                  <div key={`${pr.produto}|${pr.rotulo}`} className="flex items-baseline gap-2 text-xs">
+                    <span className="min-w-0 flex-1 truncate text-slate-700" title={pr.produto !== pr.rotulo ? `${pr.produto} — ${pr.rotulo}` : pr.rotulo}>
+                      {pr.rotulo}
+                    </span>
+                    <span className="shrink-0 tabular-nums text-slate-500">
+                      {pr.quantidade > 0 ? `${Math.round(pr.quantidade).toLocaleString("pt-BR")} un. · ` : ""}
+                      {dinheiro(pr.valor)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+              {detalhe.produtosForaValor > 0 && (
+                <div className="text-[11px] text-slate-400">e mais {dinheiro(detalhe.produtosForaValor)} em outros produtos.</div>
+              )}
+              {!detalhe.produtos.length && (
+                <div className="text-[11px] text-slate-400">
+                  {detalhe.produtosCobertura?.osComItens === 0
+                    ? "Nenhuma O.S. deste mês tem itens carregados do ERP — o ranking não tem de onde ler."
+                    : "Nenhum item com produto nomeado neste mês."}
+                </div>
+              )}
+              {/* A COBERTURA DO RANKING, dita: O.S. sem itens carregados e
+                  uniões do ERP sem sub-item nomeado não entram nele. A régua
+                  da conferência é o BRUTO das O.S. lidas (os itens somam o
+                  bruto rateado; o total do mês é líquido de desconto). */}
+              {detalhe.produtosCobertura?.osSemItens > 0 && (
+                <div className="text-[11px] text-warn-800">
+                  {detalhe.produtosCobertura.osSemItens}{" "}
+                  {detalhe.produtosCobertura.osSemItens === 1 ? "O.S. deste mês está" : "O.S. deste mês estão"}{" "}
+                  sem itens carregados do ERP — o ranking não as vê.
+                </div>
+              )}
+              {detalhe.produtosCobertura &&
+                detalhe.produtosCobertura.brutoComItens - detalhe.produtosCobertura.valorLido > 0.05 && (
+                <div className="text-[11px] text-slate-400">
+                  {dinheiro(detalhe.produtosCobertura.brutoComItens - detalhe.produtosCobertura.valorLido)} vieram
+                  do ERP sem produto nomeado e ficam fora do ranking.
+                </div>
+              )}
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 export default function Campanhas() {
   /* O MESMO frescor do chip global: as O.S. daqui vêm da tabela alimentada
      pela mesma carga do cache. Com a carga parada 30h, o saldo apresentado ao
@@ -1170,6 +1408,56 @@ export default function Campanhas() {
       return novo;
     });
   }, []);
+  /* A ABA "ANOS": o panorama automático. Só desce quando a aba abre, e o
+     detalhe de um mês só quando o mês é clicado -- a base são 20 mil O.S. e
+     este é o único jeito de a aba abrir leve. */
+  const [panorama, setPanorama] = useState(null);
+  const [erroPanorama, setErroPanorama] = useState("");
+  const [mesAberto, setMesAberto] = useState(null);
+  const [detalhesMes, setDetalhesMes] = useState({});
+  /* Erro POR MES, como o cache. Uma string unica vazava: o erro de mai/2023
+     ficava de pe ao reabrir abr/2023 (cacheado, o efeito retorna cedo) e
+     cobria dados perfeitamente carregados. */
+  const [errosMes, setErrosMes] = useState({});
+  /* Mesma preferência do dono: cada quadro recolhe e a escolha fica. As
+     chaves são dinâmicas (uma por ano), então o padrão é ABERTO e só o que
+     a pessoa fechou é gravado. */
+  const [abertasAnos, setAbertasAnos] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem("campanhas_anos_secoes") || "{}");
+    } catch {
+      return {};
+    }
+  });
+  const alternarAnos = useCallback((id) => {
+    setAbertasAnos((a) => {
+      const novo = { ...a, [id]: a[id] === false };
+      try { localStorage.setItem("campanhas_anos_secoes", JSON.stringify(novo)); } catch { /* aba anônima */ }
+      return novo;
+    });
+  }, []);
+  const abrirMes = useCallback((mes) => setMesAberto((atual) => (atual === mes ? null : mes)), []);
+
+  useEffect(() => {
+    if (abaLista !== "anos" || panorama || erroPanorama) return;
+    let vivo = true;
+    lerAnosPanorama()
+      .then((pan) => { if (vivo) setPanorama(pan); })
+      .catch((e) => { if (vivo) setErroPanorama(e.message); });
+    return () => { vivo = false; };
+  }, [abaLista, panorama, erroPanorama]);
+
+  useEffect(() => {
+    if (!mesAberto || detalhesMes[mesAberto]) return;
+    let vivo = true;
+    const mes = mesAberto;
+    setErrosMes((x) => (x[mes] ? { ...x, [mes]: "" } : x));
+    lerAnosMes(mes)
+      .then((d) => { if (vivo) setDetalhesMes((x) => ({ ...x, [mes]: d })); })
+      .catch((e) => { if (vivo) setErrosMes((x) => ({ ...x, [mes]: e.message })); });
+    return () => { vivo = false; };
+  }, [mesAberto, detalhesMes]);
+
   const [gruposAbertos, setGruposAbertos] = useState({});
   const alternarGrupo = useCallback((k) => setGruposAbertos((g) => ({ ...g, [k]: !g[k] })), []);
   const [abertas, setAbertas] = useState(() => {
@@ -1312,6 +1600,24 @@ export default function Campanhas() {
      por cartão seria refazer o agrupamento de eventos N vezes. */
   const contraAnterior = useMemo(() => comparativoDeEdicoes(lista), [lista]);
   const eventos = useMemo(() => eventosVinculados(lista), [lista]);
+
+  /* O panorama automático organizado: 12 casas por ano (fora ≠ zero) e a
+     média de cada época do ano. Conta pura, testada em campanhas.test.mjs. */
+  const anosAuto = useMemo(
+    () => (panorama
+      ? panoramaPorAno(panorama.meses, panorama.anos, {
+          desde: panorama.cobertura?.desde,
+          ate: panorama.cobertura?.ate,
+          hoje: hojeISO(),
+        })
+      : []),
+    [panorama],
+  );
+  const epoca = useMemo(() => epocaDoAno(anosAuto), [anosAuto]);
+  const picoEpoca = useMemo(
+    () => epoca.filter((e) => e.anos > 0).reduce((pi, e) => (pi && pi.media >= e.media ? pi : e), null),
+    [epoca],
+  );
   const semAno = totalGeral.semAno;
   /* A O.S. REPETIDA INFLA OS DOIS NÚMEROS, e o controle só olhava o recorte.
      Escolhendo 2026, o cartão "Todas as campanhas" continuava somando a mesma
@@ -1379,6 +1685,12 @@ export default function Campanhas() {
           : await mexerNaCampanha(id, o);
         mapaRef.current = novo;
         setMapa(novo);
+        /* A aba Anos lê a MESMA marcação que acabou de mudar (a fatia âmbar
+           vem das O.S. das campanhas). Sem zerar, marcar 50 O.S. e abrir a
+           aba mostraria o estado de antes -- duas abas da mesma tela em
+           desacordo. O efeito rebusca sozinho na próxima visita. */
+        setPanorama(null);
+        setDetalhesMes({});
         // Devolve o REGISTRO gravado, não um "true": "não deu erro" nunca foi
         // prova de que gravou.
         return novo?.[id] ?? null;
@@ -1550,6 +1862,8 @@ export default function Campanhas() {
     setAviso(null);
     try {
       await removerCampanha(id);
+      setPanorama(null); // a fatia âmbar da aba Anos inclui as O.S. desta campanha
+      setDetalhesMes({});
       setMapa((m) => {
         const novo = { ...(m || {}) };
         delete novo[id];
@@ -2451,6 +2765,9 @@ export default function Campanhas() {
         opcoes={[
           { valor: "campanhas", rotulo: "Campanhas" },
           { valor: "analise", rotulo: "Análise dos anos" },
+          /* "Anos" é OUTRA pergunta: não o que foi marcado, mas TUDO o que a
+             casa vendeu, automático -- o padrão de consumo. */
+          { valor: "anos", rotulo: "Anos" },
         ]}
         valor={abaLista}
         onChange={setAbaLista}
@@ -2573,6 +2890,101 @@ export default function Campanhas() {
                 <div className="text-xs text-slate-400">e mais {rankingGeral.length - 10} compradores.</div>
               )}
             </Secao>
+          )}
+        </>
+      )}
+
+      {abaLista === "anos" && (
+        <>
+          {/* O QUE ESTA ABA É -- dita uma vez, no topo: automática, base
+              inteira, e o que a cor âmbar significa. */}
+          <div className="rounded-lg bg-brand-50 px-3 py-2 text-xs text-brand-800">
+            Automática: soma <span className="font-medium">todas</span> as O.S. do painel
+            {panorama?.cobertura?.desde ? ` desde ${dataLonga(panorama.cobertura.desde)}` : ""} — aqui nada
+            precisa ser marcado. A fatia âmbar é o acumulado das vendas marcadas nas campanhas. Toque num mês
+            para ver quem comprou e o que foi vendido.
+          </div>
+          {/* CARGA ATRASADA NAO PODE PASSAR POR "VENDEU ZERO": se a última
+              carga parou dias atrás, os dias seguintes não existem na base e
+              a régua já os apaga -- mas quem olha precisa saber o porquê. */}
+          {panorama?.cobertura?.ate && panorama.cobertura.ate < hojeISO() && (
+            <div className="rounded-lg bg-warn-50 px-3 py-2 text-xs text-warn-800">
+              A base vai até <span className="font-medium">{dataLonga(panorama.cobertura.ate)}</span> — a carga
+              ainda não trouxe os dias seguintes, e eles aparecem apagados, não como venda zero.
+            </div>
+          )}
+
+          {erroPanorama ? (
+            <Card className="space-y-2 py-6 text-center">
+              <div className="text-sm text-bad-600">{erroPanorama}</div>
+              <button
+                type="button"
+                className="text-xs text-brand-600 underline hover:text-brand-700"
+                onClick={() => setErroPanorama("")}
+              >
+                Tentar de novo
+              </button>
+            </Card>
+          ) : !panorama ? (
+            <Card className="py-8 text-center text-sm text-slate-400">Somando a base inteira no servidor…</Card>
+          ) : (
+            <>
+              <Secao
+                id="epoca"
+                titulo="A época do ano"
+                sub="Média de cada mês somando os anos cobertos — meses pela metade (o primeiro da base e o atual) ficam de fora da média."
+                aberta={abertasAnos.epoca !== false}
+                aoAlternar={alternarAnos}
+              >
+                <BarrasAno casas={casasDaEpoca(epoca)} />
+                {picoEpoca && (
+                  <div className="text-xs text-slate-500">
+                    Época mais forte: <span className="font-medium text-slate-700">{MES_CURTO[picoEpoca.n - 1]}</span>, com{" "}
+                    {dinheiro(picoEpoca.media)} de média sobre {picoEpoca.anos} {picoEpoca.anos === 1 ? "ano" : "anos"}
+                    {picoEpoca.mediaCampanha > 0 && <> — {dinheiro(picoEpoca.mediaCampanha)} disso é campanha</>}.
+                  </div>
+                )}
+                <LegendaAnos temParcial={false} />
+              </Secao>
+
+              {anosAuto.map((a) => {
+                const idSec = `a${a.ano}`;
+                const pctCamp = a.valor > 0 && a.valorCampanha > 0 ? Math.round((a.valorCampanha / a.valor) * 100) : 0;
+                const temParcial = a.meses.some((m) => m.parcial && !m.fora);
+                return (
+                  <Secao
+                    key={a.ano}
+                    id={idSec}
+                    titulo={a.ano}
+                    sub={`${dinheiro(a.valor)} em ${a.os} O.S. · ${
+                      a.clientes == null ? "?" : a.clientes
+                    } clientes diferentes${
+                      a.valorCampanha > 0 ? ` · ${dinheiro(a.valorCampanha)} de campanha (${pctCamp}%)` : ""
+                    }`}
+                    aberta={abertasAnos[idSec] !== false}
+                    aoAlternar={alternarAnos}
+                  >
+                    <BarrasAno casas={casasDoAno(a)} aoClicar={abrirMes} ativo={mesAberto} />
+                    {a.pico && (
+                      <div className="text-xs text-slate-500">
+                        Mês mais forte: <span className="font-medium text-slate-700">{rotuloMes(a.pico.mes)}</span> com{" "}
+                        {dinheiro(a.pico.valor)} em {a.pico.os} O.S.
+                        {a.pico.valorCampanha > 0 && <> — {dinheiro(a.pico.valorCampanha)} disso foi campanha</>}
+                      </div>
+                    )}
+                    <LegendaAnos temParcial={temParcial} />
+                    {mesAberto?.startsWith(`${a.ano}-`) && (
+                      <MesDetalhe
+                        mes={mesAberto}
+                        detalhe={detalhesMes[mesAberto]}
+                        erro={errosMes[mesAberto]}
+                        aoFechar={() => setMesAberto(null)}
+                      />
+                    )}
+                  </Secao>
+                );
+              })}
+            </>
           )}
         </>
       )}

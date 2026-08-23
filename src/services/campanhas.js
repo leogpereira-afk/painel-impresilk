@@ -54,7 +54,7 @@ export const lerAnexoCampanha = (id, arquivo) =>
 
 /* A busca de O.S. é a MESMA da permuta -- mesma tabela, mesma Edge Function.
    Reexportada para a tela não ter de saber de qual módulo ela vem. */
-export { buscarClientes, buscarOrdensPorId, lerCobertura } from "./permutas.js";
+export { buscarClientes, buscarOrdensPorId, lerCobertura, lerAnosPanorama, lerAnosMes } from "./permutas.js";
 
 import { buscarOrdensDe as buscarOrdensDePermuta } from "./permutas.js";
 
