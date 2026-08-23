@@ -78,6 +78,82 @@ function prazo(dias) {
   return { texto: `em ${dias} dias`, chip: "chip", peso: dias };
 }
 
+/* FORA do componente da página, de propósito: definida dentro, o React via um
+   TIPO novo a cada render e destruía/recriava o DOM de toda linha — a família
+   do "campo que perde o foco" que a casa já pagou duas vezes. A regra
+   react/no-unstable-nested-components (ligada em 23/08) pega; esta era a única
+   ocorrência viva. Os handlers entram por props. */
+function Linha({ it, baixarEdital, editar, remover }) {
+  return (
+    <div
+      className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-xl border p-3.5"
+      style={{ borderColor: "var(--hairline)" }}
+    >
+      <span className="min-w-0 flex-1 basis-52">
+        <span className="block truncate font-display text-sm font-semibold text-slate-900">{it.nome}</span>
+        <span className="block truncate text-xs text-slate-500">
+          {[it.identificacao, it.categoria, it.edital && `edital ${it.edital}`].filter(Boolean).join(" · ") || "—"}
+        </span>
+      </span>
+
+      <span className="shrink-0 text-right">
+        <span className={`${it.pz.chip} whitespace-nowrap`}>{it.pz.texto}</span>
+        <span className="mt-0.5 block text-xs tabular-nums text-slate-500">
+          {it.validade ? `${dataCurta(it.validade)}${it.hora ? ` as ${it.hora}` : ""}` : "marque a data"}
+        </span>
+      </span>
+
+      <span className={`${it.st.chip} shrink-0 whitespace-nowrap`}>{it.st.rotulo}</span>
+
+      {it.valor > 0 && (
+        <span className="shrink-0 font-display text-sm font-medium tabular-nums text-slate-700">
+          {moedaCheia(it.valor)}
+        </span>
+      )}
+
+      <span className="ml-auto flex shrink-0 items-center gap-0.5">
+        {it.url && (
+          <a
+            href={it.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="grid h-8 w-8 place-items-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-brand"
+            title="Abrir o portal da licitação"
+          >
+            <ArrowUpRight size={15} />
+          </a>
+        )}
+        {it.temArquivo && (
+          <button
+            type="button"
+            onClick={() => baixarEdital(it)}
+            className="grid h-8 w-8 place-items-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-brand"
+            title="Baixar o edital"
+          >
+            <Download size={15} />
+          </button>
+        )}
+        <button
+          type="button"
+          onClick={() => editar(it)}
+          className="grid h-8 w-8 place-items-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-900"
+          title={`Editar ${it.nome}`}
+        >
+          <Pencil size={15} />
+        </button>
+        <button
+          type="button"
+          onClick={() => remover(it)}
+          className="grid h-8 w-8 place-items-center rounded-lg text-slate-400 hover:bg-bad-50 hover:text-bad-700"
+          title={`Remover ${it.nome}`}
+        >
+          <Trash2 size={15} />
+        </button>
+      </span>
+    </div>
+  );
+}
+
 export default function Licitacoes() {
   const [itens, setItens] = useState(null);
   const [erro, setErro] = useState(null);
@@ -268,75 +344,6 @@ export default function Licitacoes() {
   }
   if (itens === null) return <CarregandoModulo />;
 
-  const Linha = ({ it }) => (
-    <div
-      className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-xl border p-3.5"
-      style={{ borderColor: "var(--hairline)" }}
-    >
-      <span className="min-w-0 flex-1 basis-52">
-        <span className="block truncate font-display text-sm font-semibold text-slate-900">{it.nome}</span>
-        <span className="block truncate text-xs text-slate-500">
-          {[it.identificacao, it.categoria, it.edital && `edital ${it.edital}`].filter(Boolean).join(" · ") || "—"}
-        </span>
-      </span>
-
-      <span className="shrink-0 text-right">
-        <span className={`${it.pz.chip} whitespace-nowrap`}>{it.pz.texto}</span>
-        <span className="mt-0.5 block text-xs tabular-nums text-slate-500">
-          {it.validade ? `${dataCurta(it.validade)}${it.hora ? ` as ${it.hora}` : ""}` : "marque a data"}
-        </span>
-      </span>
-
-      <span className={`${it.st.chip} shrink-0 whitespace-nowrap`}>{it.st.rotulo}</span>
-
-      {it.valor > 0 && (
-        <span className="shrink-0 font-display text-sm font-medium tabular-nums text-slate-700">
-          {moedaCheia(it.valor)}
-        </span>
-      )}
-
-      <span className="ml-auto flex shrink-0 items-center gap-0.5">
-        {it.url && (
-          <a
-            href={it.url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="grid h-8 w-8 place-items-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-brand"
-            title="Abrir o portal da licitação"
-          >
-            <ArrowUpRight size={15} />
-          </a>
-        )}
-        {it.temArquivo && (
-          <button
-            type="button"
-            onClick={() => baixarEdital(it)}
-            className="grid h-8 w-8 place-items-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-brand"
-            title="Baixar o edital"
-          >
-            <Download size={15} />
-          </button>
-        )}
-        <button
-          type="button"
-          onClick={() => editar(it)}
-          className="grid h-8 w-8 place-items-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-900"
-          title={`Editar ${it.nome}`}
-        >
-          <Pencil size={15} />
-        </button>
-        <button
-          type="button"
-          onClick={() => remover(it)}
-          className="grid h-8 w-8 place-items-center rounded-lg text-slate-400 hover:bg-bad-50 hover:text-bad-700"
-          title={`Remover ${it.nome}`}
-        >
-          <Trash2 size={15} />
-        </button>
-      </span>
-    </div>
-  );
-
   return (
     <div className="space-y-8">
       <PageTitle
@@ -379,7 +386,7 @@ export default function Licitacoes() {
         ) : (
           <div className="space-y-2.5">
             {vm.naMesa.map((it) => (
-              <Linha key={it.id} it={it} />
+              <Linha key={it.id} it={it} baixarEdital={baixarEdital} editar={editar} remover={remover} />
             ))}
           </div>
         )}
@@ -537,7 +544,7 @@ export default function Licitacoes() {
           <SectionTitle titulo="Encerradas" sub="Ganhas, perdidas e as que ficaram de fora." />
           <div className="space-y-2.5">
             {vm.encerradas.map((it) => (
-              <Linha key={it.id} it={it} />
+              <Linha key={it.id} it={it} baixarEdital={baixarEdital} editar={editar} remover={remover} />
             ))}
           </div>
         </Card>

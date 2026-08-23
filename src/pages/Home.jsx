@@ -15,7 +15,7 @@ import { useApp } from "../config/store.jsx";
 import { listarAtivos } from "../services/ativos.js";
 import { calcAtivos, TIPOS } from "../lib/calc/ativos.js";
 import { ymdLocal } from "../lib/format.js";
-import { CarregandoModulo, ErroModulo } from "../components/ui.jsx";
+import { Card, CarregandoModulo, ErroModulo } from "../components/ui.jsx";
 import MeusSistemas from "../components/MeusSistemas.jsx";
 import logoColor from "../assets/brand/logo-color.png";
 import logoWhite from "../assets/brand/logo-white.png";

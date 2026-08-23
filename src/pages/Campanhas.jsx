@@ -43,7 +43,8 @@ import {
   membrosDoEvento, candidatasAVincular, comparativoDeEdicoes,
 } from "../lib/calc/campanhas.js";
 import { paraNumero, dataLonga } from "../lib/format.js";
-import { Card, PageTitle, Empty, CarregandoModulo, BotaoPDF, CabecalhoImpressao } from "../components/ui.jsx";
+import { Card, PageTitle, Empty, CarregandoModulo, BotaoPDF, CabecalhoImpressao, AvisoDadoParado } from "../components/ui.jsx";
+import { useApp } from "../config/store.jsx";
 import {
   dinheiro, dataDaOS, formatarDoc, hojeISO, novoId,
   Aviso, Secao, GrupoCliente, LinhaAceita, LinhaEscolher, Historico,
@@ -1105,6 +1106,12 @@ function ExtratoImpresso({ e, produtos, categorias, meses }) {
 const VENDA_VAZIA = { descricao: "", valor: "", data: "" };
 
 export default function Campanhas() {
+  /* O MESMO frescor do chip global: as O.S. daqui vêm da tabela alimentada
+     pela mesma carga do cache. Com a carga parada 30h, o saldo apresentado ao
+     parceiro estaria velho com só o chip de 12px avisando no canto -- o furo
+     que o AvisoDadoParado existe para fechar, e que só Contas Atrasadas e
+     Orçamentos tinham coberto. */
+  const { atualizadoEm } = useApp();
   const [mapa, setMapa] = useState(null);
   const [erro, setErro] = useState(null);
   const [aviso, setAviso] = useState(null);
@@ -1737,6 +1744,7 @@ export default function Campanhas() {
         </button>
 
         <Aviso aviso={aviso} aoFechar={() => setAviso(null)} />
+        <AvisoDadoParado atualizadoEm={atualizadoEm} />
 
         <input ref={arquivoRef} type="file" className="hidden" onChange={(e) => anexar(e.target.files?.[0])} />
 
@@ -2358,6 +2366,7 @@ export default function Campanhas() {
       />
 
       <Aviso aviso={aviso} aoFechar={() => setAviso(null)} />
+        <AvisoDadoParado atualizadoEm={atualizadoEm} />
 
       <SeletorAno anos={anos} valor={anoSel} aoEscolher={setAnoSel} temSemAno={semAno} />
 

@@ -34,7 +34,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowLeft, Plus, Trash2, Search, X, AlertTriangle, Handshake, Building2,
-  Archive, Paperclip, Download, CalendarRange, } from "lucide-react";
+  Archive, Paperclip, Download, CalendarRange, Check,
+} from "lucide-react";
 import {
   lerPermutas, mexerNaPermuta, removerPermuta, anexarNaPermuta, lerAnexo,
   buscarClientes, buscarOrdensDe, buscarOrdensPorId, lerCobertura,
@@ -44,7 +45,8 @@ import {
   extratoDaPermuta, linhasPorCliente,
 } from "../lib/calc/permutas.js";
 import { paraNumero, dataLonga } from "../lib/format.js";
-import { Card, PageTitle, Empty, CarregandoModulo, BotaoPDF, CabecalhoImpressao } from "../components/ui.jsx";
+import { Card, PageTitle, Empty, CarregandoModulo, BotaoPDF, CabecalhoImpressao, AvisoDadoParado } from "../components/ui.jsx";
+import { useApp } from "../config/store.jsx";
 import {
   dinheiro, dataDaOS, formatarDoc, hojeISO, novoId,
   Aviso, Secao, GrupoCliente, LinhaAceita, LinhaEscolher, Historico,
@@ -248,6 +250,7 @@ const CONTA_O_EVENTO = {
      o tipo quando não sabe contar, de propósito, para um evento novo aparecer
      em vez de sumir. Este aqui já tinha aparecido; faltava a frase. */
   periodo: (e) => (e.para ? `passou a procurar O.S. a partir de ${dataLonga(e.para)}` : "tirou a data de início da busca"),
+  periodoFim: (e) => (e.para ? `limitou a busca de O.S. até ${dataLonga(e.para)}` : "tirou a data de fim da busca"),
   encerrou: () => "encerrou a permuta",
   reabriu: () => "reabriu a permuta",
 };
@@ -389,6 +392,12 @@ function ExtratoImpresso({ e, permuta }) {
 const LANC_VAZIO = { descricao: "", valor: "", data: "", tipo: "consumo" };
 
 export default function Permutas() {
+  /* O MESMO frescor do chip global: as O.S. daqui vêm da tabela alimentada
+     pela mesma carga do cache. Com a carga parada 30h, o saldo apresentado ao
+     parceiro estaria velho com só o chip de 12px avisando no canto -- o furo
+     que o AvisoDadoParado existe para fechar, e que só Contas Atrasadas e
+     Orçamentos tinham coberto. */
+  const { atualizadoEm } = useApp();
   const [mapa, setMapa] = useState(null);
   const [erro, setErro] = useState(null);
   const [aviso, setAviso] = useState(null);
@@ -468,6 +477,12 @@ export default function Permutas() {
      a que manda na carga do histórico (ver `permutas_historico_desde`), então
      escolher aqui é escolher em um lugar só. */
   const desde = String(permuta?.desde || "").slice(0, 10);
+  /* ATÉ QUANDO. Permuta quitada ou encerrada continuava puxando para a lista
+     de escolher toda compra NOVA do cliente -- que agora paga normal -- e cada
+     uma era uma chance de marcar errado e abater crédito que não existe. O
+     serviço e o servidor já aceitavam o corte (a Campanhas usa); faltava o
+     campo aqui. Vazio = até hoje. */
+  const ate = String(permuta?.ate || "").slice(0, 10);
 
   /* As chaves como TEXTO, e não como array, para o efeito abaixo não disparar
      a cada render: um array novo com o mesmo conteúdo é sempre "diferente" nas
@@ -497,7 +512,7 @@ export default function Permutas() {
     let vivo = true;
     setBuscandoOS(true);
     const pedido = aberta
-      ? (chavesDaPermuta.length ? buscarOrdensDe(chavesDaPermuta, desde) : Promise.resolve([]))
+      ? (chavesDaPermuta.length ? buscarOrdensDe(chavesDaPermuta, desde, ate) : Promise.resolve([]))
       : buscarOrdensPorId(idsTexto ? [...new Set(idsTexto.split("|"))] : []);
     pedido
       .then((os) => vivo && setOrdens(os))
@@ -506,7 +521,7 @@ export default function Permutas() {
     return () => {
       vivo = false;
     };
-  }, [aberta, chavesDaPermuta, desde, idsTexto]);
+  }, [aberta, chavesDaPermuta, desde, ate, idsTexto]);
 
   // Busca de cliente no servidor, com folga para a pessoa terminar de digitar.
   useEffect(() => {
@@ -517,7 +532,9 @@ export default function Permutas() {
     }
     let vivo = true;
     const id = setTimeout(() => {
-      buscarClientes(t, desde)
+      // O mesmo corte na busca: o "N O.S. · R$ X" ao lado do nome tem de ser
+      // o do período da permuta, não o da carteira inteira até hoje.
+      buscarClientes(t, desde, ate)
         .then((cs) => vivo && setAchados(cs))
         .catch(() => vivo && setAchados([]));
     }, 280);
@@ -525,7 +542,7 @@ export default function Permutas() {
       vivo = false;
       clearTimeout(id);
     };
-  }, [buscaCliente, desde]);
+  }, [buscaCliente, desde, ate]);
 
   const donos = useMemo(() => donoPorOS(mapa || {}), [mapa]);
   const lista = useMemo(() => resumoGeral(mapa || {}, ordens), [mapa, ordens]);
@@ -659,6 +676,51 @@ export default function Permutas() {
      buscar de novo para cada uma. Quem já foi marcado some da lista sozinho
      (clientesAchados filtra por quem já está na permuta), então a lista vai
      encurtando conforme se clica. */
+  /* MARCAR (OU TIRAR) VÁRIAS DE UMA VEZ -- a mesma máquina da Campanhas.
+     Montar uma permuta antiga (a Vila 61 tem dezenas de O.S.) era um clique e
+     uma transação POR O.S. Continua sendo um ATO: o lote cobre o que está na
+     tela, nunca uma regra que deduz. UMA gravação com o osPatch inteiro (em
+     laço, cada pedido parte do registro que leu e o seguinte grava por cima),
+     e depois confere O.S. a O.S. o que realmente entrou -- num lote de
+     quarenta, uma falha calada deixaria o saldo errado sem ninguém saber de
+     quanto. */
+  const marcarVarias = useCallback(
+    async (linhas, ligar) => {
+      if (!aberta || !linhas.length) return;
+      const patch = {};
+      for (const o of linhas) {
+        if (!ligar) { patch[o.id] = null; continue; }
+        const bruta = ordens.find((x) => String(x.id) === String(o.id));
+        const ficha = fichaDaOS(bruta || o);
+        // Ficha ruim no meio: o banco pularia a chave em silêncio e o lote
+        // voltaria "sem erro" com uma O.S. a menos. Melhor não gravar nada.
+        if (!ficha || typeof ficha !== "object") {
+          setAviso({ tom: "erro", texto: `Não consegui montar a ficha da O.S. ${o.numero || o.id}. Recarregue a página e tente de novo.` });
+          return;
+        }
+        patch[o.id] = ficha;
+      }
+      const gravado = await mexer(aberta, { osPatch: patch });
+      if (!gravado) return;
+      const os = gravado.os || {};
+      const faltaram = linhas.filter((o) => !!os[o.id] !== ligar);
+      if (faltaram.length) {
+        setAviso({
+          tom: "erro",
+          texto: `${linhas.length - faltaram.length} de ${linhas.length} ${ligar ? "entraram" : "saíram"}. Não consegui ${ligar ? "marcar" : "tirar"}: ${faltaram.slice(0, 5).map((o) => o.numero || o.id).join(", ")}${faltaram.length > 5 ? ` e mais ${faltaram.length - 5}` : ""}. Tente de novo.`,
+        });
+      } else {
+        setAviso({
+          tom: "ok",
+          texto: ligar
+            ? `${linhas.length} O.S. entraram na permuta.`
+            : `${linhas.length} O.S. saíram da permuta.`,
+        });
+      }
+    },
+    [aberta, ordens, mexer],
+  );
+
   const ligarCliente = useCallback(
     async (c) => {
       if (!aberta) return;
@@ -795,6 +857,17 @@ export default function Permutas() {
     );
   }, [paraEscolher, buscaOS]);
   const jaAceitasAqui = useMemo(() => paraEscolher.filter((o) => o.nesta).length, [paraEscolher]);
+  /* O que "marcar todas" pega: o que está NA TELA agora, menos as presas em
+     outra permuta. O valor vai no rótulo porque aqui o lote ABATE CRÉDITO. */
+  const podeMarcarTodas = useMemo(
+    () => paraEscolherFiltradas.filter((o) => !o.presaEm),
+    [paraEscolherFiltradas],
+  );
+  const presasNaLista = paraEscolherFiltradas.length - podeMarcarTodas.length;
+  const valorParaMarcar = useMemo(
+    () => Math.round(podeMarcarTodas.reduce((s, o) => s + (Number(o.valor) || 0), 0) * 100) / 100,
+    [podeMarcarTodas],
+  );
 
   const clientesAchados = useMemo(() => {
     const jaTem = new Set(chavesDaPermuta);
@@ -829,6 +902,7 @@ export default function Permutas() {
         </button>
 
         <Aviso aviso={aviso} aoFechar={() => setAviso(null)} />
+        <AvisoDadoParado atualizadoEm={atualizadoEm} />
 
         {/* Um input de arquivo para a tela inteira; `alvoAnexo` diz de qual
             lançamento é o próximo arquivo. */}
@@ -1011,6 +1085,25 @@ export default function Permutas() {
           sub="É o que abate o crédito."
           aberta={abertas.aceitas}
           aoAlternar={alternar}
+          acao={
+            /* A válvula do lote: marcar quarenta é um clique; desmarcar uma a
+               uma seriam quarenta -- e um lote no cliente errado, meia hora. */
+            resumo.linhas.length > 1 && (
+              <button
+                type="button"
+                className="btn-ghost"
+                disabled={salvando}
+                onClick={() => {
+                  if (!window.confirm(
+                    `Tirar as ${resumo.linhas.length} O.S. de “${permuta.nome || "esta permuta"}”? O crédito consumido por elas volta.`
+                  )) return;
+                  marcarVarias(resumo.linhas, false);
+                }}
+              >
+                <X size={15} /> Tirar todas
+              </button>
+            )
+          }
         >
           {!resumo.linhas.length ? (
             <Empty>Nenhuma O.S. aceita ainda. Marque abaixo as que fazem parte da troca.</Empty>
@@ -1160,19 +1253,39 @@ export default function Permutas() {
 
           <div className="flex flex-wrap items-center gap-2 rounded-lg bg-slate-50 px-3 py-2 text-sm">
             <CalendarRange size={15} className="shrink-0 text-slate-400" />
-            <span className="text-slate-600">Procurar O.S. desta permuta a partir de</span>
+            <span className="text-slate-600">Procurar O.S. desta permuta de</span>
             <input
               type="date"
               className="input h-8 w-40 text-sm"
               defaultValue={desde}
               key={`desde-${aberta}`}
+              aria-label="Início do período da permuta"
               onBlur={(e) => {
                 const d = e.target.value;
                 if (d === desde) return;
                 mexer(aberta, { campos: { desde: /^\d{4}-\d{2}-\d{2}$/.test(d) ? d : "" } });
               }}
             />
-            {!desde && <span className="text-xs text-slate-400">vazio = tudo o que o painel tem</span>}
+            <span className="text-slate-600">até</span>
+            <input
+              type="date"
+              className="input h-8 w-40 text-sm"
+              defaultValue={ate}
+              key={`ate-${aberta}`}
+              aria-label="Fim do período da permuta"
+              onBlur={(e) => {
+                const d = e.target.value;
+                if (d === ate) return;
+                mexer(aberta, { campos: { ate: /^\d{4}-\d{2}-\d{2}$/.test(d) ? d : "" } });
+              }}
+            />
+            {!desde && !ate && <span className="text-xs text-slate-400">vazio = tudo o que o painel tem</span>}
+            {!ate && desde && <span className="text-xs text-slate-400">sem fim = até hoje</span>}
+            {/* Período invertido é DITO, não bloqueado: travar o campo faria a
+                pessoa brigar com a tela ao corrigir as duas datas em ordem. */}
+            {desde && ate && ate < desde && (
+              <span className="text-xs text-bad-700">o fim está antes do começo — nenhuma O.S. vai aparecer</span>
+            )}
           </div>
 
           {/* O QUE O PAINEL REALMENTE TEM. Uma permuta pode pedir 2018 e o
@@ -1191,11 +1304,45 @@ export default function Permutas() {
           ) : buscandoOS ? (
             <Empty>Procurando as O.S. desde {dataLonga(desde)}…</Empty>
           ) : paraEscolherFiltradas.length ? (
-            <div>
-              {paraEscolherFiltradas.map((o) => (
-                <LinhaEscolher key={o.id} o={o} aoMarcar={marcarOS} />
-              ))}
-            </div>
+            <>
+              {/* "Todas" = o que está na tela, com número e VALOR no rótulo:
+                  aqui cada marcação abate o crédito do parceiro na hora. */}
+              {podeMarcarTodas.length > 1 && (
+                <div className="mb-2 flex flex-wrap items-center justify-between gap-2 rounded-lg bg-slate-50 px-3 py-2">
+                  <span className="text-xs text-slate-600">
+                    {buscaOS.trim()
+                      ? `${podeMarcarTodas.length} O.S. casam com “${buscaOS.trim()}”`
+                      : `${podeMarcarTodas.length} O.S. ainda fora da permuta`}
+                    {" · "}
+                    <span className="tabular-nums">{dinheiro(valorParaMarcar)}</span>
+                    {presasNaLista > 0 && (
+                      <span className="text-slate-400">
+                        {" "}({presasNaLista} {presasNaLista === 1 ? "está" : "estão"} em outra permuta e fica
+                        {presasNaLista === 1 ? "" : "m"} de fora)
+                      </span>
+                    )}
+                  </span>
+                  <button
+                    type="button"
+                    className="btn-ghost h-8 px-3 text-sm"
+                    disabled={salvando}
+                    onClick={() => {
+                      if (!window.confirm(
+                        `Marcar ${podeMarcarTodas.length} O.S. (${dinheiro(valorParaMarcar)}) na permuta “${permuta.nome || "sem nome"}”? Isso abate o crédito do parceiro.`
+                      )) return;
+                      marcarVarias(podeMarcarTodas, true);
+                    }}
+                  >
+                    <Check size={15} strokeWidth={2.4} /> Marcar as {podeMarcarTodas.length}
+                  </button>
+                </div>
+              )}
+              <div>
+                {paraEscolherFiltradas.map((o) => (
+                  <LinhaEscolher key={o.id} o={o} aoMarcar={marcarOS} />
+                ))}
+              </div>
+            </>
           ) : (
             <Empty>
               {buscaOS.trim()
@@ -1231,6 +1378,7 @@ export default function Permutas() {
       />
 
       <Aviso aviso={aviso} aoFechar={() => setAviso(null)} />
+        <AvisoDadoParado atualizadoEm={atualizadoEm} />
 
       {/* OS TRÊS NÚMEROS DO TOPO.
           NÃO existe um "saldo total" aqui, e é decisão. Somar os saldos das
