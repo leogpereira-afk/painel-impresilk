@@ -11,8 +11,16 @@
     />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <!-- O DNS+TLS do Supabase sai do caminho do login: sem isto, a PRIMEIRA
+         chamada (o login em si) pagava ~300-500ms de handshake no 4G antes do
+         primeiro byte. O navegador abre a conexao em paralelo com o carregar
+         do app, e o login ja a encontra pronta. -->
+    <link rel="preconnect" href="https://heveemylixartyijxewh.supabase.co" crossorigin />
+    <!-- Poppins SEM o peso 800: o link pedia extrabold e NENHUMA classe o usa
+         (grep em src e no CSS compilado: zero font-extrabold/800). Era uma
+         face inteira baixada em toda primeira visita, por nada. -->
     <link
-      href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&family=Spectral:wght@400;500;600;700&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&family=Spectral:wght@400;500;600;700&display=swap"
       rel="stylesheet"
     />
     <title>Impresilk · Painel de Gestao</title>

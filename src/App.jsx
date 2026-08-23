@@ -35,6 +35,45 @@ const Permutas = lazy(() => import("./pages/Permutas.jsx"));
 const Campanhas = lazy(() => import("./pages/Campanhas.jsx"));
 const Patrimonio = lazy(() => import("./pages/Patrimonio.jsx"));
 
+/* PREFETCH EM OCIOSIDADE: depois que a tela atual assentou, os chunks das
+   OUTRAS rotas descem em segundo plano -- e o clique seguinte abre do disco,
+   sem a ida à rede no meio do gesto. requestIdleCallback para não competir
+   com nada que o usuário esteja vendo; 2s de atraso para o boot de dados
+   (que importa mais) passar na frente; só com sessão, porque na tela de
+   login nada disso será usado. Com o service worker, o prefetch de hoje é a
+   revisita instantânea de amanhã. Falha é silenciosa de propósito: prefetch
+   é aposta, não promessa. */
+const ROTAS_PREFETCH = [
+  () => import("./pages/ContasAtrasadas.jsx"),
+  () => import("./pages/Orcamentos.jsx"),
+  () => import("./pages/Compromissos.jsx"),
+  () => import("./pages/Gestao.jsx"),
+  () => import("./pages/Permutas.jsx"),
+  () => import("./pages/Campanhas.jsx"),
+  () => import("./pages/Manutencoes.jsx"),
+  () => import("./pages/Bancos.jsx"),
+  () => import("./pages/Patrimonio.jsx"),
+  () => import("./pages/Ativos.jsx"),
+  () => import("./pages/Licitacoes.jsx"),
+  () => import("./pages/Marketing.jsx"),
+  () => import("./pages/Glossario.jsx"),
+];
+let prefetchFeito = false;
+function prefetchRotas() {
+  if (prefetchFeito) return;
+  prefetchFeito = true;
+  const idle = window.requestIdleCallback || ((fn) => setTimeout(fn, 1));
+  // Um por vez, cada um no seu pedaço de ociosidade: treze de uma vez
+  // disputariam a banda exatamente com o boot dos dados.
+  const fila = [...ROTAS_PREFETCH];
+  const proximo = () => {
+    const imp = fila.shift();
+    if (!imp) return;
+    imp().catch(() => {}).finally(() => idle(proximo));
+  };
+  setTimeout(() => idle(proximo), 2000);
+}
+
 import { getSessao, aoMudarSessao, podeAbrir } from "./lib/sessao.js";
 import { Card } from "./components/ui.jsx";
 
@@ -65,6 +104,9 @@ export default function App() {
   // Mantem a tela em sincronia com o logout (inclusive o automatico, disparado
   // por sessao expirada dentro de uma chamada de dados).
   useEffect(() => aoMudarSessao(() => setSessao(getSessao())), []);
+
+  // Com sessão na mão, as outras telas descem em segundo plano (ver ROTAS_PREFETCH).
+  useEffect(() => { if (sessao) prefetchRotas(); }, [sessao]);
 
   if (!sessao) return <Login aoEntrar={() => setSessao(getSessao())} />;
 
