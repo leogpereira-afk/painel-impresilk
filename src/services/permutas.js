@@ -115,4 +115,12 @@ export const buscarOrdensDe = (chaves, desde, ate, comItens) =>
     clientes: (chaves || []).join("|"),
     desde, ate,
     ...(comItens ? { itens: "1" } : {}),
-  }).then((r) => r.itens || []);
+  }).then((r) =>
+    /* Os AVISOS DE CORTE viajam presos no próprio array (propriedade não-índice):
+       as telas consomem a lista como sempre, e quem quiser saber se o servidor
+       cortou clientes (>100) ou bateu no teto de linhas lê as marcas. Corte
+       mudo já escondeu 10 candidatos de uma campanha inteira. */
+    Object.assign(r.itens || [], {
+      clientesCortados: r.clientesCortados || 0,
+      linhasNoTeto: !!r.linhasNoTeto,
+    }));

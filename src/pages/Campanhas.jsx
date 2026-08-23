@@ -2271,6 +2271,14 @@ export default function Campanhas() {
 
           {/* O QUE O PAINEL REALMENTE TEM: uma campanha de 2022 pode parecer um
               fracasso quando é só dado que ainda não desceu do ERP. */}
+          {(ordens.clientesCortados > 0 || ordens.linhasNoTeto) && (
+            <div className="rounded-lg bg-bad-50 px-3 py-2 text-xs text-bad-700">
+              {ordens.clientesCortados > 0
+                ? `Esta campanha tem clientes demais para uma busca só: as O.S. de ${ordens.clientesCortados} deles NÃO estão na lista abaixo.`
+                : "Há mais O.S. do que a busca consegue trazer de uma vez — a lista abaixo está incompleta."}{" "}
+              Me avise para aumentar o limite.
+            </div>
+          )}
           {cobertura?.desde && desde && desde < String(cobertura.desde) && (
             <div className="rounded-lg bg-warn-50 px-3 py-2 text-xs text-warn-800">
               Você pediu a partir de {dataLonga(desde)}, mas o painel só tem O.S. guardada desde{" "}

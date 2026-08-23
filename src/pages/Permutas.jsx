@@ -1292,6 +1292,14 @@ export default function Permutas() {
               painel ter guardado só de 2025 -- e aí a lista vem vazia pelo
               motivo errado. Dizer isso é a diferença entre "esse cliente não
               comprou" e "eu ainda não fui buscar". */}
+          {(ordens.clientesCortados > 0 || ordens.linhasNoTeto) && (
+            <div className="rounded-lg bg-bad-50 px-3 py-2 text-xs text-bad-700">
+              {ordens.clientesCortados > 0
+                ? `Esta permuta tem clientes demais para uma busca só: as O.S. de ${ordens.clientesCortados} deles NÃO estão na lista abaixo.`
+                : "Há mais O.S. do que a busca consegue trazer de uma vez — a lista abaixo está incompleta."}{" "}
+              Me avise para aumentar o limite.
+            </div>
+          )}
           {cobertura?.desde && desde && desde < String(cobertura.desde) && (
             <div className="rounded-lg bg-warn-50 px-3 py-2 text-xs text-warn-800">
               Você pediu a partir de {dataLonga(desde)}, mas o painel só tem O.S. guardada desde{" "}

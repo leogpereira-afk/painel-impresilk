@@ -190,8 +190,18 @@ Deno.serve(async (req: Request) => {
         if (g.resposta) return g.resposta;
         const url = new URL(req.url);
         const desde = String(url.searchParams.get("desde") ?? "").slice(0, 10);
-        const clientes = String(url.searchParams.get("clientes") ?? "")
-          .split("|").map((x) => x.trim()).filter(Boolean).slice(0, 20);
+        /* 100 CLIENTES, NAO 20 -- e o corte DEIXOU DE SER MUDO. A campanha
+           "Politica 2024 - Prefeito" tem 30 candidaturas ligadas (prefeito +
+           vereadores de uma eleicao municipal e assim); o slice(0,20) antigo
+           descartava as chaves 21+ EM SILENCIO: o Leo ligava o candidato,
+           marcava as O.S., e elas "nao ficavam no sistema" -- estavam gravadas,
+           mas a busca nunca mais as trazia. Limite calado e o defeito de
+           familia da casa (a lista de modulos ja custou dois dias). Se um dia
+           passar de 100, o retorno DIZ quantos cortou e a tela avisa. */
+        const todasChaves = String(url.searchParams.get("clientes") ?? "")
+          .split("|").map((x) => x.trim()).filter(Boolean);
+        const clientes = todasChaves.slice(0, 100);
+        const clientesCortados = todasChaves.length - clientes.length;
         const termo = String(url.searchParams.get("termo") ?? "").trim().slice(0, 80);
         /* ATE QUANDO. A campanha tem inicio E FIM -- uma eleicao acaba em
            outubro, e a O.S. de dezembro para o mesmo cliente e outra venda.
@@ -234,7 +244,14 @@ Deno.serve(async (req: Request) => {
           if (/^\d{4}-\d{2}-\d{2}$/.test(ate)) q = q.lte("data", ate);
           const { data, error } = await q;
           if (error) throw new Error(error.message);
-          return json({ itens: data ?? [] });
+          return json({
+            itens: data ?? [],
+            // Bater no teto de 2000 linhas tambem nao pode ser silencioso: e a
+            // diferenca entre "esses clientes nao tem mais O.S." e "ha mais e
+            // eu nao trouxe".
+            ...(clientesCortados > 0 ? { clientesCortados } : {}),
+            ...((data ?? []).length >= 2000 ? { linhasNoTeto: true } : {}),
+          });
         }
 
         /* ATE ONDE O PAINEL TEM O.S. GUARDADA.
