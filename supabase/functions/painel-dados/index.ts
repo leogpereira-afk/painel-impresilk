@@ -200,7 +200,10 @@ Deno.serve(async (req: Request) => {
            passar de 100, o retorno DIZ quantos cortou e a tela avisa. */
         const todasChaves = String(url.searchParams.get("clientes") ?? "")
           .split("|").map((x) => x.trim()).filter(Boolean);
-        const clientes = todasChaves.slice(0, 100);
+        /* 200 a pedido do dono (23/08): a Politica 2024 ja chegou a 30
+           candidaturas e ha campanhas maiores por vir. O aviso de corte
+           continua valendo acima disso. */
+        const clientes = todasChaves.slice(0, 200);
         const clientesCortados = todasChaves.length - clientes.length;
         const termo = String(url.searchParams.get("termo") ?? "").trim().slice(0, 80);
         /* ATE QUANDO. A campanha tem inicio E FIM -- uma eleicao acaba em

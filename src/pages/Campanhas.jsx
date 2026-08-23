@@ -2095,6 +2095,11 @@ export default function Campanhas() {
                 ))}
               </div>
             )}
+            {achados.length >= 200 && (
+              <div className="mt-1 text-xs text-warn-700">
+                A busca trouxe 200 nomes e pode haver mais — digite mais letras para refinar.
+              </div>
+            )}
             {buscaCliente.trim().length >= 2 && !clientesAchados.length && (
               <div className="mt-1 text-xs text-slate-400">
                 Nenhum cliente com esse nome nas O.S. de {desde ? dataLonga(desde) : "todo o período"}
