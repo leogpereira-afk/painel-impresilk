@@ -417,6 +417,48 @@ export function comparativoDeEdicoes(lista) {
   return saida;
 }
 
+/* OS EVENTOS DA CASA, cada um com suas edições -- a visão da aba Análise.
+ *
+ * Agrupa pelo MESMO union-find das edições (vínculo declarado + nome) e devolve
+ * um bloco por evento: o rótulo é o nome da edição mais recente (é o nome que a
+ * pessoa reconhece hoje), as edições vêm do ano mais antigo para o mais novo, e
+ * cada uma carrega a variação contra a anterior de ano DIFERENTE. Grupos
+ * ordenados pelo total vendido: o evento que mais pesa abre a lista. */
+export function eventosVinculados(lista) {
+  const cem = (n) => Math.round(n * 100) / 100;
+  const g = gruposDeEvento(lista || []);
+  const porGrupo = new Map();
+  for (const c of lista || []) {
+    const k = g.raiz(c);
+    if (!porGrupo.has(k)) porGrupo.set(k, []);
+    porGrupo.get(k).push(c);
+  }
+  const eventos = [];
+  for (const membros of porGrupo.values()) {
+    const edicoes = [...membros].sort((a, b) =>
+      String(a.ano || "").trim().localeCompare(String(b.ano || "").trim()));
+    const comVariacao = edicoes.map((c, i) => {
+      const antes = [...edicoes.slice(0, i)].reverse()
+        .find((x) => String(x.ano || "").trim() !== String(c.ano || "").trim());
+      return {
+        id: c.id, nome: c.nome, ano: String(c.ano || "").trim(),
+        vendido: c.vendido, compradores: c.compradores, os: c.linhas.length,
+        encerrada: !!c.encerrada,
+        anoAnterior: antes ? String(antes.ano || "").trim() : null,
+        diferenca: antes ? cem(c.vendido - antes.vendido) : null,
+        variacao: antes && antes.vendido > 0 ? (c.vendido - antes.vendido) / antes.vendido : null,
+      };
+    });
+    const maisRecente = comVariacao[comVariacao.length - 1];
+    eventos.push({
+      rotulo: maisRecente?.nome || "sem nome",
+      total: cem(comVariacao.reduce((s2, e) => s2 + e.vendido, 0)),
+      edicoes: comVariacao,
+    });
+  }
+  return eventos.sort((a, b) => b.total - a.total);
+}
+
 /* DUAS CAMPANHAS COM O MESMO NOME NO MESMO ANO são cadastro duplicado, não
    duas edições. `edicoesDoMesmoEvento` deixa as duas passarem quando o ano
    delas não é o da campanha aberta -- e aí a comparação encadeada compara uma

@@ -6,7 +6,7 @@ import assert from "node:assert/strict";
 import {
   resumoDaCampanha, resumoGeralCampanhas, compradoresDaCampanha, fichaDaOS,
   extratoDaCampanha, anosDasCampanhas, totaisDoAno, comparativoPorAno, edicoesDoMesmoEvento,
-  anosRepetidos, membrosDoEvento, candidatasAVincular, comparativoDeEdicoes, maiorComprador, comprasPorMes, produtosDaCampanha, categoriasDosProdutos,
+  anosRepetidos, eventosVinculados, membrosDoEvento, candidatasAVincular, comparativoDeEdicoes, maiorComprador, comprasPorMes, produtosDaCampanha, categoriasDosProdutos,
   porProduto,
 } from "./campanhas.js";
 
@@ -729,4 +729,20 @@ test("comprador RENOMEADO no ERP é pego -- a lista de ligados sozinha não pega
   assert.equal(p.cobertura.foraDaBusca, 2);
   assert.equal(p.cobertura.semComprador, 2, "o vínculo dele está quebrado, mesmo estando na lista");
   assert.deepEqual(p.cobertura.compradores, ["ELEICA 2026 GILBERTO"]);
+});
+
+test("a aba Análise agrupa por evento vinculado, com a evolução dentro de cada um", () => {
+  const lista = monta(
+    campanha(1, "Politica 2024 - Prefeito", "2024", [700000], { evento: "pol-pref" }),
+    campanha(2, "Politica 2020 - Prefeito", "2020", [380000], { evento: "pol-pref" }),
+    campanha(3, "Fenics", "2026", [50000]),
+  );
+  const ev = eventosVinculados(lista);
+  assert.equal(ev.length, 2);
+  assert.equal(ev[0].rotulo, "Politica 2024 - Prefeito", "o rótulo é o nome da edição mais recente");
+  assert.deepEqual(ev[0].edicoes.map((e) => e.ano), ["2020", "2024"], "do antigo para o novo");
+  assert.equal(ev[0].edicoes[1].anoAnterior, "2020");
+  assert.equal(Math.round(ev[0].edicoes[1].variacao * 100), 84);
+  assert.equal(ev[1].rotulo, "Fenics");
+  assert.equal(ev[1].edicoes[0].variacao, null, "evento de uma edição só não inventa variação");
 });
