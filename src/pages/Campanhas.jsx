@@ -375,12 +375,20 @@ function Comparativo({ linhas, anoSel, aoEscolher }) {
               >
                 <td className="py-2 font-medium text-slate-800">{l.ano}</td>
                 <td className="py-2">
-                  <span className="block tabular-nums text-slate-800">{dinheiro(l.vendido)}</span>
+                  {/* NADA MARCADO ≠ VENDEU ZERO. Cinco campanhas cadastradas
+                      estão sem nenhuma O.S.; o ano delas mostrava R$ 0,00 com
+                      a mesma cara de um ano ruim -- e puxava "-100%" para o
+                      ano seguinte. */}
+                  <span className="block tabular-nums text-slate-800">
+                    {l.medido ? dinheiro(l.vendido) : <span className="text-slate-400">nada marcado</span>}
+                  </span>
                   {/* A barra é relativa ao MAIOR ano, não à soma: com seis anos,
                       barras sobre a soma ficam todas invisíveis. */}
-                  <span className="mt-0.5 block h-1.5 w-full max-w-[10rem] overflow-hidden rounded-full bg-slate-100 sem-impressao">
-                    <span className="block h-full rounded-full bg-brand-400" style={{ width: `${Math.max(2, (l.vendido / teto) * 100)}%` }} />
-                  </span>
+                  {l.medido && (
+                    <span className="mt-0.5 block h-1.5 w-full max-w-[10rem] overflow-hidden rounded-full bg-slate-100 sem-impressao">
+                      <span className="block h-full rounded-full bg-brand-400" style={{ width: `${Math.max(2, (l.vendido / teto) * 100)}%` }} />
+                    </span>
+                  )}
                 </td>
                 <td className="py-2 text-right tabular-nums text-slate-600">{l.quantas}</td>
                 <td className="py-2 text-right tabular-nums text-slate-600">{l.compradores}</td>
@@ -412,7 +420,12 @@ function Edicoes({ edicoes, atual, aoAbrir, repetidos = [] }) {
      campanha aberta, o painel só busca as O.S. dos compradores dela, e as
      demais não têm contra o que conferir. O comentário antigo prometia o
      oposto ("usa exatamente os números da tela de fora"). */
-  const temCongelado = edicoes.some((e) => e.semConferir);
+  /* A RESSALVA NUNCA APARECIA. `semConferir` só é verdade quando a busca veio
+     VAZIA -- e com uma campanha aberta ela vem cheia, só que apenas das O.S.
+     DELA: as outras edições caem no valor congelado com `semConferir: false`.
+     `sumiram > 0` numa outra edição significa, na prática, "as O.S. dela não
+     foram carregadas", que é exatamente o que o rodapé explica. */
+  const temCongelado = edicoes.some((e) => e.semConferir || e.sumiram > 0);
   /* Do mais ANTIGO para o mais novo: a comparação se lê descendo, e cada linha
      mede contra a de cima. Com a ordem invertida, "anterior" tinha de olhar
      para baixo -- e virar uma sem virar a outra trocaria o sinal de todas. */
@@ -825,14 +838,31 @@ function Produtos({ produtos, categorias, grao, aoTrocar }) {
 
       {/* O QUE ESTE RANKING NÃO COBRE. Sem esta linha, um ranking de metade da
           campanha se apresenta como o todo. */}
-      {(cobertura.semItens > 0 || cobertura.foraDaBusca > 0) && (
+      {/* SEM LISTA NÃO SE CONCLUI CAUSA. Quando a busca não respondeu (ou
+          falhou), esta caixa afirmava "o comprador sumiu do ERP" com nome e
+          tudo -- mandando a direção desfazer o vínculo certo -- enquanto a
+          faixa do topo, na mesma tela, dizia que as O.S. não carregaram. */}
+      {cobertura.semConferir ? (
+        <div className="rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-500">
+          As O.S. desta campanha não carregaram nesta sessão — não dá para conferir os itens agora.
+        </div>
+      ) : (cobertura.semItens > 0 || cobertura.foraDaBusca > 0) && (
         <div className="rounded-lg bg-warn-50 px-3 py-2 text-xs text-warn-800">
           Lido de {cobertura.comItens} das {cobertura.aceitas} O.S. desta campanha.
           {cobertura.semItens > 0 && (
             <>
               {" "}
-              {cobertura.semItens} ainda não {cobertura.semItens === 1 ? "teve" : "tiveram"} os itens
-              carregados do ERP — a carga do histórico roda domingo de madrugada e preenche.
+              {cobertura.itensNaoPedidos ? (
+                <>
+                  {cobertura.semItens} {cobertura.semItens === 1 ? "está" : "estão"} sem os itens porque
+                  esta carga não os pediu — abra de novo em alguns segundos.
+                </>
+              ) : (
+                <>
+                  {cobertura.semItens} ainda não {cobertura.semItens === 1 ? "teve" : "tiveram"} os itens
+                  carregados do ERP — a carga do histórico roda domingo de madrugada e preenche.
+                </>
+              )}
             </>
           )}
           {/* O MOTIVO CERTO, e não uma lista de suspeitos. A versão antiga dizia
@@ -1003,7 +1033,10 @@ function ExtratoImpresso({ e, produtos, categorias, meses }) {
           {!produtos.completo && (
             <p style={{ fontSize: "8.5pt", marginTop: 4 }}>
               Lido de {produtos.cobertura.comItens} das {produtos.cobertura.aceitas} O.S. desta campanha
-              {produtos.cobertura.semItens > 0 && ` — ${produtos.cobertura.semItens} sem itens carregados do ERP`}
+              {produtos.cobertura.semItens > 0 &&
+                (produtos.cobertura.itensNaoPedidos
+                  ? ` — ${produtos.cobertura.semItens} sem os itens nesta carga`
+                  : ` — ${produtos.cobertura.semItens} sem itens carregados do ERP`)}
               {produtos.cobertura.foraDaBusca > 0 && ` — ${produtos.cobertura.foraDaBusca} fora do período ou canceladas`}
               {/* A ressalva vai ao PAPEL também: a folha circula sem a tela ao
                   lado, e um ranking pela metade impresso parece completo. */}
@@ -1349,6 +1382,16 @@ function MesDetalhe({ mes, detalhe, erro, semCampanha, aoFechar }) {
                   {detalhe.produtosCobertura.osSemItens}{" "}
                   {detalhe.produtosCobertura.osSemItens === 1 ? "O.S. deste mês está" : "O.S. deste mês estão"}{" "}
                   sem itens carregados do ERP — o ranking não as vê.
+                </div>
+              )}
+              {detalhe.produtos.length > 0 && (
+                <div className="text-[11px] text-slate-400">
+                  {/* A COLUNA DA ESQUERDA É LÍQUIDA e esta é BRUTA (os itens
+                      somam antes do desconto). Em fevereiro de 2026 isso são
+                      R$ 149 mil de diferença entre duas colunas vizinhas --
+                      sem uma palavra, parecia erro de conta. */}
+                  Os valores dos produtos são brutos, antes do desconto — os de “Quem comprou”, ao lado, já
+                  são líquidos.
                 </div>
               )}
               {detalhe.produtosCobertura &&
@@ -2044,6 +2087,25 @@ export default function Campanhas() {
       return;
     }
     const atual = mapaRef.current?.[c.id] || c;
+    /* DUAS EDIÇÕES DO MESMO ANO SÃO CADASTRO DUPLICADO -- a trava existe no
+       "Outra edição" (com mensagem própria) e faltava aqui. Sem ela, o
+       atalho de copiar sugeria "ano + 2", a pessoa confirmava, e a mesma tela
+       passava a acusar o estado que o botão acabou de criar: "há mais de uma
+       campanha com este nome em 2026". A conferência é a mesma do vincular, e
+       vem ANTES de gravar a âncora `evento`, para não deixar escrita solta
+       numa duplicação recusada. */
+    // Sem `ordens`: aqui só interessam os ANOS do grupo, não os valores --
+    // e depender delas prenderia a duplicação à busca ter respondido.
+    const listaAgora = resumoGeralCampanhas(mapaRef.current || {}, [], ANO_HOJE);
+    const doEvento = membrosDoEvento(listaAgora, listaAgora.find((x) => x.id === c.id) || c);
+    const colide = doEvento.find((x) => String(x.ano || "").trim() === ano);
+    if (colide) {
+      setAviso({
+        tom: "erro",
+        texto: `Este evento já tem a edição de ${ano} (“${colide.nome || "sem nome"}”). Abra a que existe em vez de criar outra.`,
+      });
+      return;
+    }
     const evento = atual?.evento || c.id;
     if (!atual?.evento) {
       const ok = await mexer(c.id, { campos: { evento } });
@@ -2359,22 +2421,34 @@ export default function Campanhas() {
                 com `min-w-0` e encolhia para OITO PIXELS: os campos vazavam
                 para fora e o "Baixar PDF" era desenhado por cima do nome. */}
             <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:min-w-0 sm:flex-1">
+              {/* NÃO-CONTROLADOS, com `key` -- o mesmo padrão da meta e das
+                  datas logo abaixo. Controlados por `mapa`, a resposta da
+                  gravação anterior chegava DURANTE a digitação e devolvia o
+                  campo ao valor do servidor: renomear, dar Tab e digitar o ano
+                  fazia o ano voltar para o antigo, com `maxLength` comendo os
+                  dígitos restantes -- gravava o ano errado sem erro nenhum, e
+                  o ano decide o recorte da lista e a comparação entre
+                  edições. */}
               <input
+                key={`nome-${aberta}`}
                 className="input min-w-[12rem] max-w-sm flex-1 text-lg font-medium"
-                value={campanha.nome ?? ""}
+                defaultValue={campanha.nome ?? ""}
                 placeholder="Qual é o evento?"
-                onChange={(e) => setMapa((m) => ({ ...m, [aberta]: { ...m[aberta], nome: e.target.value } }))}
-                onBlur={(e) => mexer(aberta, { campos: { nome: e.target.value } })}
+                onBlur={(e) => {
+                  const nome = e.target.value;
+                  if (nome !== (campanha.nome ?? "")) mexer(aberta, { campos: { nome } });
+                }}
               />
               <input
+                key={`ano-${aberta}`}
                 className="input h-10 w-24 text-center"
-                value={campanha.ano ?? ""}
+                defaultValue={campanha.ano ?? ""}
                 placeholder="Ano"
                 inputMode="numeric"
                 maxLength={4}
-                onChange={(e) => setMapa((m) => ({ ...m, [aberta]: { ...m[aberta], ano: e.target.value.replace(/\D/g, "") } }))}
                 onBlur={(e) => {
                   const ano = e.target.value.replace(/\D/g, "").slice(0, 4);
+                  if (ano === (campanha.ano ?? "")) return;   // nada mudou, nada grava
                   /* O ANO ARRASTA A DATA DE BUSCA -- mas só quando ela ainda é
                      o 1º de janeiro que a criação pôs. Sem isto, trocar o ano
                      para 2022 deixava a busca presa em 2026 e a campanha
@@ -2689,10 +2763,23 @@ export default function Campanhas() {
                 A busca trouxe 200 nomes e pode haver mais — digite mais letras para refinar.
               </div>
             )}
+            {/* FILTRADO NÃO É INEXISTENTE. Quem já é comprador da campanha sai
+                da lista de sugestões -- e a tela respondia "não existe cliente
+                com esse nome", sobre alguém que está a dois centímetros dali,
+                no chip acima. Digitar o nome para conferir se já foi ligado é
+                gesto diário. */}
             {buscaCliente.trim().length >= 2 && !clientesAchados.length && (
               <div className="mt-1 text-xs text-slate-400">
-                Nenhum cliente com esse nome nas O.S. de {desde ? dataLonga(desde) : "todo o período"}
-                {ate ? ` a ${dataLonga(ate)}` : ""}.
+                {achados.length > 0 ? (
+                  achados.length === 1
+                    ? `“${achados[0].nome}” já está nesta campanha — veja os compradores acima.`
+                    : `Os ${achados.length} clientes com esse nome já estão nesta campanha.`
+                ) : (
+                  <>
+                    Nenhum cliente com esse nome nas O.S. de {desde ? dataLonga(desde) : "todo o período"}
+                    {ate ? ` a ${dataLonga(ate)}` : ""}.
+                  </>
+                )}
               </div>
             )}
           </div>

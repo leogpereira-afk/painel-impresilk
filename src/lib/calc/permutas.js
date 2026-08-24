@@ -158,6 +158,7 @@ export function unirOrdens(doPeriodo, porId) {
   const junto = [...(doPeriodo || []), ...fora];
   junto.clientesCortados = doPeriodo?.clientesCortados || 0;
   junto.linhasNoTeto = !!doPeriodo?.linhasNoTeto;
+  junto.comItens = !!doPeriodo?.comItens;
   return junto;
 }
 

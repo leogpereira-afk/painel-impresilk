@@ -224,12 +224,42 @@ test("a comparação é contra a EDIÇÃO ANTERIOR, não contra o ano−1", () =
   assert.equal(novo.variacao, 0.5);
 });
 
-test("edição anterior que vendeu zero não vira percentual infinito", () => {
-  const lista = monta(campanha(1, "Eleições", "2026", [150]), campanha(2, "Eleições", "2022", []));
+test("edição anterior MEDIDA que vendeu zero não vira percentual infinito", () => {
+  // 2022 teve O.S. marcada, de valor zero: foi medido, e vale de base.
+  const lista = monta(campanha(1, "Eleições", "2026", [150]), campanha(2, "Eleições", "2022", [0]));
   const novo = comparativoPorAno(lista).at(-1);   // a mais nova é a ÚLTIMA
   assert.equal(novo.ano, "2026");
+  assert.equal(novo.anoAnterior, "2022");
   assert.equal(novo.diferenca, 150, "a diferença em reais existe");
   assert.equal(novo.variacao, null, "o percentual, não");
+});
+
+test("ano em que NINGUÉM marcou nada não é base de comparação nem leva variação", () => {
+  /* Cinco das dez campanhas de hoje foram cadastradas e ficaram sem O.S.
+     nenhuma. Tratar isso como "vendeu zero" fazia o ano a ano imprimir
+     "-100% vs 2024" -- um desabamento que ninguém mediu. */
+  const lista = monta(
+    campanha(1, "Eleições", "2024", [1000]),
+    campanha(2, "Expomontes", "2025", []),      // cadastrada e vazia
+    campanha(3, "Eleições", "2026", [1500]),
+  );
+  const linhas = comparativoPorAno(lista);
+  const l2025 = linhas.find((l) => l.ano === "2025");
+  const l2026 = linhas.find((l) => l.ano === "2026");
+  assert.equal(l2025.medido, false, "nada marcado = nada medido");
+  assert.equal(l2025.variacao, null, "e por isso não cai -100%");
+  assert.equal(l2025.anoAnterior, null);
+  assert.equal(l2026.anoAnterior, "2024", "2026 compara com o último ano MEDIDO");
+  assert.equal(l2026.diferenca, 500);
+});
+
+test("venda lançada à mão, sem O.S., conta como medição", () => {
+  const lista = monta(
+    campanha(1, "Feira", "2024", [800]),
+    campanha(2, "Feira", "2025", [], { lancamentos: { l1: { descricao: "venda direta", valor: 200 } } }),
+  );
+  const l2025 = comparativoPorAno(lista).find((l) => l.ano === "2025");
+  assert.equal(l2025.medido, true, "quem lançou à mão mediu");
 });
 
 test("as outras edições do mesmo evento casam pelo nome, e só de OUTROS anos", () => {

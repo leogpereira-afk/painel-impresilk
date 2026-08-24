@@ -242,6 +242,13 @@ export function totaisDoAno(lista, ano) {
          e aí a soma das linhas não fecha com o número grande.
        Eu zerava isto em "todos" justamente onde a divergência aparece. */
     semAno,
+    /* NADA MARCADO NÃO É VENDA ZERO. Cinco das dez campanhas de hoje
+       (Expomontes e Fenics de vários anos) foram cadastradas e ficaram sem
+       nenhuma O.S. marcada -- e o ano a ano tratava isso como faturamento
+       zero, imprimindo "-100% vs 2024". A soma continua a mesma; o que muda é
+       a tela poder dizer que aquele ano não foi medido. Venda lançada à mão
+       (sem O.S.) também é medição. */
+    medido: dentro.some((c) => (c.linhas || []).length > 0 || (c.semOS || 0) > 0),
   };
 }
 
@@ -260,7 +267,12 @@ export function comparativoPorAno(lista) {
     /* Ascendente: a edição anterior é a de ÍNDICE MENOR. Virar a ordem sem
        virar isto compararia cada ano com o SEGUINTE -- o sinal de toda
        variação inverteria e nenhum erro apareceria. */
-    const antes = linhas[i - 1] || null;
+    /* Ano sem NADA marcado não serve de base nem recebe variação: comparar
+       com ele produzia "-100%" sobre um zero que ninguém mediu. */
+    const antes = [...linhas.slice(0, i)].reverse().find((x) => x.medido) || null;
+    if (!l.medido) {
+      return { ...l, anoAnterior: null, vendidoAnterior: null, diferenca: null, variacao: null };
+    }
     return {
       ...l,
       anoAnterior: antes ? antes.ano : null,
@@ -437,9 +449,16 @@ export function eventosVinculados(lista) {
   for (const membros of porGrupo.values()) {
     const edicoes = [...membros].sort((a, b) =>
       String(a.ano || "").trim().localeCompare(String(b.ano || "").trim()));
+    /* CAMPANHA SEM ANO NÃO COMPARA COM NINGUÉM -- nem serve de base. As
+       outras duas funções que respondem a mesma pergunta já filtram (o
+       comentário de `edicoesDoMesmoEvento` diz: sem isso "a linha de cima
+       dizia vs (vazio)"); esta ficou de fora e imprimia "+300% vs " com o ano
+       em branco. Ela CONTINUA na lista -- some seria corte mudo --, só não
+       entra na cadeia. */
+    const temAno = (x) => /^\d{4}$/.test(String(x.ano || "").trim());
     const comVariacao = edicoes.map((c, i) => {
-      const antes = [...edicoes.slice(0, i)].reverse()
-        .find((x) => String(x.ano || "").trim() !== String(c.ano || "").trim());
+      const antes = !temAno(c) ? null : [...edicoes.slice(0, i)].reverse()
+        .find((x) => temAno(x) && String(x.ano).trim() !== String(c.ano).trim());
       return {
         id: c.id, nome: c.nome, ano: String(c.ano || "").trim(),
         vendido: c.vendido, compradores: c.compradores, os: c.linhas.length,
@@ -554,12 +573,25 @@ export function chaveProduto(nome) {
 export function produtosDaCampanha(campanha, ordens) {
   const cem = (n) => Math.round(n * 100) / 100;
   const aceitas = Object.keys(campanha?.os || {}).map(String);
-  const porId = new Map((ordens || []).map((o) => [String(o.id), o]));
+  /* LISTA VAZIA NÃO É RESPOSTA -- é ausência de resposta. `linhasDaPermuta`
+     tem este guarda desde sempre; aqui faltava, e o preço era caro: antes de
+     a busca responder (ou quando ela falha, ou quando a campanha ficou sem
+     comprador ligado), `ordens` vem vazia e TODA O.S. aceita caía em "o
+     comprador sumiu do ERP" -- com nome e tudo, mandando a direção apagar o
+     vínculo certo. Sem lista, não se conclui causa nenhuma. */
+  const conferivel = Array.isArray(ordens) && ordens.length > 0;
+  const porId = new Map(conferivel ? ordens.map((o) => [String(o.id), o]) : []);
 
   const cobertura = {
     aceitas: aceitas.length, comItens: 0, semItens: 0, foraDaBusca: 0,
     // Dentro do "fora da busca", QUAL é o motivo -- ver abaixo.
     semComprador: 0, compradores: [],
+    // A tela precisa distinguir "conferi e faltou" de "não deu para conferir".
+    semConferir: !conferivel,
+    /* E "o ERP não tem itens nesta O.S." de "esta carga não pediu itens": a
+       lista que chega por id nunca os pede, e a tela prometia a carga de
+       domingo para um dado que já existe. */
+    itensNaoPedidos: conferivel && !ordens.comItens,
   };
   let brutoDasLidas = 0;
   /* QUAIS COMPRADORES A BUSCA REALMENTE ALCANÇOU.
@@ -578,7 +610,7 @@ export function produtosDaCampanha(campanha, ordens) {
    * Comparar com a lista de ligados só pegaria a causa 1 -- e no caso real daria
    * ZERO, mandando procurar cancelamento e período onde não havia nada.
    * Órfão quase sempre é variante do mesmo nome: reconectar, nunca apagar. */
-  const alcancados = new Set((ordens || []).map((o) => chaveCliente(o.cliente)));
+  const alcancados = new Set(conferivel ? ordens.map((o) => chaveCliente(o.cliente)) : []);
   const semNome = new Set();
   const mapa = new Map();
   for (const id of aceitas) {
@@ -589,7 +621,8 @@ export function produtosDaCampanha(campanha, ordens) {
          O.S. desse comprador, o vínculo dele está quebrado -- e é isso que a
          tela tem de dizer, em vez de "cancelada ou fora do período". */
       const dono = chaveCliente((campanha?.os || {})[id]?.cliente || "");
-      if (dono && !alcancados.has(dono)) {
+      // Só se acusa vínculo quebrado quando HOUVE busca com resposta.
+      if (conferivel && dono && !alcancados.has(dono)) {
         cobertura.semComprador += 1;
         if (!semNome.has(dono)) {
           semNome.add(dono);
@@ -686,16 +719,22 @@ export function produtosDaCampanha(campanha, ordens) {
 export function porProduto(produtos) {
   const cem = (n) => Math.round(n * 100) / 100;
   const mapa = new Map();
+  /* AGRUPA PELO NOME NORMALIZADO, exibe o cru. O grão fino já usa
+     `chaveProduto`; este rollup usava o texto como veio do ERP, então
+     "Material Politico" e "Material Político" -- a mesma linha do catálogo,
+     grafada de dois jeitos em modelos diferentes -- viravam dois produtos, e
+     o ranking mentia sobre o que mais vende. */
   for (const p of produtos?.itens || []) {
-    const g = mapa.get(p.produto) || {
-      chave: p.produto, rotulo: p.produto, categoria: p.categoria,
+    const k = chaveProduto(p.produto);
+    const g = mapa.get(k) || {
+      chave: k, rotulo: p.produto, categoria: p.categoria,
       itens: 0, valor: 0, os: 0,
     };
     g.itens += 1;
     g.valor += p.valor;
     g.os = Math.max(g.os, p.os);
     if (!g.categoria) g.categoria = p.categoria;
-    mapa.set(p.produto, g);
+    mapa.set(k, g);
   }
   return [...mapa.values()]
     .map((g) => ({ ...g, valor: cem(g.valor) }))

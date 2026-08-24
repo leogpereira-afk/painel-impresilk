@@ -153,4 +153,9 @@ export const buscarOrdensDe = (chaves, desde, ate, comItens) =>
     Object.assign(r.itens || [], {
       clientesCortados: r.clientesCortados || 0,
       linhasNoTeto: !!r.linhasNoTeto,
+      /* SE OS ITENS FORAM PEDIDOS. Sem esta marca, a lista que vem por id (que
+         nunca pede itens) fazia a campanha afirmar "N O.S. ainda não tiveram
+         os itens carregados do ERP -- a carga de domingo preenche": falso, os
+         itens existem, ninguém os pediu. */
+      comItens: !!comItens,
     }));
