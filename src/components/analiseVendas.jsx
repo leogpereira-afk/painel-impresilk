@@ -355,6 +355,11 @@ export function AbaClientes() {
   const [gruposFalhou, setGruposFalhou] = useState(false);
   const [avisoGrupo, setAvisoGrupo] = useState(null);
   const [formGrupo, setFormGrupo] = useState(null);   // {id?, nome, membros:[{chave,nome}]}
+  /* VÍNCULO DIRETO DA LISTA (pedido do dono, na tela): ativa a seleção, toca
+     nos clientes e cria o grupo ali -- sem descer até a seção de grupos. */
+  const [selecionando, setSelecionando] = useState(false);
+  const [selecionados, setSelecionados] = useState({});   // chave -> nome
+  const [nomeRapido, setNomeRapido] = useState("");
   const [buscaMembro, setBuscaMembro] = useState("");
   const [achados, setAchados] = useState([]);
   const [salvandoGrupo, setSalvandoGrupo] = useState(false);
@@ -407,37 +412,47 @@ export function AbaClientes() {
     return lista;
   }, []);
 
-  const gravarGrupo = async () => {
-    if (!formGrupo) return;
-    const membros = formGrupo.membros.map((m) => m.chave);
-    if (!formGrupo.nome.trim()) { setAvisoGrupo({ tom: "erro", texto: "Dê um nome ao grupo." }); return; }
-    if (membros.length < 2) { setAvisoGrupo({ tom: "erro", texto: "Um grupo precisa de pelo menos dois clientes." }); return; }
+  /* A CRIAÇÃO NUM LUGAR SÓ: o formulário da seção de grupos e a seleção
+     direta na lista passam pela mesma validação e pela mesma limpeza de
+     caches -- dois caminhos com regras diferentes é como o vínculo nasce
+     furado. */
+  const criarGrupoCom = async (nome, pares, idExistente) => {
+    const membros = pares.map((m) => m.chave);
+    if (!nome.trim()) { setAvisoGrupo({ tom: "erro", texto: "Dê um nome ao grupo." }); return false; }
+    if (membros.length < 2) { setAvisoGrupo({ tom: "erro", texto: "Um grupo precisa de pelo menos dois clientes." }); return false; }
+    if (grupos == null) { setAvisoGrupo({ tom: "erro", texto: "Os grupos ainda não carregaram — tente de novo em instantes." }); return false; }
     /* UM CLIENTE, UM GRUPO. O banco desempata por ordem de id quando há dois
        -- mas isso é determinismo, não regra: se a tela deixasse gravar, o
        cliente contaria num grupo e sumiria do outro em silêncio. */
     const emOutro = Object.entries(grupos || {}).find(([gid, g]) =>
-      gid !== formGrupo.id && (g.membros || []).some((m) => membros.includes(m)));
+      gid !== idExistente && (g.membros || []).some((m) => membros.includes(m)));
     if (emOutro) {
       const repetido = (emOutro[1].membros || []).find((m) => membros.includes(m));
       setAvisoGrupo({
         tom: "erro",
         texto: `"${repetido}" já está no grupo "${emOutro[1].nome || "sem nome"}". Tire de lá primeiro — um cliente só pode estar num grupo.`,
       });
-      return;
+      return false;
     }
     setSalvandoGrupo(true);
     try {
-      const novo = await salvarGrupo(formGrupo.id || novoId("grupo"), { nome: formGrupo.nome.trim(), membros });
+      const novo = await salvarGrupo(idExistente || novoId("grupo"), { nome: nome.trim(), membros });
       setGrupos(novo);
-      setFormGrupo(null);
       // O recorte muda de verdade: os caches derivados do grupo são zerados.
       setDados({}); setDetalhes({}); setAberto(null);
-      setAvisoGrupo({ tom: "ok", texto: "Grupo gravado. Os rankings já contam os CNPJs juntos." });
+      setAvisoGrupo({ tom: "ok", texto: `Grupo "${nome.trim()}" gravado. Os rankings já contam os CNPJs juntos.` });
+      return true;
     } catch (e) {
       setAvisoGrupo({ tom: "erro", texto: e.message });
+      return false;
     } finally {
       setSalvandoGrupo(false);
     }
+  };
+
+  const gravarGrupo = async () => {
+    if (!formGrupo) return;
+    if (await criarGrupoCom(formGrupo.nome, formGrupo.membros, formGrupo.id)) setFormGrupo(null);
   };
 
   const apagarGrupo = async (id, nome) => {
@@ -487,7 +502,68 @@ export function AbaClientes() {
             sub={`${(d.clientesQtd ?? 0).toLocaleString("pt-BR")} clientes no recorte · ${dinheiro(d.total)}.`}
             aberta={secaoAberta("classes")}
             aoAlternar={alternarSecao}
+            acao={
+              !selecionando ? (
+                <button
+                  type="button"
+                  className="btn-ghost"
+                  title="Escolher clientes desta lista e juntá-los num grupo (o mesmo dono com vários CNPJs)"
+                  onClick={() => { setSelecionando(true); setSelecionados({}); setNomeRapido(""); }}
+                >
+                  <Link2 size={14} /> Vincular CNPJs
+                </button>
+              ) : null
+            }
           >
+            {selecionando && (
+              <div className="space-y-2 rounded-xl border border-brand-300 bg-brand-50/50 p-3">
+                <div className="text-xs text-brand-800">
+                  Toque nos clientes da lista para marcar quem é o mesmo dono. Quem não estiver na
+                  lista você acha pela busca, na seção “Grupos de compra” lá embaixo.
+                </div>
+                {Object.keys(selecionados).length > 0 && (
+                  <div className="flex flex-wrap gap-1.5">
+                    {Object.entries(selecionados).map(([ch, nome]) => (
+                      <span key={ch} className="inline-flex items-center gap-1 rounded-full bg-white px-2 py-0.5 text-xs text-slate-700 ring-1 ring-slate-200">
+                        {nome}
+                        <button
+                          type="button"
+                          className="text-slate-400 hover:text-bad-600"
+                          onClick={() => setSelecionados((x) => { const n2 = { ...x }; delete n2[ch]; return n2; })}
+                          aria-label={`Tirar ${nome}`}
+                        >
+                          <X size={11} />
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                )}
+                <div className="flex flex-wrap items-center gap-2">
+                  <input
+                    className="input h-9 min-w-[14rem] flex-1"
+                    placeholder="Nome do grupo (ex.: Grupo Osório)"
+                    value={nomeRapido}
+                    onChange={(e) => setNomeRapido(e.target.value)}
+                  />
+                  <button
+                    type="button"
+                    className="btn-primary"
+                    disabled={salvandoGrupo || Object.keys(selecionados).length < 2 || !nomeRapido.trim()}
+                    onClick={async () => {
+                      const pares = Object.entries(selecionados).map(([chave, nome]) => ({ chave, nome }));
+                      if (await criarGrupoCom(nomeRapido, pares)) {
+                        setSelecionando(false); setSelecionados({}); setNomeRapido("");
+                      }
+                    }}
+                  >
+                    {salvandoGrupo ? "Gravando…" : `Criar grupo (${Object.keys(selecionados).length})`}
+                  </button>
+                  <button type="button" className="btn-ghost" onClick={() => { setSelecionando(false); setSelecionados({}); }}>
+                    Cancelar
+                  </button>
+                </div>
+              </div>
+            )}
             <div className="grid gap-2 sm:grid-cols-3">
               {(d.classes || []).map((c) => (
                 <button
@@ -528,11 +604,30 @@ export function AbaClientes() {
                 <button
                   key={c.chave}
                   type="button"
-                  onClick={() => setAberto((x) => (x === c.chave ? null : c.chave))}
-                  className={`flex w-full items-baseline gap-2 rounded-lg px-2 py-1 text-left text-xs hover:bg-slate-50 ${
-                    aberto === c.chave ? "bg-brand-50/70" : ""
+                  title={selecionando && c.ehGrupo ? "Já é um grupo — para mexer nos membros, use a seção Grupos de compra" : undefined}
+                  disabled={selecionando && c.ehGrupo}
+                  onClick={() => {
+                    if (!selecionando) { setAberto((x) => (x === c.chave ? null : c.chave)); return; }
+                    setSelecionados((x) => {
+                      const n2 = { ...x };
+                      if (n2[c.chave]) delete n2[c.chave]; else n2[c.chave] = c.rotulo;
+                      return n2;
+                    });
+                  }}
+                  className={`flex w-full items-baseline gap-2 rounded-lg px-2 py-1 text-left text-xs ${
+                    selecionando && c.ehGrupo ? "opacity-40" : "hover:bg-slate-50"
+                  } ${
+                    selecionando && selecionados[c.chave] ? "bg-brand-100/70 ring-1 ring-brand-300"
+                    : aberto === c.chave && !selecionando ? "bg-brand-50/70" : ""
                   }`}
                 >
+                  {selecionando && (
+                    <span className={`grid h-3.5 w-3.5 shrink-0 place-items-center self-center rounded border text-[9px] ${
+                      selecionados[c.chave] ? "border-brand-500 bg-brand-500 text-white" : "border-slate-300"
+                    }`}>
+                      {selecionados[c.chave] ? "✓" : ""}
+                    </span>
+                  )}
                   <span className={`w-5 shrink-0 rounded text-center font-display text-[10px] font-semibold ${TOM_CLASSE[c.classe]}`}>
                     {c.classe}
                   </span>
