@@ -282,6 +282,7 @@ export default function Configuracoes() {
                   ))}
                 </select>
                 <BotaoRemover
+                  oQue="este motivo de atraso"
                   onClick={() =>
                     updateConfig((c) => {
                       c.motivosAtraso.splice(i, 1);
@@ -360,6 +361,7 @@ export default function Configuracoes() {
                 }
               />
               <BotaoRemover
+                  oQue="esta faixa da régua de cobrança"
                 onClick={() =>
                   updateConfig((c) => {
                     c.reguaCobranca.splice(i, 1);
@@ -429,6 +431,7 @@ export default function Configuracoes() {
                   }
                 />
                 <BotaoRemover
+                  oQue="esta regra por motivo"
                   onClick={() =>
                     updateConfig((c) => {
                       c.regrasPorMotivo.splice(i, 1);
@@ -522,6 +525,7 @@ export default function Configuracoes() {
                 </span>
               )}
               <BotaoRemover
+                  oQue="este vendedor da lista"
                 onClick={() =>
                   updateConfig((c) => {
                     c.vendedores.splice(i, 1);
@@ -572,6 +576,7 @@ export default function Configuracoes() {
                 }
               />
               <BotaoRemover
+                  oQue="este motivo de perda"
                 onClick={() =>
                   updateConfig((c) => {
                     c.motivosPerda.splice(i, 1);

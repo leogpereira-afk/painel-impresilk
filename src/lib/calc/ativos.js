@@ -68,12 +68,20 @@ export const CATEGORIAS = {
 export function situacao(item, hojeISO, alertaDias = 30) {
   const porData = item.validade ? diasEntre(hojeISO, item.validade) : null;
 
-  // Medidor: quanto falta para a proxima manutencao (km ou horas).
+  /* Medidor: quanto falta para a proxima manutencao (km ou horas).
+     LEITURA QUE FALTA NAO E LEITURA ZERO. Com `medidorAtual || 0`, a maquina
+     marcada para revisar em 1.500 h e sem NENHUMA leitura dava "faltam 1.500"
+     -- verde "Em dia" para um bem que ninguem foi medir. Zero e resposta so
+     quando alguem escreveu zero. */
+  const semLeitura = item.medidorProximo > 0 &&
+    (item.medidorAtual == null || item.medidorAtual === "");
   const faltaMedidor =
-    item.medidorProximo > 0 ? item.medidorProximo - (item.medidorAtual || 0) : null;
+    item.medidorProximo > 0 && !semLeitura ? item.medidorProximo - Number(item.medidorAtual) : null;
 
   if (porData == null && faltaMedidor == null) {
-    return { nivel: "sem", rotulo: "Sem controle", dias: null, falta: null };
+    return semLeitura
+      ? { nivel: "atencao", rotulo: "Falta ler o medidor", dias: null, falta: null, semLeitura: true }
+      : { nivel: "sem", rotulo: "Sem controle", dias: null, falta: null };
   }
 
   // Vencido ganha de tudo.
@@ -103,9 +111,13 @@ export function situacao(item, hojeISO, alertaDias = 30) {
 
   return {
     nivel: "ok",
-    rotulo: porData != null ? `Vence em ${porData} dias` : "Em dia",
+    // Com data em dia MAS medidor sem leitura, "Em dia" seria meia verdade.
+    rotulo: semLeitura
+      ? `Vence em ${porData} dias · falta ler o medidor`
+      : porData != null ? `Vence em ${porData} dias` : "Em dia",
     dias: porData,
     falta: faltaMedidor,
+    ...(semLeitura ? { semLeitura: true } : {}),
   };
 }
 

@@ -255,7 +255,15 @@ Deno.serve(async (req: Request) => {
 
         if (semPrefixo !== null) {
           if (!CACHES.has(semPrefixo)) return resposta({ erro: "chave invalida" }, 400);
-          if (!autenticado) return resposta({ erro: "nao autorizado" }, 401);
+          /* O MARCADOR `semSessao` E O QUE FAZ O CLIENTE VOLTAR AO LOGIN
+             (lib/sessao.js so desloga quando ele vem). Este era o unico 401 de
+             sessao sem ele: com o cracha vencido, a tela ficava presa num erro
+             generico em vez de pedir para entrar de novo. Quando a recusa e do
+             x-token (maquina, nao pessoa), o marcador nao vai -- deslogar
+             alguem por causa de um token de servico seria pior. */
+          if (!autenticado) {
+            return resposta({ erro: sessao ? "nao autorizado" : "Entre no sistema.", semSessao: !sessao }, 401);
+          }
           const { data } = await sb.from("painel_cache").select("valor").eq("chave", semPrefixo).maybeSingle();
           return resposta({ ok: true, chave, valor: data?.valor ?? null });
         }
