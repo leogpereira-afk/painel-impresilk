@@ -454,10 +454,19 @@ Deno.serve(async (req: Request) => {
                    etiqueta e adesivo colado no bem, nao tem conserto barato.
                    Falhar e melhor que duplicar: sem codigo, o erro sobe e a
                    tela avisa. */
+                /* O LOCK DA FUNCAO E `xact`: ele solta quando a RPC retorna, e a
+                   gravacao vem no passo seguinte, ja fora dele -- dois
+                   cadastros simultaneos ainda podiam sair com o mesmo codigo.
+                   Quem garante agora e o INDICE UNICO no banco
+                   (20260824c_etiqueta_unica): o segundo e recusado. Aqui a
+                   gente so tenta de novo uma vez, para a corrida normal se
+                   resolver sozinha em vez de virar erro na cara de quem
+                   cadastrou. */
                 const sigla = String((campos as any)?.setorSigla ?? "GER");
                 const { data: etq, error: erroEtq } = await sb.rpc("patrimonio_proxima_etiqueta", { p_sigla: sigla });
                 if (erroEtq || !etq) throw new Error("nao consegui gerar a etiqueta: " + (erroEtq?.message ?? "vazio"));
                 (campos as any).codigo = etq as string;
+                (campos as any).__etiquetaSigla = sigla;   // so para a retentativa abaixo
               }
             }
 
@@ -535,9 +544,24 @@ Deno.serve(async (req: Request) => {
               // `recado` e instrucao de chamada, nao campo do registro.
               delete fundido.recado;
             }
-            const { error } = await sb.from("painel_registros").upsert(
+            /* A ETIQUETA PODE COLIDIR NA GRAVACAO (indice unico
+               20260824c): o lock da funcao que gera o numero solta antes
+               daqui. Uma retentativa resolve a corrida normal -- e se
+               colidir de novo, o erro sobe, porque etiqueta repetida e
+               adesivo errado colado num bem. */
+            const sigla = (fundido as any).__etiquetaSigla;
+            delete (fundido as any).__etiquetaSigla;
+            const gravar = () => sb.from("painel_registros").upsert(
               { colecao: chave, id, registro: fundido, atualizado_em: new Date().toISOString() },
               { onConflict: "colecao,id" });
+            let { error } = await gravar();
+            if (error && sigla && /painel_patrimonio_codigo_unico|duplicate key/i.test(error.message)) {
+              const { data: outra } = await sb.rpc("patrimonio_proxima_etiqueta", { p_sigla: sigla });
+              if (outra) {
+                (fundido as any).codigo = outra as string;
+                ({ error } = await gravar());
+              }
+            }
             if (error) throw new Error(error.message);
           }
           // Devolve o mapa inteiro, como o original fazia (o cliente atualiza o
