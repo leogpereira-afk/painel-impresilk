@@ -74,3 +74,25 @@ test("o selo é UM por linha e a ordem é a da urgência", () => {
   assert.equal(estadoDe({ situacao: "aberto", toqueAtrasado: true, proximoToque: "2026-08-20", adiado: false }).chave, "atrasado");
   assert.equal(estadoDe({ situacao: "aberto" }).chave, "sem");
 });
+
+test("o cartão 'Atrasados' e a lista que ele abre saem do MESMO lugar", () => {
+  /* O cartão contava a compra futura com promessa furada (que é "perdido" no
+     ERP) e a lista filtrava só a mesa, que exclui os recall: o cartão dizia
+     dois títulos, a lista mostrava um. */
+  const vm = calc(
+    [
+      orc(1, { situacao: "perdido", motivoErp: "compra futura", valor: 100000 }),
+      orc(2, { valor: 10000 }),
+      orc(3, { valor: 7000 }),
+    ],
+    { 1: { proximoToque: "2026-08-10" }, 2: { chamadoEm: "2026-08-05" }, 3: { proximoToque: "2026-12-01" } },
+  );
+  assert.equal(vm.recorte.atrasados.qtd, 2, "o cartão conta os dois");
+  assert.equal(vm.atrasados.length, 2, "e a lista traz os dois");
+  assert.equal(
+    Math.round(vm.atrasados.reduce((s, o) => s + o.valor, 0)),
+    Math.round(vm.recorte.atrasados.valor),
+    "mesma soma nos dois lugares",
+  );
+  assert.ok(vm.atrasados.some((o) => o.recall), "inclusive a compra futura com promessa furada");
+});

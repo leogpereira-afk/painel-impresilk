@@ -72,7 +72,14 @@ const ORDENS = {
   parado: { rotulo: "Mais parado", fn: (a, b) => b.dias - a.dias },
   urgencia: { rotulo: "Mais urgente", fn: null }, // usa a ordem do balde
 };
-const PESO_ESTADO = { atrasado: 0, chamado: 1, vencido: 2, hoje: 3, sem: 4, recall: 5, agendado: 6 };
+/* AS DUAS CHAVES DE RECALL FALTAVAM AQUI e caíam no fallback 9 -- o pior peso
+   de todos. Resultado: "Mais urgente" mandava para o FIM da lista justamente
+   quem prometeu voltar e não voltou (R$ 3,57 milhões em compra futura), atrás
+   de quem só está agendado. */
+const PESO_ESTADO = {
+  "recall-atrasado": 0, atrasado: 0, chamado: 1, vencido: 2,
+  "recall-hoje": 3, hoje: 3, sem: 4, recall: 5, agendado: 6,
+};
 
 const norm = (s) =>
   String(s || "")
@@ -428,6 +435,9 @@ function LinhaAgenda({ o, salvando, acoes }) {
       </div>
       <p className="mt-0.5 text-sm text-slate-500">
         {o.trabalho || "sem descrição no ERP"} · {o.vendedorNome}
+        {/* A DATA NA PRÓPRIA LINHA: sem ela, a faixa era a única fonte da
+            verdade sobre quando voltar -- e ela podia estar errada. */}
+        {o.proximoToque && <> · retorno {dataCurta(o.proximoToque)}</>}
       </p>
       {o.nota && <p className="mt-0.5 text-xs italic text-slate-600">“{o.nota}”</p>}
       <div className="sem-impressao mt-2 flex flex-wrap gap-2">
@@ -732,7 +742,9 @@ export default function Orcamentos() {
       recorte === "recall"
         ? vm.lista.filter((o) => o.recall)
         : recorte === "atrasados"
-          ? vm.mesa.filter((o) => o.toqueAtrasado || o.vencido || (o.chamadoEm && !o.proximoToque))
+          // A MESMA lista que o cartão conta (inclui a compra futura com
+          // promessa furada, que a `mesa` não tem).
+          ? vm.atrasados
           : recorte === "semRetorno"
             ? vm.mesa.filter(
                 (o) =>
@@ -1171,21 +1183,29 @@ export default function Orcamentos() {
               return (
                 <div className="pb-5">
                   {faixas.map((fx) => {
-                    const gs = vm.agenda.filter((g) => fx.teste(g.proximoToque));
-                    if (!gs.length) return null;
+                    /* A FAIXA É DO ITEM, NÃO DO GRUPO. O agrupamento por
+                       cliente guarda a data MAIS CEDO da casa; a tela usava
+                       essa data para escolher a faixa e depois despejava
+                       TODOS os irmãos ali dentro. Um orçamento prometido para
+                       dezembro aparecia em "Amanhã", com R$ 90 mil, e
+                       "Mais para frente" ficava vazio -- e nenhuma linha
+                       mostrava data para desmentir. */
+                    const itens = vm.agenda
+                      .flatMap((g) => g.itens.map((o) => ({ ...o, nota: o.nota || g.nota })))
+                      .filter((o) => fx.teste(o.proximoToque))
+                      .sort((a, b) => String(a.proximoToque).localeCompare(String(b.proximoToque)));
+                    if (!itens.length) return null;
                     return (
                       <section key={fx.nome} className="mt-4 first:mt-0">
                         <h3 className="flex items-baseline justify-between gap-3 px-5 pb-1">
                           <span className="font-display text-sm font-semibold text-slate-700">{fx.nome}</span>
                           <span className="tnum text-xs text-slate-500">
-                            {numero(gs.length)} · {moeda(gs.reduce((s, g) => s + g.valor, 0))}
+                            {numero(itens.length)} · {moeda(itens.reduce((s, o) => s + o.valor, 0))}
                           </span>
                         </h3>
-                        {gs.flatMap((g) =>
-                          g.itens.map((o) => (
-                            <LinhaAgenda key={o.id} o={{ ...o, nota: o.nota || g.nota }} salvando={salvando} acoes={acoes} />
-                          ))
-                        )}
+                        {itens.map((o) => (
+                          <LinhaAgenda key={o.id} o={o} salvando={salvando} acoes={acoes} />
+                        ))}
                       </section>
                     );
                   })}

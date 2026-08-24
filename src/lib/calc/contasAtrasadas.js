@@ -278,7 +278,10 @@ export function calcContasAtrasadas(recebiveis, overrides, config, dsoHist = [],
   // --- Plano de acao em frentes automaticas
   const frentes = montarFrentes(atrasados, config);
 
-  // --- Cobrar hoje: top 5 pendentes por valor
+  /* --- Cobrar hoje: os 5 maiores pendentes. O quadro mostrava 5 de 96 sem
+     dizer o tamanho da fila -- quem lê conclui que a cobrança do dia são
+     cinco títulos. `cobrarHojeTotal` desce junto para a tela poder dizer. */
+  const cobrarHojeTotal = pendentes.length;
   const cobrarHoje = pendentes.slice(0, 5).map((r) => ({
     id: r.id,
     cliente: r.cliente,
@@ -343,6 +346,7 @@ export function calcContasAtrasadas(recebiveis, overrides, config, dsoHist = [],
     idade,
     frentes,
     cobrarHoje,
+    cobrarHojeTotal,
     dsoHistorico,
   };
 }

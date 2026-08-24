@@ -84,13 +84,19 @@ export function carteiraDeCobranca(titulos, cobrancas, hoje) {
     const reg = (cobrancas || {})[c.chave] || null;
     const chamados = chamadosDoCliente(reg);
     const ultimo = chamados[0] || null;
-    const sit = ultimo ? situacaoDe(ultimo.situacao) : null;
+    /* O DESFECHO VEM DO ÚLTIMO CHAMADO QUE TEVE UM. Registro sem desfecho --
+       o eco do botão "Cobrado", por exemplo -- é anotação de que alguém
+       cobrou, não notícia sobre o cliente. Lendo só `chamados[0]`, uma
+       anotação dessas apagava a promessa vencida registrada dias antes. */
+    const comDesfecho = chamados.find((ch) => ch.situacao) || null;
+    const sit = comDesfecho ? situacaoDe(comDesfecho.situacao) : null;
 
     /* PROMESSA VENCIDA é o estado que a lista existe para achar: alguém disse
        que pagaria, a data passou e ninguém voltou. Sem isto, a promessa vira
        desculpa para não ligar -- e some. */
     const promessaVencida = !!(
-      ultimo && ultimo.situacao === "prometeu" && ultimo.promessa && ultimo.promessa < hoje
+      comDesfecho && comDesfecho.situacao === "prometeu" &&
+      comDesfecho.promessa && comDesfecho.promessa < hoje
     );
 
     return {

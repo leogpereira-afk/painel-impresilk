@@ -178,3 +178,23 @@ test("os quatro números do topo SOMAM o total — nenhum cliente fica sem card"
   assert.equal(r.valorQuebrado + r.valorSemChamado + r.valorAguardando + r.valorEmConversa, r.total,
     "os quatro fecham com o total — o controle que consegue falhar");
 });
+
+test("anotar 'cobrado' não apaga a promessa vencida registrada antes", () => {
+  /* O botão verde da lista grava um registro no diário. Se esse registro
+     afirmasse um desfecho ("não atendeu"), ele viraria o último chamado e a
+     promessa quebrada sumiria do primeiro número da aba Cobrança -- R$ 50 mil
+     saindo da fila de cobrança com um clique. */
+  const titulos = [{ id: 1, cliente: "ALFA", valor: 50000, dias: 30 }];
+  const cobrancas = {
+    [chaveCliente("ALFA")]: {
+      chamados: {
+        c1: { data: "2026-08-10", situacao: "prometeu", promessa: "2026-08-20", resumo: "prometeu pagar" },
+        c2: { data: "2026-08-23", situacao: "", resumo: "Marcado como cobrado na lista (NF 123)" },
+      },
+    },
+  };
+  const [cartao] = carteiraDeCobranca(titulos, cobrancas, "2026-08-23");
+  assert.equal(cartao.promessaVencida, true, "a promessa quebrada continua valendo");
+  assert.equal(cartao.situacaoRotulo, "Prometeu pagar", "e o selo é o do desfecho real");
+  assert.equal(cartao.diasSemContato, 0, "mas o contato de hoje conta como contato");
+});

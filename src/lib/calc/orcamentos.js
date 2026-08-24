@@ -497,6 +497,12 @@ export function calcOrcamentos(orcamentos, overrides, config, opcoes = {}) {
     // Lista mestra do escopo escolhido: alimenta a aba Histórico.
     lista: doEscopo,
     mesa,
+    /* A LISTA DOS ATRASADOS SAI DAQUI, não de um filtro parecido na tela. O
+       cartão contava `atrasados` (abertos + compra futura com promessa
+       furada) e a lista que ele abria filtrava só a `mesa`, que EXCLUI os
+       recall por definição: o cartão dizia 2 títulos e R$ 110 mil, a lista
+       mostrava 1 e R$ 10 mil. Mesmo número, dois caminhos, é sempre isso. */
+    atrasados,
     recorte: {
       mesa: { qtd: mesa.length, valor: soma(mesa, "valor"), margem: soma(mesa, "margem") },
       atrasados: { qtd: atrasados.length, valor: soma(atrasados, "valor") },

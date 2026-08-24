@@ -507,8 +507,14 @@ export default function ContasAtrasadas() {
           data: ymdLocal(new Date()),
           canal: "Ligação",
           contato: "",
-          resumo: `Marcado como cobrado na lista (título ${t.documento || t.id})`,
-          situacao: "semResposta",
+          resumo: `Marcado como cobrado na lista (${t.nf ? `NF ${t.nf}` : t.os ? `O.S. ${t.os}` : `#${t.id}`})`,
+          /* SEM DESFECHO. Gravar "semResposta" aqui afirmava que o cliente não
+             atendeu -- ninguém disse isso, o botão só registra que alguém
+             cobrou. E, como a carteira lê o ÚLTIMO chamado, esse desfecho
+             inventado apagava a promessa vencida que a aba Cobrança usa para
+             dizer "prometeu e não pagou": R$ 50 mil saíam do primeiro número
+             da tela com um clique num botão verde. */
+          situacao: "",
           promessa: "",
         },
       }));
@@ -1000,8 +1006,16 @@ export default function ContasAtrasadas() {
         {/* Resumo do que esta na tela (no papel isto ja esta no cabecalho). */}
         <div className="sem-impressao mb-3 flex flex-wrap items-center gap-2 text-sm text-slate-500">
           <span>
+            {/* PARTE E TODO TÊM DE SER DO MESMO CONJUNTO. No recorte "Vence em
+                7 dias" a lista troca de fonte (passa a ser o que vence no
+                FUTURO), e o denominador continuava sendo os 120 ATRASADOS:
+                "16 de 120 títulos" com os 16 fora dos 120, e R$ 13 mil a
+                vencer parecendo pedaço de uma dívida de R$ 210 mil. */}
             Mostrando <strong className="tnum text-slate-900">{numero(titulosFiltrados.length)}</strong>{" "}
-            de {numero(pediuPeriodo ? vm.titulos.length : vm.qtdAtivos)} títulos
+            de{" "}
+            {filtro === "aVencer"
+              ? `${numero(vm.aVencer?.lista?.length ?? titulosFiltrados.length)} títulos a vencer`
+              : `${numero(pediuPeriodo ? vm.titulos.length : vm.qtdAtivos)} títulos`}
             {titulosFiltrados.length > 0 && (
               <>
                 {" "}
@@ -1557,6 +1571,13 @@ export default function ContasAtrasadas() {
                 })}
               </tbody>
             </table>
+            {/* O CORTE FALA -- o quadro logo acima já falava, e este calava:
+                66 dos 81 devedores sumiam sem uma palavra, na mesma tela. */}
+            {dividas.porCliente.length > 15 && (
+              <p className="mt-2 text-xs text-slate-400">
+                Mostrando os 15 maiores de {numero(dividas.porCliente.length)} clientes.
+              </p>
+            )}
           </div>
         ) : (
           <Empty>Nenhum devedor no recorte atual.</Empty>
@@ -1671,9 +1692,26 @@ export default function ContasAtrasadas() {
         aberta={abertasAnaliseCA.plano}
         aoAlternar={alternarAnaliseCA}
       >
+        {/* ✓ VERDE SÓ VALE SE A FRENTE FOI MEDIDA. As quatro frentes olham o
+            MOTIVO do atraso, e 116 dos 120 títulos de hoje estão sem motivo
+            classificado: três delas apareciam com "Nada nesta frente" —
+            "renegocie os crônicos: nada", "escale os sem resposta: nada" —
+            quando na verdade ninguém classificou o suficiente para saber. */}
+        {(() => {
+          const semMotivo = vm.porMotivo?.find((m) => !m.motivoId)?.qtd || 0;
+          const pct = vm.qtdAtivos ? Math.round((semMotivo / vm.qtdAtivos) * 100) : 0;
+          return pct >= 25 ? (
+            <div className="mb-4 rounded-lg bg-warn-50 px-3 py-2 text-xs text-warn-800">
+              {pct}% dos títulos ({numero(semMotivo)} de {numero(vm.qtdAtivos)}) ainda estão sem motivo
+              classificado — as frentes abaixo só enxergam quem tem motivo, então uma frente vazia aqui
+              pode ser falta de classificação, não ausência de caso.
+            </div>
+          ) : null;
+        })()}
         <div className="grid gap-4 sm:grid-cols-2">
           {vm.frentes.map((f) => {
             const vazia = f.soma === 0 && f.qtd === 0;
+            const semMotivoQtd = vm.porMotivo?.find((m) => !m.motivoId)?.qtd || 0;
             return (
               <Card key={f.chave} className="flex flex-col">
                 <div className="flex items-start justify-between gap-3">
@@ -1685,10 +1723,17 @@ export default function ContasAtrasadas() {
                 <p className="mt-1 text-sm text-slate-500">{f.descricao}</p>
 
                 {vazia ? (
-                  <div className="mt-4 flex items-center gap-2 text-sm text-ok-700">
-                    <CheckCircle2 size={18} strokeWidth={2.2} />
-                    Nada nesta frente.
-                  </div>
+                  semMotivoQtd > 0 ? (
+                    <div className="mt-4 flex items-start gap-2 text-sm text-slate-500">
+                      <AlertTriangle size={18} strokeWidth={2.2} className="mt-0.5 shrink-0 text-warn-600" />
+                      Nada classificado nesta frente — {numero(semMotivoQtd)} títulos ainda estão sem motivo.
+                    </div>
+                  ) : (
+                    <div className="mt-4 flex items-center gap-2 text-sm text-ok-700">
+                      <CheckCircle2 size={18} strokeWidth={2.2} />
+                      Nada nesta frente.
+                    </div>
+                  )
                 ) : (
                   <>
                     <div className="mt-4 flex items-end gap-2">
@@ -1736,7 +1781,11 @@ export default function ContasAtrasadas() {
       <Secao
           id="cobrarHoje"
           titulo="Cobrar hoje"
-          sub="Os pendentes de maior valor, com a ação sugerida."
+          sub={
+            vm.cobrarHojeTotal > vm.cobrarHoje.length
+              ? `Os ${vm.cobrarHoje.length} pendentes de maior valor, de ${numero(vm.cobrarHojeTotal)} na fila.`
+              : "Os pendentes de maior valor, com a ação sugerida."
+          }
           aberta={abertasAnaliseCA.cobrarHoje}
           aoAlternar={alternarAnaliseCA}
         >
