@@ -32,6 +32,15 @@ const GH_TOKEN = Deno.env.get("GITHUB_TOKEN") ?? "";
 const GH_REPO = Deno.env.get("GITHUB_REPO") ?? "";
 const VERSAO = 2; // v2: formato do Supabase (colecoes em vez de chaves de blob)
 
+/* As tabelas da tela de Gestao. Ficam FORA de painel_registros (sao tabelas
+   com colunas, nao registros jsonb), entao a varredura de colecoes nao as
+   alcanca -- e por isso elas estavam fora do backup inteiro. */
+const TABELAS_GESTAO = [
+  "gestao_empresa", "gestao_identidade", "gestao_valor", "gestao_plano_ano",
+  "gestao_objetivo", "gestao_indicador", "gestao_tatica", "gestao_reuniao",
+  "gestao_decisao", "gestao_ciclo_fechamento", "gestao_preferencia_ui",
+];
+
 const sb = createClient(SUPABASE_URL, SERVICE_KEY, { auth: { persistSession: false } });
 
 const CORS = {
@@ -137,6 +146,22 @@ async function montarBackupPainel() {
     if (nome === "config") throw new Error('colecao "config" colide com a configuracao global do painel');
     painel[nome] = await linhasDe(colecao);
   }
+  /* A GESTAO NAO MORA EM painel_registros. Identidade, valores, objetivos,
+     indicadores, taticas, reunioes, decisoes, plano do ano e o fechamento do
+     ciclo sao TABELAS proprias (gestao_*) -- e nenhuma delas entrava no
+     backup: a mesma armadilha da lista escrita a mao, um andar acima. Hoje sao
+     poucas linhas (a tela e nova); e justamente por isso o conserto e agora,
+     antes de a direcao encher a tela e o backup so parecer completo. */
+  const gestao: Record<string, unknown> = {};
+  for (const t of TABELAS_GESTAO) {
+    const { data, error } = await sb.from(t).select("*");
+    // Sem engolir: backup que copia "quase tudo" e o pior dos mundos, porque
+    // ninguem descobre ate precisar restaurar.
+    if (error) throw new Error(`${t}: ${error.message}`);
+    gestao[t] = data ?? [];
+  }
+  painel.gestao = gestao;
+
   // Os BYTES dos arquivos ficam no bucket (duraveis); um backup diario deles
   // incharia o repositorio. Mesma decisao do original com as fotos.
 
@@ -509,7 +534,12 @@ Deno.serve(async (req: Request) => {
              nao mora em painel_registros e fica de fora. */
           const APELIDO_VOLTA: Record<string, string> = { ativos: "ativo", arquivosMeta: "arquivo" };
           for (const [nome, mapa] of Object.entries(p)) {
-            if (nome === "config" || mapa == null || typeof mapa !== "object") continue;
+            // `config` e `gestao` NAO sao colecoes de painel_registros: a
+            // primeira e a configuracao global, a segunda sao tabelas
+            // proprias. Sem esta guarda, o restauro criaria registros de
+            // mentira chamados "gestao_empresa", "gestao_valor"...
+            if (nome === "config" || nome === "gestao") continue;
+            if (mapa == null || typeof mapa !== "object") continue;
             mapas.push([APELIDO_VOLTA[nome] ?? nome, mapa as Record<string, unknown>]);
           }
         } else {
@@ -521,6 +551,21 @@ Deno.serve(async (req: Request) => {
           }
           mapas.push(["ativo", ativos]);
         }
+        /* A GESTAO VOLTA nas tabelas dela. Cada linha inteira, por upsert na
+           chave primaria -- o que existe hoje e mais novo do que o backup e
+           sobrescrito, que e o que "restaurar" quer dizer. Backups antigos nao
+           tem esta parte, e aí simplesmente nao ha o que repor. */
+        const gestaoBk = (p as any).gestao;
+        if (gestaoBk && typeof gestaoBk === "object") {
+          for (const t of TABELAS_GESTAO) {
+            const linhas = (gestaoBk as any)[t];
+            if (!Array.isArray(linhas) || !linhas.length) continue;
+            const { error } = await sb.from(t).upsert(linhas);
+            if (error) throw new Error(`restaurar ${t}: ${error.message}`);
+            gravou += linhas.length;
+          }
+        }
+
         for (const [colecao, mapa] of mapas) {
           for (const [id, registro] of Object.entries(mapa)) {
             if (registro == null) continue;

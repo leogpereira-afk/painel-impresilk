@@ -4,7 +4,7 @@
 // instantaneo no boot e fallback quando a rede falha. Qualquer mudanca aqui
 // recalcula os modulos ao vivo (os modulos derivam tudo via useMemo).
 
-import { createContext, useContext, useEffect, useMemo, useState, useCallback } from "react";
+import { createContext, useContext, useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { CONFIG_PADRAO } from "./defaults.js";
 import * as mubi from "../services/mubi.js";
 import * as marcacoes from "../services/marcacoes.js";
@@ -64,9 +64,21 @@ export function AppProvider({ children }) {
   // caixa catastrofico como se fosse verdade; sem as O.S., Contas Atrasadas
   // ficaria com todos os titulos sem vendedor. A tela precisa saber e avisar.
   const [fontesNegadas, setFontesNegadas] = useState([]);
+  /* FONTE QUE FALHOU não é fonte vazia -- e nem sempre é permissão. Um 503
+     ("cache ainda não aquecido") ou uma queda de rede numa fonte só passava
+     como lista vazia: Contas Atrasadas dizia "nada atrasado" e o chip de
+     frescor ficava verde por cima. Permissão a pessoa entende; falha ela
+     precisa saber para não decidir com meia base. */
+  const [fontesQueFalharam, setFontesQueFalharam] = useState([]);
+  /* A GERAÇÃO DA CARGA. Sem ela, a resposta lenta da sessão ANTERIOR
+     aterrissava por cima da carga da sessão nova -- no computador da recepção
+     isso é o dado de uma pessoa aparecendo para outra. */
+  const geracaoRef = useRef(0);
 
   const recarregar = useCallback(async () => {
     if (!getSessao()) return; // sem cracha nao adianta tentar
+    const minhaGeracao = ++geracaoRef.current;
+    const atual = () => geracaoRef.current === minhaGeracao;
     setCarregando(true);
     setErro(null);
     // O carimbo de frescor e o MAIS VELHO das fontes desta carga. Sem zerar,
@@ -98,13 +110,17 @@ export function AppProvider({ children }) {
         throw falhasReais[0].erro;
       }
 
+      if (!atual()) return; // outra carga (outra sessão) já começou
+
+      const nomes = ["recebiveis", "pagar", "bancos", "orcamentos", "ordens"];
       const negadas = [];
-      if (rRec.permissao) negadas.push("recebiveis");
-      if (rPag.permissao) negadas.push("pagar");
-      if (rBan.permissao) negadas.push("bancos");
-      if (rOrc.permissao) negadas.push("orcamentos");
-      if (rOrd.permissao) negadas.push("ordens");
+      const falharam = [];
+      todas.forEach((r, i) => {
+        if (r.permissao) negadas.push(nomes[i]);
+        else if (!r.ok) falharam.push(nomes[i]);
+      });
       setFontesNegadas(negadas);
+      setFontesQueFalharam(falharam);
 
       const ordens = rOrd.valor || [];
       setDados({
@@ -126,9 +142,9 @@ export function AppProvider({ children }) {
       setOvRec((prev) => prev ?? mubi.getSeedOverridesRecebiveis());
       setOvOrc((prev) => prev ?? mubi.getSeedOverridesOrcamentos());
     } catch (e) {
-      setErro(e.message || "Falha ao carregar dados");
+      if (atual()) setErro(e.message || "Falha ao carregar dados");
     } finally {
-      setCarregando(false);
+      if (atual()) setCarregando(false);
     }
   }, []);
 
@@ -138,7 +154,18 @@ export function AppProvider({ children }) {
   // sistema" ate apertar F5.
   useEffect(() => {
     recarregar();
-    return aoMudarSessao(() => recarregar());
+    return aoMudarSessao(() => {
+      /* SAIR TEM DE LIMPAR. O provider não desmonta ao trocar de sessão: sem
+         isto, o painel da pessoa anterior ficava na tela inteirinho até a
+         carga nova terminar -- e se ela não tivesse permissão para alguma
+         fonte, ficava para sempre. */
+      geracaoRef.current += 1;
+      setDados(null);   // volta ao estado de "ainda não carregou"
+      setFontesNegadas([]);
+      setFontesQueFalharam([]);
+      setErro(null);
+      recarregar();
+    });
   }, [recarregar]);
 
   // Boot: puxa as marcacoes do Blobs (fonte de verdade, compartilhada entre
@@ -269,6 +296,7 @@ export function AppProvider({ children }) {
       setOverridesOrcamento,
       dados,
       fontesNegadas,
+      fontesQueFalharam,
       falhaSync,
       limparFalhaSync: () => setFalhaSync(null),
       atualizadoEm,
@@ -282,6 +310,7 @@ export function AppProvider({ children }) {
     [
       config,
       fontesNegadas,
+      fontesQueFalharam,
       falhaSync,
       updateConfig,
       resetarConfig,

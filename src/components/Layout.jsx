@@ -387,7 +387,8 @@ export default function Layout({ children, sessao }) {
   const location = useLocation();
   const navigate = useNavigate();
   const [escuro, alternarTema] = useTema();
-  const { modoDemo, atualizadoEm, recarregar, carregando, falhaSync, limparFalhaSync } = useApp();
+  const { modoDemo, atualizadoEm, recarregar, carregando, falhaSync, limparFalhaSync,
+          fontesQueFalharam = [] } = useApp();
   const [menuAberto, setMenuAberto] = useState(false);
   const naHome = location.pathname === "/";
   const f = modoDemo ? null : frescor(atualizadoEm);
@@ -533,6 +534,30 @@ export default function Layout({ children, sessao }) {
         )}
 
         <main className="mx-auto max-w-6xl animate-fade-in px-4 py-6 sm:px-6 sm:py-8">
+          {/* FONTE QUE NÃO VEIO, dita uma vez para o painel inteiro. Antes, um
+              503 ("cache ainda não aquecido") ou uma queda de rede numa fonte
+              virava lista vazia sem palavra nenhuma: a tela dizia "nada
+              atrasado" com o mesmo tom de quando não há mesmo nada. Vale para
+              todas as telas porque o dado é o mesmo. */}
+          {fontesQueFalharam.length > 0 && (
+            <div className="sem-impressao mb-4 flex items-start gap-3 rounded-xl border border-warn-200 border-l-4 border-l-warn-500 bg-warn-50 px-4 py-3">
+              <AlertTriangle size={18} className="mt-0.5 shrink-0 text-warn-600" />
+              <div className="min-w-0 flex-1 text-sm text-warn-800">
+                <p className="font-medium">
+                  {fontesQueFalharam.length === 1
+                    ? "Uma fonte de dados não respondeu agora."
+                    : `${fontesQueFalharam.length} fontes de dados não responderam agora.`}
+                </p>
+                <p className="text-xs">
+                  Falta {fontesQueFalharam.join(", ")} — o que aparece nas telas está incompleto, e lista
+                  vazia aqui pode ser falta de resposta, não ausência de dado.{" "}
+                  <button type="button" className="underline hover:text-warn-900" onClick={recarregar}>
+                    Tentar de novo
+                  </button>
+                </p>
+              </div>
+            </div>
+          )}
           {children}
         </main>
 

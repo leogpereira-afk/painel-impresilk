@@ -229,35 +229,67 @@ Deno.serve(async (req: Request) => {
            mostraria a soma congelada e teria de admitir que nao conferiu --
            com a lista aberta na frente, e a hora em que uma O.S. cancelada
            precisa aparecer. */
-        const ids = String(url.searchParams.get("ids") ?? "")
-          .split("|").map((x) => x.trim()).filter(Boolean).slice(0, 1000);
+        /* O TETO DE 1.000 E DO SERVIDOR, nao do codigo. O PostgREST deste
+           projeto esta com `max_rows: 1000` (conferido na Management API):
+           `.limit(2000)` era cortado em 1.000 e o aviso `linhasNoTeto`, que
+           so disparava em 2.000, NUNCA disparava -- corte mudo com cara de
+           corte falante, que e pior que nao ter aviso. A saida e paginar:
+           trazer de 1.000 em 1.000 ate acabar, com um teto declarado. */
+        const PAGINA = 1000;
+        const TETO = 6000;
+        const buscarTudo = async (monta: (de: number, ate: number) => any) => {
+          const linhas: any[] = [];
+          for (let de = 0; de < TETO; de += PAGINA) {
+            const { data, error } = await monta(de, de + PAGINA - 1);
+            if (error) throw new Error(error.message);
+            const lote = data ?? [];
+            linhas.push(...lote);
+            if (lote.length < PAGINA) return { linhas, noTeto: false };
+          }
+          return { linhas, noTeto: true };
+        };
+
+        const idsTodos = String(url.searchParams.get("ids") ?? "")
+          .split("|").map((x) => x.trim()).filter(Boolean);
+        // O `.in()` tambem nao pode ficar sem limite: URL gigante estoura no
+        // proxy antes de chegar ao banco. 500 por vez, sem descartar nada.
+        const ids = idsTodos.slice(0, 5000);
         if (ids.length) {
-          const { data, error } = await sb.from("painel_ordens")
-            .select(colunas)
-            .in("id", ids);
-          if (error) throw new Error(error.message);
-          return json({ itens: data ?? [] });
+          const itens: any[] = [];
+          for (let i = 0; i < ids.length; i += 500) {
+            const fatia = ids.slice(i, i + 500);
+            const { linhas } = await buscarTudo((de, ate) =>
+              sb.from("painel_ordens").select(colunas).in("id", fatia).range(de, ate));
+            itens.push(...linhas);
+          }
+          return json({
+            itens,
+            // Quantos ids nem chegaram a ser perguntados: sem isto, a O.S. de
+            // numero 5.001 aparecia como "sumiu do ERP".
+            ...(idsTodos.length > ids.length ? { idsCortados: idsTodos.length - ids.length } : {}),
+          });
         }
 
         // Com clientes escolhidos: as O.S. DELES. Sem clientes: a lista de
         // nomes que casam com o termo, para a pessoa escolher.
         if (clientes.length) {
-          let q = sb.from("painel_ordens")
-            .select(colunas)
-            .in("cliente_chave", clientes)
-            .order("data", { ascending: false })
-            .limit(2000);
-          if (/^\d{4}-\d{2}-\d{2}$/.test(desde)) q = q.gte("data", desde);
-          if (/^\d{4}-\d{2}-\d{2}$/.test(ate)) q = q.lte("data", ate);
-          const { data, error } = await q;
-          if (error) throw new Error(error.message);
+          const { linhas, noTeto } = await buscarTudo((de, ate2) => {
+            let q = sb.from("painel_ordens")
+              .select(colunas)
+              .in("cliente_chave", clientes)
+              .order("data", { ascending: false })
+              .range(de, ate2);
+            if (/^\d{4}-\d{2}-\d{2}$/.test(desde)) q = q.gte("data", desde);
+            if (/^\d{4}-\d{2}-\d{2}$/.test(ate)) q = q.lte("data", ate);
+            return q;
+          });
           return json({
-            itens: data ?? [],
-            // Bater no teto de 2000 linhas tambem nao pode ser silencioso: e a
-            // diferenca entre "esses clientes nao tem mais O.S." e "ha mais e
-            // eu nao trouxe".
+            itens: linhas,
+            // Bater no teto (6.000 linhas, paginadas de 1.000) nao pode ser
+            // silencioso: e a diferenca entre "esses clientes nao tem mais
+            // O.S." e "ha mais e eu nao trouxe".
             ...(clientesCortados > 0 ? { clientesCortados } : {}),
-            ...((data ?? []).length >= 2000 ? { linhasNoTeto: true } : {}),
+            ...(noTeto ? { linhasNoTeto: true } : {}),
           });
         }
 
