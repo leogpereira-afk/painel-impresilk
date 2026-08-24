@@ -363,6 +363,23 @@ Deno.serve(async (req: Request) => {
         return json({ detalhe: data ?? null });
       }
 
+      /* O MES-CALENDARIO: os produtos de TODOS os janeiros (ou fevereiros...)
+         comparados por ano -- e a recorrencia diz se o comportamento se
+         repete. `semCampanha=1` tira as O.S. marcadas nas campanhas, senao
+         agosto/setembro seriam so material de eleicao. */
+      case "anosMesCal": {
+        const g = await exigirSessao(req, "campanhas");
+        if (g.resposta) return g.resposta;
+        const n = Number(url.searchParams.get("n"));
+        if (!Number.isInteger(n) || n < 1 || n > 12) return json({ erro: "Mes invalido (use 1 a 12)." }, 400);
+        const { data, error } = await sb.rpc("painel_anos_mes_cal", {
+          p_n: n,
+          p_sem_campanha: url.searchParams.get("semCampanha") === "1",
+        });
+        if (error) throw new Error(error.message);
+        return json({ detalhe: data ?? null });
+      }
+
       default:
         return json({ erro: `Modulo desconhecido: ${modulo || "(vazio)"}` }, 400);
     }

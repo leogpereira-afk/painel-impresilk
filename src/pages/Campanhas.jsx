@@ -34,7 +34,7 @@ import {
 import {
   lerCampanhas, mexerNaCampanha, removerCampanha, anexarNaCampanha, lerAnexoCampanha,
   buscarClientes, buscarOrdensDe, buscarOrdensPorId, lerCobertura,
-  lerAnosPanorama, lerAnosMes,
+  lerAnosPanorama, lerAnosMes, lerAnosMesCal,
 } from "../services/campanhas.js";
 import { fichaDaOS, ordensDosClientes, donoPorOS } from "../lib/calc/permutas.js";
 import {
@@ -42,7 +42,7 @@ import {
   anosDasCampanhas, totaisDoAno, comparativoPorAno, edicoesDoMesmoEvento, anosRepetidos,
   maiorComprador, comprasPorMes, produtosDaCampanha, categoriasDosProdutos, porProduto,
   membrosDoEvento, candidatasAVincular, comparativoDeEdicoes, eventosVinculados,
-  panoramaPorAno, epocaDoAno,
+  panoramaPorAno, epocaDoAno, semCampanhas, mesCalendarioComparado,
 } from "../lib/calc/campanhas.js";
 import { paraNumero, dataLonga } from "../lib/format.js";
 import { Card, PageTitle, Empty, CarregandoModulo, BotaoPDF, CabecalhoImpressao, AvisoDadoParado, Segmented } from "../components/ui.jsx";
@@ -1184,15 +1184,19 @@ function BarrasAno({ casas, aoClicar, ativo }) {
   );
 }
 
-function LegendaAnos({ temParcial }) {
+function LegendaAnos({ temParcial, semCampanha }) {
   return (
     <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-slate-500">
       <span className="inline-flex items-center gap-1.5">
         <span className="h-2.5 w-2.5 rounded-sm bg-brand-300" /> vendas do dia a dia
       </span>
-      <span className="inline-flex items-center gap-1.5">
-        <span className="h-2.5 w-2.5 rounded-sm bg-warn-400" /> vendas de campanha, acumuladas no mês
-      </span>
+      {/* No modo "sem as campanhas" a cor âmbar não PODE aparecer -- a
+          legenda prometendo-a faria quem olha procurar campanha escondida. */}
+      {!semCampanha && (
+        <span className="inline-flex items-center gap-1.5">
+          <span className="h-2.5 w-2.5 rounded-sm bg-warn-400" /> vendas de campanha, acumuladas no mês
+        </span>
+      )}
       {temParcial && <span>* mês pela metade</span>}
     </div>
   );
@@ -1209,9 +1213,10 @@ function casasDoAno(a) {
     parcial: m.parcial,
     titulo: m.fora
       ? `${rotuloMes(m.mes)}: o painel não tem este mês`
-      : `${rotuloMes(m.mes)}: ${dinheiro(m.valor)} em ${m.os} O.S. · ${m.clientes} ${m.clientes === 1 ? "cliente" : "clientes"}${
-          m.valorCampanha > 0 ? ` · ${dinheiro(m.valorCampanha)} de campanha` : ""
-        }${m.parcial ? " · mês pela metade" : ""}`,
+      : `${rotuloMes(m.mes)}: ${dinheiro(m.valor)} em ${m.os} O.S.${
+          m.clientes == null ? "" : ` · ${m.clientes} ${m.clientes === 1 ? "cliente" : "clientes"}`
+        }${m.valorCampanha > 0 ? ` · ${dinheiro(m.valorCampanha)} de campanha` : ""}${
+          m.parcial ? " · mês pela metade" : ""}`,
   }));
 }
 
@@ -1226,7 +1231,9 @@ function casasDaEpoca(epoca) {
     titulo:
       e.anos === 0
         ? `${MES_CURTO[e.n - 1]}: nenhum ano cheio ainda`
-        : `${MES_CURTO[e.n - 1]}: média de ${dinheiro(e.media)} · ~${e.mediaClientes} clientes · sobre ${e.anos} ${e.anos === 1 ? "ano" : "anos"}${
+        : `${MES_CURTO[e.n - 1]}: média de ${dinheiro(e.media)}${
+            e.mediaClientes == null ? "" : ` · ~${e.mediaClientes} clientes`
+          } · sobre ${e.anos} ${e.anos === 1 ? "ano" : "anos"}${
             e.mediaCampanha > 0 ? ` · ${dinheiro(e.mediaCampanha)} de campanha em média` : ""
           }`,
   }));
@@ -1235,7 +1242,7 @@ function casasDaEpoca(epoca) {
 /* O MÊS ABERTO: quem comprou e o que foi vendido, vindo do servidor só agora.
    A linha âmbar cumpre o pedido ao pé da letra: o acumulado de campanha do
    mês, para a leitura ser "esse pico foi eleição" sem abrir nada mais. */
-function MesDetalhe({ mes, detalhe, erro, aoFechar }) {
+function MesDetalhe({ mes, detalhe, erro, semCampanha, aoFechar }) {
   const pctCamp =
     detalhe && detalhe.total > 0 && detalhe.campanha?.valor > 0
       ? Math.round((detalhe.campanha.valor / detalhe.total) * 100)
@@ -1249,6 +1256,15 @@ function MesDetalhe({ mes, detalhe, erro, aoFechar }) {
             <span className="ml-2 font-sans text-xs font-normal text-slate-500">
               {dinheiro(detalhe.total)} em {detalhe.os} O.S. · {detalhe.clientesQtd}{" "}
               {detalhe.clientesQtd === 1 ? "cliente" : "clientes"}
+            </span>
+          )}
+          {/* O detalhe é sempre o mês INTEIRO (a caixa âmbar diz a fatia).
+              Com o seletor em "sem as campanhas", as barras acima mostram o
+              valor subtraído -- sem este selo, seriam duas réguas na mesma
+              seção a um clique de distância. */}
+          {semCampanha && (
+            <span className="ml-2 rounded bg-slate-200 px-1.5 py-px font-sans text-[10px] font-normal text-slate-600">
+              mês completo, com as campanhas
             </span>
           )}
         </span>
@@ -1350,6 +1366,157 @@ function MesDetalhe({ mes, detalhe, erro, aoFechar }) {
   );
 }
 
+const MES_LONGO = ["janeiro", "fevereiro", "março", "abril", "maio", "junho",
+                   "julho", "agosto", "setembro", "outubro", "novembro", "dezembro"];
+
+/* "TODOS OS JANEIROS COMPARADOS" (pedido do dono, 23/08): clicar num mês da
+   época abre o mês-calendário através dos anos -- valor ano a ano com a
+   variação contra o último ano cheio, e os produtos da época com a
+   distribuição por ano, para o comportamento parecido saltar sozinho. */
+function MesCalendario({ n, linhas, detalhe, erro, semCampanha, aoFechar }) {
+  const teto = Math.max(...linhas.map((l) => l.valor), 1);
+  const anosEixo = linhas.filter((l) => !l.fora).map((l) => l.ano);
+  /* A RECORRÊNCIA ("em X de Y") só conta ano CHEIO: o mês corrente pela
+     metade diria "quebrou a sequência" de um produto que fecha no fim do
+     mês. A coluna do ano parcial aparece, marcada -- dado visível, nunca
+     denominador. */
+  const anosCheios = linhas.filter((l) => !l.fora && !l.parcial).map((l) => l.ano);
+  const parciais = new Set(linhas.filter((l) => l.parcial).map((l) => l.ano));
+  const semItens = detalhe?.cobertura?.anosSemItens || {};
+  const sobraSemNome = detalhe?.cobertura
+    ? Math.round((detalhe.cobertura.brutoComItens - detalhe.cobertura.valorLido) * 100) / 100
+    : 0;
+  const temParcialAqui = linhas.some((l) => l.parcial);
+  return (
+    <div className="space-y-4 rounded-xl border border-slate-200 bg-slate-50/60 p-3">
+      <div className="flex items-center justify-between gap-3">
+        <span className="font-display text-sm font-medium capitalize text-slate-800">
+          {MES_LONGO[n - 1]}, ano a ano
+          {semCampanha && <span className="ml-2 font-sans text-xs font-normal text-slate-500">sem as campanhas</span>}
+        </span>
+        <button type="button" onClick={aoFechar} className="shrink-0 rounded-md p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600" aria-label="Fechar o mês comparado">
+          <X size={14} />
+        </button>
+      </div>
+
+      <div className="space-y-1">
+        {temParcialAqui && <div className="text-[11px] text-slate-400">* mês pela metade — fica fora das comparações.</div>}
+        {linhas.map((l) => (
+          <div key={l.ano} className="flex items-center gap-3 text-xs">
+            <span className="w-10 shrink-0 font-medium tabular-nums text-brand-600">{l.ano}</span>
+            {l.fora ? (
+              <span className="flex-1 text-slate-400">o painel não tem este mês</span>
+            ) : (
+              <>
+                <span className="h-3 min-w-0 flex-1 overflow-hidden rounded bg-slate-100">
+                  <span className="flex h-full" style={{ width: `${(l.valor / teto) * 100}%` }}>
+                    <span className="h-full bg-brand-300" style={{ width: l.valor > 0 ? `${((l.valor - l.valorCampanha) / l.valor) * 100}%` : 0 }} />
+                    {l.valorCampanha > 0 && <span className="h-full flex-1 bg-warn-400" />}
+                  </span>
+                </span>
+                <span className="w-24 shrink-0 text-right tabular-nums text-slate-800">
+                  {dinheiro(l.valor)}
+                  {l.parcial ? "*" : ""}
+                </span>
+                <span className="w-24 shrink-0 text-right">
+                  {/* `Variacao` diz "primeira edição" quando não há anterior --
+                      vocabulário de campanha; aqui o primeiro ano só não tem
+                      com quem comparar, e nada é a resposta honesta. */}
+                  {l.anoAnterior != null && (
+                    <Variacao variacao={l.variacao} anoAnterior={l.anoAnterior} diferenca={l.diferenca} />
+                  )}
+                </span>
+              </>
+            )}
+          </div>
+        ))}
+      </div>
+
+      <div className="space-y-1">
+        <div className="text-xs font-medium uppercase tracking-wide text-slate-400">
+          Os produtos desta época, ano a ano
+        </div>
+        {erro ? (
+          <div className="text-xs text-bad-600">{erro}</div>
+        ) : !detalhe ? (
+          <div className="text-xs text-slate-400">Comparando os {MES_LONGO[n - 1]}s no servidor…</div>
+        ) : !detalhe.produtos.length ? (
+          <div className="text-xs text-slate-400">Nenhum item com produto nomeado nesta época.</div>
+        ) : (
+          <>
+            <div className="space-y-1.5">
+              {detalhe.produtos.slice(0, 15).map((pr) => {
+                const tetoP = Math.max(...anosEixo.map((a2) => pr.anos[a2] || 0), 1);
+                return (
+                  <div key={`${pr.produto}|${pr.rotulo}`} className="flex items-end gap-3 text-xs">
+                    <span className="min-w-0 flex-1 self-center truncate text-slate-700" title={pr.produto !== pr.rotulo ? `${pr.produto} — ${pr.rotulo}` : pr.rotulo}>
+                      {pr.rotulo}
+                    </span>
+                    <span className="shrink-0 self-center whitespace-nowrap text-[10px] text-slate-400">
+                      em {anosCheios.filter((a2) => (pr.anos[a2] || 0) > 0).length} de {anosCheios.length}
+                    </span>
+                    {/* A recorrência DESENHADA: uma coluna por ano, altura pelo
+                        próprio produto -- buraco visível é ano em que ele não
+                        vendeu nesta época. */}
+                    <span className="flex shrink-0 items-end gap-px">
+                      {anosEixo.map((a2) => {
+                        const v = pr.anos[a2] || 0;
+                        /* Zero só é "não vendeu" quando o ano está inteiro E
+                           com os itens carregados -- senão o painel não sabe. */
+                        const descoberto = v <= 0 && semItens[a2] > 0;
+                        const marca = parciais.has(a2) ? " · mês pela metade" : "";
+                        return (
+                          <span
+                            key={a2}
+                            className={`w-2.5 rounded-sm ${v > 0 ? "bg-brand-400" : descoberto ? "bg-warn-200" : "bg-slate-200"}`}
+                            style={{ height: v > 0 ? `${Math.max(3, (v / tetoP) * 24)}px` : "2px" }}
+                            title={`${MES_CURTO[n - 1]}/${a2.slice(2)}: ${
+                              v > 0 ? dinheiro(v)
+                              : descoberto ? `${semItens[a2]} O.S. sem itens carregados — o painel não sabe`
+                              : parciais.has(a2) ? "nada até agora"
+                              : "não vendeu"
+                            }${v > 0 ? marca : ""}`}
+                          />
+                        );
+                      })}
+                    </span>
+                    <span className="w-20 shrink-0 self-center text-right tabular-nums text-slate-500">{dinheiro(pr.total)}</span>
+                  </div>
+                );
+              })}
+            </div>
+            {detalhe.produtosQtd > Math.min(detalhe.produtos.length, 15) && (
+              <div className="text-[11px] text-slate-400">
+                {/* O corte fala, medido contra o que a TELA mostra -- não
+                    contra um 15 fixo que calaria se o servidor mandasse menos. */}
+                e mais {detalhe.produtosQtd - Math.min(detalhe.produtos.length, 15)} produtos nesta época,
+                somando {dinheiro(detalhe.produtos.slice(15).reduce((t, x) => t + x.total, 0) + detalhe.produtosForaValor)}.
+              </div>
+            )}
+            {Object.keys(semItens).length > 0 && (
+              <div className="text-[11px] text-warn-800">
+                {Object.entries(semItens)
+                  .map(([a2, q]) => `${q} O.S. de ${MES_CURTO[n - 1]}/${a2.slice(2)}`)
+                  .join(", ")}{" "}
+                sem itens carregados do ERP — o ranking não as vê.
+              </div>
+            )}
+            {sobraSemNome > 0.05 && (
+              <div className="text-[11px] text-slate-400">
+                {dinheiro(sobraSemNome)} vieram do ERP sem produto nomeado e ficam fora do ranking.
+              </div>
+            )}
+            <div className="text-[11px] text-slate-400">
+              Os valores dos produtos são brutos, antes do desconto — as linhas dos anos, acima, são líquidas.
+              Cada linha de colunas usa a escala do próprio produto; para comparar produtos, leia os totais.
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function Campanhas() {
   /* O MESMO frescor do chip global: as O.S. daqui vêm da tabela alimentada
      pela mesma carga do cache. Com a carga parada 30h, o saldo apresentado ao
@@ -1415,6 +1582,21 @@ export default function Campanhas() {
   const [erroPanorama, setErroPanorama] = useState("");
   const [mesAberto, setMesAberto] = useState(null);
   const [detalhesMes, setDetalhesMes] = useState({});
+  /* O MODO DA ABA (pedido do dono, 23/08): "um seletor para ver completo os
+     valores e sem as campanhas" -- o negócio de base sem o efeito eleição.
+     Escolha persistida, como toda preferência de análise. */
+  const [modoAnos, setModoAnos] = useState(() => {
+    try { return localStorage.getItem("campanhas_anos_modo") === "sem" ? "sem" : "tudo"; } catch { return "tudo"; }
+  });
+  const trocarModoAnos = useCallback((m) => {
+    setModoAnos(m);
+    try { localStorage.setItem("campanhas_anos_modo", m); } catch { /* aba anônima */ }
+  }, []);
+  /* O mês-calendário aberto ("todos os janeiros") e os produtos dele, em
+     cache POR mês+modo -- trocar o seletor rebusca sem apagar o que já veio. */
+  const [mesCalAberto, setMesCalAberto] = useState(null);
+  const [mesCalCache, setMesCalCache] = useState({});
+  const [errosMesCal, setErrosMesCal] = useState({});
   /* Erro POR MES, como o cache. Uma string unica vazava: o erro de mai/2023
      ficava de pe ao reabrir abr/2023 (cacheado, o efeito retorna cedo) e
      cobria dados perfeitamente carregados. */
@@ -1448,15 +1630,23 @@ export default function Campanhas() {
   }, [abaLista, panorama, erroPanorama]);
 
   useEffect(() => {
-    if (!mesAberto || detalhesMes[mesAberto]) return;
-    let vivo = true;
+    if (!mesAberto || mesAberto in detalhesMes) return;
     const mes = mesAberto;
     setErrosMes((x) => (x[mes] ? { ...x, [mes]: "" } : x));
     lerAnosMes(mes)
-      .then((d) => { if (vivo) setDetalhesMes((x) => ({ ...x, [mes]: d })); })
-      .catch((e) => { if (vivo) setErrosMes((x) => ({ ...x, [mes]: e.message })); });
-    return () => { vivo = false; };
+      .then((d) => setDetalhesMes((x) => ({ ...x, [mes]: d })))
+      .catch((e) => setErrosMes((x) => ({ ...x, [mes]: e.message })));
   }, [mesAberto, detalhesMes]);
+
+  useEffect(() => {
+    if (!mesCalAberto) return;
+    const chave = `${mesCalAberto}|${modoAnos}`;
+    if (chave in mesCalCache) return;
+    setErrosMesCal((x) => (x[chave] ? { ...x, [chave]: "" } : x));
+    lerAnosMesCal(mesCalAberto, modoAnos === "sem")
+      .then((d) => setMesCalCache((x) => ({ ...x, [chave]: d })))
+      .catch((e) => setErrosMesCal((x) => ({ ...x, [chave]: e.message })));
+  }, [mesCalAberto, modoAnos, mesCalCache]);
 
   const [gruposAbertos, setGruposAbertos] = useState({});
   const alternarGrupo = useCallback((k) => setGruposAbertos((g) => ({ ...g, [k]: !g[k] })), []);
@@ -1613,10 +1803,20 @@ export default function Campanhas() {
       : []),
     [panorama],
   );
-  const epoca = useMemo(() => epocaDoAno(anosAuto), [anosAuto]);
+  /* O seletor da aba: "tudo" ou o negócio de base sem as campanhas. A conta
+     é pura e roda sobre o MESMO panorama -- nada volta ao servidor. */
+  const anosVistos = useMemo(
+    () => (modoAnos === "sem" ? semCampanhas(anosAuto) : anosAuto),
+    [anosAuto, modoAnos],
+  );
+  const epoca = useMemo(() => epocaDoAno(anosVistos), [anosVistos]);
   const picoEpoca = useMemo(
     () => epoca.filter((e) => e.anos > 0).reduce((pi, e) => (pi && pi.media >= e.media ? pi : e), null),
     [epoca],
+  );
+  const linhasMesCal = useMemo(
+    () => (mesCalAberto ? mesCalendarioComparado(anosVistos, mesCalAberto) : []),
+    [anosVistos, mesCalAberto],
   );
   const semAno = totalGeral.semAno;
   /* A O.S. REPETIDA INFLA OS DOIS NÚMEROS, e o controle só olhava o recorte.
@@ -1691,6 +1891,7 @@ export default function Campanhas() {
            desacordo. O efeito rebusca sozinho na próxima visita. */
         setPanorama(null);
         setDetalhesMes({});
+        setMesCalCache({});
         // Devolve o REGISTRO gravado, não um "true": "não deu erro" nunca foi
         // prova de que gravou.
         return novo?.[id] ?? null;
@@ -1864,6 +2065,7 @@ export default function Campanhas() {
       await removerCampanha(id);
       setPanorama(null); // a fatia âmbar da aba Anos inclui as O.S. desta campanha
       setDetalhesMes({});
+      setMesCalCache({});
       setMapa((m) => {
         const novo = { ...(m || {}) };
         delete novo[id];
@@ -2901,8 +3103,11 @@ export default function Campanhas() {
           <div className="rounded-lg bg-brand-50 px-3 py-2 text-xs text-brand-800">
             Automática: soma <span className="font-medium">todas</span> as O.S. do painel
             {panorama?.cobertura?.desde ? ` desde ${dataLonga(panorama.cobertura.desde)}` : ""} — aqui nada
-            precisa ser marcado. A fatia âmbar é o acumulado das vendas marcadas nas campanhas. Toque num mês
-            para ver quem comprou e o que foi vendido.
+            precisa ser marcado.{" "}
+            {modoAnos === "sem"
+              ? "As vendas marcadas nas campanhas estão FORA desta visão — é o negócio de base."
+              : "A fatia âmbar é o acumulado das vendas marcadas nas campanhas."}{" "}
+            Toque num mês para ver quem comprou e o que foi vendido.
           </div>
           {/* CARGA ATRASADA NAO PODE PASSAR POR "VENDEU ZERO": se a última
               carga parou dias atrás, os dias seguintes não existem na base e
@@ -2913,6 +3118,17 @@ export default function Campanhas() {
               ainda não trouxe os dias seguintes, e eles aparecem apagados, não como venda zero.
             </div>
           )}
+
+          {/* O SELETOR DO MODO: o pico de eleição esconde o negócio de base;
+              tirar as campanhas da conta mostra o que a casa vende sozinha. */}
+          <Segmented
+            opcoes={[
+              { valor: "tudo", rotulo: "Valores completos" },
+              { valor: "sem", rotulo: "Sem as campanhas" },
+            ]}
+            valor={modoAnos}
+            onChange={trocarModoAnos}
+          />
 
           {erroPanorama ? (
             <Card className="space-y-2 py-6 text-center">
@@ -2936,7 +3152,11 @@ export default function Campanhas() {
                 aberta={abertasAnos.epoca !== false}
                 aoAlternar={alternarAnos}
               >
-                <BarrasAno casas={casasDaEpoca(epoca)} />
+                <BarrasAno
+                  casas={casasDaEpoca(epoca)}
+                  aoClicar={(chave) => setMesCalAberto((atual) => (atual === Number(chave) ? null : Number(chave)))}
+                  ativo={mesCalAberto == null ? null : String(mesCalAberto)}
+                />
                 {picoEpoca && (
                   <div className="text-xs text-slate-500">
                     Época mais forte: <span className="font-medium text-slate-700">{MES_CURTO[picoEpoca.n - 1]}</span>, com{" "}
@@ -2944,10 +3164,23 @@ export default function Campanhas() {
                     {picoEpoca.mediaCampanha > 0 && <> — {dinheiro(picoEpoca.mediaCampanha)} disso é campanha</>}.
                   </div>
                 )}
-                <LegendaAnos temParcial={false} />
+                <div className="text-[11px] text-slate-400">
+                  Toque num mês para comparar todos os janeiros (ou fevereiros…) entre si, com os produtos da época.
+                </div>
+                <LegendaAnos temParcial={false} semCampanha={modoAnos === "sem"} />
+                {mesCalAberto != null && (
+                  <MesCalendario
+                    n={mesCalAberto}
+                    linhas={linhasMesCal}
+                    detalhe={mesCalCache[`${mesCalAberto}|${modoAnos}`]}
+                    erro={errosMesCal[`${mesCalAberto}|${modoAnos}`]}
+                    semCampanha={modoAnos === "sem"}
+                    aoFechar={() => setMesCalAberto(null)}
+                  />
+                )}
               </Secao>
 
-              {anosAuto.map((a) => {
+              {anosVistos.map((a) => {
                 const idSec = `a${a.ano}`;
                 const pctCamp = a.valor > 0 && a.valorCampanha > 0 ? Math.round((a.valorCampanha / a.valor) * 100) : 0;
                 const temParcial = a.meses.some((m) => m.parcial && !m.fora);
@@ -2956,11 +3189,9 @@ export default function Campanhas() {
                     key={a.ano}
                     id={idSec}
                     titulo={a.ano}
-                    sub={`${dinheiro(a.valor)} em ${a.os} O.S. · ${
-                      a.clientes == null ? "?" : a.clientes
-                    } clientes diferentes${
-                      a.valorCampanha > 0 ? ` · ${dinheiro(a.valorCampanha)} de campanha (${pctCamp}%)` : ""
-                    }`}
+                    sub={`${dinheiro(a.valor)} em ${a.os} O.S.${
+                      a.clientes == null ? "" : ` · ${a.clientes} clientes diferentes`
+                    }${a.valorCampanha > 0 ? ` · ${dinheiro(a.valorCampanha)} de campanha (${pctCamp}%)` : ""}`}
                     aberta={abertasAnos[idSec] !== false}
                     aoAlternar={alternarAnos}
                   >
@@ -2972,12 +3203,13 @@ export default function Campanhas() {
                         {a.pico.valorCampanha > 0 && <> — {dinheiro(a.pico.valorCampanha)} disso foi campanha</>}
                       </div>
                     )}
-                    <LegendaAnos temParcial={temParcial} />
+                    <LegendaAnos temParcial={temParcial} semCampanha={modoAnos === "sem"} />
                     {mesAberto?.startsWith(`${a.ano}-`) && (
                       <MesDetalhe
                         mes={mesAberto}
                         detalhe={detalhesMes[mesAberto]}
                         erro={errosMes[mesAberto]}
+                        semCampanha={modoAnos === "sem"}
                         aoFechar={() => setMesAberto(null)}
                       />
                     )}

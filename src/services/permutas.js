@@ -106,6 +106,12 @@ export const lerAnosPanorama = () =>
 export const lerAnosMes = (mes) =>
   pedirDados("anosMes", { mes }).then((r) => r.detalhe || null);
 
+/* Os produtos de TODOS os janeiros (fevereiros...) comparados por ano --
+   a recorrência diz se o comportamento da época se repete. */
+export const lerAnosMesCal = (n, semCampanha) =>
+  pedirDados("anosMesCal", { n: String(n), ...(semCampanha ? { semCampanha: "1" } : {}) })
+    .then((r) => r.detalhe || null);
+
 /* Até onde o painel TEM O.S. guardada. A tela precisa disto para não deixar
    "esse cliente não comprou nesse período" e "o painel ainda não foi buscar
    esse período no ERP" aparecerem iguais — as duas dão lista vazia, e só uma

@@ -749,7 +749,7 @@ test("a aba Análise agrupa por evento vinculado, com a evolução dentro de cad
 
 /* ------------------------------------------------------------- a aba "Anos" */
 
-import { panoramaPorAno, epocaDoAno } from "./campanhas.js";
+import { panoramaPorAno, epocaDoAno, semCampanhas, mesCalendarioComparado } from "./campanhas.js";
 
 const mesP = (mes, valor, extra = {}) =>
   ({ mes, valor, os: 1, clientes: 1, valorCampanha: 0, osCampanha: 0, ...extra });
@@ -862,4 +862,43 @@ test("varredura começando dia 01: janeiro sem venda até dia 14 é zero DE VERD
   assert.equal(a.meses[0].fora, false, "janeiro foi varrido — zero é resultado");
   assert.equal(a.meses[0].parcial, false);
   assert.equal(a.meses[1].parcial, false, "fevereiro também está inteiro na varredura");
+});
+
+test("semCampanhas: subtrai a fatia, recalcula o pico e não inventa distinct de clientes", () => {
+  const anos = panoramaPorAno(
+    [mesP("2024-07", 300), mesP("2024-09", 500, { valorCampanha: 400, osCampanha: 1, os: 3, clientes: 9 })],
+    [{ ano: "2024", valor: 800, os: 4, clientes: 10, valorCampanha: 400, osCampanha: 1 }],
+    { desde: "2020-01-01", ate: "2024-12-31", hoje: "2026-08-23" },
+  );
+  const sem = semCampanhas(anos);
+  const a = sem[0];
+  assert.equal(a.valor, 400, "800 − 400 de campanha");
+  assert.equal(a.os, 3);
+  assert.equal(a.clientes, null, "o distinct sem campanha não desce — não se afirma");
+  assert.equal(a.meses[8].valor, 100, "setembro: 500 − 400");
+  assert.equal(a.pico.mes, "2024-07", "sem a eleição, julho vira o maior mês");
+  assert.equal(anos[0].pico.mes, "2024-09", "e o panorama original fica intacto");
+});
+
+test("mesCalendarioComparado: variação contra o último ano CHEIO; fora e parcial não servem de base", () => {
+  // Todo ano tem venda em ALGUM mês (senão o ano nem existe no panorama);
+  // o que varia é janeiro: fora em 2020, zerado de verdade em 2023-2025.
+  const anos = panoramaPorAno(
+    [mesP("2020-03", 80), mesP("2021-01", 100), mesP("2022-01", 150),
+     mesP("2023-06", 50), mesP("2024-06", 50), mesP("2025-06", 50), mesP("2026-01", 300)],
+    [],
+    { desde: "2020-02-01", ate: "2026-08-23", hoje: "2026-08-23" },
+  );
+  const jan = mesCalendarioComparado(anos, 1);
+  const l2021 = jan.find((l) => l.ano === "2021");
+  const l2022 = jan.find((l) => l.ano === "2022");
+  const l2026 = jan.find((l) => l.ano === "2026");
+  assert.equal(jan.find((l) => l.ano === "2020").fora, true, "jan/2020 está fora da régua");
+  assert.equal(l2021.variacao, null, "2021 não compara com um ano que o painel não tem");
+  assert.equal(Math.round(l2022.variacao * 100), 50, "150 vs 100");
+  assert.equal(l2022.anoAnterior, "2021");
+  // jan/2023 vendeu ZERO de verdade: vira a base seguinte — zero é resultado
+  assert.equal(l2026.anoAnterior, "2025");
+  assert.equal(l2026.variacao, null, "base 0 não fabrica porcentagem infinita");
+  assert.equal(l2026.diferenca, 300, "mas a diferença em R$ fala");
 });

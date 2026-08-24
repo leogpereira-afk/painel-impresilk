@@ -807,13 +807,78 @@ export function epocaDoAno(anosPanorama) {
       .map((a) => a.meses[n - 1])
       .filter((m) => m && !m.fora && !m.parcial);
     const soma = (c) => cheios.reduce((t, m) => t + m[c], 0);
+    // No modo sem campanhas o distinct de clientes não existe (vem null);
+    // 0 + null é 0 em JS e a média afirmaria "0 clientes" com cara de conta.
+    const temClientes = cheios.length > 0 && cheios.every((m) => m.clientes != null);
     casas.push({
       n,
       anos: cheios.length,
       media: cheios.length ? cem(soma("valor") / cheios.length) : 0,
       mediaCampanha: cheios.length ? cem(soma("valorCampanha") / cheios.length) : 0,
-      mediaClientes: cheios.length ? Math.round(soma("clientes") / cheios.length) : 0,
+      mediaClientes: temClientes ? Math.round(soma("clientes") / cheios.length) : null,
     });
   }
   return casas;
+}
+
+/* O MODO "SEM CAMPANHAS": o negócio de base, tirando o efeito eleição.
+   Recebe o resultado de panoramaPorAno e devolve a MESMA forma com a fatia
+   subtraída -- pico recalculado, porque setembro deixa de ser o maior mês
+   quando a eleição sai da conta. `clientes` vira null nos dois níveis: o
+   distinct sem os compradores de campanha não desce do servidor, e afirmar
+   a contagem cheia num total desfalcado seria mentir com número exato. */
+export function semCampanhas(anosPanorama) {
+  const cem = (n) => Math.round(n * 100) / 100;
+  return (anosPanorama || []).map((a) => {
+    const meses = a.meses.map((m) => ({
+      ...m,
+      valor: cem(m.valor - m.valorCampanha),
+      os: m.os - m.osCampanha,
+      clientes: null,
+      valorCampanha: 0,
+      osCampanha: 0,
+    }));
+    const comVenda = meses.filter((m) => m.valor > 0);
+    return {
+      ...a,
+      meses,
+      valor: cem(a.valor - a.valorCampanha),
+      os: a.os - a.osCampanha,
+      clientes: null,
+      valorCampanha: 0,
+      osCampanha: 0,
+      pico: comVenda.length
+        ? comVenda.reduce((p, m) => (m.valor > p.valor ? m : p), comVenda[0])
+        : null,
+    };
+  });
+}
+
+/* "TODOS OS JANEIROS COMPARADOS": o mês-calendário `n` (1..12) através dos
+   anos, cada linha contra o último ano COMPARÁVEL antes dela -- fora e
+   parcial não servem de base (comparar com meio mês inventaria crescimento),
+   igual ao comparativo de campanhas que pula ano sem campanha. */
+export function mesCalendarioComparado(anosPanorama, n) {
+  const linhas = [];
+  let base = null; // último ano cheio -- a régua da variação
+  for (const a of anosPanorama || []) {
+    const m = a.meses[n - 1];
+    if (!m) continue;
+    const cheio = !m.fora && !m.parcial;
+    const linha = {
+      ano: a.ano, mes: m.mes,
+      valor: m.valor, os: m.os, clientes: m.clientes,
+      valorCampanha: m.valorCampanha, osCampanha: m.osCampanha,
+      fora: m.fora, parcial: m.parcial,
+      variacao: null, diferenca: null, anoAnterior: null,
+    };
+    if (cheio && base) {
+      linha.anoAnterior = base.ano;
+      linha.diferenca = Math.round((m.valor - base.valor) * 100) / 100;
+      linha.variacao = base.valor > 0 ? (m.valor - base.valor) / base.valor : null;
+    }
+    if (cheio) base = { ano: a.ano, valor: m.valor };
+    linhas.push(linha);
+  }
+  return linhas;
 }
