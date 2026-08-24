@@ -18,8 +18,9 @@ import {
   buscarClientes,
 } from "../services/campanhas.js";
 import { mesesPorAno } from "../lib/calc/campanhas.js";
-import { Card, Empty } from "./ui.jsx";
+import { Card, Empty, BotaoPDF, CabecalhoImpressao } from "./ui.jsx";
 import { dinheiro, dataDaOS, hojeISO, novoId, Aviso, Secao } from "./trocas.jsx";
+import { dataLonga } from "../lib/format.js";
 import { MES_CURTO, rotuloMes, mil, BarrasAno } from "./barras.jsx";
 
 /* Persistência das seções por aba, no padrão da casa: aberto por padrão, e só
@@ -487,17 +488,23 @@ export function AbaClientes() {
     );
   }
 
-  const lista = (d?.lista || []).filter((c) => !classeVista || c.classe === classeVista);
+  /* A POSIÇÃO É DA CURVA INTEIRA, marcada antes do filtro de classe: quem
+     filtra a classe B vê "99º", não um ranking que recomeça do 1. */
+  const lista = (d?.lista || [])
+    .map((c, i) => ({ ...c, posicao: i + 1 }))
+    .filter((c) => !classeVista || c.classe === classeVista);
   const det = aberto ? detalhes[aberto] : null;
 
   return (
     <>
-      <div className="rounded-lg bg-brand-50 px-3 py-2 text-xs text-brand-800">
+      <div className="sem-impressao rounded-lg bg-brand-50 px-3 py-2 text-xs text-brand-800">
         Automática: todos os compradores do recorte, na curva A e B — A são os que somam 80% do valor,
         B até 95%, C o resto. Toque num cliente para o comportamento dele; grupos de CNPJ contam juntos.
       </div>
       <Aviso aviso={avisoGrupo} aoFechar={() => setAvisoGrupo(null)} />
-      <ChipsAno anos={anosDisponiveis} valor={ano} aoEscolher={(a) => { setAno(a); setAberto(null); setClasseVista(""); }} />
+      <div className="sem-impressao">
+        <ChipsAno anos={anosDisponiveis} valor={ano} aoEscolher={(a) => { setAno(a); setAberto(null); setClasseVista(""); }} />
+      </div>
 
       {!d ? (
         <Card className="py-8 text-center text-sm text-slate-400">Classificando os clientes no servidor…</Card>
@@ -515,18 +522,31 @@ export function AbaClientes() {
             aberta={secaoAberta("classes")}
             aoAlternar={alternarSecao}
             acao={
-              !selecionando ? (
-                <button
-                  type="button"
-                  className="btn-ghost"
-                  title="Escolher clientes desta lista e juntá-los num grupo (o mesmo dono com vários CNPJs)"
-                  onClick={() => { setSelecionando(true); setSelecionados({}); setNomeRapido(""); }}
-                >
-                  <Link2 size={14} /> Vincular CNPJs
-                </button>
-              ) : null
+              <div className="flex items-center gap-1">
+                <BotaoPDF titulo="Imprime a curva ABC do recorte que está na tela" />
+                {!selecionando && (
+                  <button
+                    type="button"
+                    className="btn-ghost"
+                    title="Escolher clientes desta lista e juntá-los num grupo (o mesmo dono com vários CNPJs)"
+                    onClick={() => { setSelecionando(true); setSelecionados({}); setNomeRapido(""); }}
+                  >
+                    <Link2 size={14} /> Vincular CNPJs
+                  </button>
+                )}
+              </div>
             }
           >
+            {/* O PAPEL SAI COM O RECORTE CARIMBADO: sem isto o PDF circula
+                sem dizer de que ano é, nem quando foi emitido. */}
+            <CabecalhoImpressao
+              titulo={`Impresilk — curva ABC de clientes${ano ? ` · ${ano}` : " · todos os anos"}`}
+              linhas={[
+                `Emitido em ${dataLonga(hojeISO())}`,
+                `${(d.clientesQtd ?? 0).toLocaleString("pt-BR")} clientes no recorte · ${dinheiro(d.total)}`,
+                "A = quem soma 80% do valor · B até 95% · C o resto. Grupos de CNPJ contam como um cliente.",
+              ]}
+            />
             {selecionando && (
               <div className="space-y-2 rounded-xl border border-brand-300 bg-brand-50/50 p-3">
                 <div className="text-xs text-brand-800">
@@ -640,6 +660,9 @@ export function AbaClientes() {
                       {selecionados[c.chave] ? "✓" : ""}
                     </span>
                   )}
+                  <span className="w-9 shrink-0 self-center text-right font-display text-[10px] font-medium tabular-nums text-slate-400">
+                    {c.posicao}º
+                  </span>
                   <span className={`w-5 shrink-0 rounded text-center font-display text-[10px] font-semibold ${TOM_CLASSE[c.classe]}`}>
                     {c.classe}
                   </span>
@@ -731,6 +754,7 @@ export function AbaClientes() {
       )}
 
       <Secao
+        semImpressao
         id="grupos"
         titulo="Grupos de compra"
         sub="O mesmo dono comprando por vários CNPJs vira UM cliente em todas as análises."
