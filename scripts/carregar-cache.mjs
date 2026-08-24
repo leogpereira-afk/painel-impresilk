@@ -210,10 +210,19 @@ async function janelaDe7Dias() {
   const mapaOS = new Map((os.valor ?? []).map((o) => [o.id, o]));
   const osCanceladas = new Set();
 
+  /* O QUE O ERP RESPONDEU, filtro a filtro. "Sucesso" com zero linhas e uma
+     resposta valida num domingo parado -- e o sintoma de endpoint quebrado num
+     dia de semana com pedido novo na fabrica. Sem este registro as duas coisas
+     saem iguais no status, e ja se passaram dias assim (24/08: O.S. paradas em
+     quinta-feira com a rodada dizendo ok). Vai junto no status para o banco
+     responder de que lado esta o defeito sem precisar de acesso ao ERP. */
+  const janelaErp = { orc: {}, os: {}, osMaisNova: "" };
+
   // Tres filtros de data: um orcamento aprovado hoje foi CADASTRADO ha meses e
   // nao apareceria numa janela so de cadastro.
   for (const filtro of ["CADASTRO", "APROVACAO", "CANCELAMENTO"]) {
     const brutos = await mubiGetTudo("orcamento", { ...janela, filtrodata: filtro }, 100);
+    janelaErp.orc[filtro] = brutos.length;
     brutos.map(normOrcamento).forEach((o) => mapaOrc.set(o.id, o));
   }
 
@@ -279,8 +288,12 @@ async function janelaDe7Dias() {
   try {
     for (const filtro of ["CADASTRO", "APROVACAO", "CANCELAMENTO"]) {
       const brutos = await mubiGetTudo("ordem-servico", { ...janela, filtrodata: filtro }, 100);
+      janelaErp.os[filtro] = brutos.length;
       for (const [i, bruto] of brutos.entries()) {
         const o = normOS(bruto, i, categoriaPorNome);
+        // A data mais nova que o ERP mandou NA JANELA -- antes de qualquer
+        // filtro nosso. Se ela ficar dias atras do relogio, o atraso e do ERP.
+        if (o.data > janelaErp.osMaisNova) janelaErp.osMaisNova = o.data;
         /* A cancelada sai do CACHE aqui -- e o id fica guardado para sair da
            TABELA painel_ordens tambem. Sem isso, a O.S. cancelada hoje
            continuava na tabela (e ABATENDO credito de permuta) por ate 7 dias,
@@ -291,16 +304,22 @@ async function janelaDe7Dias() {
     }
   } catch (e) {
     console.warn("ordens de servico falharam:", e?.message || e);
-    return { orcamentos: [...mapaOrc.values()], ordens: null, falhas: ["ordens"] };
+    return { orcamentos: [...mapaOrc.values()], ordens: null, falhas: ["ordens"], janelaErp };
   }
 
   // `falhas` sobe junto: sem isso a rodada terminava em "sucesso" limpo, e nada
   // na tela nem no log dizia que o painel estava rodando com a classificacao
   // velha. Foi assim que quatro dias passaram sem ninguem ver.
+  console.log(
+    `   janela do ERP: orc ${JSON.stringify(janelaErp.orc)} | os ${JSON.stringify(janelaErp.os)}` +
+    ` | O.S. mais nova na janela: ${janelaErp.osMaisNova || "(nenhuma veio)"}`
+  );
+
   return {
     orcamentos: [...mapaOrc.values()],
     ordens: [...mapaOS.values()],
     osCanceladas: [...osCanceladas],
+    janelaErp,
     ...(catalogoOk ? {} : { falhas: ["catalogo-do-erp-fora"] }),
   };
 }
@@ -534,6 +553,10 @@ async function main() {
     // ok:true porque o cache ESTA utilizavel -- mas o painel precisa saber.
     fontesQueFalharam: falhas,
     parcial: falhas.length > 0,
+    // O que o ERP respondeu na janela de 7 dias (so no incremental): linhas
+    // por filtro e a O.S. mais nova. E o diario que separa "o ERP nao mandou"
+    // de "a carga descartou" sem precisar das credenciais do ERP na mao.
+    ...(pesados.janelaErp ? { janelaErp: pesados.janelaErp } : {}),
   });
 
   console.log(`pronto em ${Math.round((Date.now() - inicio) / 1000)}s`);
