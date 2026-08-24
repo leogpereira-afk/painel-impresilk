@@ -337,6 +337,9 @@ export function AbaVendedores() {
 
 /* ================================================================= CLIENTES */
 const TOM_CLASSE = {
+  /* A+ é o topo do topo (pedido do dono: a classe A ia de R$ 2 milhões a
+     R$ 35 mil na mesma caixa) — o tom mais forte é dele. */
+  "A+": "bg-brand-600 text-white",
   A: "bg-brand-100 text-brand-800",
   B: "bg-warn-100 text-warn-800",
   C: "bg-slate-100 text-slate-500",
@@ -498,8 +501,9 @@ export function AbaClientes() {
   return (
     <>
       <div className="sem-impressao rounded-lg bg-brand-50 px-3 py-2 text-xs text-brand-800">
-        Automática: todos os compradores do recorte, na curva A e B — A são os que somam 80% do valor,
-        B até 95%, C o resto. Toque num cliente para o comportamento dele; grupos de CNPJ contam juntos.
+        Automática: todos os compradores do recorte, classificados pelo valor — A+ são os que somam os
+        primeiros 30%, A até 80%, B até 95%, C o resto. Toque num cliente para o comportamento dele;
+        grupos de CNPJ contam juntos.
       </div>
       <Aviso aviso={avisoGrupo} aoFechar={() => setAvisoGrupo(null)} />
       <div className="sem-impressao">
@@ -544,7 +548,7 @@ export function AbaClientes() {
               linhas={[
                 `Emitido em ${dataLonga(hojeISO())}`,
                 `${(d.clientesQtd ?? 0).toLocaleString("pt-BR")} clientes no recorte · ${dinheiro(d.total)}`,
-                "A = quem soma 80% do valor · B até 95% · C o resto. Grupos de CNPJ contam como um cliente.",
+                "A+ = quem soma os primeiros 30% do valor · A até 80% · B até 95% · C o resto. Grupos de CNPJ contam como um cliente.",
               ]}
             />
             {selecionando && (
@@ -596,7 +600,7 @@ export function AbaClientes() {
                 </div>
               </div>
             )}
-            <div className="grid gap-2 sm:grid-cols-3">
+            <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
               {(d.classes || []).map((c) => (
                 <button
                   key={c.classe}
@@ -613,7 +617,13 @@ export function AbaClientes() {
                   <span className="mt-1 block font-display text-lg font-semibold tabular-nums text-slate-900">{dinheiro(c.valor)}</span>
                   <span className="block text-xs text-slate-500">
                     {c.clientes.toLocaleString("pt-BR")} {c.clientes === 1 ? "cliente" : "clientes"}
+                    {c.shareClasse != null && ` · ${Math.round(c.shareClasse * 100)}% do valor`}
                   </span>
+                  {/* O CORTE EM REAIS deste recorte: a régua é o share (30/80/95),
+                      mas quem olha pergunta "a partir de quanto entra?". */}
+                  {c.corte != null && c.classe !== "C" && (
+                    <span className="block text-[11px] text-slate-400">entra quem passa de {dinheiro(c.corte)}</span>
+                  )}
                 </button>
               ))}
             </div>
@@ -663,7 +673,7 @@ export function AbaClientes() {
                   <span className="w-9 shrink-0 self-center text-right font-display text-[10px] font-medium tabular-nums text-slate-400">
                     {c.posicao}º
                   </span>
-                  <span className={`w-5 shrink-0 rounded text-center font-display text-[10px] font-semibold ${TOM_CLASSE[c.classe]}`}>
+                  <span className={`w-7 shrink-0 rounded text-center font-display text-[10px] font-semibold ${TOM_CLASSE[c.classe]}`}>
                     {c.classe}
                   </span>
                   <span className="min-w-0 flex-1 truncate text-slate-700">

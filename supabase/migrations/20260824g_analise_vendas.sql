@@ -141,7 +141,16 @@ $$;
 -- ---------------------------------------------------------------- clientes
 -- A curva ABC do recorte (um ano, ou tudo), com grupo aplicado ANTES do
 -- ranking: o grupo que compra por tres CNPJs sobe para a classe certa.
--- Regua classica, dita na tela: A ate 80% do valor acumulado, B ate 95%.
+-- Regua, dita na tela: A+ ate 30% do valor acumulado, A ate 80%, B ate 95%.
+--
+-- O A+ nasceu de um pedido do dono (24/08) olhando a discrepancia DENTRO da
+-- classe A: o topo tinha R$ 2 milhoes e o pe R$ 35 mil na mesma caixa. O
+-- corte por SHARE (30%) em vez de valor fixo foi medido no dado real: em
+-- "todos" da 18 clientes (0,3% da carteira fazendo 30% do dinheiro, corte
+-- equivalente ~R$ 165 mil); em 2026 da 7 clientes (corte ~R$ 88 mil). Valor
+-- fixo envelheceria e erraria por recorte; o share e a regua da propria
+-- curva, e cada classe desce com o menor valor dela para a tela dizer o
+-- corte em reais.
 create or replace function public.painel_clientes_abc(p_ano text default null)
 returns jsonb
 language sql stable security definer set search_path = public
@@ -174,7 +183,8 @@ as $$
   ),
   classada as (
     select *,
-           case when (sum(valor) over (order by valor desc, chave) - valor) / nullif(sum(valor) over (), 0) < 0.80 then 'A'
+           case when (sum(valor) over (order by valor desc, chave) - valor) / nullif(sum(valor) over (), 0) < 0.30 then 'A+'
+                when (sum(valor) over (order by valor desc, chave) - valor) / nullif(sum(valor) over (), 0) < 0.80 then 'A'
                 when (sum(valor) over (order by valor desc, chave) - valor) / nullif(sum(valor) over (), 0) < 0.95 then 'B'
                 else 'C' end as classe,
            valor / nullif(sum(valor) over (), 0) as share,
@@ -184,8 +194,13 @@ as $$
   select jsonb_build_object(
     'ano', p_ano,
     'classes', (select coalesce(jsonb_agg(jsonb_build_object(
-        'classe', classe, 'clientes', n, 'valor', v) order by classe), '[]'::jsonb)
-      from (select classe, count(*) n, round(sum(valor),2) v from classada group by 1) c),
+        'classe', classe, 'clientes', n, 'valor', v, 'corte', corte, 'shareClasse', sh)
+        order by ordem), '[]'::jsonb)
+      from (select classe, count(*) n, round(sum(valor),2) v,
+                   round(min(valor),2) as corte,
+                   round(sum(valor) / nullif((select sum(valor) from cli),0) * 1000) / 1000 as sh,
+                   case classe when 'A+' then 0 when 'A' then 1 when 'B' then 2 else 3 end as ordem
+              from classada group by classe) c),
     'total', (select round(coalesce(sum(valor),0),2) from cli),
     'clientesQtd', (select count(*) from cli),
     -- Os 200 maiores cobrem a classe A de um ANO (98 em 2026); no recorte
@@ -197,8 +212,10 @@ as $$
         'primeira', primeira, 'ultima', ultima) order by rn), '[]'::jsonb)
       from classada where rn <= 200),
     'fora', (select coalesce(jsonb_agg(jsonb_build_object(
-        'classe', classe, 'clientes', n, 'valor', v) order by classe), '[]'::jsonb)
-      from (select classe, count(*) n, round(sum(valor),2) v from classada where rn > 200 group by 1) f)
+        'classe', classe, 'clientes', n, 'valor', v) order by ordem), '[]'::jsonb)
+      from (select classe, count(*) n, round(sum(valor),2) v,
+                   case classe when 'A+' then 0 when 'A' then 1 when 'B' then 2 else 3 end as ordem
+              from classada where rn > 200 group by classe) f)
   );
 $$;
 
