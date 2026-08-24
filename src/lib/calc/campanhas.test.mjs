@@ -932,3 +932,28 @@ test("mesCalendarioComparado: variação contra o último ano CHEIO; fora e parc
   assert.equal(l2026.variacao, null, "base 0 não fabrica porcentagem infinita");
   assert.equal(l2026.diferenca, 300, "mas a diferença em R$ fala");
 });
+
+/* --------------------------------------------- as análises de venda */
+
+import { mesesPorAno } from "./campanhas.js";
+
+test("mesesPorAno: mês vazio no meio é zero de verdade; futuro fica apagado", () => {
+  const anos = mesesPorAno(
+    [
+      { mes: "2025-03", valor: 100, os: 1, clientes: 1 },
+      { mes: "2025-10", valor: 200, os: 2, clientes: 2 },
+      { mes: "2026-02", valor: 300, os: 3, clientes: 3 },
+    ],
+    { hoje: "2026-08-23" },
+  );
+  assert.equal(anos.length, 2);
+  const a25 = anos[0];
+  assert.equal(a25.ano, "2025");
+  assert.equal(a25.meses.length, 12, "todo ano tem 12 casas");
+  assert.equal(a25.meses[5].valor, 0, "junho/2025 sem linha É zero — o ano existe na base");
+  assert.equal(a25.meses[5].fora, false);
+  assert.equal(a25.valor, 300, "o ano soma os meses");
+  const a26 = anos[1];
+  assert.equal(a26.meses[8].fora, true, "set/2026 ainda não aconteceu — apagado, não zero");
+  assert.equal(a26.meses[7].parcial, true, "agosto corrente está pela metade");
+});

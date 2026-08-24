@@ -103,6 +103,21 @@ export const lerAnosPanorama = () =>
     cobertura: r.cobertura || { desde: null, ate: null },
   }));
 
+/* AS TRÊS ABAS DE ANÁLISE DE VENDAS (vendedores, clientes, produtos) --
+   mesmo padrão da aba Anos: a soma mora no banco, aqui só se pede o recorte. */
+export const lerVendedoresPanorama = () =>
+  pedirDados("vendedoresPanorama", {}).then((r) => r.linhas || []);
+export const lerVendedorDetalhe = (vendedor, ano) =>
+  pedirDados("vendedorDetalhe", { vendedor, ...(ano ? { ano } : {}) }).then((r) => r.detalhe || null);
+export const lerClientesAbc = (ano) =>
+  pedirDados("clientesAbc", ano ? { ano } : {}).then((r) => r.detalhe || null);
+export const lerClienteDetalhe = (chave) =>
+  pedirDados("clienteDetalhe", { chave }).then((r) => r.detalhe || null);
+export const lerProdutosPanorama = (ano) =>
+  pedirDados("produtosPanorama", ano ? { ano } : {}).then((r) => r.detalhe || null);
+export const lerProdutoDetalhe = (chave) =>
+  pedirDados("produtoDetalhe", { chave }).then((r) => r.detalhe || null);
+
 /* A SAÚDE DA CARGA. O vigia do banco grava `carga_alarme` de hora em hora
    quando alguma fonte para de ser atualizada; até esta rodada ninguém lia
    esse alarme -- ele existia só para quem fosse consultar o banco à mão. */

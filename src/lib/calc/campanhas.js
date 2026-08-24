@@ -921,3 +921,42 @@ export function mesCalendarioComparado(anosPanorama, n) {
   }
   return linhas;
 }
+
+/* ------------------------------------------------- as análises de venda
+ *
+ * A curva "no mês, no ano e ano acumulado" dos vendedores e clientes: o
+ * servidor manda a lista de meses COM VENDA (todos os anos); aqui ela vira
+ * anos completos de 12 casas, prontos para as barras. Mês sem linha DENTRO
+ * de um ano que existe é zero de verdade (a base tem todas as O.S. do ano);
+ * meses após o último mês com dado do ÚLTIMO ano não são desenhados como
+ * zero -- ainda não aconteceram.
+ */
+export function mesesPorAno(porMes, { hoje } = {}) {
+  const cem = (n) => Math.round(n * 100) / 100;
+  const porChave = new Map((porMes || []).map((m) => [m.mes, m]));
+  const anos = [...new Set([...porChave.keys()].map((m) => m.slice(0, 4)))].sort();
+  const mesHoje = (hoje || "").slice(0, 7);
+  return anos.map((ano) => {
+    const meses = [];
+    for (let n = 1; n <= 12; n++) {
+      const chave = `${ano}-${String(n).padStart(2, "0")}`;
+      const m = porChave.get(chave);
+      meses.push({
+        mes: chave, n,
+        // `os` e `clientes` podem NÃO existir na fonte (o detalhe de produto
+        // manda quantidade): null diz "não sei", zero diria "nenhuma".
+        valor: m?.valor || 0, os: m?.os ?? null, clientes: m?.clientes ?? null,
+        quantidade: m?.quantidade ?? null,
+        // O futuro não é zero: só até o mês corrente é que "não vendeu" vale.
+        fora: !!mesHoje && chave > mesHoje,
+        parcial: !!mesHoje && chave === mesHoje,
+      });
+    }
+    return {
+      ano,
+      meses,
+      valor: cem(meses.reduce((t, m) => t + m.valor, 0)),
+      os: meses.some((m) => m.os != null) ? meses.reduce((t, m) => t + (m.os || 0), 0) : null,
+    };
+  });
+}

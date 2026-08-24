@@ -37,7 +37,7 @@ const sb = createClient(SUPABASE_URL, SERVICE_KEY, { auth: { persistSession: fal
 // "assinaturas" sao as contas dos SISTEMAS (Supabase, GitHub, Claude...): dia
 // do vencimento, valor e o mes que ja foi pago. Mesmo mecanismo, um registro
 // por servico.
-const OVERLAYS = new Set(["ov_rec", "ov_orc", "marketing", "bancos", "glossario", "compromissos", "manutencoes", "patrimonio", "setores", "assinaturas", "permutas", "cobrancas", "campanhas"]);
+const OVERLAYS = new Set(["ov_rec", "ov_orc", "marketing", "bancos", "glossario", "compromissos", "manutencoes", "patrimonio", "setores", "assinaturas", "permutas", "cobrancas", "campanhas", "grupos_clientes"]);
 // Chaves em que cada pessoa so enxerga e mexe no que E DELA. A vendedora nao
 // pode ver a agenda da colega, e a direcao ve tudo. Isso e checado no
 // SERVIDOR: filtrar so na tela seria conforto, nao separacao.
@@ -183,6 +183,9 @@ Deno.serve(async (req: Request) => {
     setores: "patrimonio",
     permutas: "permutas",
     campanhas: "campanhas",
+    // Os grupos de compra (CNPJs do mesmo dono) sao vocabulario das analises
+    // de venda, que moram na tela de Campanhas.
+    grupos_clientes: "campanhas",
     // O diário de cobrança é conteúdo da tela de Contas Atrasadas.
     cobrancas: "contas-atrasadas",
     // As contas dos sistemas sao assunto da direcao: moram na tela de Gestao.

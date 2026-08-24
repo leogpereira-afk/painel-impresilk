@@ -54,7 +54,22 @@ export const lerAnexoCampanha = (id, arquivo) =>
 
 /* A busca de O.S. é a MESMA da permuta -- mesma tabela, mesma Edge Function.
    Reexportada para a tela não ter de saber de qual módulo ela vem. */
-export { buscarClientes, buscarOrdensPorId, lerCobertura, lerAnosPanorama, lerAnosMes, lerAnosMesCal } from "./permutas.js";
+export {
+  buscarClientes, buscarOrdensPorId, lerCobertura, lerAnosPanorama, lerAnosMes, lerAnosMesCal,
+  lerVendedoresPanorama, lerVendedorDetalhe, lerClientesAbc, lerClienteDetalhe,
+  lerProdutosPanorama, lerProdutoDetalhe,
+} from "./permutas.js";
+
+/* OS GRUPOS DE COMPRA: o mesmo dono com vários CNPJs vira UM cliente nas
+   análises. Coleção própria (grupos_clientes), gravada pelo merge comum do
+   painel-config -- não passa por troca_mexer porque não tem O.S. nem
+   histórico carimbado; é cadastro. */
+export const lerGrupos = () =>
+  chamar("get", { chave: "grupos_clientes" }).then((r) => r.valor || {});
+export const salvarGrupo = (id, { nome, membros }) =>
+  chamar("merge", { chave: "grupos_clientes", patch: { [id]: { nome, membros } } }).then((r) => r.valor || {});
+export const removerGrupo = (id) =>
+  chamar("removerId", { chave: "grupos_clientes", id }).then(() => true);
 
 import { buscarOrdensDe as buscarOrdensDePermuta } from "./permutas.js";
 

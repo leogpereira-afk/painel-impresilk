@@ -450,6 +450,78 @@ Deno.serve(async (req: Request) => {
         });
       }
 
+      /* AS TRES ABAS DE ANALISE DE VENDAS (vendedores, clientes, produtos).
+         Mesmo dono da aba Anos: modulo campanhas, agregacao no banco, corte
+         falante. Parametros validados aqui porque vao direto ao SQL. */
+      case "vendedoresPanorama": {
+        const g = await exigirSessao(req, "campanhas");
+        if (g.resposta) return g.resposta;
+        const { data, error } = await sb.rpc("painel_vendedores_panorama");
+        if (error) throw new Error(error.message);
+        return json({
+          linhas: (data ?? []).map((v: any) => ({
+            ano: v.ano, vendedor: v.vendedor, valor: Number(v.valor),
+            os: Number(v.os), clientes: Number(v.clientes),
+          })),
+        });
+      }
+
+      case "vendedorDetalhe": {
+        const g = await exigirSessao(req, "campanhas");
+        if (g.resposta) return g.resposta;
+        const vendedor = String(url.searchParams.get("vendedor") ?? "").slice(0, 80);
+        if (!vendedor) return json({ erro: "Vendedor vazio." }, 400);
+        const ano = String(url.searchParams.get("ano") ?? "");
+        const { data, error } = await sb.rpc("painel_vendedor_detalhe", {
+          p_vendedor: vendedor,
+          p_ano: /^\d{4}$/.test(ano) ? ano : null,
+        });
+        if (error) throw new Error(error.message);
+        return json({ detalhe: data ?? null });
+      }
+
+      case "clientesAbc": {
+        const g = await exigirSessao(req, "campanhas");
+        if (g.resposta) return g.resposta;
+        const ano = String(url.searchParams.get("ano") ?? "");
+        const { data, error } = await sb.rpc("painel_clientes_abc", {
+          p_ano: /^\d{4}$/.test(ano) ? ano : null,
+        });
+        if (error) throw new Error(error.message);
+        return json({ detalhe: data ?? null });
+      }
+
+      case "clienteDetalhe": {
+        const g = await exigirSessao(req, "campanhas");
+        if (g.resposta) return g.resposta;
+        const chave = String(url.searchParams.get("chave") ?? "").slice(0, 200);
+        if (!chave) return json({ erro: "Cliente vazio." }, 400);
+        const { data, error } = await sb.rpc("painel_cliente_detalhe", { p_chave: chave });
+        if (error) throw new Error(error.message);
+        return json({ detalhe: data ?? null });
+      }
+
+      case "produtosPanorama": {
+        const g = await exigirSessao(req, "campanhas");
+        if (g.resposta) return g.resposta;
+        const ano = String(url.searchParams.get("ano") ?? "");
+        const { data, error } = await sb.rpc("painel_produtos_panorama", {
+          p_ano: /^\d{4}$/.test(ano) ? ano : null,
+        });
+        if (error) throw new Error(error.message);
+        return json({ detalhe: data ?? null });
+      }
+
+      case "produtoDetalhe": {
+        const g = await exigirSessao(req, "campanhas");
+        if (g.resposta) return g.resposta;
+        const chave = String(url.searchParams.get("chave") ?? "").slice(0, 300);
+        if (!chave) return json({ erro: "Produto vazio." }, 400);
+        const { data, error } = await sb.rpc("painel_produto_detalhe", { p_chave: chave });
+        if (error) throw new Error(error.message);
+        return json({ detalhe: data ?? null });
+      }
+
       default:
         return json({ erro: `Modulo desconhecido: ${modulo || "(vazio)"}` }, 400);
     }

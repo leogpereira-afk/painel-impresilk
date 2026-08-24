@@ -45,6 +45,8 @@ import {
   panoramaPorAno, epocaDoAno, semCampanhas, mesCalendarioComparado,
 } from "../lib/calc/campanhas.js";
 import { paraNumero, dataLonga } from "../lib/format.js";
+import { MES_CURTO, rotuloMes, mil, BarrasAno } from "../components/barras.jsx";
+import { AbaVendedores, AbaClientes, AbaProdutos } from "../components/analiseVendas.jsx";
 import { Card, PageTitle, Empty, CarregandoModulo, BotaoPDF, CabecalhoImpressao, AvisoDadoParado, Segmented } from "../components/ui.jsx";
 import { useApp } from "../config/store.jsx";
 import {
@@ -685,11 +687,7 @@ function Ranking({ itens, semOS }) {
  * Meses vazios NO MEIO aparecem: sem eles, compras em janeiro e abril viram
  * duas barras coladas e a campanha parece contínua.
  */
-const MES_CURTO = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
-const rotuloMes = (mes) => {
-  const [a, m] = String(mes).split("-");
-  return `${MES_CURTO[Number(m) - 1] || m}/${String(a).slice(2)}`;
-};
+
 
 function CurvaMensal({ meses }) {
   if (meses.length < 2) return null;
@@ -1163,59 +1161,11 @@ const VENDA_VAZIA = { descricao: "", valor: "", data: "" };
 
 /* Rótulo curto para caber em cima de 12 barras: R$ 852.028,46 vira "852 mil".
    O número exato mora no title e no detalhe do mês. */
-const mil = (v) => (v >= 1000 ? `${Math.round(v / 1000).toLocaleString("pt-BR")} mil` : String(Math.round(v)));
+
 
 /* As 12 barras de um ano (ou das médias), empilhadas: dia a dia embaixo,
    campanha em âmbar por cima da base. Mês `fora` não é barra zerada -- o
    painel NÃO TEM aquele mês, e ele aparece apagado com a explicação no title. */
-function BarrasAno({ casas, aoClicar, ativo }) {
-  const teto = Math.max(...casas.map((c) => c.valor), 1);
-  const ALT = 72;
-  return (
-    <div className="flex items-end gap-1 overflow-x-auto pb-1">
-      {casas.map((c) => {
-        const alt = c.valor > 0 ? Math.max(2, (c.valor / teto) * ALT) : 0;
-        const altCamp = c.valorCampanha > 0 ? Math.min(alt, Math.max(2, (c.valorCampanha / teto) * ALT)) : 0;
-        const clicavel = aoClicar && !c.fora;
-        const Tag = clicavel ? "button" : "div";
-        return (
-          <Tag
-            key={c.chave}
-            {...(clicavel ? { type: "button", onClick: () => aoClicar(c.chave) } : {})}
-            className={`flex min-w-[2.4rem] flex-1 flex-col items-center gap-1 rounded-md pt-1 ${
-              ativo === c.chave ? "bg-brand-50" : clicavel ? "hover:bg-slate-50" : ""
-            }`}
-            title={c.titulo}
-          >
-            <span className="text-[10px] tabular-nums text-slate-400">{c.valor > 0 ? mil(c.valor) : ""}</span>
-            <span className="flex w-full flex-col justify-end" style={{ height: `${ALT}px` }}>
-              {c.fora ? (
-                <span className="h-0.5 w-full rounded bg-slate-200" />
-              ) : (
-                <>
-                  <span
-                    className="w-full rounded-t bg-brand-300"
-                    style={{ height: `${Math.max(0, alt - altCamp)}px` }}
-                  />
-                  {altCamp > 0 && (
-                    <span
-                      className={`w-full bg-warn-400 ${alt - altCamp <= 0 ? "rounded-t" : ""}`}
-                      style={{ height: `${altCamp}px` }}
-                    />
-                  )}
-                </>
-              )}
-            </span>
-            <span className={`whitespace-nowrap text-[10px] ${c.fora ? "text-slate-300" : "text-slate-400"}`}>
-              {c.rotulo}
-              {c.parcial ? "*" : ""}
-            </span>
-          </Tag>
-        );
-      })}
-    </div>
-  );
-}
 
 function LegendaAnos({ temParcial, semCampanha }) {
   return (
@@ -3065,20 +3015,25 @@ export default function Campanhas() {
       <Aviso aviso={aviso} aoFechar={() => setAviso(null)} />
         <AvisoDadoParado atualizadoEm={atualizadoEm} />
 
-      {/* AS DUAS ABAS: "Campanhas" é o trabalho (só o ano escolhido, cada
-          evento separado -- somar Fenics com eleição no topo não respondia
-          nada); "Análise" concentra TODA a comparação. */}
-      <Segmented
-        opcoes={[
-          { valor: "campanhas", rotulo: "Campanhas" },
-          { valor: "analise", rotulo: "Análise dos anos" },
-          /* "Anos" é OUTRA pergunta: não o que foi marcado, mas TUDO o que a
-             casa vendeu, automático -- o padrão de consumo. */
-          { valor: "anos", rotulo: "Anos" },
-        ]}
-        valor={abaLista}
-        onChange={setAbaLista}
-      />
+      {/* SEIS ABAS: as três primeiras são o trabalho das campanhas; as três
+          últimas são as análises AUTOMÁTICAS (pedido do dono, 24/08) --
+          vendedores, clientes na curva ABC e produtos. No celular a régua
+          rola de lado em vez de espremer os rótulos. */}
+      <div className="overflow-x-auto pb-1">
+        <Segmented
+          opcoes={[
+            { valor: "campanhas", rotulo: "Campanhas" },
+            { valor: "analise", rotulo: "Análise dos anos" },
+            { valor: "anos", rotulo: "Anos" },
+            { valor: "vendedores", rotulo: "Vendedores" },
+            { valor: "clientes", rotulo: "Clientes" },
+            { valor: "produtos", rotulo: "Produtos" },
+          ]}
+          valor={abaLista}
+          onChange={setAbaLista}
+          className="whitespace-nowrap"
+        />
+      </div>
 
       {abaLista === "campanhas" && (
         <>
@@ -3325,6 +3280,10 @@ export default function Campanhas() {
           )}
         </>
       )}
+
+      {abaLista === "vendedores" && <AbaVendedores />}
+      {abaLista === "clientes" && <AbaClientes />}
+      {abaLista === "produtos" && <AbaProdutos />}
 
       {abaLista === "campanhas" && (listaDoAno.length ? (
         <div className="grid gap-3 sm:grid-cols-2">
