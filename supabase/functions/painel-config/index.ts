@@ -310,6 +310,20 @@ Deno.serve(async (req: Request) => {
         if (OVERLAYS.has(chave)) {
           const barrado = barraChave(chave);
           if (barrado) return barrado;
+          /* PERMUTA E CAMPANHA NAO PASSAM POR AQUI. O `set` apaga a colecao
+             inteira e regrava o que o cliente mandou -- historico carimbado
+             pelo servidor incluso. As duas colecoes existem justamente para
+             que o historico NAO seja escrito pelo cliente (`troca_mexer`
+             carimba autor e hora dentro da transacao travada), e este ramo
+             furava as duas garantias de uma vez: qualquer conta com o modulo
+             podia reescrever a conversa toda ou zerar a colecao. Nenhuma tela
+             chama `set` para elas; restauracao tem porta propria
+             (painel-backup, so a direcao). */
+          if (chave === "permutas" || chave === "campanhas") {
+            return resposta({
+              erro: "Esta colecao so muda pela funcao que carimba o historico. Para restaurar, use o backup.",
+            }, 403);
+          }
           // set substitui o overlay INTEIRO (o app usa para restaurar backup e
           // para limpar). Apagar as linhas e regravar e a traducao fiel disso.
           // Em chave por dono isso apagaria a agenda das colegas: so a direcao.
@@ -410,6 +424,26 @@ Deno.serve(async (req: Request) => {
           for (const [id, campos] of Object.entries(patch)) {
             const c = (campos ?? {}) as Record<string, unknown>;
             const { osPatch, lancPatch, criar, ...limpos } = c;
+            /* TIRAR UM LANCAMENTO LEVA O ANEXO DELE. A funcao apaga o objeto
+               inteiro (`v_lanc - k`), e com ele a referencia do arquivo -- os
+               bytes ficavam no bucket sem ninguem listar, apagar ou saber que
+               existem. A protecao ja existe no `removerId` dos vizinhos e
+               faltava so aqui. Le ANTES de mexer; se a gravacao falhar, nada
+               foi apagado. */
+            const paraApagar: string[] = [];
+            if (lancPatch && typeof lancPatch === "object") {
+              const tirando = Object.entries(lancPatch as Record<string, unknown>)
+                .filter(([, v]) => v === null).map(([k]) => k);
+              if (tirando.length) {
+                const { data: antes } = await sb.from("painel_registros")
+                  .select("registro").eq("colecao", chave).eq("id", id).maybeSingle();
+                const lancs = ((antes?.registro as any)?.lancamentos ?? {}) as Record<string, any>;
+                for (const k of tirando) {
+                  const ch = lancs?.[k]?.anexo?.chave;
+                  if (typeof ch === "string" && ch) paraApagar.push(ch);
+                }
+              }
+            }
             const { data: reg, error } = await sb.rpc("troca_mexer", {
               p_colecao: chave,
               p_id: id,
@@ -425,6 +459,11 @@ Deno.serve(async (req: Request) => {
             if (reg === null) {
               const oQue = chave === "campanhas" ? "campanha" : "permuta";
               return resposta({ erro: `Essa ${oQue} nao existe mais -- recarregue a tela.` }, 409);
+            }
+            // Gravou: agora os bytes do que saiu podem ir. Falha aqui nao
+            // derruba a operacao -- o registro ja esta certo.
+            if (paraApagar.length) {
+              await sb.storage.from(BUCKET).remove(paraApagar).catch(() => {});
             }
           }
           return resposta({ ok: true, valor: await lerOverlay(chave, donoDaVez(chave)) });
@@ -688,7 +727,18 @@ Deno.serve(async (req: Request) => {
            ativos ate 04/08. */
         if (error) {
           await sb.storage.from(BUCKET).remove([chaveArq]).catch(() => {});
-          return resposta({ erro: "Esse lancamento nao existe mais -- recarregue a tela." }, 409);
+          /* SO A RECUSA DA PROPRIA FUNCAO prova que o lancamento sumiu. Aqui
+             cai qualquer erro do banco -- timeout de statement, lock nao
+             obtido, queda de conexao -- e a resposta afirmava um FATO sobre o
+             dado ("nao existe mais"), mandando a pessoa recarregar e perder o
+             anexo que acabou de subir. */
+          const some = /nao existe|does not exist/i.test(error.message || "");
+          return resposta(
+            some
+              ? { erro: "Esse lancamento nao existe mais -- recarregue a tela." }
+              : { erro: "Nao consegui anexar agora (o banco recusou). O arquivo nao foi guardado; tente de novo." },
+            some ? 409 : 503,
+          );
         }
         if (reg === null) {
           await sb.storage.from(BUCKET).remove([chaveArq]).catch(() => {});

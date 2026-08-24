@@ -2232,10 +2232,15 @@ export default function Campanhas() {
   const ligarCliente = useCallback(
     async (c) => {
       if (!aberta) return;
+      /* PATCH, não o array inteiro. Mandando a lista montada aqui, duas
+         pessoas ligando compradores ao mesmo tempo apagavam o nome uma da
+         outra -- e a checagem de efeito logo abaixo aprovava, porque o array
+         volta exatamente como foi mandado. O banco funde chave a chave dentro
+         da transação travada (migração 20260824d). */
       const gravado = await mexer(aberta, (atual) => {
         const atuais = atual?.clientes || [];
         if (atuais.some((x) => x.chave === c.chave)) return { campos: {} };
-        return { campos: { clientes: [...atuais, { chave: c.chave, nome: c.nome, cnpjs: c.cnpjs || [] }] } };
+        return { campos: { clientesPatch: { [c.chave]: { nome: c.nome, cnpjs: c.cnpjs || [] } } } };
       });
       if (!gravado) return; // o erro da rede já foi mostrado pelo mexer
       const entrou = (gravado.clientes || []).some((x) => x.chave === c.chave);
@@ -2254,9 +2259,7 @@ export default function Campanhas() {
   const desligarCliente = useCallback(
     async (chave) => {
       if (!aberta) return;
-      await mexer(aberta, (atual) => ({
-        campos: { clientes: (atual?.clientes || []).filter((x) => x.chave !== chave) },
-      }));
+      await mexer(aberta, () => ({ campos: { clientesPatch: { [chave]: null } } }));
     },
     [aberta, mexer],
   );

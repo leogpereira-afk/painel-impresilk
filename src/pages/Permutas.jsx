@@ -739,7 +739,11 @@ export default function Permutas() {
         // Conferido contra a lista nova: com a velha, clicar duas vezes na
         // mesma pessoa passava pela checagem e duplicava.
         if (atuais.some((x) => x.chave === c.chave)) return { campos: {} };
-        return { campos: { clientes: [...atuais, { chave: c.chave, nome: c.nome, cnpjs: c.cnpjs || [] }] } };
+        /* PATCH, não o array inteiro: duas pessoas ligando ao mesmo tempo
+           apagavam o nome uma da outra, e a checagem de efeito abaixo
+           aprovava (o array volta como foi mandado). O banco funde chave a
+           chave dentro da transação travada (migração 20260824d). */
+        return { campos: { clientesPatch: { [c.chave]: { nome: c.nome, cnpjs: c.cnpjs || [] } } } };
       });
       /* CONFERE O EFEITO, não a ausência de erro.
          Era daqui que vinha o pior do defeito: a marcação sumia e a tela não
@@ -763,10 +767,8 @@ export default function Permutas() {
   const desligarCliente = useCallback(
     async (chave) => {
       if (!aberta) return;
-      // Mesmo motivo do ligar: a lista sai do registro mais novo.
-      await mexer(aberta, (atual) => ({
-        campos: { clientes: (atual?.clientes || []).filter((x) => x.chave !== chave) },
-      }));
+      // Mesmo motivo do ligar: quem tira uma chave não reescreve as outras.
+      await mexer(aberta, () => ({ campos: { clientesPatch: { [chave]: null } } }));
     },
     [aberta, mexer],
   );
@@ -1086,7 +1088,8 @@ export default function Permutas() {
             )}
             {buscaCliente.trim().length >= 2 && !clientesAchados.length && (
               <div className="mt-1 text-xs text-slate-400">
-                Nenhum cliente com esse nome nas O.S. a partir de {dataLonga(desde)}.
+                Nenhum cliente com esse nome nas O.S. de {desde ? dataLonga(desde) : "todo o período"}
+                {ate ? ` a ${dataLonga(ate)}` : ""}.
               </div>
             )}
           </div>
@@ -1330,7 +1333,12 @@ export default function Permutas() {
           {!chavesDaPermuta.length ? (
             <Empty>Ligue um cliente acima para ver as O.S. dele.</Empty>
           ) : buscandoOS ? (
-            <Empty>Procurando as O.S. desde {dataLonga(desde)}…</Empty>
+            // `dataLonga("")` é string vazia, e 8 das 10 permutas estão sem
+            // `desde`: a frase saía "Procurando as O.S. desde …".
+            <Empty>
+              Procurando as O.S. {desde ? `desde ${dataLonga(desde)}` : "de todo o período"}
+              {ate ? ` até ${dataLonga(ate)}` : ""}…
+            </Empty>
           ) : paraEscolherFiltradas.length ? (
             <>
               {/* "Todas" = o que está na tela, com número e VALOR no rótulo:
@@ -1377,7 +1385,9 @@ export default function Permutas() {
                 ? "Nenhuma O.S. com esse número ou nome."
                 : jaAceitasAqui > 0
                   ? `Todas as ${jaAceitasAqui} O.S. desses clientes já entraram na permuta.`
-                  : `Esses clientes não têm O.S. a partir de ${dataLonga(desde)}.`}
+                  : `Esses clientes não têm O.S. ${
+                      desde ? `a partir de ${dataLonga(desde)}` : "em todo o período"
+                    }${ate ? ` até ${dataLonga(ate)}` : ""}.`}
             </Empty>
           )}
         </Secao>
