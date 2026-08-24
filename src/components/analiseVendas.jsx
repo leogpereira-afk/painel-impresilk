@@ -11,7 +11,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Search, X, Trash2, Link2, Plus } from "lucide-react";
+import { Search, X, Trash2, Link2, Plus, Pencil } from "lucide-react";
 import {
   lerVendedoresPanorama, lerVendedorDetalhe, lerClientesAbc, lerClienteDetalhe,
   lerProdutosPanorama, lerProdutoDetalhe, lerGrupos, salvarGrupo, removerGrupo,
@@ -455,6 +455,18 @@ export function AbaClientes() {
     if (await criarGrupoCom(formGrupo.nome, formGrupo.membros, formGrupo.id)) setFormGrupo(null);
   };
 
+  /* EDITAR = o mesmo formulário de criar, aberto com os membros atuais.
+     `criarGrupoCom` já grava por cima quando recebe o id, e a validação de
+     "um cliente, um grupo" já exclui o próprio grupo em edição. A chave do
+     membro É o nome normalizado do ERP, então ela mesma rotula o chip. */
+  const editarGrupo = (id) => {
+    const g = (grupos || {})[id];
+    if (!g) return;
+    setSelecionando(false);
+    setSelecionados({});
+    setFormGrupo({ id, nome: g.nome || "", membros: (g.membros || []).map((m) => ({ chave: m, nome: m })) });
+  };
+
   const apagarGrupo = async (id, nome) => {
     if (!window.confirm(`Desfazer o grupo "${nome}"? Os clientes voltam a contar separados.`)) return;
     try {
@@ -677,8 +689,19 @@ export function AbaClientes() {
               ) : (
                 <>
                   {det.ehGrupo && (
-                    <div className="text-xs text-slate-500">
-                      Grupo de compra — soma de: {(det.membros || []).join(" · ")}
+                    <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
+                      <span className="min-w-0">
+                        Grupo de compra — soma de: {(det.membros || []).join(" · ")}
+                      </span>
+                      {grupos?.[aberto] && (
+                        <button
+                          type="button"
+                          className="btn-ghost !py-0.5 !px-2 text-xs"
+                          onClick={() => editarGrupo(aberto)}
+                        >
+                          <Pencil size={12} /> Editar grupo
+                        </button>
+                      )}
                     </div>
                   )}
                   <CurvasDaEntidade porMes={det.porMes} porAno={det.porAno} />
@@ -745,6 +768,14 @@ export function AbaClientes() {
                   </div>
                   <button
                     type="button"
+                    className="shrink-0 rounded p-1 text-slate-300 hover:bg-brand-50 hover:text-brand-600"
+                    title="Editar o grupo — adicionar ou tirar clientes"
+                    onClick={() => editarGrupo(id)}
+                  >
+                    <Pencil size={14} />
+                  </button>
+                  <button
+                    type="button"
                     className="shrink-0 rounded p-1 text-slate-300 hover:bg-bad-50 hover:text-bad-600"
                     title="Desfazer o grupo"
                     onClick={() => apagarGrupo(id, g.nome || "sem nome")}
@@ -756,6 +787,11 @@ export function AbaClientes() {
             </div>
             {formGrupo && (
               <div className="space-y-2 rounded-xl border border-brand-200 bg-brand-50/40 p-3">
+                {formGrupo.id && (
+                  <div className="text-xs font-medium text-brand-800">
+                    Editando o grupo — tire pelo X ou adicione pela busca abaixo.
+                  </div>
+                )}
                 <input
                   className="input w-full"
                   placeholder="Nome do grupo (ex.: Grupo Osório)"
@@ -810,7 +846,7 @@ export function AbaClientes() {
                 </div>
                 <div className="flex gap-2">
                   <button type="button" className="btn-primary" disabled={salvandoGrupo} onClick={gravarGrupo}>
-                    {salvandoGrupo ? "Gravando…" : "Gravar grupo"}
+                    {salvandoGrupo ? "Gravando…" : formGrupo.id ? "Salvar alterações" : "Gravar grupo"}
                   </button>
                   <button type="button" className="btn-ghost" onClick={() => setFormGrupo(null)}>Cancelar</button>
                 </div>
