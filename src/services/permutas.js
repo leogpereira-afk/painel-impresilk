@@ -106,7 +106,8 @@ export const lerAnosPanorama = () =>
 /* A SAÚDE DA CARGA. O vigia do banco grava `carga_alarme` de hora em hora
    quando alguma fonte para de ser atualizada; até esta rodada ninguém lia
    esse alarme -- ele existia só para quem fosse consultar o banco à mão. */
-export const lerCargaAlarme = () => pedirDados("carga", {}).then((r) => r.alarme || null);
+export const lerCargaAlarme = () =>
+  pedirDados("carga", {}).then((r) => ({ alarme: r.alarme || null, degradada: r.degradada || null }));
 
 export const lerAnosMes = (mes) =>
   pedirDados("anosMes", { mes }).then((r) => r.detalhe || null);

@@ -71,11 +71,20 @@ self.addEventListener("fetch", (e) => {
       const hit = await c.match(e.request);
       if (hit) return hit;
       const r = await fetch(e.request);
-      if (r.ok) {
+      /* RESPOSTA OPACA TAMBÉM ENTRA. A folha do Google Fonts é pedida sem
+         crossorigin, então volta opaca (`ok === false`, status 0) e nunca era
+         guardada: toda visita pagava de novo uma ida à rede que bloqueia a
+         pintura -- exatamente o que este arquivo existe para evitar. É o
+         mesmo critério que o Workbox usa para fontes. */
+      if (r.ok || r.type === "opaque") {
         c.put(e.request, r.clone());
-        // Poda: mantém o cache pequeno sem gerenciar versões à mão.
+        /* Poda: mantém o cache pequeno sem gerenciar versões à mão. O teto
+           era 60 -- MENOR que um build (cada deploy traz ~20 arquivos com
+           hash novo e os velhos ficam), então em três publicações o cache
+           começava a se comer sozinho, e o primeiro a sair podia ser o índice
+           guardado para o modo offline. */
         const chaves = await c.keys();
-        if (chaves.length > 60) await c.delete(chaves[0]);
+        if (chaves.length > 240) await c.delete(chaves[0]);
       }
       return r;
     })());

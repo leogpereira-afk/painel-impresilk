@@ -192,10 +192,27 @@ Deno.serve(async (req: Request) => {
       .eq("empresa_id", emp).order("data", { ascending: false });
     const todas = data ?? [];
     if (ehDiretoria) return todas;
-    const meu = String(sessao?.nome || sessao?.sub || "").toLowerCase();
+    /* QUEM VE A ATA nao pode depender de acento nem de sobrenome digitado
+       igual. Era comparacao de string EXATA em minusculas: escrever "Barbara
+       Vasconcelos" na lista de participantes deixava a Barbara de fora -- sem
+       erro, sem aviso, e ela nunca saberia que existe uma ata dela. O resto
+       da casa ja normaliza (painel-acesso, acesso-entrar); aqui faltava.
+       Casa pelo nome inteiro sem acento OU pelo usuario -- e, como ultimo
+       recurso, pelo primeiro nome, que e como a lista costuma ser escrita. */
+    const chave = (v: unknown) =>
+      String(v ?? "").normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+        .toLowerCase().replace(/\s+/g, " ").trim();
+    const meu = chave(sessao?.nome || sessao?.sub);
+    const meuUsuario = chave(sessao?.sub);
+    const meuPrimeiro = meu.split(" ")[0];
     return todas.filter((r: any) =>
       (Array.isArray(r.participantes) ? r.participantes : [])
-        .some((p: any) => String(p?.nome ?? p ?? "").toLowerCase() === meu));
+        .some((p: any) => {
+          const dele = chave(p?.nome ?? p);
+          if (!dele) return false;
+          return dele === meu || dele === meuUsuario ||
+                 (!!meuPrimeiro && dele.split(" ")[0] === meuPrimeiro);
+        }));
   }
 
   try {

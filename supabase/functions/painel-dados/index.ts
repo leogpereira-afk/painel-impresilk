@@ -436,8 +436,18 @@ Deno.serve(async (req: Request) => {
       case "carga": {
         const g = await exigirSessao(req, []);
         if (g.resposta) return g.resposta;
-        const alarme = await lerCache("carga_alarme");
-        return json({ alarme: alarme?.parado ? alarme : null });
+        const [alarme, status] = await Promise.all([lerCache("carga_alarme"), lerCache("status")]);
+        /* CARGA DEGRADADA TAMBEM E NOTICIA. A carga marca `parcial` e lista o
+           que falhou quando uma fonte cai, mas isso ficava so na tabela: no
+           dia 24/08 o catalogo do ERP estava fora ha horas -- item novo
+           entrando sem categoria (45 em agosto contra 0 em maio) -- e nenhuma
+           tela dizia nada. */
+        return json({
+          alarme: alarme?.parado ? alarme : null,
+          degradada: status?.parcial
+            ? { em: status.em ?? null, fontes: status.fontesQueFalharam ?? [] }
+            : null,
+        });
       }
 
       default:

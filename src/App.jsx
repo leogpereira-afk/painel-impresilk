@@ -43,20 +43,26 @@ const Patrimonio = lazy(() => import("./pages/Patrimonio.jsx"));
    login nada disso será usado. Com o service worker, o prefetch de hoje é a
    revisita instantânea de amanhã. Falha é silenciosa de propósito: prefetch
    é aposta, não promessa. */
+/* SÓ O QUE A PESSOA PODE ABRIR. A lista era fixa e baixava as treze telas
+   para todo mundo: uma vendedora com só "orcamentos" liberado puxava Gestão,
+   Campanhas (a maior do projeto), Patrimônio, Permutas... telas que a própria
+   rota dela recusa com "Você não tem acesso a este módulo". No 4G isso
+   desfazia justamente o ganho da divisão por rota. Rota sem módulo (o
+   glossário) alcança todo mundo. */
 const ROTAS_PREFETCH = [
-  () => import("./pages/ContasAtrasadas.jsx"),
-  () => import("./pages/Orcamentos.jsx"),
-  () => import("./pages/Compromissos.jsx"),
-  () => import("./pages/Gestao.jsx"),
-  () => import("./pages/Permutas.jsx"),
-  () => import("./pages/Campanhas.jsx"),
-  () => import("./pages/Manutencoes.jsx"),
-  () => import("./pages/Bancos.jsx"),
-  () => import("./pages/Patrimonio.jsx"),
-  () => import("./pages/Ativos.jsx"),
-  () => import("./pages/Licitacoes.jsx"),
-  () => import("./pages/Marketing.jsx"),
-  () => import("./pages/Glossario.jsx"),
+  { m: "contas-atrasadas", imp: () => import("./pages/ContasAtrasadas.jsx") },
+  { m: "orcamentos", imp: () => import("./pages/Orcamentos.jsx") },
+  { m: "compromissos", imp: () => import("./pages/Compromissos.jsx") },
+  { m: "gestao", imp: () => import("./pages/Gestao.jsx") },
+  { m: "permutas", imp: () => import("./pages/Permutas.jsx") },
+  { m: "campanhas", imp: () => import("./pages/Campanhas.jsx") },
+  { m: "manutencoes", imp: () => import("./pages/Manutencoes.jsx") },
+  { m: "bancos", imp: () => import("./pages/Bancos.jsx") },
+  { m: "patrimonio", imp: () => import("./pages/Patrimonio.jsx") },
+  { m: "ativos", imp: () => import("./pages/Ativos.jsx") },
+  { m: "licitacoes", imp: () => import("./pages/Licitacoes.jsx") },
+  { m: "marketing", imp: () => import("./pages/Marketing.jsx") },
+  { m: null, imp: () => import("./pages/Glossario.jsx") },
 ];
 let prefetchFeito = false;
 function prefetchRotas() {
@@ -65,7 +71,7 @@ function prefetchRotas() {
   const idle = window.requestIdleCallback || ((fn) => setTimeout(fn, 1));
   // Um por vez, cada um no seu pedaço de ociosidade: treze de uma vez
   // disputariam a banda exatamente com o boot dos dados.
-  const fila = [...ROTAS_PREFETCH];
+  const fila = ROTAS_PREFETCH.filter((r) => !r.m || podeAbrir(r.m)).map((r) => r.imp);
   const proximo = () => {
     const imp = fila.shift();
     if (!imp) return;

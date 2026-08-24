@@ -78,6 +78,7 @@ export default function Home() {
      até esta rodada, NINGUÉM lia -- nem tela nem function. Aqui ele aparece,
      no mesmo lugar em que a direção já olha o backup. */
   const [cargaParada, setCargaParada] = useState(null);
+  const [cargaDegradada, setCargaDegradada] = useState(null);
   useEffect(() => {
     let vivo = true;
     listarAtivos()
@@ -98,12 +99,17 @@ export default function Home() {
       .catch(() => { if (vivo) setFalhouVencimentos(true); });
     if (ehDirecao()) {
       lerCargaAlarme()
-        .then((al) => {
-          if (!vivo || !al) return;
-          setCargaParada({
-            horas: Math.max(1, Math.round((al.atrasoMin || 0) / 60)),
-            fontes: Object.keys(al.fontes || {}),
-          });
+        .then((r) => {
+          if (!vivo || !r) return;
+          if (r.alarme) {
+            setCargaParada({
+              horas: Math.max(1, Math.round((r.alarme.atrasoMin || 0) / 60)),
+              fontes: Object.keys(r.alarme.fontes || {}),
+            });
+          }
+          // Carga que RODOU mas veio pela metade: o dado entra torto (item
+          // novo sem categoria, por exemplo) e nada dizia.
+          if (r.degradada) setCargaDegradada(r.degradada);
         })
         .catch(() => {}); // sinal de saúde: falha dele não vira aviso falso
       statusBackup()
@@ -164,6 +170,19 @@ export default function Home() {
             </span>
           </span>
         </button>
+      )}
+
+      {cargaDegradada && (
+        <div className="card mt-6 w-full max-w-lg border-l-4 border-l-warn-500 p-4 text-left">
+          <span className="flex items-center gap-2 text-sm">
+            <AlertTriangle size={16} className="shrink-0 text-warn-600" />
+            <span className="min-w-0 flex-1 text-slate-700">
+              <strong className="font-display">A última carga veio pela metade.</strong> Falhou:{" "}
+              {(cargaDegradada.fontes || []).join(", ") || "uma fonte do ERP"} — o que entrou nesse
+              período pode estar sem classificação. Some sozinho quando o ERP voltar.
+            </span>
+          </span>
+        </div>
       )}
 
       {cargaParada && (

@@ -199,8 +199,12 @@ Deno.serve(async (req: Request) => {
       // "*" porque nao ha sistema: a tentativa e contra a entrada, nao contra
       // um sistema. O detalhe distingue quem nao existe de quem foi desligado
       // -- para quem tenta, a resposta continua sendo a mesma frase.
+      // A linha de baixo gravava uma SEGUNDA falha, fixa em "senha errada" --
+      // sobra de edicao. No historico da tela de Acessos, uma tentativa contra
+      // usuario inexistente aparecia como duas falhas, uma delas acusando
+      // senha errada de quem nem tem senha; e o freio de tentativas consumia
+      // duas fichas por tentativa.
       await registrar("*", usuario, "login-falhou", conta ? "conta desativada" : "usuario nao existe");
-      await registrar("*", usuario, "login-falhou", "senha errada");
       return json({ erro: ERRO }, 401);
     }
 

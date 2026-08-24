@@ -35,6 +35,12 @@ const VERSAO = 2; // v2: formato do Supabase (colecoes em vez de chaves de blob)
 /* As tabelas da tela de Gestao. Ficam FORA de painel_registros (sao tabelas
    com colunas, nao registros jsonb), entao a varredura de colecoes nao as
    alcanca -- e por isso elas estavam fora do backup inteiro. */
+/* A REGUA DA CONTAGEM. `config` conta 1 (e um objeto de ajustes, nao uma
+   colecao); o resto conta as chaves. Usada no total E na lista por colecao --
+   duas reguas para o mesmo numero e sempre uma soma que nao fecha. */
+const contarRegistros = (chave: string, v: unknown) =>
+  chave === "config" ? (v ? 1 : 0) : (v && typeof v === "object" ? Object.keys(v as object).length : 0);
+
 const TABELAS_GESTAO = [
   "gestao_empresa", "gestao_identidade", "gestao_valor", "gestao_plano_ano",
   "gestao_objetivo", "gestao_indicador", "gestao_tatica", "gestao_reuniao",
@@ -348,13 +354,13 @@ async function backupDoHub() {
          ja levava mais quatro, e a direcao via "132 registros" sem ter como
          saber se as abas novas entraram. Colecao nova agora entra na conta
          sozinha. */
+      /* UMA REGUA SO, usada no total e na lista. `config` e um objeto de
+         AJUSTES, nao uma colecao de registros: contar as chaves dele inflava
+         em 7 (8 no lugar de 1). O total ja tinha o conserto; a lista logo
+         abaixo continuava com a regua antiga, entao as duas nao fechavam --
+         e `contas` nem aparecia nela. */
       registros:
-        Object.entries(bkp.painel)
-          /* `config` e um objeto de AJUSTES, nao uma colecao de registros:
-             contar as chaves dele inflava o total em 7 (8 chaves no lugar de
-             1). O numero na tela diz "reg." e precisa querer dizer isso. */
-          .reduce((n, [k, v]) => n + (k === "config" ? (v ? 1 : 0)
-            : (v && typeof v === "object" ? Object.keys(v).length : 0)), 0) +
+        Object.entries(bkp.painel).reduce((n, [k, v]) => n + contarRegistros(k, v), 0) +
         Object.keys(bkp.contas).length,
       /* O que existe no banco e o backup NAO copiou. Vazio e o esperado; com
          algo dentro, a tela de backup tem o que mostrar antes de virar perda. */
@@ -366,8 +372,8 @@ async function backupDoHub() {
          mostra. E e ela que responde "as permutas estao no backup?" sem
          ninguem precisar abrir o arquivo no GitHub. */
       porColecao: Object.fromEntries(
-        Object.entries(bkp.painel)
-          .map(([k, v]) => [k, v && typeof v === "object" ? Object.keys(v).length : 0])
+        [...Object.entries(bkp.painel).map(([k, v]) => [k, contarRegistros(k, v)] as [string, number]),
+         ["contas", Object.keys(bkp.contas).length] as [string, number]]
           .sort((a, b) => String(a[0]).localeCompare(String(b[0]), "pt-BR")),
       ),
       erro: gh.ok ? null : (gh as any).motivo,
