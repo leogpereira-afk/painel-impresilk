@@ -36,7 +36,7 @@ import {
   buscarClientes, buscarOrdensDe, buscarOrdensPorId, lerCobertura,
   lerAnosPanorama, lerAnosMes, lerAnosMesCal,
 } from "../services/campanhas.js";
-import { fichaDaOS, ordensDosClientes, donoPorOS } from "../lib/calc/permutas.js";
+import { fichaDaOS, ordensDosClientes, donoPorOS, unirOrdens } from "../lib/calc/permutas.js";
 import {
   resumoDaCampanha, resumoGeralCampanhas, compradoresDaCampanha, extratoDaCampanha,
   anosDasCampanhas, totaisDoAno, comparativoPorAno, edicoesDoMesmoEvento, anosRepetidos,
@@ -1711,19 +1711,29 @@ export default function Campanhas() {
      rodava de novo e a seção "Marcar O.S." piscava "Procurando as O.S." a
      cada clique, com a lista sumindo debaixo do cursor. */
   const idsTexto = aberta ? "" : idsTodos;
+  /* AS JÁ ACEITAS, pelo id. A busca por cliente e período alimenta "escolher",
+     mas não serve para CONFERIR o que já entrou: estreitar o período, ou tirar
+     um comprador da lista, tirava a O.S. aceita da resposta e a tela passava a
+     afirmar "cancelada no ERP" sobre venda viva -- afirmação sobre dinheiro,
+     feita a partir de uma pergunta que nem foi feita. */
+  const idsAceitasTexto = aberta ? Object.keys(mapa?.[aberta]?.os || {}).sort().join("|") : "";
 
   useEffect(() => {
     let vivo = true;
     setBuscandoOS(true);
+    const aceitas = idsAceitasTexto ? [...new Set(idsAceitasTexto.split("|"))] : [];
     const pedido = aberta
-      ? (chavesDaCampanha.length ? buscarOrdensDe(chavesDaCampanha, desde, ate) : Promise.resolve([]))
+      ? Promise.all([
+          chavesDaCampanha.length ? buscarOrdensDe(chavesDaCampanha, desde, ate) : Promise.resolve([]),
+          buscarOrdensPorId(aceitas),
+        ]).then(([doPeriodo, porId]) => unirOrdens(doPeriodo, porId))
       : buscarOrdensPorId(idsTexto ? [...new Set(idsTexto.split("|"))] : []);
     pedido
       .then((os) => vivo && setOrdens(os))
       .catch((e) => vivo && setAviso({ tom: "erro", texto: e.message }))
       .finally(() => vivo && setBuscandoOS(false));
     return () => { vivo = false; };
-  }, [aberta, chavesDaCampanha, desde, ate, idsTexto]);
+  }, [aberta, chavesDaCampanha, desde, ate, idsTexto, idsAceitasTexto]);
 
   useEffect(() => {
     const t = buscaCliente.trim();
@@ -2609,7 +2619,7 @@ export default function Campanhas() {
           aberta={abertas.historico}
           aoAlternar={alternar}
         >
-          <Historico eventos={eventos} conta={CONTA_O_EVENTO} />
+          <Historico eventos={eventos} conta={CONTA_O_EVENTO} cortados={campanha?.historicoCortado || 0} />
         </Secao>
 
         {/* ------------------------------------------------- de quem é */}
@@ -2787,10 +2797,15 @@ export default function Campanhas() {
           )}
         </Secao>
 
-        {/* ------------------------------------------------- escolher */}
+        {/* ------------------------------------------------- escolher
+            FORA DO PAPEL (`semImpressao`): esta lista é o que NÃO entrou.
+            Ia junto no PDF -- o comentário do extrato já dizia que "as seções
+            acima são sem-impressao", e justo esta não era -- e o documento que
+            prova o que o evento vendeu saía com páginas de O.S. alheias. */}
         <Secao
           id="escolher"
           titulo="Marcar O.S."
+          semImpressao
           sub="O que ainda NÃO entrou, dos compradores acima. O mesmo cliente também compra fora do evento — por isso cada O.S. entra por um clique."
           aberta={abertas.escolher}
           aoAlternar={alternar}

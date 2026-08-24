@@ -66,7 +66,11 @@ async function exigirSessao(req: Request, modulo: string | string[]) {
   if (!s) return { resposta: json({ erro: "Entre no sistema.", semSessao: true }, 401) };
   const perms: string[] = s.perms || [];
   const aceitos = Array.isArray(modulo) ? modulo : [modulo];
-  const pode = s.master === true || perms.includes("*") || aceitos.some((x) => perms.includes(x));
+  // Lista VAZIA = qualquer cracha valido serve (a saude da carga, por
+  // exemplo). Sem esta linha, `[]` cairia no `some` que e sempre falso e a
+  // porta nasceria fechada para todo mundo, master inclusive.
+  const pode = aceitos.length === 0 || s.master === true || perms.includes("*") ||
+               aceitos.some((x) => perms.includes(x));
   if (!pode) return { resposta: json({ erro: "Voce nao tem acesso a este modulo." }, 403) };
   return { sessao: s };
 }
@@ -327,10 +331,10 @@ Deno.serve(async (req: Request) => {
            usa) ate o dia da ultima carga DA FONTE DAS ORDENS -- o carimbo
            global `status.em` fica verde mesmo quando so outra fonte veio.
            Fora dela, o painel nao tem o mes, e afirmar zero seria mentira. */
-        const [pan, regua, ordensCarga] = await Promise.all([
+        const [pan, regua, cob] = await Promise.all([
           sb.rpc("painel_anos_panorama"),
           sb.rpc("permutas_historico_desde"),
-          lerCacheComData("ordens"),
+          sb.rpc("painel_ordens_cobertura"),
         ]);
         if (pan.error) throw new Error(pan.error.message);
         const linhas = (pan.data ?? []).map((m: any) => ({
@@ -338,17 +342,29 @@ Deno.serve(async (req: Request) => {
           clientes: Number(m.clientes),
           valorCampanha: Number(m.valor_campanha), osCampanha: Number(m.os_campanha),
         }));
-        // Dia LOCAL da casa (UTC-3): carga de 23h e do dia em que rodou, nao
-        // do dia seguinte em UTC -- na virada do mes isso mudaria a regua.
-        const ate = ordensCarga.em
-          ? new Date(new Date(ordensCarga.em).getTime() - 3 * 3600000).toISOString().slice(0, 10)
+        /* ATE ONDE A TABELA FOI CARREGADA -- carimbo da PROPRIA tabela, nao
+           do cache `ordens`, que e outra fonte com outra cadencia. Dia LOCAL
+           da casa (UTC-3): carga de 23h e do dia em que rodou, nao do dia
+           seguinte em UTC -- na virada do mes isso mudaria a regua. */
+        const linhaCob = Array.isArray(cob.data) ? cob.data[0] : cob.data;
+        const carregado = linhaCob?.carregado_em ?? null;
+        const ate = carregado
+          ? new Date(new Date(carregado).getTime() - 3 * 3600000).toISOString().slice(0, 10)
           : null;
+        /* O INICIO DA COBERTURA E A MAIS ANTIGA DAS DUAS DATAS: a regua da
+           varredura e a primeira O.S. guardada. So a regua deixava a aba
+           refem da permuta mais antiga (mexer no `desde` dela escondia 64
+           meses e R$ 22,5 milhoes -- provado no banco); so o min(data) faria
+           janeiro de 2020, varrido e sem venda, parecer mes que o painel nao
+           tem. A menor das duas responde certo nos dois casos. */
+        const primeiraOS = linhaCob?.desde ?? null;
+        const desde = [regua.data, primeiraOS].filter(Boolean).sort()[0] ?? null;
         return json({
           // mes=null e a linha do ANO (o distinct de clientes que a soma dos
           // meses nao da); as demais sao os meses.
           meses: linhas.filter((l: any) => l.mes),
           anos: linhas.filter((l: any) => !l.mes).map(({ mes: _m, ...resto }: any) => resto),
-          cobertura: { desde: regua.data || "2020-01-01", ate },
+          cobertura: { desde, ate },
         });
       }
 
@@ -378,6 +394,18 @@ Deno.serve(async (req: Request) => {
         });
         if (error) throw new Error(error.message);
         return json({ detalhe: data ?? null });
+      }
+
+      /* O ALARME DA CARGA, que ate agora nao tinha porta: o vigia (pg_cron,
+         de hora em hora) escrevia `carga_alarme` no cache e NINGUEM lia --
+         nem tela, nem function. Vigia que ninguem ouve e metade de vigia.
+         Qualquer sessao pode ler: e sinal de saude do painel, nao dado de
+         negocio, e a Home da direcao e quem mostra. */
+      case "carga": {
+        const g = await exigirSessao(req, []);
+        if (g.resposta) return g.resposta;
+        const alarme = await lerCache("carga_alarme");
+        return json({ alarme: alarme?.parado ? alarme : null });
       }
 
       default:

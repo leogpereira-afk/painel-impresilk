@@ -16,6 +16,7 @@ import {
   clientesDasOrdens,
   fichaDaOS,
   linhasDaPermuta,
+  unirOrdens,
   resumoDaPermuta,
   resumoGeral,
   ordensDosClientes,
@@ -451,4 +452,32 @@ test("acento e caixa não partem um cliente em dois grupos", () => {
 test("lista vazia dá nenhum grupo, não um grupo vazio", () => {
   assert.deepEqual(linhasPorCliente([], []), []);
   assert.deepEqual(linhasPorCliente(null, null), []);
+});
+
+test("estreitar o período NÃO transforma O.S. aceita em 'cancelada no ERP'", () => {
+  // A busca da tela traz só o período/clientes atuais; a conferência das
+  // aceitas vem por id. Unidas, a O.S. viva de fora do período não some.
+  const aceita = { id: 7, numero: "207", cliente: "Parceiro X", data: "2024-03-02", valor: 900 };
+  const permuta = { nome: "P", os: { 7: fichaDaOS(aceita) }, lancamentos: {} };
+  const doPeriodo = []; // o período foi estreitado para 2026: nada casa
+  const semUniao = linhasDaPermuta(permuta, doPeriodo);
+  assert.equal(semUniao[0].sumiu, false, "lista vazia já era tratada como 'não deu para conferir'");
+
+  const outra = { id: 9, numero: "209", cliente: "Parceiro X", data: "2026-01-05", valor: 100 };
+  const comUniao = linhasDaPermuta(permuta, unirOrdens([outra], [aceita]));
+  assert.equal(comUniao.find((l) => l.numero === "207").sumiu, false,
+    "com a união, a aceita de 2024 continua viva mesmo com o período em 2026");
+
+  const semAceita = linhasDaPermuta(permuta, [outra]);
+  assert.equal(semAceita.find((l) => l.numero === "207").sumiu, true,
+    "controle: sem a união, a mesma O.S. era dada como cancelada");
+});
+
+test("unirOrdens não duplica e preserva as marcas de corte", () => {
+  const a = Object.assign([{ id: 1 }, { id: 2 }], { clientesCortados: 3, linhasNoTeto: true });
+  const juntas = unirOrdens(a, [{ id: 2 }, { id: 5 }]);
+  assert.deepEqual(juntas.map((o) => o.id), [1, 2, 5]);
+  assert.equal(juntas.clientesCortados, 3);
+  assert.equal(juntas.linhasNoTeto, true);
+  assert.equal(unirOrdens(a, []), a, "sem nada novo, devolve o mesmo array (marcas intactas)");
 });

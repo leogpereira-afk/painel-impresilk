@@ -140,6 +140,27 @@ export function fichaDaOS(os) {
  * as O.S. da permuta pareceriam canceladas de uma vez. Lista vazia não é
  * resposta: é ausência de resposta. Nesse caso a conta usa o valor congelado e
  * a tela diz que não deu para conferir. */
+/* AS DUAS LISTAS VIRAM UMA. A tela busca as O.S. do PERÍODO e dos CLIENTES do
+   registro (é o que alimenta "escolher"), mas a conferência das já aceitas
+   precisa das O.S. delas mesmas -- senão estreitar o período, ou tirar um
+   comprador da lista, marcava "cancelada no ERP" O.S. vivas, e isso é
+   afirmação sobre dinheiro. Une por id, sem duplicar, preservando as marcas
+   de corte que viajam presas ao array da busca. */
+export function unirOrdens(doPeriodo, porId) {
+  const vistas = new Set();
+  const fora = [];
+  for (const o of doPeriodo || []) vistas.add(String(o?.id));
+  for (const o of porId || []) {
+    const k = String(o?.id);
+    if (!vistas.has(k)) { vistas.add(k); fora.push(o); }
+  }
+  if (!fora.length) return doPeriodo || [];
+  const junto = [...(doPeriodo || []), ...fora];
+  junto.clientesCortados = doPeriodo?.clientesCortados || 0;
+  junto.linhasNoTeto = !!doPeriodo?.linhasNoTeto;
+  return junto;
+}
+
 export function linhasDaPermuta(permuta, ordens) {
   const conferivel = Array.isArray(ordens) && ordens.length > 0;
   const porId = new Map(conferivel ? ordens.map((o) => [String(o.id), o]) : []);

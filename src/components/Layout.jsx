@@ -300,7 +300,9 @@ function ConteudoLateral({ aoNavegar, sessao }) {
       {/* Sair fica FORA do grupo: com Sistemas fechado, ninguem acha a saida. */}
       <button
         type="button"
-        onClick={sair}
+        /* `onClick={sair}` passava o EVENTO do clique como `motivo`, e a tela
+           de login abria com "[object Object]" na tarja. */
+        onClick={() => sair()}
         className={`mt-2 w-full border-t pt-2.5 ${CLASSE_ITEM} text-slate-500 hover:bg-bad-50 hover:text-bad-700`}
         style={{ borderColor: "var(--hairline)", borderRadius: 0 }}
       >

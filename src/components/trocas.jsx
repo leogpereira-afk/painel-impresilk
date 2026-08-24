@@ -292,10 +292,21 @@ function agrupar(eventos) {
   return saida;
 }
 
-export function Historico({ eventos, conta }) {
+/* `cortados` = quantos eventos ANTIGOS já saíram (o banco guarda os 1.000
+   últimos e conta o resto). Sem esta linha, o histórico ia perdendo o começo
+   -- inclusive o "criou" -- e parecia inteiro: numa campanha de eleição, com
+   uma marcação por O.S., isso acontece no primeiro dia. */
+export function Historico({ eventos, conta, cortados = 0 }) {
   if (!eventos.length) return <Empty>Nada registrado ainda.</Empty>;
   return (
     <ol className="space-y-2">
+      {cortados > 0 && (
+        <li className="text-[11px] text-slate-400">
+          {cortados === 1
+            ? "1 evento mais antigo já saiu deste histórico (guardamos os 1.000 últimos)."
+            : `${cortados.toLocaleString("pt-BR")} eventos mais antigos já saíram deste histórico (guardamos os 1.000 últimos).`}
+        </li>
+      )}
       {agrupar(eventos).map((e, i) => {
         const n = e.juntos.length;
         const total = e.juntos.reduce((s, x) => s + (Number(x.valor) || 0), 0);

@@ -808,6 +808,11 @@ export default function ContasAtrasadas() {
               >
                 Todos
               </button>
+              {/* A SOMA DOS CHIPS PASSA DO TOTAL, e agora a tela diz por quê:
+                  título que cita várias O.S. entra na carteira de cada
+                  vendedor envolvido. O comentário do cálculo já prometia que
+                  "o rótulo na tela avisa" -- não avisava, e sobravam R$ 3 mil
+                  sem explicação entre dois números vizinhos. */}
               {opcoesVendedor.map((v) => {
                 const aberto = vendedorSel === v.nome;
                 return (
@@ -834,6 +839,22 @@ export default function ContasAtrasadas() {
               })}
             </div>
           )}
+          {/* A SOMA DOS CHIPS PASSA DO TOTAL, e agora a tela diz por quê: um
+              título que cita O.S. de dois vendedores entra na carteira dos
+              dois. O comentário do cálculo já prometia que "o rótulo na tela
+              avisa" — não avisava, e sobravam milhares de reais sem explicação
+              entre dois números vizinhos. Só aparece quando sobra de verdade:
+              frase fixa vira ruído. */}
+          {opcoesVendedor.length > 0 && (() => {
+            const somaChips = opcoesVendedor.reduce((t, v) => t + (v.valor || 0), 0);
+            const sobra = Math.round((somaChips - (k.totalAtrasado || 0)) * 100) / 100;
+            return sobra > 1 ? (
+              <p className="mt-1.5 text-xs text-slate-400">
+                As carteiras somam {moeda(sobra)} a mais que o total: título que cita O.S. de mais de um
+                vendedor entra na carteira de cada um.
+              </p>
+            ) : null;
+          })()}
 
           {/* No celular a caixa de recortes custava 280px ANTES da primeira
               linha -- e é o que menos se usa com o telefone na mão. Ela vira um

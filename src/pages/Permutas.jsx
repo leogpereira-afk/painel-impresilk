@@ -41,7 +41,7 @@ import {
   buscarClientes, buscarOrdensDe, buscarOrdensPorId, lerCobertura,
 } from "../services/permutas.js";
 import {
-  fichaDaOS, resumoDaPermuta, resumoGeral, totaisDasPermutas, ordensDosClientes, donoPorOS,
+  fichaDaOS, resumoDaPermuta, resumoGeral, totaisDasPermutas, ordensDosClientes, donoPorOS, unirOrdens,
   extratoDaPermuta, linhasPorCliente,
 } from "../lib/calc/permutas.js";
 import { paraNumero, dataLonga } from "../lib/format.js";
@@ -507,12 +507,22 @@ export default function Permutas() {
      clique, com a lista sumindo debaixo do cursor. Marcar 20 O.S. eram 20
      buscas idênticas. A Campanhas já tinha esta trava; faltava na irmã. */
   const idsTexto = aberta ? "" : idsTodos;
+  /* AS JÁ ACEITAS, pelo id. A busca por cliente e período alimenta "escolher",
+     mas não serve para CONFERIR o que já entrou: estreitar o período, ou tirar
+     um comprador da lista, tirava a O.S. aceita da resposta e a tela passava a
+     afirmar "cancelada no ERP" sobre venda viva -- afirmação sobre dinheiro,
+     feita a partir de uma pergunta que nem foi feita. */
+  const idsAceitasTexto = aberta ? Object.keys(mapa?.[aberta]?.os || {}).sort().join("|") : "";
 
   useEffect(() => {
     let vivo = true;
     setBuscandoOS(true);
+    const aceitas = idsAceitasTexto ? [...new Set(idsAceitasTexto.split("|"))] : [];
     const pedido = aberta
-      ? (chavesDaPermuta.length ? buscarOrdensDe(chavesDaPermuta, desde, ate) : Promise.resolve([]))
+      ? Promise.all([
+          chavesDaPermuta.length ? buscarOrdensDe(chavesDaPermuta, desde, ate) : Promise.resolve([]),
+          buscarOrdensPorId(aceitas),
+        ]).then(([doPeriodo, porId]) => unirOrdens(doPeriodo, porId))
       : buscarOrdensPorId(idsTexto ? [...new Set(idsTexto.split("|"))] : []);
     pedido
       .then((os) => vivo && setOrdens(os))
@@ -521,7 +531,7 @@ export default function Permutas() {
     return () => {
       vivo = false;
     };
-  }, [aberta, chavesDaPermuta, desde, ate, idsTexto]);
+  }, [aberta, chavesDaPermuta, desde, ate, idsTexto, idsAceitasTexto]);
 
   // Busca de cliente no servidor, com folga para a pessoa terminar de digitar.
   useEffect(() => {
@@ -1001,7 +1011,7 @@ export default function Permutas() {
           aberta={abertas.historico}
           aoAlternar={alternar}
         >
-          <Historico eventos={eventos} conta={CONTA_O_EVENTO} />
+          <Historico eventos={eventos} conta={CONTA_O_EVENTO} cortados={permuta?.historicoCortado || 0} />
         </Secao>
 
         {/* ------------------------------------------------- de quem é */}
@@ -1234,10 +1244,15 @@ export default function Permutas() {
           )}
         </Secao>
 
-        {/* ------------------------------------------------- escolher */}
+        {/* ------------------------------------------------- escolher
+            FORA DO PAPEL (`semImpressao`): esta lista é o que NÃO entrou.
+            Ia junto no PDF -- o comentário do extrato já dizia que "as seções
+            acima são sem-impressao", e justo esta não era -- e o documento que
+            prova o que o evento vendeu saía com páginas de O.S. alheias. */}
         <Secao
           id="escolher"
           titulo="Escolher O.S."
+          semImpressao
           sub="O que ainda NÃO entrou, dos clientes acima. Marque as que fazem parte da permuta — o mesmo cliente também compra pagando."
           aberta={abertas.escolher}
           aoAlternar={alternar}

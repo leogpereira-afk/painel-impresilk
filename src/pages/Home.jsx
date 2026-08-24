@@ -14,6 +14,7 @@ import { AlertTriangle, ChevronRight } from "lucide-react";
 import { useApp } from "../config/store.jsx";
 import { listarAtivos } from "../services/ativos.js";
 import { statusBackup } from "../services/backup.js";
+import { lerCargaAlarme } from "../services/permutas.js";
 import { ehDirecao } from "../lib/sessao.js";
 import { calcAtivos, TIPOS } from "../lib/calc/ativos.js";
 import { ymdLocal } from "../lib/format.js";
@@ -72,6 +73,11 @@ export default function Home() {
      busca (é assunto dela) e falha da consulta fica muda: o aviso de atraso
      não pode nascer de uma queda de rede. */
   const [backupParadoHoras, setBackupParadoHoras] = useState(null);
+  const [backupFalhou, setBackupFalhou] = useState(0);
+  /* A CARGA DO ERP: o vigia (pg_cron) grava `carga_alarme` de hora em hora e,
+     até esta rodada, NINGUÉM lia -- nem tela nem function. Aqui ele aparece,
+     no mesmo lugar em que a direção já olha o backup. */
+  const [cargaParada, setCargaParada] = useState(null);
   useEffect(() => {
     let vivo = true;
     listarAtivos()
@@ -91,11 +97,30 @@ export default function Home() {
          alvará vencido sumia em silêncio. */
       .catch(() => { if (vivo) setFalhouVencimentos(true); });
     if (ehDirecao()) {
+      lerCargaAlarme()
+        .then((al) => {
+          if (!vivo || !al) return;
+          setCargaParada({
+            horas: Math.max(1, Math.round((al.atrasoMin || 0) / 60)),
+            fontes: Object.keys(al.fontes || {}),
+          });
+        })
+        .catch(() => {}); // sinal de saúde: falha dele não vira aviso falso
       statusBackup()
         .then((st) => {
           if (!vivo || !st) return;
           const sistemas = st?.sistemas || (st?.em ? { painel: st } : {});
-          const idades = Object.values(sistemas)
+          const lista = Object.values(sistemas);
+          /* O CARIMBO `em` É ESCRITO TAMBÉM QUANDO O BACKUP FALHA (a Edge
+             grava `{ em: agora, ok: false, erro }`). Medindo só a idade, o
+             backup que RODA E FALHA todo dia parecia o mais fresco de todos
+             -- justo o caso que este aviso existe para pegar. Falha conta
+             como parado na hora, sem esperar as 36h. */
+          if (lista.some((sx) => sx && sx.ok === false)) {
+            setBackupFalhou(lista.filter((sx) => sx?.ok === false).length);
+            return;
+          }
+          const idades = lista
             .map((sx) => Date.parse(sx?.em || "") || 0)
             .filter(Boolean)
             .map((t) => (Date.now() - t) / 36e5);
@@ -124,6 +149,37 @@ export default function Home() {
       <p className="mt-4 max-w-xl text-lg leading-relaxed text-slate-500 sm:text-xl">
         {fraseDoDia()}
       </p>
+
+      {backupFalhou > 0 && (
+        <button
+          onClick={() => navigate("/acessos")}
+          className="card card-hover mt-6 w-full max-w-lg border-l-4 border-l-bad-600 p-4 text-left"
+        >
+          <span className="flex items-center gap-2 text-sm">
+            <AlertTriangle size={16} className="shrink-0 text-bad-700" />
+            <span className="min-w-0 flex-1 text-slate-700">
+              <strong className="font-display">Backup falhou.</strong> A última corrida deu erro em{" "}
+              {backupFalhou === 1 ? "um sistema" : `${backupFalhou} sistemas`} — rodar não é o mesmo que
+              copiar. Toque para ver o erro e rodar de novo.
+            </span>
+          </span>
+        </button>
+      )}
+
+      {cargaParada && (
+        <div className="card mt-6 w-full max-w-lg border-l-4 border-l-warn-500 p-4 text-left">
+          <span className="flex items-center gap-2 text-sm">
+            <AlertTriangle size={16} className="shrink-0 text-warn-600" />
+            <span className="min-w-0 flex-1 text-slate-700">
+              <strong className="font-display">Os números podem estar velhos.</strong>{" "}
+              {cargaParada.fontes?.length === 1
+                ? `A fonte "${cargaParada.fontes[0]}" não é atualizada`
+                : `${cargaParada.fontes?.length ?? "Algumas"} fontes não são atualizadas`}{" "}
+              há {cargaParada.horas}h — o normal é a cada 20 minutos. As telas mostram o dado guardado.
+            </span>
+          </span>
+        </div>
+      )}
 
       {backupParadoHoras != null && (
         <button

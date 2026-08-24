@@ -25,9 +25,16 @@ const IMUTAVEL = /\/assets\/[^/]+-[A-Za-z0-9_-]{8,}\.(js|css|png|svg|woff2?)$|fo
 self.addEventListener("install", () => self.skipWaiting());
 self.addEventListener("activate", (e) => {
   e.waitUntil((async () => {
-    // Versão nova do worker apaga caches de versões velhas do WORKER (o
-    // conteúdo com hash continua válido; isto só troca a prateleira).
-    for (const k of await caches.keys()) if (k !== CACHE) await caches.delete(k);
+    /* Versão nova do worker apaga caches de versões velhas DO PAINEL -- e
+       SÓ delas. `caches` é por ORIGEM, não por escopo: o RH
+       (impresilk-rh-v8), o POPs (pops-shell-v11) e o Painel moram todos em
+       leogpereira-afk.github.io, e apagar "tudo que não é o meu" derrubava o
+       cache dos vizinhos a cada visita -- os três faziam isso, um contra o
+       outro, e o ganho de velocidade de cada um evaporava ao trocar de
+       sistema. O prefixo separa a minha prateleira velha da casa alheia. */
+    for (const k of await caches.keys()) {
+      if (k !== CACHE && k.startsWith("painel-")) await caches.delete(k);
+    }
     await self.clients.claim();
   })());
 });
@@ -43,8 +50,12 @@ self.addEventListener("fetch", (e) => {
     e.respondWith((async () => {
       try {
         const r = await fetch(e.request);
-        const c = await caches.open(CACHE);
-        c.put(e.request, r.clone());
+        // SÓ RESPOSTA BOA VIRA RESERVA: guardando qualquer coisa, um 404 ou
+        // 500 de passagem virava a página que o offline serve depois.
+        if (r.ok) {
+          const c = await caches.open(CACHE);
+          c.put(e.request, r.clone());
+        }
         return r;
       } catch {
         return (await caches.match(e.request)) || Response.error();
