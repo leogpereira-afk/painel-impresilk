@@ -34,7 +34,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowLeft, Plus, Trash2, Search, X, AlertTriangle, Handshake, Building2,
-  Archive, Paperclip, Download, CalendarRange, Check,
+  Archive, Paperclip, Download, CalendarRange, Check, RotateCw,
 } from "lucide-react";
 import {
   lerPermutas, mexerNaPermuta, removerPermuta, anexarNaPermuta, lerAnexo,
@@ -416,6 +416,10 @@ export default function Permutas() {
   // cliente. `ordens` é o que a tela conhece agora -- só o necessário.
   const [ordens, setOrdens] = useState([]);
   const [buscandoOS, setBuscandoOS] = useState(false);
+  /* O BOTÃO DE ATUALIZAR incrementa isto e o efeito rebusca. Sem ele, quem
+     ficava com a tela aberta enquanto pedidos novos desciam do ERP (a carga
+     traz de 20 em 20 minutos) só via a lista nova fechando e reabrindo. */
+  const [versaoBusca, setVersaoBusca] = useState(0);
   const [buscaCliente, setBuscaCliente] = useState("");
   const [achados, setAchados] = useState([]);
   const [buscaOS, setBuscaOS] = useState("");
@@ -531,7 +535,7 @@ export default function Permutas() {
     return () => {
       vivo = false;
     };
-  }, [aberta, chavesDaPermuta, desde, ate, idsTexto, idsAceitasTexto]);
+  }, [aberta, chavesDaPermuta, desde, ate, idsTexto, idsAceitasTexto, versaoBusca]);
 
   // Busca de cliente no servidor, com folga para a pessoa terminar de digitar.
   useEffect(() => {
@@ -1260,17 +1264,29 @@ export default function Permutas() {
           aberta={abertas.escolher}
           aoAlternar={alternar}
           acao={
-            paraEscolher.length > 8 && (
-              <div className="relative">
-                <Search size={14} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
-                <input
-                  className="input h-8 w-44 pl-8 text-sm"
-                  placeholder="nº ou cliente"
-                  value={buscaOS}
-                  onChange={(e) => setBuscaOS(e.target.value)}
-                />
-              </div>
-            )
+            <div className="flex items-center gap-1.5">
+              <button
+                type="button"
+                className="btn-ghost"
+                disabled={buscandoOS}
+                title="Busca de novo as O.S. no painel — pedidos novos descem do ERP a cada 20 minutos"
+                onClick={() => setVersaoBusca((v) => v + 1)}
+              >
+                <RotateCw size={14} className={buscandoOS ? "animate-spin" : ""} />
+                {buscandoOS ? "Atualizando…" : "Atualizar"}
+              </button>
+              {paraEscolher.length > 8 && (
+                <div className="relative">
+                  <Search size={14} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <input
+                    className="input h-8 w-44 pl-8 text-sm"
+                    placeholder="nº ou cliente"
+                    value={buscaOS}
+                    onChange={(e) => setBuscaOS(e.target.value)}
+                  />
+                </div>
+              )}
+            </div>
           }
         >
 
