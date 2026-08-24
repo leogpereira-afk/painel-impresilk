@@ -102,10 +102,26 @@ export default function Home() {
         .then((r) => {
           if (!vivo || !r) return;
           if (r.alarme) {
-            setCargaParada({
-              horas: Math.max(1, Math.round((r.alarme.atrasoMin || 0) / 60)),
-              fontes: Object.keys(r.alarme.fontes || {}),
-            });
+            /* CADA FONTE TEM A SUA CADÊNCIA — e o aviso fala a dela. A régua
+               vem do próprio vigia ({min, limite} por fonte): a versão
+               anterior dizia "o normal é a cada 20 minutos" para o histórico
+               SEMANAL, acusando atraso num domingo perfeitamente em dia. */
+            const NOME_FONTE = {
+              recebiveis: "contas a receber", pagar: "contas a pagar", bancos: "bancos",
+              orcamentos: "orçamentos", ordens: "ordens de serviço",
+              dso_hist: "prazo médio de recebimento", fluxo_mensal: "fluxo realizado",
+              historico_status: "histórico de O.S.", status: "carimbo da carga",
+            };
+            const regua = (min) =>
+              min >= 1440 * 2 ? `${Math.round(min / 1440)} dias`
+              : min >= 120 ? `${Math.round(min / 60)}h`
+              : `${min} minutos`;
+            const fontes = Object.entries(r.alarme.fontes || {}).map(([chave, f]) => ({
+              nome: NOME_FONTE[chave] || chave,
+              horas: Math.max(1, Math.round(((f?.min ?? r.alarme.atrasoMin) || 0) / 60)),
+              normal: f?.limite ? regua(f.limite) : null,
+            }));
+            setCargaParada({ fontes });
           }
           // Carga que RODOU mas veio pela metade: o dado entra torto (item
           // novo sem categoria, por exemplo) e nada dizia.
@@ -185,16 +201,20 @@ export default function Home() {
         </div>
       )}
 
-      {cargaParada && (
+      {cargaParada && cargaParada.fontes?.length > 0 && (
         <div className="card mt-6 w-full max-w-lg border-l-4 border-l-warn-500 p-4 text-left">
           <span className="flex items-center gap-2 text-sm">
             <AlertTriangle size={16} className="shrink-0 text-warn-600" />
             <span className="min-w-0 flex-1 text-slate-700">
               <strong className="font-display">Os números podem estar velhos.</strong>{" "}
-              {cargaParada.fontes?.length === 1
-                ? `A fonte "${cargaParada.fontes[0]}" não é atualizada`
-                : `${cargaParada.fontes?.length ?? "Algumas"} fontes não são atualizadas`}{" "}
-              há {cargaParada.horas}h — o normal é a cada 20 minutos. As telas mostram o dado guardado.
+              {cargaParada.fontes.map((f, i) => (
+                <span key={f.nome}>
+                  {i > 0 && "; "}
+                  {f.nome} está há {f.horas}h sem atualizar
+                  {f.normal ? ` (o normal dela é até ${f.normal})` : ""}
+                </span>
+              ))}
+              . As telas mostram o dado guardado.
             </span>
           </span>
         </div>
