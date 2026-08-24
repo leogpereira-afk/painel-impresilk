@@ -141,7 +141,8 @@ $$;
 -- ---------------------------------------------------------------- clientes
 -- A curva ABC do recorte (um ano, ou tudo), com grupo aplicado ANTES do
 -- ranking: o grupo que compra por tres CNPJs sobe para a classe certa.
--- Regua, dita na tela: A+ ate 30% do valor acumulado, A ate 80%, B ate 95%.
+-- Regua, dita na tela: A+ ate 30% do valor acumulado, A ate 80%, B+ ate
+-- 90%, B ate 95%, C o resto.
 --
 -- O A+ nasceu de um pedido do dono (24/08) olhando a discrepancia DENTRO da
 -- classe A: o topo tinha R$ 2 milhoes e o pe R$ 35 mil na mesma caixa. O
@@ -185,6 +186,10 @@ as $$
     select *,
            case when (sum(valor) over (order by valor desc, chave) - valor) / nullif(sum(valor) over (), 0) < 0.30 then 'A+'
                 when (sum(valor) over (order by valor desc, chave) - valor) / nullif(sum(valor) over (), 0) < 0.80 then 'A'
+                -- B+ (80-90%) tambem foi medido antes de escolhido: 604
+                -- clientes no acumulado (corte ~R$ 3,1 mil, 10% do valor) --
+                -- o meio da carteira que ainda importa, separado da transicao.
+                when (sum(valor) over (order by valor desc, chave) - valor) / nullif(sum(valor) over (), 0) < 0.90 then 'B+'
                 when (sum(valor) over (order by valor desc, chave) - valor) / nullif(sum(valor) over (), 0) < 0.95 then 'B'
                 else 'C' end as classe,
            valor / nullif(sum(valor) over (), 0) as share,
@@ -199,7 +204,7 @@ as $$
       from (select classe, count(*) n, round(sum(valor),2) v,
                    round(min(valor),2) as corte,
                    round(sum(valor) / nullif((select sum(valor) from cli),0) * 1000) / 1000 as sh,
-                   case classe when 'A+' then 0 when 'A' then 1 when 'B' then 2 else 3 end as ordem
+                   case classe when 'A+' then 0 when 'A' then 1 when 'B+' then 2 when 'B' then 3 else 4 end as ordem
               from classada group by classe) c),
     'total', (select round(coalesce(sum(valor),0),2) from cli),
     'clientesQtd', (select count(*) from cli),
@@ -214,7 +219,7 @@ as $$
     'fora', (select coalesce(jsonb_agg(jsonb_build_object(
         'classe', classe, 'clientes', n, 'valor', v) order by ordem), '[]'::jsonb)
       from (select classe, count(*) n, round(sum(valor),2) v,
-                   case classe when 'A+' then 0 when 'A' then 1 when 'B' then 2 else 3 end as ordem
+                   case classe when 'A+' then 0 when 'A' then 1 when 'B+' then 2 when 'B' then 3 else 4 end as ordem
               from classada where rn > 200 group by classe) f)
   );
 $$;

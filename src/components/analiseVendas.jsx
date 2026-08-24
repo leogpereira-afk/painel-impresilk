@@ -338,9 +338,11 @@ export function AbaVendedores() {
 /* ================================================================= CLIENTES */
 const TOM_CLASSE = {
   /* A+ é o topo do topo (pedido do dono: a classe A ia de R$ 2 milhões a
-     R$ 35 mil na mesma caixa) — o tom mais forte é dele. */
+     R$ 35 mil na mesma caixa) — o tom mais forte é dele; B+ é a metade de
+     cima da antiga faixa B, no tom mais forte do âmbar. */
   "A+": "bg-brand-600 text-white",
   A: "bg-brand-100 text-brand-800",
+  "B+": "bg-warn-500 text-white",
   B: "bg-warn-100 text-warn-800",
   C: "bg-slate-100 text-slate-500",
 };
@@ -502,8 +504,8 @@ export function AbaClientes() {
     <>
       <div className="sem-impressao rounded-lg bg-brand-50 px-3 py-2 text-xs text-brand-800">
         Automática: todos os compradores do recorte, classificados pelo valor — A+ são os que somam os
-        primeiros 30%, A até 80%, B até 95%, C o resto. Toque num cliente para o comportamento dele;
-        grupos de CNPJ contam juntos.
+        primeiros 30%, A até 80%, B+ até 90%, B até 95%, C o resto. Toque num cliente para o
+        comportamento dele; grupos de CNPJ contam juntos.
       </div>
       <Aviso aviso={avisoGrupo} aoFechar={() => setAvisoGrupo(null)} />
       <div className="sem-impressao">
@@ -548,7 +550,7 @@ export function AbaClientes() {
               linhas={[
                 `Emitido em ${dataLonga(hojeISO())}`,
                 `${(d.clientesQtd ?? 0).toLocaleString("pt-BR")} clientes no recorte · ${dinheiro(d.total)}`,
-                "A+ = quem soma os primeiros 30% do valor · A até 80% · B até 95% · C o resto. Grupos de CNPJ contam como um cliente.",
+                "A+ = quem soma os primeiros 30% do valor · A até 80% · B+ até 90% · B até 95% · C o resto. Grupos de CNPJ contam como um cliente.",
               ]}
             />
             {selecionando && (
@@ -600,7 +602,7 @@ export function AbaClientes() {
                 </div>
               </div>
             )}
-            <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
+            <div className="grid grid-cols-2 gap-2 lg:grid-cols-5">
               {(d.classes || []).map((c) => (
                 <button
                   key={c.classe}
