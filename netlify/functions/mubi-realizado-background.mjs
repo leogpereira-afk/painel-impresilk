@@ -42,7 +42,9 @@ async function realizadoDoAno(ano) {
     status: "PAGO",
     filtrodata: "PAGAMENTO",
     datainicial: `${ano}-01-01`,
-    datafinal: `${ano}-12-31`,
+    // ano+1: a datafinal do ERP corta na meia-noite; "ate 31/12" perderia o
+    // proprio 31/12 (pagamento tem hora). O upsert nao duplica o excedente.
+    datafinal: `${ano + 1}-01-01`,
   };
   const [receber, pagar] = await Promise.all([
     mubiGetTudo("contas-receber", janela),

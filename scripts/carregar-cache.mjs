@@ -181,7 +181,15 @@ async function gravarOrdensTabela(ordens) {
 // Janela de 7 dias mesclada no cache atual, por id. Substitui a etapaIncremental
 // da versao Netlify, que dependia do store do Blobs para ler o que ja existia.
 async function janelaDe7Dias() {
-  const janela = { status: "TODOS", datainicial: hojeMais(-7), datafinal: hojeMais(0) };
+  /* `datafinal` vai um dia ALEM de hoje. O Mubisys compara a data final na
+     meia-noite: `datafinal=2026-08-24` significa "cadastro < 24/08 00:00", e a
+     O.S. cadastrada hoje as 11h fica FORA da janela que termina "hoje". Foi
+     assim que em 24/08/2026 sete O.S. do dia (23081-23087) existiam no ERP --
+     o PCP as importava de hora em hora, com janela terminando no futuro -- e o
+     painel inteiro dizia que a mais nova era de quinta, com toda rodada em
+     "sucesso". O painel era cego para o proprio dia desde sempre; so aparecia
+     para quem procurasse a O.S. de hoje. */
+  const janela = { status: "TODOS", datainicial: hojeMais(-7), datafinal: hojeMais(1) };
 
   const [orc, os] = await Promise.all([
     lerComExistencia("orcamentos"), lerComExistencia("ordens"),

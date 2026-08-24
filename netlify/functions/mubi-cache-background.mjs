@@ -581,7 +581,9 @@ async function realizadoDoAno(ano) {
     status: "PAGO",
     filtrodata: "PAGAMENTO",
     datainicial: `${ano}-01-01`,
-    datafinal: `${ano}-12-31`,
+    // ano+1: a datafinal do ERP corta na meia-noite; "ate 31/12" perderia o
+    // proprio 31/12 (pagamento tem hora). O upsert nao duplica o excedente.
+    datafinal: `${ano + 1}-01-01`,
   };
   const [receber, pagar] = await Promise.all([
     mubiGetTudo("contas-receber", janela),
@@ -674,6 +676,18 @@ export async function etapaRealizado(anoBase = new Date().getUTCFullYear(), ante
  */
 export const PAGINA_HISTORICO = 100;
 
+/* Traduz "ate DIA X, inclusive" para o Mubisys, que compara a data final na
+   meia-noite: pedir `datafinal=X` deixa de fora tudo de X que tem hora. Somar
+   um dia inclui o dia X inteiro; o excedente (algo cadastrado exatamente a
+   meia-noite do dia seguinte) e inofensivo -- upsert por id nao duplica.
+   Ver o comentario em janelaDe7Dias (scripts/carregar-cache.mjs): foi assim
+   que as O.S. do proprio dia ficaram invisiveis por meses. */
+export function diaSeguinte(iso) {
+  const d = new Date(`${String(iso).slice(0, 10)}T12:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + 1);
+  return d.toISOString().slice(0, 10);
+}
+
 export async function etapaHistoricoOS(desde, ate) {
   const base = { status: "TODOS", filtrodata: "CADASTRO" };
   /* SEM CATALOGO DE PRODUTOS, de proposito.
@@ -687,7 +701,7 @@ export async function etapaHistoricoOS(desde, ate) {
   const cat = new Map();
   const brutas = await mubiGetTudo(
     "ordem-servico",
-    { ...base, datainicial: desde, datafinal: ate },
+    { ...base, datainicial: desde, datafinal: diaSeguinte(ate) },
     PAGINA_HISTORICO,
   );
   // A cancelada nao entra -- mesma regra da carga normal. Quem ja aceitou uma
@@ -734,7 +748,9 @@ export async function etapaCompleta() {
      multiplicaria por ~2 a parte mais lenta da carga sem ninguem usar. */
   const desdeOS = CORTE_ATRASADOS;
   const desdeOrc = `${new Date().getFullYear()}-01-01`;
-  const base = { status: "TODOS", filtrodata: "CADASTRO", datafinal: hojeMais(0) };
+  // hojeMais(1): o ERP corta a datafinal na meia-noite -- terminar "hoje"
+  // exclui o dia de hoje inteiro (ver diaSeguinte, acima).
+  const base = { status: "TODOS", filtrodata: "CADASTRO", datafinal: hojeMais(1) };
   const janela = { ...base, datainicial: desdeOrc };
 
   const [orcBrutos, categoriaPorNome, osBrutas] = await Promise.all([
@@ -762,7 +778,8 @@ const VERSAO_NORM = 3;
 const VERSAO_NORM_ORC = 1;
 
 export async function etapaIncremental(store, remigrarOS = false, remigrarOrc = false) {
-  const janela = { status: "TODOS", datainicial: hojeMais(-7), datafinal: hojeMais(0) };
+  // hojeMais(1): a datafinal do ERP corta na meia-noite (ver diaSeguinte).
+  const janela = { status: "TODOS", datainicial: hojeMais(-7), datafinal: hojeMais(1) };
 
   // Orcamentos: normalmente so os ultimos 7 dias. Quando a normalizacao muda,
   // rebusca o ano para o historico ganhar os campos novos -- mesma logica das
@@ -777,7 +794,7 @@ export async function etapaIncremental(store, remigrarOS = false, remigrarOrc = 
         status: "TODOS",
         filtrodata: "CADASTRO",
         datainicial: `${new Date().getFullYear()}-01-01`,
-        datafinal: hojeMais(0),
+        datafinal: hojeMais(1),
       });
       mapaOrc.clear();
       brutos.map(normOrcamento).forEach((o) => mapaOrc.set(o.id, o));
@@ -812,7 +829,7 @@ export async function etapaIncremental(store, remigrarOS = false, remigrarOrc = 
         // Mesma regua da tela (ver etapaCompleta): o ano corrente deixava
         // titulo de 2025 sem vendedor para sempre.
         datainicial: CORTE_ATRASADOS,
-        datafinal: hojeMais(0),
+        datafinal: hojeMais(1),
       });
       const ordens = osBrutas
         .map((os, i) => normOS(os, i, categoriaPorNome))
