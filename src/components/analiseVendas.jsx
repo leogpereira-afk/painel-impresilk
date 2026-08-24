@@ -354,7 +354,11 @@ export function AbaClientes() {
   const [aberto, setAberto] = useState(null);   // chave do cliente aberto
   const [detalhes, setDetalhes] = useState({});
   const [erros, setErros] = useState({});
-  const [classeVista, setClasseVista] = useState("");  // "" | A | B | C
+  /* O filtro pode ser uma classe FINA (A+, A, B+, B, C) ou uma COMBINADA
+     ("A*" = A+ e A juntas; "B*" = B+ e B). Os cartões mostram a SOMA das
+     irmãs — pedido do dono — e a diferença entre elas só abre no clique. */
+  const [classeVista, setClasseVista] = useState("");
+  const [grupoAberto, setGrupoAberto] = useState(null); // "A*" | "B*" | null
   const [secaoAberta, alternarSecao] = useSecoes("campanhas_clientes_secoes");
   // grupos
   const [grupos, setGrupos] = useState(null);
@@ -495,9 +499,13 @@ export function AbaClientes() {
 
   /* A POSIÇÃO É DA CURVA INTEIRA, marcada antes do filtro de classe: quem
      filtra a classe B vê "99º", não um ranking que recomeça do 1. */
+  const MEMBROS_COMBINADA = { "A*": ["A+", "A"], "B*": ["B+", "B"] };
+  const casaClasse = (c) =>
+    !classeVista ||
+    (MEMBROS_COMBINADA[classeVista] ? MEMBROS_COMBINADA[classeVista].includes(c.classe) : c.classe === classeVista);
   const lista = (d?.lista || [])
     .map((c, i) => ({ ...c, posicao: i + 1 }))
-    .filter((c) => !classeVista || c.classe === classeVista);
+    .filter(casaClasse);
   const det = aberto ? detalhes[aberto] : null;
 
   return (
@@ -509,7 +517,7 @@ export function AbaClientes() {
       </div>
       <Aviso aviso={avisoGrupo} aoFechar={() => setAvisoGrupo(null)} />
       <div className="sem-impressao">
-        <ChipsAno anos={anosDisponiveis} valor={ano} aoEscolher={(a) => { setAno(a); setAberto(null); setClasseVista(""); }} />
+        <ChipsAno anos={anosDisponiveis} valor={ano} aoEscolher={(a) => { setAno(a); setAberto(null); setClasseVista(""); setGrupoAberto(null); }} />
       </div>
 
       {!d ? (
@@ -602,44 +610,120 @@ export function AbaClientes() {
                 </div>
               </div>
             )}
-            <div className="grid grid-cols-2 gap-2 lg:grid-cols-5">
-              {(d.classes || []).map((c) => (
-                <button
-                  key={c.classe}
-                  type="button"
-                  onClick={() => setClasseVista((x) => (x === c.classe ? "" : c.classe))}
-                  aria-pressed={classeVista === c.classe}
-                  className={`rounded-xl border p-3 text-left transition-colors ${
-                    classeVista === c.classe ? "border-brand-400 bg-brand-50/60" : "border-slate-200 hover:bg-slate-50"
-                  }`}
-                >
-                  <span className={`inline-block rounded px-1.5 py-0.5 font-display text-xs font-semibold ${TOM_CLASSE[c.classe]}`}>
-                    Classe {c.classe}
-                  </span>
-                  <span className="mt-1 block font-display text-lg font-semibold tabular-nums text-slate-900">{dinheiro(c.valor)}</span>
-                  <span className="block text-xs text-slate-500">
-                    {c.clientes.toLocaleString("pt-BR")} {c.clientes === 1 ? "cliente" : "clientes"}
-                    {c.shareClasse != null && ` · ${Math.round(c.shareClasse * 100)}% do valor`}
-                  </span>
-                  {/* O CORTE EM REAIS deste recorte: a régua é o share (30/80/95),
-                      mas quem olha pergunta "a partir de quanto entra?". */}
-                  {c.corte != null && c.classe !== "C" && (
-                    <span className="block text-[11px] text-slate-400">entra quem passa de {dinheiro(c.corte)}</span>
+            {/* TRÊS CARTÕES, COM AS IRMÃS SOMADAS (pedido do dono): A mostra
+                A+ e A juntas, B mostra B+ e B — a diferença entre elas só
+                abre no clique, como sub-cartões. C fica só. */}
+            {(() => {
+              const porClasse = Object.fromEntries((d.classes || []).map((c) => [c.classe, c]));
+              const soma = (membros) => {
+                const partes = membros.map((m) => porClasse[m]).filter(Boolean);
+                if (!partes.length) return null;
+                return {
+                  clientes: partes.reduce((t, c) => t + c.clientes, 0),
+                  valor: Math.round(partes.reduce((t, c) => t + c.valor, 0) * 100) / 100,
+                  share: partes.reduce((t, c) => t + (c.shareClasse || 0), 0),
+                  corte: Math.min(...partes.map((c) => c.corte ?? Infinity)),
+                  partes,
+                };
+              };
+              const CARTOES = [
+                { id: "A*", rotulo: "A", membros: ["A+", "A"], tom: TOM_CLASSE.A },
+                { id: "B*", rotulo: "B", membros: ["B+", "B"], tom: TOM_CLASSE.B },
+                { id: "C", rotulo: "C", membros: ["C"], tom: TOM_CLASSE.C },
+              ];
+              return (
+                <>
+                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+                    {CARTOES.map((ct) => {
+                      const t = soma(ct.membros);
+                      if (!t) return null;
+                      const aberto = grupoAberto === ct.id;
+                      const ativo = classeVista === ct.id || ct.membros.includes(classeVista) ||
+                        (ct.id === "C" && classeVista === "C");
+                      return (
+                        <button
+                          key={ct.id}
+                          type="button"
+                          aria-pressed={ativo}
+                          aria-expanded={ct.membros.length > 1 ? aberto : undefined}
+                          onClick={() => {
+                            if (ct.membros.length === 1) {
+                              setGrupoAberto(null);
+                              setClasseVista((x) => (x === "C" ? "" : "C"));
+                              return;
+                            }
+                            if (aberto) { setGrupoAberto(null); setClasseVista(""); }
+                            else { setGrupoAberto(ct.id); setClasseVista(ct.id); }
+                          }}
+                          className={`rounded-xl border p-3 text-left transition-colors ${
+                            ativo ? "border-brand-400 bg-brand-50/60" : "border-slate-200 hover:bg-slate-50"
+                          }`}
+                        >
+                          <span className={`inline-block rounded px-1.5 py-0.5 font-display text-xs font-semibold ${ct.tom}`}>
+                            Classe {ct.rotulo}
+                          </span>
+                          <span className="mt-1 block font-display text-lg font-semibold tabular-nums text-slate-900">{dinheiro(t.valor)}</span>
+                          <span className="block text-xs text-slate-500">
+                            {t.clientes.toLocaleString("pt-BR")} {t.clientes === 1 ? "cliente" : "clientes"}
+                            {` · ${Math.round(t.share * 100)}% do valor`}
+                          </span>
+                          {Number.isFinite(t.corte) && ct.id !== "C" && (
+                            <span className="block text-[11px] text-slate-400">entra quem passa de {dinheiro(t.corte)}</span>
+                          )}
+                          {ct.membros.length > 1 && (
+                            <span className="mt-0.5 block text-[11px] text-brand-600 sem-impressao">
+                              {aberto ? "fechar a divisão" : `toque para ver ${ct.membros.join(" e ")}`}
+                            </span>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  {grupoAberto && (
+                    <div className="grid grid-cols-2 gap-2">
+                      {(soma(MEMBROS_COMBINADA[grupoAberto]) || { partes: [] }).partes.map((c) => (
+                        <button
+                          key={c.classe}
+                          type="button"
+                          aria-pressed={classeVista === c.classe}
+                          onClick={() => setClasseVista((x) => (x === c.classe ? grupoAberto : c.classe))}
+                          className={`rounded-xl border p-3 text-left transition-colors ${
+                            classeVista === c.classe ? "border-brand-400 bg-brand-50/60" : "border-slate-200 hover:bg-slate-50"
+                          }`}
+                        >
+                          <span className={`inline-block rounded px-1.5 py-0.5 font-display text-xs font-semibold ${TOM_CLASSE[c.classe]}`}>
+                            {c.classe}
+                          </span>
+                          <span className="mt-1 block font-display text-base font-semibold tabular-nums text-slate-900">{dinheiro(c.valor)}</span>
+                          <span className="block text-xs text-slate-500">
+                            {c.clientes.toLocaleString("pt-BR")} {c.clientes === 1 ? "cliente" : "clientes"}
+                            {c.shareClasse != null && ` · ${Math.round(c.shareClasse * 100)}% do valor`}
+                          </span>
+                          {c.corte != null && (
+                            <span className="block text-[11px] text-slate-400">entra quem passa de {dinheiro(c.corte)}</span>
+                          )}
+                        </button>
+                      ))}
+                    </div>
                   )}
-                </button>
-              ))}
-            </div>
+                </>
+              );
+            })()}
             {/* CLASSE FILTRADA E LISTA VAZIA: a lista desce com os 200
                 maiores, e a classe C (às vezes a B) começa depois disso — o
                 cartão acende e a lista sumia sem uma palavra. O "fora" da
                 própria classe responde. */}
             {classeVista && !lista.length && (() => {
-              const f = (d.fora || []).find((x) => x.classe === classeVista);
+              const membros = MEMBROS_COMBINADA[classeVista] || [classeVista];
+              const fs = (d.fora || []).filter((x) => membros.includes(x.classe));
+              const f = fs.length
+                ? { clientes: fs.reduce((t, x) => t + x.clientes, 0), valor: fs.reduce((t, x) => t + x.valor, 0) }
+                : null;
               return (
                 <Empty>
                   {f
-                    ? `Os ${f.clientes.toLocaleString("pt-BR")} clientes da classe ${classeVista} (${dinheiro(f.valor)}) estão todos fora dos ${(d.lista || []).length} maiores — a classe ${classeVista} é justamente a cauda.`
-                    : `Nenhum cliente da classe ${classeVista} neste recorte.`}
+                    ? `Os ${f.clientes.toLocaleString("pt-BR")} clientes da classe ${classeVista.replace("*", "")} (${dinheiro(f.valor)}) estão todos fora dos ${(d.lista || []).length} maiores — essa faixa é justamente a cauda.`
+                    : `Nenhum cliente da classe ${classeVista.replace("*", "")} neste recorte.`}
                 </Empty>
               );
             })()}
