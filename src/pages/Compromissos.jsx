@@ -952,7 +952,15 @@ export default function Compromissos() {
           tom={vm.concluidos ? "ok" : "neutral"}
           icone={Check}
           ativo={recorte === "feitos"}
-          onClick={() => setRecorte((r) => (r === "feitos" ? null : "feitos"))}
+          /* O CARTÃO ABRE O QUE PROMETE. Clicando nele, a lista de abertos
+             esvaziava e a tela dizia "Nada em aberto" -- falso e inútil --
+             enquanto os concluídos seguiam escondidos numa seção recolhida
+             logo abaixo, que o cartão não tocava. */
+          onClick={() => {
+            const ligando = recorte !== "feitos";
+            setRecorte(ligando ? "feitos" : null);
+            if (ligando) setVerFeitos(true);
+          }}
         />
       </div>
 
@@ -1122,8 +1130,14 @@ export default function Compromissos() {
       {gruposNaTela.length === 0 ? (
         <Card>
           <Empty>
-            Nada em aberto{dePessoa ? " para esta pessoa" : ""}. Use &quot;Novo compromisso&quot; para
-            anotar uma visita, uma medição ou algo a resolver.
+            {recorte === "feitos" ? (
+              <>Os concluídos estão na seção “Concluídos”, logo abaixo.</>
+            ) : (
+              <>
+                Nada em aberto{dePessoa ? " para esta pessoa" : ""}. Use &quot;Novo compromisso&quot; para
+                anotar uma visita, uma medição ou algo a resolver.
+              </>
+            )}
           </Empty>
         </Card>
       ) : (

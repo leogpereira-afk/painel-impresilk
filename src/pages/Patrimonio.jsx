@@ -309,6 +309,13 @@ export default function Patrimonio() {
      lista: para achar os 14 era caçar na tabela. Clicar filtra, clicar de novo
      volta -- o mesmo gesto das outras telas. */
   const [recorte, setRecorte] = useState(null); // "semNota" | "semValor" | null
+  /* O TIPO ESCOLHIDO NO CARTÃO. Antes o clique só jogava o nome na BUSCA, que
+     casa por pedaço de texto em cinco campos e mantinha setor e recorte
+     ligados: o cartão dizia "12x Cadeira" e a lista mostrava outro número --
+     às vezes menos (setor ligado), às vezes mais ("Cadeira" aparecendo na
+     descrição de outro bem). Igualdade exata, e o clique limpa os outros
+     cortes, para os dois números serem sempre o mesmo. */
+  const [tipoFiltro, setTipoFiltro] = useState(null);
   const [formBem, setFormBem] = useState(null);
   const [formSetor, setFormSetor] = useState(null);
   const [salvando, setSalvando] = useState(false);
@@ -343,6 +350,7 @@ export default function Patrimonio() {
     const q = busca.trim().toLowerCase();
     const base = verBaixados ? vm.bens : vm.ativos;
     return base
+      .filter((b) => !tipoFiltro || b.nomeGenerico === tipoFiltro)
       .filter((b) => !setorFiltro || b.setorSigla === setorFiltro)
       .filter((b) =>
         !q
@@ -357,7 +365,7 @@ export default function Patrimonio() {
           : recorte === "semValor" ? !b.valor
             : true
       );
-  }, [vm, busca, setorFiltro, verBaixados, recorte]);
+  }, [vm, busca, setorFiltro, verBaixados, recorte, tipoFiltro]);
 
   const rolar = () =>
     setTimeout(() => topoForm.current?.scrollIntoView({ behavior: "smooth", block: "center" }), 60);
@@ -657,7 +665,11 @@ export default function Patrimonio() {
               <button
                 key={t.nome}
                 type="button"
-                onClick={() => setBusca(t.nome)}
+                onClick={() => {
+                  const ligando = tipoFiltro !== t.nome;
+                  setTipoFiltro(ligando ? t.nome : null);
+                  if (ligando) { setBusca(""); setSetorFiltro(""); setRecorte(null); }
+                }}
                 className="rounded-lg border px-3 py-1.5 text-left transition-colors hover:border-brand-300 hover:bg-brand-50"
                 style={{ borderColor: "var(--hairline)" }}
               >
@@ -690,6 +702,17 @@ export default function Patrimonio() {
 
         {/* Saída do recorte ao lado do resultado: a lista encurta e o motivo
             está lá em cima, num cartão que pode nem estar na tela. */}
+        {tipoFiltro && (
+          <div className="sem-impressao mb-3 flex flex-wrap items-center gap-2 rounded-lg bg-brand-50 px-3 py-2 text-sm text-brand-700">
+            <span>
+              Mostrando só <strong>{tipoFiltro}</strong> — {visiveis.length}{" "}
+              {visiveis.length === 1 ? "bem" : "bens"}.
+            </span>
+            <button className="btn-ghost !py-1 !px-2 text-xs" onClick={() => setTipoFiltro(null)}>
+              <X size={13} /> ver todos
+            </button>
+          </div>
+        )}
         {recorte && (
           <div className="sem-impressao mb-3 flex flex-wrap items-center gap-2 rounded-lg bg-brand-50 px-3 py-2 text-sm text-brand-700">
             <span>

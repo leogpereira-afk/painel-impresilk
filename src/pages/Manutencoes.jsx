@@ -1115,13 +1115,28 @@ export default function Manutencoes() {
         (perde.length ? `, e leva junto ${perde.join(" e ")}.` : ".")
       );
     }
+    /* O ESPELHO NO PATRIMÔNIO TAMBÉM É DITO -- e tratado. Cadastrar aqui cria
+       um bem lá (`pat-<id>`); retirar apagava só este lado, e o bem ficava no
+       inventário para sempre, contando valor que a empresa não tem mais (é o
+       número que vai para o seguro). Baixar, e não apagar, é o certo: a
+       etiqueta está colada e o histórico do bem continua valendo. */
+    const idBem = item.bemId || `pat-${item.id}`;
+    linhas.push("\nA ficha dele no Patrimônio será marcada como BAIXADA (não some do inventário).");
     if (!window.confirm(linhas.join("\n"))) return;
     setMsg(null);
     try {
       await removerAtivo(item.id);
+      // Baixa o espelho depois de o ativo sair: se isto falhar, o inventário
+      // fica para acertar à mão -- e a tela diz, em vez de silenciar.
+      let baixou = true;
+      try {
+        await salvarBem(idBem, { situacao: "baixado", baixadoEm: hojeISO, baixaMotivo: "Retirado em Manutenções" });
+      } catch { baixou = false; }
       setItens((l) => (l || []).filter((x) => x.id !== item.id));
       if (formItem?.id === item.id) setFormItem(null);
-      setMsg({ tom: "aviso", texto: `${item.nome} saiu da lista.` });
+      setMsg(baixou
+        ? { tom: "aviso", texto: `${item.nome} saiu da lista e a ficha no Patrimônio foi baixada.` }
+        : { tom: "erro", texto: `${item.nome} saiu da lista, mas NÃO consegui baixar a ficha dele no Patrimônio — dê baixa por lá.` });
     } catch (e) {
       setMsg({ tom: "erro", texto: e.message });
     }
@@ -1599,6 +1614,15 @@ export default function Manutencoes() {
                       );
                     })}
                   </div>
+                  {/* O CORTE FALA. O bloco vem logo abaixo do rodapé com o
+                      TOTAL do ano: quem somasse as 10 linhas não fechava com
+                      ele e não tinha como saber por quê. */}
+                  {anoAtivo.porItem.length > 10 && (
+                    <p className="mt-2 text-xs text-slate-400">
+                      Mostrando os 10 de maior gasto, de {anoAtivo.porItem.length} itens com manutenção
+                      em {anoTela}.
+                    </p>
+                  )}
                 </div>
               )}
 

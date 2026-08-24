@@ -173,8 +173,15 @@ export default function Ativos() {
       });
     }
     try {
+      /* A FICHA TÉCNICA NÃO SAI DAQUI. Esta tela não tem campo de placa nem
+         de nº de série -- ela só carrega `especificacao` porque abriu o
+         registro inteiro. Reenviando o que leu, ela devolvia a ficha VELHA
+         por cima da que Manutenções acabou de corrigir. O servidor foi feito
+         para preservar campo AUSENTE (painel-ativos: `limparEspec`), e a
+         tela de Manutenções já cumpre a regra; esta metade faltava. */
+      const { especificacao: _naoEditoAqui, ...doForm } = form;
       const base = {
-        ...form,
+        ...doForm,
         medidorAtual: paraNumero(form.medidorAtual),
         medidorProximo: paraNumero(form.medidorProximo),
         valor: paraNumero(form.valor),
@@ -185,7 +192,9 @@ export default function Ativos() {
         try {
           const b64 = await arquivoParaBase64(arquivo);
           await guardarArquivo(item.id, b64, arquivo.type, arquivo.name);
-          await salvarAtivo({ ...item, temArquivo: true, arquivoNome: arquivo.name });
+          // Só os dois campos do anexo: mandar `item` inteiro traria de volta
+          // a mesma ficha velha pela porta dos fundos.
+          await salvarAtivo({ id: item.id, tipo: item.tipo, nome: item.nome, temArquivo: true, arquivoNome: arquivo.name });
         } catch (errArq) {
           // Cadastro e anexo sao duas idas ao servidor. Falhando a segunda, o
           // item ficava la dizendo que TEM arquivo -- e tentar de novo criava

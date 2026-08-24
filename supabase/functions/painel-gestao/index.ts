@@ -441,9 +441,24 @@ Deno.serve(async (req: Request) => {
           linha.origem = t.origem === "ata" ? "ata" : "manual";
           linha.decisao_id = t.decisaoId ?? null;
         }
-        // concluido_em e derivado do status: quem grava a data e o servidor, e
-        // reabrir limpa a data (senao fica "concluida em" numa tatica aberta).
-        linha.concluido_em = linha.status === "concluida" ? new Date().toISOString() : null;
+        /* concluido_em e derivado do status: quem grava a data e o servidor, e
+           reabrir limpa a data (senao fica "concluida em" numa tatica aberta).
+           MAS SO NA TRANSICAO. Carimbando em TODA gravacao, corrigir uma
+           virgula numa tatica ja concluida em marco movia a conclusao para
+           hoje -- e "Decisoes cumpridas no prazo" mudava sozinho, sem ninguem
+           ter concluido nada. O formulario devolve o status atual, entao toda
+           edicao passava por aqui. */
+        if (linha.status === "concluida") {
+          let jaTinha: string | null = null;
+          if (t.id) {
+            const { data: antes } = await sb.from("gestao_tatica")
+              .select("concluido_em, status").eq("id", t.id).maybeSingle();
+            if (antes?.status === "concluida" && antes?.concluido_em) jaTinha = antes.concluido_em;
+          }
+          linha.concluido_em = jaTinha ?? new Date().toISOString();
+        } else {
+          linha.concluido_em = null;
+        }
 
         const { data, error } = await sb.from("gestao_tatica").upsert(linha).select().single();
         /* O CICLO DA DECISAO FECHA AQUI. A decisao virava tatica, a tatica
