@@ -161,6 +161,30 @@ export const SISTEMAS = [
     entradaUnica: { endereco: "https://leogpereira-afk.github.io/pops-fabricacao/", chave: "pops_cracha" },
   },
   {
+    id: "bosques",
+    icone: "Trees",
+    nome: "Bosques",
+    nomeCompleto: "Portal dos Bosques",
+    // Loteadora do dono (Associação Campestre) — outra empresa, projeto
+    // Supabase compartilhado "Projetos Léo". Entra aqui como sistema PESSOAL:
+    // aparece só para a direção, com atalho, e se administra lá dentro.
+    url: "https://leogpereira-afk.github.io/bosques/",
+    acessos: { url: "", caminho: "dentro do sistema: Configurações → Acessos da equipe" },
+    // Papéis do sistema real (registro informativo — cópia fiel do bsq-nucleo).
+    papeis: ["direcao", "escritorio", "corretor"],
+    papelInicial: "corretor",
+    papeisAdmin: [],
+    /* SO LEITURA: o Bosques tem porta e contas próprias (bsq-nucleo). Criar
+       conta por aqui fabricaria acesso que o sistema não conhece. */
+    soLeitura: true,
+    // Sistema do dono, não da Impresilk: atalho só para a direção.
+    pessoal: true,
+    /* ENDEREÇO SEM CHAVE, de propósito: o atalho abre o Bosques, e quem entra
+       é a porta própria dele (senha do sistema). Não há crachá a plantar —
+       chave aqui faria a entrada única prometer um login que não acontece. */
+    entradaUnica: { endereco: "https://leogpereira-afk.github.io/bosques/" },
+  },
+  {
     id: "central",
     icone: "UserCircle",
     nome: "Central do Léo",

@@ -296,10 +296,10 @@ async function estadoReal(): Promise<MapaReal> {
    mandavam senha para a `equipe-auth`, que RECRIAVA em equipe_contas a conta com
    senha que acabara de ser apagada -- e a tela nao a enxergaria mais, porque o
    ramo novo nao le equipe_contas. Uma conta com senha, viva, invisivel. */
-const SO_LEITURA = new Set(["central", "dre"]);
+const SO_LEITURA = new Set(["central", "dre", "bosques"]);
 const RECADO_SO_LEITURA =
-  "A Central do Léo é o app pessoal do dono e tem porta própria (leo-sync). " +
-  "Ela aparece aqui só para registro: não se cria conta nem se troca senha dela por esta tela.";
+  "Este sistema tem porta e contas próprias (fora da equipe-auth). " +
+  "Ele aparece aqui só para registro: não se cria conta nem se troca senha dele por esta tela.";
 
 // A conta daquela pessoa naquele sistema, ou null. Ler para decidir e legitimo
 // -- o que esta function nao faz e ESCREVER as regras dos outros. Isto decide
@@ -329,7 +329,7 @@ function senhaTemporaria() {
 
 // Os sete sistemas da casa. Lista fechada: sistema digitado errado viraria uma
 // linha de papel que nenhuma tela le e ninguem descobre.
-const SISTEMAS = ["painel", "rh", "pcp", "brief", "dre", "compras", "pops", "central"];
+const SISTEMAS = ["painel", "rh", "pcp", "brief", "dre", "compras", "pops", "central", "bosques"];
 
 // ============================================================================
 // A PORTA DA FRENTE TAMBEM. Sem isto, trocar a senha de alguem nao trocava nada.
