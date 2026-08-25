@@ -11,12 +11,12 @@
  */
 import {
   LayoutDashboard, Users, ClipboardList, Ruler, BarChart3, ShoppingCart,
-  BookOpen, UserCircle, Trees, ArrowUpRight,
+  BookOpen, UserCircle, Trees, Building2, ArrowUpRight,
 } from "lucide-react";
 
 const ICONES = {
   LayoutDashboard, Users, ClipboardList, Ruler, BarChart3, ShoppingCart,
-  BookOpen, UserCircle, Trees,
+  BookOpen, UserCircle, Trees, Building2,
 };
 
 /** O componente do ícone declarado no registro; seta genérica quando faltar. */

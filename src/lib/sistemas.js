@@ -161,6 +161,25 @@ export const SISTEMAS = [
     entradaUnica: { endereco: "https://leogpereira-afk.github.io/pops-fabricacao/", chave: "pops_cracha" },
   },
   {
+    id: "domo",
+    icone: "Building2",
+    nome: "Domo",
+    nomeCompleto: "Domo Construtora",
+    // Construtora do dono — outra empresa, mesmo projeto Supabase "Projetos
+    // Léo". Sistema PESSOAL: só a direção vê; administra-se lá dentro.
+    url: "https://leogpereira-afk.github.io/domo/",
+    acessos: { url: "", caminho: "dentro do sistema: Configurações → Acessos da equipe" },
+    // Papéis do sistema real (cópia fiel do domo-nucleo).
+    papeis: ["direcao", "escritorio", "obra"],
+    papelInicial: "obra",
+    papeisAdmin: [],
+    /* SO LEITURA: porta e contas próprias (domo-nucleo). */
+    soLeitura: true,
+    pessoal: true,
+    /* Endereço sem chave: o atalho abre a Domo; o login é a porta dela. */
+    entradaUnica: { endereco: "https://leogpereira-afk.github.io/domo/" },
+  },
+  {
     id: "bosques",
     icone: "Trees",
     nome: "Bosques",
