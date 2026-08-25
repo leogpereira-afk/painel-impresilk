@@ -382,6 +382,44 @@ async function backupDoHub() {
     porSistema.painel = { em: agora, ok: false, erro: (e as Error)?.message ?? String(e) };
   }
 
+  // 1b) o FORTEMAIS (obras do Léo). Mora NESTE mesmo banco — as fichas na
+  // leo_estado (só a coleção `obras`; o resto da Central é vida pessoal e não
+  // pertence ao backup da empresa) e o livro-caixa na leo_obra_custos. Por
+  // isso entra como interno: sem HTTP, sem token, sem o que expirar.
+  try {
+    const registros: any[] = [];
+    const { data: est, error: e1 } = await sb.from("leo_estado")
+      .select("dados").eq("id", true).maybeSingle();
+    if (e1) throw new Error("leo_estado: " + e1.message);
+    for (const o of ((est?.dados as any)?.obras ?? [])) registros.push({ _col: "obras", ...o });
+    let de = 0;
+    for (;;) {
+      const { data: cus, error: e2 } = await sb.from("leo_obra_custos")
+        .select("*").order("id").range(de, de + 999);
+      if (e2) throw new Error("leo_obra_custos: " + e2.message);
+      for (const c of (cus ?? [])) registros.push({ _col: "custos", ...c });
+      if (!cus || cus.length < 1000) break;
+      de += 1000;
+    }
+    const bkp = {
+      versao: VERSAO, sistema: "fortemais", nome: "Fortemais (obras)",
+      exportadoEm: agora, registros, cfg: null,
+      fotos: "nao incluidas neste backup",
+    };
+    const gh = await enviarParaGithub("fortemais", bkp);
+    porSistema.fortemais = {
+      nome: "Fortemais (obras)", em: agora, ok: gh.ok,
+      registros: registros.length,
+      porColecao: {
+        obras: registros.filter((r) => r._col === "obras").length,
+        custos: registros.filter((r) => r._col === "custos").length,
+      },
+      erro: gh.ok ? null : (gh as any).motivo,
+    };
+  } catch (e) {
+    porSistema.fortemais = { nome: "Fortemais (obras)", em: agora, ok: false, erro: (e as Error)?.message ?? String(e) };
+  }
+
   // 2) os outros, puxados por HTTP.
   for (const sys of sistemasExternos()) {
     try {
