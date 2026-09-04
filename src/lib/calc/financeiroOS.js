@@ -225,3 +225,40 @@ export function financeiroDasLinhas(linhas, dados, hoje) {
 
   return { porNumero, totais };
 }
+
+/* AS O.S. QUE FORMAM CADA QUADRO — o detalhe por trás do número.
+ *
+ * Pedido do Léo (04/09): "quando clicar nos cards eles deveriam abrir as O.S.
+ * específicas". Vale a regra de sempre da casa: quadro de análise que mostra um
+ * total tem de deixar ver de onde ele saiu.
+ *
+ * A REGRA DE OURO AQUI: a soma de `parte` TEM de bater com o total do cartão.
+ * Lista que não fecha com o número acima dela é pior que lista nenhuma -- quem
+ * confere para de acreditar nos dois. Por isso cada quadro devolve a MESMA
+ * parcela que entrou no seu total:
+ *   recebido — o que entrou em dinheiro naquela O.S. (inclusive parcial);
+ *   aberto   — o título em aberto, ou o pedaço ainda não faturado;
+ *   permuta  — o valor da O.S., que foi o que a troca abateu.
+ * Há teste de fechamento para os três. */
+export function osDoQuadro(linhas, porNumero, quadro) {
+  const out = [];
+  for (const l of linhas || []) {
+    const f = porNumero?.[String(l?.numero || "")];
+    if (!f) continue;
+    const valor = Number(l?.valor) || 0;
+    if (quadro === "recebido") {
+      if (f.tipo === "permuta" || f.tipo === "naoConsultada") continue;
+      if (f.pago > 0) out.push({ ...l, parte: f.pago, fin: f });
+    } else if (quadro === "aberto") {
+      if (f.tipo === "aberto") out.push({ ...l, parte: f.aberto, fin: f });
+      else if (f.tipo === "semTitulo" || f.tipo === "pagoParcial") {
+        const resto = CENT(Math.max(0, valor - f.pago - f.aberto));
+        if (resto > TOLERANCIA) out.push({ ...l, parte: resto, fin: f });
+      }
+    } else if (quadro === "permuta") {
+      if (f.tipo === "permuta") out.push({ ...l, parte: valor, fin: f });
+    }
+  }
+  // Do maior para o menor: quem abre quer ver primeiro o que pesa.
+  return out.sort((a, b) => b.parte - a.parte);
+}

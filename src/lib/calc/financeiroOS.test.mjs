@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { financeiroDasLinhas, faxinarPagos } from "./financeiroOS.js";
+import { financeiroDasLinhas, faxinarPagos, osDoQuadro } from "./financeiroOS.js";
 
 const HOJE = "2026-09-04";
 const linha = (numero, valor, data = "2026-08-20") => ({ numero, valor, data });
@@ -363,4 +363,53 @@ test("resto de O.S. paga em parte tambem entra no 'a receber'", () => {
   }, HOJE);
   assert.equal(r.totais.recebido, 4000);
   assert.equal(r.totais.aReceber, 6000);
+});
+
+/* O DETALHE DOS QUADROS — a lista que abre ao clicar. O teste que importa e o
+   de FECHAMENTO: a soma da lista tem de bater, ao centavo, com o total do
+   cartao. Lista que nao fecha com o numero acima dela e pior que lista nenhuma. */
+test("cada quadro devolve as O.S. certas e a soma FECHA com o total", () => {
+  const linhas = [
+    { id: "x1", numero: "10", valor: 45965.57, data: "2026-08-01" }, // titulo aberto
+    { id: "x2", numero: "20", valor: 172230.05, data: "2026-08-02" }, // sem nota
+    { id: "x3", numero: "30", valor: 136556.24, data: "2026-08-03" }, // permuta
+    { id: "x4", numero: "40", valor: 81555.55, data: "2026-08-04" },  // quitada
+    { id: "x5", numero: "50", valor: 10000, data: "2026-08-05" },     // parcial 4.000
+    { id: "x6", numero: "60", valor: 999, data: "2026-08-06" },       // fora do teto
+  ];
+  const dados = {
+    temPagos: true, desdeDados: "2025-01-01",
+    abertos: [{ id: "ta", os: "10", valor: 45965.57, pago: 0, vencimento: "2026-12-01" }],
+    pagos: [
+      { id: "tp", os: "40", pago: 81555.55, em: "2026-08-20" },
+      { id: "tq", os: "50", pago: 4000, em: "2026-08-21" },
+    ],
+    permutaDaOS: { x3: "Politica Marcelo Freitas" },
+    consultadas: ["10", "20", "30", "40", "50"],
+  };
+  const r = financeiroDasLinhas(linhas, dados, HOJE);
+  const soma = (xs) => Math.round(xs.reduce((s, x) => s + x.parte, 0) * 100) / 100;
+
+  const rec = osDoQuadro(linhas, r.porNumero, "recebido");
+  assert.deepEqual(rec.map((x) => x.numero), ["40", "50"]);
+  assert.equal(soma(rec), r.totais.recebido);
+
+  const ab = osDoQuadro(linhas, r.porNumero, "aberto");
+  assert.deepEqual(ab.map((x) => x.numero), ["20", "10", "50"]); // maior primeiro
+  assert.equal(soma(ab), r.totais.aReceber);
+
+  const pm = osDoQuadro(linhas, r.porNumero, "permuta");
+  assert.deepEqual(pm.map((x) => x.numero), ["30"]);
+  assert.equal(soma(pm), r.totais.permutadoValor);
+
+  // A O.S. fora do teto nao aparece em quadro nenhum: nao foi conferida.
+  for (const q of ["recebido", "aberto", "permuta"]) {
+    assert.ok(!osDoQuadro(linhas, r.porNumero, q).some((x) => x.numero === "60"));
+  }
+});
+
+test("quadro vazio devolve lista vazia, sem quebrar", () => {
+  const r = financeiroDasLinhas([], { temPagos: true, desdeDados: "2025-01-01", abertos: [], pagos: [] }, HOJE);
+  assert.deepEqual(osDoQuadro([], r.porNumero, "aberto"), []);
+  assert.deepEqual(osDoQuadro(null, null, "recebido"), []);
 });

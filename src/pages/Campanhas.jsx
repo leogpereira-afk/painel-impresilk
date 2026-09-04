@@ -36,7 +36,7 @@ import {
   buscarClientes, buscarOrdensDe, buscarOrdensPorId, lerCobertura,
   lerAnosPanorama, lerAnosMes, lerAnosMesCal, lerOsFinanceiro,
 } from "../services/campanhas.js";
-import { financeiroDasLinhas } from "../lib/calc/financeiroOS.js";
+import { financeiroDasLinhas, osDoQuadro } from "../lib/calc/financeiroOS.js";
 import { fichaDaOS, ordensDosClientes, donoPorOS, unirOrdens } from "../lib/calc/permutas.js";
 import {
   resumoDaCampanha, resumoGeralCampanhas, compradoresDaCampanha, extratoDaCampanha,
@@ -104,12 +104,86 @@ function Meta({ vendido, meta, pct }) {
   );
 }
 
+/* A LISTA QUE ABRE AO CLICAR NUM QUADRO.
+   Componente de topo, nunca aninhado dentro do outro: componente definido
+   dentro de componente remonta a cada render e perde foco/rolagem (o lint da
+   casa pega isso, ligado em 18/08).
+
+   Mostra a PARTE de cada O.S. naquele quadro -- não o valor cheio dela. Numa
+   O.S. paga pela metade, o que entra em "Recebido" é o que entrou, e o resto
+   aparece em "Em aberto": mostrar o valor cheio nos dois faria a lista brigar
+   com o total logo acima. */
+const TITULO_DO_QUADRO = {
+  recebido: "O.S. com dinheiro recebido",
+  aberto: "O.S. que o cliente ainda deve",
+  permuta: "O.S. quitadas em troca",
+};
+
+function ListaDoQuadro({ quadro, linhas, financeiro }) {
+  const itens = useMemo(
+    () => osDoQuadro(linhas || [], financeiro?.porNumero || {}, quadro),
+    [linhas, financeiro, quadro],
+  );
+  const soma = itens.reduce((acc, x) => acc + x.parte, 0);
+  if (!itens.length) {
+    return (
+      <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-500">
+        Nenhuma O.S. neste quadro.
+      </div>
+    );
+  }
+  return (
+    <div className="rounded-lg border border-slate-200">
+      <div className="flex items-center justify-between gap-2 border-b border-slate-100 px-3 py-2">
+        <span className="text-xs font-medium text-slate-600">
+          {TITULO_DO_QUADRO[quadro]} · {itens.length}
+        </span>
+        <span className="text-xs tabular-nums text-slate-600">{dinheiro(soma)}</span>
+      </div>
+      <div className="max-h-80 overflow-y-auto px-3">
+        {itens.map((o) => (
+          <div key={o.id} className="flex items-center gap-3 border-b border-slate-100 py-2 last:border-0">
+            <span className="min-w-0 flex-1">
+              <span className="flex flex-wrap items-center gap-x-2">
+                <span className="font-medium text-slate-800">O.S. {o.numero}</span>
+                <span className="truncate text-xs text-slate-500">{o.cliente}</span>
+                {o.fin?.permuta && (
+                  <span className="text-[11px] text-brand-600">{o.fin.permuta}</span>
+                )}
+                {o.fin?.tipo === "aberto" && o.fin.vencido && (
+                  <span className="text-[11px] font-medium text-bad-700">vencido</span>
+                )}
+                {o.fin?.tipo === "semTitulo" && (
+                  <span className="text-[11px] text-warn-800">sem nota emitida</span>
+                )}
+                {o.fin?.tipo === "pagoParcial" && (
+                  <span className="text-[11px] text-warn-800">resto sem nota</span>
+                )}
+                {o.fin?.compartilhado && <span className="text-[11px] text-slate-400">∗</span>}
+              </span>
+              <span className="block text-[11px] text-slate-400">
+                {dataDaOS(o.data)}
+                {/* A PARTE x O TOTAL DA O.S. quando são diferentes: sem isto,
+                    "R$ 4.000" numa O.S. de R$ 10.000 parece erro. */}
+                {Math.abs(o.parte - (Number(o.valor) || 0)) > 0.05 && (
+                  <> · de {dinheiro(o.valor)} da O.S.</>
+                )}
+              </span>
+            </span>
+            <span className="shrink-0 tabular-nums text-slate-700">{dinheiro(o.parte)}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 /* OS DOIS CARTÕES DE COBRANÇA da campanha aberta: Recebido × Em aberto.
    O dado vem dos títulos do contas a receber (a conta está em
    lib/calc/financeiroOS.js, com teste). As notas de rodapé são as ressalvas
    honestas — o que ainda não tem título, o que o mapa não cobre, o corte —
    porque cartão sem ressalva vira afirmação que o dado não sustenta. */
-function CartoesFinanceiro({ financeiro, erro, dados }) {
+function CartoesFinanceiro({ financeiro, erro, dados, linhas, quadro, aoAbrirQuadro }) {
   /* SEM DADO E COM ERRO: o aviso é tudo o que se pode dizer.
      COM DADO E COM ERRO (uma atualização falhou depois de uma boa): mostra os
      números, que continuam respondendo a esta campanha, e avisa embaixo -- o
@@ -136,7 +210,14 @@ function CartoesFinanceiro({ financeiro, erro, dados }) {
   return (
     <div className="space-y-1.5">
       <div className={`grid gap-3 ${temPermuta ? "sm:grid-cols-3" : "sm:grid-cols-2"}`}>
-        <div className="rounded-xl border border-ok-200 bg-ok-50 px-4 py-3">
+        <button
+          type="button"
+          onClick={() => aoAbrirQuadro(quadro === "recebido" ? null : "recebido")}
+          aria-expanded={quadro === "recebido"}
+          className={`rounded-xl border-2 bg-ok-50 px-4 py-3 text-left transition ${
+            quadro === "recebido" ? "border-ok-500" : "border-ok-200 hover:border-ok-500"
+          }`}
+        >
           <div className="text-xs font-medium text-ok-700">Recebido</div>
           <div className="mt-0.5 text-xl font-semibold tabular-nums text-ok-700">
             {semMapa ? "—" : dinheiro(t.recebido)}
@@ -146,14 +227,17 @@ function CartoesFinanceiro({ financeiro, erro, dados }) {
               ? "o mapa de pagamentos ainda está sendo montado pela carga — volte em alguns minutos"
               : `${t.pagas} O.S. quitada${s(t.pagas)}${dados?.desdeDados ? ` · pagamentos desde ${dataLonga(dados.desdeDados)}` : ""}`}
           </div>
-        </div>
-        <div
-          className={`rounded-xl border px-4 py-3 ${
+        </button>
+        <button
+          type="button"
+          onClick={() => aoAbrirQuadro(quadro === "aberto" ? null : "aberto")}
+          aria-expanded={quadro === "aberto"}
+          className={`rounded-xl border-2 px-4 py-3 text-left transition ${
             t.vencidas > 0
-              ? "border-bad-200 bg-bad-50"
-              : t.aberto > 0
-                ? "border-warn-200 bg-warn-50"
-                : "border-slate-200 bg-slate-50"
+              ? "bg-bad-50 " + (quadro === "aberto" ? "border-bad-600" : "border-bad-200 hover:border-bad-600")
+              : t.aReceber > 0
+                ? "bg-warn-50 " + (quadro === "aberto" ? "border-warn-500" : "border-warn-200 hover:border-warn-500")
+                : "bg-slate-50 " + (quadro === "aberto" ? "border-slate-400" : "border-slate-200 hover:border-slate-400")
           }`}
         >
           <div className={`text-xs font-medium ${t.vencidas > 0 ? "text-bad-700" : t.aReceber > 0 ? "text-warn-800" : "text-slate-500"}`}>
@@ -179,9 +263,16 @@ function CartoesFinanceiro({ financeiro, erro, dados }) {
               </>
             ) : "nada em aberto"}
           </div>
-        </div>
+        </button>
         {temPermuta && (
-          <div className="rounded-xl border border-brand-200 bg-brand-50 px-4 py-3">
+          <button
+            type="button"
+            onClick={() => aoAbrirQuadro(quadro === "permuta" ? null : "permuta")}
+            aria-expanded={quadro === "permuta"}
+            className={`rounded-xl border-2 bg-brand-50 px-4 py-3 text-left transition ${
+              quadro === "permuta" ? "border-brand-600" : "border-brand-200 hover:border-brand-600"
+            }`}
+          >
             <div className="text-xs font-medium text-brand-700">Em permuta</div>
             <div className="mt-0.5 text-xl font-semibold tabular-nums text-brand-700">
               {dinheiro(t.permutadoValor)}
@@ -199,9 +290,14 @@ function CartoesFinanceiro({ financeiro, erro, dados }) {
                 no ERP (provável baixa da troca) — fora do “Recebido” para o número continuar sendo caixa.
               </div>
             )}
-          </div>
+          </button>
         )}
       </div>
+
+      {/* O DETALHE DO QUADRO. Regra da casa: número que a direção usa tem de
+          deixar ver de onde saiu. A soma da lista bate com o cartão -- há teste
+          de fechamento em lib/calc/financeiroOS.js (osDoQuadro). */}
+      {quadro && <ListaDoQuadro quadro={quadro} linhas={linhas} financeiro={financeiro} />}
       {((t.semDado > 0 && !semMapa) || (dados?.cortados ?? 0) > 0 || t.compartilhadas > 0 || t.naoConsultadas > 0) && (
         <div className="text-[11px] text-slate-500">
           {t.compartilhadas > 0 && (
@@ -1993,6 +2089,19 @@ export default function Campanhas() {
      Atualizar rebuscar também a cobrança. */
   const [finResp, setFinResp] = useState(null);
   const [finErro, setFinErro] = useState("");
+  /* QUAL QUADRO ESTA ABERTO -- guardado no aparelho, como todos os quadros de
+     análise desta casa: quem trabalha com a cobrança aberta não quer reabri-la
+     a cada campanha que visita. */
+  const [quadroFin, setQuadroFin] = useState(() => {
+    try { return localStorage.getItem("campanhas_quadro_fin") || null; } catch { return null; }
+  });
+  const abrirQuadroFin = useCallback((q) => {
+    setQuadroFin(q);
+    try {
+      if (q) localStorage.setItem("campanhas_quadro_fin", q);
+      else localStorage.removeItem("campanhas_quadro_fin");
+    } catch { /* aba anônima */ }
+  }, []);
   const numerosTexto = useMemo(
     () => (resumo?.linhas || []).map((l) => l.numero).filter(Boolean).sort().join("|"),
     [resumo],
@@ -2699,7 +2808,14 @@ export default function Campanhas() {
 
           {/* PAGO × EM ABERTO — só faz sentido com O.S. marcadas. */}
           {resumo.linhas.length > 0 && (
-            <CartoesFinanceiro financeiro={financeiro} erro={finErro} dados={finDados} />
+            <CartoesFinanceiro
+              financeiro={financeiro}
+              erro={finErro}
+              dados={finDados}
+              linhas={resumo.linhas}
+              quadro={quadroFin}
+              aoAbrirQuadro={abrirQuadroFin}
+            />
           )}
 
           {(resumo.mudaram > 0 || resumo.sumiram > 0 || resumo.semConferir) && (
