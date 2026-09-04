@@ -37,6 +37,42 @@
 const CENT = (n) => Math.round((Number(n) || 0) * 100) / 100;
 export const TOLERANCIA = 0.05;
 
+/* A FAXINA DO MAPA DE PAGOS — decide quem sai, e quando NÃO mexer.
+ *
+ * Mora aqui, e não solta no script da carga, porque isto APAGA registro de
+ * dinheiro recebido: precisa de teste, e teste com entrada sintética, nunca
+ * "rodando para ver".
+ *
+ * O mapa cresce por merge (id a id) e nunca encolheria sozinho: um título
+ * estornado no ERP ficaria "pago" para sempre e a tela diria pago sobre
+ * dinheiro que voltou a ser devido. Uma vez por semana a carga varre uma
+ * janela larga e o que estava no mapa DENTRO dela e não voltou sai.
+ *
+ * O FREIO: apagar em lote exige resposta confiável. Se o ERP devolver a janela
+ * pela metade, "não voltou" deixa de significar estorno e passa a significar
+ * leitura incompleta -- e apagar aí transformaria dinheiro recebido em cobrança
+ * ao cliente. Acima do limite (30%), não mexe e denuncia.
+ *
+ * `titulos` — o mapa {id: {os, pago, em}}   `vieram` — Set de ids que o ERP devolveu
+ * `corte`   — AAAA-MM-DD, início da janela varrida
+ */
+export function faxinarPagos(titulos, vieram, corte, { limite = 0.3 } = {}) {
+  const naJanela = Object.entries(titulos || {})
+    .filter(([, t]) => {
+      const em = String(t?.em || "").slice(0, 10);
+      // Sem data de pagamento não dá para saber se ele era esperado nesta
+      // janela -- e o que não se pode julgar não se apaga.
+      return em && em >= String(corte);
+    });
+  const sumiram = naJanela.filter(([id]) => !vieram.has(id));
+  if (naJanela.length > 0 && sumiram.length / naJanela.length > limite) {
+    return { titulos, removidos: 0, abortada: true, sumiram: sumiram.length, naJanela: naJanela.length };
+  }
+  const saida = { ...titulos };
+  for (const [id] of sumiram) delete saida[id];
+  return { titulos: saida, removidos: sumiram.length, abortada: false, sumiram: sumiram.length, naJanela: naJanela.length };
+}
+
 /* `linhas`  — as O.S. da campanha (resumo.linhas: {numero, valor, data}).
    `dados`   — a resposta do servidor: {abertos, pagos, temPagos, desdeDados}.
    `hoje`    — AAAA-MM-DD local; entra por fora para o teste não depender do

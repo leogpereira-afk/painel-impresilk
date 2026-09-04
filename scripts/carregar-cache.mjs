@@ -29,6 +29,9 @@ import {
   etapaHistoricoOS, fatiasPorAno, conferirAbatimentos,
 } from "../netlify/functions/mubi-cache-background.mjs";
 import { mubiGetTudo, mubiConfigurado, hojeMais } from "../netlify/functions/lib/mubi.js";
+/* A faxina do mapa de pagos APAGA registro de dinheiro recebido: a decisao
+   mora em lib/calc, com teste de entrada sintetica, nunca solta aqui. */
+import { faxinarPagos } from "../src/lib/calc/financeiroOS.js";
 
 const FN = process.env.PAINEL_CACHE_URL
   || "https://heveemylixartyijxewh.supabase.co/functions/v1/painel-cache";
@@ -335,12 +338,21 @@ async function janelaDe7Dias() {
      falha aqui não derruba orçamentos nem O.S. que já vieram. */
   let recebidos = null;
   let recebidosFalhou = false;
+  let faxinaAbortada = false;
   try {
     const atual = await lerComExistencia("recebidos_os");
     const base = atual.existe && atual.valor && typeof atual.valor === "object" ? atual.valor : null;
+    /* A JANELA MAIOR DE DOMINGO EXISTE PARA APAGAR, não para acrescentar.
+       Merge por id só ACRESCENTA: um título estornado no ERP (deixou de ser
+       pago) continuaria no mapa como pago para sempre, e a tela mostraria
+       "pago" sobre dinheiro que voltou a ser devido. Uma vez por semana a
+       varredura cobre 90 dias e o que NÃO voltou nesse intervalo sai do mapa
+       -- é o único jeito de o mapa encolher. 90 dias porque estorno é coisa
+       de dias/semanas, e a varredura completa de 2 anos não cabe no job. */
+    const faxina = base && new Date().getUTCDay() === 0;
     const jPagos = {
       status: "PAGO", filtrodata: "PAGAMENTO",
-      datainicial: base ? hojeMais(-7) : CORTE_ATRASADOS,
+      datainicial: base ? hojeMais(faxina ? -90 : -7) : CORTE_ATRASADOS,
       datafinal: hojeMais(1),
     };
     const brutos = await mubiGetTudo("contas-receber", jPagos, base ? 100 : 500);
@@ -351,17 +363,39 @@ async function janelaDe7Dias() {
        Na janela de 7 dias, vazio é normal (fim de semana) e o merge preserva. */
     if (!base && !brutos.length) throw new Error("primeira carga veio vazia -- nao gravo mapa vazio");
     const titulos = { ...(base?.titulos ?? {}) };
+    const vieram = new Set();
     for (const [i, r] of brutos.entries()) {
       const n = normRecebivel(r, i);
       if (!n.os || !(n.pago > 0)) continue; // sem O.S. ou sem valor pago: não responde a pergunta
       const em = (Array.isArray(r.pagamentos) ? r.pagamentos : [])
         .map((p) => String(p?.data_pagamento || "")).filter(Boolean).sort().pop() || "";
       titulos[n.id] = { os: n.os, pago: n.pago, em };
+      vieram.add(n.id);
     }
-    recebidos = { desde: base?.desde ?? CORTE_ATRASADOS, titulos };
+    /* A FAXINA. Dentro da janela varrida, quem estava no mapa e NÃO voltou
+       deixou de ser pago (estorno, cancelamento, baixa desfeita) -- sai. Só
+       para títulos com `em` DENTRO da janela: quem foi pago antes dela não
+       era esperado nesta resposta e não pode ser julgado por ela. */
+    let removidos = 0;
+    let finais = titulos;
+    if (faxina) {
+      const r = faxinarPagos(titulos, vieram, hojeMais(-90));
+      finais = r.titulos;
+      removidos = r.removidos;
+      if (r.abortada) {
+        console.warn(
+          `   recebidos_os: faxina ABORTADA -- ${r.sumiram} de ${r.naJanela} títulos da janela não voltaram (>30%). ` +
+          "Trato como leitura incompleta, não como estorno em massa; o mapa fica como estava."
+        );
+        faxinaAbortada = true;
+      }
+    }
+    recebidos = { desde: base?.desde ?? CORTE_ATRASADOS, titulos: finais };
+    const janelaTxt = !base ? `primeira carga (desde ${CORTE_ATRASADOS})`
+      : faxina ? "faxina de 90 dias" : "janela de 7 dias";
     console.log(
-      `   recebidos_os: ${brutos.length} título(s) na ${base ? "janela de 7 dias" : `primeira carga (desde ${CORTE_ATRASADOS})`}` +
-      ` — ${Object.keys(titulos).length} no mapa`
+      `   recebidos_os: ${brutos.length} título(s) na ${janelaTxt}` +
+      ` — ${Object.keys(finais).length} no mapa${removidos ? `, ${removidos} estornado(s) removido(s)` : ""}`
     );
   } catch (e) {
     recebidosFalhou = true;
@@ -371,6 +405,7 @@ async function janelaDe7Dias() {
   const falhas = [
     ...(catalogoOk ? [] : ["catalogo-do-erp-fora"]),
     ...(recebidosFalhou ? ["recebidos-do-erp-fora"] : []),
+    ...(faxinaAbortada ? ["faxina-dos-pagos-abortada"] : []),
   ];
   return {
     orcamentos: [...mapaOrc.values()],

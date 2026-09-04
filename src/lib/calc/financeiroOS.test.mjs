@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { financeiroDasLinhas } from "./financeiroOS.js";
+import { financeiroDasLinhas, faxinarPagos } from "./financeiroOS.js";
 
 const HOJE = "2026-09-04";
 const linha = (numero, valor, data = "2026-08-20") => ({ numero, valor, data });
@@ -154,4 +154,61 @@ test("titulo de O.S. que nao esta na campanha nao entra nos totais", () => {
   }, HOJE);
   assert.equal(r.totais.aberto, 0);
   assert.equal(r.totais.recebido, 500);
+});
+
+/* A FAXINA — apaga registro de dinheiro recebido, então cada regra tem prova. */
+
+const mapa = (n, dentro = true) => Object.fromEntries(
+  Array.from({ length: n }, (_, i) => [`t${i}`, { os: String(1000 + i), pago: 100, em: dentro ? "2026-08-01" : "2026-01-01" }]),
+);
+
+test("faxina tira o estornado que nao voltou na janela", () => {
+  const titulos = mapa(10);
+  const vieram = new Set(Object.keys(titulos).filter((k) => k !== "t3"));
+  const r = faxinarPagos(titulos, vieram, "2026-06-06");
+  assert.equal(r.abortada, false);
+  assert.equal(r.removidos, 1);
+  assert.equal("t3" in r.titulos, false);
+  assert.equal(Object.keys(r.titulos).length, 9);
+});
+
+/* O CASO QUE A FAXINA EXISTE PARA NAO CAUSAR: o ERP devolve a janela pela
+   metade. "Nao voltou" deixa de significar estorno; apagar aqui transformaria
+   dinheiro recebido em cobranca ao cliente. */
+test("resposta incompleta ABORTA a faxina e nao apaga nada", () => {
+  const titulos = mapa(10);
+  const vieram = new Set(["t0", "t1"]); // 8 de 10 sumiram: leitura incompleta
+  const r = faxinarPagos(titulos, vieram, "2026-06-06");
+  assert.equal(r.abortada, true);
+  assert.equal(r.removidos, 0);
+  assert.equal(Object.keys(r.titulos).length, 10);
+});
+
+test("titulo pago ANTES da janela nao e julgado por ela", () => {
+  const titulos = { ...mapa(3), velho: { os: "9", pago: 500, em: "2025-02-02" } };
+  const r = faxinarPagos(titulos, new Set(["t0", "t1", "t2"]), "2026-06-06");
+  assert.equal(r.abortada, false);
+  assert.equal(r.removidos, 0);
+  assert.equal("velho" in r.titulos, true);
+});
+
+test("titulo sem data de pagamento nunca e apagado", () => {
+  const titulos = { semData: { os: "9", pago: 500, em: "" } };
+  const r = faxinarPagos(titulos, new Set(), "2026-06-06");
+  assert.equal(r.removidos, 0);
+  assert.equal("semData" in r.titulos, true);
+});
+
+test("mapa vazio ou janela sem titulos nao aborta nem apaga", () => {
+  const r = faxinarPagos({}, new Set(), "2026-06-06");
+  assert.equal(r.abortada, false);
+  assert.equal(r.removidos, 0);
+});
+
+test("no limite (30%) ainda apaga; acima dele aborta", () => {
+  const titulos = mapa(10);
+  const tres = new Set(Object.keys(titulos).slice(3)); // 3 de 10 sumiram = 30%
+  assert.equal(faxinarPagos(titulos, tres, "2026-06-06").abortada, false);
+  const quatro = new Set(Object.keys(titulos).slice(4)); // 4 de 10 = 40%
+  assert.equal(faxinarPagos(titulos, quatro, "2026-06-06").abortada, true);
 });
