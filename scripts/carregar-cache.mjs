@@ -344,6 +344,12 @@ async function janelaDe7Dias() {
       datafinal: hojeMais(1),
     };
     const brutos = await mubiGetTudo("contas-receber", jPagos, base ? 100 : 500);
+    /* LISTA VAZIA NÃO É MAPA. Na PRIMEIRA carga, "zero títulos pagos desde
+       2025" não existe na Impresilk — 200 com [] é o ERP piscando (a mesma
+       pisca que o catálogo já deu). Gravar {titulos:{}} confiante faria a
+       tela afirmar "sem título no ERP" sobre dois anos de cobrança quitada.
+       Na janela de 7 dias, vazio é normal (fim de semana) e o merge preserva. */
+    if (!base && !brutos.length) throw new Error("primeira carga veio vazia -- nao gravo mapa vazio");
     const titulos = { ...(base?.titulos ?? {}) };
     for (const [i, r] of brutos.entries()) {
       const n = normRecebivel(r, i);
