@@ -111,6 +111,7 @@ export default function Home() {
               orcamentos: "orçamentos", ordens: "ordens de serviço",
               dso_hist: "prazo médio de recebimento", fluxo_mensal: "fluxo realizado",
               historico_status: "histórico de O.S.", status: "carimbo da carga",
+              recebidos_os: "títulos pagos por O.S.",
             };
             const regua = (min) =>
               min >= 1440 * 2 ? `${Math.round(min / 1440)} dias`

@@ -522,6 +522,52 @@ Deno.serve(async (req: Request) => {
         return json({ detalhe: data ?? null });
       }
 
+      /* PAGO × EM ABERTO das O.S. pedidas — a fatia financeira da campanha.
+         Os títulos apontam a O.S. pelo número (`despesa` do ERP). Desce só o
+         que foi pedido, magro: a régua estreita fica na porta, não na tela.
+         A CONTA (juntar título a título, estorno, tolerância) mora em
+         src/lib/calc/financeiroOS.js, onde tem teste — aqui é só o recorte. */
+      case "osFinanceiro": {
+        const g = await exigirSessao(req, "campanhas");
+        if (g.resposta) return g.resposta;
+        const todos = String(url.searchParams.get("numeros") ?? "")
+          .split("|").map((x) => x.trim()).filter((x) => /^\d{1,12}$/.test(x));
+        if (!todos.length) return json({ erro: "Sem numeros de O.S." }, 400);
+        // Corte declarado, nunca mudo: a tela avisa quantas ficaram de fora.
+        const TETO = 600;
+        const pedidos = new Set(todos.slice(0, TETO));
+        const [rec, pag] = await Promise.all([
+          lerCacheComData("recebiveis"), lerCacheComData("recebidos_os"),
+        ]);
+        const abertos = (Array.isArray(rec.valor) ? rec.valor : [])
+          .filter((r: any) => pedidos.has(String(r?.os ?? "")))
+          .map((r: any) => ({
+            id: String(r.id), os: String(r.os),
+            valor: Number(r.valor) || 0, pago: Number(r.pago) || 0,
+            vencimento: String(r.vencimento || ""),
+          }));
+        const titulos = pag.valor?.titulos && typeof pag.valor.titulos === "object"
+          ? pag.valor.titulos : null;
+        const pagos: Array<{ id: string; os: string; pago: number; em: string }> = [];
+        if (titulos) {
+          for (const [id, t] of Object.entries(titulos as Record<string, any>)) {
+            if (pedidos.has(String(t?.os ?? ""))) {
+              pagos.push({ id, os: String(t.os), pago: Number(t.pago) || 0, em: String(t.em || "") });
+            }
+          }
+        }
+        return json({
+          abertos, pagos,
+          cortados: Math.max(0, todos.length - TETO),
+          /* `temPagos` separa "o mapa existe e não achou nada" (pode afirmar
+             'sem título') de "o mapa ainda não foi montado" (não afirmar). */
+          temPagos: !!titulos,
+          desdeDados: pag.valor?.desde ?? null,
+          atualizadoEm: rec.em ?? null,
+          pagosEm: pag.em ?? null,
+        });
+      }
+
       default:
         return json({ erro: `Modulo desconhecido: ${modulo || "(vazio)"}` }, 400);
     }

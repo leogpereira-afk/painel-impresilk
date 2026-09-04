@@ -126,7 +126,68 @@ export function Secao({ id, titulo, sub, acao, aberta, aoAlternar, semImpressao,
  * cinco linhas com cinco totais, em vez de vinte e cinco linhas misturadas. Com
  * um grupo só, agrupar não separa nada e ele já abre.
  */
-export function GrupoCliente({ g, aberto, aoAlternar, aoTirar, onde = "permuta" }) {
+/* O SELO DE COBRANÇA de uma O.S. — pago, em aberto (vencido grita), sem
+   título, ou nada quando não há dado que sustente afirmação. `fin` vem da
+   conta em lib/calc/financeiroOS.js; a permuta não passa `fin` e nada muda
+   para ela. "semDado" fica mudo DE PROPÓSITO: selo de "sem informação" em
+   toda O.S. antiga viraria ruído — e afirmação nenhuma é melhor que chute. */
+function SeloFinanceiro({ f }) {
+  if (!f) return null;
+  if (f.tipo === "aberto") {
+    return (
+      <span
+        className={`rounded px-1.5 py-0.5 text-[11px] ${
+          f.vencido ? "bg-bad-50 font-medium text-bad-700" : "bg-warn-50 text-warn-800"
+        }`}
+        title={f.pago > 0 ? `Já entrou ${dinheiro(f.pago)}; falta o resto.` : "Título em aberto no contas a receber."}
+      >
+        em aberto {dinheiro(f.aberto)}{f.vencido && " · vencido"}
+      </span>
+    );
+  }
+  if (f.tipo === "pago") {
+    return (
+      <span className="rounded bg-ok-50 px-1.5 py-0.5 text-[11px] text-ok-700" title="Todos os títulos desta O.S. estão quitados.">
+        pago
+      </span>
+    );
+  }
+  if (f.tipo === "pagoParcial") {
+    return (
+      <span
+        className="rounded bg-warn-50 px-1.5 py-0.5 text-[11px] text-warn-800"
+        title="Entrou uma parte e o restante não tem título em aberto no ERP — confira o faturamento."
+      >
+        pago {dinheiro(f.pago)} · resto sem título
+      </span>
+    );
+  }
+  if (f.tipo === "semTitulo") {
+    return (
+      <span
+        className="rounded bg-slate-100 px-1.5 py-0.5 text-[11px] text-slate-500"
+        title="Nenhum título desta O.S. no contas a receber, nem pagamento registrado — normalmente a nota ainda não foi emitida."
+      >
+        sem título no ERP
+      </span>
+    );
+  }
+  return null; // semDado: sem afirmação
+}
+
+export function GrupoCliente({ g, aberto, aoAlternar, aoTirar, onde = "permuta", finPorNumero }) {
+  /* O QUANTO DESTE CNPJ AINDA ESTÁ EM ABERTO, visível com o grupo RECOLHIDO —
+     é recolhido que ele nasce, e cobrança escondida atrás de um clique não
+     cobra ninguém. */
+  let abertoRs = 0;
+  let temVencida = false;
+  if (finPorNumero) {
+    for (const l of g.linhas) {
+      const f = finPorNumero[String(l.numero)];
+      if (f?.tipo === "aberto") { abertoRs += f.aberto; temVencida = temVencida || f.vencido; }
+    }
+    abertoRs = Math.round(abertoRs * 100) / 100;
+  }
   return (
     <div className="border-b border-slate-100 last:border-0">
       <button
@@ -145,12 +206,21 @@ export function GrupoCliente({ g, aberto, aoAlternar, aoTirar, onde = "permuta" 
             {g.cnpj ? formatarDoc(g.cnpj) : "sem CNPJ no cadastro"} · {g.qtd} O.S.
           </span>
         </span>
+        {abertoRs > 0 && (
+          <span
+            className={`shrink-0 rounded px-1.5 py-0.5 text-[11px] ${
+              temVencida ? "bg-bad-50 font-medium text-bad-700" : "bg-warn-50 text-warn-800"
+            }`}
+          >
+            em aberto {dinheiro(abertoRs)}
+          </span>
+        )}
         <span className="shrink-0 font-medium tabular-nums text-slate-700">{dinheiro(g.valor)}</span>
       </button>
       {aberto && (
         <div className="pb-1 pl-6">
           {g.linhas.map((l) => (
-            <LinhaAceita onde={onde} key={l.id} l={l} aoTirar={aoTirar} />
+            <LinhaAceita onde={onde} key={l.id} l={l} aoTirar={aoTirar} fin={finPorNumero?.[String(l.numero)]} />
           ))}
         </div>
       )}
@@ -158,13 +228,14 @@ export function GrupoCliente({ g, aberto, aoAlternar, aoTirar, onde = "permuta" 
   );
 }
 
-export function LinhaAceita({ l, aoTirar, onde = "permuta" }) {
+export function LinhaAceita({ l, aoTirar, onde = "permuta", fin }) {
   return (
     <div className="flex items-center gap-3 border-b border-slate-100 py-2.5 last:border-0">
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
           <span className="font-medium text-slate-800">O.S. {l.numero}</span>
           <span className="truncate text-xs text-slate-500">{l.cliente}</span>
+          <SeloFinanceiro f={fin} />
           {l.mudou && (
             <span className="rounded bg-warn-50 px-1.5 py-0.5 text-[11px] text-warn-700">
               era {dinheiro(l.congelado)} no aceite

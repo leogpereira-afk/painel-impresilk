@@ -34,8 +34,9 @@ import {
 import {
   lerCampanhas, mexerNaCampanha, removerCampanha, anexarNaCampanha, lerAnexoCampanha,
   buscarClientes, buscarOrdensDe, buscarOrdensPorId, lerCobertura,
-  lerAnosPanorama, lerAnosMes, lerAnosMesCal,
+  lerAnosPanorama, lerAnosMes, lerAnosMesCal, lerOsFinanceiro,
 } from "../services/campanhas.js";
+import { financeiroDasLinhas } from "../lib/calc/financeiroOS.js";
 import { fichaDaOS, ordensDosClientes, donoPorOS, unirOrdens } from "../lib/calc/permutas.js";
 import {
   resumoDaCampanha, resumoGeralCampanhas, compradoresDaCampanha, extratoDaCampanha,
@@ -99,6 +100,82 @@ function Meta({ vendido, meta, pct }) {
           ? ` · ${dinheiro(vendido - meta)} acima`
           : ` · faltam ${dinheiro(meta - vendido)}`}
       </div>
+    </div>
+  );
+}
+
+/* OS DOIS CARTÕES DE COBRANÇA da campanha aberta: Recebido × Em aberto.
+   O dado vem dos títulos do contas a receber (a conta está em
+   lib/calc/financeiroOS.js, com teste). As notas de rodapé são as ressalvas
+   honestas — o que ainda não tem título, o que o mapa não cobre, o corte —
+   porque cartão sem ressalva vira afirmação que o dado não sustenta. */
+function CartoesFinanceiro({ financeiro, erro, dados }) {
+  if (erro) {
+    return (
+      <div className="rounded-lg bg-warn-50 px-3 py-2 text-xs text-warn-800">
+        Não deu para conferir os títulos das O.S. no contas a receber: {erro} O botão
+        “Atualizar” da lista de O.S. tenta de novo.
+      </div>
+    );
+  }
+  if (!financeiro) {
+    return <div className="text-xs text-slate-400">Conferindo os títulos no contas a receber…</div>;
+  }
+  const t = financeiro.totais;
+  const semMapa = !dados?.temPagos;
+  const s = (n) => (n === 1 ? "" : "s");
+  return (
+    <div className="space-y-1.5">
+      <div className="grid gap-3 sm:grid-cols-2">
+        <div className="rounded-xl border border-ok-200 bg-ok-50 px-4 py-3">
+          <div className="text-xs font-medium text-ok-700">Recebido</div>
+          <div className="mt-0.5 text-xl font-semibold tabular-nums text-ok-700">
+            {semMapa ? "—" : dinheiro(t.recebido)}
+          </div>
+          <div className="mt-0.5 text-[11px] text-ok-700/80">
+            {semMapa
+              ? "o mapa de pagamentos ainda está sendo montado pela carga — volte em alguns minutos"
+              : `${t.pagas} O.S. quitada${s(t.pagas)}${dados?.desdeDados ? ` · pagamentos desde ${dataLonga(dados.desdeDados)}` : ""}`}
+          </div>
+        </div>
+        <div
+          className={`rounded-xl border px-4 py-3 ${
+            t.vencidas > 0
+              ? "border-bad-200 bg-bad-50"
+              : t.aberto > 0
+                ? "border-warn-200 bg-warn-50"
+                : "border-slate-200 bg-slate-50"
+          }`}
+        >
+          <div className={`text-xs font-medium ${t.vencidas > 0 ? "text-bad-700" : t.aberto > 0 ? "text-warn-800" : "text-slate-500"}`}>
+            Em aberto
+          </div>
+          <div className={`mt-0.5 text-xl font-semibold tabular-nums ${t.vencidas > 0 ? "text-bad-700" : t.aberto > 0 ? "text-warn-800" : "text-slate-600"}`}>
+            {dinheiro(t.aberto)}
+          </div>
+          <div className={`mt-0.5 text-[11px] ${t.vencidas > 0 ? "text-bad-700/80" : t.aberto > 0 ? "text-warn-800/80" : "text-slate-400"}`}>
+            {t.abertas > 0
+              ? `${t.abertas} O.S. com título em aberto${t.vencidas > 0 ? ` · ${t.vencidas} vencida${s(t.vencidas)} (${dinheiro(t.vencidoValor)})` : ""}`
+              : "nenhum título em aberto"}
+          </div>
+        </div>
+      </div>
+      {(t.semTituloValor > 0 || (t.semDado > 0 && !semMapa) || (dados?.cortados ?? 0) > 0) && (
+        <div className="text-[11px] text-slate-500">
+          {t.semTituloValor > 0 && (
+            <>
+              {dinheiro(t.semTituloValor)} de {t.semTitulo} O.S. ainda sem título de cobrança no ERP
+              (nota não emitida) — não é “pago” nem “em aberto”.{" "}
+            </>
+          )}
+          {t.semDado > 0 && !semMapa && (
+            <>{t.semDado} O.S. anterior{t.semDado === 1 ? "" : "es"} a {dados?.desdeDados ? dataLonga(dados.desdeDados) : "2025"} fica{t.semDado === 1 ? "" : "m"} sem selo: o mapa de pagamentos não cobre a época.{" "}</>
+          )}
+          {(dados?.cortados ?? 0) > 0 && (
+            <>A conferência cobriu as primeiras 600 O.S. — {dados.cortados} ficaram de fora.</>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -1845,6 +1922,32 @@ export default function Campanhas() {
      mostra", que é justamente o que não são. */
   const lider = useMemo(() => (resumo ? maiorComprador(resumo) : null), [resumo]);
   const meses = useMemo(() => comprasPorMes(resumo?.linhas || []), [resumo]);
+
+  /* PAGO × EM ABERTO das O.S. marcadas. A fatia desce da porta (títulos do
+     contas a receber, que apontam a O.S. pelo número); a conta é feita aqui,
+     em lib/calc/financeiroOS.js, onde tem teste. A chave do efeito é a LISTA
+     DE NÚMEROS (string estável), não `resumo` -- senão cada renomeada da
+     campanha rebuscaria títulos à toa. `versaoBusca` entra para o botão
+     Atualizar rebuscar também a cobrança. */
+  const [finDados, setFinDados] = useState(null);
+  const [finErro, setFinErro] = useState("");
+  const numerosTexto = useMemo(
+    () => (resumo?.linhas || []).map((l) => l.numero).filter(Boolean).sort().join("|"),
+    [resumo],
+  );
+  useEffect(() => {
+    if (!aberta || !numerosTexto) { setFinDados(null); setFinErro(""); return undefined; }
+    let vivo = true;
+    setFinErro("");
+    lerOsFinanceiro(numerosTexto.split("|"))
+      .then((d) => vivo && setFinDados(d))
+      .catch((e) => vivo && setFinErro(e.message));
+    return () => { vivo = false; };
+  }, [aberta, numerosTexto, versaoBusca]);
+  const financeiro = useMemo(
+    () => (finDados && resumo ? financeiroDasLinhas(resumo.linhas, finDados, hojeISO()) : null),
+    [finDados, resumo],
+  );
   /* Por DATA, do começo do evento para o fim -- a MESMA direção da curva
      mensal logo acima. Estavam opostas: a curva ia de jan para out da esquerda
      para a direita, e a lista embaixo dela começava em out. Ler as duas juntas
@@ -2370,6 +2473,12 @@ export default function Campanhas() {
               lider ? `Quem comprou mais: ${lider.cliente} — ${dinheiro(lider.valor)}` : null,
               `Emitido em ${dataLonga(hojeISO())}`,
               `Total vendido ${dinheiro(resumo.vendido)}`,
+              /* A cobrança vai no papel: é com o PDF na mão que se confere com
+                 o cliente. Só entra quando o dado desceu — papel não carrega
+                 "carregando". */
+              financeiro && finDados?.temPagos
+                ? `Recebido ${dinheiro(financeiro.totais.recebido)} · Em aberto ${dinheiro(financeiro.totais.aberto)}`
+                : null,
             ]}
           />
           <div className="flex flex-wrap items-start justify-between gap-4">
@@ -2506,6 +2615,11 @@ export default function Campanhas() {
             </div>
           </div>
           <Meta vendido={resumo.vendido} meta={resumo.meta} pct={resumo.pct} />
+
+          {/* PAGO × EM ABERTO — só faz sentido com O.S. marcadas. */}
+          {resumo.linhas.length > 0 && (
+            <CartoesFinanceiro financeiro={financeiro} erro={finErro} dados={finDados} />
+          )}
 
           {(resumo.mudaram > 0 || resumo.sumiram > 0 || resumo.semConferir) && (
             <div className="rounded-lg bg-warn-50 px-3 py-2 text-xs text-warn-800">
@@ -2783,13 +2897,20 @@ export default function Campanhas() {
                   aoAlternar={alternarGrupo}
                   aoTirar={(x) => marcarOS(x, false)}
                   onde="campanha"
+                  finPorNumero={financeiro?.porNumero}
                 />
               ))}
             </div>
           ) : (
             <div>
               {resumo.linhas.map((l) => (
-                <LinhaAceita key={l.id} l={l} aoTirar={(x) => marcarOS(x, false)} onde="campanha" />
+                <LinhaAceita
+                  key={l.id}
+                  l={l}
+                  aoTirar={(x) => marcarOS(x, false)}
+                  onde="campanha"
+                  fin={financeiro?.porNumero?.[String(l.numero)]}
+                />
               ))}
             </div>
           )}

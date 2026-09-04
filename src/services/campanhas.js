@@ -57,7 +57,7 @@ export const lerAnexoCampanha = (id, arquivo) =>
 export {
   buscarClientes, buscarOrdensPorId, lerCobertura, lerAnosPanorama, lerAnosMes, lerAnosMesCal,
   lerVendedoresPanorama, lerVendedorDetalhe, lerClientesAbc, lerClienteDetalhe,
-  lerProdutosPanorama, lerProdutoDetalhe,
+  lerProdutosPanorama, lerProdutoDetalhe, lerOsFinanceiro,
 } from "./permutas.js";
 
 /* OS GRUPOS DE COMPRA: o mesmo dono com vários CNPJs vira UM cliente nas

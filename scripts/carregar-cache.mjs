@@ -25,7 +25,7 @@
 
 import {
   etapaRapidos, etapaCompleta, etapaRealizado, calcDso, normOrcamento, normOS, chaveProduto,
-  SEM_CATEGORIA, FORA_CATALOGO,
+  SEM_CATEGORIA, FORA_CATALOGO, normRecebivel, CORTE_ATRASADOS,
   etapaHistoricoOS, fatiasPorAno, conferirAbatimentos,
 } from "../netlify/functions/mubi-cache-background.mjs";
 import { mubiGetTudo, mubiConfigurado, hojeMais } from "../netlify/functions/lib/mubi.js";
@@ -323,12 +323,56 @@ async function janelaDe7Dias() {
     ` | O.S. mais nova na janela: ${janelaErp.osMaisNova || "(nenhuma veio)"}`
   );
 
+  /* OS TÍTULOS PAGOS, por título — o mapa `recebidos_os`.
+     A tela de Campanhas responde "o que já entrou e o que ainda devem" desta
+     campanha, e título QUITADO some das listas de aberto: sem este mapa, "nada
+     em aberto" e "pago" seriam indistinguíveis (e a tela afirmaria pago sem
+     dado). Guarda por ID DE TÍTULO, não somado por O.S.: mesclar a janela de
+     7 dias num mapa por id é idempotente — a soma refeita a cada leitura nunca
+     conta a mesma parcela duas vezes.
+     A primeira corrida puxa desde CORTE_ATRASADOS (a régua das cobranças);
+     depois só a janela de 7 dias por data de PAGAMENTO. Isolado como o resto:
+     falha aqui não derruba orçamentos nem O.S. que já vieram. */
+  let recebidos = null;
+  let recebidosFalhou = false;
+  try {
+    const atual = await lerComExistencia("recebidos_os");
+    const base = atual.existe && atual.valor && typeof atual.valor === "object" ? atual.valor : null;
+    const jPagos = {
+      status: "PAGO", filtrodata: "PAGAMENTO",
+      datainicial: base ? hojeMais(-7) : CORTE_ATRASADOS,
+      datafinal: hojeMais(1),
+    };
+    const brutos = await mubiGetTudo("contas-receber", jPagos, base ? 100 : 500);
+    const titulos = { ...(base?.titulos ?? {}) };
+    for (const [i, r] of brutos.entries()) {
+      const n = normRecebivel(r, i);
+      if (!n.os || !(n.pago > 0)) continue; // sem O.S. ou sem valor pago: não responde a pergunta
+      const em = (Array.isArray(r.pagamentos) ? r.pagamentos : [])
+        .map((p) => String(p?.data_pagamento || "")).filter(Boolean).sort().pop() || "";
+      titulos[n.id] = { os: n.os, pago: n.pago, em };
+    }
+    recebidos = { desde: base?.desde ?? CORTE_ATRASADOS, titulos };
+    console.log(
+      `   recebidos_os: ${brutos.length} título(s) na ${base ? "janela de 7 dias" : `primeira carga (desde ${CORTE_ATRASADOS})`}` +
+      ` — ${Object.keys(titulos).length} no mapa`
+    );
+  } catch (e) {
+    recebidosFalhou = true;
+    console.warn("títulos pagos falharam:", e?.message || e);
+  }
+
+  const falhas = [
+    ...(catalogoOk ? [] : ["catalogo-do-erp-fora"]),
+    ...(recebidosFalhou ? ["recebidos-do-erp-fora"] : []),
+  ];
   return {
     orcamentos: [...mapaOrc.values()],
     ordens: [...mapaOS.values()],
     osCanceladas: [...osCanceladas],
     janelaErp,
-    ...(catalogoOk ? {} : { falhas: ["catalogo-do-erp-fora"] }),
+    recebidos,
+    ...(falhas.length ? { falhas } : {}),
   };
 }
 
@@ -482,6 +526,10 @@ async function main() {
   await gravar("bancos", rapidos.bancos, recusados);
   await gravar("orcamentos", pesados.orcamentos, recusados);
   await gravar("ordens", pesados.ordens, recusados);
+  /* Só o incremental monta o mapa de títulos pagos; a completa nem tenta — e
+     gravar(null) aqui registraria "fonte falhou" sobre uma fonte não tentada,
+     sujando o log de toda madrugada. */
+  if (MODO === "incremental") await gravar("recebidos_os", pesados.recebidos, recusados);
 
   /* A TABELA ANDA JUNTO. Sem isto, a O.S. de hoje entraria no cache (e nas
      outras telas) mas nao na busca da permuta, que so veria ate a ultima carga

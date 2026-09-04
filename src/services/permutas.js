@@ -118,6 +118,14 @@ export const lerProdutosPanorama = (ano) =>
 export const lerProdutoDetalhe = (chave) =>
   pedirDados("produtoDetalhe", { chave }).then((r) => r.detalhe || null);
 
+/* PAGO × EM ABERTO das O.S. de uma campanha. Os títulos do contas a receber
+   apontam a O.S. pelo número; desce só a fatia pedida. A conta mora em
+   src/lib/calc/financeiroOS.js — aqui é transporte. */
+export const lerOsFinanceiro = (numeros) =>
+  !numeros?.length
+    ? Promise.resolve(null)
+    : pedirDados("osFinanceiro", { numeros: numeros.join("|") });
+
 /* A SAÚDE DA CARGA. O vigia do banco grava `carga_alarme` de hora em hora
    quando alguma fonte para de ser atualizada; até esta rodada ninguém lia
    esse alarme -- ele existia só para quem fosse consultar o banco à mão. */
