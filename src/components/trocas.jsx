@@ -187,13 +187,18 @@ function SeloFinanceiro({ f }) {
       </span>
     );
   }
+  /* SEM NOTA TAMBEM E DIVIDA -- regra do Leonardo (04/09): "o que nao teve
+     identificacao esta aberto". O selo era cinza (neutro) e lia como "nao se
+     sabe"; a venda foi entregue e o cliente deve. Fica na cor de cobranca, com
+     o motivo escrito: nao da para cobrar sem nota, e isso e tarefa do
+     financeiro, nao duvida sobre o valor. */
   if (f.tipo === "semTitulo") {
     return (
       <span
-        className="rounded bg-slate-100 px-1.5 py-0.5 text-[11px] text-slate-500"
-        title="Nenhum título desta O.S. no contas a receber, nem pagamento registrado — normalmente a nota ainda não foi emitida."
+        className="rounded bg-warn-50 px-1.5 py-0.5 text-[11px] text-warn-800"
+        title="O cliente deve, mas não há título no contas a receber: a nota ainda não foi emitida. Entra no “Em aberto”, e o financeiro precisa faturar para poder cobrar."
       >
-        sem título no ERP
+        em aberto · sem nota
       </span>
     );
   }

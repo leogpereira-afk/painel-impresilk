@@ -325,3 +325,42 @@ test("permuta continua valendo mesmo se a O.S. ficou fora do teto", () => {
   assert.equal(r.porNumero["888"].tipo, "permuta");
   assert.equal(r.totais.permutadas, 1);
 });
+
+/* REGRA DO LEONARDO (04/09): "jogar no aberto o que nao teve identificacao,
+   porque esta aberto". Venda entregue sem nota emitida e divida do cliente --
+   so nao e cobravel ainda. Conferido contra a tela real da campanha "Politica
+   2026 - Deputados": 45.965,57 (com titulo) + 172.230,05 (sem nota) e os
+   quatro baldes fecham os R$ 436.307,41 da campanha. */
+test("sem nota entra no 'a receber', permuta e nao-conferida NAO entram", () => {
+  const linhas = [
+    { id: "p1", numero: "10", valor: 45965.57, data: "2026-08-01" }, // titulo aberto
+    { id: "p2", numero: "20", valor: 172230.05, data: "2026-08-02" }, // sem nota
+    { id: "p3", numero: "30", valor: 136556.24, data: "2026-08-03" }, // permuta
+    { id: "p4", numero: "40", valor: 999, data: "2026-08-04" },       // fora do teto
+    { id: "p5", numero: "50", valor: 888, data: "2024-01-05" },       // antes do mapa
+  ];
+  const r = financeiroDasLinhas(linhas, {
+    temPagos: true, desdeDados: "2025-01-01",
+    abertos: [{ id: "tt", os: "10", valor: 45965.57, pago: 0, vencimento: "2026-08-30" }],
+    pagos: [],
+    permutaDaOS: { p3: "Politica Marcelo Freitas" },
+    consultadas: ["10", "20", "30", "50"],
+  }, HOJE);
+  assert.equal(r.totais.aberto, 45965.57);
+  assert.equal(r.totais.semTituloValor, 172230.05);
+  assert.equal(r.totais.aReceber, 218195.62);   // o que o cliente deve
+  assert.equal(r.totais.aReceberOS, 2);
+  // O que a tela NAO pode afirmar fica de fora do que se cobra.
+  assert.equal(r.totais.permutadoValor, 136556.24);
+  assert.equal(r.totais.naoConsultadas, 1);
+  assert.equal(r.totais.semDado, 1);
+});
+
+test("resto de O.S. paga em parte tambem entra no 'a receber'", () => {
+  const r = financeiroDasLinhas([{ id: "q1", numero: "60", valor: 10000, data: "2026-08-01" }], {
+    temPagos: true, desdeDados: "2025-01-01",
+    abertos: [], pagos: [{ id: "tq", os: "60", pago: 4000, em: "2026-08-10" }],
+  }, HOJE);
+  assert.equal(r.totais.recebido, 4000);
+  assert.equal(r.totais.aReceber, 6000);
+});

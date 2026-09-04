@@ -211,5 +211,17 @@ export function financeiroDasLinhas(linhas, dados, hoje) {
     if (tipo === "semDado") totais.semDado += 1;
   }
 
+  /* O QUE O CLIENTE AINDA DEVE, na regua do Leonardo (04/09): "o que nao teve
+     identificacao esta aberto". Venda entregue sem nota emitida continua sendo
+     divida -- so nao esta cobravel ainda. Por isso "Em aberto" soma os titulos
+     em aberto MAIS o que ficou sem titulo (inclusive o resto de uma O.S. paga
+     em parte), e a tela detalha a divisao embaixo do numero.
+
+     Fica FORA: permuta (ja acertada), e o que a tela nao pode afirmar --
+     `semDado` (anterior ao mapa de pagamentos) e `naoConsultada` (fora do teto
+     do servidor). Somar esses dois seria cobrar por dedução. */
+  totais.aReceber = CENT(totais.aberto + totais.semTituloValor);
+  totais.aReceberOS = totais.abertas + totais.semTitulo;
+
   return { porNumero, totais };
 }

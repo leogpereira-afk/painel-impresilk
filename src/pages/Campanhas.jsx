@@ -156,16 +156,28 @@ function CartoesFinanceiro({ financeiro, erro, dados }) {
                 : "border-slate-200 bg-slate-50"
           }`}
         >
-          <div className={`text-xs font-medium ${t.vencidas > 0 ? "text-bad-700" : t.aberto > 0 ? "text-warn-800" : "text-slate-500"}`}>
+          <div className={`text-xs font-medium ${t.vencidas > 0 ? "text-bad-700" : t.aReceber > 0 ? "text-warn-800" : "text-slate-500"}`}>
             Em aberto
           </div>
-          <div className={`mt-0.5 text-xl font-semibold tabular-nums ${t.vencidas > 0 ? "text-bad-700" : t.aberto > 0 ? "text-warn-800" : "text-slate-600"}`}>
-            {dinheiro(t.aberto)}
+          <div className={`mt-0.5 text-xl font-semibold tabular-nums ${t.vencidas > 0 ? "text-bad-700" : t.aReceber > 0 ? "text-warn-800" : "text-slate-600"}`}>
+            {dinheiro(t.aReceber)}
           </div>
-          <div className={`mt-0.5 text-[11px] ${t.vencidas > 0 ? "text-bad-700/80" : t.aberto > 0 ? "text-warn-800/80" : "text-slate-400"}`}>
-            {t.abertas > 0
-              ? `${t.abertas} O.S. com título em aberto${t.vencidas > 0 ? ` · ${t.vencidas} vencida${s(t.vencidas)} (${dinheiro(t.vencidoValor)})` : ""}`
-              : "nenhum título em aberto"}
+          {/* O NÚMERO É UM SÓ (é tudo o que o cliente deve), mas a DIVISÃO fica
+              à vista: com título dá para cobrar hoje; sem nota emitida, não --
+              e é o financeiro que resolve isso. Sem a divisão, "em aberto"
+              viraria um número que ninguém sabe como perseguir. */}
+          <div className={`mt-0.5 text-[11px] ${t.vencidas > 0 ? "text-bad-700/80" : t.aReceber > 0 ? "text-warn-800/80" : "text-slate-400"}`}>
+            {t.aReceberOS > 0 ? (
+              <>
+                {t.aReceberOS} O.S.
+                {t.abertas > 0 && (
+                  <> · {t.abertas} com título{t.vencidas > 0 ? ` (${t.vencidas} vencida${s(t.vencidas)}: ${dinheiro(t.vencidoValor)})` : ""}</>
+                )}
+                {t.semTitulo > 0 && (
+                  <> · {t.semTitulo} sem nota emitida ({dinheiro(t.semTituloValor)})</>
+                )}
+              </>
+            ) : "nada em aberto"}
           </div>
         </div>
         {temPermuta && (
@@ -190,7 +202,7 @@ function CartoesFinanceiro({ financeiro, erro, dados }) {
           </div>
         )}
       </div>
-      {(t.semTituloValor > 0 || (t.semDado > 0 && !semMapa) || (dados?.cortados ?? 0) > 0 || t.compartilhadas > 0 || t.naoConsultadas > 0) && (
+      {((t.semDado > 0 && !semMapa) || (dados?.cortados ?? 0) > 0 || t.compartilhadas > 0 || t.naoConsultadas > 0) && (
         <div className="text-[11px] text-slate-500">
           {t.compartilhadas > 0 && (
             <>
@@ -200,12 +212,6 @@ function CartoesFinanceiro({ financeiro, erro, dados }) {
               {t.incertas > 0 && (t.incertas === 1
                 ? " 1 dessas foi dividida por igual (falta o valor de alguma O.S. do título)."
                 : ` ${t.incertas} dessas foram divididas por igual (falta o valor de alguma O.S. do título).`)}{" "}
-            </>
-          )}
-          {t.semTituloValor > 0 && (
-            <>
-              {dinheiro(t.semTituloValor)} de {t.semTitulo} O.S. ainda sem título de cobrança no ERP
-              (nota não emitida) — não é “pago” nem “em aberto”.{" "}
             </>
           )}
           {t.semDado > 0 && !semMapa && (
