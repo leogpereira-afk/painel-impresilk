@@ -190,7 +190,7 @@ function CartoesFinanceiro({ financeiro, erro, dados }) {
           </div>
         )}
       </div>
-      {(t.semTituloValor > 0 || (t.semDado > 0 && !semMapa) || (dados?.cortados ?? 0) > 0 || t.compartilhadas > 0) && (
+      {(t.semTituloValor > 0 || (t.semDado > 0 && !semMapa) || (dados?.cortados ?? 0) > 0 || t.compartilhadas > 0 || t.naoConsultadas > 0) && (
         <div className="text-[11px] text-slate-500">
           {t.compartilhadas > 0 && (
             <>
@@ -211,7 +211,17 @@ function CartoesFinanceiro({ financeiro, erro, dados }) {
           {t.semDado > 0 && !semMapa && (
             <>{t.semDado} O.S. anterior{t.semDado === 1 ? "" : "es"} a {dados?.desdeDados ? dataLonga(dados.desdeDados) : "2025"} fica{t.semDado === 1 ? "" : "m"} sem selo: o mapa de pagamentos não cobre a época.{" "}</>
           )}
-          {(dados?.cortados ?? 0) > 0 && (
+          {t.naoConsultadas > 0 ? (
+            /* O QUE NAO FOI PERGUNTADO. Antes estas O.S. levavam selo de "sem
+               título no ERP" e o valor delas entrava no total de não-faturado
+               -- afirmação de ausência sobre pergunta que não foi feita. Agora
+               ficam sem selo e aparecem só aqui. */
+            <>
+              {t.naoConsultadas} O.S. ({dinheiro(t.naoConsultadoValor)}) não foram conferidas nesta
+              consulta — a cobrança desce em lotes de 600 por vez, e essas ficaram de fora. Elas não
+              recebem selo: o painel não afirma nada sobre o que não perguntou.
+            </>
+          ) : (dados?.cortados ?? 0) > 0 && (
             <>A conferência cobriu as primeiras 600 O.S. — {dados.cortados} ficaram de fora.</>
           )}
         </div>

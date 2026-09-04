@@ -273,3 +273,55 @@ test("no limite (30%) ainda apaga; acima dele aborta", () => {
   const quatro = new Set(Object.keys(titulos).slice(4)); // 4 de 10 = 40%
   assert.equal(faxinarPagos(titulos, quatro, "2026-06-06").abortada, true);
 });
+
+/* ACHADOS DA AUDITORIA DE 04/09 — O.S. pedida mas NAO respondida pelo servidor
+   (teto de 600, ou numero recusado pelo filtro) recebia selo "sem titulo no
+   ERP" e entrava no total de nao-faturado: afirmacao de ausencia sobre
+   pergunta que nao foi feita. */
+test("O.S. fora do teto nao recebe selo nem entra em 'sem titulo'", () => {
+  const linhas = [
+    { id: "a", numero: "100", valor: 1000, data: "2026-08-01" },
+    { id: "b", numero: "9910", valor: 7000, data: "2026-08-02" }, // cortada
+  ];
+  const r = financeiroDasLinhas(linhas, {
+    temPagos: true, desdeDados: "2025-01-01",
+    abertos: [], pagos: [],
+    consultadas: ["100"], cortados: 1,
+  }, HOJE);
+  assert.equal(r.porNumero["100"].tipo, "semTitulo");
+  assert.equal(r.porNumero["9910"].tipo, "naoConsultada");
+  assert.equal(r.totais.naoConsultadas, 1);
+  assert.equal(r.totais.naoConsultadoValor, 7000);
+  // O valor da cortada NAO pode entrar no total de nao-faturado.
+  assert.equal(r.totais.semTitulo, 1);
+  assert.equal(r.totais.semTituloValor, 1000);
+});
+
+test("O.S. cortada tambem nao vira 'pago' nem 'em aberto'", () => {
+  const r = financeiroDasLinhas([{ id: "c", numero: "555", valor: 300, data: "2026-08-01" }], {
+    temPagos: true, desdeDados: "2025-01-01",
+    abertos: [], pagos: [], consultadas: [],
+  }, HOJE);
+  assert.equal(r.porNumero["555"].tipo, "naoConsultada");
+  assert.equal(r.totais.recebido, 0);
+  assert.equal(r.totais.aberto, 0);
+  assert.equal(r.totais.semTitulo, 0);
+});
+
+test("resposta sem a lista consultadas mantem o comportamento antigo", () => {
+  const r = financeiroDasLinhas([{ id: "d", numero: "777", valor: 500, data: "2026-08-01" }], {
+    temPagos: true, desdeDados: "2025-01-01", abertos: [], pagos: [],
+  }, HOJE);
+  assert.equal(r.porNumero["777"].tipo, "semTitulo");
+  assert.equal(r.totais.naoConsultadas, 0);
+});
+
+test("permuta continua valendo mesmo se a O.S. ficou fora do teto", () => {
+  const r = financeiroDasLinhas([{ id: "e", numero: "888", valor: 900, data: "2026-08-01" }], {
+    temPagos: true, desdeDados: "2025-01-01",
+    abertos: [], pagos: [], consultadas: [],
+    permutaDaOS: { e: "Vila 61" },
+  }, HOJE);
+  assert.equal(r.porNumero["888"].tipo, "permuta");
+  assert.equal(r.totais.permutadas, 1);
+});

@@ -118,11 +118,22 @@ export function financeiroDasLinhas(linhas, dados, hoje) {
 
   const porNumero = {};
   const permutaDaOS = dados?.permutaDaOS && typeof dados.permutaDaOS === "object" ? dados.permutaDaOS : {};
+  /* QUAIS O.S. A RESPOSTA COBRE. O servidor tem teto (600) e descarta número
+     que não passa no filtro dele -- e a escada abaixo, sem saber disso, dava
+     "sem título no ERP" para O.S. que ninguém consultou: afirmação de ausência
+     a partir de pergunta não feita. Quando a lista vem, quem está fora dela
+     não recebe selo nenhum e é contado à parte. (Resposta velha, de antes
+     deste campo existir, não tem a lista: aí o comportamento é o de antes.) */
+  const consultadas = Array.isArray(dados?.consultadas)
+    ? new Set(dados.consultadas.map((x) => String(x)))
+    : null;
 
   const totais = {
     recebido: 0, aberto: 0,
     pagas: 0, abertas: 0, vencidas: 0, vencidoValor: 0,
     semTitulo: 0, semTituloValor: 0, semDado: 0,
+    // Pedidas mas não respondidas (teto do servidor / número recusado).
+    naoConsultadas: 0, naoConsultadoValor: 0,
     // Quantas O.S. dependem de título que cobra mais de uma (valor repartido).
     compartilhadas: 0, incertas: 0,
     // Quitadas em troca: não entram no dinheiro, mas também não são cobrança.
@@ -148,6 +159,7 @@ export function financeiroDasLinhas(linhas, dados, hoje) {
        pago?" é a permuta -- e ela diz sim. O que sobra em aberto no ERP é
        assunto da tela de Permutas, não cobrança desta campanha. */
     if (permuta) tipo = "permuta";
+    else if (consultadas && !consultadas.has(numero)) tipo = "naoConsultada";
     else if (b.aberto > 0) tipo = "aberto";
     else if (b.pago >= valor - TOLERANCIA && b.pago > 0) tipo = "pago";
     else if (b.pago > 0) tipo = "pagoParcial";
@@ -165,6 +177,14 @@ export function financeiroDasLinhas(linhas, dados, hoje) {
        e somar a troca em "Recebido" faria o número deixar de ser caixa. Ela
        vira uma linha própria, com o valor da O.S. -- que é o que a permuta
        abateu do crédito do parceiro. */
+    /* NÃO CONSULTADA: sem selo e fora de toda soma de cobrança. O número
+       aparece só no rodapé, dizendo quantas ficaram de fora. */
+    if (tipo === "naoConsultada") {
+      totais.naoConsultadas += 1;
+      totais.naoConsultadoValor = CENT(totais.naoConsultadoValor + valor);
+      continue;
+    }
+
     if (tipo === "permuta") {
       totais.permutadas += 1;
       totais.permutadoValor = CENT(totais.permutadoValor + valor);

@@ -367,8 +367,21 @@ async function janelaDe7Dias() {
     for (const [i, r] of brutos.entries()) {
       const n = normRecebivel(r, i);
       if (!n.os || !(n.pago > 0)) continue; // sem O.S. ou sem valor pago: não responde a pergunta
+      /* A DATA DO PAGAMENTO, pelas TRES formas que o ERP usa -- as mesmas que
+         `acumularPagamentos` ja lia e que os casos reais em
+         scripts/conferir-realizado.mjs documentam: a parcela com
+         `data_pagamento`, a parcela com `data_credito`, e o titulo antigo que
+         nao traz lista nenhuma e poe a data no topo.
+
+         Ler so a primeira gravava `em: ""` -- e titulo sem `em` e IMUNE a
+         faxina (ela nao julga quem nao pode datar). O estorno desse titulo
+         nunca sairia do mapa: a tela diria "pago" para sempre sobre dinheiro
+         que voltou a ser devido, que e exatamente o que a faxina existe para
+         impedir. Achado da auditoria de 04/09. */
       const em = (Array.isArray(r.pagamentos) ? r.pagamentos : [])
-        .map((p) => String(p?.data_pagamento || "")).filter(Boolean).sort().pop() || "";
+        .map((p) => String(p?.data_pagamento || p?.data_credito || ""))
+        .filter(Boolean).sort().pop()
+        || String(r?.data_pagamento || r?.data_credito || "").slice(0, 10);
       titulos[n.id] = { os: n.os, pago: n.pago, em };
       vieram.add(n.id);
     }

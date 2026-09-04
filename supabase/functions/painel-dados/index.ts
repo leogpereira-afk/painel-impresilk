@@ -660,6 +660,14 @@ Deno.serve(async (req: Request) => {
 
         return json({
           abertos, pagos, permutaDaOS,
+          /* QUAIS O.S. ESTA RESPOSTA REALMENTE COBRE. Sem isto a tela julgava
+             TODAS as linhas com o que voltou de 600: a O.S. de numero 601 em
+             diante -- e qualquer uma cujo numero nao passou no filtro -- ficava
+             sem entrada em abertos/pagos e a escada carimbava "sem titulo no
+             ERP (nota nao emitida)" sobre O.S. que o servidor nem consultou.
+             Afirmacao de ausencia a partir de pergunta nao feita, no mesmo
+             quadro em que o rodape dizia que N ficaram de fora. */
+          consultadas: [...pedidos],
           cortados: Math.max(0, todos.length - TETO),
           /* `temPagos` separa "o mapa existe e não achou nada" (pode afirmar
              'sem título') de "o mapa ainda não foi montado" (não afirmar). */
