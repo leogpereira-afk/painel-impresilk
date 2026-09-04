@@ -386,3 +386,25 @@ html.dark ::-webkit-scrollbar-thumb {
 .dark .bg-brand-50\/40,
 .dark .bg-brand-50\/60,
 .dark .bg-brand-100 { background-color: rgba(112, 118, 240, 0.16); }
+
+/* O TEXTO E A BORDA DA MARCA no escuro -- o fundo `bg-brand-50` ja tinha par
+   (acima), mas o que fica EM CIMA dele nao: `text-brand-700` e o azul escuro
+   #2529a6, ilegivel sobre o fundo escurecido. Apareceu no quadro "Em permuta"
+   das Campanhas e, ja antes dele, no chip selecionado (.chip-on, linha ~139) e
+   na tabela de Manutencoes. Vale a ressalva da lista acima: cada VARIANTE e uma
+   classe -- por isso as /80 vem escritas separadas. */
+.dark .text-brand-700,
+.dark .text-brand-600,
+.dark .text-brand-800 { color: #9ba1f6; }
+.dark .border-brand-200 { border-color: rgba(112, 118, 240, 0.32); }
+.dark .border-brand-300 { border-color: rgba(112, 118, 240, 0.40); }
+
+/* Os tons 800/900 de aviso e as variantes com opacidade dos tres status: os
+   pares existiam so para 600/700 puros, entao `text-warn-800` (o cartao "Em
+   aberto") e `text-ok-700/80` (o rodape do "Recebido") caiam no valor cru do
+   tema claro. */
+.dark .text-warn-800,
+.dark .text-warn-900 { color: #fcd34d; }
+.dark .text-warn-800\/80 { color: rgba(252, 211, 77, 0.8); }
+.dark .text-ok-700\/80 { color: rgba(134, 239, 172, 0.8); }
+.dark .text-bad-700\/80 { color: rgba(252, 165, 165, 0.8); }

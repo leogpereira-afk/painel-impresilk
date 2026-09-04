@@ -128,9 +128,14 @@ function CartoesFinanceiro({ financeiro, erro, dados }) {
   const t = financeiro.totais;
   const semMapa = !dados?.temPagos;
   const s = (n) => (n === 1 ? "" : "s");
+  /* O TERCEIRO QUADRO só existe quando há troca. Ele não é dinheiro (não entra
+     no Recebido) nem cobrança (não entra no Em aberto) -- é a venda que já foi
+     acertada com o parceiro. Sem ele, essas O.S. apareciam como "sem título" e
+     o financeiro sairia cobrando quem não deve. */
+  const temPermuta = t.permutadoValor > 0;
   return (
     <div className="space-y-1.5">
-      <div className="grid gap-3 sm:grid-cols-2">
+      <div className={`grid gap-3 ${temPermuta ? "sm:grid-cols-3" : "sm:grid-cols-2"}`}>
         <div className="rounded-xl border border-ok-200 bg-ok-50 px-4 py-3">
           <div className="text-xs font-medium text-ok-700">Recebido</div>
           <div className="mt-0.5 text-xl font-semibold tabular-nums text-ok-700">
@@ -163,6 +168,27 @@ function CartoesFinanceiro({ financeiro, erro, dados }) {
               : "nenhum título em aberto"}
           </div>
         </div>
+        {temPermuta && (
+          <div className="rounded-xl border border-brand-200 bg-brand-50 px-4 py-3">
+            <div className="text-xs font-medium text-brand-700">Em permuta</div>
+            <div className="mt-0.5 text-xl font-semibold tabular-nums text-brand-700">
+              {dinheiro(t.permutadoValor)}
+            </div>
+            <div className="mt-0.5 text-[11px] text-brand-600">
+              {t.permutadas} O.S. quitada{s(t.permutadas)} em troca — sem cobrança no ERP
+            </div>
+            {/* NÃO SOMEI EM "RECEBIDO", E DIGO POR QUÊ. O ERP registra
+                pagamento nessas O.S. mas não diz se foi dinheiro ou a baixa da
+                própria troca; somar inflaria o caixa, calar esconderia o
+                número. */}
+            {t.permutaPagoNoErp > 0 && (
+              <div className="mt-1 text-[11px] text-brand-600">
+                {dinheiro(t.permutaPagoNoErp)} {t.permutadas === 1 ? "dela" : "delas"} consta como pago
+                no ERP (provável baixa da troca) — fora do “Recebido” para o número continuar sendo caixa.
+              </div>
+            )}
+          </div>
+        )}
       </div>
       {(t.semTituloValor > 0 || (t.semDado > 0 && !semMapa) || (dados?.cortados ?? 0) > 0 || t.compartilhadas > 0) && (
         <div className="text-[11px] text-slate-500">
@@ -1955,11 +1981,19 @@ export default function Campanhas() {
     () => (resumo?.linhas || []).map((l) => l.numero).filter(Boolean).sort().join("|"),
     [resumo],
   );
+  /* OS IDS viajam junto: é por id que a permuta registra a O.S. que consumiu.
+     Entram na MESMA chave do efeito (`para`) para a resposta continuar
+     amarrada à pergunta inteira. */
+  const idsTextoFin = useMemo(
+    () => (resumo?.linhas || []).map((l) => l.id).filter(Boolean).sort().join("|"),
+    [resumo],
+  );
+  const perguntaFin = `${numerosTexto}#${idsTextoFin}`;
   useEffect(() => {
     if (!aberta || !numerosTexto) { setFinResp(null); setFinErro(""); return undefined; }
     let vivo = true;
     setFinErro("");
-    lerOsFinanceiro(numerosTexto.split("|"))
+    lerOsFinanceiro(numerosTexto.split("|"), idsTextoFin ? idsTextoFin.split("|") : [])
       /* A RESPOSTA VIAJA COM A PERGUNTA (`para`). Sem isso, abrir outra edição
          pelo quadro "Edições" trocava a campanha sem passar pela lista, e o
          primeiro render pareava as O.S. da nova com os títulos da anterior:
@@ -1967,14 +2001,14 @@ export default function Campanhas() {
          PAGA e "Recebido R$ 0,00" como se fosse resultado. O mesmo valia
          depois de uma falha de rede, que só acendia o aviso sem largar o dado
          velho -- e os selos, o chip do grupo e o PDF seguiam mentindo. */
-      .then((d) => vivo && setFinResp({ para: numerosTexto, dados: d }))
+      .then((d) => vivo && setFinResp({ para: perguntaFin, dados: d }))
       .catch((e) => vivo && setFinErro(e.message));
     return () => { vivo = false; };
-  }, [aberta, numerosTexto, versaoBusca]);
+  }, [aberta, numerosTexto, idsTextoFin, perguntaFin, versaoBusca]);
   /* Só vale o que responde à pergunta ATUAL. Resposta de outra campanha (ou de
      antes de marcar/tirar O.S.) não vira selo nem cartão: a tela volta a
      "conferindo", que é a verdade enquanto a nova não chega. */
-  const finDados = finResp?.para === numerosTexto ? finResp.dados : null;
+  const finDados = finResp?.para === perguntaFin ? finResp.dados : null;
   const financeiro = useMemo(
     () => (finDados && resumo ? financeiroDasLinhas(resumo.linhas, finDados, hojeISO()) : null),
     [finDados, resumo],

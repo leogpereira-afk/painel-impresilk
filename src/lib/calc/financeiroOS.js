@@ -73,10 +73,15 @@ export function faxinarPagos(titulos, vieram, corte, { limite = 0.3 } = {}) {
   return { titulos: saida, removidos: sumiram.length, abortada: false, sumiram: sumiram.length, naJanela: naJanela.length };
 }
 
-/* `linhas`  — as O.S. da campanha (resumo.linhas: {numero, valor, data}).
-   `dados`   — a resposta do servidor: {abertos, pagos, temPagos, desdeDados}.
+/* `linhas`  — as O.S. da campanha (resumo.linhas: {id, numero, valor, data}).
+   `dados`   — a resposta do servidor: {abertos, pagos, permutaDaOS, temPagos, desdeDados}.
    `hoje`    — AAAA-MM-DD local; entra por fora para o teste não depender do
-               relógio (a lição do teste que só passava no meu fuso). */
+               relógio (a lição do teste que só passava no meu fuso).
+
+   A PERMUTA VEM ANTES DE TUDO. Uma O.S. paga em troca está quitada e nunca vai
+   ter título -- perguntar "pago ou em aberto?" sobre ela é a pergunta errada.
+   Fica num estado próprio, com o valor FORA do dinheiro recebido: somar troca
+   com caixa faria o cartão "Recebido" deixar de responder quanto entrou. */
 export function financeiroDasLinhas(linhas, dados, hoje) {
   const abertos = Array.isArray(dados?.abertos) ? dados.abertos : [];
   const pagos = Array.isArray(dados?.pagos) ? dados.pagos : [];
@@ -112,21 +117,38 @@ export function financeiroDasLinhas(linhas, dados, hoje) {
   }
 
   const porNumero = {};
+  const permutaDaOS = dados?.permutaDaOS && typeof dados.permutaDaOS === "object" ? dados.permutaDaOS : {};
+
   const totais = {
     recebido: 0, aberto: 0,
     pagas: 0, abertas: 0, vencidas: 0, vencidoValor: 0,
     semTitulo: 0, semTituloValor: 0, semDado: 0,
     // Quantas O.S. dependem de título que cobra mais de uma (valor repartido).
     compartilhadas: 0, incertas: 0,
+    // Quitadas em troca: não entram no dinheiro, mas também não são cobrança.
+    permutadas: 0, permutadoValor: 0,
+    /* Quanto das O.S. em permuta o ERP TAMBÉM registra como pago. Medido em
+       04/09/2026: 91 das 156 O.S. de permuta têm pagamento no ERP, R$ 468.574.
+       O ERP não diz se aquilo foi dinheiro ou a baixa da própria troca -- e
+       chutar em qualquer direção erra: somar em "Recebido" infla o caixa,
+       ignorar sem falar esconde R$ 468 mil. Fica num número próprio, que a
+       tela mostra. */
+    permutaPagoNoErp: 0,
   };
 
   for (const l of linhas || []) {
     const numero = String(l?.numero || "");
     const valor = Number(l?.valor) || 0;
     const b = porOS.get(numero) || { aberto: 0, pago: 0, vencido: false, compartilhado: false, incerto: false };
+    const permuta = permutaDaOS[String(l?.id ?? "")] || null;
 
     let tipo;
-    if (b.aberto > 0) tipo = "aberto";
+    /* PERMUTA MANDA. Mesmo que o ERP tenha um título para ela (acontece: a
+       venda foi faturada e depois acertada em troca), quem responde "isto está
+       pago?" é a permuta -- e ela diz sim. O que sobra em aberto no ERP é
+       assunto da tela de Permutas, não cobrança desta campanha. */
+    if (permuta) tipo = "permuta";
+    else if (b.aberto > 0) tipo = "aberto";
     else if (b.pago >= valor - TOLERANCIA && b.pago > 0) tipo = "pago";
     else if (b.pago > 0) tipo = "pagoParcial";
     else if (!temPagos) tipo = "semDado"; // o mapa ainda não foi montado
@@ -135,8 +157,21 @@ export function financeiroDasLinhas(linhas, dados, hoje) {
 
     porNumero[numero] = {
       tipo, aberto: b.aberto, pago: b.pago, vencido: b.vencido,
-      compartilhado: b.compartilhado, incerto: b.incerto,
+      compartilhado: b.compartilhado, incerto: b.incerto, permuta,
     };
+
+    /* O QUE ESTÁ EM TROCA SAI DAS DUAS CONTAS DE DINHEIRO. Deixar o título
+       aberto dessa O.S. no cartão "Em aberto" mandaria cobrar quem já acertou;
+       e somar a troca em "Recebido" faria o número deixar de ser caixa. Ela
+       vira uma linha própria, com o valor da O.S. -- que é o que a permuta
+       abateu do crédito do parceiro. */
+    if (tipo === "permuta") {
+      totais.permutadas += 1;
+      totais.permutadoValor = CENT(totais.permutadoValor + valor);
+      totais.permutaPagoNoErp = CENT(totais.permutaPagoNoErp + b.pago);
+      continue;
+    }
+
     if (b.compartilhado) totais.compartilhadas += 1;
     if (b.incerto) totais.incertas += 1;
 

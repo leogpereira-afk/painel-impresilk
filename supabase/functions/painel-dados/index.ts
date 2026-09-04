@@ -533,6 +533,10 @@ Deno.serve(async (req: Request) => {
         const todos = String(url.searchParams.get("numeros") ?? "")
           .split("|").map((x) => x.trim()).filter((x) => /^\d{1,12}$/.test(x));
         if (!todos.length) return json({ erro: "Sem numeros de O.S." }, 400);
+        /* OS IDS TAMBÉM, quando a tela os manda — é por ID que a permuta
+           registra a O.S. que consumiu (o número é do ERP, o id é a chave). */
+        const ids = String(url.searchParams.get("ids") ?? "")
+          .split("|").map((x) => x.trim()).filter((x) => /^[\w.-]{1,60}$/.test(x)).slice(0, 600);
         // Corte declarado, nunca mudo: a tela avisa quantas ficaram de fora.
         const TETO = 600;
         const pedidos = new Set(todos.slice(0, TETO));
@@ -626,8 +630,36 @@ Deno.serve(async (req: Request) => {
           });
         }
 
+        /* A O.S. QUE FOI PAGA EM PERMUTA NÃO TEM TÍTULO — e nunca vai ter.
+           Ela foi quitada em troca: o parceiro deu crédito, a O.S. gastou esse
+           crédito, e o ERP não emite cobrança nenhuma. Sem esta ligação a tela
+           dizia "sem título no ERP (nota não emitida)" sobre venda JÁ ACERTADA,
+           e mandava o financeiro cobrar quem não deve: medido em 04/09/2026,
+           16 O.S. de 4 campanhas, R$ 162.364 -- sendo R$ 136.556 numa campanha
+           só ("Política 2026 - Deputados", quitada na permuta "Politica Marcelo
+           Freitas"). A permuta guarda a O.S. por ID, por isso a tela manda os
+           ids junto dos números. */
+        const permutaDaOS: Record<string, string> = {};
+        if (ids.length) {
+          const alvo = new Set(ids);
+          const PASSO = 500;
+          for (let de = 0; ; de += PASSO) {
+            const { data } = await sb.from("painel_registros")
+              .select("registro").eq("colecao", "permutas").order("id").range(de, de + PASSO - 1);
+            for (const linha of data ?? []) {
+              const reg = (linha as any)?.registro ?? {};
+              const nome = String(reg?.nome ?? "").slice(0, 80);
+              const osDaPermuta = reg?.os && typeof reg.os === "object" ? reg.os : {};
+              for (const osId of Object.keys(osDaPermuta)) {
+                if (alvo.has(osId)) permutaDaOS[osId] = nome || "permuta sem nome";
+              }
+            }
+            if (!data || data.length < PASSO) break;
+          }
+        }
+
         return json({
-          abertos, pagos,
+          abertos, pagos, permutaDaOS,
           cortados: Math.max(0, todos.length - TETO),
           /* `temPagos` separa "o mapa existe e não achou nada" (pode afirmar
              'sem título') de "o mapa ainda não foi montado" (não afirmar). */

@@ -121,10 +121,16 @@ export const lerProdutoDetalhe = (chave) =>
 /* PAGO × EM ABERTO das O.S. de uma campanha. Os títulos do contas a receber
    apontam a O.S. pelo número; desce só a fatia pedida. A conta mora em
    src/lib/calc/financeiroOS.js — aqui é transporte. */
-export const lerOsFinanceiro = (numeros) =>
+/* `ids` vai junto porque a PERMUTA registra a O.S. pelo id, não pelo número:
+   sem eles, venda quitada em troca apareceria como "sem título no ERP" e o
+   financeiro cobraria quem já acertou. */
+export const lerOsFinanceiro = (numeros, ids) =>
   !numeros?.length
     ? Promise.resolve(null)
-    : pedirDados("osFinanceiro", { numeros: numeros.join("|") });
+    : pedirDados("osFinanceiro", {
+        numeros: numeros.join("|"),
+        ...(ids?.length ? { ids: ids.join("|") } : {}),
+      });
 
 /* A SAÚDE DA CARGA. O vigia do banco grava `carga_alarme` de hora em hora
    quando alguma fonte para de ser atualizada; até esta rodada ninguém lia

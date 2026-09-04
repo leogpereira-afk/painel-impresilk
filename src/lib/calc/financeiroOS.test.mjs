@@ -156,6 +156,67 @@ test("titulo de O.S. que nao esta na campanha nao entra nos totais", () => {
   assert.equal(r.totais.recebido, 500);
 });
 
+/* PERMUTA — o caso real de 04/09/2026: 16 O.S. de 4 campanhas (R$ 162.364)
+   foram quitadas em troca e nunca terao titulo. A maior: "Politica 2026 -
+   Deputados", 11 O.S. / R$ 136.556 na permuta "Politica Marcelo Freitas". Sem
+   esta ligacao a tela mandava cobrar quem ja tinha acertado. */
+test("O.S. em permuta fica quitada, fora do dinheiro e fora da cobranca", () => {
+  const linhas = [
+    { id: "os-1", numero: "500", valor: 100000, data: "2026-08-01" },
+    { id: "os-2", numero: "501", valor: 2000, data: "2026-08-02" },
+  ];
+  const r = financeiroDasLinhas(linhas, {
+    temPagos: true, desdeDados: "2025-01-01",
+    abertos: [{ id: "t-z", os: "501", valor: 2000, pago: 0, vencimento: "2026-10-01" }],
+    pagos: [],
+    permutaDaOS: { "os-1": "Politica Marcelo Freitas" },
+  }, HOJE);
+  assert.equal(r.porNumero["500"].tipo, "permuta");
+  assert.equal(r.porNumero["500"].permuta, "Politica Marcelo Freitas");
+  assert.equal(r.totais.permutadas, 1);
+  assert.equal(r.totais.permutadoValor, 100000);
+  // Nao vira "sem titulo" (era o defeito), nem entra no recebido em dinheiro.
+  assert.equal(r.totais.semTitulo, 0);
+  assert.equal(r.totais.recebido, 0);
+  // A outra O.S. continua sendo cobranca normal.
+  assert.equal(r.totais.aberto, 2000);
+});
+
+test("permuta com pagamento no ERP: nao some, mas fica FORA do recebido", () => {
+  const r = financeiroDasLinhas([{ id: "os-7", numero: "800", valor: 9000, data: "2026-08-01" }], {
+    temPagos: true, desdeDados: "2025-01-01",
+    abertos: [],
+    pagos: [{ id: "t-p", os: "800", pago: 9000, em: "2026-08-10" }],
+    permutaDaOS: { "os-7": "Empominas" },
+  }, HOJE);
+  assert.equal(r.porNumero["800"].tipo, "permuta");
+  assert.equal(r.totais.recebido, 0);              // nao infla o caixa
+  assert.equal(r.totais.permutaPagoNoErp, 9000);   // e nao some: a tela mostra
+  assert.equal(r.totais.permutadoValor, 9000);
+});
+
+test("permuta manda mesmo quando o ERP tem titulo aberto da mesma O.S.", () => {
+  const r = financeiroDasLinhas([{ id: "os-9", numero: "600", valor: 5000, data: "2026-08-01" }], {
+    temPagos: true, desdeDados: "2025-01-01",
+    abertos: [{ id: "t-w", os: "600", valor: 5000, pago: 0, vencimento: "2026-01-01" }],
+    pagos: [],
+    permutaDaOS: { "os-9": "Vila 61" },
+  }, HOJE);
+  assert.equal(r.porNumero["600"].tipo, "permuta");
+  // Nao pode sobrar em aberto: mandaria cobrar quem ja acertou em troca.
+  assert.equal(r.totais.aberto, 0);
+  assert.equal(r.totais.abertas, 0);
+  assert.equal(r.totais.vencidas, 0);
+});
+
+test("sem permutaDaOS nada muda (a permuta nao passa esse campo)", () => {
+  const r = financeiroDasLinhas([{ id: "os-3", numero: "700", valor: 800, data: "2026-08-01" }], {
+    temPagos: true, desdeDados: "2025-01-01", abertos: [], pagos: [],
+  }, HOJE);
+  assert.equal(r.porNumero["700"].tipo, "semTitulo");
+  assert.equal(r.totais.permutadas, 0);
+});
+
 /* A FAXINA — apaga registro de dinheiro recebido, então cada regra tem prova. */
 
 const mapa = (n, dentro = true) => Object.fromEntries(

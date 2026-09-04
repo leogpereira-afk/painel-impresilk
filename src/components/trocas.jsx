@@ -154,6 +154,19 @@ function SeloFinanceiro({ f }) {
       </span>
     );
   }
+  /* QUITADA EM TROCA. Não tem título e nunca vai ter -- o parceiro deu
+     crédito e esta O.S. gastou. Cor própria (nem verde de dinheiro, nem
+     amarelo de cobrança) porque é uma terceira coisa. */
+  if (f.tipo === "permuta") {
+    return (
+      <span
+        className="rounded bg-brand-50 px-1.5 py-0.5 text-[11px] text-brand-700"
+        title={`Quitada na permuta “${f.permuta}” — foi acertada em troca, não gera cobrança no ERP.`}
+      >
+        permuta{f.permuta ? ` · ${f.permuta}` : ""}
+      </span>
+    );
+  }
   if (f.tipo === "pago") {
     return (
       <span
