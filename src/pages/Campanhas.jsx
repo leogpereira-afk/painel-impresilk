@@ -110,7 +110,11 @@ function Meta({ vendido, meta, pct }) {
    honestas — o que ainda não tem título, o que o mapa não cobre, o corte —
    porque cartão sem ressalva vira afirmação que o dado não sustenta. */
 function CartoesFinanceiro({ financeiro, erro, dados }) {
-  if (erro) {
+  /* SEM DADO E COM ERRO: o aviso é tudo o que se pode dizer.
+     COM DADO E COM ERRO (uma atualização falhou depois de uma boa): mostra os
+     números, que continuam respondendo a esta campanha, e avisa embaixo -- o
+     aviso sozinho escondia número certo, que é o oposto de informar. */
+  if (erro && !financeiro) {
     return (
       <div className="rounded-lg bg-warn-50 px-3 py-2 text-xs text-warn-800">
         Não deu para conferir os títulos das O.S. no contas a receber: {erro} O botão
@@ -160,8 +164,18 @@ function CartoesFinanceiro({ financeiro, erro, dados }) {
           </div>
         </div>
       </div>
-      {(t.semTituloValor > 0 || (t.semDado > 0 && !semMapa) || (dados?.cortados ?? 0) > 0) && (
+      {(t.semTituloValor > 0 || (t.semDado > 0 && !semMapa) || (dados?.cortados ?? 0) > 0 || t.compartilhadas > 0) && (
         <div className="text-[11px] text-slate-500">
+          {t.compartilhadas > 0 && (
+            <>
+              {t.compartilhadas} O.S. (marcada{t.compartilhadas === 1 ? "" : "s"} ∗)
+              {t.compartilhadas === 1 ? " é cobrada" : " são cobradas"} em título que junta várias — o
+              valor mostrado em cada uma é a parte dela, repartida pelo valor da O.S.
+              {t.incertas > 0 && (t.incertas === 1
+                ? " 1 dessas foi dividida por igual (falta o valor de alguma O.S. do título)."
+                : ` ${t.incertas} dessas foram divididas por igual (falta o valor de alguma O.S. do título).`)}{" "}
+            </>
+          )}
           {t.semTituloValor > 0 && (
             <>
               {dinheiro(t.semTituloValor)} de {t.semTitulo} O.S. ainda sem título de cobrança no ERP
@@ -174,6 +188,12 @@ function CartoesFinanceiro({ financeiro, erro, dados }) {
           {(dados?.cortados ?? 0) > 0 && (
             <>A conferência cobriu as primeiras 600 O.S. — {dados.cortados} ficaram de fora.</>
           )}
+        </div>
+      )}
+      {erro && (
+        <div className="text-[11px] text-warn-800">
+          A última tentativa de atualizar a cobrança falhou ({erro}) — os valores acima são da
+          conferência anterior desta campanha.
         </div>
       )}
     </div>
@@ -1929,21 +1949,32 @@ export default function Campanhas() {
      DE NÚMEROS (string estável), não `resumo` -- senão cada renomeada da
      campanha rebuscaria títulos à toa. `versaoBusca` entra para o botão
      Atualizar rebuscar também a cobrança. */
-  const [finDados, setFinDados] = useState(null);
+  const [finResp, setFinResp] = useState(null);
   const [finErro, setFinErro] = useState("");
   const numerosTexto = useMemo(
     () => (resumo?.linhas || []).map((l) => l.numero).filter(Boolean).sort().join("|"),
     [resumo],
   );
   useEffect(() => {
-    if (!aberta || !numerosTexto) { setFinDados(null); setFinErro(""); return undefined; }
+    if (!aberta || !numerosTexto) { setFinResp(null); setFinErro(""); return undefined; }
     let vivo = true;
     setFinErro("");
     lerOsFinanceiro(numerosTexto.split("|"))
-      .then((d) => vivo && setFinDados(d))
+      /* A RESPOSTA VIAJA COM A PERGUNTA (`para`). Sem isso, abrir outra edição
+         pelo quadro "Edições" trocava a campanha sem passar pela lista, e o
+         primeiro render pareava as O.S. da nova com os títulos da anterior:
+         nenhum número casava, e a tela carimbava "sem título no ERP" em O.S.
+         PAGA e "Recebido R$ 0,00" como se fosse resultado. O mesmo valia
+         depois de uma falha de rede, que só acendia o aviso sem largar o dado
+         velho -- e os selos, o chip do grupo e o PDF seguiam mentindo. */
+      .then((d) => vivo && setFinResp({ para: numerosTexto, dados: d }))
       .catch((e) => vivo && setFinErro(e.message));
     return () => { vivo = false; };
   }, [aberta, numerosTexto, versaoBusca]);
+  /* Só vale o que responde à pergunta ATUAL. Resposta de outra campanha (ou de
+     antes de marcar/tirar O.S.) não vira selo nem cartão: a tela volta a
+     "conferindo", que é a verdade enquanto a nova não chega. */
+  const finDados = finResp?.para === numerosTexto ? finResp.dados : null;
   const financeiro = useMemo(
     () => (finDados && resumo ? financeiroDasLinhas(resumo.linhas, finDados, hojeISO()) : null),
     [finDados, resumo],

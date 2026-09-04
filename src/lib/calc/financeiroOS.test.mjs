@@ -96,6 +96,56 @@ test("pagamento parcial sem titulo do resto: 'pagoParcial' e o resto vira 'sem t
   assert.equal(r.totais.semTituloValor, 6000);
 });
 
+/* O CASO REAL de 04/09/2026: o titulo 41.400 do "ELEICAO 2026 PEDRO HENRIQUE"
+   cobra QUATRO O.S. (23208-23206-23051-23021). O servidor reparte proporcional
+   ao valor de cada uma -- a soma bate exatamente -- e cada linha recebe o seu.
+   Antes deste conserto o titulo inteiro era invisivel e a campanha aparecia
+   como "sem titulo no ERP" com R$ 41.400 em aberto. */
+test("titulo compartilhado: cada O.S. recebe a sua parte e fica marcada", () => {
+  const linhas = [linha("23208", 30800), linha("23206", 300), linha("23051", 300), linha("23021", 10000)];
+  const abertos = [
+    { id: "t-41400", os: "23208", valor: 30800, pago: 0, vencimento: "2026-10-05", compartilhado: true, incerto: false },
+    { id: "t-41400", os: "23206", valor: 300, pago: 0, vencimento: "2026-10-05", compartilhado: true, incerto: false },
+    { id: "t-41400", os: "23051", valor: 300, pago: 0, vencimento: "2026-10-05", compartilhado: true, incerto: false },
+    { id: "t-41400", os: "23021", valor: 10000, pago: 0, vencimento: "2026-10-05", compartilhado: true, incerto: false },
+  ];
+  const r = financeiroDasLinhas(linhas, { temPagos: true, desdeDados: "2025-01-01", abertos, pagos: [] }, HOJE);
+  assert.equal(r.totais.aberto, 41400);
+  assert.equal(r.totais.abertas, 4);
+  assert.equal(r.totais.compartilhadas, 4);
+  assert.equal(r.totais.incertas, 0);
+  assert.equal(r.porNumero["23208"].aberto, 30800);
+  assert.equal(r.porNumero["23208"].compartilhado, true);
+  // Nenhuma delas pode aparecer como "sem titulo" -- era o defeito.
+  assert.ok(linhas.every((l) => r.porNumero[l.numero].tipo === "aberto"));
+});
+
+test("rateio incerto (valor de alguma O.S. desconhecido) viaja ate a tela", () => {
+  const r = financeiroDasLinhas([linha("300", 1000)], {
+    temPagos: true, desdeDados: "2025-01-01",
+    abertos: [],
+    pagos: [{ id: "t-x", os: "300", pago: 500, em: "2026-08-01", compartilhado: true, incerto: true }],
+  }, HOJE);
+  assert.equal(r.porNumero["300"].incerto, true);
+  assert.equal(r.totais.incertas, 1);
+});
+
+test("titulo compartilhado estornado: o lado aberto vence nas DUAS partes", () => {
+  const r = financeiroDasLinhas([linha("400", 600), linha("401", 400)], {
+    temPagos: true, desdeDados: "2025-01-01",
+    abertos: [
+      { id: "t-e", os: "400", valor: 600, pago: 0, vencimento: "2026-10-01", compartilhado: true },
+      { id: "t-e", os: "401", valor: 400, pago: 0, vencimento: "2026-10-01", compartilhado: true },
+    ],
+    pagos: [
+      { id: "t-e", os: "400", pago: 600, em: "2026-08-01", compartilhado: true },
+      { id: "t-e", os: "401", pago: 400, em: "2026-08-01", compartilhado: true },
+    ],
+  }, HOJE);
+  assert.equal(r.totais.recebido, 0);
+  assert.equal(r.totais.aberto, 1000);
+});
+
 test("titulo de O.S. que nao esta na campanha nao entra nos totais", () => {
   const r = financeiroDasLinhas([linha("110", 500)], {
     temPagos: true, desdeDados: "2025-01-01",

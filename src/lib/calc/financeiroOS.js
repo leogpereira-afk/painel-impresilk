@@ -25,6 +25,13 @@
  *
  * 3. TOLERÂNCIA DE CENTAVOS. Título e O.S. arredondam em momentos diferentes;
  *    R$ 0,05 de diferença não pode rebaixar "pago" para "parcial".
+ *
+ * 4. TÍTULO COMPARTILHADO. O ERP cobra várias O.S. num título só
+ *    ("23208-23206-23051-23021"). O servidor já reparte proporcionalmente ao
+ *    valor de cada O.S. e marca a parte com `compartilhado` — e com `incerto`
+ *    quando teve de dividir por igual por não saber o valor de alguma. A tela
+ *    precisa dizer isso: número repartido não é número conferido no ERP linha
+ *    a linha, e quem cobra o cliente tem de saber a diferença.
  */
 
 const CENT = (n) => Math.round((Number(n) || 0) * 100) / 100;
@@ -45,8 +52,12 @@ export function financeiroDasLinhas(linhas, dados, hoje) {
   const porOS = new Map();
   const balde = (numero) => {
     const n = String(numero);
-    if (!porOS.has(n)) porOS.set(n, { aberto: 0, pago: 0, vencido: false });
+    if (!porOS.has(n)) porOS.set(n, { aberto: 0, pago: 0, vencido: false, compartilhado: false, incerto: false });
     return porOS.get(n);
+  };
+  const marcar = (b, t) => {
+    if (t.compartilhado) b.compartilhado = true;
+    if (t.incerto) b.incerto = true;
   };
   for (const t of abertos) {
     const b = balde(t.os);
@@ -55,11 +66,13 @@ export function financeiroDasLinhas(linhas, dados, hoje) {
     b.pago = CENT(b.pago + (Number(t.pago) || 0));
     // Vencido = venceu ANTES de hoje. No dia do vencimento ainda não é atraso.
     if (t.vencimento && String(t.vencimento).slice(0, 10) < String(hoje)) b.vencido = true;
+    marcar(b, t);
   }
   for (const t of pagos) {
     if (idsAbertos.has(String(t.id))) continue; // estorno: vale o lado aberto
     const b = balde(t.os);
     b.pago = CENT(b.pago + (Number(t.pago) || 0));
+    marcar(b, t);
   }
 
   const porNumero = {};
@@ -67,12 +80,14 @@ export function financeiroDasLinhas(linhas, dados, hoje) {
     recebido: 0, aberto: 0,
     pagas: 0, abertas: 0, vencidas: 0, vencidoValor: 0,
     semTitulo: 0, semTituloValor: 0, semDado: 0,
+    // Quantas O.S. dependem de título que cobra mais de uma (valor repartido).
+    compartilhadas: 0, incertas: 0,
   };
 
   for (const l of linhas || []) {
     const numero = String(l?.numero || "");
     const valor = Number(l?.valor) || 0;
-    const b = porOS.get(numero) || { aberto: 0, pago: 0, vencido: false };
+    const b = porOS.get(numero) || { aberto: 0, pago: 0, vencido: false, compartilhado: false, incerto: false };
 
     let tipo;
     if (b.aberto > 0) tipo = "aberto";
@@ -82,7 +97,12 @@ export function financeiroDasLinhas(linhas, dados, hoje) {
     else if (desdeDados && String(l?.data || "").slice(0, 10) < desdeDados) tipo = "semDado";
     else tipo = "semTitulo";
 
-    porNumero[numero] = { tipo, aberto: b.aberto, pago: b.pago, vencido: b.vencido };
+    porNumero[numero] = {
+      tipo, aberto: b.aberto, pago: b.pago, vencido: b.vencido,
+      compartilhado: b.compartilhado, incerto: b.incerto,
+    };
+    if (b.compartilhado) totais.compartilhadas += 1;
+    if (b.incerto) totais.incertas += 1;
 
     totais.recebido = CENT(totais.recebido + b.pago);
     totais.aberto = CENT(totais.aberto + b.aberto);

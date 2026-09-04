@@ -133,22 +133,34 @@ export function Secao({ id, titulo, sub, acao, aberta, aoAlternar, semImpressao,
    toda O.S. antiga viraria ruído — e afirmação nenhuma é melhor que chute. */
 function SeloFinanceiro({ f }) {
   if (!f) return null;
+  /* O ASTERISCO DO TÍTULO COMPARTILHADO. O ERP cobra várias O.S. num título só
+     ("23208-23206-23051-23021"); o valor aqui é a PARTE desta O.S., repartida
+     proporcionalmente. Sem essa marca, alguém cobraria o cliente por um número
+     que não existe sozinho em título nenhum. */
+  const parte = f.compartilhado
+    ? (f.incerto
+        ? " — parte de um título que cobra outras O.S. (dividido por igual: falta o valor de alguma)"
+        : " — parte de um título que cobra outras O.S.")
+    : "";
   if (f.tipo === "aberto") {
     return (
       <span
         className={`rounded px-1.5 py-0.5 text-[11px] ${
           f.vencido ? "bg-bad-50 font-medium text-bad-700" : "bg-warn-50 text-warn-800"
         }`}
-        title={f.pago > 0 ? `Já entrou ${dinheiro(f.pago)}; falta o resto.` : "Título em aberto no contas a receber."}
+        title={(f.pago > 0 ? `Já entrou ${dinheiro(f.pago)}; falta o resto.` : "Título em aberto no contas a receber.") + parte}
       >
-        em aberto {dinheiro(f.aberto)}{f.vencido && " · vencido"}
+        em aberto {dinheiro(f.aberto)}{f.vencido && " · vencido"}{f.compartilhado && " ·∗"}
       </span>
     );
   }
   if (f.tipo === "pago") {
     return (
-      <span className="rounded bg-ok-50 px-1.5 py-0.5 text-[11px] text-ok-700" title="Todos os títulos desta O.S. estão quitados.">
-        pago
+      <span
+        className="rounded bg-ok-50 px-1.5 py-0.5 text-[11px] text-ok-700"
+        title={"Todos os títulos desta O.S. estão quitados." + parte}
+      >
+        pago{f.compartilhado && " ·∗"}
       </span>
     );
   }
