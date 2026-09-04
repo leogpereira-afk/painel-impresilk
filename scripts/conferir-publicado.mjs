@@ -85,7 +85,23 @@ for (const fn of funcoes) {
     continue;
   }
   const corpo = Buffer.from(await resp.arrayBuffer()).toString("latin1");
-  const faltando = marcas.filter((m) => !corpo.includes(m));
+  /* O BUNDLE REFLUI A LINHA. `new Set(["central", "dre", "bosques", "domo"])`
+     sai no ESZIP quebrado em SEIS linhas, uma por item -- e a marca de uma
+     linha só nunca casa. Foi assim que em 04/09/2026 o verificador acusou
+     `painel-acesso` de "FALTA PUBLICAR" com a mudança publicada havia dias:
+     eu republiquei por reflexo e o alarme continuou, que é o que denunciou o
+     defeito. Controle que grita sem motivo é pior que controle nenhum --
+     ensina a ignorar.
+
+     Comparar SEM espaço nenhum resolve sem afrouxar: a marca continua tendo de
+     aparecer inteira, na ordem, com os mesmos caracteres; só as quebras de
+     linha e a indentação deixam de contar. Não basta achatar para UM espaço --
+     o bundle escreve `new Set([ "central"` (espaço depois do colchete) e a
+     fonte escreve `new Set(["central"`; provado com 6 casos sintéticos, entre
+     eles os que TÊM de falhar: item faltando, item a mais, ordem trocada. */
+  const semEspaco = (t) => t.replace(/\s+/g, "");
+  const corpoSemEspaco = semEspaco(corpo);
+  const faltando = marcas.filter((m) => !corpo.includes(m) && !corpoSemEspaco.includes(semEspaco(m)));
   if (faltando.length === marcas.length) {
     console.log(`X ${fn.padEnd(16)} NO AR sem nenhuma marca do commit ${commit} -- FALTA PUBLICAR`);
     ruim++;
