@@ -11,6 +11,12 @@ name: Cache do Mubisys
 # CACHE, que e descartavel e se reconstroi sozinho.
 # schedule re-registrado em 2026-07-31 22h25 UTC: o primeiro disparo agendado
 # nao veio em 90 min; regravar o arquivo na main forca o GitHub a re-registrar.
+# RE-REGISTRADO DE NOVO em 2026-09-04 17h40 UTC: o cron voltou a falhar o dia
+# inteiro -- rodou 01:04, 06:00, 10:44, 11:27, 11:56 e 15:05 UTC (intervalos de
+# 3 a 5 horas em vez de 20 minutos), deixando o painel 2h22 sem dado novo. Nao e
+# falha da carga (todas as corridas terminaram em success): e o agendador do
+# GitHub. A auto-cura da painel-dados (talvezAquecer) so dispara quando ALGUEM
+# abre o painel, entao com a casa parada o dado envelhece calado.
 on:
   schedule:
     # A cada 20 minutos: recarga leve (recebiveis, pagar, bancos + janela de 7
