@@ -338,6 +338,7 @@ export function normOS(os, i, categoriaPorNome) {
     valor: Math.round((num(os.valor_total) - num(os.valor_desconto)) * 100) / 100,
 
     cliente: String(os.cliente || "Cliente"),
+    clienteId: String(os.cliente_id ?? ""),
     /* O CNPJ/CPF de quem comprou. A O.S. e identificada pelo NOME do cliente em
        todo o painel, e nome nao e chave: a mesma empresa aparece como duas
        razoes sociais (SPE ... e ... CONSTRUTORA) e duas empresas do mesmo grupo

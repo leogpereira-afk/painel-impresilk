@@ -47,7 +47,7 @@ const CHAVES = new Set([
      repositorio consegue abrir. Duas corridas se perderam assim: "exit code
      1" e nada mais. Agora a propria carga escreve aqui o que aconteceu, ano a
      ano, e o motivo fica onde qualquer um que possa ler o banco alcanca. */
-  "historico_status",
+  "historico_status", "crm_clientes", "crm_funil",
 ]);
 
 // Chaves em que uma lista VAZIA quase nunca e a verdade -- e quando e, quem
@@ -230,6 +230,21 @@ Deno.serve(async (req: Request) => {
         pulou: `lista vazia por cima de ${tinha} itens -- manteve o anterior`,
         recusouVazio: true,
       });
+    }
+  }
+
+  // Somente snapshots completos; qualquer carga parcial conserva a cópia anterior.
+  if (chave === "crm_clientes" || chave === "crm_funil") {
+    const v = body.valor;
+    if (v?.versao !== 1 || v?.completo !== true) return json({ erro: "CRM incompleto" }, 400);
+    if (chave === "crm_clientes" && (!v.clientes || typeof v.clientes !== "object" || Array.isArray(v.clientes) || !Object.keys(v.clientes).length)) return json({ erro: "Cadastro vazio ou inválido" }, 400);
+    if (chave === "crm_funil") {
+      if (!Array.isArray(v.grupos) || !v.grupos.length || !Array.isArray(v.cards) || v.escopo !== "ATIVO") return json({ erro: "Funil inválido" }, 400);
+      if (!v.cards.length) {
+        const { data: anterior, error: falha } = await sb.from("painel_cache").select("valor").eq("chave", chave).maybeSingle();
+        if (falha) return json({ erro: "Falha ao conferir cópia anterior" }, 500);
+        if (anterior?.valor?.cards?.length) return json({ erro: "Funil vazio sobre base preenchida; preservado para conferência" }, 409);
+      }
     }
   }
 

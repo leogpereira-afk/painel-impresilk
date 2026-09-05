@@ -491,6 +491,25 @@ Deno.serve(async (req: Request) => {
         return json({ detalhe: data ?? null });
       }
 
+      case "crm": {
+        const g = await exigirSessao(req, "orcamentos");
+        if (g.resposta) return g.resposta;
+        const { data, error } = await sb.from("painel_cache").select("valor, atualizado_em").eq("chave", "crm_funil").maybeSingle();
+        if (error) return json({ erro: "Não foi possível ler o CRM." }, 503);
+        if (!data?.valor?.completo) return json({ erro: "A primeira carga do CRM ainda não foi concluída." }, 503);
+        return json({ grupos: data.valor.grupos, cards: data.valor.cards, escopo: "ATIVO", atualizadoEm: data.atualizado_em });
+      }
+      case "cliente360": {
+        const g = await exigirSessao(req, "orcamentos");
+        if (g.resposta) return g.resposta;
+        const id = String(url.searchParams.get("id") ?? "");
+        if (!/^[1-9]\d{0,15}$/.test(id)) return json({ erro: "Cliente inválido." }, 400);
+        const { data, error } = await sb.from("painel_cache").select("valor, atualizado_em").eq("chave", "crm_clientes").maybeSingle();
+        if (error) return json({ erro: "Não foi possível ler o cadastro." }, 503);
+        if (!data?.valor?.completo) return json({ erro: "A primeira carga dos clientes ainda não foi concluída." }, 503);
+        return json({ cliente: data.valor.clientes?.[id] ?? null, atualizadoEm: data.atualizado_em });
+      }
+
       case "clienteDetalhe": {
         const g = await exigirSessao(req, "campanhas");
         if (g.resposta) return g.resposta;

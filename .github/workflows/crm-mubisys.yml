@@ -1,0 +1,32 @@
+name: Clientes e CRM do Mubisys
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '13 */2 * * *'
+    - cron: '13 9 * * *'
+  push:
+    paths:
+      - scripts/carregar-crm.mjs
+      - scripts/lib/crm-mubi.mjs
+permissions:
+  contents: read
+concurrency:
+  group: cache-mubisys
+  cancel-in-progress: false
+jobs:
+  carregar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Atualizar cadastro e oportunidades em leitura
+        env:
+          MUBI_BASE_URL: ${{ secrets.MUBI_BASE_URL }}
+          MUBI_PUBLIC_KEY: ${{ secrets.MUBI_PUBLIC_KEY }}
+          MUBI_TOKEN: ${{ secrets.MUBI_TOKEN }}
+          CRM_SOMENTE_FUNIL: ${{ github.event.schedule == '13 */2 * * *' }}
+          PAINEL_TOKEN: ${{ secrets.PAINEL_TOKEN }}
+        run: node scripts/carregar-crm.mjs
