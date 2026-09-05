@@ -1,0 +1,26 @@
+name: Conferir estrutura CRM Mubisys
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - scripts/auditar-crm-mubi.mjs
+permissions:
+  contents: read
+concurrency:
+  group: cache-mubisys
+  cancel-in-progress: false
+jobs:
+  conferir:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Consultar amostras sem registrar dados pessoais
+        env:
+          MUBI_BASE_URL: ${{ secrets.MUBI_BASE_URL }}
+          MUBI_PUBLIC_KEY: ${{ secrets.MUBI_PUBLIC_KEY }}
+          MUBI_TOKEN: ${{ secrets.MUBI_TOKEN }}
+        run: node scripts/auditar-crm-mubi.mjs
