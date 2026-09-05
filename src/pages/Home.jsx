@@ -175,7 +175,7 @@ export default function Home() {
 
       {backupFalhou > 0 && (
         <button
-          onClick={() => navigate("/acessos")}
+          onClick={() => navigate("/backups")}
           className="card card-hover mt-6 w-full max-w-lg border-l-4 border-l-bad-600 p-4 text-left"
         >
           <span className="flex items-center gap-2 text-sm">
@@ -223,7 +223,7 @@ export default function Home() {
 
       {backupParadoHoras != null && (
         <button
-          onClick={() => navigate("/acessos")}
+          onClick={() => navigate("/backups")}
           className="card card-hover mt-6 w-full max-w-lg border-l-4 border-l-bad-600 p-4 text-left"
         >
           <span className="flex items-center gap-2 text-sm">

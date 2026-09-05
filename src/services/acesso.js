@@ -13,6 +13,10 @@ import { API } from "../lib/api.js";
 const BASE = `${API}/painel-acesso`;
 
 async function chamar(action, corpo = {}) {
+  if (import.meta.env.MODE === "review") {
+    const { simularAcesso } = await import("../review/dados.mjs");
+    return simularAcesso(action, corpo);
+  }
   const resp = await comCracha(BASE, {
     method: "POST",
     headers: { "Content-Type": "application/json" },

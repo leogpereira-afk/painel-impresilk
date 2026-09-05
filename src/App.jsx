@@ -23,6 +23,7 @@ const ContasAtrasadas = lazy(() => import("./pages/ContasAtrasadas.jsx"));
 const Orcamentos = lazy(() => import("./pages/Orcamentos.jsx"));
 const Configuracoes = lazy(() => import("./pages/Configuracoes.jsx"));
 const Acessos = lazy(() => import("./pages/Acessos.jsx"));
+const Backups = lazy(() => import("./pages/Backups.jsx"));
 const Ativos = lazy(() => import("./pages/Ativos.jsx"));
 const Bancos = lazy(() => import("./pages/Bancos.jsx"));
 const Marketing = lazy(() => import("./pages/Marketing.jsx"));
@@ -80,7 +81,7 @@ function prefetchRotas() {
   setTimeout(() => idle(proximo), 2000);
 }
 
-import { getSessao, aoMudarSessao, podeAbrir } from "./lib/sessao.js";
+import { getSessao, aoMudarSessao, podeAbrir, ehDirecao } from "./lib/sessao.js";
 import { Card } from "./components/ui.jsx";
 
 function SemAcesso() {
@@ -234,6 +235,8 @@ export default function App() {
           }
         />
         <Route path="/acessos" element={<Acessos />} />
+        <Route path="/minha-conta" element={<Acessos minhaConta />} />
+        <Route path="/backups" element={ehDirecao(sessao) ? <Backups/> : <Navigate to="/minha-conta" replace/>} />
         {/* Documentos/veiculos/maquinas nao sao dado financeiro: qualquer
             pessoa logada cuida deles (o servidor tambem so exige sessao). */}
         <Route path="/documentos" element={<Ativos />} />

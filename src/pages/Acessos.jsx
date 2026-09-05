@@ -4,11 +4,12 @@
 // tinha sido migrado e foi apagado.)
 
 import { useCallback, useEffect, useState } from "react";
+import { useLocation } from "react-router-dom";
+import CentralResumo, {CentralNavegacao} from "../components/CentralResumo.jsx";
 import { KeyRound, ShieldCheck, AlertTriangle, Check, Download, Upload } from "lucide-react";
 import { chamarAuth, ehDirecao as souDirecao, getSessao } from "../lib/sessao.js";
 import { baixarBackup, restaurarBackup, lerArquivoBackup, statusBackup, backupHubAgora } from "../services/backup.js";
 import { Card, PageTitle, SectionTitle } from "../components/ui.jsx";
-import { useApp } from "../config/store.jsx";
 import AcessoUnico from "../components/AcessoUnico.jsx";
 import { nomeCompletoSis, SISTEMAS } from "../lib/sistemas.js";
 
@@ -30,8 +31,12 @@ function Aviso({ tom, children }) {
 }
 
 
-export default function Acessos() {
-  const sessao = getSessao();
+export default function Acessos({ minhaConta = false }) {
+  const sessao = import.meta.env.MODE === "review" ? {usuario:"direcao.exemplo",nome:"Conta de demonstração",master:true,permissoes:["*"]} : getSessao();
+  const location = useLocation();
+  const params = new URLSearchParams(location.search);
+  const geral = !minhaConta && params.get("visao") !== "sistemas";
+  const sistemaEscolhido = params.get("sistema") || "";
   // Master OU acesso total -- a mesma regra que o servidor aplica em
   // painel-acesso. Ver ehDirecao em lib/sessao.js: escrever isso a mao aqui era
   // o que fazia quem tinha "*" ler a promessa e nao achar a tela.
@@ -54,6 +59,7 @@ export default function Acessos() {
 
   async function trocarSenha(e) {
     e.preventDefault();
+    if (import.meta.env.MODE === "review") return setMsgSenha({tom:"aviso",texto:"Prévia local: nenhuma senha foi enviada ou alterada."});
     setMsgSenha(null);
     if (nova.length < 6) return setMsgSenha({ tom: "erro", texto: "A nova senha precisa ter ao menos 6 caracteres." });
     if (nova !== repetir) return setMsgSenha({ tom: "erro", texto: "As duas senhas novas não são iguais." });
@@ -78,7 +84,6 @@ export default function Acessos() {
 
   // A direcao precisa do config/dados so para a lista de vendedores do cartao
   // de cada pessoa (dentro de AcessoUnico) e para o backup.
-  const { config, dados } = useApp();
   const [msgConta, setMsgConta] = useState(null);
 
   return (
@@ -87,20 +92,23 @@ export default function Acessos() {
           e so a troca da propria senha, e chamar isso de "Acessos" dava a
           entender que dava para liberar modulo por aqui. */}
       <PageTitle
-        titulo={ehDirecao ? "Sistemas de Acessos" : "Minha senha"}
+        titulo={ehDirecao && !minhaConta ? "Sistemas de Acessos" : "Minha conta"}
         descricao={
-          ehDirecao
-            ? "Os sistemas da casa, quem entra em cada um e por onde. E a sua senha."
+          ehDirecao && !minhaConta
+            ? "Gerencie quem entra e o que cada pessoa pode fazer."
             : "Troque a sua senha de entrada no painel."
         }
       />
+
+      {ehDirecao && <CentralNavegacao ativa={minhaConta ? "conta" : geral ? "geral" : "sistemas"}/>}
+      {ehDirecao && geral && <CentralResumo/>}
 
       {/* A ORDEM MUDOU EM 16/08/2026. "Minha senha" vinha primeiro e ocupava a
           tela inteira -- no celular, uma rolagem inteira de formulario antes de
           qualquer coisa sobre acesso. Quem abre esta tela como direcao vem
           resolver acesso de OUTRA pessoa; trocar a propria senha e o caso raro.
           Para quem nao e direcao nada muda: la a propria senha e a tela toda. */}
-      {!ehDirecao ? null : (
+      {!ehDirecao || minhaConta || geral ? null : (
         <>
           {/* GRUDADO NO TOPO. A lista de gente é longa e o cartão da pessoa
               fica bem abaixo: quem marcava um módulo na Karen recebia o aviso
@@ -121,20 +129,20 @@ export default function Acessos() {
               Tres blocos pedindo as mesmas coisas, e nenhum deles dizendo qual
               valia. Os dois primeiros sairam: o que eles faziam (modulos do
               painel, senha, remover) agora esta dentro do cartao da pessoa. */}
-          <AcessoUnico aoAvisar={setMsgConta} />
+          <AcessoUnico key={sistemaEscolhido} sistemaInicial={sistemaEscolhido} aoAvisar={setMsgConta} />
         </>
       )}
 
-      {/* Minha senha -- todo mundo */}
-      <Card>
+      {(minhaConta || !ehDirecao) && <Card>
         <SectionTitle
           titulo="Minha senha"
           sub={
             ehDirecao
-              ? "Troque quando quiser, aqui mesmo. A senha que você definir aqui passa a valer no lugar da inicial -- e a definitiva não fica escrita em configuração nenhuma."
-              : "Troque quando quiser. Precisa da senha atual para ninguém tomar sua conta."
+              ? "Atualize a senha usada para entrar no Painel."
+              : "Confirme sua senha atual e escolha uma nova senha."
           }
         />
+        {import.meta.env.MODE === "review" && <p className="mb-4 text-sm text-slate-500">Demonstração do formulário. Não informe sua senha real.</p>}
         <form onSubmit={trocarSenha} className="grid max-w-md gap-4">
           {semAtual && ehDirecao ? (
             <Aviso tom="aviso">
@@ -211,9 +219,7 @@ export default function Acessos() {
             {salvandoSenha ? "Salvando..." : "Trocar minha senha"}
           </button>
         </form>
-      </Card>
-
-      {!ehDirecao ? null : <BackupDados />}
+      </Card>}
     </div>
   );
 }
@@ -276,7 +282,7 @@ function UltimoBackup({ status }) {
           <span>
             <b className="font-display">Backup atrasado.</b> O mais velho tem{" "}
             {Number.isFinite(maisVelho) ? `${Math.round(maisVelho)} horas` : "data desconhecida"} —
-            o normal é rodar todo dia. Clique em “Rodar backup do hub agora” e veja se ele reclama.
+            o normal é rodar todo dia. Consulte a situação de cada sistema e execute uma nova cópia se necessário.
           </span>
         </p>
       )}
@@ -286,6 +292,7 @@ function UltimoBackup({ status }) {
       </p>
       <div className="overflow-x-auto rounded-xl border" style={{ borderColor: "var(--hairline)" }}>
         <table className="w-full min-w-[440px] border-collapse text-sm">
+          <thead className="bg-slate-50 text-left text-xs text-slate-500"><tr><th scope="col" className="px-3 py-3">Sistema</th><th scope="col" className="px-3 py-3">Última cópia</th><th scope="col" className="px-3 py-3">Situação e conteúdo</th></tr></thead>
           <tbody>
             {semBackup.map((sx) => (
               <tr key={`sem-${sx.id}`} className="border-t" style={{ borderColor: "var(--hairline)" }}>
@@ -294,7 +301,7 @@ function UltimoBackup({ status }) {
                 </td>
                 <td className="px-3 py-2 text-slate-500">—</td>
                 <td className="px-3 py-2">
-                  <span className="chip-bad">sem backup — não está no registro do backup</span>
+                  <span className="chip-bad">não retornou na última consulta</span>
                 </td>
               </tr>
             ))}
@@ -371,15 +378,16 @@ function UltimoBackup({ status }) {
 }
 
 // Backup dos dados do painel: baixar agora, restaurar de um arquivo.
-function BackupDados() {
+export function BackupDados() {
   const [baixando, setBaixando] = useState(false);
   const [restaurando, setRestaurando] = useState(false);
   const [enviando, setEnviando] = useState(false);
   const [status, setStatus] = useState(null);
+  const [erroStatus,setErroStatus] = useState(null);
   const [msg, setMsg] = useState(null);
   const [pendente, setPendente] = useState(null); // backup lido, aguardando confirmacao
 
-  const lerStatus = () => statusBackup().then(setStatus).catch(() => {});
+  const lerStatus = () => statusBackup().then(s=>{setStatus(s);setErroStatus(null);}).catch(e=>setErroStatus(e.message));
   useEffect(() => {
     lerStatus();
   }, []);
@@ -406,7 +414,7 @@ function BackupDados() {
       const sis = r.sistemas || {};
       const falharam = Object.entries(sis).filter(([, v]) => v.ok === false);
       if (falharam.length === 0) {
-        setMsg({ tom: "ok", texto: `Backup do hub inteiro feito: ${Object.keys(sis).length} sistemas.` });
+        setMsg({ tom: "ok", texto: `Backup dos sistemas concluído: ${Object.keys(sis).length} sistemas.` });
       } else {
         setMsg({
           tom: "erro",
@@ -470,7 +478,7 @@ function BackupDados() {
       />
 
       <div className="mb-4">
-        <UltimoBackup status={status} />
+        {erroStatus ? <p role="alert">{erroStatus} <button className="underline" onClick={lerStatus}>Tentar novamente</button></p> : status ? <UltimoBackup status={status} /> : <p role="status">Consultando backups…</p>}
       </div>
 
       <div className="flex flex-wrap gap-2">
@@ -481,7 +489,7 @@ function BackupDados() {
 
         <button className="btn-outline" onClick={rodarBackup} disabled={enviando}>
           <Upload size={16} strokeWidth={2.4} />
-          {enviando ? "Rodando..." : "Rodar backup do hub agora"}
+          {enviando ? "Rodando..." : "Executar backup dos sistemas"}
         </button>
 
         <label className="btn-outline cursor-pointer">

@@ -22,6 +22,7 @@
 //   · Por sistema — "quem entra no PCP, e com que login?"
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import "./acessos.css";
 import {
   Users, KeyRound, DoorOpen, Pencil, AlertTriangle, Search, UserPlus, Power,
   Link2, Plus, X, Check, ChevronRight, ExternalLink, Copy, MessageCircle,
@@ -30,6 +31,7 @@ import {
   lerAcessos, salvarConta, salvarPapel, removerPapel,
   criarPessoa, definirSenha, desativar, apontarLogin, senhaDoSistema,
 } from "../services/acesso.js";
+import { estadoDoPapel, temPendencia, contarAcessos, situacaoEntrada } from "../lib/acesso-state.mjs";
 import { Card, SectionTitle, Empty } from "./ui.jsx";
 import { Selo, FaixaNumeros, LinhaLista } from "./lista.jsx";
 import { MODULOS, COM_DINHEIRO, somenteValidos } from "../lib/modulos.js";
@@ -75,27 +77,12 @@ function lerFalha(e) {
   if (m.includes("desativada") || m.includes("barrada") || m.includes("travada")) {
     return { texto: "está barrada — conta desativada ou porta travada", acao: "reativar" };
   }
-  if (m.includes("senha")) return { texto: "sabe o login, erra a senha", acao: "senha" };
+  if (m.includes("senha")) return { texto: "falha relacionada à senha", acao: "senha" };
   return { texto: e.motivo || "não conseguiu entrar", acao: "" };
 }
 
 // O estado de uma linha pessoa×sistema, em uma palavra. E o que decide a cor do
 // trilho e o texto do selo -- e o unico lugar onde essa regra mora.
-function estadoDoPapel(p) {
-  if (!p?.real?.existe) return { chave: "fantasma", rotulo: "não existe lá", tom: "bad" };
-  if (p.real.ativo === false) return { chave: "desativada", rotulo: "desativada", tom: "bad" };
-  /* CONTA QUE EXISTE E NAO ABRE NADA. No Painel quem manda e a lista de
-     modulos, entao conta sem nenhum modulo deixa a pessoa entrar e olhar uma
-     tela vazia -- e como isso NAO e erro de login, ela reclama que "o painel
-     nao abre" e ninguem acha o motivo. Marcado e vazio sao coisas diferentes, e
-     ate hoje a tela tratava as duas como acesso concedido. */
-  if (p.sistema === "painel" && !(p.real.permissoes?.length || p.permissoes?.length)) {
-    return { chave: "vazia", rotulo: "entra e não vê nada", tom: "bad" };
-  }
-  if (p.real.temporaria) return { chave: "temporaria", rotulo: "senha temporária", tom: "warn" };
-  return { chave: "ok", rotulo: "ok", tom: "ok" };
-}
-
 // A senha temporaria aparece UMA vez. Ela nao fica guardada em lugar nenhum
 // legivel -- se a direcao fechar esta caixa sem anotar, o caminho e gerar outra.
 function SenhaNova({ senha, nome, login, aoFechar }) {
@@ -488,7 +475,7 @@ function LinhaSistema({ c, sis, p, soltas, vendedores, aoAlternar, aoPapel, aoMo
             {p.real?.existe && !doSistema(sis).soLeitura && (
               <button type="button" onClick={() => aoSenha(sis)}
                 className="btn-ghost h-8 px-2 text-xs" title={`Nova senha só no ${nomeSis(sis)}`}>
-                <KeyRound size={13} /> Senha aqui
+                <KeyRound size={13} /> Redefinir senha
               </button>
             )}
 
@@ -798,7 +785,7 @@ function Conta({ c, sistemas, soltas, vendedores, acoes, aoMudar, aoAvisar, aoSe
             para quem ja tivesse aberto -- ou seja, para ninguem. */}
         {fora > 0 && (
           <span className="chip-bad shrink-0" title="acessos que não existem no sistema">
-            {fora} fora do lugar
+            {fora} com pendência
           </span>
         )}
         {c.ativo === false && <span className="chip-bad shrink-0">desativada</span>}
@@ -841,7 +828,7 @@ function Conta({ c, sistemas, soltas, vendedores, acoes, aoMudar, aoAvisar, aoSe
                 <Pencil size={13} /> Editar nome, tipo e vínculo com o RH
               </button>
               <button type="button" className="btn-ghost h-8 px-2 text-xs" onClick={novaSenha}>
-                <KeyRound size={13} /> Nova senha em todos
+                <KeyRound size={13} /> Redefinir senha nos sistemas
               </button>
               <button type="button" className="btn-ghost h-8 px-2 text-xs" onClick={alternarAtivo}>
                 <Power size={13} /> {c.ativo === false ? "Reativar" : "Desativar"}
@@ -931,7 +918,8 @@ function contasDoSistema(sistema, contas, soltas, elenco) {
       .map((k) => ({ como: k, n: outros.filter((e) => e.como === k).length }))
       .filter((x) => x.n > 0),
     semDono: dentro.filter((l) => !l.dono).length,
-    temporarias: dentro.filter((l) => l.temporaria).length,
+    temporarias: dentro.filter((l) => l.temporaria && l.ativo !== false).length,
+    incompletas: dentro.filter((l) => l.tom === "bad").length,
     desativadas: dentro.filter((l) => l.ativo === false).length,
   };
 }
@@ -1002,8 +990,15 @@ function EditarNaLinha({ conta, sistema, login, soltas, aoSalvar, aoFechar }) {
 
    Fechadas por padrao de proposito: oito listas abertas de uma vez sao uma
    parede de nomes, e a pergunta que se faz aqui e sempre sobre UM sistema. */
-function SecaoSistema({ sistema, dados, acoes, soltas, aberta, aoAlternar, endereco, acessos }) {
+function SecaoSistema({ sistema, fonte, dados, acoes, soltas, aberta, aoAlternar, endereco, acessos }) {
   const [editando, setEditando] = useState(null);   // login da linha aberta
+  if (fonte?.estado === "nao_integrado" || ["domo", "bosques"].includes(sistema)) return (
+    <div className="acesso-externo">
+      <div><strong>{nomeSis(sistema)}</strong><p>Acessos administrados no próprio sistema. Contagem não consultada.</p></div>
+      <Selo tom="neutral">Gestão externa</Selo>
+      <a href={endereco} target="_blank" rel="noreferrer">Abrir sistema <ExternalLink size={14} /></a>
+    </div>
+  );
   return (
     <div className="overflow-hidden rounded-xl border" style={{ borderColor: "var(--hairline)" }}>
       <button
@@ -1028,9 +1023,10 @@ function SecaoSistema({ sistema, dados, acoes, soltas, aberta, aoAlternar, ender
           )}
         </span>
         <span className="flex flex-1 flex-wrap items-center justify-end gap-1.5">
+          {dados.incompletas > 0 && <Selo tom="bad">{dados.incompletas} sem módulos</Selo>}
           {dados.fora.length > 0 && (
             <Selo tom="bad" title="a tela promete e o sistema não tem">
-              {dados.fora.length} fora do lugar
+              {dados.fora.length} com pendência
             </Selo>
           )}
           {dados.semDono > 0 && (
@@ -1046,11 +1042,11 @@ function SecaoSistema({ sistema, dados, acoes, soltas, aberta, aoAlternar, ender
           {dados.temporarias > 0 && (
             <Selo tom="warn">{dados.temporarias} senha temporária</Selo>
           )}
-          {dados.desativadas > 0 && <Selo tom="bad">{dados.desativadas} desativada</Selo>}
+          {dados.desativadas > 0 && <Selo tom="neutral">{dados.desativadas} desativada</Selo>}
           {/* "em ordem" so quando nao ha NADA a dizer. Ele aparecia ao lado de
               "3 entram sem senha", e as duas frases juntas se desmentem: o selo
               amarelo ja e o recado, e o verde ao lado apagava o peso dele. */}
-          {dados.fora.length + dados.semDono + dados.temporarias + dados.desativadas === 0 &&
+          {dados.fora.length + dados.incompletas + dados.semDono + dados.temporarias + dados.desativadas === 0 &&
             dados.entram.length === 0 && <Selo tom="ok">em ordem</Selo>}
         </span>
       </button>
@@ -1065,7 +1061,7 @@ function SecaoSistema({ sistema, dados, acoes, soltas, aberta, aoAlternar, ender
               link que cai na porta da frente e deixa a pessoa procurando. */}
           <p className="flex flex-wrap items-center gap-x-3 gap-y-1 px-4 pt-3 text-xs text-slate-500">
             <span>
-              Lido do próprio {nomeSis(sistema)}, não desta tabela — quem está aqui entra lá.
+              Contas e vínculos encontrados nas fontes consultadas para {nomeSis(sistema)}.
             </span>
             {endereco && (
               <a href={endereco} target="_blank" rel="noreferrer"
@@ -1120,7 +1116,8 @@ function SecaoSistema({ sistema, dados, acoes, soltas, aberta, aoAlternar, ender
                     ) : l.papel ? (
                       <span className="chip shrink-0">{l.papel}</span>
                     ) : null}
-                    {l.ativo === false && <Selo tom="bad">desativada</Selo>}
+                    {l.tom === "bad" && <Selo tom="bad">nenhum módulo liberado</Selo>}
+                    {l.ativo === false && <Selo tom="neutral">desativada</Selo>}
                     {l.temporaria && <Selo tom="warn">senha temporária</Selo>}
                     {l.dono && !doSistema(sistema).soLeitura && (
                       <span className="flex shrink-0 gap-1">
@@ -1159,8 +1156,7 @@ function SecaoSistema({ sistema, dados, acoes, soltas, aberta, aoAlternar, ender
           {dados.outros.length === 0 ? (
             <p className="border-t px-4 py-3 text-xs text-slate-500"
               style={{ borderColor: "var(--hairline)" }}>
-              O {nomeSis(sistema)} não conhece mais ninguém além destas contas — aqui a lista
-              de quem entra é a lista inteira.
+              Nenhum cadastro complementar foi retornado nesta consulta.
             </p>
           ) : (
             <div className="border-t" style={{ borderColor: "var(--hairline)" }}>
@@ -1187,6 +1183,7 @@ function SecaoSistema({ sistema, dados, acoes, soltas, aberta, aoAlternar, ender
             </div>
           )}
 
+
           {dados.fora.length > 0 && (
             <div className="m-3 rounded-xl bg-bad-50 px-4 py-3 text-sm text-bad-700">
               <p className="font-display font-semibold">
@@ -1212,33 +1209,44 @@ function SecaoSistema({ sistema, dados, acoes, soltas, aberta, aoAlternar, ender
   );
 }
 
-export default function AcessoUnico({ aoAvisar }) {
+export default function AcessoUnico({ aoAvisar, sistemaInicial = "" }) {
+  const [carregando, setCarregando] = useState(true);
+  const [verificadoEm, setVerificadoEm] = useState(null);
+  const pedido = useRef(0);
   const [dados, setDados] = useState(null);
   const [erro, setErro] = useState(null);
-  const [busca, setBusca] = useState("");
+  const [busca, setBusca] = useState(sistemaInicial ? nomeSis(sistemaInicial) : "");
   const [criando, setCriando] = useState(false);
   const [senhaNova, setSenhaNova] = useState(null);
   /* COMECA EM SISTEMAS. Foi a vista que o dono pediu -- "clico em RH e sei todo
      mundo que esta la" -- e a que ele nao achou. A escolha fica lembrada neste
      aparelho: quem vem administrar UMA pessoa nao quer trocar de aba toda vez. */
   const [lente, setLente] = useState(() => {
+    if (sistemaInicial) return "sistema";
     try { return localStorage.getItem("painel_acessos_lente") || "sistema"; } catch { return "sistema"; }
   });
   const trocarLente = useCallback((id) => {
     setLente(id);
+    setBusca("");
     try { localStorage.setItem("painel_acessos_lente", id); } catch { /* aba anonima */ }
   }, []);
   // Quais secoes da lente por sistema estao abertas. Varias ao mesmo tempo e
   // permitido: comparar dois sistemas e uso legitimo, e fechar um para abrir
   // outro seria trabalho a toa.
-  const [abertos, setAbertos] = useState({});
+  const [abertos, setAbertos] = useState(sistemaInicial ? {[sistemaInicial]:true} : {});
   const [recorte, setRecorte] = useState("todas");
 
   const carregar = useCallback(async () => {
+    const id = ++pedido.current;
+    setCarregando(true);
     try {
-      setDados(await lerAcessos());
+      const resposta = await lerAcessos();
+      if (id !== pedido.current) return;
+      setDados(resposta);
+      setVerificadoEm(new Date());
       setErro(null);
-    } catch (e) { setErro(e.message); }
+    } catch (e) { if (id === pedido.current) setErro(e.message); }
+    finally { if (id === pedido.current) setCarregando(false); }
   }, []);
 
   useEffect(() => { carregar(); }, [carregar]);
@@ -1327,24 +1335,7 @@ export default function AcessoUnico({ aoAvisar }) {
     } catch (e) { aoAvisar({ tom: "erro", texto: e.message }); }
   }, [carregar, aoAvisar]);
 
-  const numeros = useMemo(() => {
-    if (!dados) return null;
-    const contas = dados.contas;
-    const foraDoLugar = contas.reduce(
-      (n, c) => n + c.papeis.filter((p) => !p.real?.existe).length, 0);
-    const temporarias = contas.reduce(
-      (n, c) => n + c.papeis.filter((p) => p.real?.existe && p.real.temporaria).length, 0);
-    const soltas = Object.values(dados.soltas || {}).reduce((n, l) => n + l.length, 0);
-    const naPorta = (dados.naPorta || []).length;
-    // Conta que existe e nao abre nada -- ver estadoDoPapel.
-    const vazias = contas.reduce(
-      (n, c) => n + c.papeis.filter((p) => estadoDoPapel(p).chave === "vazia").length, 0);
-    /* QUANTAS PESSOAS, e nao quantas linhas. "13 acessos" pode ser uma pessoa
-       com treze problemas ou treze pessoas trancadas do lado de fora, e as duas
-       frases pedem reacoes diferentes. */
-    const pessoasFora = contas.filter((c) => c.papeis.some((p) => !p.real?.existe)).length;
-    return { pessoas: contas.length, foraDoLugar, temporarias, soltas, naPorta, vazias, pessoasFora };
-  }, [dados]);
+  const numeros = useMemo(() => dados ? contarAcessos(dados) : null, [dados]);
 
   const lista = useMemo(() => {
     if (!dados) return [];
@@ -1357,47 +1348,48 @@ export default function AcessoUnico({ aoAvisar }) {
          acusada no topo que nao aparecesse na lista seria o mesmo desencontro
          que esta tela existe para acabar. */
       if (recorte === "fora") {
-        return c.papeis.some((p) => !p.real?.existe || estadoDoPapel(p).chave === "vazia");
+        return c.papeis.some((p) => temPendencia(p));
       }
-      if (recorte === "temporaria") return c.papeis.some((p) => p.real?.existe && p.real.temporaria);
+      if (recorte === "temporaria") return c.papeis.some((p) => estadoDoPapel(p).chave === "temporaria");
       return true;
     });
   }, [dados, busca, recorte]);
 
-  if (erro) {
-    return (
-      <Card>
-        <p className="flex items-start gap-2 text-sm text-bad-700">
-          <AlertTriangle size={16} className="mt-0.5 shrink-0" /> {erro}
-        </p>
-      </Card>
-    );
-  }
-  if (!dados) return null;
+  if (!dados) return (
+    <Card>
+      <div className="acesso-carregamento" role={erro ? "alert" : "status"} aria-live="polite">
+        <div className="acesso-abas-placeholder"><span>Sistemas</span><span>Pessoas</span></div>
+        <h2>{erro ? "Não foi possível consultar os acessos" : "Carregando acessos"}</h2>
+        <p>{erro || "Buscando contas, permissões e situações dos sistemas."}</p>
+        {erro ? <button className="btn-primary" onClick={carregar}>Tentar novamente</button> : <div className="acesso-skeleton" aria-hidden="true" />}
+      </div>
+    </Card>
+  );
 
+  const sistemasVisiveis = dados.sistemas.filter(s => norma(nomeSis(s)).includes(norma(busca))).filter(s => recorte !== "soltas" || (dados.soltas?.[s] || []).length > 0);
   const celulas = [
-    { id: "todas", rotulo: "Pessoas e portas", valor: numeros.pessoas,
+    { id: "todas", rotulo: "Contas centrais", valor: numeros.pessoas,
       sub: "contas nesta tela", curto: "no total" },
-    { id: "fora", rotulo: "Fora do lugar", valor: numeros.foraDoLugar,
+    { id: "fora", rotulo: "Acessos com pendência", valor: numeros.foraDoLugar,
       cor: numeros.foraDoLugar ? "text-bad-700" : "text-slate-900",
-      sub: "a tela promete e o sistema não tem", curto: "não existem lá" },
-    { id: "soltas", rotulo: "Soltas nos sistemas", valor: numeros.soltas,
+      sub: "conta ausente ou sem módulos", curto: "acessos a revisar" },
+    { id: "soltas", rotulo: "Contas sem vínculo", valor: numeros.soltas,
       cor: numeros.soltas ? "text-warn-700" : "text-slate-900",
-      sub: "existem lá e não são de ninguém aqui", curto: "sem dono" },
-    { id: "temporaria", rotulo: "Senha temporária", valor: numeros.temporarias,
-      sub: "ainda não trocaram a senha que receberam", curto: "não trocaram" },
-    { id: "porta", rotulo: "Batendo na porta", valor: numeros.naPorta,
+      sub: "sem vínculo com uma conta central", curto: "sem dono" },
+    { id: "temporaria", rotulo: "Senhas temporárias", valor: numeros.temporarias,
+      sub: `${numeros.pessoasTemporarias} conta(s) central(is) afetada(s)`, curto: "acessos por sistema" },
+    { id: "porta", rotulo: "Falhas de entrada", valor: numeros.naPorta,
       cor: numeros.naPorta ? "text-warn-700" : "text-slate-900",
-      sub: "tentaram entrar e não conseguiram (30 dias)", curto: "não entraram" },
+      sub: "usuário × sistema · últimos 30 dias", curto: "usuário × sistema · 30 dias" },
   ];
 
   return (
-    <Card>
-      <SectionTitle
-        titulo="Sistemas de Acessos"
-        sub={`Os ${dados.sistemas.length} sistemas da casa e quem entra em cada um. O que muda de um sistema para outro é o papel — e o login, que nem sempre é o mesmo.`}
-      />
-
+    <div className="central-acessos"><Card>
+      <div className="acesso-verificacao">
+        <span>{carregando ? "Atualizando acessos…" : `Verificado às ${verificadoEm?.toLocaleTimeString("pt-BR", {hour:"2-digit",minute:"2-digit"}) || "—"}`}</span>
+        <button className="btn-ghost" onClick={carregar} disabled={carregando}>Atualizar acessos</button>
+      </div>
+      {erro && <div className="acesso-alerta" role="alert">{erro} A lista anterior foi mantida. <button onClick={carregar}>Tentar novamente</button></div>}
       {/* AS ABAS VEM PRIMEIRO. Elas estavam la embaixo, depois do aviso, da faixa
           de numeros e do alerta vermelho -- seis blocos de texto antes. O dono
           rolou tudo, caiu na lista de pessoas e concluiu, com razao, que a aba
@@ -1411,7 +1403,7 @@ export default function AcessoUnico({ aoAvisar }) {
           <button
             key={id}
             type="button"
-            onClick={() => trocarLente(id)}
+            onClick={() => { trocarLente(id); setRecorte("todas"); }}
             aria-pressed={lente === id}
             className={`-mb-px border-b-2 px-4 py-2.5 font-display text-sm font-semibold transition-colors ${
               lente === id
@@ -1424,112 +1416,26 @@ export default function AcessoUnico({ aoAvisar }) {
         ))}
       </div>
 
-      {/* O QUE A FICHA DO RH DECIDIU SOZINHA.
-          Desde 17/08 a porta fecha por conta propria quando a ficha diz
-          "inativo" ou quando o prazo do terceirizado vence -- e acesso que fecha
-          sozinho e acesso que some SEM EXPLICACAO: quem chega aqui e a pessoa
-          ligando para reclamar, e ninguem sabe o motivo. Este bloco existe para
-          o motivo estar escrito antes da ligacao. */}
-      {(dados.pendencias ?? []).length > 0 && (
-        <div className="mb-4 rounded-lg bg-warn-50 px-3 py-2.5 text-sm text-warn-700">
-          <p className="flex items-start gap-2">
-            <AlertTriangle size={15} className="mt-0.5 shrink-0" />
-            <span>
-              <b className="font-display">A ficha do RH mudou o acesso de alguém.</b> Estas contas
-              precisam de decisão sua — a porta já agiu sozinha nas duas primeiras situações:
-            </span>
-          </p>
-          <ul className="mt-2 space-y-1 pl-6">
-            {(dados.pendencias ?? []).map((p) => (
-              <li key={p.usuario} className="text-xs">
-                <b className="font-mono">{p.usuario}</b>
-                {p.nome ? ` (${p.nome})` : ""} — {p.pendencia}
-                {p.valido_ate ? ` em ${new Date(`${p.valido_ate}T12:00:00`).toLocaleDateString("pt-BR")}` : ""}
-              </li>
-            ))}
-          </ul>
+      {(numeros.foraDoLugar > 0 || (dados.pendencias || []).length > 0) && (
+        <div className="acesso-alerta" role="status">
+          <AlertTriangle size={19} />
+          <div><strong>Há acessos para revisar</strong>
+          <p>{numeros.foraDoLugar > 0 && `${numeros.foraDoLugar} ${numeros.foraDoLugar === 1 ? "acesso precisa" : "acessos precisam"} de revisão.`} {(dados.pendencias || []).length > 0 && `${dados.pendencias.length} pendência(s) de vínculo.`}</p>
+          {(dados.pendencias || []).length > 0 && <details><summary>Ver pendências de vínculo</summary><ul>{dados.pendencias.map(p => <li key={p.usuario}>{p.nome || p.usuario}: {p.pendencia}</li>)}</ul></details>}</div>
+          {numeros.foraDoLugar > 0 && <button onClick={() => { trocarLente("pessoa"); setRecorte("fora"); }}>Revisar acessos</button>}
         </div>
       )}
-
-      {/* O QUE ESTA QUEBRADO, ANTES DE TUDO. O numero "Fora do lugar" ja existia
-          na faixa, mas numero em celula e placar, nao chamado: dava para olhar a
-          tela inteira e nao perceber que treze pessoas estao marcadas em
-          sistemas onde nao entram. Aqui vai por extenso, em vermelho, com o
-          caminho para resolver -- e some sozinho quando zerar. */}
-      {(numeros.foraDoLugar > 0 || numeros.vazias > 0) && (
-        <div className="mb-4 rounded-lg bg-bad-50 px-3 py-2.5 text-sm text-bad-700">
-          <p className="flex items-start gap-2">
-            <AlertTriangle size={15} className="mt-0.5 shrink-0" />
-            <span>
-              <b className="font-display">Tem acesso marcado aqui que não funciona lá.</b>{" "}
-              {numeros.foraDoLugar > 0 && (
-                <>
-                  {numeros.foraDoLugar === 1
-                    ? "Uma marcação promete"
-                    : `${numeros.foraDoLugar} marcações prometem`}{" "}
-                  acesso que o sistema não tem
-                  {numeros.pessoasFora > 1 ? ` (${numeros.pessoasFora} pessoas)` : ""} — a pessoa
-                  digita a senha e não entra, e gerar senha nova para ela não resolve.{" "}
-                </>
-              )}
-              {numeros.vazias > 0 && (
-                <>
-                  {numeros.vazias === 1 ? "Uma pessoa entra" : `${numeros.vazias} pessoas entram`}{" "}
-                  no Painel e não vê nada: a conta existe e nenhuma parte foi liberada.{" "}
-                </>
-              )}
-              <b>Resolver uma por uma é o certo</b> — cada uma tem saída diferente: apontar para a
-              conta que já existe lá, criar a conta, ou tirar da lista.
-            </span>
-          </p>
-          <button
-            type="button"
-            className="btn-outline mt-2 h-8 px-2 text-xs"
-            onClick={() => { trocarLente("pessoa"); setRecorte("fora"); }}
-          >
-            Ver quem está assim
-          </button>
-        </div>
-      )}
-
-      <p className="mb-4 flex items-start gap-2 rounded-lg bg-warn-50 px-3 py-2 text-sm text-warn-700">
-        <AlertTriangle size={15} className="mt-0.5 shrink-0" />
-        <span>
-          <b className="font-display">Vale na hora, e agora vale mesmo.</b> Cadastrar, mudar papel,
-          desativar e tirar acesso mexem no sistema de verdade — não é ensaio. Até 17/08 este aviso
-          dizia que quem já estava com a sessão aberta continuava até o crachá vencer (30 dias no
-          campo) e que <b>desativar não alcançava o RH</b>. As duas coisas eram verdade e deixaram
-          de ser: as portas dos oito passaram a perguntar, a cada minuto, se o acesso ainda vale, e
-          desativar fecha o RH e derruba a sessão aberta. <b>Desligar alguém agora fecha tudo em
-          até um minuto.</b>
-        </span>
-      </p>
-
       <div className="mb-4">
         <FaixaNumeros
           celulas={celulas}
           ativo={lente === "pessoa" ? recorte : null}
           aoEscolher={(id) => {
-            if (id === "soltas") { trocarLente("sistema"); return; }
+            if (id === "soltas") { trocarLente("sistema"); setRecorte("soltas"); return; }
             trocarLente("pessoa");
             setRecorte((a) => (a === id ? "todas" : id));
           }}
         />
       </div>
-
-      {numeros.foraDoLugar > 0 && recorte !== "fora" && (
-        <p className="mb-4 flex items-start gap-2 rounded-lg bg-bad-50 px-3 py-2 text-sm text-bad-700">
-          <AlertTriangle size={15} className="mt-0.5 shrink-0" />
-          <span>
-            <b className="font-display">{numeros.foraDoLugar} acessos existem só nesta tela.</b>{" "}
-            A pessoa aparece com o sistema marcado, mas não há conta com aquele login lá —
-            então gerar senha para ela não alcança aquele sistema.{" "}
-            <button type="button" className="underline" onClick={() => { trocarLente("pessoa"); setRecorte("fora"); }}>
-              ver quem
-            </button>
-          </span>
-        </p>
-      )}
 
       <SenhaNova senha={senhaNova?.senha} nome={senhaNova?.nome} login={senhaNova?.login}
         aoFechar={() => setSenhaNova(null)} />
@@ -1543,10 +1449,9 @@ export default function AcessoUnico({ aoAvisar }) {
            sempre esteve no equipe_acessos_log e a tela nunca a leu. */
         <div className="space-y-2">
           <p className="text-sm text-slate-500">
-            Quem tentou entrar nos últimos 30 dias e não conseguiu. O <b>motivo</b> importa mais
-            que a contagem: quem erra a senha e quem digita um login que não existe têm
-            problemas opostos — e no segundo caso <b>trocar a senha não resolve nada</b>.
+            Falhas de entrada nos últimos 30 dias, agrupadas por usuário e sistema. Uma falha antiga pode já ter sido resolvida.
           </p>
+          {dados.historicoLimitado && <p role="status">Exibindo os 2.000 eventos mais recentes do período. O histórico está limitado.</p>}
           {(dados.naPorta || []).length === 0 ? (
             <Empty>Ninguém tentou e falhou nos últimos 30 dias.</Empty>
           ) : (
@@ -1562,7 +1467,7 @@ export default function AcessoUnico({ aoAvisar }) {
                       <span className="chip shrink-0">{nomeSis(e.sistema)}</span>
                       <span className="min-w-0 flex-1 text-sm text-slate-600">{f.texto}</span>
                       <span className="tnum shrink-0 text-sm text-slate-500">
-                        {e.falhas}× {e.entradas > 0 ? `· entrou ${e.entradas}×` : "· nunca entrou"}
+                        {e.falhas} falha(s) · {situacaoEntrada(e)}
                       </span>
                       {e.ultimaFalha && (
                         <span className="shrink-0 text-xs text-slate-400">
@@ -1578,15 +1483,14 @@ export default function AcessoUnico({ aoAvisar }) {
         </div>
       ) : lente === "sistema" ? (
         <div className="space-y-2">
-          <p className="text-sm text-slate-500">
-            Um sistema por linha. Clique para abrir e ver, nome por nome, quem entra ali —
-            e com que login. <b>O que existe no sistema está aqui</b>: a lista sai do próprio
-            sistema, inclusive as contas que ninguém desta tela reivindica.
-          </p>
-          {dados.sistemas.map((s) => (
+          <label className="acesso-busca"><Search size={18} /><span className="sr-only">Buscar sistema</span><input value={busca} onChange={e => setBusca(e.target.value)} placeholder="Buscar sistema" /></label>
+          {recorte === "soltas" && <p className="text-sm">Contas sem vínculo <button className="underline" onClick={() => setRecorte("todas")}>Ver todos os sistemas</button></p>}
+          {sistemasVisiveis.length === 0 && <p className="py-6 text-sm text-slate-500" role="status">Nenhum sistema corresponde ao filtro.</p>}
+          {sistemasVisiveis.map((s) => (
             <SecaoSistema
               key={s}
               sistema={s}
+              fonte={dados.fontes?.[s]}
               endereco={doSistema(s).url}
               acessos={doSistema(s).acessos}
               dados={contasDoSistema(s, dados.contas, dados.soltas, dados.elenco)}
@@ -1611,13 +1515,13 @@ export default function AcessoUnico({ aoAvisar }) {
           <div className="sem-impressao relative mb-3 max-w-sm">
             <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
             <input className="input pl-9" value={busca} onChange={(e) => setBusca(e.target.value)}
-              placeholder="Buscar pessoa, usuário, login ou nome no RH" />
+              aria-label="Buscar pessoa, usuário ou login" placeholder="Buscar pessoa, usuário ou login" />
           </div>
 
           {recorte !== "todas" && (
             <p className="mb-3 flex items-center gap-2 text-sm text-slate-500">
               <Check size={14} />
-              Mostrando só quem tem {recorte === "fora" ? "acesso fora do lugar" : "senha temporária"}.
+              Mostrando só quem tem {recorte === "fora" ? "acesso com pendência" : "senha temporária"}.
               <button type="button" className="underline" onClick={() => setRecorte("todas")}>ver todas</button>
             </p>
           )}
@@ -1631,10 +1535,10 @@ export default function AcessoUnico({ aoAvisar }) {
               ))}
             </div>
           ) : (
-            <Empty>Ninguém com esse nome.</Empty>
+            <Empty>{busca ? "Nenhuma conta corresponde à busca." : recorte !== "todas" ? "Nenhuma conta corresponde ao filtro." : "Nenhuma conta cadastrada nesta central."}</Empty>
           )}
         </>
       )}
-    </Card>
+    </Card></div>
   );
 }

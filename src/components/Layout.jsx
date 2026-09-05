@@ -1,3 +1,4 @@
+import CentralShell from "./CentralShell.jsx";
 // App shell: barra LATERAL com a navegacao e os atalhos para os outros sistemas
 // da Impresilk. So navegacao: os numeros ficam dentro de cada modulo, para a
 // lateral nao virar um painel dentro do painel.
@@ -132,23 +133,9 @@ const CLASSE_FECHADO = "text-slate-600 hover:bg-slate-100 hover:text-slate-900";
 const CLASSE_TITULO =
   "mb-1.5 mt-6 flex w-full items-center gap-1.5 px-3 font-display text-xs font-semibold uppercase tracking-wide text-slate-400 transition-colors hover:text-slate-600";
 
-// Lembra, por aparelho, se um grupo da lateral fica aberto. Cada grupo tem a
-// sua chave: fechar Sistemas nao mexe em Domo.
-function useGrupo(id, padraoAberto) {
-  const chave = `painel_grupo_${id}`;
-  const [aberto, setAberto] = useState(() => {
-    try {
-      const s = localStorage.getItem(chave);
-      return s === null ? padraoAberto : s === "sim";
-    } catch {
-      return padraoAberto;
-    }
-  });
-  useEffect(() => {
-    try {
-      localStorage.setItem(chave, aberto ? "sim" : "nao");
-    } catch {}
-  }, [chave, aberto]);
+// Os grupos começam abertos a cada entrada; recolher vale nesta navegação.
+function useGrupo() {
+  const [aberto, setAberto] = useState(true);
   return [aberto, () => setAberto((v) => !v)];
 }
 
@@ -193,19 +180,9 @@ function LinkExterno({ rotulo, icone: Icone, href }) {
 function ConteudoLateral({ aoNavegar, sessao }) {
   const location = useLocation();
   const itensGestao = GESTAO.filter((n) => !n.modulo || podeAbrir(n.modulo, sessao));
-  const dentroDaGestao = itensGestao.some((n) => location.pathname.startsWith(n.to));
-
-  // Os tres grupos abrem e fecham, cada um lembrando a sua escolha. Gestao
-  // comeca fechada; Sistemas e Domo comecam abertos para nada sumir da tela de
-  // quem ja usava -- quem quiser a lateral enxuta fecha uma vez e fica assim.
-  //
-  // Estando numa pagina de dentro, Gestao ja NASCE aberta -- mas o clique
-  // manda. Antes o "abre de qualquer jeito" era um OU no render, e o resultado
-  // e que dentro de Bancos ou Compromissos a seta descia e nao acontecia nada:
-  // o grupo se recusava a fechar justamente onde a lista e mais comprida.
-  const [gestaoAberta, alternarGestao] = useGrupo("gestao", dentroDaGestao);
-  const [sistemasAberto, alternarSistemas] = useGrupo("sistemas", true);
-  const [domoAberto, alternarDomo] = useGrupo("domo", true);
+  const [gestaoAberta, alternarGestao] = useGrupo();
+  const [sistemasAberto, alternarSistemas] = useGrupo();
+  const [domoAberto, alternarDomo] = useGrupo();
   const mostrarGestao = gestaoAberta;
   // Fechado e estando numa pagina de dentro, o item ATUAL continua a vista:
   // esconder a pagina em que a pessoa esta seria mentir sobre onde ela esta.
@@ -327,7 +304,7 @@ function ConteudoLateral({ aoNavegar, sessao }) {
       {/* Rodape: ajuste (nao rotina) e a identidade de quem esta logado. */}
       <div className="mt-auto space-y-0.5 pt-6">
         <NavLink
-          to="/acessos"
+          to={ehDirecao(sessao) ? "/acessos" : "/minha-conta"}
           onClick={aoNavegar}
           className={({ isActive }) =>
             [
@@ -361,7 +338,7 @@ function ConteudoLateral({ aoNavegar, sessao }) {
         )}
 
         {sessao && (
-          <div
+          <NavLink to="/minha-conta" onClick={aoNavegar} aria-label="Minha conta"
             className="mt-2 flex items-center gap-2 border-t px-3 pt-3"
             style={{ borderColor: "var(--hairline)" }}
           >
@@ -376,7 +353,7 @@ function ConteudoLateral({ aoNavegar, sessao }) {
                 {ehDirecao(sessao) ? "Direção" : "Acesso limitado"}
               </span>
             </span>
-          </div>
+          </NavLink>
         )}
       </div>
     </>
@@ -391,6 +368,7 @@ export default function Layout({ children, sessao }) {
           fontesQueFalharam = [] } = useApp();
   const [menuAberto, setMenuAberto] = useState(false);
   const naHome = location.pathname === "/";
+  const mostraErp = !["/acessos", "/minha-conta"].includes(location.pathname);
   const f = modoDemo ? null : frescor(atualizadoEm);
 
   // Relogio: sem isto a idade do cache so era recalculada quando os dados
@@ -406,6 +384,8 @@ export default function Layout({ children, sessao }) {
   useEffect(() => {
     setMenuAberto(false);
   }, [location.pathname]);
+
+  if (ehDirecao(sessao) && ["/acessos", "/minha-conta", "/backups"].includes(location.pathname)) return <CentralShell sessao={sessao} aoSair={() => sair()}>{children}</CentralShell>;
 
   return (
     <div className="min-h-screen lg:flex">
@@ -481,7 +461,7 @@ export default function Layout({ children, sessao }) {
                   verdadeiro. Versão curta no telefone, inteira no desktop. */}
               {modoDemo && <span className="chip-warn inline-flex sm:hidden">demo</span>}
               {modoDemo && <span className="chip-warn hidden sm:inline-flex">Modo demonstração</span>}
-              {f && (
+              {mostraErp && f && (
                 <span
                   className={`inline-flex items-center gap-1.5 ${f.parado ? "chip-bad" : f.velho ? "chip-warn" : "chip"}`}
                   title={`Dados do cache do Mubisys, ${f.idadeMin} min atrás`}
@@ -494,7 +474,7 @@ export default function Layout({ children, sessao }) {
               {/* Sincronizar: rebusca os dados agora. O cache do servidor se
                   atualiza sozinho a cada 20 min, mas quem acabou de mexer no
                   ERP quer ver o efeito sem esperar (ou sem apertar F5). */}
-              <button
+              {mostraErp && <button
                 onClick={() => recarregar()}
                 disabled={carregando}
                 className="btn-ghost h-9 w-9 rounded-lg p-0 disabled:opacity-50"
@@ -502,7 +482,7 @@ export default function Layout({ children, sessao }) {
                 aria-label="Sincronizar os dados"
               >
                 <RefreshCw size={17} className={carregando ? "animate-spin" : ""} />
-              </button>
+              </button>}
               <button
                 onClick={alternarTema}
                 className="btn-ghost h-9 w-9 rounded-lg p-0"

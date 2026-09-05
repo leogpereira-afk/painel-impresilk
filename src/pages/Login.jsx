@@ -7,6 +7,7 @@ import { LogIn, User, Eye, EyeOff, AlertTriangle } from "lucide-react";
 import { login, motivoSaida } from "../lib/sessao.js";
 import logoColor from "../assets/brand/logo-color.png";
 import logoWhite from "../assets/brand/logo-white.png";
+import "../components/login-revisado.css";
 
 export default function Login({ aoEntrar }) {
   // Lembra so o USUARIO, nunca a senha: guardar senha no navegador seria
@@ -36,6 +37,7 @@ export default function Login({ aoEntrar }) {
 
   async function enviar(e) {
     e.preventDefault();
+    if (import.meta.env.MODE === "review") { aoEntrar?.({demonstracao:true}); return; }
     if (enviando) return;
     setErro("");
     setEnviando(true);
@@ -55,7 +57,7 @@ export default function Login({ aoEntrar }) {
   }
 
   return (
-    <div className="grid min-h-screen lg:grid-cols-2">
+    <div className="login-revisado grid min-h-screen lg:grid-cols-2">
       {/* Lado da marca: so no desktop, para o celular ir direto ao formulario. */}
       <div
         className="relative hidden flex-col justify-between p-10 text-white lg:flex"
@@ -66,11 +68,11 @@ export default function Login({ aoEntrar }) {
         <img src={logoWhite} alt="Impresilk" className="h-9 w-auto max-w-[190px] object-contain" />
         <div>
           <h1 className="max-w-md font-display text-4xl font-bold leading-tight tracking-tight">
-            A gestão da Impresilk, num lugar só.
+            Sua equipe conectada.
+            Sua gestão organizada.
           </h1>
           <p className="mt-4 max-w-md leading-relaxed text-white/70">
-            Contas a receber, caixa, produtos e orçamentos, com os números do ERP atualizados
-            sozinhos. Cada pessoa ve o que precisa para o seu trabalho.
+            Entre no Painel para acompanhar a operação e encontrar os sistemas da Impresilk. Cada pessoa acessa as áreas liberadas para seu trabalho.
           </p>
         </div>
         <p className="text-sm text-white/50">Impresilk Soluções Visuais · Montes Claros/MG</p>
@@ -86,7 +88,8 @@ export default function Login({ aoEntrar }) {
             <h2 className="mt-6 font-display text-xl font-semibold text-slate-900">
               Acessar o painel
             </h2>
-            <p className="mt-1 text-sm text-slate-500">Informe seu usuário e sua senha.</p>
+            <p className="mt-1 text-sm text-slate-500">Bem-vindo. Entre com seu usuário e sua senha.</p>
+            {import.meta.env.MODE === "review" && <div className="login-demo"><strong>Prévia local</strong><p>Conheça o percurso sem usar suas credenciais.</p><button className="btn-outline" type="button" onClick={()=>aoEntrar?.({demonstracao:true})}>Explorar demonstração</button></div>}
 
             <form onSubmit={enviar} className="mt-6 space-y-4">
               <div>

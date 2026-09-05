@@ -66,6 +66,8 @@ jobs:
       # permuta subia com o job verde. TZ=UTC porque teste que so passa no fuso
       # da maquina do Leo ja deixou a CI do RH vermelha por 3 commits.
       - run: npm test
+      - run: npm run test:acessos
+      - run: node scripts/conferir-acessos.mjs
       # A volta do backup nao pode voltar a ser lista a mao (permutas ficou
       # meses no arquivo sem que o restaurar a devolvesse). Parte estatica: le
       # o codigo, sem rede.

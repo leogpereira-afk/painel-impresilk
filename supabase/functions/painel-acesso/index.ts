@@ -26,6 +26,7 @@
 // de quem entra em que sistema e, por si so, um mapa de onde bater.
 // ============================================================================
 
+import { agruparEntradas, elencoRh } from "../_shared/acesso-leitura.mjs";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { hashSenha, verificarJwt, crachaRevogado } from "../_shared/cripto.ts";
 
@@ -186,12 +187,21 @@ type Real = {
 };
 type MapaReal = Record<string, Record<string, Real>>;
 
+async function lerConsulta(consulta: any) {
+  const resultado = await consulta;
+  if (resultado.error) throw new Error("Não foi possível consultar uma fonte de acessos. Tente novamente.");
+  return resultado;
+}
+
 async function estadoReal(): Promise<MapaReal> {
   const mapa: MapaReal = {};
   const por = (s: string) => (mapa[s] ??= {});
 
-  const { data: equipe } = await sb.from("equipe_contas")
-    .select("sistema, usuario, nome, papel, ativo, trocar_senha, atualizado_em");
+  const [{data: equipe}, {data: painel}, {data: perfis}] = await Promise.all([
+    lerConsulta(sb.from("equipe_contas").select("sistema, usuario, nome, papel, ativo, trocar_senha, atualizado_em")),
+    lerConsulta(sb.from("painel_contas").select("usuario, nome, permissoes, atualizado_em")),
+    lerConsulta(sb.from("perfis").select("usuario, nome, perfil, atualizado_em, colaborador_id, ativo")),
+  ]);
   for (const c of equipe ?? []) {
     por(c.sistema)[normalizar(c.usuario)] = {
       login: c.usuario, papel: c.papel ?? "", ativo: c.ativo !== false,
@@ -200,8 +210,7 @@ async function estadoReal(): Promise<MapaReal> {
   }
 
   // O Painel nao tem papel nem "desativado": ou a linha existe, ou nao existe.
-  const { data: painel } = await sb.from("painel_contas")
-    .select("usuario, nome, permissoes, atualizado_em");
+
   for (const c of painel ?? []) {
     por("painel")[normalizar(c.usuario)] = {
       login: c.usuario, papel: (c.permissoes ?? []).includes("*") ? "tudo" : "",
@@ -211,8 +220,7 @@ async function estadoReal(): Promise<MapaReal> {
   }
 
   // No RH quem manda e a linha de perfis; a senha mora no Supabase Auth.
-  const { data: perfis } = await sb.from("perfis")
-    .select("usuario, nome, perfil, atualizado_em, colaborador_id, ativo");
+
   for (const c of perfis ?? []) {
     const real: Real = {
       // `login` e so EXIBICAO -- e o nome, que e o que a tela mostra em "entra
@@ -240,12 +248,12 @@ async function estadoReal(): Promise<MapaReal> {
      uma conta num sistema que nao guarda conta nenhuma.
      Aqui, como na Central, a propria linha de acesso e a verdade. */
   {
-    const { data: doDre } = await sb.from("acesso_papel")
-      .select("conta_id, papel, ativo").eq("sistema", "dre");
+    const { data: doDre } = await lerConsulta(sb.from("acesso_papel")
+      .select("conta_id, papel, ativo").eq("sistema", "dre"));
     if (doDre?.length) {
-      const { data: donos } = await sb.from("acesso_conta")
+      const { data: donos } = await lerConsulta(sb.from("acesso_conta")
         .select("id, usuario, nome, ativo, atualizado_em")
-        .in("id", doDre.map((p: any) => p.conta_id));
+        .in("id", doDre.map((p: any) => p.conta_id)));
       for (const p of doDre) {
         const d = (donos ?? []).find((x: any) => x.id === p.conta_id);
         if (!d) continue;
@@ -265,12 +273,12 @@ async function estadoReal(): Promise<MapaReal> {
      Central. Uma das duas apagaria o registro; a outra fabricaria em
      equipe_contas uma segunda senha que abre o app pessoal dele.
      Aqui a propria linha de acesso e a verdade -- que e o que ela sempre foi. */
-  const { data: central } = await sb.from("acesso_papel")
-    .select("conta_id, papel, ativo").eq("sistema", "central");
+  const { data: central } = await lerConsulta(sb.from("acesso_papel")
+    .select("conta_id, papel, ativo").eq("sistema", "central"));
   if (central?.length) {
-    const { data: donos } = await sb.from("acesso_conta")
+    const { data: donos } = await lerConsulta(sb.from("acesso_conta")
       .select("id, usuario, nome, ativo, atualizado_em")
-      .in("id", central.map((p: any) => p.conta_id));
+      .in("id", central.map((p: any) => p.conta_id)));
     const porId = new Map((donos ?? []).map((d: any) => [d.id, d]));
     for (const p of central) {
       const d = porId.get(p.conta_id);
@@ -490,12 +498,12 @@ Deno.serve(async (req: Request) => {
   try {
     switch (corpo.action) {
       case "listar": {
-        const { data: contas } = await sb.from("acesso_conta").select("*").order("usuario");
-        const { data: papeis } = await sb.from("acesso_papel").select("*");
+        const { data: contas } = await lerConsulta(sb.from("acesso_conta").select("*").order("usuario"));
+        const { data: papeis } = await lerConsulta(sb.from("acesso_papel").select("*"));
         // O hash NUNCA sai daqui -- so a contagem, para a tela poder dizer
         // "esta pessoa ainda nao entrou depois da virada".
-        const { data: senhas } = await sb.from("acesso_senha_legado")
-          .select("conta_id, origem, usado_em");
+        const { data: senhas } = await lerConsulta(sb.from("acesso_senha_legado")
+          .select("conta_id, origem, usado_em"));
 
         /* Nomes do RH para o campo de amarrar. So o NOME: a ficha de la tem
            salario, CPF e endereco, e nada disso tem o que fazer nesta tela.
@@ -518,9 +526,9 @@ Deno.serve(async (req: Request) => {
            para extrair dois campos. Meio megabyte por abertura de tela, de dado
            que esta tela nao tem o que fazer com ele: 512 KB viraram 7 KB.
            Menos tempo E menos exposicao: o que nao viaja nao vaza. */
-        const { data: colabs } = await sb.from("registros")
+        const { data: colabs } = await lerConsulta(sb.from("registros")
           .select("id, nome:registro->>nome, situacao:registro->>statusId")
-          .eq("colecao", "colaboradores").eq("apagado", false);
+          .eq("colecao", "colaboradores").eq("apagado", false));
         const fichas = (colabs ?? []).filter((r: any) => NO_QUADRO.has(String(r.situacao ?? "")));
         const nomes = [...new Set(fichas
           .map((r: any) => String(r.nome ?? "").trim())
@@ -560,6 +568,7 @@ Deno.serve(async (req: Request) => {
               // O login com que a pessoa entra ALI. Quando ninguem corrigiu,
               // e o palpite -- e a tela precisa poder dizer que e palpite.
               login,
+              fonte: ["domo", "bosques"].includes(p.sistema) ? "nao_integrado" : "consultado",
               deduzido: !texto(p.login, 160),
               real: r
                 ? { existe: true, login: r.login, papel: r.papel, ativo,
@@ -605,7 +614,7 @@ Deno.serve(async (req: Request) => {
            a cada abertura da tela. Medido em 18/08/2026: 217 bytes fazem o mesmo.
            A agregacao mora no Postgres porque o PostgREST nao agrega dentro de
            jsonb: pedir de fora obriga a trazer o array todo e contar aqui. */
-        const { data: vend } = await sb.rpc("painel_vendedores");
+        const { data: vend } = await lerConsulta(sb.rpc("painel_vendedores"));
         // `n` e nao `orcamentos`: e o nome que a tela le (AcessoUnico.jsx:275,
         // "{v.n} orcamentos"). Trocar o rotulo aqui nao daria erro -- daria
         // "undefined orcamentos" no seletor, calado.
@@ -640,8 +649,8 @@ Deno.serve(async (req: Request) => {
         const soNome = (x: unknown) =>
           texto(typeof x === "object" && x ? (x as any).nome : x, 120);
 
-        const { data: cfgPcp } = await sb.from("pcp_config_global")
-          .select("config").eq("id", true).maybeSingle();
+        const { data: cfgPcp } = await lerConsulta(sb.from("pcp_config_global")
+          .select("config").eq("id", true).maybeSingle());
         const cp = (cfgPcp?.config ?? {}) as Record<string, unknown[]>;
         const lista = (k: string) => (Array.isArray(cp[k]) ? cp[k] : []);
         juntar("pcp", lista("instaladores").map((x) => ({
@@ -657,26 +666,21 @@ Deno.serve(async (req: Request) => {
           })));
         }
 
-        const { data: pessoasPops } = await sb.from("pops_registros")
-          .select("registro").eq("colecao", "pessoas");
+        const { data: pessoasPops } = await lerConsulta(sb.from("pops_registros")
+          .select("registro").eq("colecao", "pessoas"));
         juntar("pops", (pessoasPops ?? []).map((r: any) => ({
           nome: texto(r.registro?.nome, 120), como: "cadastro",
           detalhe: texto(r.registro?.area, 60),
         })));
 
-        const { data: forn } = await sb.from("compras_registros")
-          .select("registro").eq("colecao", "forn");
+        const { data: forn } = await lerConsulta(sb.from("compras_registros")
+          .select("registro").eq("colecao", "forn"));
         juntar("compras", (forn ?? []).map((r: any) => ({
           nome: texto(r.registro?.nome, 120), como: "link",
           detalhe: "fornecedor — abre as telas dele por link",
         })));
 
-        juntar("rh", (colabs ?? []).map((r: any) => ({
-          nome: texto(r.registro?.nome, 120), como: "cadastro",
-          // Desligado continua na ficha; dizer isso evita a leitura de que o RH
-          // tem 93 pessoas trabalhando.
-          detalhe: texto(r.registro?.dataDesligamento, 20) ? "desligado" : "",
-        })));
+        juntar("rh", elencoRh(colabs ?? []));
 
         // Nome repetido nas listas (o mesmo Saulo e responsavel E gerente de
         // montagem) vira UMA linha, com os dois papeis juntos.
@@ -708,28 +712,14 @@ Deno.serve(async (req: Request) => {
            outro ela esta digitando um login que nao existe, e trocar a senha
            dela nao resolve nada. */
         const desde = new Date(Date.now() - 30 * 86400_000).toISOString();
-        const { data: linhas } = await sb.from("equipe_acessos_log")
+        const { data: linhas } = await lerConsulta(sb.from("equipe_acessos_log")
           .select("sistema, usuario, acao, detalhe, em")
           .gte("em", desde)
           .in("acao", ["login-falhou", "login-barrado", "entrou"])
           .order("em", { ascending: false })
-          .limit(2000);
-        const porta: Record<string, any> = {};
-        for (const l of linhas ?? []) {
-          const k = `${normalizar(l.usuario)}|${l.sistema}`;
-          const e = (porta[k] ??= {
-            usuario: l.usuario, sistema: l.sistema,
-            falhas: 0, entradas: 0, ultimaFalha: null as string | null, motivo: "",
-          });
-          if (l.acao === "entrou") e.entradas++;
-          else {
-            e.falhas++;
-            if (!e.ultimaFalha) { e.ultimaFalha = l.em; e.motivo = texto(l.detalhe, 60); }
-          }
-        }
-        const naPorta = Object.values(porta)
-          .filter((e: any) => e.falhas > 0)
-          .sort((a: any, b: any) => b.falhas - a.falhas);
+          .limit(2001));
+        const historicoLimitado = (linhas ?? []).length > 2000;
+        const naPorta = agruparEntradas((linhas ?? []).slice(0, 2000));
 
         /* O QUE A FICHA DO RH JA DECIDIU E NINGUEM VIU ACONTECER.
            `acesso_revogado` fecha a porta sozinha quando a ficha diz `inativo`
@@ -737,18 +727,21 @@ Deno.serve(async (req: Request) => {
            e acesso que some SEM EXPLICACAO: a pessoa liga reclamando e ninguem
            sabe por que. Esta lista existe para a tela conseguir dizer o motivo,
            e para mostrar o que a regra NAO alcanca (conta sem ficha). */
-        const { data: contratos } = await sb.from("registros")
+        const { data: contratos } = await lerConsulta(sb.from("registros")
           .select("id, nome:registro->>nome, fim:registro->>contratoFim, funcao:registro->>funcao, situacao:registro->>situacao")
-          .eq("colecao", "freelancers").eq("apagado", false);
+          .eq("colecao", "freelancers").eq("apagado", false));
 
-        const { data: pendencias } = await sb.from("acesso_pendencias")
+        const { data: pendencias } = await lerConsulta(sb.from("acesso_pendencias")
           .select("usuario, nome, tipo, pendencia, situacao_no_rh, valido_ate")
-          .not("pendencia", "is", null);
+          .not("pendencia", "is", null));
 
         return resposta({
           ok: true,
           sistemas: SISTEMAS,
           naPorta,
+          historicoLimitado,
+          verificadoEm: new Date().toISOString(),
+          fontes: Object.fromEntries(SISTEMAS.map(s => [s, {estado: ["domo", "bosques"].includes(s) ? "nao_integrado" : "consultado"}])),
           contas: contasFora,
           soltas,
           elenco,

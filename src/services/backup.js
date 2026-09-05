@@ -8,6 +8,10 @@ import { API } from "../lib/api.js";
 const BASE = `${API}/painel-backup`;
 
 async function chamar(action, extra = {}) {
+  if (import.meta.env.MODE === "review") {
+    const {simularBackup} = await import("../review/dados.mjs");
+    return simularBackup(action);
+  }
   const resp = await comCracha(BASE, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
