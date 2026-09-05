@@ -256,10 +256,10 @@ export function Skeleton({ className }) {
 // Cabecalho grande no topo de cada modulo.
 export function PageTitle({ titulo, descricao, acao }) {
   return (
-    <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
+    <div className="page-title mb-6 flex flex-wrap items-end justify-between gap-4">
       <div>
         <h1 className="font-display text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">{titulo}</h1>
-        {descricao && <p className="mt-1 max-w-2xl text-slate-500">{descricao}</p>}
+        {descricao && <p className="page-title-description mt-2 max-w-2xl text-slate-500">{descricao}</p>}
       </div>
       {acao}
     </div>
@@ -269,7 +269,7 @@ export function PageTitle({ titulo, descricao, acao }) {
 // Estado de carregamento padrao de um modulo.
 export function CarregandoModulo() {
   return (
-    <div className="space-y-6">
+    <div className="space-y-6" role="status" aria-label="Carregando módulo">
       <Skeleton className="h-9 w-64" />
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         {[0, 1, 2, 3].map((i) => (
@@ -283,7 +283,7 @@ export function CarregandoModulo() {
 
 export function ErroModulo({ mensagem, aoTentar }) {
   return (
-    <Card className="text-center">
+    <Card className="text-center" role="alert">
       <p className="font-display text-lg font-semibold text-bad-700">Não foi possível carregar</p>
       <p className="mt-1 text-sm text-slate-500">{mensagem}</p>
       {aoTentar && (
@@ -293,6 +293,11 @@ export function ErroModulo({ mensagem, aoTentar }) {
       )}
     </Card>
   );
+}
+
+export function AvisoAtualizacao({erro,aoTentar}) {
+  if (!erro) return null;
+  return <div role="alert" className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-warn-200 bg-warn-50 p-4 text-sm text-warn-800"><p><strong>Não foi possível atualizar.</strong> {erro} A última leitura continua visível.</p><button type="button" className="btn-outline" onClick={aoTentar}>Tentar novamente</button></div>;
 }
 
 export { TOM };

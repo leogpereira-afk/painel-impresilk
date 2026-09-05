@@ -8,7 +8,7 @@ import { comCracha } from "../lib/sessao.js";
 
 // MODO_DEMO desligado em 2026-07-14: o painel agora le os dados reais do
 // Mubisys via Netlify Functions. Religar (true) so para demonstracoes.
-export const MODO_DEMO = false;
+export const MODO_DEMO = import.meta.env.MODE === "review";
 
 import { API } from "../lib/api.js";
 

@@ -4,7 +4,7 @@
 // A tela abre pelo que esta pior (vencido primeiro) porque e assim que o
 // problema chega: ninguem entra aqui para admirar o que esta em dia.
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   FileCheck2,
   Car,
@@ -40,6 +40,7 @@ import {
   Empty,
   CarregandoModulo,
   ErroModulo,
+  AvisoAtualizacao,
   Segmented,
 } from "../components/ui.jsx";
 
@@ -87,13 +88,18 @@ export default function Ativos() {
   const [salvando, setSalvando] = useState(false);
   const [msg, setMsg] = useState(null);
 
+  const pedidoLeitura = useRef(0);
   const carregar = useCallback(async () => {
+    const pedido = ++pedidoLeitura.current;
     try {
-      setItens(await listarAtivos());
+      const lista = await listarAtivos();
+      if (pedido !== pedidoLeitura.current) return;
+      setItens(lista);
       setErro(null);
     } catch (e) {
+      if (pedido !== pedidoLeitura.current) return;
       setErro(e.message);
-      setItens([]);
+
     }
   }, []);
 
@@ -260,7 +266,7 @@ export default function Ativos() {
     }
   }
 
-  if (erro && !itens?.length) return <ErroModulo mensagem={erro} aoTentar={carregar} />;
+  if (erro && itens === null) return <ErroModulo mensagem={erro} aoTentar={carregar} />;
   if (itens === null) return <CarregandoModulo />;
 
   const k = vm.kpis;
@@ -271,9 +277,10 @@ export default function Ativos() {
 
   return (
     <div className="space-y-8">
+      <AvisoAtualizacao erro={erro} aoTentar={carregar}/>
       <PageTitle
         titulo="Documentos e ativos"
-        descricao="O que vence e precisa ser renovado: certidões da empresa, manutenção dos veículos e das máquinas."
+        descricao="Organize documentos, seguros e ativos. Confira vencimentos, responsáveis e arquivos."
         acao={
           <button className="btn-primary" onClick={() => setForm(vazio(tipo))}>
             <Plus size={16} strokeWidth={2.4} />
@@ -573,7 +580,7 @@ export default function Ativos() {
 
         <div className="sem-impressao mb-4 relative max-w-sm">
           <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-          <input className="input pl-9" value={busca} onChange={(e) => setBusca(e.target.value)} placeholder={tipo === "seguro" ? "Buscar por seguradora, ramo ou apólice" : "Buscar por nome, categoria ou responsável"} />
+          <input className="input pl-9" aria-label="Buscar nesta seção" value={busca} onChange={(e) => setBusca(e.target.value)} placeholder={tipo === "seguro" ? "Buscar por seguradora, ramo ou apólice" : "Buscar por nome, categoria ou responsável"} />
         </div>
 
         {daLente.length === 0 && recorte ? (
@@ -685,7 +692,7 @@ export default function Ativos() {
                       try {
                         await restaurarAtivo(it.id);
                         setLixeira((l) => (l || []).filter((x) => x.id !== it.id));
-                        setItens(await listarAtivos());
+                        await carregar();
                         setMsg({ tom: "ok", texto: `${it.nome} restaurado.` });
                       } catch (err) { setMsg({ tom: "erro", texto: err.message }); }
                     }}

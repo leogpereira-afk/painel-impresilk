@@ -27,7 +27,7 @@ import {
   abrirBase64,
 } from "../services/ativos.js";
 import { lerAtalhos, salvarAtalho, removerAtalho } from "../services/marketing.js";
-import { Card, PageTitle, SectionTitle, Empty, CarregandoModulo } from "../components/ui.jsx";
+import { Card, PageTitle, SectionTitle, Empty, CarregandoModulo, ErroModulo } from "../components/ui.jsx";
 
 const MAX_BYTES = 3 * 1024 * 1024; // o servidor barra ~4 MB de base64 (~3 MB reais)
 
@@ -246,10 +246,7 @@ export default function Marketing() {
     return (
       <div className="space-y-6">
         <PageTitle titulo="Marketing" descricao="Logomarcas, materiais de marca e atalhos do Drive." />
-        <Card className="flex items-start gap-2 text-sm text-bad-700">
-          <AlertTriangle size={16} className="mt-0.5 shrink-0" />
-          {erro}
-        </Card>
+        <ErroModulo mensagem={erro} aoTentar={() => window.location.reload()}/>
       </div>
     );
   }
@@ -263,7 +260,7 @@ export default function Marketing() {
     <div className="space-y-8">
       <PageTitle
         titulo="Marketing"
-        descricao="Logomarcas e materiais de marca prontos para baixar, e os atalhos do Drive para o que e maior."
+        descricao="Encontre logomarcas, materiais aprovados e atalhos da marca em um só lugar."
       />
 
       {aviso && (

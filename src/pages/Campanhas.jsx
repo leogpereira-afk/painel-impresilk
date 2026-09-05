@@ -48,7 +48,7 @@ import {
 import { paraNumero, dataLonga } from "../lib/format.js";
 import { MES_CURTO, rotuloMes, mil, BarrasAno } from "../components/barras.jsx";
 import { AbaVendedores, AbaClientes, AbaProdutos } from "../components/analiseVendas.jsx";
-import { Card, PageTitle, Empty, CarregandoModulo, BotaoPDF, CabecalhoImpressao, AvisoDadoParado, Segmented } from "../components/ui.jsx";
+import { Card, PageTitle, Empty, CarregandoModulo, ErroModulo, BotaoPDF, CabecalhoImpressao, AvisoDadoParado, Segmented } from "../components/ui.jsx";
 import { useApp } from "../config/store.jsx";
 import {
   dinheiro, dataDaOS, formatarDoc, hojeISO, novoId,
@@ -2621,11 +2621,8 @@ export default function Campanhas() {
   if (erro) {
     return (
       <div className="space-y-6">
-        <PageTitle titulo="Campanhas" descricao="Quanto vendemos para cada evento, e quem comprou." />
-        <Card className="flex items-start gap-2 text-sm text-bad-700">
-          <AlertTriangle size={16} className="mt-0.5 shrink-0" />
-          {erro}
-        </Card>
+        <PageTitle titulo="Campanhas" descricao="Acompanhe vendas por evento, clientes e resultados ao longo do tempo." />
+        <ErroModulo mensagem={erro} aoTentar={() => window.location.reload()}/>
       </div>
     );
   }
@@ -3338,7 +3335,7 @@ export default function Campanhas() {
     <div className="space-y-5">
       <PageTitle
         titulo="Campanhas"
-        descricao="Quanto vendemos para cada evento, e quem comprou."
+        descricao="Acompanhe vendas por evento, clientes e resultados ao longo do tempo."
         acao={
           <button type="button" className="btn-ghost" onClick={criar} disabled={salvando}>
             <Plus size={15} strokeWidth={2.4} /> Nova campanha

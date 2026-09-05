@@ -10,7 +10,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Search, X, Plus, Pencil, Trash2, Lightbulb, AlertTriangle, BookOpen } from "lucide-react";
 import { CATEGORIAS } from "../data/glossarioCategorias.js";
 import { lerTermos, salvarTermo, salvarVarios, removerTermo } from "../services/glossario.js";
-import { Card, PageTitle, SectionTitle, Empty, CarregandoModulo } from "../components/ui.jsx";
+import { Card, PageTitle, SectionTitle, Empty, CarregandoModulo, ErroModulo } from "../components/ui.jsx";
 
 const VAZIO = { id: "", termo: "", categoria: CATEGORIAS[0], texto: "", dica: "" };
 
@@ -135,10 +135,7 @@ export default function Glossario() {
     return (
       <div className="space-y-6">
         <PageTitle titulo="Glossário" descricao="Os termos de comunicação visual explicados." />
-        <Card className="flex items-start gap-2 text-sm text-bad-700">
-          <AlertTriangle size={16} className="mt-0.5 shrink-0" />
-          {erro}
-        </Card>
+        <ErroModulo mensagem={erro} aoTentar={() => window.location.reload()}/>
       </div>
     );
   }
@@ -150,7 +147,7 @@ export default function Glossario() {
     <div className="space-y-6">
       <PageTitle
         titulo="Glossário"
-        descricao="O que e cada material, acabamento e peça de comunicação visual -- e o que avisar ao cliente antes de vender."
+        descricao="Consulte materiais, acabamentos e orientações para explicar cada solução ao cliente."
       />
 
       <div className="flex flex-wrap items-center gap-3">

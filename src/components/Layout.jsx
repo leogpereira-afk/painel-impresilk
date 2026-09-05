@@ -368,7 +368,7 @@ export default function Layout({ children, sessao }) {
           fontesQueFalharam = [] } = useApp();
   const [menuAberto, setMenuAberto] = useState(false);
   const naHome = location.pathname === "/";
-  const mostraErp = !["/acessos", "/minha-conta"].includes(location.pathname);
+  const mostraErp = ["/", "/contas-atrasadas", "/orcamentos", "/permutas", "/campanhas"].includes(location.pathname);
   const f = modoDemo ? null : frescor(atualizadoEm);
 
   // Relogio: sem isto a idade do cache so era recalculada quando os dados
@@ -383,9 +383,19 @@ export default function Layout({ children, sessao }) {
   // Troca de rota fecha a gaveta (senao ela fica por cima do conteudo novo).
   useEffect(() => {
     setMenuAberto(false);
+    window.scrollTo({top:0,behavior:"instant"});
   }, [location.pathname]);
 
-  if (ehDirecao(sessao) && ["/acessos", "/minha-conta", "/backups"].includes(location.pathname)) return <CentralShell sessao={sessao} aoSair={() => sair()}>{children}</CentralShell>;
+  if (ehDirecao(sessao)) return <CentralShell sessao={sessao} aoSair={() => sair()} controles={<>
+    {modoDemo && <span className="chip-warn">Demonstração</span>}
+    {mostraErp && f && <span className={f.parado ? "chip-bad" : f.velho ? "chip-warn" : "chip"}><Clock size={13}/>{f.texto}{f.parado ? " · parado" : f.velho ? " · atrasado" : ""}</span>}
+    {mostraErp && <button type="button" className="btn-ghost" disabled={carregando} onClick={recarregar} aria-label="Sincronizar os dados"><RefreshCw size={18} className={carregando ? "animate-spin" : ""}/></button>}
+    <button type="button" className="btn-ghost" onClick={alternarTema} aria-label="Alternar tema">{escuro ? <Sun size={18}/> : <Moon size={18}/>}</button>
+  </>}>
+    {falhaSync && <div role="alert" className="mb-4 rounded-xl bg-bad-50 p-4 text-sm text-bad-700">{falhaSync.texto} <button type="button" className="underline" onClick={limparFalhaSync}>Fechar aviso</button></div>}
+    {mostraErp && fontesQueFalharam.length > 0 && <div role="alert" className="mb-4 rounded-xl border border-warn-200 bg-warn-50 p-4 text-sm text-warn-800"><strong>Algumas fontes não responderam.</strong> {fontesQueFalharam.join(", ")}. Os dados podem estar incompletos. <button type="button" className="underline" onClick={recarregar}>Tentar novamente</button></div>}
+    {children}
+  </CentralShell>;
 
   return (
     <div className="min-h-screen lg:flex">

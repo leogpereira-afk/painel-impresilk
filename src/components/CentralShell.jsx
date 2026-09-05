@@ -1,27 +1,49 @@
-import {useEffect,useState} from 'react';
-import {Link,useLocation} from 'react-router-dom';
-import {LayoutDashboard,ShieldCheck,ArrowUpRight,Menu,X,LogOut,ChevronRight} from 'lucide-react';
+import {useEffect,useRef,useState} from 'react';
+import {Link,NavLink,useLocation} from 'react-router-dom';
+import {LayoutDashboard,ShieldCheck,Menu,X,LogOut,ChevronRight} from 'lucide-react';
 import {MODULOS} from '../lib/modulos.js';
 import logo from '../assets/brand/logo-color.png';
+import logoWhite from '../assets/brand/logo-white.png';
 import './central-shell.css';
-export default function CentralShell({children,sessao,aoSair}) {
-  const review = import.meta.env.MODE === "review";
-  const location=useLocation();const [menu,setMenu]=useState(false);
+
+export default function CentralShell({children,sessao,aoSair,controles}) {
+  const review = import.meta.env.MODE === 'review';
+  const location = useLocation();
+  const [menu,setMenu] = useState(false);
+  const abrirRef = useRef(null);
+  const naCentral = ['/acessos','/minha-conta','/backups'].includes(location.pathname);
+  const modulos = [...MODULOS,{id:'documentos',nome:'Documentos e ativos'}];
+  const titulo = naCentral ? 'Sistemas' : modulos.find(m=>`/${m.id}`===location.pathname)?.nome || 'Início';
   useEffect(()=>setMenu(false),[location.pathname,location.search]);
+  useEffect(()=>{
+    if(!menu)return;
+    const fechar = e=>{if(e.key==='Escape'){setMenu(false);abrirRef.current?.focus();}};
+    document.addEventListener('keydown',fechar);
+    return ()=>document.removeEventListener('keydown',fechar);
+  },[menu]);
   return <div className="review-shell">
-    {menu&&<button aria-label="Fechar menu" className="review-scrim" onClick={()=>setMenu(false)}/>}
-    <aside className={`review-sidebar ${menu?'open':''}`}>
-      <Link to="/acessos" className="review-brand"><img src={logo} alt="Impresilk"/><span>PAINEL DE GESTÃO</span></Link>
-      <nav aria-label="Navegação principal">{review ? <a href="https://leogpereira-afk.github.io/painel-impresilk/" target="_blank" rel="noreferrer"><LayoutDashboard size={18}/>Início <ArrowUpRight size={13}/></a> : <Link to="/"><LayoutDashboard size={18}/>Início</Link>}<Link className="selected" to="/acessos"><ShieldCheck size={18}/>Sistemas</Link></nav>
+    <a className="painel-skip" href="#conteudo-painel" onClick={e=>{e.preventDefault();document.getElementById("conteudo-painel")?.focus();}}>Ir para o conteúdo</a>
+    {menu&&<button aria-label="Fechar menu" className="review-scrim sem-impressao" onClick={()=>setMenu(false)}/>}
+    <aside id="menu-painel" className={`review-sidebar sem-impressao ${menu?'open':''}`}>
+      <Link to="/" className="review-brand"><img src={logo} alt="Impresilk" className="dark:hidden"/><img src={logoWhite} alt="Impresilk" className="hidden dark:block"/><span>PAINEL DE GESTÃO</span></Link>
+      <nav aria-label="Navegação principal">
+        <NavLink end to="/" className={({isActive})=>isActive?'selected':''}><LayoutDashboard size={20}/>Início</NavLink>
+        <Link className={naCentral?'selected':''} to="/acessos" aria-current={naCentral?'page':undefined}><ShieldCheck size={20}/>Sistemas</Link>
+      </nav>
       <div className="review-sidebar-scroll">
-      <details open><summary>MÓDULOS DO PAINEL <ChevronRight size={13}/></summary>{review && <p className="review-menu-note">Abrem a versão atual em outra aba.</p>}<nav aria-label="Módulos existentes">{[...MODULOS.filter(m=>m.id!=='configuracoes'),{id:'documentos',nome:'Documentos e ativos'}].map(m=><a key={m.id} href={review ? `https://leogpereira-afk.github.io/painel-impresilk/${m.id}` : `${import.meta.env.BASE_URL}${m.id}`} target={review ? '_blank' : undefined} rel={review ? 'noreferrer' : undefined}>{m.nome}<ArrowUpRight size={13}/></a>)}</nav></details>
+        <details open><summary>MÓDULOS DO PAINEL <ChevronRight size={15}/></summary>
+          <nav aria-label="Módulos do painel">{modulos.map(m=><NavLink key={m.id} to={`/${m.id}`} className={({isActive})=>isActive?'selected':''}>{m.nome}</NavLink>)}</nav>
+        </details>
       </div>
-      <div className="review-user"><span className="review-avatar">{(sessao?.nome || "DE").slice(0,2).toUpperCase()}</span><div>{sessao?.nome || "Conta de demonstração"}<small>Direção</small></div></div>
-      {review ? <Link className="review-logout" to="/entrada"><LogOut size={15}/>Ver tela de entrada</Link> : <button className="review-logout" onClick={aoSair}><LogOut size={15}/>Sair do Painel</button>}
+      <Link to="/minha-conta" className="review-user"><span className="review-avatar">{(sessao?.nome || 'DE').slice(0,2).toUpperCase()}</span><div>{sessao?.nome || 'Conta de demonstração'}<small>Direção</small></div></Link>
+      {review ? <Link className="review-logout" to="/entrada"><LogOut size={17}/>Ver tela de entrada</Link> : <button className="review-logout" onClick={aoSair}><LogOut size={17}/>Sair do Painel</button>}
     </aside>
-    <main><header className="review-top"><div><button className="review-menu-toggle" aria-label={menu?'Fechar navegação':'Abrir navegação'} onClick={()=>setMenu(!menu)}>{menu?<X size={20}/>:<Menu size={20}/>}</button><Link to="/acessos">Painel de Gestão</Link><ChevronRight size={12}/><span>Central de acessos</span></div>{review && <b>Prévia local · dados fictícios</b>}</header><div className="review-content">
-      {children}
-      {review && <footer className="review-footer"><span>Revisão local do Painel Impresilk. Nenhuma alteração é enviada aos sistemas.</span><Link to="/entrada">Conferir entrada <ArrowUpRight size={13}/></Link></footer>}
-    </div></main>
+    <div className="review-main">
+      <header className="review-top sem-impressao"><div><button ref={abrirRef} className="review-menu-toggle" aria-expanded={menu} aria-controls="menu-painel" aria-label={menu?'Fechar navegação':'Abrir navegação'} onClick={()=>setMenu(!menu)}>{menu?<X size={22}/>:<Menu size={22}/>}</button><Link to="/">Painel de Gestão</Link><ChevronRight size={12}/><span>{titulo}</span></div><div className="review-controls">{review && <b>Prévia local · dados fictícios</b>}{controles}</div></header>
+      <main id="conteudo-painel" tabIndex={-1} className="review-content">
+        {children}
+        {review && <footer className="review-footer sem-impressao">Prévia com dados fictícios. Alterações não são enviadas aos sistemas.</footer>}
+      </main>
+    </div>
   </div>;
 }

@@ -46,6 +46,7 @@ import {
   Empty,
   CarregandoModulo,
   ErroModulo,
+  AvisoAtualizacao,
 } from "../components/ui.jsx";
 
 const BEM_VAZIO = {
@@ -324,16 +325,19 @@ export default function Patrimonio() {
   const topoForm = useRef(null);
   const [hojeISO] = useState(() => ymdLocal(new Date()));
 
+  const pedidoLeitura = useRef(0);
   const carregar = useCallback(async () => {
+    const pedido = ++pedidoLeitura.current;
     try {
       const [b, s] = await Promise.all([lerBens(), lerSetores()]);
+      if (pedido !== pedidoLeitura.current) return;
       setBens(b);
       setSetoresMapa(s);
       setErro(null);
     } catch (e) {
+      if (pedido !== pedidoLeitura.current) return;
       setErro(e.message);
-      setBens({});
-      setSetoresMapa({});
+
     }
   }, []);
 
@@ -498,7 +502,7 @@ export default function Patrimonio() {
     }
   }
 
-  if (erro && !Object.keys(bens || {}).length) return <ErroModulo mensagem={erro} aoTentar={carregar} />;
+  if (erro && bens === null) return <ErroModulo mensagem={erro} aoTentar={carregar} />;
   if (bens === null || setoresMapa === null) return <CarregandoModulo />;
 
   if (etiquetas) return <FolhaEtiquetas bens={etiquetas} aoVoltar={() => setEtiquetas(null)} />;
@@ -507,9 +511,10 @@ export default function Patrimonio() {
 
   return (
     <div className="space-y-8">
+      <AvisoAtualizacao erro={erro} aoTentar={carregar}/>
       <PageTitle
         titulo="Patrimônio"
-        descricao="O que a empresa tem, em que setor esta e quanto custou. Cada bem com a sua etiqueta."
+        descricao="Organize os bens por setor, acompanhe valores e encontre cada item pela etiqueta."
         acao={
           <div className="flex flex-wrap gap-2">
             <button className="btn-primary" onClick={() => abrirBem()} disabled={!vm.setores.length}>
@@ -730,7 +735,7 @@ export default function Patrimonio() {
             <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
             <input
               className="input pl-9"
-              value={busca}
+              aria-label="Buscar nesta seção" value={busca}
               onChange={(e) => setBusca(e.target.value)}
               placeholder="Buscar por etiqueta, nome, NF ou descrição"
             />

@@ -45,7 +45,7 @@ import {
   extratoDaPermuta, linhasPorCliente,
 } from "../lib/calc/permutas.js";
 import { paraNumero, dataLonga } from "../lib/format.js";
-import { Card, PageTitle, Empty, CarregandoModulo, BotaoPDF, CabecalhoImpressao, AvisoDadoParado } from "../components/ui.jsx";
+import { Card, PageTitle, Empty, CarregandoModulo, ErroModulo, BotaoPDF, CabecalhoImpressao, AvisoDadoParado } from "../components/ui.jsx";
 import { useApp } from "../config/store.jsx";
 import {
   dinheiro, dataDaOS, formatarDoc, hojeISO, novoId,
@@ -894,10 +894,7 @@ export default function Permutas() {
     return (
       <div className="space-y-6">
         <PageTitle titulo="Permutas" descricao="O que o parceiro nos deu e o que ele já gastou." />
-        <Card className="flex items-start gap-2 text-sm text-bad-700">
-          <AlertTriangle size={16} className="mt-0.5 shrink-0" />
-          {erro}
-        </Card>
+        <ErroModulo mensagem={erro} aoTentar={() => window.location.reload()}/>
       </div>
     );
   }
@@ -1423,7 +1420,7 @@ export default function Permutas() {
     <div className="space-y-5">
       <PageTitle
         titulo="Permutas"
-        descricao="O que cada parceiro nos deu, o que ele já gastou em O.S. e quanto ainda sobra."
+        descricao="Acompanhe o crédito de cada parceiro, as ordens de serviço utilizadas e o saldo disponível."
         acao={
           <button type="button" className="btn-ghost" onClick={criar} disabled={salvando}>
             <Plus size={15} strokeWidth={2.4} /> Nova permuta

@@ -9,6 +9,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   CalendarCheck,
+  RefreshCw,
   Plus,
   Check,
   Trash2,
@@ -41,7 +42,7 @@ import {
 import { pdfDaConversa, textoDaConversa, nomeDoArquivo } from "../lib/pdfConversa.js";
 import { getSessao } from "../lib/sessao.js";
 import { dataCurta, diasEntre, ymdLocal } from "../lib/format.js";
-import { Card, PageTitle, SectionTitle, StatCard, Empty, CarregandoModulo } from "../components/ui.jsx";
+import { Card, PageTitle, SectionTitle, StatCard, Empty, CarregandoModulo, ErroModulo, AvisoAtualizacao } from "../components/ui.jsx";
 
 // Cada tipo tem icone proprio: numa lista de 20 linhas, o icone diz o que e
 // antes de a pessoa ler o titulo.
@@ -526,7 +527,15 @@ export default function Compromissos() {
   const sessao = getSessao();
   const ehDirecao = !!sessao?.master;
 
-  const [mapa, setMapa] = useState(null);
+  const [mapa, setMapaLido] = useState(null);
+  const pedidoLeitura = useRef(0);
+  const ultimaCarga = useRef(0);
+  const [atualizando,setAtualizando] = useState(false);
+  const setMapa = useCallback((valor) => {
+    pedidoLeitura.current++;
+    setAtualizando(false);
+    setMapaLido(valor);
+  }, []);
   const [erro, setErro] = useState(null);
   const [aviso, setAviso] = useState(null);
   const [form, setForm] = useState(null);
@@ -554,34 +563,37 @@ export default function Compromissos() {
   // aparecendo como "amanha" e o atrasado nao virava atrasado.
   const [hojeISO, setHojeISO] = useState(() => ymdLocal(new Date()));
 
-  const recarregar = useCallback(() => {
+  const recarregar = useCallback(async () => {
+    const pedido = ++pedidoLeitura.current;
+    ultimaCarga.current = Date.now();
+    setAtualizando(true);
     setHojeISO(ymdLocal(new Date()));
-    lerCompromissos()
-      .then(setMapa)
-      .catch((e) => setErro(e.message));
+    try {
+      const m = await lerCompromissos();
+      if (pedido !== pedidoLeitura.current) return;
+      setMapaLido(m);
+      setErro(null);
+    } catch(e) {
+      if (pedido === pedidoLeitura.current) setErro(e.message);
+    } finally {
+      if (pedido === pedidoLeitura.current) setAtualizando(false);
+    }
   }, []);
 
   useEffect(() => {
+    const controle = pedidoLeitura;
     let vivo = true;
-    lerCompromissos()
-      .then((m) => vivo && setMapa(m))
-      .catch((e) => vivo && setErro(e.message));
-    // A equipe e so para o "encaminhar". Se falhar, a tela continua
-    // funcionando -- so o encaminhamento fica indisponivel.
-    lerPessoas()
-      .then((p) => vivo && setEquipe(p))
-      .catch(() => {});
-    return () => {
-      vivo = false;
-    };
-  }, []);
+    recarregar();
+    lerPessoas().then(p => vivo && setEquipe(p)).catch(() => {});
+    return () => { vivo = false; controle.current++; };
+  }, [recarregar]);
 
   // Voltou para a aba: refaz a conta do dia e busca o que chegou enquanto ela
   // estava em outro lugar (um compromisso encaminhado por uma colega, por
   // exemplo, so aparecia depois de recarregar a pagina na mao).
   useEffect(() => {
     const aoVoltar = () => {
-      if (document.visibilityState === "visible") recarregar();
+      if (document.visibilityState === "visible" && Date.now() - ultimaCarga.current > 1500) recarregar();
     };
     document.addEventListener("visibilitychange", aoVoltar);
     window.addEventListener("focus", aoVoltar);
@@ -728,7 +740,7 @@ export default function Compromissos() {
         setSalvando(false);
       }
     },
-    [form, dePessoa, sessao]
+    [form, dePessoa, sessao, setMapa]
   );
 
   const alternarFeito = async (c) => {
@@ -892,28 +904,20 @@ export default function Compromissos() {
     [mapa, form, equipe, dePessoa, sessao]
   );
 
-  if (erro) {
-    return (
-      <div className="space-y-6">
-        <PageTitle titulo="Compromissos" descricao="O que você tem para fazer e resolver." />
-        <Card className="flex items-start gap-2 text-sm text-bad-700">
-          <AlertTriangle size={16} className="mt-0.5 shrink-0" />
-          {erro}
-        </Card>
-      </div>
-    );
-  }
+  if (erro && mapa === null) return <ErroModulo mensagem={erro} aoTentar={recarregar}/>;
   if (mapa === null) return <CarregandoModulo />;
 
 
   return (
     <div className="space-y-6">
+      <AvisoAtualizacao erro={erro} aoTentar={recarregar}/>
       <PageTitle
+        acao={<button type="button" className="btn-outline" disabled={atualizando} onClick={recarregar}><RefreshCw size={16} className={atualizando ? "animate-spin" : ""}/>{atualizando ? "Atualizando…" : "Atualizar agenda"}</button>}
         titulo="Compromissos"
         descricao={
           ehDirecao
             ? "A agenda da equipe: visitas, medições, retornos e o que ficou para resolver."
-            : "Suas visitas, medições, retornos e o que você tem para resolver. Só você ve esta lista."
+            : "Suas visitas, medições, retornos e o que você tem para resolver. A direção também pode acompanhar sua agenda."
         }
       />
 

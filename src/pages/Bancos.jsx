@@ -22,7 +22,7 @@ import {
   AlertTriangle,
 } from "lucide-react";
 import { lerBancos, salvarBanco, removerBanco } from "../services/bancos.js";
-import { Card, PageTitle, SectionTitle, CarregandoModulo } from "../components/ui.jsx";
+import { Card, PageTitle, SectionTitle, CarregandoModulo, ErroModulo } from "../components/ui.jsx";
 
 const ABERTOS_KEY = "painel_bancos_abertos";
 
@@ -173,9 +173,11 @@ export default function Bancos() {
         ta.style.opacity = "0";
         document.body.appendChild(ta);
         ta.select();
-        document.execCommand("copy");
+        const copiou = document.execCommand("copy");
         ta.remove();
+        if (!copiou) throw new Error("Cópia indisponível");
       } catch {
+        setAviso({tom:"erro",texto:"Não foi possível copiar. Selecione o dado e copie manualmente."});
         return;
       }
     }
@@ -255,10 +257,7 @@ export default function Bancos() {
     return (
       <div className="space-y-6">
         <PageTitle titulo="Bancos e Pix" descricao="Contas, CNPJs e chaves de todas as empresas." />
-        <Card className="flex items-start gap-2 text-sm text-bad-700">
-          <AlertTriangle size={16} className="mt-0.5 shrink-0" />
-          {erro}
-        </Card>
+        <ErroModulo mensagem={erro} aoTentar={() => window.location.reload()}/>
       </div>
     );
   }
@@ -270,7 +269,7 @@ export default function Bancos() {
     <div className="space-y-6">
       <PageTitle
         titulo="Bancos e Pix"
-        descricao="Alguém pediu os dados? Mande no WhatsApp em dois cliques. Ou clique em qualquer valor para copiar."
+        descricao="Encontre os dados bancários por empresa. Copie uma informação ou prepare o compartilhamento."
       />
 
       <div className="flex flex-wrap items-center gap-3">

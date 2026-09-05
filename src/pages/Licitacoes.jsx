@@ -27,7 +27,7 @@ import {
   abrirBase64,
 } from "../services/ativos.js";
 import { moedaCheia, dataCurta, diasEntre, ymdLocal, paraNumero, paraCampo } from "../lib/format.js";
-import { Card, PageTitle, SectionTitle, StatCard, Empty, CarregandoModulo } from "../components/ui.jsx";
+import { Card, PageTitle, SectionTitle, StatCard, Empty, CarregandoModulo, ErroModulo } from "../components/ui.jsx";
 
 const MAX_BYTES = 3 * 1024 * 1024;
 
@@ -335,10 +335,7 @@ export default function Licitacoes() {
     return (
       <div className="space-y-6">
         <PageTitle titulo="Licitações" descricao="Editais, prazos e sessões." />
-        <Card className="flex items-start gap-2 text-sm text-bad-700">
-          <AlertTriangle size={16} className="mt-0.5 shrink-0" />
-          {erro}
-        </Card>
+        <ErroModulo mensagem={erro} aoTentar={() => window.location.reload()}/>
       </div>
     );
   }
@@ -348,7 +345,7 @@ export default function Licitacoes() {
     <div className="space-y-8">
       <PageTitle
         titulo="Licitações"
-        descricao="Os editais na mesa, com o dia da sessão na frente para ninguém perder prazo."
+        descricao="Acompanhe editais, próximas sessões e resultados. Os prazos mais próximos aparecem primeiro."
       />
 
       <div className="grid gap-3 sm:grid-cols-3">

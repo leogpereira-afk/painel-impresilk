@@ -19,7 +19,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import BlocoAssinaturas from "../components/BlocoAssinaturas.jsx";
 import {
   ChevronDown, Compass, Target, Swords, FileText, Flag, Plus, Pencil, Trash2, CreditCard,
-  Check, Lock, Users, Search,
+  Check, Lock, Users, Search, RefreshCw,
 } from "lucide-react";
 import {
   lerGestao, salvarIdentidade, salvarValor, removerValor,
@@ -33,6 +33,7 @@ import {
 import { dataCurta, dataLonga, ymdLocal, numero, diasEntre } from "../lib/format.js";
 import { Card, PageTitle, Empty, CarregandoModulo, ErroModulo } from "../components/ui.jsx";
 import EsquemaTatico from "../components/EsquemaTatico.jsx";
+import "./gestao.css";
 
 const BLOCOS = [
   { id: "identidade", titulo: "Identidade", sub: "missão, visão e valores", icone: Compass },
@@ -61,7 +62,7 @@ const TIPOS_REUNIAO = {
 // com Enter, que é o comportamento nativo.
 function Abas({ blocos, atual, aoTrocar, alertas }) {
   return (
-    <div className="sem-impressao -mx-1 flex gap-1.5 overflow-x-auto px-1 pb-1">
+    <div className="gestao-tabs sem-impressao" aria-label="Áreas de Gestão">
       {blocos.map((b) => {
         const Icone = b.icone;
         const ativo = b.id === atual;
@@ -131,7 +132,7 @@ function Pino({ rotulo, valor, sub, tom, aoClicar }) {
     <button
       type="button"
       onClick={aoClicar}
-      className="min-w-[8rem] flex-1 rounded-xl border px-3 py-2 text-left transition-colors hover:bg-slate-50"
+      className="gestao-indicador min-w-[8rem] flex-1 rounded-xl border px-3 py-2 text-left transition-colors hover:bg-slate-50"
       style={{ borderColor: "var(--hairline)" }}
     >
       <span className="label block">{rotulo}</span>
@@ -177,9 +178,9 @@ function Saude({ dados, hojeISO, aoIr }) {
         aoClicar={() => aoIr("tatico")}
       />
       <Pino
-        rotulo="Sem dono"
+        rotulo="Sem responsável"
         valor={semDono}
-        sub={semDono ? "ninguém assumiu" : "todas com responsável"}
+        sub={semDono ? "defina quem vai acompanhar" : "todas com responsável"}
         tom={semDono ? "warn" : "ok"}
         aoClicar={() => aoIr("tatico")}
       />
@@ -544,7 +545,8 @@ function BlocoIdentidade({ dados, podeEditar, aoRecarregar, aoAvisar }) {
                 })}
                 aoRemover={async (x) => {
                   if (!window.confirm(`Remover o valor "${x.nome}"?`)) return;
-                  await removerValor(x.id); await aoRecarregar();
+                  try { await removerValor(x.id); await aoRecarregar(); }
+                  catch (e) { aoAvisar({ tom: "erro", texto: e.message }); }
                 }} />
             ))}
           </div>
@@ -671,13 +673,14 @@ function BlocoPlano({ dados, podeEditar, aoRecarregar, aoAvisar }) {
               {podeEditar && (
                 <>
                   <button type="button" className="grid h-7 w-7 place-items-center rounded-lg text-slate-500 hover:bg-slate-100"
-                    onClick={() => setObj({ id: g.id, titulo: g.titulo, responsavel: g.responsavel, situacao: g.situacao, ordem: g.ordem })}>
+                    aria-label={`Editar objetivo: ${g.titulo}`} onClick={() => setObj({ id: g.id, titulo: g.titulo, responsavel: g.responsavel, situacao: g.situacao, ordem: g.ordem })}>
                     <Pencil size={13} />
                   </button>
                   <button type="button" className="grid h-7 w-7 place-items-center rounded-lg text-slate-500 hover:bg-bad-50 hover:text-bad-700"
-                    onClick={async () => {
+                    aria-label={`Remover objetivo: ${g.titulo}`} onClick={async () => {
                       if (!window.confirm(`Remover o objetivo "${g.titulo}"? As táticas dele ficam sem objetivo — não são apagadas.`)) return;
-                      await removerObjetivo(g.id); await aoRecarregar();
+                      try { await removerObjetivo(g.id); await aoRecarregar(); }
+                      catch (e) { aoAvisar({ tom: "erro", texto: e.message }); }
                     }}>
                     <Trash2 size={13} />
                   </button>
@@ -700,7 +703,7 @@ function BlocoPlano({ dados, podeEditar, aoRecarregar, aoAvisar }) {
                     </span>
                     {podeEditar && (
                       <button type="button" className="shrink-0 text-slate-400 hover:text-slate-700"
-                        onClick={() => setInd({ id: i.id, objetivoId: g.id, nome: i.nome, unidade: i.unidade, meta: i.meta, atual: i.atual, ordem: i.ordem })}>
+                        aria-label={`Editar indicador: ${i.nome}`} onClick={() => setInd({ id: i.id, objetivoId: g.id, nome: i.nome, unidade: i.unidade, meta: i.meta, atual: i.atual, ordem: i.ordem })}>
                         <Pencil size={12} />
                       </button>
                     )}
@@ -799,7 +802,10 @@ function BlocoPlano({ dados, podeEditar, aoRecarregar, aoAvisar }) {
             <button type="button" className="btn-ghost" onClick={() => setInd(null)}>Cancelar</button>
             {ind.id && (
               <button type="button" className="btn-ghost text-bad-700"
-                onClick={async () => { await removerIndicador(ind.id); setInd(null); await aoRecarregar(); }}>
+                onClick={async () => {
+                  try { await removerIndicador(ind.id); setInd(null); await aoRecarregar(); }
+                  catch (e) { aoAvisar({ tom: "erro", texto: e.message }); }
+                }}>
                 Remover
               </button>
             )}
@@ -975,6 +981,7 @@ function BlocoAtas({ dados, papel, aoRecarregar, aoAvisar }) {
               ({cumpre.geral.noPrazo} de {cumpre.geral.total})
             </span>
           </p>
+          {cumpre.geral.semData > 0 && <p className="mt-2 text-sm text-warn-700">{plural(cumpre.geral.semData, "decisão concluída sem data comprovada", "decisões concluídas sem data comprovada")}. Conclusão no prazo ainda não comprovada.</p>}
           {cumpre.porPessoa.length > 1 && (
             <div className="mt-2 space-y-1">
               {cumpre.porPessoa.map((p) => (
@@ -1245,16 +1252,25 @@ export default function Gestao() {
   // que ela deixou aberto vira a aba que abre. Sem isso, quem usa a tela toda
   // semana pelo esquema tático voltaria ao padrão a cada visita.
   const [aba, setAba] = useState(BLOCO_PADRAO);
+  const [visitadas, setVisitadas] = useState([BLOCO_PADRAO]);
   // Dentro do esquema tático: as táticas ou o quadro do time.
   const [verTime, setVerTime] = useState(false);
   const [pessoaFiltro, setPessoaFiltro] = useState("");
+  const [atualizando, setAtualizando] = useState(false);
+  const [ultimaLeitura, setUltimaLeitura] = useState(null);
+  const requisicao = useRef(0);
+  const filaPreferencia = useRef(Promise.resolve());
   const primeiraCarga = useRef(true);
   const abaAnterior = useRef(BLOCO_PADRAO);
   const hojeISO = ymdLocal(new Date());
 
   const carregar = useCallback(async () => {
+    const pedido = ++requisicao.current;
+    setAtualizando(true);
     try {
       const d = await lerGestao();
+      if (pedido !== requisicao.current) return;
+      setUltimaLeitura(new Date());
       setDados(d);
       setErro(null);
       // SÓ NA PRIMEIRA CARGA. `carregar()` roda de novo a cada gravação (salvar
@@ -1265,28 +1281,39 @@ export default function Gestao() {
         const marcado = BLOCOS.filter((b) => d.preferencias[b.id]);
         // O formato antigo marcava VÁRIAS (era acordeão). Com mais de uma
         // marcada não dá para saber qual era a última usada: fica no padrão.
-        if (marcado.length === 1) setAba(marcado[0].id);
+        if (marcado.length === 1) {
+          setAba(marcado[0].id);
+          setVisitadas((ids) => [...new Set([...ids, marcado[0].id])]);
+          abaAnterior.current = marcado[0].id;
+        }
       }
       primeiraCarga.current = false;
-    } catch (e) { setErro(e.message); }
+    } catch (e) {
+      if (pedido === requisicao.current) setErro(e.message);
+    } finally {
+      if (pedido === requisicao.current) setAtualizando(false);
+    }
   }, []);
 
-  useEffect(() => { carregar(); }, [carregar]);
+  useEffect(() => {
+    const controle = requisicao;
+    carregar();
+    return () => { controle.current++; };
+  }, [carregar]);
 
   const trocarAba = (id) => {
     setAba(id);
-    // UMA gravação por toque, e só a da aba escolhida. Gravar as cinco (quatro
-    // desmarcando) disparava cinco requisições em paralelo, sem ordem garantida
-    // entre elas -- duas podiam terminar marcadas e a próxima visita abriria na
-    // errada. A limpeza das outras é feita na LEITURA, que ignora preferência
-    // ambígua e cai no padrão.
-    gravarPreferencia(id, true);
-    BLOCOS.filter((b) => b.id !== id && b.id === abaAnterior.current)
-      .forEach((b) => gravarPreferencia(b.id, false));
+    setVisitadas((ids) => ids.includes(id) ? ids : [...ids, id]);
+    // Serializar as mudanças evita que respostas fora de ordem restaurem uma aba antiga.
+    const anterior = abaAnterior.current;
+    if (anterior !== id) filaPreferencia.current = filaPreferencia.current.then(async () => {
+      await gravarPreferencia(id, true);
+      await gravarPreferencia(anterior, false);
+    });
     abaAnterior.current = id;
   };
 
-  if (erro) return <ErroModulo mensagem={erro} aoTentar={carregar} />;
+  if (erro && !dados) return <ErroModulo mensagem={erro} aoTentar={carregar} />;
   if (!dados) return <CarregandoModulo />;
 
   const papel = dados.papel;
@@ -1394,11 +1421,19 @@ export default function Gestao() {
   };
 
   return (
-    <div className="space-y-4">
-      <PageTitle
-        titulo="Gestão"
-        descricao="Identidade, plano do ano, o que está sendo feito agora e o que ficou decidido. Não é painel de produção: é direção."
-      />
+    <div className="gestao-page space-y-4">
+      <header className="gestao-cabecalho">
+        <div><p className="gestao-eyebrow">ESTRATÉGIA E EXECUÇÃO · {dados.plano?.ano || new Date().getFullYear()}</p>
+          <PageTitle titulo="Gestão" descricao="Do plano à ação. Acompanhe objetivos, responsáveis e decisões em um só lugar." />
+        </div>
+        <div className="gestao-atualizacao">
+          <button type="button" className="btn-ghost" disabled={atualizando} onClick={carregar}>
+            <RefreshCw size={16} className={atualizando ? "animate-spin" : ""}/>{atualizando ? "Atualizando…" : "Atualizar"}
+          </button>
+          <span role="status">{ultimaLeitura && `Leitura às ${ultimaLeitura.toLocaleTimeString("pt-BR", {hour:"2-digit", minute:"2-digit"})}`}</span>
+        </div>
+      </header>
+      {erro && <div role="alert" className="gestao-falha"><strong>Não foi possível atualizar.</strong> {erro} Os dados da última leitura continuam visíveis. Tente atualizar novamente.</div>}
 
       {/* COMO ESTAMOS — a resposta antes das abas.
           As abas mostram uma fatia por vez, e quem dirige abre esta tela para
@@ -1416,7 +1451,7 @@ export default function Gestao() {
       />
 
       {aviso && (
-        <p className={`rounded-lg px-3 py-2 text-sm ${
+        <p role="status" className={`rounded-lg px-3 py-2 text-sm ${
           aviso.tom === "ok" ? "bg-ok-50 text-ok-700"
             : aviso.tom === "aviso" ? "bg-warn-50 text-warn-700" : "bg-bad-50 text-bad-700"
         }`}>
@@ -1436,7 +1471,7 @@ export default function Gestao() {
             </span>
           )}
         </div>
-        {conteudo[aba]}
+        {visitadas.map((id) => <div key={id} hidden={id !== aba}>{conteudo[id]}</div>)}
       </Card>
     </div>
   );

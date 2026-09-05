@@ -54,6 +54,7 @@ export function getToken() {
 }
 
 export function getSessao() {
+  if (import.meta.env.MODE === "review") return {usuario:"demo",nome:"Conta de demonstração",master:true,permissoes:["*"]};
   try {
     const raw = localStorage.getItem(K_SESSAO);
     if (!raw) return null;
@@ -148,6 +149,7 @@ export function podeAbrir(modulo, sessao = getSessao()) {
 // fetch com o cracha. Sessao expirada (401) derruba para a tela de login em vez
 // de deixar a pessoa olhando um erro sem saber o que fazer.
 export async function comCracha(url, opcoes = {}) {
+  if (import.meta.env.MODE === "review") return (await import("../review/painel.mjs")).respostaPreview(url, opcoes);
   const token = getToken();
   const headers = { ...(opcoes.headers || {}) };
   if (token) headers.Authorization = `Bearer ${token}`;

@@ -60,6 +60,7 @@ import {
   Empty,
   CarregandoModulo,
   ErroModulo,
+  AvisoAtualizacao,
   Segmented,
 } from "../components/ui.jsx";
 
@@ -802,17 +803,20 @@ export default function Manutencoes() {
   // congelado faz "atrasada" continuar dizendo "em 1 dia" no dia seguinte.
   const [hojeISO, setHojeISO] = useState(() => ymdLocal(new Date()));
 
+  const pedidoLeitura = useRef(0);
   const carregar = useCallback(async () => {
+    const pedido = ++pedidoLeitura.current;
     try {
-      const [lista, m, st] = await Promise.all([listarAtivos(), lerManutencoes(), lerSetores().catch(() => ({}))]);
+      const [lista, m, st] = await Promise.all([listarAtivos(), lerManutencoes(), lerSetores()]);
+      if (pedido !== pedidoLeitura.current) return;
       setSetores(Object.values(st || {}).filter((x) => x?.sigla).sort((a2, b2) => a2.sigla.localeCompare(b2.sigla)));
       setItens(lista.filter((x) => FAMILIAS[x.tipo]));
       setMapa(m);
       setErro(null);
     } catch (e) {
+      if (pedido !== pedidoLeitura.current) return;
       setErro(e.message);
-      setItens([]);
-      setMapa({});
+
     }
   }, []);
 
@@ -1151,16 +1155,17 @@ export default function Manutencoes() {
     if (familia !== "tudo") setFamilia("tudo");
   }
 
-  if (erro && !itens?.length) return <ErroModulo mensagem={erro} aoTentar={carregar} />;
+  if (erro && itens === null) return <ErroModulo mensagem={erro} aoTentar={carregar} />;
   if (itens === null || mapa === null) return <CarregandoModulo />;
 
   const k = vm.kpis;
 
   return (
     <div className="space-y-8">
+      <AvisoAtualizacao erro={erro} aoTentar={carregar}/>
       <PageTitle
         titulo="Manutenções"
-        descricao="O que os carros, as máquinas e o prédio custam para continuar funcionando — e o que já está atrasado."
+        descricao="Acompanhe manutenções, próximos vencimentos e custos de veículos, máquinas e instalações."
         acao={
           <div className="flex flex-wrap gap-2">
             <button className="btn-primary" onClick={() => abrirLancamento()}>
@@ -1353,7 +1358,7 @@ export default function Manutencoes() {
           <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
           <input
             className="input pl-9"
-            value={busca}
+            aria-label="Buscar nesta seção" value={busca}
             onChange={(e) => setBusca(e.target.value)}
             placeholder="Buscar por nome, placa, categoria ou responsável"
           />

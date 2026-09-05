@@ -67,20 +67,18 @@ export function cumprimentoDecisoes(decisoes, taticas) {
   const contar = (lista) => {
     const total = lista.length;
     let noPrazo = 0;
+    let semData = 0;
     for (const d of lista) {
-      if (d.status !== "concluida") {
-        // A decisao pode ter sido concluida pela tatica que ela gerou.
-        const t = porDecisao.get(d.id);
-        if (!t || t.status !== "concluida") continue;
-        if (!d.prazo || (t.concluido_em || "").slice(0, 10) <= d.prazo) noPrazo++;
-        continue;
-      }
-      if (!d.prazo) { noPrazo++; continue; }
       const t = porDecisao.get(d.id);
-      const quando = (t?.concluido_em || "").slice(0, 10);
-      if (!quando || quando <= d.prazo) noPrazo++;
+      if (d.status !== "concluida" && t?.status !== "concluida") continue;
+      // Mantém a regra existente para decisões sem prazo. Com prazo, exige evidência.
+      if (!d.prazo) { noPrazo++; continue; }
+      const quando = t?.status === "concluida" ? String(t.concluido_em || "").slice(0, 10) : "";
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(quando) || Number.isNaN(Date.parse(quando))) {
+        semData++;
+      } else if (quando <= d.prazo) noPrazo++;
     }
-    return { total, noPrazo, pct: total ? Math.round((noPrazo / total) * 100) : null };
+    return { total, noPrazo, semData, pct: total ? Math.round((noPrazo / total) * 100) : null };
   };
 
   const geral = contar(decisoes || []);

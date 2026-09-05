@@ -11,6 +11,7 @@ import { API } from "../lib/api.js";
 const BASE = `${API}/painel-gestao`;
 
 async function chamar(action, corpo = {}) {
+  if (import.meta.env.MODE === "review") return (await import("../review/gestao.mjs")).chamarGestaoDemo(action);
   const resp = await comCracha(BASE, {
     method: "POST",
     headers: { "Content-Type": "application/json" },

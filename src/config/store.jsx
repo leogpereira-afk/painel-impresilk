@@ -17,6 +17,7 @@ const K_OV_ORC = "painel_ov_orc";
 const AppContext = createContext(null);
 
 function ler(chave, fallback) {
+  if (import.meta.env.MODE === "review") return fallback;
   try {
     const raw = localStorage.getItem(chave);
     return raw ? JSON.parse(raw) : fallback;
@@ -202,13 +203,13 @@ export function AppProvider({ children }) {
 
   // Cache local (espelho para boot instantaneo e fallback offline).
   useEffect(() => {
-    localStorage.setItem(K_CONFIG, JSON.stringify(config));
+    if (import.meta.env.MODE !== "review") localStorage.setItem(K_CONFIG, JSON.stringify(config));
   }, [config]);
   useEffect(() => {
-    if (overridesRecebiveis) localStorage.setItem(K_OV_REC, JSON.stringify(overridesRecebiveis));
+    if (import.meta.env.MODE !== "review" && overridesRecebiveis) localStorage.setItem(K_OV_REC, JSON.stringify(overridesRecebiveis));
   }, [overridesRecebiveis]);
   useEffect(() => {
-    if (overridesOrcamentos) localStorage.setItem(K_OV_ORC, JSON.stringify(overridesOrcamentos));
+    if (import.meta.env.MODE !== "review" && overridesOrcamentos) localStorage.setItem(K_OV_ORC, JSON.stringify(overridesOrcamentos));
   }, [overridesOrcamentos]);
 
   // Mutadores. Cada um atualiza o estado na hora (UI otimista) e sincroniza com
