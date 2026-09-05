@@ -199,6 +199,7 @@ export function calcOrcamentos(orcamentos, overrides, config, opcoes = {}) {
         vencido,
         proximoToque,
         nota: ov.nota || "",
+      crmCardId: /^[1-9]\d*$/.test(String(ov.crmCardId || "")) ? String(ov.crmCardId) : "",
       etapaCrm: ["proposta", "negociacao", "decisao"].includes(ov.etapaCrm) ? ov.etapaCrm : "proposta",
         chamadoEm,
         compromissoId: ov.compromissoId || null,

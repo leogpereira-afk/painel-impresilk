@@ -203,6 +203,7 @@ function construirOrcamentos() {
         id: `orc-${numero}`,
         numero: String(numero++),
         cliente: c.nome,
+        clienteId: String(CLIENTES.indexOf(c) + 1),
         vendedorId,
         valor,
         situacao,

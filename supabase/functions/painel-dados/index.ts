@@ -504,10 +504,10 @@ Deno.serve(async (req: Request) => {
         if (g.resposta) return g.resposta;
         const id = String(url.searchParams.get("id") ?? "");
         if (!/^[1-9]\d{0,15}$/.test(id)) return json({ erro: "Cliente inválido." }, 400);
-        const { data, error } = await sb.from("painel_cache").select("valor, atualizado_em").eq("chave", "crm_clientes").maybeSingle();
+        const { data, error } = await sb.rpc("painel_crm_cliente", { p_id: id });
         if (error) return json({ erro: "Não foi possível ler o cadastro." }, 503);
-        if (!data?.valor?.completo) return json({ erro: "A primeira carga dos clientes ainda não foi concluída." }, 503);
-        return json({ cliente: data.valor.clientes?.[id] ?? null, atualizadoEm: data.atualizado_em });
+        if (!data?.completo) return json({ erro: "A primeira carga dos clientes ainda não foi concluída." }, 503);
+        return json({ cliente: data.cliente ?? null, atualizadoEm: data.atualizadoEm });
       }
 
       case "clienteDetalhe": {

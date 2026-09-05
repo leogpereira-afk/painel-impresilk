@@ -22,6 +22,9 @@
 // com seletor de período — na mesa, um filtro de relatório não manda.
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import Cliente360 from "../components/Cliente360.jsx";
+import FunilMubisys from "../components/FunilMubisys.jsx";
+import {getCrm} from "../services/crm.js";
 import { AceleradorVendas } from "../components/InteligenciaComercial.jsx";
 import { ETAPAS_CRM } from "../lib/calc/inteligencia.js";
 import { Link } from "react-router-dom";
@@ -402,6 +405,7 @@ function LinhaOrcamento({ o, aberto, painel, mostrarVendedor, motivos, hoje, sal
         </div>
       </div>
 
+      <button className="chip-btn sem-impressao mt-2 mr-2" onClick={() => acoes.cliente360(o)}>Cliente 360</button>
       {o.qtdDoCliente > 1 && (
         <button className="chip-btn sem-impressao mt-2" onClick={() => acoes.verCliente(o)}>
           +{o.qtdDoCliente - 1} do mesmo cliente
@@ -415,7 +419,7 @@ function LinhaOrcamento({ o, aberto, painel, mostrarVendedor, motivos, hoje, sal
           .join(" · ")}
       </span>
 
-      {aberto && <><Ficha o={o} />{o.situacao === "aberto" && <label className="mt-3 block text-sm font-semibold">Etapa comercial
+      {aberto && <><Ficha o={o} />{o.crmCardId ? <p className="mt-3 text-sm font-semibold">CRM Mubisys: {acoes.crmCard(o.crmCardId)?.fase || "Oportunidade fora da última carga ativa"}<button className="btn-ghost ml-2" onClick={() => acoes.cliente360(o)}>Ver vínculo</button></p> : o.situacao === "aberto" && <label className="mt-3 block text-sm font-semibold">Etapa comercial
         <select className="input mt-1" aria-label={`Etapa comercial de ${o.numero}`} value={o.etapaCrm || "proposta"} disabled={salvando} onChange={e => acoes.etapa(o, e.target.value)}>{ETAPAS_CRM.map(e => <option key={e.id} value={e.id}>{e.nome}</option>)}</select>
       </label>}</>}
       {painel === "retorno" && (
@@ -619,11 +623,20 @@ function BarraDesfazer({ desfazer, aoDesfazer }) {
 export default function Orcamentos() {
   const {
     config, dados, overridesOrcamentos, setOverridesOrcamento,
-    pronto, erro, recarregar, frescorDe,
+    pronto, erro, recarregar, frescorDe, fontesNegadas, fontesQueFalharam,
   } = useApp();
 
   const meuVendedor = useMemo(() => canonVend(vendedorDaSessao()), []);
   const [aba, setAba] = useState("mesa");
+  const [cliente360, setCliente360] = useState(null);
+  const [crm, setCrm] = useState(null), [erroCrm, setErroCrm] = useState(""), [carregandoCrm, setCarregandoCrm] = useState(false), [revisaoCrm, setRevisaoCrm] = useState(0);
+  useEffect(() => {
+    let ativo = true; const ctl = new AbortController(); setCarregandoCrm(true); setErroCrm("");
+    getCrm(ctl.signal).then(r => { if (ativo) setCrm(r); }).catch(e => { if (ativo) setErroCrm(e.message); }).finally(() => { if (ativo) setCarregandoCrm(false); });
+    return () => { ativo = false; ctl.abort(); };
+  }, [revisaoCrm]);
+  function abrirCliente(o) { setCliente360(o); requestAnimationFrame(() => document.getElementById("cliente360-area")?.scrollIntoView({behavior:"smooth",block:"start"})); }
+
   const [vendedorEscopo, setVendedorEscopo] = useState(meuVendedor || "");
   const [etapaFiltro, setEtapaFiltro] = useState("");
   const [recorte, setRecorte] = useState("mesa");
@@ -759,7 +772,7 @@ export default function Orcamentos() {
               )
             : vm.mesa;
     const filtrada = base.filter((o) => {
-      if (etapaFiltro && (o.etapaCrm || "proposta") !== etapaFiltro) return false;
+      if (etapaFiltro && (o.crmCardId || (o.etapaCrm || "proposta") !== etapaFiltro)) return false;
       if (!q) return true;
       return norm(`${o.cliente} ${o.numero} ${o.trabalho || ""} ${o.contatoNome || ""} ${o.vendedorNome}`).includes(q);
     });
@@ -837,6 +850,8 @@ export default function Orcamentos() {
   }
 
   const acoes = {
+    crmCard: id => crm?.cards?.find(c => c.id === id),
+    cliente360: abrirCliente,
     etapa: (o, etapaCrm) => gravar([o.id], { etapaCrm }, "Etapa atualizada", { some: false }),
     abrir: (o) => setAberto((a) => (a === o.id ? null : o.id)),
     painel: (o, qual) =>
@@ -973,6 +988,7 @@ export default function Orcamentos() {
             { valor: "mesa", rotulo: `Na mesa (${numero(r.mesa.qtd)})` },
             { valor: "agenda", rotulo: `Agenda (${numero(vm.agenda.length)})` },
             { valor: "historico", rotulo: "Histórico" },
+            { valor: "crm", rotulo: "CRM Mubisys" },
           ]}
           valor={aba}
           onChange={(v) => {
@@ -987,7 +1003,7 @@ export default function Orcamentos() {
           }}
         />
 
-        {vm.vendedoresDaBase.length > 1 && (
+        {aba !== "crm" && vm.vendedoresDaBase.length > 1 && (
           <div className="-mx-1 flex items-center gap-1.5 overflow-x-auto px-1 pb-1 lg:flex-wrap lg:overflow-visible [&>*]:shrink-0">
             <button
               className={vendedorEscopo === "" ? "chip-sel" : "chip-btn"}
@@ -1024,6 +1040,9 @@ export default function Orcamentos() {
         </p>
       )}
 
+      <div id="cliente360-area" />
+      {cliente360 && <Cliente360 key={cliente360.clienteId || cliente360.id} alvo={cliente360} dados={{...dados, orcamentos: vm.lista}} hoje={hoje} indisponiveis={[...fontesNegadas,...fontesQueFalharam]} crm={crm} erroCrm={erroCrm} aoVincular={async (o, crmCardId) => { if(crmCardId && !crm?.cards?.some(c => c.id===crmCardId && c.clienteId===o.clienteId))throw new Error("Oportunidade não pertence a este cadastro."); await setOverridesOrcamento({[o.id]:{crmCardId:crmCardId||null}}); }} aoFechar={() => setCliente360(null)} aoOrcamento={o => { setCliente360(null); setAba(o.situacao === "aberto" ? "mesa" : "historico"); if(o.situacao!=="aberto")setSituacaoHist(o.situacao);setBusca(String(o.numero||o.cliente));setRecorte("mesa");setEtapaFiltro("");setAberto(o.id);setLimite(30); }} />}
+      {aba === "crm" && <FunilMubisys crm={crm} erro={erroCrm} carregando={carregandoCrm} aoAtualizar={() => setRevisaoCrm(n=>n+1)} aoCliente={abrirCliente} />}
       {aba === "mesa" && (
         <>
           <AceleradorVendas lista={vm.lista} hoje={hoje} aoEtapa={id => { setEtapaFiltro(id); setRecorte("mesa"); setBusca(""); setLimite(30); }} aoAbrir={g => {
@@ -1313,7 +1332,7 @@ export default function Orcamentos() {
         </Card>
       )}
 
-      <Placar
+      {aba !== "crm" && <Placar
         aberto={placarAberto}
         aoAlternar={() => setPlacarAberto((v) => !v)}
         vmP={vmPeriodo}
@@ -1339,7 +1358,7 @@ export default function Orcamentos() {
           setLimite(30);
           setPlacarAberto(false);
         }}
-      />
+      />}
 
       <BarraDesfazer desfazer={desfazer} aoDesfazer={aplicarDesfazer} />
     </div>

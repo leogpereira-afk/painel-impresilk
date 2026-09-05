@@ -10,7 +10,7 @@ const funil=await carregarFunil(busca);assert.equal(funil.cards.length,1);assert
 await assert.rejects(()=>carregarFunil(async(p,q)=>{if(p==='funil-vendas-card')throw new Error('falhou uma fase');return busca(p,q);}));
 let handler,revogado=false,falhaBanco=false;const rows={crm_clientes:{valor:{versao:1,completo:true,clientes:{'1':c}},atualizado_em:'2026-09-05'},crm_funil:{valor:funil,atualizado_em:'2026-09-05'}};
 function from(){let chave;const q=new Proxy({}, {get(_,k){if(k==='then')return(ok,no)=>Promise.resolve({data:rows[chave]||null,error:falhaBanco?{message:'erro'}:null}).then(ok,no);return(...args)=>{if(k==='eq'&&args[0]==='chave')chave=args[1];return q;};}});return q;}
-globalThis.__crmDb={from};globalThis.__crmRevogado=()=>revogado;
+globalThis.__crmDb={from,rpc:async(_,{p_id})=>({data:rows.crm_clientes?{completo:rows.crm_clientes.valor.completo,cliente:rows.crm_clientes.valor.clientes[p_id]||null,atualizadoEm:rows.crm_clientes.atualizado_em}:null,error:falhaBanco?{message:'erro'}:null})};globalThis.__crmRevogado=()=>revogado;
 globalThis.Deno={env:{get:k=>k==='PAINEL_GH_ACTIONS_TOKEN'?'':'teste'},serve:fn=>handler=fn};
 let src=await readFile('supabase/functions/painel-dados/index.ts','utf8');src=src.replace(/import \{ createClient \} from [^;]+;/,'const createClient=()=>globalThis.__crmDb;').replace(/import \{ verificarJwt, crachaRevogado \} from [^;]+;/,`const verificarJwt=async t=>t==='vendas'?{perms:['orcamentos']}:t==='outro'?{perms:['patrimonio']}:null;const crachaRevogado=async()=>globalThis.__crmRevogado();`);
 await import('data:text/javascript;base64,'+Buffer.from((await transform(src,{loader:'ts',format:'esm',target:'es2022'})).code).toString('base64'));
