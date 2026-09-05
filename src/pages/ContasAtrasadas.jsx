@@ -28,7 +28,9 @@ import {
   carteiraDeCobranca, resumoDaCarteira, chaveCliente as chaveCob, SITUACOES, CANAIS,
   ordenarCarteira, filtrarCarteira, ORDENS,
 } from "../lib/calc/cobrancas.js";
-import { lerCobrancas, salvarChamado } from "../services/cobrancas.js";
+import { VisaoMensalCobranca } from "../components/InteligenciaComercial.jsx";
+import { sugestaoCobranca } from "../lib/calc/inteligencia.js";
+import { lerCobrancas, salvarChamado, salvarPrioridade } from "../services/cobrancas.js";
 import { Secao } from "../components/trocas.jsx";
 import { moedaCheia, moeda, numero, dataLonga, dataCurta, rotuloMes, ymdLocal, MESES } from "../lib/format.js";
 import { Selo, Avatar, Dinheiro, FaixaNumeros, LinhaLista } from "../components/lista.jsx";
@@ -54,7 +56,7 @@ import {
  * cabeça de quem ligou e vira registro, com quem falou e quando carimbados
  * pelo servidor.
  */
-function CartaoCobranca({ c, aberto, aoAbrir, aoRegistrar, aoApagar, salvando, erro }) {
+function CartaoCobranca({ c, aberto, aoAbrir, aoRegistrar, aoApagar, aoPriorizar, salvando, erro }) {
   const alerta = c.promessaVencida ? "bad" : c.semChamado ? "warn" : null;
   return (
     <div
@@ -79,7 +81,7 @@ function CartaoCobranca({ c, aberto, aoAbrir, aoRegistrar, aoApagar, salvando, e
 
         <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px]">
           {c.promessaVencida && (
-            <Selo tom="bad">prometeu {dataCurta(c.ultimo.promessa)} e não pagou</Selo>
+            <Selo tom="bad">prometeu {dataCurta(c.desfecho?.promessa)} · conferir pagamento</Selo>
           )}
           {c.semChamado && <Selo tom="warn">nunca chamado</Selo>}
           {!c.semChamado && !c.promessaVencida && c.situacaoRotulo && (
@@ -97,7 +99,12 @@ function CartaoCobranca({ c, aberto, aoAbrir, aoRegistrar, aoApagar, salvando, e
           <div className="mt-1.5 line-clamp-2 text-xs text-slate-600">“{c.ultimo.resumo}”</div>
         )}
       </button>
-
+      <label className="intel-prioridade text-sm font-semibold">Prioridade de cobrança
+        <select className="input" aria-label={`Prioridade de cobrança de ${c.cliente}`} value={c.prioridade} disabled={salvando} onChange={e => aoPriorizar(c, e.target.value)}>
+          <option value="alta">Alta</option><option value="normal">Normal</option><option value="baixa">Baixa</option>
+        </select>
+      </label>
+      <p className="intel-acao"><strong>Próximo passo: </strong>{sugestaoCobranca(c, ymdLocal(new Date()))}</p>
       {aberto && (
         <div className="mt-3 space-y-3 border-t border-slate-200 pt-3">
           {/* OS TÍTULOS EM ABERTO. Sem eles a ligação é cega: o cliente
@@ -302,6 +309,7 @@ export default function ContasAtrasadas() {
   const [cobrancas, setCobrancas] = useState(null);
   const [clienteAberto, setClienteAberto] = useState(null);
   const [buscaCob, setBuscaCob] = useState("");
+  const [prioridadeFiltro, setPrioridadeFiltro] = useState("");
   const [ordemCob, setOrdemCob] = useState("acao");
   const [deCob, setDeCob] = useState("");
   const [ateCob, setAteCob] = useState("");
@@ -482,8 +490,8 @@ export default function ContasAtrasadas() {
      data RECONTA valor e atraso de cada cartão -- ordenar antes poria a lista
      em ordem de números que o recorte vai mudar. */
   const carteiraVista = useMemo(
-    () => ordenarCarteira(filtrarCarteira(carteira, { termo: buscaCob, de: deCob, ate: ateCob }), ordemCob),
-    [carteira, buscaCob, deCob, ateCob, ordemCob],
+    () => ordenarCarteira(filtrarCarteira(carteira, { termo: buscaCob, de: deCob, ate: ateCob }).filter(c => !prioridadeFiltro || c.prioridade === prioridadeFiltro), ordemCob),
+    [carteira, buscaCob, deCob, ateCob, ordemCob, prioridadeFiltro],
   );
   /* Os números do topo seguem o RECORTE, não a carteira inteira: um resumo que
      ignora o filtro faz a soma da tela não fechar com a lista embaixo dela. */
@@ -522,6 +530,14 @@ export default function ContasAtrasadas() {
       setAvisoCob(`Marquei como cobrado, mas não consegui anotar no diário de cobrança: ${e.message}`);
     }
   }, [setOverrideRecebivel]);
+
+  const priorizarCliente = async (c, prioridade) => {
+    if (salvandoChamado) return;
+    setSalvandoChamado(true); setAvisoCob(null);
+    try { setCobrancas(await salvarPrioridade(c.chave, { cliente: c.cliente, prioridade })); }
+    catch (e) { setAvisoCob(`A prioridade não foi salva. ${e.message}`); }
+    finally { setSalvandoChamado(false); }
+  };
 
   const registrarChamado = useCallback(async (c, form, limpar) => {
     setAvisoCob(null);
@@ -664,6 +680,10 @@ export default function ContasAtrasadas() {
         />
       </div>
 
+      {aba === "lista" && <VisaoMensalCobranca titulos={vm.titulos} aoMes={m => {
+        setAnoSel(m.slice(0,4)); setMesSel(m.slice(5,7)); setVenceDe(""); setVenceAte(""); setVendedorSel(""); setBusca(""); setFaixaSel(null); setFiltro("todos");
+        requestAnimationFrame(() => titulosRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
+      }} />}
       {aba === "lista" && (
         <div className="sem-impressao">
           <FaixaNumeros
@@ -1309,12 +1329,12 @@ export default function ContasAtrasadas() {
               fechava, sem saber que a diferença tinha nome. */}
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <Card className="p-4">
-              <div className="text-xs text-slate-500">Prometeram e não pagaram</div>
+              <div className="text-xs text-slate-500">Promessas vencidas</div>
               <div className={`mt-1 text-2xl font-semibold tabular-nums ${resumoCob.quebradas ? "text-bad-700" : "text-slate-800"}`}>
                 {moeda(resumoCob.valorQuebrado)}
               </div>
               <div className="mt-0.5 text-xs text-slate-500">
-                {numero(resumoCob.quebradas)} {resumoCob.quebradas === 1 ? "cliente" : "clientes"} · ligue hoje
+                {numero(resumoCob.quebradas)} {resumoCob.quebradas === 1 ? "cliente" : "clientes"} · conferir e retomar
               </div>
             </Card>
             <Card className="p-4">
@@ -1376,11 +1396,12 @@ export default function ContasAtrasadas() {
                 {ORDENS.map((o) => <option key={o.id} value={o.id}>{o.rotulo}</option>)}
               </select>
             </div>
-            {(buscaCob || deCob || ateCob || ordemCob !== "acao") && (
+            <div><label htmlFor="cob-prioridade" className="mb-1 block text-xs text-slate-500">Prioridade</label><select id="cob-prioridade" className="input" value={prioridadeFiltro} onChange={e => setPrioridadeFiltro(e.target.value)}><option value="">Todas</option><option value="alta">Alta</option><option value="normal">Normal</option><option value="baixa">Baixa</option></select></div>
+            {(buscaCob || deCob || ateCob || prioridadeFiltro || ordemCob !== "acao") && (
               <button
                 type="button"
                 className="btn-ghost"
-                onClick={() => { setBuscaCob(""); setDeCob(""); setAteCob(""); setOrdemCob("acao"); }}
+                onClick={() => { setBuscaCob(""); setDeCob(""); setAteCob(""); setOrdemCob("acao"); setPrioridadeFiltro(""); }}
               >
                 Limpar
               </button>
@@ -1398,7 +1419,7 @@ export default function ContasAtrasadas() {
           </Card>
 
           {cobrancas === null ? (
-            <Empty>Carregando o histórico de cobrança…</Empty>
+            <Empty>{avisoCob ? "Não foi possível ler o histórico. Recarregue a página para tentar novamente." : "Carregando o histórico de cobrança…"}</Empty>
           ) : carteiraVista.length ? (
             <div className="grid gap-3 sm:grid-cols-2">
               {carteiraVista.map((c) => (
@@ -1407,6 +1428,7 @@ export default function ContasAtrasadas() {
                   c={c}
                   aberto={clienteAberto === c.chave}
                   aoAbrir={setClienteAberto}
+                  aoPriorizar={priorizarCliente}
                   aoRegistrar={registrarChamado}
                   aoApagar={apagarChamado}
                   salvando={salvandoChamado}

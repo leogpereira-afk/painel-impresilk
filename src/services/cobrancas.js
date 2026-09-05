@@ -40,3 +40,6 @@ export const salvarChamado = (clienteChave, { cliente, chamadoId, chamado }) =>
     chave: "cobrancas",
     patch: { [clienteChave]: { cliente, chamadoId, chamado: chamado ?? null } },
   }).then((r) => r.valor || {});
+
+export const salvarPrioridade = (clienteChave, { cliente, prioridade }) =>
+  chamar("merge", { chave: "cobrancas", patch: { [clienteChave]: { cliente, prioridade } } }).then(r => r.valor || {});

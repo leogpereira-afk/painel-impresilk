@@ -401,6 +401,14 @@ Deno.serve(async (req: Request) => {
           const quemNome = String(sessao?.nome || quem);
           for (const [id, campos] of Object.entries(patch)) {
             const c = (campos ?? {}) as Record<string, unknown>;
+            if (Object.prototype.hasOwnProperty.call(c, "prioridade")) {
+              if (!["alta", "normal", "baixa"].includes(String(c.prioridade)) || "chamadoId" in c || "chamado" in c) {
+                return resposta({ erro: "Informe uma prioridade válida separadamente do chamado." }, 400);
+              }
+              const { error } = await sb.rpc("cobranca_priorizar", { p_id: id, p_cliente: String(c.cliente ?? id), p_prioridade: c.prioridade, p_quem: quem });
+              if (error) throw new Error(error.message);
+              continue;
+            }
             const { error } = await sb.rpc("cobranca_mexer", {
               p_id: id,
               p_quem: quem,

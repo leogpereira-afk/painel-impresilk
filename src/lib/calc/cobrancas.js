@@ -102,6 +102,8 @@ export function carteiraDeCobranca(titulos, cobrancas, hoje) {
     return {
       ...c,
       valor: Math.round(c.valor * 100) / 100,
+      prioridade: ["alta", "baixa"].includes(reg?.prioridade) ? reg.prioridade : "normal",
+      desfecho: comDesfecho,
       chamados,
       ultimo,
       situacaoRotulo: sit?.rotulo || null,
@@ -126,6 +128,7 @@ export function carteiraDeCobranca(titulos, cobrancas, hoje) {
    o valor; numa faxina de carteira vale o número de títulos; para achar quem
    está esquecido vale o tempo sem contato. */
 export const ORDENS = [
+  { id: "prioridade", rotulo: "Prioridade definida" },
   { id: "acao", rotulo: "O que fazer agora" },
   { id: "valor", rotulo: "Maior valor" },
   { id: "titulos", rotulo: "Mais títulos" },
@@ -142,6 +145,7 @@ export function ordenarCarteira(cartoes, ordem) {
      inverteria os dois. */
   const semContatoNoFim = (x) => (x.diasSemContato === null ? Number.POSITIVE_INFINITY : x.diasSemContato);
   switch (ordem) {
+    case "prioridade": return ordenarCarteira(c, "acao").sort((a, b) => ({alta:0,normal:1,baixa:2}[a.prioridade || "normal"]) - ({alta:0,normal:1,baixa:2}[b.prioridade || "normal"]));
     case "valor":     return c.sort((a, b) => b.valor - a.valor);
     case "titulos":   return c.sort((a, b) => b.qtd - a.qtd || b.valor - a.valor);
     case "atraso":    return c.sort((a, b) => b.maiorAtraso - a.maiorAtraso || b.valor - a.valor);
@@ -221,7 +225,7 @@ export function resumoDaCarteira(cartoes) {
     r.total += c.valor;
     if (c.promessaVencida) { r.quebradas += 1; r.valorQuebrado += c.valor; }
     else if (c.semChamado) { r.semChamado += 1; r.valorSemChamado += c.valor; }
-    else if (c.ultimo?.situacao === "prometeu" && c.ultimo.promessa) {
+    else if ((c.desfecho || c.ultimo)?.situacao === "prometeu" && (c.desfecho || c.ultimo).promessa) {
       r.aguardando += 1; r.valorAguardando += c.valor;
     } else { r.emConversa += 1; r.valorEmConversa += c.valor; }
   }

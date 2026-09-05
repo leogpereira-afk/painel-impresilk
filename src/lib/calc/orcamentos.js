@@ -199,6 +199,7 @@ export function calcOrcamentos(orcamentos, overrides, config, opcoes = {}) {
         vencido,
         proximoToque,
         nota: ov.nota || "",
+      etapaCrm: ["proposta", "negociacao", "decisao"].includes(ov.etapaCrm) ? ov.etapaCrm : "proposta",
         chamadoEm,
         compromissoId: ov.compromissoId || null,
         adiado: !!proximoToque && proximoToque > hojeISO,

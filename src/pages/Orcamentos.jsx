@@ -22,6 +22,8 @@
 // com seletor de período — na mesa, um filtro de relatório não manda.
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { AceleradorVendas } from "../components/InteligenciaComercial.jsx";
+import { ETAPAS_CRM } from "../lib/calc/inteligencia.js";
 import { Link } from "react-router-dom";
 import {
   MessageCircle,
@@ -413,7 +415,9 @@ function LinhaOrcamento({ o, aberto, painel, mostrarVendedor, motivos, hoje, sal
           .join(" · ")}
       </span>
 
-      {aberto && <Ficha o={o} />}
+      {aberto && <><Ficha o={o} />{o.situacao === "aberto" && <label className="mt-3 block text-sm font-semibold">Etapa comercial
+        <select className="input mt-1" aria-label={`Etapa comercial de ${o.numero}`} value={o.etapaCrm || "proposta"} disabled={salvando} onChange={e => acoes.etapa(o, e.target.value)}>{ETAPAS_CRM.map(e => <option key={e.id} value={e.id}>{e.nome}</option>)}</select>
+      </label>}</>}
       {painel === "retorno" && (
         <PainelRetorno o={o} hoje={hoje} salvando={salvando} acoes={acoes} aoFechar={() => acoes.painel(o, null)} />
       )}
@@ -621,6 +625,7 @@ export default function Orcamentos() {
   const meuVendedor = useMemo(() => canonVend(vendedorDaSessao()), []);
   const [aba, setAba] = useState("mesa");
   const [vendedorEscopo, setVendedorEscopo] = useState(meuVendedor || "");
+  const [etapaFiltro, setEtapaFiltro] = useState("");
   const [recorte, setRecorte] = useState("mesa");
   const [ordem, setOrdem] = useState("valor");
   const [busca, setBusca] = useState("");
@@ -754,6 +759,7 @@ export default function Orcamentos() {
               )
             : vm.mesa;
     const filtrada = base.filter((o) => {
+      if (etapaFiltro && (o.etapaCrm || "proposta") !== etapaFiltro) return false;
       if (!q) return true;
       return norm(`${o.cliente} ${o.numero} ${o.trabalho || ""} ${o.contatoNome || ""} ${o.vendedorNome}`).includes(q);
     });
@@ -774,7 +780,7 @@ export default function Orcamentos() {
       })(),
       saindo: saindo.includes(o.id),
     }));
-  }, [vm, recorte, busca, ordem, porCliente, saindo]);
+  }, [vm, recorte, busca, ordem, porCliente, saindo, etapaFiltro]);
 
   const historico = useMemo(() => {
     if (!vm) return [];
@@ -804,7 +810,7 @@ export default function Orcamentos() {
   /* Uma gravação = UM pedido. O patch inverso é montado ANTES, lendo o override
      que está no store agora; campo que não existia volta como `null` explícito
      (undefined não apaga nada no merge do servidor). */
-  function gravar(ids, campos, rotulo, { some = true } = {}) {
+  async function gravar(ids, campos, rotulo, { some = true } = {}) {
     if (!ids.length) return;
     const inverso = Object.fromEntries(
       ids.map((id) => {
@@ -814,24 +820,24 @@ export default function Orcamentos() {
     );
     setSalvando(true);
     setAviso(null);
-    Promise.resolve(setOverridesOrcamento(Object.fromEntries(ids.map((id) => [id, campos]))))
-      .catch((e) => setAviso({ tom: "erro", texto: e?.message || "Não consegui gravar." }))
-      .finally(() => setSalvando(false));
-    setDesfazer({ rotulo, patch: inverso });
-    if (some) setSaindo((s) => [...new Set([...s, ...ids])]);
+    try {
+      await setOverridesOrcamento(Object.fromEntries(ids.map((id) => [id, campos])));
+      setDesfazer({ rotulo, patch: inverso });
+      if (some) setSaindo((s) => [...new Set([...s, ...ids])]);
+    } catch (e) { setAviso({ tom: "erro", texto: e?.message || "Não consegui gravar." }); }
+    finally { setSalvando(false); }
   }
 
-  function aplicarDesfazer() {
+  async function aplicarDesfazer() {
     if (!desfazer) return;
     setSalvando(true);
-    Promise.resolve(setOverridesOrcamento(desfazer.patch))
-      .catch((e) => setAviso({ tom: "erro", texto: e?.message || "Não consegui desfazer." }))
-      .finally(() => setSalvando(false));
-    setDesfazer(null);
-    setSaindo([]);
+    try { await setOverridesOrcamento(desfazer.patch); setDesfazer(null); setSaindo([]); }
+    catch (e) { setAviso({ tom: "erro", texto: e?.message || "Não consegui desfazer." }); }
+    finally { setSalvando(false); }
   }
 
   const acoes = {
+    etapa: (o, etapaCrm) => gravar([o.id], { etapaCrm }, "Etapa atualizada", { some: false }),
     abrir: (o) => setAberto((a) => (a === o.id ? null : o.id)),
     painel: (o, qual) =>
       setPainel((p) => (p.id === o.id && p.qual === qual ? { id: null, qual: null } : { id: o.id, qual })),
@@ -1020,6 +1026,13 @@ export default function Orcamentos() {
 
       {aba === "mesa" && (
         <>
+          <AceleradorVendas lista={vm.lista} hoje={hoje} aoEtapa={id => { setEtapaFiltro(id); setRecorte("mesa"); setBusca(""); setLimite(30); }} aoAbrir={g => {
+            const o = g.principal;
+            setEtapaFiltro(""); setRecorte(o.recall ? "recall" : "mesa"); setBusca(String(o.numero || o.cliente)); setLimite(30); setAberto(o.id); setPainel({ id: o.id, qual: "retorno" });
+            requestAnimationFrame(() => document.getElementById("mesa-comercial")?.scrollIntoView({ behavior: "smooth", block: "start" }));
+          }} />
+          {etapaFiltro && <button className="chip-btn" onClick={() => setEtapaFiltro("")}>Etapa: {ETAPAS_CRM.find(e => e.id === etapaFiltro)?.nome} · Limpar filtro ×</button>}
+          <div id="mesa-comercial" />
           <div className="sem-impressao">
             <FaixaNumeros
               r={r}

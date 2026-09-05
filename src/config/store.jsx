@@ -271,7 +271,9 @@ export function AppProvider({ children }) {
   }, [aoFalhar]);
   // Varios orcamentos numa tacada (ex: agendar o retorno de um cliente que tem
   // quatro orcamentos abertos). Um pedido so -- ver marcacoes.js para o porque.
-  const setOverridesOrcamento = useCallback((patch) => {
+  const setOverridesOrcamento = useCallback(async (patch) => {
+    // Só exibe o novo estado depois da confirmação; a página trata o erro.
+    await marcacoes.mesclarOverridesOrcamento(patch);
     setOvOrc((prev) => {
       const novo = { ...(prev || {}) };
       for (const [id, campos] of Object.entries(patch)) {
@@ -279,10 +281,7 @@ export function AppProvider({ children }) {
       }
       return novo;
     });
-    return marcacoes
-      .mesclarOverridesOrcamento(patch)
-      .catch(aoFalhar("ov_orc"));
-  }, [aoFalhar]);
+  }, []);
 
   const valor = useMemo(
     () => ({
