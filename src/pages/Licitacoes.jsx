@@ -4,6 +4,7 @@
 //
 // Mesma infra dos Documentos (painel-ativos, tipo "licitacao"): item + arquivo.
 
+import { FormPreparacao, CHECKLIST_EDITAL, pendenciasEdital } from "../components/PreparacaoLicitacao.jsx";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Gavel,
@@ -66,6 +67,8 @@ const VAZIA = {
   valor: "",
   status: "avaliar",
   observacao: "",
+  responsavel: "",
+  acompanhamento: {checklist: CHECKLIST_EDITAL.map((texto,i)=>({id:`base-${i}`,texto,feito:false}))},
 };
 
 // Quanto falta para a sessao, em palavras -- e a informacao mais importante da tela.
@@ -91,6 +94,8 @@ function Linha({ it, baixarEdital, editar, remover }) {
     >
       <span className="min-w-0 flex-1 basis-52">
         <span className="block truncate font-display text-sm font-semibold text-slate-900">{it.nome}</span>
+        <span className="block text-xs text-slate-600">{it.responsavel || "Sem responsável"} · {it.acompanhamento?.checklist?.length ? `${pendenciasEdital(it)} pendências` : "Checklist não definido"}</span>
+        {it.acompanhamento?.proximaAcao && <span className="block text-sm mt-1">{it.acompanhamento.proximaAcao}{it.acompanhamento.prazoAcao ? ` · até ${dataCurta(it.acompanhamento.prazoAcao)}` : " · sem prazo"}</span>}
         <span className="block truncate text-xs text-slate-500">
           {[it.identificacao, it.categoria, it.edital && `edital ${it.edital}`].filter(Boolean).join(" · ") || "—"}
         </span>
@@ -224,6 +229,8 @@ export default function Licitacoes() {
       valor: paraCampo(it.valor),
       status: it.status || "avaliar",
       observacao: it.observacao || "",
+      responsavel: it.responsavel || "",
+      acompanhamento: {...(it.acompanhamento || VAZIA.acompanhamento), valorContratado: paraCampo(it.acompanhamento?.valorContratado || 0)},
     });
     // Arquivo escolhido e nao enviado ficava no input e grudava no PROXIMO item
     // editado -- trocando o edital de quem nao pediu.
@@ -260,6 +267,8 @@ export default function Licitacoes() {
           valor: paraNumero(form.valor),
           status: form.status,
           observacao: form.observacao.trim(),
+          responsavel: form.responsavel.trim(),
+          acompanhamento: {...form.acompanhamento,valorContratado:paraNumero(form.acompanhamento?.valorContratado || 0)},
           // Com arquivo novo, ele manda; sem, uma edicao reenvia o anexo que o
           // item ja tinha (o servidor regrava o registro inteiro).
           ...(file
@@ -366,6 +375,10 @@ export default function Licitacoes() {
         <StatCard rotulo="Ganhas" valor={String(vm.ganhas)} sub="histórico de vitorias" tom={vm.ganhas ? "ok" : "neutral"} icone={Trophy} />
       </div>
 
+      <Card><SectionTitle titulo="Preparar as próximas participações" sub="Responsáveis, documentos e decisões antes da sessão."/>
+        <div className="grid gap-3 sm:grid-cols-3"><div className="rounded-xl bg-slate-50 p-4 dark:bg-slate-800"><b className="text-2xl">{vm.naMesa.filter(i=>!i.responsavel).length}</b><p className="text-sm">Sem responsável</p></div><div className="rounded-xl bg-slate-50 p-4 dark:bg-slate-800"><b className="text-2xl">{vm.naMesa.filter(i=>!i.acompanhamento?.checklist?.length || pendenciasEdital(i)>0).length}</b><p className="text-sm">Preparação pendente</p></div><div className="rounded-xl bg-slate-50 p-4 dark:bg-slate-800"><b className="text-2xl">{vm.naMesa.filter(i=>i.acompanhamento?.prazoAcao && i.acompanhamento.prazoAcao<hojeISO).length}</b><p className="text-sm">Próxima ação atrasada</p></div></div>
+        <div className="mt-4 space-y-2">{vm.naMesa.slice(0,5).map(it=><div key={it.id} className="flex items-center justify-between gap-3 border-t py-3"><div><b>{it.nome}</b><p className="text-sm text-slate-500">{!it.responsavel?'Definir responsável':it.acompanhamento?.proximaAcao || 'Definir próximo passo'} · {it.pz.texto}</p></div><button className="btn-outline" onClick={()=>editar(it)}>Preparar</button></div>)}</div>
+      </Card>
       {aviso && (
         <p
           className={`rounded-lg px-3 py-2 text-sm ${
@@ -511,6 +524,7 @@ export default function Licitacoes() {
                 onChange={(e) => setForm((f) => ({ ...f, observacao: e.target.value }))}
               />
             </div>
+            <FormPreparacao form={form} setForm={setForm}/>
             <div className="sm:col-span-2">
               <label className="label" htmlFor="l-arq">Edital (PDF até 3 MB)</label>
               <input
@@ -538,6 +552,7 @@ export default function Licitacoes() {
 
       {vm.encerradas.length > 0 && (
         <Card>
+          <div className="rounded-xl bg-slate-50 p-4 mb-5 dark:bg-slate-800"><h2 className="font-semibold">Resultado das participações encerradas</h2><p className="text-sm mt-2">{vm.encerradas.filter(i=>i.status==="ganha").length} ganhas · {vm.encerradas.filter(i=>i.status==="perdida").length} perdidas · {vm.encerradas.filter(i=>i.status==="fora").length} sem participação</p><p className="font-semibold mt-2">{moedaCheia(vm.encerradas.filter(i=>i.status==="ganha").reduce((v,i)=>v+(Number(i.acompanhamento?.valorContratado)||0),0))} em contratos informados</p><p className="text-xs text-slate-500 mt-1">Soma dos valores contratados preenchidos em licitações ganhas. O valor estimado do edital permanece separado.</p></div>
           <SectionTitle titulo="Encerradas" sub="Ganhas, perdidas e as que ficaram de fora." />
           <div className="space-y-2.5">
             {vm.encerradas.map((it) => (

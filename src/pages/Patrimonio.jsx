@@ -14,6 +14,7 @@
 // O CODIGO DA ETIQUETA e gerado pelo servidor e nunca muda -- nem quando o bem
 // troca de setor, porque o adesivo ja esta colado nele.
 
+import FotosPatrimonio from "../components/FotosPatrimonio.jsx";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Tag,
@@ -317,6 +318,7 @@ export default function Patrimonio() {
      descrição de outro bem). Igualdade exata, e o clique limpa os outros
      cortes, para os dois números serem sempre o mesmo. */
   const [tipoFiltro, setTipoFiltro] = useState(null);
+  const [fotoBem, setFotoBem] = useState(null);
   const [formBem, setFormBem] = useState(null);
   const [formSetor, setFormSetor] = useState(null);
   const [salvando, setSalvando] = useState(false);
@@ -375,6 +377,7 @@ export default function Patrimonio() {
     setTimeout(() => topoForm.current?.scrollIntoView({ behavior: "smooth", block: "center" }), 60);
 
   const abrirBem = (b = null) => {
+    setFotoBem(null);
     setFormSetor(null);
     setFormBem(
       b
@@ -385,6 +388,7 @@ export default function Patrimonio() {
   };
 
   const abrirSetor = (s = null) => {
+    setFotoBem(null);
     setFormBem(null);
     setFormSetor(s ? { ...SETOR_VAZIO, ...s } : { ...SETOR_VAZIO });
     rolar();
@@ -411,6 +415,7 @@ export default function Patrimonio() {
       };
       const novo = await salvarBem(id, dados);
       setBens(novo);
+      if (!f.id) setFotoBem({...novo[id],id});
       setFormBem(null);
       setMsg({
         tom: "ok",
@@ -564,15 +569,16 @@ export default function Patrimonio() {
       )}
 
       <div ref={topoForm}>
+        {fotoBem&&<FotosPatrimonio key={fotoBem.id} bemId={fotoBem.id} nome={fotoBem.nomeGenerico} aoFechar={()=>setFotoBem(null)}/>}
         {formBem && (
-          <FormBem
+          <><FormBem
             key={formBem.id || "novo"}
             inicial={formBem}
             setores={vm.setores}
             salvando={salvando}
             aoSalvar={gravarBem}
             aoFechar={() => setFormBem(null)}
-          />
+          />{formBem.id ? <FotosPatrimonio key={formBem.id} bemId={formBem.id} nome={formBem.nomeGenerico}/> : <p className="text-sm mt-3 text-slate-600">Salve o equipamento para adicionar as fotos.</p>}</>
         )}
         {formSetor && (
           <FormSetor
@@ -794,7 +800,7 @@ export default function Patrimonio() {
                         </span>
                       </td>
                       <td className="td">
-                        <span className="block text-slate-900">{b.nomeGenerico}</span>
+                        <span className="block text-slate-900">{b.nomeGenerico}</span><button type="button" className="btn-ghost text-sm" onClick={()=>{setFormBem(null);setFormSetor(null);setFotoBem(b);rolar();}}>Fotos do equipamento</button>
                         <span className="block text-xs text-slate-500">
                           {b.descricaoTecnica || "sem descrição técnica"}
                         </span>

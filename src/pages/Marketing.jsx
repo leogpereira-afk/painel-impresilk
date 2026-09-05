@@ -5,6 +5,7 @@
 // Reusa a infra dos Documentos (painel-ativos) com tipo "marketing": item +
 // arquivo. Os atalhos do Drive vivem no painel-config (chave "marketing").
 
+import PlanejamentoMarketing from "../components/PlanejamentoMarketing.jsx";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   Upload,
@@ -72,6 +73,9 @@ async function miniaturaDe(file) {
 export default function Marketing() {
   const [itens, setItens] = useState(null);
   const [atalhos, setAtalhos] = useState(null);
+  const [materialForm, setMaterialForm] = useState(null);
+  const [gravandoMaterial, setGravandoMaterial] = useState(false);
+  const [buscaMaterial, setBuscaMaterial] = useState("");
   const [erro, setErro] = useState(null);
   const [aviso, setAviso] = useState(null);
 
@@ -113,7 +117,7 @@ export default function Marketing() {
           const blob = await (await fetch(dataUrl)).blob();
           const mini = await miniaturaDe(new File([blob], it.arquivoNome, { type: blob.type }));
           if (!vivo || !mini) continue;
-          const salvo = await salvarAtivo({ ...it, miniatura: mini });
+          const salvo = await salvarAtivo({id:it.id,tipo:it.tipo,nome:it.nome,miniatura:mini});
           if (!vivo) return;
           setItens((l) => (l || []).map((x) => (x.id === it.id ? { ...x, miniatura: salvo?.miniatura || mini } : x)));
         } catch {
@@ -253,6 +257,7 @@ export default function Marketing() {
   if (itens === null || atalhos === null) return <CarregandoModulo />;
 
   const listaAtalhos = Object.entries(atalhos)
+    .filter(([,a]) => a.tipo !== "acao")
     .map(([id, a]) => ({ id, ...a }))
     .sort((a, b) => String(a.nome).localeCompare(String(b.nome), "pt-BR"));
 
@@ -263,6 +268,13 @@ export default function Marketing() {
         descricao="Encontre logomarcas, materiais aprovados e atalhos da marca em um só lugar."
       />
 
+      <PlanejamentoMarketing mapa={atalhos} aoAtualizar={setAtalhos}/>
+      {materialForm&&<Card><SectionTitle titulo={`Organizar material · ${materialForm.nome}`}/><form className="space-y-4" onSubmit={async e=>{e.preventDefault();setGravandoMaterial(true);setAviso(null);try{const salvo=await salvarAtivo(materialForm);setItens(l=>l.map(i=>i.id===salvo.id?salvo:i));setMaterialForm(null);}catch(e){setAviso({tom:"erro",texto:e.message});}finally{setGravandoMaterial(false);}}}><div className="grid gap-4 sm:grid-cols-2">
+      <label className="label">Categoria<input className="input" placeholder="Ex.: Fachadas, Apresentações, Identidade visual" value={materialForm.categoria||""} onChange={e=>setMaterialForm(f=>({...f,categoria:e.target.value}))}/></label>
+      <label className="label">Situação<select className="input" value={materialForm.status||"rascunho"} onChange={e=>setMaterialForm(f=>({...f,status:e.target.value}))}><option value="rascunho">A revisar</option><option value="aprovado">Aprovado para uso</option><option value="arquivado">Arquivado / versão antiga</option></select></label>
+      <label className="label">Responsável pela revisão<input className="input" value={materialForm.responsavel||""} onChange={e=>setMaterialForm(f=>({...f,responsavel:e.target.value}))}/></label>
+      <label className="label">Próxima revisão<input className="input" type="date" value={materialForm.validade||""} onChange={e=>setMaterialForm(f=>({...f,validade:e.target.value}))}/></label>
+      </div><button className="btn-primary" disabled={gravandoMaterial}>Salvar organização</button> <button type="button" className="btn-ghost" disabled={gravandoMaterial} onClick={()=>setMaterialForm(null)}>Cancelar</button></form></Card>}
       {aviso && (
         <p
           className={`rounded-lg px-3 py-2 text-sm ${
@@ -281,11 +293,12 @@ export default function Marketing() {
             sub="Até 3 MB por arquivo - logos, papel timbrado, assinaturas de e-mail."
           />
 
+          <label className="label mb-4">Buscar material<input type="search" className="input" value={buscaMaterial} onChange={e=>setBuscaMaterial(e.target.value)} placeholder="Nome, arquivo ou categoria"/></label>
           {itens.length === 0 ? (
             <Empty>Nada guardado ainda. Suba a primeira logomarca abaixo.</Empty>
           ) : (
             <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-              {itens.map((it) => (
+              {itens.filter(it=>`${it.nome} ${it.arquivoNome} ${it.categoria || ""}`.toLocaleLowerCase("pt-BR").includes(buscaMaterial.toLocaleLowerCase("pt-BR"))).map((it) => (
                 <div
                   key={it.id}
                   className="overflow-hidden rounded-xl border"
@@ -300,6 +313,8 @@ export default function Marketing() {
                       <FileText size={26} className="text-slate-300" />
                     )}
                   </div>
+                  <div className="px-3 pt-3 text-xs text-slate-600">{it.categoria||"Sem categoria"} · {it.status==="aprovado"?"Aprovado para uso":it.status==="arquivado"?"Versão antiga":"Revisão pendente"}</div>
+                  <button className="btn-ghost mx-2" onClick={()=>setMaterialForm({...it})}>Organizar material</button>
                   <div className="flex items-center gap-1.5 p-2.5">
                     <span className="min-w-0 flex-1">
                       <span className="block truncate font-display text-sm font-medium text-slate-800">

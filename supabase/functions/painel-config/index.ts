@@ -815,6 +815,11 @@ Deno.serve(async (req: Request) => {
         if (!OVERLAYS.has(chave)) return resposta({ erro: "chave nao gravavel" }, 403);
         const barrado = barraChave(chave);
         if (barrado) return barrado;
+        if (chave === "patrimonio") {
+          const { data: fotos, error } = await sb.from("painel_registros").select("id").eq("colecao", "patrimonio_foto").eq("registro->>bemId", id).limit(1);
+          if (error) throw new Error(error.message);
+          if (fotos?.length) return resposta({ erro: "Este equipamento tem fotos. Para preservar o histórico, marque como Baixado; para apagar, remova as fotos primeiro." }, 409);
+        }
         {
           const barrado2 = barraApagar(chave);
           if (barrado2) return barrado2;

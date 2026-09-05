@@ -2,7 +2,7 @@
 const configs = {
  compromissos:{ex1:{titulo:'Conferir prioridades da semana',tipo:'visita',data:'2026-09-08',hora:'09:00',dono:'demo',donoNome:'Conta de demonstração',feito:false},ex2:{titulo:'Revisar proposta com o cliente exemplo',tipo:'outro',data:'2026-09-03',dono:'demo',donoNome:'Conta de demonstração',feito:false}},
  bancos:{ex1:{grupo:'Empresa de demonstração',banco:'Banco de exemplo',titular:'Empresa de demonstração',agencia:'Exemplo',conta:'Exemplo',pix:'exemplo@invalid.test',pixTipo:'E-mail'}},
- marketing:{ex1:{nome:'Biblioteca da marca (exemplo)',url:'https://example.com'}},
+ marketing:{ex1:{nome:'Biblioteca da marca (exemplo)',url:'https://example.com'},acao1:{tipo:'acao',nome:'Apresentação de fachadas (exemplo)',objetivo:'Gerar oportunidades de sinalização para lojas',publico:'Comércio local',canal:'Portfólio e redes sociais',responsavel:'Ana Exemplo',prazo:'2026-09-15',status:'Produção',investimento:500,orcamentos:[],url:''}},
  patrimonio:{ex1:{nomeGenerico:'Impressora',descricaoTecnica:'Equipamento de demonstração',setorSigla:'PRO',codigo:'PRO-001',valor:10000,situacao:'uso',dataAquisicao:'2026-01-10'}},
  setores:{ex1:{sigla:'PRO',nome:'Produção',area:'Operações'}},
  manutencoes:{},permutas:{},campanhas:{},grupos_clientes:{},
@@ -11,7 +11,8 @@ export async function respostaPreview(url,opcoes={}){
  const u=new URL(url,location.origin), corpo=opcoes.body ? JSON.parse(opcoes.body) : {};
  const endpoint=u.pathname.split('/').pop();
  let dados;
- if(endpoint==='painel-config' && corpo.action==='get'){
+ if(endpoint==='painel-fotos' && corpo.action==='listar') dados={fotos:[]};
+ else if(endpoint==='painel-config' && corpo.action==='get'){
    if(corpo.chave==='glossario'){
      const {GLOSSARIO}=await import('../data/glossario.js');
      dados={valor:Object.fromEntries(GLOSSARIO.map((t,i)=>[`demo-${i}`,{...t,ordem:i}]))};

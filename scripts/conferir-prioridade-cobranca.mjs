@@ -2,8 +2,8 @@
 import {readFile} from 'node:fs/promises';
 import {transform} from 'esbuild';
 import assert from 'node:assert/strict';
-let handler,calls=[],falha=false;
-const query=new Proxy({}, {get(_,k){if(k==='then')return (ok,no)=>Promise.resolve({data:[],error:null}).then(ok,no);return ()=>query;}});
+let handler,calls=[],falha=false,fotoProtegida=false;
+const query=new Proxy({}, {get(_,k){if(k==='then')return (ok,no)=>Promise.resolve({data:fotoProtegida?[{id:"foto"}]:[],error:null}).then(ok,no);return ()=>query;}});
 globalThis.__cobBanco={from:()=>query,rpc:async (name,args)=>{calls.push({name,args});return {error:falha?{message:'falha simulada'}:null};}};
 globalThis.Deno={env:{get:()=> 'teste'},serve:fn=>{handler=fn;}};
 let source=await readFile(new URL('../supabase/functions/painel-config/index.ts',import.meta.url),'utf8');
@@ -18,3 +18,8 @@ assert.equal((await handler(req('direcao',{prioridade:'alta',chamadoId:'a'}))).s
 assert.equal((await handler(req('direcao',{cliente:'Exemplo',chamadoId:'a',chamado:{resumo:'Teste'}}))).status,200);assert.equal(calls.pop().name,'cobranca_mexer');
 falha=true;const log=console.error;console.error=()=>{};try{assert.equal((await handler(req('direcao'))).status,500);}finally{console.error=log;}
 console.log('Prioridade: autenticação, permissão do módulo, autoria do servidor, validação, diário existente e falha de gravação conferidos.');
+
+fotoProtegida=true;
+const apagar=new Request('https://teste.invalid',{method:'POST',headers:{authorization:'Bearer direcao'},body:JSON.stringify({action:'removerId',chave:'patrimonio',id:'bem'})});
+assert.equal((await handler(apagar)).status,409,'equipamento com foto não desaparece da galeria');
+console.log('Patrimônio: exclusão com fotos vinculadas recusada; baixa mantém o histórico.');

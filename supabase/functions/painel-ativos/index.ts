@@ -250,8 +250,18 @@ Deno.serve(async (req: Request) => {
         const numOu = (v: unknown, antes: unknown) =>
           v === undefined ? (Number(antes) || 0) : (Number(v) || 0);
 
+        const acompanhar = (v: any) => {
+          const x = v && typeof v === "object" && !Array.isArray(v) ? v : {};
+          const data = String(x.prazoAcao || "");
+          if (data && !/^\d{4}-\d{2}-\d{2}$/.test(data)) throw new Error("Prazo inválido");
+          return { proximaAcao: String(x.proximaAcao || "").slice(0,500), prazoAcao:data,
+            decisao:String(x.decisao || "").slice(0,2000),resultado:String(x.resultado || "").slice(0,2000),
+            valorContratado:(Number.isFinite(Number(x.valorContratado)) ? Math.max(0,Number(x.valorContratado)) : 0),
+            checklist:(Array.isArray(x.checklist)?x.checklist:[]).slice(0,30).map((c:any,i:number)=>({id:String(c.id || i).slice(0,80),texto:String(c.texto || "").slice(0,300),feito:c.feito===true})).filter((c:any)=>c.texto.trim()) };
+        };
         const limpo = {
           id, tipo,
+          ...(tipo === "licitacao" ? { acompanhamento: acompanhar(it.acompanhamento === undefined ? a.acompanhamento : it.acompanhamento) } : {}),
           nome: String(it.nome).trim(),
           categoria: txt(it.categoria, a.categoria),
           identificacao: txt(it.identificacao, a.identificacao),

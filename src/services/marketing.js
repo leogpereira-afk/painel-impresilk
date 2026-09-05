@@ -29,3 +29,6 @@ export const salvarAtalho = (id, { nome, url }) =>
 
 export const removerAtalho = (id) =>
   chamar("removerId", { chave: "marketing", id });
+
+export const salvarAcaoMarketing = (id, dados) =>
+  chamar('merge', {chave:'marketing',patch:{[id]:{...dados,tipo:'acao'}}}).then(r=>r.valor || {});
