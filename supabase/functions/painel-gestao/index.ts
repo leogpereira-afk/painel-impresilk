@@ -49,6 +49,11 @@ const resposta = (body: unknown, status = 200) =>
   });
 
 const texto = (v: unknown, max = 4000) => String(v ?? "").trim().slice(0, max);
+// Falha de consulta nunca representa uma lista vazia válida.
+const conferirLeitura = (r: any, fonte: string) => {
+  if (r.error) throw new Error(`Falha ao consultar ${fonte}`);
+  return r;
+};
 
 // ── QUEM E A EQUIPE (lido do RH, nunca copiado) ───────────────────────────
 //
@@ -73,34 +78,19 @@ async function equipeDoRH() {
     " cargoId:registro->>cargoId, cargoLivre:registro->>cargoLivre, setor:registro->>setor," +
     " gestorId:registro->>gestorId, ehDirecao:registro->>ehDirecao, statusId:registro->>statusId," +
     " saiu:registro->>dataDesligamento";
-  let linhas: any[] | null = null;
-  const proj = await sb.from("registros").select(COLUNAS).eq("colecao", "colaboradores");
-  if (!proj.error && (proj.data ?? []).some((r: any) => r?.nome)) {
-    linhas = (proj.data ?? []).map((r: any) => ({
-      id: r.pid, nome: r.nome, areaId: r.areaId, cargoId: r.cargoId,
-      cargoLivre: r.cargoLivre, setor: r.setor, gestorId: r.gestorId,
-      ehDirecao: r.ehDirecao === "true" || r.ehDirecao === true,
-      statusId: r.statusId,
-      dataDesligamento: r.saiu,
-    }));
-  } else {
-    // Rede de seguranca. Cai aqui por ERRO da projecao ou -- o caso traicoeiro --
-    // quando ela e ACEITA mas devolve linhas sem `nome`: aí nao ha erro nenhum e
-    // a tela ficaria com a equipe vazia sem ninguem entender por que.
-    console.warn("[gestao] projecao nao serviu, lendo o registro inteiro:",
-      proj.error?.message ?? "sem nome nas linhas");
-    const { data } = await sb.from("registros").select("registro").eq("colecao", "colaboradores");
-    linhas = (data ?? []).map((l: any) => l.registro ?? {});
-  }
+  const proj = conferirLeitura(await sb.from("registros").select(COLUNAS).eq("colecao", "colaboradores"), "equipe");
+  const linhas = (proj.data ?? []).map((r: any) => ({
+    id:r.pid,nome:r.nome,areaId:r.areaId,cargoId:r.cargoId,cargoLivre:r.cargoLivre,setor:r.setor,
+    gestorId:r.gestorId,ehDirecao:r.ehDirecao === "true" || r.ehDirecao === true,
+    statusId:r.statusId,dataDesligamento:r.saiu,
+  }));
   if (!linhas?.length) return [];
 
   // `areaId` e `cargoId` sao referencias: sem resolver, 27 das 39 pessoas
   // ficariam "(sem area)" -- o campo `setor` em texto so esta preenchido em 12.
   const nomePor = async (colecao: string) => {
-    const proj = await sb.from("registros").select("id, nome:registro->>nome").eq("colecao", colecao);
-    if (!proj.error) return new Map((proj.data ?? []).map((r: any) => [r.id, texto(r.nome, 80)]));
-    const { data } = await sb.from("registros").select("id, registro").eq("colecao", colecao);
-    return new Map((data ?? []).map((r: any) => [r.id, texto(r.registro?.nome, 80)]));
+    const proj = conferirLeitura(await sb.from("registros").select("id, nome:registro->>nome").eq("colecao", colecao), colecao);
+    return new Map((proj.data ?? []).map((r: any) => [r.id, texto(r.nome, 80)]));
   };
   const [areas, cargos] = await Promise.all([nomePor("areas"), nomePor("cargos")]);
 
@@ -173,14 +163,14 @@ Deno.serve(async (req: Request) => {
   // Empresa da vez. Uma so hoje (Impresilk); resolvida por nome para a Central
   // nao precisar guardar uuid.
   async function empresaId(nome = "Impresilk"): Promise<string | null> {
-    const { data } = await sb.from("gestao_empresa").select("id").eq("nome", nome).maybeSingle();
+    const { data } = conferirLeitura(await sb.from("gestao_empresa").select("id").eq("nome", nome).maybeSingle(), "empresa");
     return data?.id ?? null;
   }
 
   // Plano ativo do ano corrente (ou o mais recente ativo).
   async function planoAtivo(emp: string) {
-    const { data } = await sb.from("gestao_plano_ano").select("*")
-      .eq("empresa_id", emp).eq("status", "ativo").order("ano", { ascending: false }).limit(1).maybeSingle();
+    const { data } = conferirLeitura(await sb.from("gestao_plano_ano").select("*")
+      .eq("empresa_id", emp).eq("status", "ativo").order("ano", { ascending: false }).limit(1).maybeSingle(), "plano");
     return data ?? null;
   }
 
@@ -188,30 +178,23 @@ Deno.serve(async (req: Request) => {
   // aquelas em que o nome dele consta nos participantes. A ponte nao ve ata.
   async function reunioesVisiveis(emp: string) {
     if (pelaPonte) return [];
-    const { data } = await sb.from("gestao_reuniao").select("*")
-      .eq("empresa_id", emp).order("data", { ascending: false });
+    const { data } = conferirLeitura(await sb.from("gestao_reuniao").select("*")
+      .eq("empresa_id", emp).order("data", { ascending: false }), "reuniões");
     const todas = data ?? [];
     if (ehDiretoria) return todas;
-    /* QUEM VE A ATA nao pode depender de acento nem de sobrenome digitado
-       igual. Era comparacao de string EXATA em minusculas: escrever "Barbara
-       Vasconcelos" na lista de participantes deixava a Barbara de fora -- sem
-       erro, sem aviso, e ela nunca saberia que existe uma ata dela. O resto
-       da casa ja normaliza (painel-acesso, acesso-entrar); aqui faltava.
-       Casa pelo nome inteiro sem acento OU pelo usuario -- e, como ultimo
-       recurso, pelo primeiro nome, que e como a lista costuma ser escrita. */
+    // Comparação normalizada do nome completo ou usuário. Primeiro nome
+    // sozinho não identifica quem participou e pode liberar atas a homônimos.
     const chave = (v: unknown) =>
       String(v ?? "").normalize("NFD").replace(/[\u0300-\u036f]/g, "")
         .toLowerCase().replace(/\s+/g, " ").trim();
     const meu = chave(sessao?.nome || sessao?.sub);
     const meuUsuario = chave(sessao?.sub);
-    const meuPrimeiro = meu.split(" ")[0];
     return todas.filter((r: any) =>
       (Array.isArray(r.participantes) ? r.participantes : [])
         .some((p: any) => {
           const dele = chave(p?.nome ?? p);
           if (!dele) return false;
-          return dele === meu || dele === meuUsuario ||
-                 (!!meuPrimeiro && dele.split(" ")[0] === meuPrimeiro);
+          return (!!meu && dele === meu) || (!!meuUsuario && dele === meuUsuario);
         }));
   }
 
@@ -222,61 +205,41 @@ Deno.serve(async (req: Request) => {
         const emp = await empresaId(texto(corpo.empresa) || "Impresilk");
         if (!emp) return resposta({ erro: "Empresa nao cadastrada." }, 404);
 
-        const { data: identidade } = await sb.from("gestao_identidade")
-          .select("*").eq("empresa_id", emp).maybeSingle();
-        const { data: valores } = await sb.from("gestao_valor")
-          .select("*").eq("empresa_id", emp).order("ordem");
+        const [ident, vals] = await Promise.all([
+          sb.from("gestao_identidade").select("*").eq("empresa_id", emp).maybeSingle(),
+          sb.from("gestao_valor").select("*").eq("empresa_id", emp).order("ordem"),
+        ]);
+        const identidade = conferirLeitura(ident, "identidade").data;
+        const valores = conferirLeitura(vals, "valores").data ?? [];
+        if (!ehGestor) return resposta({ok:true,papel:"colaborador",identidade,valores});
 
-        // Colaborador para por aqui: le SO a identidade.
-        if (!ehGestor) {
-          return resposta({ ok: true, papel: "colaborador", identidade, valores: valores ?? [] });
-        }
-
-        const plano = await planoAtivo(emp);
-        const { data: objetivos } = plano
-          ? await sb.from("gestao_objetivo").select("*").eq("plano_ano_id", plano.id).order("ordem")
-          : { data: [] as any[] };
-        const ids = (objetivos ?? []).map((o: any) => o.id);
-        const { data: indicadores } = ids.length
-          ? await sb.from("gestao_indicador").select("*").in("objetivo_id", ids).order("ordem")
-          : { data: [] as any[] };
-
-        // R2: a tela Gestao ve SO escopo empresa desta empresa. As taticas
-        // pessoais do Leonardo nunca passam por aqui -- nem para a diretoria.
-        const { data: taticas } = await sb.from("gestao_tatica").select("*")
-          .eq("escopo", "empresa").eq("empresa_id", emp)
-          .order("prazo", { ascending: true, nullsFirst: false });
-
-        const reunioes = await reunioesVisiveis(emp);
+        const avisos: string[] = [];
+        const [plano, tats, reunioes, prefs, equipe] = await Promise.all([
+          planoAtivo(emp),
+          sb.from("gestao_tatica").select("*").eq("escopo", "empresa").eq("empresa_id", emp)
+            .order("prazo", {ascending:true,nullsFirst:false}),
+          reunioesVisiveis(emp),
+          sb.from("gestao_preferencia_ui").select("bloco, aberto").eq("usuario", usuario),
+          equipeDoRH().catch(() => {avisos.push("A lista da equipe não pôde ser consultada. Os responsáveis já registrados continuam visíveis.");return [];}),
+        ]);
+        const taticas = conferirLeitura(tats, "táticas").data ?? [];
+        conferirLeitura(prefs, "preferências");
         const idsReuniao = reunioes.map((r: any) => r.id);
-        const { data: decisoes } = idsReuniao.length
-          ? await sb.from("gestao_decisao").select("*").in("reuniao_id", idsReuniao)
-          : { data: [] as any[] };
-
-        const { data: ciclos } = plano
-          ? await sb.from("gestao_ciclo_fechamento").select("*")
-              .eq("plano_ano_id", plano.id).order("criado_em", { ascending: false })
-          : { data: [] as any[] };
-
-        const { data: prefs } = await sb.from("gestao_preferencia_ui")
-          .select("bloco, aberto").eq("usuario", usuario);
-
-        // A equipe vai junto no MESMO pedido: uma chamada a mais faria o quadro
-        // do time aparecer depois da tela, pulando na cara de quem ja estava
-        // lendo. Falha em silencio -- gestao sem a lista do RH continua
-        // funcionando com o nome digitado a mao.
-        const equipe = await equipeDoRH().catch(() => []);
-
+        const [objs, decs, ciclosR] = await Promise.all([
+          plano ? sb.from("gestao_objetivo").select("*").eq("plano_ano_id", plano.id).order("ordem") : {data:[]},
+          idsReuniao.length ? sb.from("gestao_decisao").select("*").in("reuniao_id", idsReuniao) : {data:[]},
+          plano ? sb.from("gestao_ciclo_fechamento").select("*").eq("plano_ano_id", plano.id).order("criado_em", {ascending:false}) : {data:[]},
+        ]);
+        const objetivos = conferirLeitura(objs, "objetivos").data ?? [];
+        const decisoes = conferirLeitura(decs, "decisões").data ?? [];
+        const ciclos = conferirLeitura(ciclosR, "ciclos").data ?? [];
+        const ids = objetivos.map((o: any) => o.id);
+        const inds = ids.length ? await sb.from("gestao_indicador").select("*").in("objetivo_id", ids).order("ordem") : {data:[]};
+        const indicadores = conferirLeitura(inds, "indicadores").data ?? [];
         return resposta({
-          ok: true,
-          papel: ehDiretoria ? "diretoria" : "gestor",
-          empresaId: emp,
-          identidade, valores: valores ?? [],
-          plano, objetivos: objetivos ?? [], indicadores: indicadores ?? [],
-          taticas: taticas ?? [], reunioes, decisoes: decisoes ?? [],
-          ciclos: ciclos ?? [],
-          equipe,
-          preferencias: Object.fromEntries((prefs ?? []).map((p: any) => [p.bloco, p.aberto])),
+          ok:true,papel:ehDiretoria ? "diretoria" : "gestor",empresaId:emp,
+          identidade,valores,plano,objetivos,indicadores,taticas,reunioes,decisoes,ciclos,equipe,avisos,
+          preferencias:Object.fromEntries((prefs.data ?? []).map((p: any) => [p.bloco,p.aberto])),
         });
       }
 

@@ -1435,6 +1435,7 @@ export default function Gestao() {
       </header>
       {erro && <div role="alert" className="gestao-falha"><strong>Não foi possível atualizar.</strong> {erro} Os dados da última leitura continuam visíveis. Tente atualizar novamente.</div>}
 
+      {dados.avisos?.map((texto, i) => <div key={i} role="status" className="gestao-falha">{texto}</div>)}
       {/* COMO ESTAMOS — a resposta antes das abas.
           As abas mostram uma fatia por vez, e quem dirige abre esta tela para
           responder UMA pergunta: estamos no rumo? Hoje isso exigia visitar as

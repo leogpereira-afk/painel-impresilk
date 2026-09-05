@@ -68,6 +68,7 @@ jobs:
       - run: npm test
       - run: npm run test:acessos
       - run: node scripts/conferir-acessos.mjs
+      - run: node scripts/conferir-gestao.mjs
       # A volta do backup nao pode voltar a ser lista a mao (permutas ficou
       # meses no arquivo sem que o restaurar a devolvesse). Parte estatica: le
       # o codigo, sem rede.
