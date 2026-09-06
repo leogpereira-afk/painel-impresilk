@@ -28,6 +28,7 @@ import {
   carteiraDeCobranca, resumoDaCarteira, chaveCliente as chaveCob, SITUACOES, CANAIS,
   ordenarCarteira, filtrarCarteira, ORDENS,
 } from "../lib/calc/cobrancas.js";
+import AcompanhamentoCobranca from '../components/AcompanhamentoCobranca.jsx';
 import { VisaoMensalCobranca } from "../components/InteligenciaComercial.jsx";
 import { sugestaoCobranca } from "../lib/calc/inteligencia.js";
 import { lerCobrancas, salvarChamado, salvarPrioridade } from "../services/cobrancas.js";
@@ -144,6 +145,7 @@ function CartaoCobranca({ c, aberto, aoAbrir, aoRegistrar, aoApagar, aoPriorizar
             </ol>
           </div>
 
+          <AcompanhamentoCobranca cliente={c}/>
           <FormChamado cliente={c} aoSalvar={aoRegistrar} salvando={salvando} erro={erro} />
           {c.chamados.length > 0 && (
             <ol className="space-y-2">

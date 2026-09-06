@@ -15,3 +15,16 @@ export async function getCadastroCliente(id,signal){
  if(import.meta.env.MODE==='review')return {cliente:{id,nome:'Cliente de demonstração',origem:'Indicação',classificacao:'Empresa',responsavel:'Equipe · demonstração',contatos:[]},atualizadoEm:new Date().toISOString()};
  return ler('cliente360',{id},signal);
 }
+
+// Escritas nunca têm repetição automática; operacaoId identifica a intenção original.
+export async function acaoMubisys(action,campos={},signal){
+ if(import.meta.env.MODE==='review'){
+  if(action==='historico')return {operacoes:[]};
+  if(action==='opcoes'){const c=await getCrm();return {...c,usuarios:[{id:'1',nome:'Equipe · demonstração'}],gruposTarefa:[{id:'1',nome:'Comercial'}],meuUsuarioId:'1'};}
+  if(action==='detalhe')return {card:{id:campos.cardId,titulo:'Fachada e comunicação visual',cliente:'Cliente de demonstração',grupo:{id:1,nome:'Comercial'},fase:{id:2,nome:'Negociação'},tarefasExistentes:0}};
+  if(action==='contatoCobranca')return {estado:'naoLocalizado'};
+  const e=new Error('Prévia local: este envio não grava no Mubisys.');e.status=400;throw e;
+ }
+ const r=await comCracha(`${API}/painel-crm`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action,...campos}),signal});
+ const b=await r.json().catch(()=>null);if(!r.ok){const e=new Error(b?.erro||'Não foi possível confirmar. Consulte o histórico de ações.');e.status=r.status;e.enviado=b?.enviado;throw e;}return b;
+}

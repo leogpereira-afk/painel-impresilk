@@ -1,0 +1,21 @@
+name: Conferir conexão das ações Mubisys
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - scripts/conferir-conexao-acoes.mjs
+permissions:
+  contents: read
+jobs:
+  diagnostico:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Conferir conexão sem registrar dados de clientes
+        env:
+          PAINEL_TOKEN: ${{ secrets.PAINEL_TOKEN }}
+        run: node scripts/conferir-conexao-acoes.mjs

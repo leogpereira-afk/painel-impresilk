@@ -72,6 +72,7 @@ jobs:
       - run: node scripts/conferir-prioridade-cobranca.mjs
       - run: node scripts/conferir-fotos.mjs
       - run: node scripts/conferir-crm.mjs
+      - run: node scripts/conferir-acoes-mubisys.mjs
       - run: node scripts/conferir-preparacao-licitacao.mjs
       # A volta do backup nao pode voltar a ser lista a mao (permutas ficou
       # meses no arquivo sem que o restaurar a devolvesse). Parte estatica: le

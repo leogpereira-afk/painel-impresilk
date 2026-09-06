@@ -40,6 +40,7 @@ import {
   lerPessoas,
 } from "../services/compromissos.js";
 import { pdfDaConversa, textoDaConversa, nomeDoArquivo } from "../lib/pdfConversa.js";
+import {AgendaMubisys} from '../components/AcoesMubisys.jsx';
 import { getSessao } from "../lib/sessao.js";
 import { dataCurta, diasEntre, ymdLocal } from "../lib/format.js";
 import { Card, PageTitle, SectionTitle, StatCard, Empty, CarregandoModulo, ErroModulo, AvisoAtualizacao } from "../components/ui.jsx";
@@ -338,6 +339,8 @@ function Linha({ c, sessao, ehDirecao, dePessoa, equipe, encaminhando, setEncami
           >
             {c.titulo}
           </span>
+          {c.crmOperacao&&<span className="block text-xs font-semibold text-brand-700">Criado no Mubisys · conclusão e remarcação somente no painel</span>}
+          {c.cobrancaOrigem&&<span className="block text-xs font-semibold text-brand-700">Acompanhamento de cobrança · conferir recebimento no ERP</span>}
           <span className="block truncate text-xs text-slate-500">
             {[
               c.t.rotulo,
@@ -921,6 +924,7 @@ export default function Compromissos() {
         }
       />
 
+      <AgendaMubisys aoConcluir={recarregar}/>
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <StatCard
           rotulo="Em aberto"
