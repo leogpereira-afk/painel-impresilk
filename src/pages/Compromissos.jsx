@@ -11,6 +11,7 @@ import {
   CalendarCheck,
   RefreshCw,
   Plus,
+  X,
   Check,
   Trash2,
   Pencil,
@@ -40,6 +41,7 @@ import {
   lerPessoas,
 } from "../services/compromissos.js";
 import { pdfDaConversa, textoDaConversa, nomeDoArquivo } from "../lib/pdfConversa.js";
+import './compromissos-modal.css';
 import {AgendaMubisys} from '../components/AcoesMubisys.jsx';
 import { getSessao } from "../lib/sessao.js";
 import { dataCurta, diasEntre, ymdLocal } from "../lib/format.js";
@@ -271,6 +273,27 @@ function proximaSegunda() {
   // 1 = segunda. Se hoje já é segunda, vai para a semana que vem.
   d.setDate(d.getDate() + ((8 - d.getDay()) % 7 || 7));
   return ymdLocal(d);
+}
+
+function FormularioModal({titulo,salvando,aoFechar,children}) {
+  const dialogo = useRef(null);
+  useEffect(() => {
+    const anterior = document.activeElement;
+    const el = dialogo.current;
+    const overflow = document.body.style.overflow;
+    el.showModal();
+    document.body.style.overflow = "hidden";
+    el.querySelector("#c-titulo")?.focus();
+    return () => {
+      el.close();
+      document.body.style.overflow = overflow;
+      if (anterior instanceof HTMLElement && anterior.isConnected) anterior.focus();
+    };
+  }, []);
+  return <dialog ref={dialogo} className="compromisso-modal" aria-labelledby="compromisso-modal-titulo" onCancel={e => { e.preventDefault(); if (!salvando) aoFechar(); }}>
+    <header className="compromisso-modal-cabecalho"><div><h2 id="compromisso-modal-titulo">{titulo}</h2><p>Só o título é obrigatório. Sem data, ele entra em &apos;A resolver&apos;.</p></div><button type="button" className="btn-ghost" aria-label="Fechar formulário de compromisso" disabled={salvando} onClick={aoFechar}><X size={22}/></button></header>
+    {children}
+  </dialog>;
 }
 
 function Linha({ c, sessao, ehDirecao, dePessoa, equipe, encaminhando, setEncaminhando,
@@ -559,7 +582,6 @@ export default function Compromissos() {
   // servidor). Nesse caso o dono e quem esta vendo -- e o servidor so mostra o
   // que e dela. Sem isso, o "passar para..." oferecia a PROPRIA pessoa.
   const donoDe = (c) => c.dono ?? sessao?.usuario ?? "";
-  const cartaoForm = useRef(null);
   // "Hoje" precisa ser ESTADO, nao um calculo do render: esta e uma tela que
   // fica aberta. A vendedora deixa o painel no computador e volta no dia
   // seguinte -- com o dia congelado, o compromisso de hoje continuava
@@ -695,7 +717,13 @@ export default function Compromissos() {
     if (formSujo() && !window.confirm("Você tem um compromisso pela metade. Descartar o que escreveu?")) return;
     setAviso(null);
     setForm(c ? { ...VAZIO, ...c } : { ...VAZIO });
-    setTimeout(() => cartaoForm.current?.scrollIntoView({ behavior: "smooth", block: "center" }), 60);
+  };
+
+  const fecharForm = () => {
+    if (salvando) return;
+    if (formSujo() && !window.confirm("Descartar as alterações deste compromisso?")) return;
+    setForm(null);
+    setAviso(null);
   };
 
   const salvar = useCallback(
@@ -1029,12 +1057,9 @@ export default function Compromissos() {
       )}
 
       {form && (
-        <Card ref={cartaoForm}>
-          <SectionTitle
-            titulo={form.id ? "Editar compromisso" : "Novo compromisso"}
-            sub="Só o título é obrigatório. Sem data, ele entra em 'A resolver'."
-          />
-          <form onSubmit={salvar} className="space-y-4">
+        <FormularioModal titulo={form.id ? "Editar compromisso" : "Novo compromisso"} salvando={salvando} aoFechar={fecharForm}>
+          {aviso?.tom === "erro" && <p role="alert" className="mx-6 mb-4 rounded-lg bg-bad-50 p-3 text-sm text-bad-700">{aviso.texto}</p>}
+          <form onSubmit={salvar} className="compromisso-modal-form space-y-4">
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="sm:col-span-2">
                 <label className="label" htmlFor="c-titulo">O que precisa ser feito</label>
@@ -1125,12 +1150,12 @@ export default function Compromissos() {
               <button className="btn-primary" disabled={salvando}>
                 {salvando ? "Salvando..." : form.id ? "Salvar alterações" : "Cadastrar"}
               </button>
-              <button type="button" className="btn-ghost" onClick={() => setForm(null)}>
+              <button type="button" className="btn-ghost" disabled={salvando} onClick={fecharForm}>
                 Cancelar
               </button>
             </div>
           </form>
-        </Card>
+        </FormularioModal>
       )}
 
       {/* O recorte escolhido no cartão vale aqui: "feitos" esconde os abertos,
