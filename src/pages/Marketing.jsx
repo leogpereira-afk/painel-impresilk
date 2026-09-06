@@ -5,13 +5,14 @@
 // Reusa a infra dos Documentos (painel-ativos) com tipo "marketing": item +
 // arquivo. Os atalhos do Drive vivem no painel-config (chave "marketing").
 
+import {Link} from 'react-router-dom';
+import {podeAbrir} from '../lib/sessao.js';
 import PlanejamentoMarketing from "../components/PlanejamentoMarketing.jsx";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   Upload,
   Download,
   Trash2,
-  Plus,
   Link as LinkIcon,
   ArrowUpRight,
   Image as ImageIcon,
@@ -27,7 +28,7 @@ import {
   arquivoParaBase64,
   abrirBase64,
 } from "../services/ativos.js";
-import { lerAtalhos, salvarAtalho, removerAtalho } from "../services/marketing.js";
+import { lerAtalhos } from "../services/marketing.js";
 import { Card, PageTitle, SectionTitle, Empty, CarregandoModulo, ErroModulo } from "../components/ui.jsx";
 
 const MAX_BYTES = 3 * 1024 * 1024; // o servidor barra ~4 MB de base64 (~3 MB reais)
@@ -205,46 +206,6 @@ export default function Marketing() {
     }
   };
 
-  // ---- atalhos do Drive
-  const [nomeLink, setNomeLink] = useState("");
-  const [urlLink, setUrlLink] = useState("");
-  const [salvandoLink, setSalvandoLink] = useState(false);
-
-  const adicionarLink = async (e) => {
-    e.preventDefault();
-    setAviso(null);
-    const nome = nomeLink.trim();
-    let url = urlLink.trim();
-    if (!nome || !url) return setAviso({ tom: "erro", texto: "Dê um nome e cole o endereço do Drive." });
-    if (!/^https?:\/\//i.test(url)) url = "https://" + url;
-    setSalvandoLink(true);
-    try {
-      const id = `ml-${Date.now()}`;
-      await salvarAtalho(id, { nome, url });
-      setAtalhos((m) => ({ ...(m || {}), [id]: { nome, url } }));
-      setNomeLink("");
-      setUrlLink("");
-    } catch (err) {
-      setAviso({ tom: "erro", texto: err.message });
-    } finally {
-      setSalvandoLink(false);
-    }
-  };
-
-  const tirarLink = async (id) => {
-    if (!window.confirm("Tirar este atalho do Drive?")) return;
-    setAviso(null);
-    try {
-      await removerAtalho(id);
-      setAtalhos((m) => {
-        const novo = { ...(m || {}) };
-        delete novo[id];
-        return novo;
-      });
-    } catch (err) {
-      setAviso({ tom: "erro", texto: err.message });
-    }
-  };
 
   if (erro) {
     return (
@@ -379,37 +340,13 @@ export default function Marketing() {
                     <span className="min-w-0 flex-1 truncate">{a.nome}</span>
                     <ArrowUpRight size={13} className="shrink-0 text-slate-300" />
                   </a>
-                  <button
-                    type="button"
-                    onClick={() => tirarLink(a.id)}
-                    className="grid h-7 w-7 shrink-0 place-items-center rounded-lg text-slate-500 hover:bg-bad-50 hover:text-bad-700"
-                    title={`Remover o atalho ${a.nome}`}
-                  >
-                    <Trash2 size={13} />
-                  </button>
+
                 </div>
               ))}
             </div>
           )}
 
-          <form onSubmit={adicionarLink} className="mt-4 grid gap-2 border-t pt-4" style={{ borderColor: "var(--hairline)" }}>
-            <input
-              className="input"
-              placeholder="Nome (ex.: Fotos de obras)"
-              value={nomeLink}
-              onChange={(e) => setNomeLink(e.target.value)}
-            />
-            <input
-              className="input"
-              placeholder="Endereço no Drive"
-              value={urlLink}
-              onChange={(e) => setUrlLink(e.target.value)}
-            />
-            <button className="btn-primary justify-center" disabled={salvandoLink}>
-              <Plus size={15} strokeWidth={2.4} />
-              {salvandoLink ? "Salvando..." : "Adicionar atalho"}
-            </button>
-          </form>
+          {podeAbrir('configuracoes')&&<Link className="btn-outline mt-4" to="/configuracoes?secao=marketing">Configurar atalhos</Link>}
         </Card>
       </div>
     </div>

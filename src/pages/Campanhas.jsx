@@ -1,3 +1,5 @@
+import {Link} from 'react-router-dom';
+import {podeAbrir} from '../lib/sessao.js';
 /* CAMPANHAS: quanto vendemos para um evento, e quem comprou.
  *
  * Uma eleição, uma festa da cidade, uma feira. A Impresilk vende para dezenas
@@ -2784,21 +2786,8 @@ export default function Campanhas() {
             </div>
             <div>
               <div className="mb-1 text-xs text-slate-500">Meta do evento</div>
-              <input
-                className="input h-9 w-32 text-right tabular-nums"
-                placeholder="0,00"
-                inputMode="decimal"
-                defaultValue={campanha.meta ? String(campanha.meta).replace(".", ",") : ""}
-                key={`meta-${aberta}`}
-                onBlur={(e) => {
-                  const v = paraNumero(e.target.value);
-                  if (v === (campanha.meta || 0)) return;
-                  mexer(aberta, { campos: { meta: v } });
-                }}
-              />
-              <div className="mt-1 text-xs text-slate-500">
-                {resumo.meta > 0 ? "opcional — em branco, a tela não cobra" : "opcional"}
-              </div>
+              <div className="font-semibold tabular-nums">{resumo.meta>0?dinheiro(resumo.meta):'Sem meta definida'}</div>
+              {podeAbrir('configuracoes')&&<Link className="btn-ghost mt-1" to={`/configuracoes?secao=campanhas&campanha=${encodeURIComponent(aberta)}`}>Configurar meta</Link>}
             </div>
           </div>
           <Meta vendido={resumo.vendido} meta={resumo.meta} pct={resumo.pct} />
@@ -3200,44 +3189,7 @@ export default function Campanhas() {
               marcar errado. As duas datas são as MESMAS que limitam a busca --
               uma data só para "quando foi" e outra para "o que procurar" seriam
               duas verdades para a mesma coisa. */}
-          <div className="flex flex-wrap items-center gap-2 rounded-lg bg-slate-50 px-3 py-2 text-sm">
-            <CalendarRange size={15} className="shrink-0 text-slate-400" />
-            <span className="text-slate-600">A campanha vai de</span>
-            <input
-              type="date"
-              className="input h-8 w-40 text-sm"
-              defaultValue={desde}
-              key={`desde-${aberta}`}
-              aria-label="Data em que a campanha começou"
-              onBlur={(e) => {
-                const d = e.target.value;
-                if (d === desde) return;
-                mexer(aberta, { campos: { desde: /^\d{4}-\d{2}-\d{2}$/.test(d) ? d : "" } });
-              }}
-            />
-            <span className="text-slate-600">até</span>
-            <input
-              type="date"
-              className="input h-8 w-40 text-sm"
-              defaultValue={ate}
-              key={`ate-${aberta}`}
-              aria-label="Data em que a campanha acabou"
-              onBlur={(e) => {
-                const d = e.target.value;
-                if (d === ate) return;
-                mexer(aberta, { campos: { ate: /^\d{4}-\d{2}-\d{2}$/.test(d) ? d : "" } });
-              }}
-            />
-            {!ate && <span className="text-xs text-slate-400">vazio = até hoje</span>}
-            {/* PERÍODO INVERTIDO não é bloqueado, é DITO: travar o campo faria
-                o Leonardo brigar com a tela ao corrigir as duas datas em
-                ordem. Mas em silêncio a lista viria vazia sem motivo aparente. */}
-            {desde && ate && ate < desde && (
-              <span className="text-xs text-bad-700">
-                o fim está antes do começo — nenhuma O.S. vai aparecer
-              </span>
-            )}
-          </div>
+          <div className="flex flex-wrap items-center gap-3 rounded-lg bg-slate-50 p-3 text-sm"><span>Período: {desde?dataLonga(desde):'todo o histórico disponível'}{ate?` até ${dataLonga(ate)}`:' até hoje'}.</span>{podeAbrir('configuracoes')&&<Link className="btn-outline" to={`/configuracoes?secao=campanhas&campanha=${encodeURIComponent(aberta)}`}>Configurar período</Link>}</div>
 
           {/* O QUE O PAINEL REALMENTE TEM: uma campanha de 2022 pode parecer um
               fracasso quando é só dado que ainda não desceu do ERP. */}

@@ -2,12 +2,23 @@
 // sozinho (o store persiste). Cada mudanca recalcula os outros modulos ao vivo.
 // So consome config + updateConfig + resetarConfig. Sem dados, sem calc.
 
-import { useEffect, useState } from "react";
-import { Plus, Trash2, Info, AlertTriangle } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { Plus, Trash2, Info, AlertTriangle, ChevronDown } from "lucide-react";
 import { useApp } from "../config/store.jsx";
 import { comCracha } from "../lib/sessao.js";
 import { API } from "../lib/api.js";
-import { Card, PageTitle, SectionTitle, Segmented } from "../components/ui.jsx";
+import { PageTitle, SectionTitle, Segmented } from "../components/ui.jsx";
+
+import {useLocation} from 'react-router-dom';
+import {ConfiguracaoPermutas,ConfiguracaoMarketing,ConfiguracaoCampanhas} from '../components/ConfiguracoesModulos.jsx';
+import './configuracoes.css';
+
+function CartaoConfig({titulo,sub,children}) {
+  return <details className="config-card" open><summary><div><h3>{titulo}</h3>{sub&&<p>{sub}</p>}</div><ChevronDown size={20}/></summary><div className="config-card-conteudo">{children}</div></details>;
+}
+function GrupoConfig({id,titulo,children}) {
+  return <section id={`config-${id}`} className="config-grupo" aria-label={`Configurações de ${titulo}`}><h2>{titulo}</h2><div className="space-y-4">{children}</div></section>;
+}
 
 // Rotulo + campo, para manter o espacamento uniforme em todos os grids.
 function Campo({ rotulo, dica, children }) {
@@ -44,6 +55,13 @@ const TAGS_MOTIVO = [
 
 export default function Configuracoes() {
   const { config, updateConfig, resetarConfig } = useApp();
+  const local = useLocation();
+  const pagina = useRef(null);
+  const recolherTodos = (aberto) => pagina.current?.querySelectorAll("details.config-card").forEach(el => { el.open = aberto; });
+  useEffect(() => {
+    const secao = new URLSearchParams(local.search).get('secao');
+    if (secao) requestAnimationFrame(() => document.getElementById(`config-${secao}`)?.scrollIntoView({block:'start'}));
+  }, [local.search]);
 
   /* OS VENDEDORES REAIS DO ERP. No Mubisys o vendedorId do orçamento É o nome
      -- um espaço a mais aqui e a linha do funil fica zerada para sempre,
@@ -76,10 +94,10 @@ export default function Configuracoes() {
   };
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-8" ref={pagina}>
       <PageTitle
         titulo="Configurações"
-        descricao="Todas as regras do painel vivem aqui. Cada mudança recalcula os módulos na hora."
+        descricao="Ajustes organizados por módulo. Clique no título de cada card para recolher ou abrir. As regras gerais são salvas ao alterar; os demais ajustes têm botão Salvar."
         acao={
           <button
             className="btn-outline"
@@ -88,91 +106,27 @@ export default function Configuracoes() {
                  apagava motivos, regua e vendedores calibrados e JA GRAVAVA na
                  nuvem -- recuperar exigia restaurar um backup inteiro. */
               if (!window.confirm(
-                "Restaurar TUDO para o padrão? Motivos, régua de cobrança e vendedores calibrados voltam ao de fábrica — e isso grava na hora."
+                "Restaurar as regras gerais de Financeiro, Cobrança e Orçamentos? Limites, motivos, régua e vendedores voltam ao padrão. Os ajustes de Permutas, Marketing e Campanhas permanecem como estão."
               )) return;
               resetarConfig();
             }}
           >
-            Restaurar padrão
+            Restaurar regras gerais
           </button>
         }
       />
 
-      {/* 2. Parametros gerais */}
-      <Card>
-        <SectionTitle
-          titulo="Parametros gerais"
-          sub="Os limites e metas que alimentam os alertas dos módulos."
-        />
-        <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-          <Campo rotulo="Colchão mínimo de caixa (R$)">
+      <div className="flex flex-wrap gap-2"><button type="button" className="btn-outline" onClick={()=>recolherTodos(false)}>Recolher todos</button><button type="button" className="btn-outline" onClick={()=>recolherTodos(true)}>Expandir todos</button></div>
+      <nav className="config-atalhos" aria-label="Seções de configurações">{[['financeiro','Financeiro'],['cobranca','Contas atrasadas'],['orcamentos','Orçamentos'],['permutas','Permutas'],['marketing','Marketing'],['campanhas','Campanhas']].map(([id,nome])=><button type="button" key={id} onClick={()=>document.getElementById(`config-${id}`)?.scrollIntoView({behavior:'smooth',block:'start'})}>{nome}</button>)}</nav>
+      <GrupoConfig id="financeiro" titulo="Financeiro e fluxo de caixa">
+<CartaoConfig titulo="Caixa e saldo inicial" sub="Reserva mínima e origem do saldo usado no fluxo de caixa."><div className="grid gap-5 sm:grid-cols-2">          <Campo rotulo="Colchão mínimo de caixa (R$)">
             <input
               type="number"
               className="input tnum"
               value={p.colchaoMinimo}
               onChange={setParamNum("colchaoMinimo")}
             />
-          </Campo>
-          <Campo rotulo="DSO meta (dias)">
-            <input
-              type="number"
-              className="input tnum"
-              value={p.dsoMeta}
-              onChange={setParamNum("dsoMeta")}
-            />
-          </Campo>
-          <Campo rotulo="DSO de alerta (dias)">
-            <input
-              type="number"
-              className="input tnum"
-              value={p.dsoAlerta}
-              onChange={setParamNum("dsoAlerta")}
-            />
-          </Campo>
-          <Campo rotulo="Valor mínimo de orçamento (R$)">
-            <input
-              type="number"
-              className="input tnum"
-              value={p.valorMinimoOrcamento}
-              onChange={setParamNum("valorMinimoOrcamento")}
-            />
-          </Campo>
-          <Campo
-            rotulo="Data de corte dos orçamentos"
-            dica="Considera orçamentos a partir desta data."
-          >
-            <input
-              type="date"
-              className="input tnum"
-              // O cache do Mubisys comeca em 1 de janeiro do ano corrente; nao
-              // deixa escolher antes disso (mostraria "zero" enganoso).
-              min={`${new Date().getFullYear()}-01-01`}
-              value={p.dataCorteOrcamentos}
-              onChange={(e) => setParam("dataCorteOrcamentos", e.target.value)}
-            />
-          </Campo>
-          <Campo rotulo="Orçamento parado após (dias)">
-            <input
-              type="number"
-              className="input tnum"
-              value={p.diasParado}
-              onChange={setParamNum("diasParado")}
-            />
-          </Campo>
-          <Campo
-            rotulo="Vira escalada após (dias)"
-            dica="Sem contato acima disso vira escalada."
-          >
-            <input
-              type="number"
-              className="input tnum"
-              value={p.diasEscala}
-              onChange={setParamNum("diasEscala")}
-            />
-          </Campo>
-        </div>
-
-        {/* Saldo inicial */}
+          </Campo></div>        {/* Saldo inicial */}
         <div className="mt-6 border-t pt-6" style={{ borderColor: "var(--hairline)" }}>
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div>
@@ -203,14 +157,24 @@ export default function Configuracoes() {
             </div>
           )}
         </div>
-      </Card>
+      </CartaoConfig></GrupoConfig>
+      <GrupoConfig id="cobranca" titulo="Contas atrasadas e cobrança">
+<CartaoConfig titulo="Metas e período da cobrança" sub="Prazos de recebimento e limite entre cobrança ativa e histórico."><div className="grid gap-5 sm:grid-cols-2">          <Campo rotulo="DSO meta (dias)">
+            <input
+              type="number"
+              className="input tnum"
+              value={p.dsoMeta}
+              onChange={setParamNum("dsoMeta")}
+            />
+          </Campo>          <Campo rotulo="DSO de alerta (dias)">
+            <input
+              type="number"
+              className="input tnum"
+              value={p.dsoAlerta}
+              onChange={setParamNum("dsoAlerta")}
+            />
+          </Campo><Campo rotulo="Cobrança ativa a partir de" dica="Vencimentos anteriores ficam no histórico e não entram nos totais da cobrança ativa."><input className="input" type="date" value={p.dataCorteAtrasados||''} onChange={e=>{if(e.target.value)setParam('dataCorteAtrasados',e.target.value);}}/></Campo></div></CartaoConfig><CartaoConfig titulo="Motivos de atraso" sub="A causa de cada título em aberto. O grupo define se a falha é sua ou do cliente.">
 
-      {/* 3. Motivos de atraso */}
-      <Card>
-        <SectionTitle
-          titulo="Motivos de atraso"
-          sub="A causa de cada título em aberto. O grupo define se a falha é sua ou do cliente."
-        />
 
         {/* Renomear os tres grupos de causa (o id nao muda, so o nome). */}
         <div className="grid gap-4 sm:grid-cols-3">
@@ -312,14 +276,8 @@ export default function Configuracoes() {
           <Plus size={16} strokeWidth={2.4} />
           Adicionar motivo
         </button>
-      </Card>
+      </CartaoConfig><CartaoConfig titulo="Régua de cobrança e próxima ação" sub="A ação sugerida cresce conforme os dias de atraso.">
 
-      {/* 4. Regua de cobranca e proxima acao */}
-      <Card>
-        <SectionTitle
-          titulo="Régua de cobrança e próxima ação"
-          sub="A ação sugerida cresce conforme os dias de atraso."
-        />
 
         <div className="space-y-3">
           {config.reguaCobranca.map((f, i) => (
@@ -460,14 +418,8 @@ export default function Configuracoes() {
             Adicionar regra por motivo
           </button>
         </div>
-      </Card>
+      </CartaoConfig><CartaoConfig titulo="Faixas de idade dos atrasos" sub="Os limites em dias que agrupam os títulos por tempo de atraso.">
 
-      {/* 5. Faixas de idade dos atrasos */}
-      <Card>
-        <SectionTitle
-          titulo="Faixas de idade dos atrasos"
-          sub="Os limites em dias que agrupam os títulos por tempo de atraso."
-        />
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
           {config.faixasIdade.map((v, i) => (
             <Campo key={i} rotulo={`Faixa ${i + 1} (até dias)`}>
@@ -489,14 +441,47 @@ export default function Configuracoes() {
             </Campo>
           ))}
         </div>
-      </Card>
+      </CartaoConfig></GrupoConfig>
+      <GrupoConfig id="orcamentos" titulo="Orçamentos e vendas">
+<CartaoConfig titulo="Limites e acompanhamento comercial" sub="Valor mínimo, período considerado e prazos para retomar cada proposta."><div className="grid gap-5 sm:grid-cols-2">          <Campo rotulo="Valor mínimo de orçamento (R$)">
+            <input
+              type="number"
+              className="input tnum"
+              value={p.valorMinimoOrcamento}
+              onChange={setParamNum("valorMinimoOrcamento")}
+            />
+          </Campo>          <Campo
+            rotulo="Data de corte dos orçamentos"
+            dica="Considera orçamentos a partir desta data."
+          >
+            <input
+              type="date"
+              className="input tnum"
+              // O cache do Mubisys comeca em 1 de janeiro do ano corrente; nao
+              // deixa escolher antes disso (mostraria "zero" enganoso).
+              min={`${new Date().getFullYear()}-01-01`}
+              value={p.dataCorteOrcamentos}
+              onChange={(e) => setParam("dataCorteOrcamentos", e.target.value)}
+            />
+          </Campo>          <Campo rotulo="Orçamento parado após (dias)">
+            <input
+              type="number"
+              className="input tnum"
+              value={p.diasParado}
+              onChange={setParamNum("diasParado")}
+            />
+          </Campo>          <Campo
+            rotulo="Vira escalada após (dias)"
+            dica="Sem contato acima disso vira escalada."
+          >
+            <input
+              type="number"
+              className="input tnum"
+              value={p.diasEscala}
+              onChange={setParamNum("diasEscala")}
+            />
+          </Campo></div></CartaoConfig><CartaoConfig titulo="Vendedores" sub="O time que aparece no funil de orçamentos.">
 
-      {/* 6. Vendedores */}
-      <Card>
-        <SectionTitle
-          titulo="Vendedores"
-          sub="O time que aparece no funil de orçamentos."
-        />
         <div className="grid gap-3 sm:grid-cols-2">
           {config.vendedores.map((v, i) => (
             <div key={i} className="flex items-center gap-2">
@@ -553,14 +538,8 @@ export default function Configuracoes() {
           <Plus size={16} strokeWidth={2.4} />
           Adicionar vendedor
         </button>
-      </Card>
+      </CartaoConfig><CartaoConfig titulo="Motivos de perda de orçamento" sub="As razões possíveis quando um orçamento não fecha.">
 
-      {/* 7. Motivos de perda de orcamento */}
-      <Card>
-        <SectionTitle
-          titulo="Motivos de perda de orçamento"
-          sub="As razões possíveis quando um orçamento não fecha."
-        />
         <div className="grid gap-3 sm:grid-cols-2">
           {config.motivosPerda.map((m, i) => (
             <div key={m.id} className="flex items-center gap-2">
@@ -599,7 +578,10 @@ export default function Configuracoes() {
           <Plus size={16} strokeWidth={2.4} />
           Adicionar motivo de perda
         </button>
-      </Card>
+      </CartaoConfig></GrupoConfig>
+      <GrupoConfig id="permutas" titulo="Permutas"><CartaoConfig titulo="Período de cada permuta" sub="Defina o intervalo de busca de O.S. de cada parceria."><ConfiguracaoPermutas/></CartaoConfig></GrupoConfig>
+      <GrupoConfig id="marketing" titulo="Marketing"><CartaoConfig titulo="Atalhos do Drive" sub="Cadastre os endereços que aparecem na biblioteca de Marketing."><ConfiguracaoMarketing/></CartaoConfig></GrupoConfig>
+      <GrupoConfig id="campanhas" titulo="Campanhas"><CartaoConfig titulo="Metas e períodos dos eventos" sub="Defina a meta e o intervalo de busca de O.S. de cada campanha."><ConfiguracaoCampanhas/></CartaoConfig></GrupoConfig>
     </div>
   );
 }

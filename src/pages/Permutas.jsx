@@ -1,3 +1,5 @@
+import {Link} from 'react-router-dom';
+import {podeAbrir} from '../lib/sessao.js';
 /* PERMUTAS: quanto o parceiro ainda tem de crédito conosco.
  *
  * Permuta é troca -- o parceiro nos dá um espaço, um serviço, uma mercadoria, e
@@ -1297,41 +1299,9 @@ export default function Permutas() {
           }
         >
 
-          <div className="flex flex-wrap items-center gap-2 rounded-lg bg-slate-50 px-3 py-2 text-sm">
-            <CalendarRange size={15} className="shrink-0 text-slate-400" />
-            <span className="text-slate-600">Procurar O.S. desta permuta de</span>
-            <input
-              type="date"
-              className="input h-8 w-40 text-sm"
-              defaultValue={desde}
-              key={`desde-${aberta}`}
-              aria-label="Início do período da permuta"
-              onBlur={(e) => {
-                const d = e.target.value;
-                if (d === desde) return;
-                mexer(aberta, { campos: { desde: /^\d{4}-\d{2}-\d{2}$/.test(d) ? d : "" } });
-              }}
-            />
-            <span className="text-slate-600">até</span>
-            <input
-              type="date"
-              className="input h-8 w-40 text-sm"
-              defaultValue={ate}
-              key={`ate-${aberta}`}
-              aria-label="Fim do período da permuta"
-              onBlur={(e) => {
-                const d = e.target.value;
-                if (d === ate) return;
-                mexer(aberta, { campos: { ate: /^\d{4}-\d{2}-\d{2}$/.test(d) ? d : "" } });
-              }}
-            />
-            {!desde && !ate && <span className="text-xs text-slate-400">vazio = tudo o que o painel tem</span>}
-            {!ate && desde && <span className="text-xs text-slate-400">sem fim = até hoje</span>}
-            {/* Período invertido é DITO, não bloqueado: travar o campo faria a
-                pessoa brigar com a tela ao corrigir as duas datas em ordem. */}
-            {desde && ate && ate < desde && (
-              <span className="text-xs text-bad-700">o fim está antes do começo — nenhuma O.S. vai aparecer</span>
-            )}
+          <div className="flex flex-wrap items-center gap-3 rounded-lg bg-slate-50 p-3 text-sm">
+            <span>Período de busca: {desde ? dataLonga(desde) : 'todo o histórico disponível'}{ate ? ` até ${dataLonga(ate)}` : ' até hoje'}.</span>
+            {podeAbrir('configuracoes')&&<Link className="btn-outline" to={`/configuracoes?secao=permutas&permuta=${encodeURIComponent(aberta)}`}>Configurar período</Link>}
           </div>
 
           {/* O QUE O PAINEL REALMENTE TEM. Uma permuta pode pedir 2018 e o
