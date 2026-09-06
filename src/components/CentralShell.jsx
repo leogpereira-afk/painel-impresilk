@@ -1,15 +1,14 @@
 import {useEffect,useRef,useState} from 'react';
 import {Link,NavLink,useLocation} from 'react-router-dom';
-import {LayoutDashboard,ShieldCheck,Menu,X,LogOut,ChevronRight,ArrowUpRight} from 'lucide-react';
-import {CalendarCheck,AlertTriangle,FileText,Landmark,Megaphone,Gavel,BookOpen,Wrench,Tag,Handshake,Flag,FileCheck2,Building2} from 'lucide-react';
-import {iconeDoSistema} from './iconesDosSistemas.js';
+import {Menu,X,LogOut,ChevronRight,ArrowUpRight} from 'lucide-react';
 import {SISTEMAS} from '../lib/sistemas.js';
 import {MODULOS} from '../lib/modulos.js';
 import logo from '../assets/brand/logo-color.png';
 import logoWhite from '../assets/brand/logo-white.png';
 import './central-shell.css';
 
-const ICONES_MODULOS = {'compromissos':CalendarCheck,'contas-atrasadas':AlertTriangle,orcamentos:FileText,bancos:Landmark,marketing:Megaphone,licitacoes:Gavel,glossario:BookOpen,manutencoes:Wrench,patrimonio:Tag,permutas:Handshake,campanhas:Flag,documentos:FileCheck2};
+const EMOJIS_MODULOS = {compromissos:'📅','contas-atrasadas':'💰',orcamentos:'📋',bancos:'🏦',marketing:'📣',licitacoes:'⚖️',glossario:'📖',manutencoes:'🛠️',patrimonio:'🏠',permutas:'🤝',campanhas:'🎯',documentos:'📁'};
+const EMOJIS_SISTEMAS = {rh:'👥',pcp:'🏭',brief:'📏',dre:'📊',compras:'🛒',pops:'📚',domo:'🏗️',bosques:'🌳',central:'👤',diamond:'💎'};
 
 export default function CentralShell({children,sessao,aoSair,controles}) {
   const review = import.meta.env.MODE === 'review';
@@ -37,14 +36,14 @@ export default function CentralShell({children,sessao,aoSair,controles}) {
     <aside id="menu-painel" className={`review-sidebar sem-impressao ${menu?'open':''}`}>
       <Link to="/" className="review-brand"><img src={logo} alt="Impresilk" className="dark:hidden"/><img src={logoWhite} alt="Impresilk" className="hidden dark:block"/><span>PAINEL DE GESTÃO</span></Link>
       <nav aria-label="Navegação principal">
-        <NavLink end to="/" className={({isActive})=>isActive?'selected':''}><LayoutDashboard size={20}/>Início</NavLink>
-        <Link className={naCentral?'selected':''} to="/acessos" aria-current={naCentral?'page':undefined}><ShieldCheck size={20}/>Sistemas e configurações</Link>
+        <NavLink end to="/" className={({isActive})=>isActive?'selected':''}><span className="review-link-emoji" aria-hidden="true">🏠</span>Início</NavLink>
+        <Link className={naCentral?'selected':''} to="/acessos" aria-current={naCentral?'page':undefined}><span className="review-link-emoji" aria-hidden="true">⚙️</span>Sistemas e configurações</Link>
       </nav>
       <div className="review-sidebar-scroll">
         <details key={`modulos-${location.pathname}`} open><summary>MÓDULOS DO PAINEL <ChevronRight size={15}/></summary>
-          <nav aria-label="Módulos do painel">{modulos.map(m=>{const Icone=ICONES_MODULOS[m.id]||FileText;return <NavLink key={m.id} to={`/${m.id}`} className={({isActive})=>isActive?'selected':''}><span className="review-link-icon" aria-hidden="true"><Icone size={19}/></span><span>{m.nome}</span></NavLink>;})}</nav>
+          <nav aria-label="Módulos do painel">{modulos.map(m=>{return <NavLink key={m.id} to={`/${m.id}`} className={({isActive})=>isActive?'selected':''}><span className="review-link-emoji" aria-hidden="true">{EMOJIS_MODULOS[m.id]||"📁"}</span><span>{m.nome}</span></NavLink>;})}</nav>
         </details>
-        {gruposAcesso.map(g=><details key={`${g.nome}-${location.pathname}`} open><summary>{g.nome}<ChevronRight size={15}/></summary><nav aria-label={`Acessos ${g.nome}`}>{g.links.map(s=>{const Icone=s.id==='diamond'?Building2:iconeDoSistema(s);return <a key={s.id} href={s.url} target="_blank" rel="noopener noreferrer"><span className="review-link-icon" data-sistema={s.id} aria-hidden="true"><Icone size={20}/></span><span>{s.nomeCompleto || s.nome}</span><ArrowUpRight size={15} aria-hidden="true"/></a>;})}</nav></details>)}
+        {gruposAcesso.map(g=><details key={`${g.nome}-${location.pathname}`} open><summary>{g.nome}<ChevronRight size={15}/></summary><nav aria-label={`Acessos ${g.nome}`}>{g.links.map(s=>{return <a key={s.id} href={s.url} target="_blank" rel="noopener noreferrer"><span className="review-link-emoji" aria-hidden="true">{EMOJIS_SISTEMAS[s.id]||"💻"}</span><span>{s.nomeCompleto || s.nome}</span><ArrowUpRight size={15} aria-hidden="true"/></a>;})}</nav></details>)}
       </div>
       <Link to="/minha-conta" className="review-user"><span className="review-avatar">{(sessao?.nome || 'DE').slice(0,2).toUpperCase()}</span><div>{sessao?.nome || 'Conta de demonstração'}<small>Direção</small></div></Link>
       {review ? <Link className="review-logout" to="/entrada"><LogOut size={17}/>Ver tela de entrada</Link> : <button className="review-logout" onClick={aoSair}><LogOut size={17}/>Sair do Painel</button>}

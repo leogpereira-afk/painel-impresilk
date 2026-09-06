@@ -13,21 +13,18 @@ html.dark .review-top,html.dark .review-brand span,html.dark .review-footer{colo
 .review-sidebar nav a,.review-sidebar summary,.review-brand span,.review-user,.review-logout{font-family:PainelPoppins,Arial,sans-serif}
 .review-sidebar summary,.review-brand span{color:#2c44a0;font-weight:700;letter-spacing:1px}
 .review-sidebar nav a{color:#46536b;font-size:15px;line-height:1.5;gap:10px}
-.review-sidebar nav a>span:not(.review-link-icon){min-width:0}
+.review-sidebar nav a>span:not(.review-link-emoji){min-width:0}
 .review-sidebar nav a>svg{flex-shrink:0}
 .review-sidebar nav a.selected{color:#253ac0;background:#ebefff}
 .review-sidebar nav a:hover{background:#f0f4ff}
-.review-link-icon{display:grid;place-items:center;width:32px;height:32px;flex:0 0 32px;border-radius:10px;background:#edf0ff;color:#3c4ccc}
-.review-link-icon[data-sistema="bosques"]{color:#167450;background:#e6f5eb}
-.review-link-icon[data-sistema="central"]{color:#7441ad;background:#f2eafa}
-.review-link-icon[data-sistema="domo"],.review-link-icon[data-sistema="diamond"]{color:#9a5c18;background:#fff2db}
-.review-link-icon[data-sistema="rh"],.review-link-icon[data-sistema="brief"]{color:#147786;background:#e5f5f7}
 html.dark .review-sidebar summary,html.dark .review-brand span{color:#a9bdff}
 html.dark .review-sidebar nav a{color:#cbd5e1}
 html.dark .review-sidebar nav a.selected{color:#e0e7ff;background:#27335a}
 html.dark .review-sidebar nav a:hover{background:#25314d}
-html.dark .review-link-icon{background:#2b3654;color:#c1ccff}
-html.dark .review-link-icon[data-sistema="bosques"]{background:#183e32;color:#8be0b5}
-html.dark .review-link-icon[data-sistema="central"]{background:#3d2b50;color:#d8b7fa}
-html.dark .review-link-icon[data-sistema="domo"],html.dark .review-link-icon[data-sistema="diamond"]{background:#46351d;color:#f5cd8c}
-html.dark .review-link-icon[data-sistema="rh"],html.dark .review-link-icon[data-sistema="brief"]{background:#1e3a42;color:#9ddce5}
+
+/* Emojis nativos, sem caixas: os títulos de seção concentram o azul. */
+.review-link-emoji{display:inline-flex;align-items:center;justify-content:center;flex:0 0 26px;width:26px;font-family:"Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif;font-size:21px;font-weight:400;line-height:1.3}
+.review-sidebar nav a.selected{color:#46536b;background:#edf0ee;box-shadow:inset 3px 0 #788b82;font-weight:700}
+.review-sidebar nav a:hover{background:#f5f5f2}
+html.dark .review-sidebar nav a.selected{color:#e2e8e5;background:#303a35;box-shadow:inset 3px 0 #a5b9ad}
+html.dark .review-sidebar nav a:hover{background:#2a302d}
