@@ -23,7 +23,7 @@ Deno.serve(async(req:Request)=>{
  const cargaToken=Deno.env.get('PAINEL_TOKEN')||'';
  if(cargaToken&&req.headers.get('x-token')===cargaToken){
   const d=await req.json().catch(()=>null);if(d?.action!=='diagnostico')return json({erro:'Diagnóstico somente de leitura.'},403);
-  try{const c=await credenciais();const consultas=await Promise.all(['usuario','grupo-tarefa'].map(async rota=>{try{const r=await mubi(c,rota+'?page=1&per_page=2');const b=await r.json().catch(()=>null);return {rota,status:r.status,contagem:lista(b).length,campos:Object.keys(lista(b)[0]||{})};}catch{return {rota,status:'indisponivel'};}}));return json({configurado:true,consultas});}catch{return json({configurado:false});}
+  try{const c=await credenciais();const {data:cache}=await sb.from('painel_cache').select('valor').eq('chave','crm_funil').maybeSingle();const id=cache?.valor?.cards?.[0]?.id;const rotas=['usuario','grupo-tarefa',...(id?[`funil-vendas-card/${codigo(id)}`]:[])];const consultas=await Promise.all(rotas.map(async rota=>{try{const r=await mubi(c,rota+'?page=1&per_page=2');const b=await r.json().catch(()=>null);return {rota:rota.replace(/\/\d+/g,'/{id}'),status:r.status,contagem:lista(b).length,campos:Object.keys(lista(b)[0]||(!Array.isArray(b)&&b)||{})};}catch{return {rota:rota.replace(/\/\d+/g,'/{id}'),status:'indisponivel'};}}));return json({configurado:true,consultas});}catch{return json({configurado:false});}
  }
  const token=(req.headers.get('authorization')||'').match(/^Bearer\s+(.+)$/i)?.[1];
  const sessao=SECRET&&token?await verificarJwt(token,SECRET):null;
@@ -64,21 +64,21 @@ Deno.serve(async(req:Request)=>{
   }else if(!['opcoes','detalhe'].includes(action))return json({erro:'Ação inválida.'},400);
   const creds=await credenciais();
   if(action==='opcoes'){
-   const [us,gs]=await Promise.all([todos(creds,'usuario'),todos(creds,'grupo-tarefa')]);
+   const [us,tarefas]=await Promise.all([todos(creds,'usuario'),todos(creds,'grupo-tarefa').then(gs=>({gs,aviso:''})).catch(()=>({gs:[],aviso:'O Mubisys não disponibilizou grupos de tarefas. Confira o cadastro de grupos e o acesso à API no ERP. As outras ações continuam disponíveis.'}))]);const gs=tarefas.gs;
    const meus=us.filter((u:any)=>normal(u.nome)===normal(sessao.vend||sessao.nome));
    const {data:cache,error}=await sb.from('painel_cache').select('valor').eq('chave','crm_funil').maybeSingle();if(error)throw error;
    const equipe=sessao.master===true||(sessao.perms||[]).includes('*');
    const cards=(cache?.valor?.cards||[]).filter((c:any)=>equipe||meus.length===1&&String(c.responsavelId)===String(meus[0].id));
-   return json({configurado:true,grupos:cache?.valor?.grupos||[],cards:cards.map((c:any)=>({id:c.id,titulo:c.titulo,cliente:c.cliente,clienteId:c.clienteId})),usuarios:us.map((u:any)=>({id:String(u.id),nome:String(u.nome||'')})),gruposTarefa:gs.map((g:any)=>({id:String(g.id),nome:String(g.nome||g.descricao||'Grupo')})),meuUsuarioId:meus.length===1?String(meus[0].id):null});
+   return json({configurado:true,avisoTarefas:tarefas.aviso,grupos:cache?.valor?.grupos||[],cards:cards.map((c:any)=>({id:c.id,titulo:c.titulo,cliente:c.cliente,clienteId:c.clienteId})),usuarios:us.map((u:any)=>({id:String(u.id),nome:String(u.nome||'')})),gruposTarefa:gs.map((g:any)=>({id:String(g.id),nome:String(g.nome||g.descricao||'Grupo')})),meuUsuarioId:meus.length===1?String(meus[0].id):null});
   }
   const cardId=action==='criar'?null:String(codigo(b.cardId));
   let card:any=null;
   if(cardId){card=await consultar(creds,`funil-vendas-card/${cardId}`);if(String(card?.id)!==cardId)throw new Error('Oportunidade não localizada.');}
-  // Consulta e escrita respeitam responsável ou membro; direção pode operar a equipe.
+  // Consulta e escrita respeitam o responsável; direção pode operar a equipe.
   const equipe=sessao.master===true||(sessao.perms||[]).includes('*');
   let meuId:string|null=null;
   if(!equipe){const us=await todos(creds,'usuario');const meus=us.filter((u:any)=>normal(u.nome)===normal(sessao.vend||sessao.nome));meuId=meus.length===1?String(meus[0].id):null;
-   if(!meuId||card&&(String(card.responsavel)!==meuId&&!lista(card.membros).some((u:any)=>String(u.id??u)===meuId)))return json({erro:'Esta oportunidade não está atribuída a você no Mubisys.'},403);
+   if(!meuId||card&&(String(card.responsavel)!==meuId))return json({erro:'Esta oportunidade não está atribuída a você no Mubisys.'},403);
    if(action==='criar'&&String(b.responsavelId)!==meuId)return json({erro:'Escolha seu próprio responsável no Mubisys.'},403);
   }
   if(action==='detalhe')return json({card:{id:String(card.id),titulo:card.titulo,cliente:card.cliente?.nome||card.nome_cliente||'',fase:card.fase,grupo:card.grupo,status:card.status,tarefasExistentes:lista(card.tarefas).length}});

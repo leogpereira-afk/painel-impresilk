@@ -61,7 +61,7 @@ function CartaoCobranca({ c, aberto, aoAbrir, aoRegistrar, aoApagar, aoPriorizar
   const alerta = c.promessaVencida ? "bad" : c.semChamado ? "warn" : null;
   return (
     <div
-      className={`rounded-xl border p-4 ${
+      className={`cob-cartao min-w-0 rounded-xl border p-4 ${
         alerta === "bad" ? "border-bad-300 bg-bad-50"
         : alerta === "warn" ? "border-warn-200 bg-warn-50"
         : "border-slate-200 bg-white"
@@ -117,7 +117,7 @@ function CartaoCobranca({ c, aberto, aoAbrir, aoRegistrar, aoApagar, aoPriorizar
             </div>
             <ol className="rounded-lg bg-white/70">
               {[...c.titulos].sort((a, b) => b.dias - a.dias).map((t) => (
-                <li key={t.id} className="flex items-baseline gap-2 border-b border-slate-100 px-2 py-1.5 text-sm last:border-0">
+                <li key={t.id} className="flex flex-wrap items-baseline gap-2 border-b border-slate-100 px-2 py-1.5 text-sm last:border-0">
                   <span className="w-28 shrink-0 text-xs text-slate-500">
                     {t.nf ? `NF ${t.nf}` : t.os ? `O.S. ${t.os}` : `#${t.id}`}
                   </span>

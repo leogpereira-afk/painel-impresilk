@@ -837,7 +837,8 @@ export default function Orcamentos() {
       await setOverridesOrcamento(Object.fromEntries(ids.map((id) => [id, campos])));
       setDesfazer({ rotulo, patch: inverso });
       if (some) setSaindo((s) => [...new Set([...s, ...ids])]);
-    } catch (e) { setAviso({ tom: "erro", texto: e?.message || "Não consegui gravar." }); }
+      return true;
+    } catch (e) { setAviso({ tom: "erro", texto: e?.message || "Não consegui gravar." }); return false; }
     finally { setSalvando(false); }
   }
 
@@ -868,14 +869,14 @@ export default function Orcamentos() {
        orçamento NÃO some da lista: ele passa a exibir "Chamado dd/mm". */
     chamar: (o) => gravar([o.id], { chamadoEm: hoje }, `Chamada registrada — ${o.cliente}`, { some: false }),
 
-    agendar: (o, data, nota) => {
+    agendar: async (o, data, nota) => {
       if (!data) return;
       const dias = diasEntre(hoje, data);
       if (dias > 90 && !window.confirm(`Retorno para ${dataLonga(data)}, daqui a ${dias} dias. Confirma?`)) return;
       const id =
         o.compromissoId ||
         `cp-${getSessao()?.usuario || "eu"}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
-      gravar(
+      const gravado = await gravar(
         [o.id],
         { proximoToque: data, compromissoId: id, chamadoEm: null, nota: nota || null },
         `${o.cliente}: retorno em ${dataCurta(data)}`,
@@ -883,21 +884,22 @@ export default function Orcamentos() {
         // linha errada. O desbote só faz sentido na mesa mesmo.
         { some: aba === "mesa" && recorte !== "mesa" }
       );
+      if (!gravado) return;
       /* O retorno prometido aqui tem de aparecer na agenda de Compromissos:
          antes ele morria dentro do módulo. Falhar aqui NÃO derruba o
          agendamento — o retorno já foi gravado. */
-      salvarCompromisso(id, {
+      await salvarCompromisso(id, {
         titulo: `Retorno — ${o.cliente}`,
         tipo: "retorno",
         cliente: o.cliente,
         data,
         telefone: o.celular || "",
         obs: nota || o.trabalho || "",
-      }).catch((e) => console.warn("[orcamentos] retorno gravado, sem compromisso:", e?.message || e));
+      }).catch(() => setAviso({tom:"erro",texto:"O retorno foi salvo em Orçamentos, mas a agenda não confirmou. Agende novamente para tentar sincronizar o mesmo compromisso."}));
     },
 
-    antecipar: (o) => {
-      gravar([o.id], { proximoToque: hoje }, `${o.cliente} voltou para hoje`, { some: false });
+    antecipar: async (o) => {
+      if (!await gravar([o.id], { proximoToque: hoje }, `${o.cliente} voltou para hoje`, { some: false })) return;
       // O espelho em Compromissos anda junto: sem isto a agenda da equipe
       // continuava mostrando o retorno na data antiga.
       if (o.compromissoId) {
@@ -908,16 +910,16 @@ export default function Orcamentos() {
           data: hoje,
           telefone: o.celular || "",
           obs: o.nota || o.trabalho || "",
-        }).catch((e) => console.warn("[orcamentos] antecipado, espelho ficou:", e?.message || e));
+        }).catch(() => setAviso({tom:"erro",texto:"O retorno mudou em Orçamentos, mas a agenda não confirmou. Confira o compromisso antes de entrar em contato."}));
       }
     },
 
     // A NOTA SOBREVIVE ao cancelamento: ela é o que o cliente pediu, não a data.
-    cancelar: (o) => {
-      gravar([o.id], { proximoToque: null, compromissoId: null }, `Retorno de ${o.cliente} cancelado`, { some: false });
+    cancelar: async (o) => {
+      if (!await gravar([o.id], { proximoToque: null, compromissoId: null }, `Retorno de ${o.cliente} cancelado`, { some: false })) return;
       if (o.compromissoId) {
         removerCompromisso(o.compromissoId).catch((e) =>
-          console.warn("[orcamentos] compromisso não removido:", e?.message || e)
+          setAviso({tom:"erro",texto:`Retorno cancelado em Orçamentos; a agenda não confirmou a remoção: ${e?.message || "confira em Compromissos"}.`})
         );
       }
     },
