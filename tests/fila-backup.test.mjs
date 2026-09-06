@@ -32,3 +32,9 @@ test('não trata ausência de confirmação como sucesso',async()=>{
  assert.equal(sem.sistemas.a.ok,false);
  await assert.rejects(executarBackupsSequenciais([],async()=>{}),/Nenhum sistema/);
 });
+
+test('rodada manual continua as partes até a confirmação final',async()=>{
+ let chamadas=0;const eventos=[];
+ const r=await executarBackupsSequenciais(['grande'],async()=>{chamadas++;return {sistemas:{grande:{ok:chamadas===3,emAndamento:chamadas<3,partes:chamadas}}};},p=>eventos.push(p));
+ assert.equal(chamadas,3);assert.equal(r.sistemas.grande.ok,true);assert.equal(eventos.at(-1).parte,2);
+});

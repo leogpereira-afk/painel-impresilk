@@ -137,8 +137,8 @@ export default function Home() {
              backup que RODA E FALHA todo dia parecia o mais fresco de todos
              -- justo o caso que este aviso existe para pegar. Falha conta
              como parado na hora, sem esperar as 36h. */
-          if (lista.some((sx) => sx && sx.ok === false)) {
-            setBackupFalhou(lista.filter((sx) => sx?.ok === false).length);
+          if (lista.some((sx) => sx && sx.ok === false && !sx.emAndamento)) {
+            setBackupFalhou(lista.filter((sx) => sx?.ok === false && !sx.emAndamento).length);
             return;
           }
           const idades = lista

@@ -27,6 +27,7 @@ import { verificarJwt, crachaRevogado } from "../_shared/cripto.ts";
 import {capturarArquivos,prepararArquivos} from "../_shared/arquivos-backup.ts";
 import {buscarComRetentativa} from "../_shared/repetir-http.ts";
 import {proximoBackup} from "../_shared/fila-backup.mjs";
+import {avancarCopia} from "../_shared/backup-partes.mjs";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -276,7 +277,7 @@ async function puxarSistema(sys: any) {
 
 // ---------------------------------------------------------------- github
 
-async function enviarParaGithub(chaveSistema: string, backup: any) {
+async function enviarParaGithub(chaveSistema: string, backup: any, caminhoParte?: string) {
   if (!GH_TOKEN || !GH_REPO) return { ok: false, motivo: "GitHub nao configurado (falta GITHUB_TOKEN/GITHUB_REPO)" };
   if(GH_REPO !== 'leogpereira-afk/backups-impresilk') throw new Error('Destino de backup diferente do repositório privado aprovado.');
   const destino=await buscarComRetentativa(`https://api.github.com/repos/${GH_REPO}`,{headers:{Authorization:`Bearer ${GH_TOKEN}`,Accept:'application/vnd.github+json','User-Agent':'impresilk-painel-backup'}});
@@ -298,7 +299,7 @@ async function enviarParaGithub(chaveSistema: string, backup: any) {
     backup={...backup,arquivos:manifesto};
   }
   const dia = diaSP(backup.exportadoEm);
-  const caminho = `${chaveSistema}/${dia}.json`;
+  const caminho = caminhoParte || `${chaveSistema}/${dia}.json`;
   // base64 em BLOCOS: espalhar um array grande em String.fromCharCode(...)
   // estoura a pilha -- e um backup de sistema (RH ~900 KB) e grande.
   const bytes = new TextEncoder().encode(JSON.stringify(backup));
@@ -333,6 +334,33 @@ async function enviarParaGithub(chaveSistema: string, backup: any) {
     return { ok: false, motivo: `GitHub ${r.status}: ${t.slice(0, 100)}` };
   }
   return { ok: true, caminho };
+}
+
+// Bosques excede 40 MB: nunca acumula a base inteira dentro da função.
+// Cada chamada grava uma parte e só então avança o cursor persistido.
+async function copiarPorPartes(sys:any) {
+ const chave=`backup_etapa_${sys.key}`;
+ const {data,error}=await sb.from('painel_meta').select('valor').eq('chave',chave).maybeSingle();
+ if(error)throw new Error('Não foi possível consultar o progresso da cópia.');
+ let estado=data?.valor;
+ if(!estado || diaSP(estado.exportadoEm)!==diaSP() || estado.terminou)estado={sistema:sys.key,operacao:crypto.randomUUID(),exportadoEm:new Date().toISOString(),partes:[],registros:0,paginas:0,after:null,terminou:false};
+ estado=await avancarCopia(estado,async(after:any)=>{
+  const r=await chamarSistema(sys,after==null?{action:'list'}:{action:'list',after});
+  return {registros:r[sys.listKey] || r.registros || r.os || r.itens,nextAfter:r.nextAfter};
+ },async(caminho:string,corpo:any)=>{
+  const envio=await enviarParaGithub(sys.key,{...corpo},caminho);
+  if(!envio.ok)throw new Error((envio as any).motivo);
+ });
+ if(estado.terminou) {
+  let cfg=null;
+  try{cfg=(await chamarSistema(sys,{action:'getCfg'})).cfg??null;}
+  catch(e){if(!/HTTP 400|a[cç][aã]o desconhecida|unknown action/i.test(String((e as Error).message)))throw e;}
+  const envio=await enviarParaGithub(sys.key,{...estado,versao:4,nome:sys.nome,cfg,fotos:'não incluídas neste backup',finalizadoEm:new Date().toISOString()});
+  if(!envio.ok)throw new Error((envio as any).motivo);
+ }
+ const salvo=await sb.from('painel_meta').upsert({chave,valor:estado,atualizado_em:new Date().toISOString()},{onConflict:'chave'});
+ if(salvo.error)throw new Error('Parte gravada, mas o progresso não foi confirmado. A próxima tentativa conferirá novamente.');
+ return {nome:sys.nome,em:new Date().toISOString(),ok:estado.terminou,emAndamento:!estado.terminou,partes:estado.partes.length,registros:estado.registros,erro:null};
 }
 
 // ---------------------------------------------------------------- hub
@@ -473,6 +501,13 @@ async function executarBackupHub(somente?: string) {
   for (const sys of sistemasExternos()) {
     if(!executar(sys.key)) continue;
     try {
+      // Se o processo for interrompido pelo provedor, a tela não conserva um
+      // sucesso antigo. A última cópia válida continua disponível à parte.
+      porSistema[sys.key]={nome:sys.nome,em:agora,ok:false,erro:'Cópia iniciada; se não concluir, o agendamento tentará novamente.'};
+      await confirmar(sys.key);
+      if(sys.key==='bosques' || sys.particionado===true) {
+        porSistema[sys.key]=await copiarPorPartes(sys);
+      } else {
       const bkp = await puxarSistema(sys);
       const gh = await enviarParaGithub(sys.key, bkp);
       porSistema[sys.key] = {
@@ -480,6 +515,7 @@ async function executarBackupHub(somente?: string) {
         registros: bkp.registros.length,
         erro: gh.ok ? null : (gh as any).motivo,
       };
+      }
     } catch (e) {
       porSistema[sys.key] = { nome: sys.nome, em: agora, ok: false, erro: (e as Error)?.message ?? String(e) };
     }

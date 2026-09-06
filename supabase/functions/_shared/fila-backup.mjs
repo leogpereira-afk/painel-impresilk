@@ -18,9 +18,18 @@ export async function executarBackupsSequenciais(chaves, executar, progresso=()=
  for(const [indice,chave] of [...new Set(chaves)].entries()) {
   progresso({chave,numero:indice+1,total:chaves.length});
   try {
-   const resultado=await executar(chave);
-   if(typeof resultado?.sistemas?.[chave]?.ok!=='boolean')throw new Error('O servidor não confirmou esta cópia. Consulte a situação antes de repetir.');
-   sistemas[chave]=resultado.sistemas[chave];
+   let anterior=0;
+   for(let etapa=0;etapa<300;etapa++) {
+    const resultado=await executar(chave);
+    const estado=resultado?.sistemas?.[chave];
+    if(typeof estado?.ok!=='boolean')throw new Error('O servidor não confirmou esta cópia. Consulte a situação antes de repetir.');
+    sistemas[chave]=estado;
+    if(!estado.emAndamento)break;
+    if(!(estado.partes>anterior))throw new Error('A cópia não avançou. Consulte a situação antes de continuar.');
+    anterior=estado.partes;
+    progresso({chave,numero:indice+1,total:chaves.length,parte:estado.partes});
+   }
+   if(sistemas[chave].emAndamento)throw new Error('A cópia ficou incompleta. Continue pela lista de sistemas.');
   }catch(e){sistemas[chave]={ok:false,erro:e.message || 'Falha ao copiar este sistema.'};}
  }
  return {sistemas};

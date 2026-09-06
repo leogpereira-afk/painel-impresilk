@@ -280,7 +280,7 @@ function UltimoBackup({ status, aoRepetir, enviando }) {
                 </td>
                 <td className="px-3 py-2 text-slate-500">{quandoBR(s.ok?s.em:s.ultimoValido) || "Sem cópia confirmada"}</td>
                 <td className="px-3 py-2">
-                  {s.ok === false ? (
+                  {s.emAndamento ? <span className="chip">Copiando · {s.partes} partes salvas</span> : s.ok === false ? (
                     <span className="chip-bad" title={s.erro || ""}>
                       falhou
                     </span>
@@ -289,7 +289,7 @@ function UltimoBackup({ status, aoRepetir, enviando }) {
                       ok{typeof s.registros === "number" ? ` · ${s.registros} reg.` : ""}
                     </span>
                   )}
-                  {s.ok===false && <div className="mt-2"><p className="text-xs text-bad-700">{s.erro}</p>{status.capacidades?.individual && <button type="button" className="btn-outline mt-2" disabled={enviando} onClick={()=>aoRepetir(k)}>Refazer este sistema</button>}</div>}
+                  {s.ok===false && <div className="mt-2">{s.erro && <p className="text-xs text-bad-700">{s.erro}</p>}{status.capacidades?.individual && <button type="button" className="btn-outline mt-2" disabled={enviando} onClick={()=>aoRepetir(k)}>{s.emAndamento?'Continuar cópia':'Refazer este sistema'}</button>}</div>}
                   {typeof s.arquivos==='number' && <p className="text-xs text-slate-500 mt-2">{s.arquivos} arquivos com cópia dos bytes e conferência.</p>}
                   {/* COLEÇÃO QUE O BACKUP NÃO COPIOU. Só aparece quando existe,
                       e é a diferença entre "está tudo salvo" e "está salvo o que
@@ -461,7 +461,7 @@ export function BackupDados() {
 
         <button className="btn-outline" onClick={rodarBackup} disabled={enviando}>
           <Upload size={16} strokeWidth={2.4} />
-          {enviando ? progresso ? `Copiando ${progresso.numero} de ${progresso.total}…` : "Preparando..." : "Executar backup dos sistemas"}
+          {enviando ? progresso ? `Copiando ${progresso.numero} de ${progresso.total}${progresso.parte?` · parte ${progresso.parte}`:''}…` : "Preparando..." : "Executar backup dos sistemas"}
         </button>
 
         {status?.capacidades?.restauroAtomico ? <label className="btn-outline cursor-pointer">
