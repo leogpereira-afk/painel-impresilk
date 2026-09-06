@@ -26,3 +26,9 @@ test('reconstituição recusa cópia incompleta, parte ausente e contagem difere
  await assert.rejects(reconstituirCopia(estado,async()=>null),/ausente/);
  await assert.rejects(reconstituirCopia({...estado,registros:2},async c=>arquivos.get(c)),/contagem/);
 });
+
+test('manifesto não pode direcionar a recuperação para caminhos fora da cópia',async()=>{
+ let leu=false;
+ await assert.rejects(reconstituirCopia({sistema:'/fora',operacao:'ensaio',terminou:true,partes:[{numero:1,caminho:'/fora/partes/ensaio/arquivo.json'}]},async()=>{leu=true;return null;}),/Identificação/);
+ assert.equal(leu,false);
+});

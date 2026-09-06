@@ -25,9 +25,11 @@ export async function avancarCopia(estado,lerPagina,guardarParte,maxPaginas=4) {
 
 export async function reconstituirCopia(manifesto,lerArquivo) {
  if(!manifesto.terminou||!manifesto.partes?.length)throw new Error('Cópia incompleta.');
+ if(!/^[a-z0-9_-]+$/i.test(manifesto.sistema)||!/^[a-z0-9_-]+$/i.test(manifesto.operacao))throw new Error('Identificação da cópia inválida.');
  const registros=[];
  for(const [i,parte] of manifesto.partes.entries()) {
-  if(parte.numero!==i+1 || !parte.caminho.startsWith(`${manifesto.sistema}/partes/${manifesto.operacao}/`) || parte.caminho.includes('..'))throw new Error('Sequência de partes inválida.');
+  const esperado=`${manifesto.sistema}/partes/${manifesto.operacao}/${String(i+1).padStart(4,'0')}-${parte.sha256}.json`;
+  if(parte.numero!==i+1 || !/^[a-f0-9]{64}$/.test(parte.sha256) || parte.caminho!==esperado)throw new Error('Sequência de partes inválida.');
   const bytes=await lerArquivo(parte.caminho);
   if(!bytes)throw new Error('Parte ausente.');
   if(bytes.length!==parte.bytes || await hash(bytes)!==parte.sha256)throw new Error('Falha na integridade da parte.');
