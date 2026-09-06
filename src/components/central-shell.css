@@ -12,7 +12,7 @@ html.dark .review-top,html.dark .review-brand span,html.dark .review-footer{colo
 @font-face{font-family:PainelPoppins;font-style:normal;font-weight:700;font-display:swap;src:url('../assets/fonts/poppins-bold.ttf') format('truetype')}
 .review-sidebar nav a,.review-sidebar summary,.review-brand span,.review-user,.review-logout{font-family:PainelPoppins,Arial,sans-serif}
 .review-sidebar summary,.review-brand span{color:#2c44a0;font-weight:700;letter-spacing:1px}
-.review-sidebar nav a{color:#24418d;font-size:15px;line-height:1.5;gap:10px}
+.review-sidebar nav a{color:#46536b;font-size:15px;line-height:1.5;gap:10px}
 .review-sidebar nav a>span:not(.review-link-icon){min-width:0}
 .review-sidebar nav a>svg{flex-shrink:0}
 .review-sidebar nav a.selected{color:#253ac0;background:#ebefff}
@@ -23,7 +23,7 @@ html.dark .review-top,html.dark .review-brand span,html.dark .review-footer{colo
 .review-link-icon[data-sistema="domo"],.review-link-icon[data-sistema="diamond"]{color:#9a5c18;background:#fff2db}
 .review-link-icon[data-sistema="rh"],.review-link-icon[data-sistema="brief"]{color:#147786;background:#e5f5f7}
 html.dark .review-sidebar summary,html.dark .review-brand span{color:#a9bdff}
-html.dark .review-sidebar nav a{color:#cad6ff}
+html.dark .review-sidebar nav a{color:#cbd5e1}
 html.dark .review-sidebar nav a.selected{color:#e0e7ff;background:#27335a}
 html.dark .review-sidebar nav a:hover{background:#25314d}
 html.dark .review-link-icon{background:#2b3654;color:#c1ccff}
