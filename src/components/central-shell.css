@@ -6,3 +6,28 @@ html.dark .review-shell{color:#e9ecf6}html.dark .review-sidebar,html.dark .revie
 @media(max-width:900px){.review-shell{display:block}.review-content{padding:24px 16px}.review-top{padding:10px 12px;gap:10px}.review-top>div{gap:6px}.review-controls .chip{font-size:10px}.review-top>div>a{font-size:11px}.review-sidebar.open{width:280px}.review-content h1{font-size:27px}}
 @media print{.review-shell{display:block}.review-content{max-width:none;padding:0}.review-sidebar,.review-top,.review-footer{display:none!important}}
 html.dark .review-top,html.dark .review-brand span,html.dark .review-footer{color:#a9b4c9}html.dark .gestao-eyebrow{color:#b6a8f1}html.dark .gestao-atualizacao span{color:#a9b4c9}
+
+/* Tipografia local e identificação visual dos atalhos. */
+@font-face{font-family:PainelPoppins;font-style:normal;font-weight:600;font-display:swap;src:url('../assets/fonts/poppins-semibold.ttf') format('truetype')}
+@font-face{font-family:PainelPoppins;font-style:normal;font-weight:700;font-display:swap;src:url('../assets/fonts/poppins-bold.ttf') format('truetype')}
+.review-sidebar nav a,.review-sidebar summary,.review-brand span,.review-user,.review-logout{font-family:PainelPoppins,Arial,sans-serif}
+.review-sidebar summary,.review-brand span{color:#2c44a0;font-weight:700;letter-spacing:1px}
+.review-sidebar nav a{color:#24418d;font-size:15px;line-height:1.5;gap:10px}
+.review-sidebar nav a>span:not(.review-link-icon){min-width:0}
+.review-sidebar nav a>svg{flex-shrink:0}
+.review-sidebar nav a.selected{color:#253ac0;background:#ebefff}
+.review-sidebar nav a:hover{background:#f0f4ff}
+.review-link-icon{display:grid;place-items:center;width:32px;height:32px;flex:0 0 32px;border-radius:10px;background:#edf0ff;color:#3c4ccc}
+.review-link-icon[data-sistema="bosques"]{color:#167450;background:#e6f5eb}
+.review-link-icon[data-sistema="central"]{color:#7441ad;background:#f2eafa}
+.review-link-icon[data-sistema="domo"],.review-link-icon[data-sistema="diamond"]{color:#9a5c18;background:#fff2db}
+.review-link-icon[data-sistema="rh"],.review-link-icon[data-sistema="brief"]{color:#147786;background:#e5f5f7}
+html.dark .review-sidebar summary,html.dark .review-brand span{color:#a9bdff}
+html.dark .review-sidebar nav a{color:#cad6ff}
+html.dark .review-sidebar nav a.selected{color:#e0e7ff;background:#27335a}
+html.dark .review-sidebar nav a:hover{background:#25314d}
+html.dark .review-link-icon{background:#2b3654;color:#c1ccff}
+html.dark .review-link-icon[data-sistema="bosques"]{background:#183e32;color:#8be0b5}
+html.dark .review-link-icon[data-sistema="central"]{background:#3d2b50;color:#d8b7fa}
+html.dark .review-link-icon[data-sistema="domo"],html.dark .review-link-icon[data-sistema="diamond"]{background:#46351d;color:#f5cd8c}
+html.dark .review-link-icon[data-sistema="rh"],html.dark .review-link-icon[data-sistema="brief"]{background:#1e3a42;color:#9ddce5}
