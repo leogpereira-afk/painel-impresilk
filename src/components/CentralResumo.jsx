@@ -1,5 +1,6 @@
 import {useEffect, useState} from 'react';
 import {Link} from 'react-router-dom';
+import {ehDirecao, podeAbrir} from '../lib/sessao.js';
 import {ArrowRight, ShieldCheck, KeyRound, Database, Users, Search, Building2} from 'lucide-react';
 import {lerAcessos} from '../services/acesso.js';
 import {doSistema} from '../lib/sistemas.js';
@@ -7,7 +8,7 @@ import {contarAcessos,temPendencia} from '../lib/acesso-state.mjs';
 import './central-resumo.css';
 
 export function CentralNavegacao({ativa}) {
-  const itens=[['geral','Visão geral','/acessos'],['sistemas','Sistemas e pessoas','/acessos?visao=sistemas'],['conta','Minha conta','/minha-conta'],['backup','Backups','/backups']];
+  const itens=[['geral','Visão geral','/acessos'],['sistemas','Sistemas e pessoas','/acessos?visao=sistemas'],['conta','Minha conta','/minha-conta'],['backup','Backups','/backups'],['configuracoes','Configurações','/configuracoes']].filter(([id])=>import.meta.env.MODE==='review'||(id==='configuracoes'?podeAbrir('configuracoes'):id==='conta'||ehDirecao()));
   return <nav className="central-nav" aria-label="Áreas da central">{itens.map(([id,nome,url])=><Link key={id} to={url} aria-current={ativa===id?'page':undefined}>{nome}</Link>)}</nav>;
 }
 

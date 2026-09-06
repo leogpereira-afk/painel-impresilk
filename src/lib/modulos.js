@@ -9,8 +9,10 @@
 // A ordem aqui é a ordem em que aparecem na tela: primeiro o que a direção usa
 // todo dia, por último o que é de configuração.
 
+// Gestão permanece no registro histórico para compatibilidade com as portas de login.
+// Módulos aposentados não são oferecidos na interface.
 export const MODULOS = [
-  { id: "gestao", nome: "Gestão", sub: "identidade, plano do ano, táticas e atas — a tela de direção" },
+  { id: "gestao", aposentado: true, nome: "Gestão", sub: "identidade, plano do ano, táticas e atas — a tela de direção" },
   { id: "compromissos", nome: "Compromissos", sub: "a agenda de cada um — cada pessoa vê só a dela" },
   { id: "contas-atrasadas", nome: "Contas Atrasadas", sub: "quem deve e a cobrança" },
   { id: "orcamentos", nome: "Orçamentos", sub: "funil e conversão do time" },
@@ -23,12 +25,12 @@ export const MODULOS = [
   { id: "permutas", nome: "Permutas", sub: "o que o parceiro nos deu, as O.S. que ele já gastou e o saldo" },
   { id: "campanhas", nome: "Campanhas", sub: "cada evento e quem comprou — e o padrão de venda da casa inteira, mês a mês desde 2020" },
   { id: "configuracoes", nome: "Configurações", sub: "motivos, régua de cobrança e parâmetros — vale para todo mundo" },
-];
+].filter((modulo) => !modulo.aposentado);
 
 // Módulos que mostram DINHEIRO. Não muda nada no servidor; serve para a tela
 // avisar a direção do peso do que está marcando.
 export const COM_DINHEIRO = new Set([
-  "contas-atrasadas", "orcamentos", "bancos", "gestao",
+  "contas-atrasadas", "orcamentos", "bancos",
   // Permuta mostra o crédito do parceiro, o valor de cada O.S. que ele gastou
   // e o saldo. Sem o aviso de R$, quem concede o módulo não vê que está
   // abrindo dinheiro — e o aviso existe justamente para isso.
@@ -46,7 +48,7 @@ export const COM_DINHEIRO = new Set([
 // Contas antigas ainda carregam esses ids guardados; a tela precisa DESCARTAR na
 // leitura, senão reenvia um id que o servidor não conhece e recebe um aviso de
 // erro por algo que ela mesma mandou.
-const APOSENTADOS = new Set(["fluxo-caixa", "produtos"]);
+const APOSENTADOS = new Set(["fluxo-caixa", "produtos", "gestao"]);
 
 const CONHECIDOS = new Set(MODULOS.map((m) => m.id));
 

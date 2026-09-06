@@ -30,7 +30,6 @@ const Marketing = lazy(() => import("./pages/Marketing.jsx"));
 const Licitacoes = lazy(() => import("./pages/Licitacoes.jsx"));
 const Glossario = lazy(() => import("./pages/Glossario.jsx"));
 const Compromissos = lazy(() => import("./pages/Compromissos.jsx"));
-const Gestao = lazy(() => import("./pages/Gestao.jsx"));
 const Manutencoes = lazy(() => import("./pages/Manutencoes.jsx"));
 const Permutas = lazy(() => import("./pages/Permutas.jsx"));
 const Campanhas = lazy(() => import("./pages/Campanhas.jsx"));
@@ -54,7 +53,6 @@ const ROTAS_PREFETCH = [
   { m: "contas-atrasadas", imp: () => import("./pages/ContasAtrasadas.jsx") },
   { m: "orcamentos", imp: () => import("./pages/Orcamentos.jsx") },
   { m: "compromissos", imp: () => import("./pages/Compromissos.jsx") },
-  { m: "gestao", imp: () => import("./pages/Gestao.jsx") },
   { m: "permutas", imp: () => import("./pages/Permutas.jsx") },
   { m: "campanhas", imp: () => import("./pages/Campanhas.jsx") },
   { m: "manutencoes", imp: () => import("./pages/Manutencoes.jsx") },
@@ -186,14 +184,7 @@ export default function App() {
             </Restrito>
           }
         />
-        <Route
-          path="/gestao"
-          element={
-            <Restrito modulo="gestao" sessao={sessao}>
-              <Gestao />
-            </Restrito>
-          }
-        />
+        <Route path="/gestao" element={<Navigate to="/" replace />} />
         <Route
           path="/manutencoes"
           element={

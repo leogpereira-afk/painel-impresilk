@@ -12,7 +12,6 @@ import {
   Home,
   AlertTriangle,
   FileText,
-  Settings,
   Moon,
   Sun,
   Clock,
@@ -34,7 +33,6 @@ import {
   Gavel,
   BookOpen,
   CalendarCheck,
-  Compass,
   Flag,
   Handshake,
 } from "lucide-react";
@@ -52,7 +50,6 @@ import { frescor } from "../lib/frescor.js";
 const INICIO = { to: "/", rotulo: "Início", icone: Home, exato: true };
 
 const GESTAO = [
-  { to: "/gestao", rotulo: "Gestão", icone: Compass, modulo: "gestao" },
   { to: "/compromissos", rotulo: "Compromissos", icone: CalendarCheck, modulo: "compromissos" },
   { to: "/contas-atrasadas", rotulo: "Contas Atrasadas", icone: AlertTriangle, modulo: "contas-atrasadas" },
   { to: "/orcamentos", rotulo: "Orçamentos", icone: FileText, modulo: "orcamentos" },
@@ -304,7 +301,7 @@ function ConteudoLateral({ aoNavegar, sessao }) {
       {/* Rodape: ajuste (nao rotina) e a identidade de quem esta logado. */}
       <div className="mt-auto space-y-0.5 pt-6">
         <NavLink
-          to={ehDirecao(sessao) ? "/acessos" : "/minha-conta"}
+          to={ehDirecao(sessao) ? "/acessos" : podeAbrir("configuracoes", sessao) ? "/configuracoes" : "/minha-conta"}
           onClick={aoNavegar}
           className={({ isActive }) =>
             [
@@ -314,28 +311,8 @@ function ConteudoLateral({ aoNavegar, sessao }) {
           }
         >
           <KeyRound size={17} strokeWidth={2.2} className="shrink-0" />
-          {ehDirecao(sessao) ? "Sistemas de Acessos" : "Minha senha"}
+          {ehDirecao(sessao) || podeAbrir("configuracoes", sessao) ? "Sistemas e configurações" : "Minha senha"}
         </NavLink>
-
-        {/* SEM ACENTO: o id do módulo é "configuracoes" (src/lib/modulos.js).
-            Com acento, includes() dava sempre falso e o item NUNCA aparecia no
-            menu de quem recebeu o módulo sem ser direção -- permissão concedida
-            e invisível, sem erro em lugar nenhum. */}
-        {podeAbrir("configuracoes", sessao) && (
-          <NavLink
-            to="/configuracoes"
-            onClick={aoNavegar}
-            className={({ isActive }) =>
-              [
-                "flex items-center gap-2.5 rounded-lg px-3 py-2 font-display text-sm font-medium transition-all",
-                isActive ? CLASSE_ABERTO : "text-slate-500 hover:bg-slate-100 hover:text-slate-900",
-              ].join(" ")
-            }
-          >
-            <Settings size={17} strokeWidth={2.2} className="shrink-0" />
-            Configurações
-          </NavLink>
-        )}
 
         {sessao && (
           <NavLink to="/minha-conta" onClick={aoNavegar} aria-label="Minha conta"

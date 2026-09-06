@@ -7,6 +7,7 @@ import { Plus, Trash2, Info, AlertTriangle, ChevronDown } from "lucide-react";
 import { useApp } from "../config/store.jsx";
 import { comCracha } from "../lib/sessao.js";
 import { API } from "../lib/api.js";
+import {CentralNavegacao} from "../components/CentralResumo.jsx";
 import { PageTitle, SectionTitle, Segmented } from "../components/ui.jsx";
 
 import {useLocation} from 'react-router-dom';
@@ -95,6 +96,7 @@ export default function Configuracoes() {
 
   return (
     <div className="space-y-8" ref={pagina}>
+      <CentralNavegacao ativa="configuracoes"/>
       <PageTitle
         titulo="Configurações"
         descricao="Ajustes organizados por módulo. Clique no título de cada card para recolher ou abrir. As regras gerais são salvas ao alterar; os demais ajustes têm botão Salvar."

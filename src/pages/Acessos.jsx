@@ -92,7 +92,7 @@ export default function Acessos({ minhaConta = false }) {
           e so a troca da propria senha, e chamar isso de "Acessos" dava a
           entender que dava para liberar modulo por aqui. */}
       <PageTitle
-        titulo={ehDirecao && !minhaConta ? "Sistemas de Acessos" : "Minha conta"}
+        titulo={ehDirecao && !minhaConta ? "Sistemas e configurações" : "Minha conta"}
         descricao={
           ehDirecao && !minhaConta
             ? "Gerencie quem entra e o que cada pessoa pode fazer."
@@ -100,7 +100,7 @@ export default function Acessos({ minhaConta = false }) {
         }
       />
 
-      {ehDirecao && <CentralNavegacao ativa={minhaConta ? "conta" : geral ? "geral" : "sistemas"}/>}
+      {<CentralNavegacao ativa={!ehDirecao || minhaConta ? "conta" : geral ? "geral" : "sistemas"}/>}
       {ehDirecao && geral && <CentralResumo/>}
 
       {/* A ORDEM MUDOU EM 16/08/2026. "Minha senha" vinha primeiro e ocupava a

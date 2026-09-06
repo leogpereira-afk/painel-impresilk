@@ -12,14 +12,14 @@ export default function CentralShell({children,sessao,aoSair,controles}) {
   const location = useLocation();
   const [menu,setMenu] = useState(false);
   const abrirRef = useRef(null);
-  const naCentral = ['/acessos','/minha-conta','/backups'].includes(location.pathname);
-  const modulos = [...MODULOS,{id:'documentos',nome:'Documentos e ativos'}];
+  const naCentral = ['/acessos','/minha-conta','/backups','/configuracoes'].includes(location.pathname);
+  const modulos = [...MODULOS.filter(m=>m.id!=='configuracoes'),{id:'documentos',nome:'Documentos e ativos'}];
   const gruposAcesso = [
     {nome:'IMPRESILK', links:SISTEMAS.filter(s=>s.id!=='painel' && !s.pessoal && s.url)},
     {nome:'LÉO E PORTAL DOS BOSQUES', links:SISTEMAS.filter(s=>['central','bosques'].includes(s.id))},
     {nome:'DOMO', links:[...SISTEMAS.filter(s=>s.id==='domo'),{id:'diamond',nome:'Diamond Vendas',url:'https://leogpereira-afk.github.io/diamond/'}]},
   ].filter((g,i)=>i===0 || sessao?.master || sessao?.perms?.includes('*') || review);
-  const titulo = naCentral ? 'Sistemas' : modulos.find(m=>`/${m.id}`===location.pathname)?.nome || 'Início';
+  const titulo = naCentral ? 'Sistemas e configurações' : modulos.find(m=>`/${m.id}`===location.pathname)?.nome || 'Início';
   useEffect(()=>setMenu(false),[location.pathname,location.search]);
   useEffect(()=>{
     if(!menu)return;
@@ -34,7 +34,7 @@ export default function CentralShell({children,sessao,aoSair,controles}) {
       <Link to="/" className="review-brand"><img src={logo} alt="Impresilk" className="dark:hidden"/><img src={logoWhite} alt="Impresilk" className="hidden dark:block"/><span>PAINEL DE GESTÃO</span></Link>
       <nav aria-label="Navegação principal">
         <NavLink end to="/" className={({isActive})=>isActive?'selected':''}><LayoutDashboard size={20}/>Início</NavLink>
-        <Link className={naCentral?'selected':''} to="/acessos" aria-current={naCentral?'page':undefined}><ShieldCheck size={20}/>Sistemas</Link>
+        <Link className={naCentral?'selected':''} to="/acessos" aria-current={naCentral?'page':undefined}><ShieldCheck size={20}/>Sistemas e configurações</Link>
       </nav>
       <div className="review-sidebar-scroll">
         <details key={`modulos-${location.pathname}`} open><summary>MÓDULOS DO PAINEL <ChevronRight size={15}/></summary>
