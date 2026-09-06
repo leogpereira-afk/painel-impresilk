@@ -47,7 +47,7 @@ export default function CurvaDso({ dados, meta, cor }) {
       <svg
         viewBox={`0 0 ${W} ${H}`}
         style={{ width: "100%", height: "auto", display: "block" }}
-        role="img"
+        role="group"
         aria-label={`Evolução do DSO, de ${pts[0].mes} a ${pts[pts.length - 1].mes}`}
         onMouseLeave={() => setAtivo(null)}
       >
@@ -76,6 +76,8 @@ export default function CurvaDso({ dados, meta, cor }) {
               y={M.top}
               width={(W - M.left - M.right) / (pts.length - 1)}
               height={H - M.top - M.bottom}
+              role="button" tabIndex={0} aria-label={`${d.mes}: ${d.dso} dias`} aria-pressed={ativo===i}
+              onFocus={()=>setAtivo(i)} onKeyDown={e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();setAtivo(ativo===i?null:i);}}}
               fill="transparent"
               onMouseEnter={() => setAtivo(i)}
               onClick={() => setAtivo(ativo === i ? null : i)}
@@ -104,6 +106,7 @@ export default function CurvaDso({ dados, meta, cor }) {
           </g>
         )}
       </svg>
+      <details className="mt-3"><summary className="cursor-pointer text-sm">Ver valores em tabela</summary><table className="w-full text-sm mt-2"><caption>Prazo médio de recebimento, em dias</caption><thead><tr><th scope="col">Mês</th><th scope="col">DSO</th><th scope="col">Meta</th></tr></thead><tbody>{pts.map(d=><tr key={d.mes}><th scope="row">{d.mes}</th><td className="text-center">{d.dso}</td><td className="text-center">{meta ?? '—'}</td></tr>)}</tbody></table></details>
     </div>
   );
 }

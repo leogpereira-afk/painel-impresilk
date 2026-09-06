@@ -248,11 +248,11 @@ export default function Ativos() {
        cofre: a apolice apagada pode ser a unica copia digital. O Patrimonio,
        na mesma area, sempre confirmou; as duas telas se contradiziam no gesto
        mais perigoso. */
-    if (!window.confirm(`Apagar "${item.nome}"? Vai para a lixeira e pode ser restaurado por 30 dias.`)) return;
+    if (!window.confirm(`Apagar "${item.nome}"? Vai para a lixeira e pode ser restaurado.`)) return;
     setMsg(null);
     try {
       await removerAtivo(item.id);
-      setMsg({ tom: "aviso", texto: `${item.nome} foi para a lixeira — dá para restaurar por 30 dias, no fim desta tela.` });
+      setMsg({ tom: "aviso", texto: `${item.nome} foi para a lixeira — dá para restaurar no fim desta tela.` });
       setItens((atuais) => (atuais || []).filter((x) => x.id !== item.id));
       // Formulario aberto no item que acabou de ser apagado: salvar dali
       // RESSUSCITARIA o registro -- so que sem o arquivo, que ja se foi junto.
@@ -674,7 +674,7 @@ export default function Ativos() {
           }}
         >
           <span className="font-display font-medium">Lixeira</span>
-          <span className="text-xs">{lixeira === null ? "abrir" : "fechar"} · itens apagados ficam 30 dias</span>
+          <span className="text-xs">{lixeira === null ? "abrir" : "fechar"} · itens retirados podem ser recuperados</span>
         </button>
         {lixeira !== null && (
           lixeira.length ? (

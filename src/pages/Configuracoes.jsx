@@ -5,7 +5,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Plus, Trash2, Info, AlertTriangle, ChevronDown } from "lucide-react";
 import { useApp } from "../config/store.jsx";
-import { comCracha } from "../lib/sessao.js";
+import { comCracha, podeAbrir, getSessao } from "../lib/sessao.js";
 import { API } from "../lib/api.js";
 import {CentralNavegacao} from "../components/CentralResumo.jsx";
 import { PageTitle, SectionTitle, Segmented } from "../components/ui.jsx";
@@ -13,6 +13,7 @@ import { PageTitle, SectionTitle, Segmented } from "../components/ui.jsx";
 import {useLocation} from 'react-router-dom';
 import {ConfiguracaoPermutas,ConfiguracaoMarketing,ConfiguracaoCampanhas} from '../components/ConfiguracoesModulos.jsx';
 import './configuracoes.css';
+import LixeiraRegistros from '../components/LixeiraRegistros.jsx';
 
 function CartaoConfig({titulo,sub,children}) {
   return <details className="config-card" open><summary><div><h3>{titulo}</h3>{sub&&<p>{sub}</p>}</div><ChevronDown size={20}/></summary><div className="config-card-conteudo">{children}</div></details>;
@@ -33,13 +34,14 @@ function Campo({ rotulo, dica, children }) {
 }
 
 // Botao de remover linha, discreto e vermelho no hover.
-function BotaoRemover({ onClick, titulo = "Remover" }) {
+function BotaoRemover({ onClick, oQue, titulo = "Remover" }) {
   return (
     <button
       type="button"
       onClick={onClick}
       title={titulo}
-      className="grid h-9 w-9 shrink-0 place-items-center rounded-lg text-slate-400 transition-colors hover:bg-bad-50 hover:text-bad-600"
+      aria-label={oQue?`Remover ${oQue}`:titulo}
+      className="grid h-11 w-11 shrink-0 place-items-center rounded-lg text-slate-400 transition-colors hover:bg-bad-50 hover:text-bad-600"
     >
       <Trash2 size={16} strokeWidth={2.2} />
     </button>
@@ -55,7 +57,8 @@ const TAGS_MOTIVO = [
 ];
 
 export default function Configuracoes() {
-  const { config, updateConfig, resetarConfig } = useApp();
+  const { config, updateConfig, resetarConfig, marcacoesProntas, erroMarcacoes, recarregarMarcacoes, syncConfig, tentarSalvarConfig } = useApp();
+  const geral = podeAbrir('configuracoes');
   const local = useLocation();
   const pagina = useRef(null);
   const recolherTodos = (aberto) => pagina.current?.querySelectorAll("details.config-card").forEach(el => { el.open = aberto; });
@@ -70,13 +73,14 @@ export default function Configuracoes() {
      prender) e um aviso por linha quando o nome digitado NÃO existe no ERP. */
   const [vendReais, setVendReais] = useState(null);
   useEffect(() => {
+    if (!geral) return;
     let vivo = true;
     comCracha(`${API}/painel-dados?modulo=vendedoresErp`)
       .then((r) => r.json())
       .then((d) => vivo && setVendReais(Array.isArray(d.vendedores) ? d.vendedores.map((v) => v.nome) : null))
       .catch(() => {});   // sem a lista, a tela segue como antes -- só sem sugestão
     return () => { vivo = false; };
-  }, []);
+  }, [geral]);
 
   const p = config.parametros;
   const setParam = (chave, valor) =>
@@ -101,8 +105,9 @@ export default function Configuracoes() {
         titulo="Configurações"
         descricao="Ajustes organizados por módulo. Clique no título de cada card para recolher ou abrir. As regras gerais são salvas ao alterar; os demais ajustes têm botão Salvar."
         acao={
-          <button
+          geral && <button
             className="btn-outline"
+            disabled={!marcacoesProntas}
             onClick={() => {
               /* CONFIRMA: um toque acidental (o botao fica no topo, no celular)
                  apagava motivos, regua e vendedores calibrados e JA GRAVAVA na
@@ -119,7 +124,11 @@ export default function Configuracoes() {
       />
 
       <div className="flex flex-wrap gap-2"><button type="button" className="btn-outline" onClick={()=>recolherTodos(false)}>Recolher todos</button><button type="button" className="btn-outline" onClick={()=>recolherTodos(true)}>Expandir todos</button></div>
-      <nav className="config-atalhos" aria-label="Seções de configurações">{[['financeiro','Financeiro'],['cobranca','Contas atrasadas'],['orcamentos','Orçamentos'],['permutas','Permutas'],['marketing','Marketing'],['campanhas','Campanhas']].map(([id,nome])=><button type="button" key={id} onClick={()=>document.getElementById(`config-${id}`)?.scrollIntoView({behavior:'smooth',block:'start'})}>{nome}</button>)}</nav>
+      <nav className="config-atalhos" aria-label="Seções de configurações">{[['financeiro','Financeiro'],['cobranca','Contas atrasadas'],['orcamentos','Orçamentos'],['permutas','Permutas'],['marketing','Marketing'],['campanhas','Campanhas']].filter(([id])=>['financeiro','cobranca','orcamentos'].includes(id)?geral:podeAbrir(id)).map(([id,nome])=><button type="button" key={id} onClick={()=>document.getElementById(`config-${id}`)?.scrollIntoView({behavior:'smooth',block:'start'})}>{nome}</button>)}</nav>
+      {geral && <><div role={erroMarcacoes || syncConfig.erro ? 'alert' : 'status'} className="config-salvamento">
+        {erroMarcacoes ? <>{erroMarcacoes} <button className="btn-outline" onClick={recarregarMarcacoes}>Tentar carregar novamente</button></> : !marcacoesProntas ? 'Carregando regras…' : syncConfig.status === 'erro' ? <>Alterações não salvas. {syncConfig.erro} <button className="btn-outline" onClick={tentarSalvarConfig}>Tentar salvar</button><button className="btn-ghost" onClick={()=>{if(window.confirm('Descartar as alterações não salvas e carregar as regras atuais?'))recarregarMarcacoes();}}>Recarregar regras</button></> : syncConfig.status === 'salvando' ? 'Salvando alterações…' : syncConfig.status === 'pendente' ? 'Alterações aguardando gravação…' : 'Regras salvas no servidor.'}
+      </div>
+      <fieldset disabled={!marcacoesProntas} className="space-y-8 border-0 min-w-0 p-0">
       <GrupoConfig id="financeiro" titulo="Financeiro e fluxo de caixa">
 <CartaoConfig titulo="Caixa e saldo inicial" sub="Reserva mínima e origem do saldo usado no fluxo de caixa."><div className="grid gap-5 sm:grid-cols-2">          <Campo rotulo="Colchão mínimo de caixa (R$)">
             <input
@@ -205,7 +214,7 @@ export default function Configuracoes() {
             >
               <input
                 className="input"
-                value={m.nome}
+                aria-label={`Nome do motivo ${i+1}`} value={m.nome}
                 placeholder="Nome do motivo"
                 onChange={(e) =>
                   updateConfig((c) => {
@@ -217,7 +226,7 @@ export default function Configuracoes() {
               <div className="flex items-center gap-3">
                 <select
                   className="select flex-1"
-                  value={m.grupo}
+                  aria-label={`Grupo do motivo ${i+1}`} value={m.grupo}
                   onChange={(e) =>
                     updateConfig((c) => {
                       c.motivosAtraso[i].grupo = e.target.value;
@@ -233,7 +242,7 @@ export default function Configuracoes() {
                 </select>
                 <select
                   className="select flex-1"
-                  value={m.tag || ""}
+                  aria-label={`Classificação do motivo ${i+1}`} value={m.tag || ""}
                   onChange={(e) =>
                     updateConfig((c) => {
                       c.motivosAtraso[i].tag = e.target.value || null;
@@ -293,7 +302,7 @@ export default function Configuracoes() {
                   <input
                     type="number"
                     className="input tnum"
-                    value={f.ateDias}
+                    aria-label={`Limite de dias da faixa ${i+1}`} value={f.ateDias}
                     onChange={(e) => {
                       /* A mesma guarda do setParamNum: vazio transitorio e
                          negativo nao gravam. Number("") e 0, e um 0 fantasma
@@ -311,7 +320,7 @@ export default function Configuracoes() {
               </div>
               <input
                 className="input"
-                value={f.acao}
+                aria-label={`Ação da faixa ${i+1}`} value={f.acao}
                 placeholder="Ação sugerida"
                 onChange={(e) =>
                   updateConfig((c) => {
@@ -365,7 +374,7 @@ export default function Configuracoes() {
               >
                 <select
                   className="select"
-                  value={r.motivoId}
+                  aria-label={`Motivo da exceção ${i+1}`} value={r.motivoId}
                   onChange={(e) =>
                     updateConfig((c) => {
                       c.regrasPorMotivo[i].motivoId = e.target.value;
@@ -381,7 +390,7 @@ export default function Configuracoes() {
                 </select>
                 <input
                   className="input"
-                  value={r.acao}
+                  aria-label={`Ação da exceção ${i+1}`} value={r.acao}
                   placeholder="Ação que vence a régua"
                   onChange={(e) =>
                     updateConfig((c) => {
@@ -489,7 +498,7 @@ export default function Configuracoes() {
             <div key={i} className="flex items-center gap-2">
               <input
                 className="input"
-                value={v.nome}
+                aria-label={`Nome do vendedor ${i+1}`} value={v.nome}
                 placeholder="Nome do vendedor"
                 list="vendedores-erp"
                 onChange={(e) =>
@@ -547,7 +556,7 @@ export default function Configuracoes() {
             <div key={m.id} className="flex items-center gap-2">
               <input
                 className="input"
-                value={m.nome}
+                aria-label={`Nome do motivo ${i+1}`} value={m.nome}
                 placeholder="Motivo da perda"
                 onChange={(e) =>
                   updateConfig((c) => {
@@ -581,9 +590,11 @@ export default function Configuracoes() {
           Adicionar motivo de perda
         </button>
       </CartaoConfig></GrupoConfig>
-      <GrupoConfig id="permutas" titulo="Permutas"><CartaoConfig titulo="Período de cada permuta" sub="Defina o intervalo de busca de O.S. de cada parceria."><ConfiguracaoPermutas/></CartaoConfig></GrupoConfig>
-      <GrupoConfig id="marketing" titulo="Marketing"><CartaoConfig titulo="Atalhos do Drive" sub="Cadastre os endereços que aparecem na biblioteca de Marketing."><ConfiguracaoMarketing/></CartaoConfig></GrupoConfig>
-      <GrupoConfig id="campanhas" titulo="Campanhas"><CartaoConfig titulo="Metas e períodos dos eventos" sub="Defina a meta e o intervalo de busca de O.S. de cada campanha."><ConfiguracaoCampanhas/></CartaoConfig></GrupoConfig>
+      </fieldset></>}
+      {podeAbrir("permutas") && <GrupoConfig id="permutas" titulo="Permutas"><CartaoConfig titulo="Período de cada permuta" sub="Defina o intervalo de busca de O.S. de cada parceria."><ConfiguracaoPermutas/></CartaoConfig></GrupoConfig>}
+      {podeAbrir("marketing") && <GrupoConfig id="marketing" titulo="Marketing"><CartaoConfig titulo="Atalhos do Drive" sub="Cadastre os endereços que aparecem na biblioteca de Marketing."><ConfiguracaoMarketing/></CartaoConfig></GrupoConfig>}
+      {podeAbrir("campanhas") && <GrupoConfig id="campanhas" titulo="Campanhas"><CartaoConfig titulo="Metas e períodos dos eventos" sub="Defina a meta e o intervalo de busca de O.S. de cada campanha."><ConfiguracaoCampanhas/></CartaoConfig></GrupoConfig>}
+      {(getSessao()?.master || getSessao()?.permissoes?.includes('*')) && <LixeiraRegistros/>}
     </div>
   );
 }

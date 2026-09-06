@@ -1,10 +1,11 @@
+import JanelaFormulario from "../components/JanelaFormulario.jsx";
 // Licitacoes: os editais em que a Impresilk vai (ou pode) entrar, com O DIA da
 // sessao na cara -- o valor da tela e ninguem perder prazo. Ordena pelo que
 // vence primeiro, avisa "HOJE"/"amanha" e guarda o edital em PDF.
 //
 // Mesma infra dos Documentos (painel-ativos, tipo "licitacao"): item + arquivo.
 
-import { FormPreparacao, CHECKLIST_EDITAL, pendenciasEdital } from "../components/PreparacaoLicitacao.jsx";
+import { FormPreparacao, pendenciasEdital } from "../components/PreparacaoLicitacao.jsx";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Gavel,
@@ -68,7 +69,7 @@ const VAZIA = {
   status: "avaliar",
   observacao: "",
   responsavel: "",
-  acompanhamento: {checklist: CHECKLIST_EDITAL.map((texto,i)=>({id:`base-${i}`,texto,feito:false}))},
+  acompanhamento: {checklist: []},
 };
 
 // Quanto falta para a sessao, em palavras -- e a informacao mais importante da tela.
@@ -94,7 +95,7 @@ function Linha({ it, baixarEdital, editar, remover }) {
     >
       <span className="min-w-0 flex-1 basis-52">
         <span className="block truncate font-display text-sm font-semibold text-slate-900">{it.nome}</span>
-        <span className="block text-xs text-slate-600">{it.responsavel || "Sem responsável"} · {it.acompanhamento?.checklist?.length ? `${pendenciasEdital(it)} pendências` : "Checklist não definido"}</span>
+        <span className="block text-xs text-slate-600">{it.responsavel || "Sem responsável"} · {it.acompanhamento?.checklist?.length ? `${pendenciasEdital(it)} pendências` : "Checklist opcional"}</span>
         {it.acompanhamento?.proximaAcao && <span className="block text-sm mt-1">{it.acompanhamento.proximaAcao}{it.acompanhamento.prazoAcao ? ` · até ${dataCurta(it.acompanhamento.prazoAcao)}` : " · sem prazo"}</span>}
         <span className="block truncate text-xs text-slate-500">
           {[it.identificacao, it.categoria, it.edital && `edital ${it.edital}`].filter(Boolean).join(" · ") || "—"}
@@ -122,7 +123,7 @@ function Linha({ it, baixarEdital, editar, remover }) {
             href={it.url}
             target="_blank"
             rel="noopener noreferrer"
-            className="grid h-8 w-8 place-items-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-brand"
+            className="grid h-11 w-11 place-items-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-brand"
             title="Abrir o portal da licitação"
           >
             <ArrowUpRight size={15} />
@@ -132,7 +133,7 @@ function Linha({ it, baixarEdital, editar, remover }) {
           <button
             type="button"
             onClick={() => baixarEdital(it)}
-            className="grid h-8 w-8 place-items-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-brand"
+            className="grid h-11 w-11 place-items-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-brand"
             title="Baixar o edital"
           >
             <Download size={15} />
@@ -141,7 +142,7 @@ function Linha({ it, baixarEdital, editar, remover }) {
         <button
           type="button"
           onClick={() => editar(it)}
-          className="grid h-8 w-8 place-items-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-900"
+          className="grid h-11 w-11 place-items-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-900"
           title={`Editar ${it.nome}`}
         >
           <Pencil size={15} />
@@ -149,7 +150,7 @@ function Linha({ it, baixarEdital, editar, remover }) {
         <button
           type="button"
           onClick={() => remover(it)}
-          className="grid h-8 w-8 place-items-center rounded-lg text-slate-400 hover:bg-bad-50 hover:text-bad-700"
+          className="grid h-11 w-11 place-items-center rounded-lg text-slate-400 hover:bg-bad-50 hover:text-bad-700"
           title={`Remover ${it.nome}`}
         >
           <Trash2 size={15} />
@@ -166,7 +167,8 @@ export default function Licitacoes() {
   const [form, setForm] = useState(VAZIA);
   const [salvando, setSalvando] = useState(false);
   const inputArquivo = useRef(null);
-  const cartaoForm = useRef(null);
+  const [formAberto,setFormAberto]=useState(false);
+  const cadastroId=useRef(crypto.randomUUID());
   // O dia em ESTADO, nao no render: numa tela de prazo de edital, a aba
   // esquecida aberta de um dia para o outro continuava dizendo "amanha" para a
   // sessao que era HOJE. Refeito toda vez que a aba volta ao primeiro plano.
@@ -235,10 +237,12 @@ export default function Licitacoes() {
     // Arquivo escolhido e nao enviado ficava no input e grudava no PROXIMO item
     // editado -- trocando o edital de quem nao pediu.
     if (inputArquivo.current) inputArquivo.current.value = "";
-    setTimeout(() => cartaoForm.current?.scrollIntoView({ behavior: "smooth", block: "center" }), 60);
+    setFormAberto(true);
   };
 
   const fecharForm = () => {
+    setFormAberto(false);
+    cadastroId.current=crypto.randomUUID();
     setForm(VAZIA);
     if (inputArquivo.current) inputArquivo.current.value = "";
   };
@@ -255,7 +259,7 @@ export default function Licitacoes() {
       setSalvando(true);
       try {
         const item = await salvarAtivo({
-          ...(form.id ? { id: form.id } : {}),
+          ...(form.id ? { id: form.id } : {cadastroId:cadastroId.current}),
           tipo: "licitacao",
           nome: form.nome.trim(),
           identificacao: form.identificacao.trim(),
@@ -304,6 +308,8 @@ export default function Licitacoes() {
           return [...outros, item];
         });
         setForm(VAZIA);
+        setFormAberto(false);
+        cadastroId.current=crypto.randomUUID();
         if (inputArquivo.current) inputArquivo.current.value = "";
         setAviso({ tom: "ok", texto: `"${item.nome}" salva.` });
       } catch (err) {
@@ -323,7 +329,7 @@ export default function Licitacoes() {
     try {
       await removerAtivo(it.id);
       setItens((l) => (l || []).filter((x) => x.id !== it.id));
-      if (form.id === it.id) setForm(VAZIA);
+      if (form.id === it.id) fecharForm();
     } catch (err) {
       setAviso({ tom: "erro", texto: err.message });
     }
@@ -375,10 +381,7 @@ export default function Licitacoes() {
         <StatCard rotulo="Ganhas" valor={String(vm.ganhas)} sub="histórico de vitorias" tom={vm.ganhas ? "ok" : "neutral"} icone={Trophy} />
       </div>
 
-      <Card><SectionTitle titulo="Preparar as próximas participações" sub="Responsáveis, documentos e decisões antes da sessão."/>
-        <div className="grid gap-3 sm:grid-cols-3"><div className="rounded-xl bg-slate-50 p-4 dark:bg-slate-800"><b className="text-2xl">{vm.naMesa.filter(i=>!i.responsavel).length}</b><p className="text-sm">Sem responsável</p></div><div className="rounded-xl bg-slate-50 p-4 dark:bg-slate-800"><b className="text-2xl">{vm.naMesa.filter(i=>!i.acompanhamento?.checklist?.length || pendenciasEdital(i)>0).length}</b><p className="text-sm">Preparação pendente</p></div><div className="rounded-xl bg-slate-50 p-4 dark:bg-slate-800"><b className="text-2xl">{vm.naMesa.filter(i=>i.acompanhamento?.prazoAcao && i.acompanhamento.prazoAcao<hojeISO).length}</b><p className="text-sm">Próxima ação atrasada</p></div></div>
-        <div className="mt-4 space-y-2">{vm.naMesa.slice(0,5).map(it=><div key={it.id} className="flex items-center justify-between gap-3 border-t py-3"><div><b>{it.nome}</b><p className="text-sm text-slate-500">{!it.responsavel?'Definir responsável':it.acompanhamento?.proximaAcao || 'Definir próximo passo'} · {it.pz.texto}</p></div><button className="btn-outline" onClick={()=>editar(it)}>Preparar</button></div>)}</div>
-      </Card>
+      <div className="flex justify-end"><button className="btn-primary" onClick={()=>{fecharForm();setFormAberto(true);}}>Nova licitação</button></div>
       {aviso && (
         <p
           className={`rounded-lg px-3 py-2 text-sm ${
@@ -390,9 +393,9 @@ export default function Licitacoes() {
       )}
 
       <Card>
-        <SectionTitle titulo="Na mesa" sub="Ordenado pelo que vence primeiro." />
+        <SectionTitle titulo="Próximos prazos" sub="Responsável, decisão e próxima ação de cada edital, na ordem do prazo." />
         {vm.naMesa.length === 0 ? (
-          <Empty>Nenhuma licitação na mesa. Cadastre a primeira abaixo.</Empty>
+          <Empty>Nenhuma licitação na mesa. Use Nova licitação para começar.</Empty>
         ) : (
           <div className="space-y-2.5">
             {vm.naMesa.map((it) => (
@@ -402,7 +405,8 @@ export default function Licitacoes() {
         )}
       </Card>
 
-      <Card ref={cartaoForm}>
+      {formAberto && <JanelaFormulario titulo={form.id?"Editar licitação":"Nova licitação"} ocupado={salvando} aoFechar={fecharForm}>
+      {aviso?.tom==="erro" && <p role="alert" className="text-bad-700 mb-4">{aviso.texto}</p>}
         <SectionTitle
           titulo={form.id ? "Editar licitação" : "Nova licitação"}
           sub="Só o objeto é obrigatório - de preferência já marque a data da sessão."
@@ -541,14 +545,14 @@ export default function Licitacoes() {
               {form.id ? <Upload size={15} strokeWidth={2.4} /> : <Plus size={15} strokeWidth={2.4} />}
               {salvando ? "Salvando..." : form.id ? "Salvar alterações" : "Cadastrar licitação"}
             </button>
-            {form.id && (
+            {(
               <button type="button" className="btn-ghost" onClick={fecharForm}>
                 Cancelar edição
               </button>
             )}
           </div>
         </form>
-      </Card>
+      </JanelaFormulario>}
 
       {vm.encerradas.length > 0 && (
         <Card>

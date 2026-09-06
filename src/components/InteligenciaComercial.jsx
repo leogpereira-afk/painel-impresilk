@@ -1,14 +1,16 @@
-import {useMemo} from 'react';
+import {useMemo,useState} from 'react';
 import {filaComercial,mesesDaDivida,ETAPAS_CRM} from '../lib/calc/inteligencia.js';
 import {moeda,rotuloMes} from '../lib/format.js';
 import './inteligencia-comercial.css';
 export function AceleradorVendas({lista,hoje,aoAbrir,aoEtapa}){
+ const [limite,setLimite]=useState(6);
  const fila=useMemo(()=>filaComercial(lista,hoje),[lista,hoje]);
  const abertos=(lista||[]).filter(o=>o.situacao==='aberto');
  return <section className="intel-panel sem-impressao" aria-label="Acelerador de vendas">
  <header><div><span className="intel-kicker">PRÓXIMOS PASSOS</span><h2>Acelerador de vendas</h2><p>{fila.length} clientes com ação sugerida. Retornos combinados vêm primeiro; valor desempata a fila.</p></div><strong>{moeda(fila.reduce((s,g)=>s+g.valor,0))}<small>em propostas desta fila · não é previsão de receita</small></strong></header>
- <p className="text-xs text-slate-500">Etapas locais das propostas sem vínculo. As oportunidades vinculadas seguem as fases na aba CRM Mubisys.</p><div className="intel-etapas">{ETAPAS_CRM.map(e=>{const itens=abertos.filter(o=>!o.crmCardId&&(o.etapaCrm||'proposta')===e.id);return <button key={e.id} onClick={()=>aoEtapa(e.id)}><span>{e.nome}</span><b>{itens.length}</b><small>{moeda(itens.reduce((s,o)=>s+o.valor,0))}</small></button>;})}</div>
- <div className="intel-fila">{fila.slice(0,6).map((g,i)=><article key={g.chave}><span className="intel-posicao">{i+1}</span><div><h3>{g.cliente}</h3><p>{g.acao}</p><small>{g.motivo} · {g.itens.length} {g.itens.length === 1 ? "proposta" : "propostas"} · {moeda(g.valor)}</small></div><button className="btn-outline" onClick={()=>aoAbrir(g)}>Preparar ação</button></article>)}</div>
+ <details className="mt-3"><summary className="cursor-pointer text-sm font-semibold">Ver etapas e valores das propostas</summary><p className="text-xs text-slate-500 mt-3">Etapas locais das propostas sem vínculo. As oportunidades vinculadas seguem as fases na aba CRM Mubisys.</p><div className="intel-etapas">{ETAPAS_CRM.map(e=>{const itens=abertos.filter(o=>!o.crmCardId&&(o.etapaCrm||'proposta')===e.id);return <button key={e.id} onClick={()=>aoEtapa(e.id)}><span>{e.nome}</span><b>{itens.length}</b><small>{moeda(itens.reduce((s,o)=>s+o.valor,0))}</small></button>;})}</div></details>
+ <div className="intel-fila">{fila.slice(0,limite).map((g,i)=><article key={g.chave}><span className="intel-posicao">{i+1}</span><div><h3>{g.cliente}</h3><p>{g.acao}</p><small>Responsável: {g.principal.vendedorNome || g.principal.vendedorId || "a definir"} · {g.principal.proximoToque?`Retorno: ${g.principal.proximoToque.split("-").reverse().join("/")}`:"Combinar data do retorno"}</small><small>{g.motivo} · {g.itens.length} {g.itens.length === 1 ? "proposta" : "propostas"} · {moeda(g.valor)}</small></div><button className="btn-outline" onClick={()=>aoAbrir(g)}>Preparar ação</button></article>)}</div>
+ {fila.length>limite&&<button className="btn-outline mt-3" onClick={()=>setLimite(n=>n+6)}>Mais clientes ({fila.length-limite})</button>}
  {!fila.length&&<p className="intel-vazio">Nenhum próximo passo sugerido agora. Os retornos futuros continuam na Agenda.</p>}
  <p className="intel-nota">Sugestões por regras visíveis, baseadas nos registros do painel. Revise o histórico antes de contatar. Sem probabilidade de fechamento estimada.</p>
  </section>;

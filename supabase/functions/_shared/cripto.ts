@@ -68,13 +68,13 @@ export async function assinarJwt(payload: any, secret: string, expSeg = 60 * 60 
    trancar a casa por uma consulta que falhou e pior que um cracha durar mais um
    pouco. */
 const CACHE_REVOG = new Map<string, { ate: number; revogado: boolean }>();
-export async function crachaRevogado(sb: any, sistema: string, cracha: any): Promise<boolean> {
+export async function crachaRevogado(sb: any, sistema: string, cracha: any, estrito = false): Promise<boolean> {
   const sub = String(cracha?.sub ?? "").trim();
-  if (!sub) return false;
+  if (!sub) return true;
   const chave = `${sistema}:${sub}`;
   const agora = Date.now();
   const emCache = CACHE_REVOG.get(chave);
-  if (emCache && emCache.ate > agora) return emCache.revogado;
+  if (!estrito && emCache && emCache.ate > agora) return emCache.revogado;
   try {
     const { data, error } = await sb.rpc("acesso_revogado", {
       p_sistema: sistema, p_sub: sub, p_papel: String(cracha?.papel ?? ""),
@@ -85,7 +85,7 @@ export async function crachaRevogado(sb: any, sistema: string, cracha: any): Pro
     return revogado;
   } catch (e) {
     console.error("[revogacao] indisponivel:", (e as Error)?.message);
-    return false;
+    return estrito;
   }
 }
 

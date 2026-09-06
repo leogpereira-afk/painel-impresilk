@@ -13,13 +13,13 @@ export default function PlanejamentoMarketing({mapa,aoAtualizar}){
  const orcs=useMemo(()=>dados?.orcamentos?calcOrcamentos(dados.orcamentos,overridesOrcamentos,config,{hoje:ymdLocal(new Date())}).lista:[],[dados,overridesOrcamentos,config]);
  const acoes=Object.entries(mapa||{}).filter(([,v])=>v.tipo==='acao').map(([id,v])=>({id,...v})).sort((a,b)=>(a.prazo||'9999').localeCompare(b.prazo||'9999'));
  const campo=k=>e=>setForm(f=>({...f,[k]:e.target.value}));
- const abrir=a=>{setErro('');setForm(a?{...vazio,...a,investimento:paraCampo(a.investimento),numeros:(a.orcamentos||[]).map(id=>orcs.find(o=>String(o.id)===id)?.numero || `id:${id}`).join(', ')}:{...vazio});};
+ const abrir=a=>{setErro('');setForm(a?{...vazio,...a,investimento:paraCampo(a.investimento),numeros:(a.orcamentos||[]).map(id=>orcs.find(o=>String(o.id)===id)?.numero || `id:${id}`).join(', ')}:{...vazio,id:`mkt-${crypto.randomUUID()}`});};
  async function salvar(e){e.preventDefault();setErro('');setSalvando(true);try{
   const ids=resolverOrcamentosMarketing(form.numeros,orcs,form.orcamentos||[]);
   if(acoes.some(a=>a.id!==form.id&&(a.orcamentos||[]).some(id=>ids.includes(id))))throw new Error('Um desses orçamentos já está vinculado a outra ação. Revise a origem para evitar contar a venda duas vezes.');
   const investimento=paraNumero(form.investimento);if(investimento<0)throw new Error('O investimento não pode ser negativo.');
   const {numeros:_,...registro}=form;
-  aoAtualizar(await salvarAcaoMarketing(form.id||`mkt-${crypto.randomUUID()}`,{...registro,orcamentos:ids,investimento}));setForm(null);
+  aoAtualizar(await salvarAcaoMarketing(form.id,{...registro,orcamentos:ids,investimento}));setForm(null);
  }catch(e){setErro(e.message);}finally{setSalvando(false);}}
  return <Card><SectionTitle titulo="Marketing em execução" sub="Objetivo, responsável, prazo e oportunidades geradas por cada ação." acao={<button className="btn-primary" onClick={()=>abrir(null)}>Nova ação</button>}/>
  <label className="label mb-4">Mês do prazo<input className="input max-w-xs" type="month" value={mes} onChange={e=>setMes(e.target.value)}/></label>{mes?<button className="btn-ghost mb-3" onClick={()=>setMes('')}>Ver todos os meses</button>:<button className="btn-ghost mb-3" onClick={()=>setMes(ymdLocal(new Date()).slice(0,7))}>Mês atual</button>}

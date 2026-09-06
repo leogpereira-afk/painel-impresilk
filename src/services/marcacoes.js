@@ -1,13 +1,4 @@
-// Persistencia das marcacoes do painel (config e overrides) no Netlify Blobs,
-// via a Function config. Sem isto, tudo o que o CEO marca -- motivo de perda,
-// "cobrado", baixa, regras -- so existiria no navegador em que ele clicou:
-// trocar de aparelho ou limpar o cache do Chrome apagaria o trabalho.
-//
-// As tres chaves de marcacao sao publicas de propósito (o painel ja e publico
-// de leitura e elas nao tocam os dados financeiros). A gravacao usa "merge"
-// por id, entao dois aparelhos nao se sobrescrevem.
-
-import { comCracha, mensagemDoStatus } from "../lib/sessao.js";
+import { comCracha, mensagemDoStatus, podeAbrir } from "../lib/sessao.js";
 
 import { API } from "../lib/api.js";
 
@@ -28,13 +19,13 @@ async function chamar(action, corpo) {
   return body;
 }
 
-// Le as tres chaves de uma vez no boot. Falha de rede nao derruba o app: o
-// chamador cai no que tiver no localStorage.
+// Lê regras e marcações permitidas para a sessão. Falha mantém a edição
+// bloqueada até confirmar as regras atuais no servidor.
 export async function carregarMarcacoes() {
   const [config, ovRec, ovOrc] = await Promise.all([
     chamar("get", { chave: "config" }),
-    chamar("get", { chave: "ov_rec" }),
-    chamar("get", { chave: "ov_orc" }),
+    podeAbrir("contas-atrasadas") ? chamar("get", { chave: "ov_rec" }) : Promise.resolve({valor:{}}),
+    podeAbrir("orcamentos") ? chamar("get", { chave: "ov_orc" }) : Promise.resolve({valor:{}}),
   ]);
   return {
     config: config?.valor ?? null,
@@ -43,8 +34,8 @@ export async function carregarMarcacoes() {
   };
 }
 
-export function salvarConfig(patch) {
-  return chamar("merge", { chave: "config", patch });
+export function salvarConfig(patch, antes) {
+  return chamar("merge", { chave: "config", patch, antes });
 }
 
 // patch = { [id]: {campos} } -- funde campo a campo por id no servidor.

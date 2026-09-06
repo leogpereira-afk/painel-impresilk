@@ -146,6 +146,11 @@ export function podeAbrir(modulo, sessao = getSessao()) {
   return p.includes("*") || p.includes(modulo);
 }
 
+// Ajustes locais de uma área não concedem acesso às regras financeiras gerais.
+export function podeConfigurar(sessao = getSessao()) {
+  return ['configuracoes','permutas','marketing','campanhas'].some(m => podeAbrir(m, sessao));
+}
+
 // fetch com o cracha. Sessao expirada (401) derruba para a tela de login em vez
 // de deixar a pessoa olhando um erro sem saber o que fazer.
 export async function comCracha(url, opcoes = {}) {

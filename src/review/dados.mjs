@@ -28,5 +28,5 @@ export async function simularAcesso(action) {
 
 export async function simularBackup(action) {
   if(action !== 'status') throw new Error('Prévia local: operação de backup não executada. Nenhum dado foi enviado ou restaurado.');
-  return {status:{atualizadoEm:new Date().toISOString(),sistemas:Object.fromEntries(sistemas.filter(s=>!['central','dre'].includes(s)).map((s,i)=>[s,{ok:s!=='pops',em:new Date(Date.now()-3600000).toISOString(),registros:120+i*15,erro:s==='pops'?'Falha simulada de conexão':undefined,porColecao:{'registros de demonstração':120+i*15}}]))}};
+  return {status:{capacidades:{restauroAtomico:true,arquivos:true,individual:true},atualizadoEm:new Date().toISOString(),sistemas:Object.fromEntries(sistemas.filter(s=>!['central','dre'].includes(s)).map((s,i)=>[s,{ok:s!=='pops',em:new Date(Date.now()-3600000).toISOString(),registros:120+i*15,erro:s==='pops'?'Falha simulada de conexão':undefined,porColecao:{'registros de demonstração':120+i*15}}]))}};
 }

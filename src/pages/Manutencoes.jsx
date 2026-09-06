@@ -34,10 +34,10 @@ import {
   CalendarClock,
   Coins,
 } from "lucide-react";
-import { listarAtivos, salvarAtivo, removerAtivo } from "../services/ativos.js";
+import { listarAtivos, salvarEquipamento, removerAtivo } from "../services/ativos.js";
 // O item cadastrado aqui também é patrimônio: mesma coisa, duas perguntas
 // ("quanto me custa para manter" e "quanto vale, e onde está").
-import { lerSetores, salvarBem } from "../services/patrimonio.js";
+import { lerSetores } from "../services/patrimonio.js";
 import { lerManutencoes, salvarManutencao, removerManutencao } from "../services/manutencoes.js";
 import { getFluxoMensal } from "../services/mubi.js";
 import {
@@ -939,7 +939,7 @@ export default function Manutencoes() {
             valor: paraCampo(lancamento.valor),
             medidor: paraCampo(lancamento.medidor),
           }
-        : { ...LANCAMENTO_VAZIO, ativoId, data: hojeISO }
+        : { ...LANCAMENTO_VAZIO, cadastroId:crypto.randomUUID(), ativoId, data: hojeISO }
     );
     rolarAoForm();
   };
@@ -957,7 +957,7 @@ export default function Manutencoes() {
             medidorAtual: paraCampo(item.medidorAtual),
             medidorProximo: paraCampo(item.medidorProximo),
           }
-        : { ...ITEM_VAZIO, tipo, especificacao: {} }
+        : { ...ITEM_VAZIO, cadastroId:crypto.randomUUID(), tipo, especificacao: {} }
     );
     rolarAoForm();
   };
@@ -968,7 +968,7 @@ export default function Manutencoes() {
     setSalvando(true);
     setMsg(null);
     try {
-      const id = f.id || `mnt-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+      const id = f.id || f.cadastroId;
       const item = (itens || []).find((i) => i.id === f.ativoId);
       const dados = {
         ativoId: f.ativoId,
@@ -1024,65 +1024,19 @@ export default function Manutencoes() {
       // e ativos", eu salvo a ficha aqui meia hora depois e gravo o valor
       // velho por cima. A proteção do servidor só funciona com o campo
       // ausente de verdade -- reenviar o cache da tela a anula.
-      const salvo = await salvarAtivo({
-        id: f.id || undefined,
-        tipo: f.tipo,
-        nome: f.nome,
-        categoria: f.categoria,
-        responsavel: f.responsavel,
-        identificacao: identificacaoDe(f),
-        observacao: f.observacao,
-        especificacao: f.especificacao || {},
-        // `unidadeMedidor` é gravada junto para o lançamento saber se pergunta
-        // km ou horas -- antes ela nunca era gravada e todo item caía no
-        // fallback "horas", pedindo horas de uso de uma câmera.
-        unidadeMedidor: UNIDADE_PADRAO[f.tipo] || "",
-        medidorAtual: paraNumero(f.medidorAtual),
-        medidorProximo: paraNumero(f.medidorProximo),
-      });
-      /* O MESMO ITEM, NAS DUAS TELAS.
-         Um carro é uma coisa só: aqui interessa quanto custa para manter, no
-         Patrimônio interessa quanto vale e onde está. Eram dois cadastros
-         separados, sem saber um do outro — e a mesma máquina era digitada duas
-         vezes, com nomes diferentes, o que faz o valor do seguro nunca fechar
-         com a lista de manutenção.
-         O ativo é o dono do vínculo (`origemAtivoId`); o código da etiqueta o
-         servidor gera na primeira gravação. Falhar aqui NÃO derruba o cadastro
-         do ativo: ele já está salvo, e perder o espelho é menos ruim do que
-         dizer que não cadastrou quando cadastrou. */
-      try {
-        const idBem = f.bemId || `pat-${salvo.id}`;
-        /* EDITAR NÃO PODE ZERAR O QUE ESTA TELA NÃO CARREGA. O formulário de
-           edição nasce do ATIVO, que não traz NF, data, valor nem setor do bem
-           -- reenviar esses campos vazios apagava, a cada "Salvar", o que o
-           Patrimônio já tinha (era o único bloqueador da auditoria de 15/08).
-           O merge do servidor mantém campo AUSENTE; então, na edição, os campos
-           do bem só entram se a pessoa os preencheu agora. Na criação vão
-           todos, como sempre. */
-        const doBem = {
-          origemAtivoId: salvo.id,
-          nomeGenerico: f.nome,
-          descricaoTecnica: [f.categoria, identificacaoDe(f)].filter(Boolean).join(" · "),
-          observacao: f.observacao || "",
-        };
-        if (!f.id) {
-          Object.assign(doBem, {
-            setorSigla: f.setorSigla || "",
-            nf: f.nf || "",
-            dataAquisicao: f.dataAquisicao || "",
-            valor: paraNumero(f.valor),
-            situacao: "uso",
-          });
-        } else {
-          if (f.setorSigla) doBem.setorSigla = f.setorSigla;
-          if (f.nf) doBem.nf = f.nf;
-          if (f.dataAquisicao) doBem.dataAquisicao = f.dataAquisicao;
-          if (paraNumero(f.valor) > 0) doBem.valor = paraNumero(f.valor);
-        }
-        await salvarBem(idBem, doBem);
-      } catch (e2) {
-        console.warn("[manutencoes] item salvo, mas o espelho no patrimônio falhou:", e2?.message || e2);
+      const doBem={nomeGenerico:f.nome,descricaoTecnica:[f.categoria,identificacaoDe(f)].filter(Boolean).join(' · '),observacao:f.observacao || ''};
+      if(!f.id) Object.assign(doBem,{setorSigla:f.setorSigla || '',nf:f.nf || '',dataAquisicao:f.dataAquisicao || '',valor:paraNumero(f.valor),situacao:'uso'});
+      else {
+        if(f.setorSigla) doBem.setorSigla=f.setorSigla;
+        if(f.nf) doBem.nf=f.nf;
+        if(f.dataAquisicao) doBem.dataAquisicao=f.dataAquisicao;
+        if(paraNumero(f.valor)>0) doBem.valor=paraNumero(f.valor);
       }
+      const salvo=await salvarEquipamento({
+        id:f.id || undefined,cadastroId:f.cadastroId,tipo:f.tipo,nome:f.nome,categoria:f.categoria,responsavel:f.responsavel,
+        identificacao:identificacaoDe(f),observacao:f.observacao,especificacao:f.especificacao || {},
+        unidadeMedidor:UNIDADE_PADRAO[f.tipo] || '',medidorAtual:paraNumero(f.medidorAtual),medidorProximo:paraNumero(f.medidorProximo),
+      },doBem,f.bemId);
 
       setItens((l) => {
         const outros = (l || []).filter((x) => x.id !== salvo.id);
@@ -1103,7 +1057,7 @@ export default function Manutencoes() {
     if (item.quantos) {
       linhas.push(
         `\nEle tem ${item.quantos} ${item.quantos === 1 ? "manutenção lançada" : "manutenções lançadas"} ` +
-        `(${moeda(item.total)}). O histórico continua no total da empresa, mas deixa de ficar ligado a este item.`
+        `(${moeda(item.total)}). O histórico continua no total da empresa, e a ficha retirada fica disponível na lixeira.`
       );
     }
     // Este item é o MESMO da tela Documentos e ativos. Retirar aqui leva junto
@@ -1129,18 +1083,10 @@ export default function Manutencoes() {
     if (!window.confirm(linhas.join("\n"))) return;
     setMsg(null);
     try {
-      await removerAtivo(item.id);
-      // Baixa o espelho depois de o ativo sair: se isto falhar, o inventário
-      // fica para acertar à mão -- e a tela diz, em vez de silenciar.
-      let baixou = true;
-      try {
-        await salvarBem(idBem, { situacao: "baixado", baixadoEm: hojeISO, baixaMotivo: "Retirado em Manutenções" });
-      } catch { baixou = false; }
+      await removerAtivo(item.id,idBem);
       setItens((l) => (l || []).filter((x) => x.id !== item.id));
       if (formItem?.id === item.id) setFormItem(null);
-      setMsg(baixou
-        ? { tom: "aviso", texto: `${item.nome} saiu da lista e a ficha no Patrimônio foi baixada.` }
-        : { tom: "erro", texto: `${item.nome} saiu da lista, mas NÃO consegui baixar a ficha dele no Patrimônio — dê baixa por lá.` });
+      setMsg({tom:"aviso",texto:`${item.nome} saiu da lista e a ficha no Patrimônio foi baixada. O histórico foi preservado.`});
     } catch (e) {
       setMsg({ tom: "erro", texto: e.message });
     }

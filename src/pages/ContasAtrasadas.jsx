@@ -67,7 +67,7 @@ function CartaoCobranca({ c, aberto, aoAbrir, aoRegistrar, aoApagar, aoPriorizar
         : "border-slate-200 bg-white"
       }`}
     >
-      <button type="button" onClick={() => aoAbrir(aberto ? null : c.chave)} className="w-full text-left">
+      <button type="button" aria-expanded={aberto} aria-label={`Abrir cobrança de ${c.cliente}`} onClick={() => aoAbrir(aberto ? null : c.chave)} className="w-full text-left">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
             <div className="truncate font-medium text-slate-800">{c.cliente}</div>
@@ -100,11 +100,11 @@ function CartaoCobranca({ c, aberto, aoAbrir, aoRegistrar, aoApagar, aoPriorizar
           <div className="mt-1.5 line-clamp-2 text-xs text-slate-600">“{c.ultimo.resumo}”</div>
         )}
       </button>
-      <label className="intel-prioridade text-sm font-semibold">Prioridade de cobrança
+      {aberto ? <label className="intel-prioridade text-sm font-semibold">Prioridade de cobrança
         <select className="input" aria-label={`Prioridade de cobrança de ${c.cliente}`} value={c.prioridade} disabled={salvando} onChange={e => aoPriorizar(c, e.target.value)}>
           <option value="alta">Alta</option><option value="normal">Normal</option><option value="baixa">Baixa</option>
         </select>
-      </label>
+      </label> : <p className="mt-3 text-xs text-slate-500">Prioridade definida pela equipe: {c.prioridade || "normal"} · Abrir para ajustar</p>}
       <p className="intel-acao"><strong>Próximo passo: </strong>{sugestaoCobranca(c, ymdLocal(new Date()))}</p>
       {aberto && (
         <div className="mt-3 space-y-3 border-t border-slate-200 pt-3">
@@ -190,7 +190,7 @@ const CHAMADO_VAZIO = { data: "", canal: "Ligação", contato: "", resumo: "", s
    livre vira cinco jeitos de escrever "prometeu pagar" e aí não dá para
    filtrar nem contar. Só "Prometeu pagar" pede data. */
 function FormChamado({ cliente, aoSalvar, salvando, erro }) {
-  const [f, setF] = useState(() => ({ ...CHAMADO_VAZIO, data: ymdLocal(new Date()) }));
+  const [f, setF] = useState(() => ({ ...CHAMADO_VAZIO, chamadoId:crypto.randomUUID(), data: ymdLocal(new Date()) }));
   const sit = SITUACOES.find((x) => x.id === f.situacao);
   return (
     <div className="grid gap-2 rounded-lg bg-white/70 p-3 sm:grid-cols-[9rem_9rem_1fr]">
@@ -240,7 +240,7 @@ function FormChamado({ cliente, aoSalvar, salvando, erro }) {
           type="button"
           className="btn"
           disabled={salvando}
-          onClick={() => aoSalvar(cliente, f, () => setF({ ...CHAMADO_VAZIO, data: ymdLocal(new Date()) }))}
+          onClick={() => aoSalvar(cliente, f, () => setF({ ...CHAMADO_VAZIO, chamadoId:crypto.randomUUID(), data: ymdLocal(new Date()) }))}
         >
           Salvar chamado
         </button>
@@ -284,7 +284,7 @@ export default function ContasAtrasadas() {
   const atualizadoEm = frescorDe("contas-atrasadas");
 
   // Duas abas: a lista de cobrança (o trabalho) e a análise (a reunião).
-  const [aba, setAba] = useState("lista");
+  const [aba, setAba] = useState("cobranca");
   const [maisFiltros, setMaisFiltros] = useState(false);
   const [filtro, setFiltro] = useState("todos");
   const [diasMin, setDiasMin] = useState(30);
@@ -509,7 +509,7 @@ export default function ContasAtrasadas() {
   const marcarCobrado = useCallback(async (t) => {
     setOverrideRecebivel(t.id, { cobrado: true, cobradoEm: ymdLocal(new Date()) });
     try {
-      const id = `ch-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+      const id = `marcacao-${t.id}-${ymdLocal(new Date())}`;
       setCobrancas(await salvarChamado(chaveCob(t.cliente), {
         cliente: t.cliente,
         chamadoId: id,
@@ -545,7 +545,7 @@ export default function ContasAtrasadas() {
     setAvisoCob(null);
     setSalvandoChamado(true);
     try {
-      const id = `ch-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+      const id = form.chamadoId;
       /* O pacote que o SERVIDOR devolve vira o novo estado -- nunca o objeto
          montado aqui. Duas abas anotando ligações do mesmo dia não se apagam. */
       setCobrancas(await salvarChamado(chaveCob(c.cliente), {
@@ -673,8 +673,8 @@ export default function ContasAtrasadas() {
       <div className="sem-impressao">
         <Segmented
           opcoes={[
-            { valor: "lista", rotulo: `A cobrar (${numero(k.qtd)})` },
-            { valor: "cobranca", rotulo: `Cobrança (${numero(carteira.length)})` },
+            { valor: "lista", rotulo: `Títulos e meses (${numero(k.qtd)})` },
+            { valor: "cobranca", rotulo: `Próximos contatos (${numero(carteira.length)})` },
             { valor: "analise", rotulo: "Análise" },
           ]}
           valor={aba}
@@ -1329,6 +1329,7 @@ export default function ContasAtrasadas() {
               total da carteira. Eram três, e quem estava "negociando" ou
               "contestou" não aparecia em nenhum: o CEO somava de cabeça e não
               fechava, sem saber que a diferença tinha nome. */}
+          <details><summary className="cursor-pointer font-semibold">Resumo das negociações</summary>
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <Card className="p-4">
               <div className="text-xs text-slate-500">Promessas vencidas</div>
@@ -1368,6 +1369,7 @@ export default function ContasAtrasadas() {
             </Card>
           </div>
 
+          </details>
           <SectionTitle
             titulo="Carteira de cobrança"
             sub="Um cartão por cliente que deve. Clique para ver os títulos em aberto, o histórico e anotar a ligação."
@@ -1423,7 +1425,7 @@ export default function ContasAtrasadas() {
           {cobrancas === null ? (
             <Empty>{avisoCob ? "Não foi possível ler o histórico. Recarregue a página para tentar novamente." : "Carregando o histórico de cobrança…"}</Empty>
           ) : carteiraVista.length ? (
-            <div className="grid gap-3 sm:grid-cols-2">
+            <div className="grid gap-3">
               {carteiraVista.map((c) => (
                 <CartaoCobranca
                   key={c.chave}

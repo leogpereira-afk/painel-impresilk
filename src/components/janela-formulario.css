@@ -1,0 +1,5 @@
+.janela-formulario{width:min(900px,calc(100% - 24px));max-height:calc(100dvh - 32px);padding:0;border:1px solid var(--hairline);border-radius:24px;background:var(--surface,#fff);color:var(--ink,#172033);box-shadow:0 24px 80px #18213b40}
+.janela-formulario::backdrop{background:#11182788;backdrop-filter:blur(3px)}
+.janela-formulario>header{position:sticky;top:0;z-index:1;background:inherit;padding:18px 24px;border-bottom:1px solid var(--hairline);display:flex;align-items:center;justify-content:space-between;gap:16px}
+.janela-formulario h2{font-size:22px;font-weight:700}.janela-formulario-corpo{padding:24px}.janela-formulario .btn-ghost{min-height:44px;min-width:44px}
+html.dark .janela-formulario{background:#172033;color:#e2e8f0}@media(max-width:600px){.janela-formulario-corpo{padding:16px}.janela-formulario>header{padding:16px}}

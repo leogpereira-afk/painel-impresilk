@@ -11,14 +11,13 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { AlertTriangle, ChevronRight } from "lucide-react";
-import { useApp } from "../config/store.jsx";
 import { listarAtivos } from "../services/ativos.js";
 import { statusBackup } from "../services/backup.js";
 import { lerCargaAlarme } from "../services/permutas.js";
 import { ehDirecao } from "../lib/sessao.js";
 import { calcAtivos, TIPOS } from "../lib/calc/ativos.js";
 import { ymdLocal } from "../lib/format.js";
-import { Card, CarregandoModulo, ErroModulo } from "../components/ui.jsx";
+import { Card } from "../components/ui.jsx";
 import MeusSistemas from "../components/MeusSistemas.jsx";
 import logoColor from "../assets/brand/logo-color.png";
 import logoWhite from "../assets/brand/logo-white.png";
@@ -58,7 +57,6 @@ function fraseDoDia() {
 }
 
 export default function Home() {
-  const { pronto, erro, recarregar } = useApp();
   const navigate = useNavigate();
 
   // Documentos e manutencoes que vencem: e a unica coisa que a Home mostra alem
@@ -157,8 +155,6 @@ export default function Home() {
     };
   }, []);
 
-  if (erro) return <ErroModulo mensagem={erro} aoTentar={recarregar} />;
-  if (!pronto) return <CarregandoModulo />;
 
   return (
     <div className="flex min-h-[60vh] flex-col items-center justify-center px-2 text-center">

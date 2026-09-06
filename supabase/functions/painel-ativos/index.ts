@@ -165,21 +165,7 @@ Deno.serve(async (req: Request) => {
   try {
     switch (corpo.action) {
       case "listar": {
-        /* A PURGA DA LIXEIRA mora aqui: o que passou de 30 dias sai de vez
-           (registro, meta e bytes). No listar porque e a chamada que TODA
-           sessao faz -- purga sem cron novo, e nunca mais de uma vez por
-           carga de tela. Falha de purga nao derruba a listagem. */
-        try {
-          const corte = new Date(Date.now() - 30 * 86400000).toISOString();
-          const { data: velhos } = await sb.from("painel_registros").select("id, registro")
-            .eq("colecao", "ativo_lixeira");
-          const purgar = (velhos ?? []).filter((r: any) => String(r.registro?._apagadoEm ?? "") < corte).map((r: any) => r.id);
-          if (purgar.length) {
-            await sb.from("painel_registros").delete().eq("colecao", "ativo_lixeira").in("id", purgar);
-            await sb.from("painel_registros").delete().eq("colecao", "arquivo_lixeira").in("id", purgar);
-            await sb.storage.from(BUCKET).remove(purgar).catch(() => {});
-          }
-        } catch { /* purga e manutencao, nao resposta */ }
+        // Listar não apaga arquivos. Itens retirados permanecem na lixeira.
         const itens: any[] = [];
         const PASSO = 1000;
         for (let de = 0; ; de += PASSO) {
@@ -203,9 +189,12 @@ Deno.serve(async (req: Request) => {
         if (!String(it.nome ?? "").trim()) return resposta({ erro: "informe o nome" }, 400);
 
         const agora = new Date().toISOString();
-        const id = it.id || `${tipo}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
-        const { data: ant } = await sb.from("painel_registros").select("registro")
+        const id = it.id || it.cadastroId || `${tipo}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+        const { data: ant, error: falhaLeitura } = await sb.from("painel_registros").select("registro")
           .eq("colecao", "ativo").eq("id", id).maybeSingle();
+
+        if(falhaLeitura) throw new Error(falhaLeitura.message);
+        if(it.cadastroId && !/^[a-zA-Z0-9-]{1,180}$/.test(it.cadastroId)) return resposta({erro:"Identificador inválido."},400);
 
         // Conferir SO o tipo do corpo deixava a porta aberta: quem perdeu o
         // modulo Licitacoes mandava o mesmo id com tipo "documento" e o edital
@@ -222,6 +211,11 @@ Deno.serve(async (req: Request) => {
           }, 409);
         }
 
+        if (it.cadastroId && !ant) {
+          const {data: retirado,error} = await sb.from("painel_registros").select("id").eq("colecao","ativo_lixeira").eq("id",id).maybeSingle();
+          if(error) throw new Error(error.message);
+          if(retirado) return resposta({erro:"Este cadastro foi retirado. Reabra a tela para cadastrar outro item."},409);
+        }
         const tipoGravado = (ant?.registro as any)?.tipo;
         if (tipoGravado) {
           if (!podeTipo(tipoGravado)) {
@@ -304,47 +298,28 @@ Deno.serve(async (req: Request) => {
           criadoEm: ant?.registro?.criadoEm || agora,
         };
 
-        // Uma linha por item: dois cadastros simultaneos nunca se apagam.
-        const { error } = await sb.from("painel_registros").upsert(
-          { colecao: "ativo", id, registro: limpo, atualizado_em: agora },
-          { onConflict: "colecao,id" });
-        if (error) throw new Error(error.message);
-        return resposta({ ok: true, item: limpo });
+        if(corpo.patrimonio) {
+          if(!sessao.master && !perms.includes('*') && !perms.includes('manutencoes')) return resposta({erro:'Sem acesso a Manutenções.'},403);
+          const permitidos=['nomeGenerico','descricaoTecnica','observacao','setorSigla','nf','dataAquisicao','valor','situacao'];
+          const patch=Object.fromEntries(Object.entries(corpo.patrimonio).filter(([k])=>permitidos.includes(k)));
+          const {data,error}=await sb.rpc('painel_equipamento_gravar',{p_id:id,p_ativo:limpo,p_anterior:ant?.registro || null,p_bem_id:corpo.bemId || `pat-${id}`,p_bem_patch:patch,p_por:quem});
+          if(error) throw Object.assign(new Error(error.message),{code:error.code});
+          return resposta({ok:true,item:data.item});
+        }
+        const {data,error}=await sb.rpc('painel_registro_gravar',{p_colecao:'ativo',p_id:id,p_registro:limpo,p_anterior:ant?.registro || null});
+        if(error) throw Object.assign(new Error(error.message),{code:error.code});
+        return resposta({ok:true,item:data});
       }
 
-      /* REMOVER E UMA LIXEIRA DE 30 DIAS, nao um delete. Este e o cofre:
-         apolice e alvara podem ser a UNICA copia digital, e a exclusao era
-         irreversivel num toque (a confirmacao da tela segura o dedo, nao o
-         engano ja confirmado). O registro vai para a colecao `ativo_lixeira`
-         com o carimbo de quando; o ARQUIVO fica no bucket ate a purga. A
-         propria rotina de listar purga o que passou de 30 dias -- sem cron
-         novo para vigiar. Restaurar e mover de volta. */
+      // Retirar mantém registro e arquivo recuperáveis na lixeira.
       case "remover": {
         const id = String(corpo.id ?? "");
         if (!id) return resposta({ erro: "id ausente" }, 400);
         { const b = await barraId(id); if (b) return b; }
         if (!(await tipoDoId(id))) return resposta({ erro: "item nao encontrado" }, 404);
-        const { data: atual } = await sb.from("painel_registros").select("registro")
-          .eq("colecao", "ativo").eq("id", id).maybeSingle();
-        if (atual?.registro) {
-          await sb.from("painel_registros").upsert({
-            colecao: "ativo_lixeira", id,
-            registro: { ...(atual.registro as any), _apagadoEm: new Date().toISOString() },
-            atualizado_em: new Date().toISOString(),
-          }, { onConflict: "colecao,id" });
-        }
-        await sb.from("painel_registros").delete().eq("colecao", "ativo").eq("id", id);
-        // A META do arquivo vai junto para a lixeira poder restaurar; os BYTES
-        // ficam no bucket ate a purga dos 30 dias.
-        const { data: meta } = await sb.from("painel_registros").select("registro")
-          .eq("colecao", "arquivo").eq("id", id).maybeSingle();
-        if (meta?.registro) {
-          await sb.from("painel_registros").upsert({
-            colecao: "arquivo_lixeira", id, registro: meta.registro,
-            atualizado_em: new Date().toISOString(),
-          }, { onConflict: "colecao,id" });
-        }
-        await sb.from("painel_registros").delete().eq("colecao", "arquivo").eq("id", id);
+        if(corpo.bemId && !sessao.master && !perms.includes('*') && !perms.includes('manutencoes')) return resposta({erro:'Sem acesso a Manutenções.'},403);
+        const {error}=await sb.rpc('painel_ativo_retirar',{p_id:id,p_bem_id:corpo.bemId || null,p_por:quem});
+        if(error) throw new Error(error.message);
         return resposta({ ok: true, lixeira: true });
       }
 
@@ -432,6 +407,7 @@ Deno.serve(async (req: Request) => {
     }
   } catch (e) {
     console.error("[painel-ativos] erro:", e);
-    return resposta({ erro: "erro interno" }, 500);
+    if ((e as any)?.code === "40001") return resposta({erro:"Este registro mudou durante a edição. Recarregue antes de salvar."},409);
+    return resposta({ erro: "Não foi possível salvar a operação. Tente novamente." }, 500);
   }
 });

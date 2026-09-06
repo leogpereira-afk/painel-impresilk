@@ -1,3 +1,4 @@
+import {trocarSenhaConsistente} from "../_shared/troca-senha.ts";
 // ============================================================================
 // painel-auth — login do Painel de Gestao (substitui netlify/functions/auth.mjs)
 //
@@ -95,6 +96,15 @@ const publica = (c: any) => ({
   atualizadoEm: c.atualizado_em,
 });
 
+async function conferirIdentidade(id:string,senha:string) {
+  if(!ANON_KEY) return false;
+  const {data,error}=await sb.auth.admin.getUserById(id);
+  if(error || !data?.user?.email) return false;
+  const cliente=createClient(SUPABASE_URL,ANON_KEY,{auth:{persistSession:false}});
+  const {data:entrada,error:falha}=await cliente.auth.signInWithPassword({email:data.user.email,password:senha});
+  return !falha && !!entrada?.session;
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
   if (req.method !== "POST") return json({ erro: "Use POST." }, 405);
@@ -171,14 +181,14 @@ Deno.serve(async (req: Request) => {
              pulava a consulta a acesso_conta, e isso o denunciava pelo relogio:
              ~0,49s constante contra 0,7-1,2s de todo mundo (medido em 6 amostras
              por usuario). Quem cronometrasse a porta descobria QUEM e o dono. */
-          await sb.from("acesso_conta").select("ativo").eq("usuario", usuario).maybeSingle();
+          const {data:identidade,error:erroIdentidade}=await sb.from("acesso_conta").select("ativo,auth_user_id").eq("usuario",usuario).maybeSingle();
+          if(erroIdentidade) return json({erro:"Entrada temporariamente indisponível."},503);
+          if(identidade?.ativo===false) return json({erro:ERRO_LOGIN},401);
           const propria = await lerConta(MASTER_USUARIO);
           // A senha do ambiente e apenas a INICIAL: assim que a direcao troca a
           // senha dentro do painel, passa a valer a conta gravada -- a senha
           // definitiva nunca fica escrita numa configuracao.
-          const ok = propria
-            ? await conferirSenha(senha, propria)
-            : !!MASTER_SENHA && igual(senha, MASTER_SENHA);
+          const ok = identidade?.auth_user_id ? await conferirIdentidade(identidade.auth_user_id,senha) : propria ? await conferirSenha(senha,propria) : !!MASTER_SENHA && igual(senha,MASTER_SENHA);
           if (!ok) { await anotar("login-falhou", "senha errada"); return json({ erro: ERRO_LOGIN }, 401); }
           const token = await assinarJwt(
             { sub: MASTER_USUARIO, nome: propria?.nome || "Direcao", master: true, perms: ["*"], vend: "" },
@@ -196,14 +206,15 @@ Deno.serve(async (req: Request) => {
            e a tabela nova (acesso_conta). Sem esta consulta, desativar alguem na
            tela de Acessos fechava a porta nova e deixava ESTA aberta -- a pessoa
            digitava usuario e senha e entrava com todas as permissoes. */
-        const { data: unica } = await sb.from("acesso_conta")
-          .select("ativo").eq("usuario", usuario).maybeSingle();
+        const { data: unica, error: falhaIdentidade } = await sb.from("acesso_conta")
+          .select("ativo,auth_user_id").eq("usuario", usuario).maybeSingle();
+        if(falhaIdentidade) return json({erro:"Entrada temporariamente indisponível."},503);
         if (unica && unica.ativo === false) return json({ erro: ERRO_LOGIN }, 401);
 
         const conta = await lerConta(usuario);
         // Confere SEMPRE, mesmo sem conta: o tempo de resposta tem de ser o
         // mesmo nos dois casos (ver CONTA_FANTASMA).
-        const senhaOk = await conferirSenha(senha, conta ?? CONTA_FANTASMA);
+        const senhaOk = unica?.auth_user_id ? await conferirIdentidade(unica.auth_user_id,senha) : await conferirSenha(senha,conta ?? CONTA_FANTASMA);
         if (!conta || !senhaOk) {
           await anotar("login-falhou", conta ? "senha errada" : "usuario nao existe");
           return json({ erro: ERRO_LOGIN }, 401);
@@ -243,23 +254,13 @@ Deno.serve(async (req: Request) => {
         const conta = await lerConta(chave);
         const ehMaster = s.master === true;
 
-        // Saida so para a DIRECAO ja logada: definir a senha sem lembrar a
-        // anterior. Quem esta com essa sessao na mao ja abre tudo no painel --
-        // inclusive backup e restauracao --, entao exigir a senha atual aqui
-        // protegeria pouco e travaria o dono do sistema para fora. Para as
-        // demais contas a senha atual continua obrigatoria: a direcao redefine
-        // a senha delas pela tela de acessos.
-        /* A SENHA ATUAL E CONFERIDA ONDE ELA DE FATO VALE.
-           Depois da virada, quem manda na senha de uma conta migrada e o
-           Supabase Auth -- `painel_contas` guarda um hash que pode estar velho.
-           Conferindo so no hash velho, a pessoa digitava a senha que usa hoje e
-           ouvia "senha atual incorreta". */
-        const { data: unificada } = await sb.from("acesso_conta")
+        const { data: unificada, error: erroIdentidade } = await sb.from("acesso_conta")
           .select("auth_user_id").eq("usuario", chave).maybeSingle();
+        if(erroIdentidade) return json({erro:"Não foi possível confirmar sua identidade agora."},503);
         const idAuth = unificada?.auth_user_id ?? null;
+        if(!atual) return json({erro:"Confirme sua senha atual para continuar."},400);
 
-        const semAtual = body.semSenhaAtual === true && ehMaster;
-        let confere = semAtual;
+        let confere = false;
         if (!confere && idAuth && ANON_KEY) {
           const { data: u } = await sb.auth.admin.getUserById(idAuth);
           const email = u?.user?.email;
@@ -269,64 +270,41 @@ Deno.serve(async (req: Request) => {
             confere = !!ok?.session;
           }
         }
-        if (!confere) {
+        if (!idAuth) {
           confere = conta
             ? await conferirSenha(atual, conta)
             : ehMaster && !!MASTER_SENHA && igual(atual, MASTER_SENHA);
         }
         if (!confere) return json({ erro: "Senha atual incorreta." }, 401);
 
-        /* A SENHA E UMA SO -- ENTAO TROCAR AQUI TEM DE TROCAR LA.
-           Depois da virada, quem entra pela entrada unica e conferido no
-           Supabase Auth, nao em `painel_contas`. Gravando so aqui, a pessoa
-           trocava a senha, via "pronto", e no dia seguinte a entrada unica
-           continuava pedindo a ANTIGA -- enquanto o login antigo ja queria a
-           nova. Duas senhas para a mesma pessoa, do pior jeito: sem ninguem
-           saber qual vale onde.
-           Se a conta ainda nao foi migrada, nao ha o que atualizar la. */
-        if (idAuth) {
-          const { error: erroAuth } = await sb.auth.admin
-            .updateUserById(idAuth, { password: nova });
-          // Falhar aqui e falhar a troca: gravar so de um lado e o problema.
-          if (erroAuth) {
-            console.error("[painel-auth] troca de senha no Auth:", erroAuth.message);
-            return json({ erro: "Nao consegui trocar a senha agora. Tente de novo." }, 500);
-          }
+        const operacao=crypto.randomUUID();
+        const {data:reservou,error:falhaReserva}=await sb.rpc('painel_senha_reservar',{p_usuario:chave,p_operacao:operacao});
+        if(falhaReserva) return json({erro:'Não foi possível iniciar a troca. Tente novamente.'},503);
+        if(!reservou) return json({erro:'Já há uma troca de senha em andamento. Aguarde antes de repetir.'},409);
+        const mudarAuth = async (password:string) => {
+          const {error}=await sb.auth.admin.updateUserById(idAuth,{password});
+          if(error) throw new Error('Não foi possível atualizar a senha na entrada central.');
+        };
+        try {
+          const reg=await hashSenha(nova);
+          await trocarSenhaConsistente({
+            aplicarAuth:idAuth?()=>mudarAuth(nova):undefined,
+            reporAuth:idAuth?()=>mudarAuth(atual):undefined,
+            salvarLegado:async()=>{
+              const {data,error}=await sb.rpc('painel_senha_sincronizar',{
+                p_usuario:chave,p_hash:reg,
+                p_conta:{nome:conta?.nome || (ehMaster?'Direção':chave),permissoes:ehMaster?['*']:conta?.permissoes || [],vendedor_id:conta?.vendedor_id || ''},
+              });
+              if(error || data!==true) throw new Error('Gravação não confirmada.');
+            },
+          });
+          return json({ok:true});
+        } catch(e) {return json({erro:(e as Error).message},500);}
+        finally {
+          const {error}=await sb.from('painel_senha_operacao').delete().eq('usuario',chave).eq('operacao',operacao);
+          if(error) console.error('[painel-auth] reserva de troca aguarda expiração');
         }
 
-        const reg = await hashSenha(nova);
-        const { error } = await sb.from("painel_contas").upsert({
-          usuario: chave,
-          nome: conta?.nome || (ehMaster ? "Direcao" : chave),
-          permissoes: ehMaster ? ["*"] : conta?.permissoes || [],
-          vendedor_id: conta?.vendedor_id || "",
-          ...reg,
-          atualizado_em: new Date().toISOString(),
-        }, { onConflict: "usuario" });
-        if (error) throw new Error(error.message);
-        /* E TAMBEM NOS OUTROS SISTEMAS. Faltavam dois lugares: as linhas dela em
-           `equipe_contas` (uma POR SISTEMA -- Brief, PCP, POPs, Compras, DRE) e
-           os hashes antigos de `acesso_senha_legado`, que a entrada unica aceita
-           para quem ainda nao migrou. Sem estes, trocar a senha no Painel
-           deixava a antiga abrindo os outros cinco.
-           O mecanismo de hash e o mesmo (PBKDF2 120k, salt de 16 bytes, hex), de
-           proposito: reescrever isso seria enfraquecer.
-           Aviso, nao excecao: a senha do Painel e a do Auth ja foram gravadas. */
-        const avisos: string[] = [];
-        const { error: eEq } = await sb.from("equipe_contas")
-          .update({ ...reg, trocar_senha: false, atualizado_em: new Date().toISOString() })
-          .eq("usuario", chave);
-        if (eEq) avisos.push("outros sistemas: " + eEq.message);
-        const { data: pessoa } = await sb.from("acesso_conta")
-          .select("id").eq("usuario", chave).maybeSingle();
-        if (pessoa) {
-          await sb.from("acesso_senha_legado").delete().eq("conta_id", pessoa.id);
-          const { error: eLg } = await sb.from("acesso_senha_legado").insert({
-            conta_id: pessoa.id, origem: "propria", hash: reg.hash, salt: reg.salt, iter: reg.iter,
-          });
-          if (eLg) avisos.push("guarda da entrada unica: " + eLg.message);
-        }
-        return json({ ok: true, avisos: avisos.length ? avisos : undefined });
       }
 
       // Quem trabalha aqui -- so nome e usuario, para montar o "encaminhar para"

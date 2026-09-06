@@ -21,7 +21,7 @@ on:
   schedule:
     # A cada 20 minutos: recarga leve (recebiveis, pagar, bancos + janela de 7
     # dias de orcamentos/OS mesclada).
-    - cron: "*/20 * * * *"
+    - cron: "7,27,47 * * * *"
     # 06:00 UTC = 03:00 de Brasilia: recarga completa, quando o ERP esta livre.
     - cron: "0 6 * * *"
     # 07:00 UTC: o fluxo REALIZADO mes a mes, em corrida separada. Depois da

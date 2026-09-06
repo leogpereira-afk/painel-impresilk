@@ -52,10 +52,6 @@ export default function Acessos({ minhaConta = false }) {
   const [repetir, setRepetir] = useState("");
   const [msgSenha, setMsgSenha] = useState(null); // {tom, texto}
   const [salvandoSenha, setSalvandoSenha] = useState(false);
-  // A direcao, ja logada, pode definir a senha sem lembrar a anterior. Quem tem
-  // a sessao dela ja abre tudo no painel, entao a senha atual aqui protegeria
-  // pouco -- e sem esta saida a unica alternativa e mexer no cofre do Supabase.
-  const [semAtual, setSemAtual] = useState(false);
 
   async function trocarSenha(e) {
     e.preventDefault();
@@ -68,10 +64,8 @@ export default function Acessos({ minhaConta = false }) {
       await chamarAuth("trocarMinhaSenha", {
         senhaAtual: atual,
         novaSenha: nova,
-        ...(semAtual && ehDirecao ? { semSenhaAtual: true } : {}),
       });
       setMsgSenha({ tom: "ok", texto: "Senha trocada. Use a nova da próxima vez que entrar." });
-      setSemAtual(false);
       setAtual("");
       setNova("");
       setRepetir("");
@@ -144,20 +138,7 @@ export default function Acessos({ minhaConta = false }) {
         />
         {import.meta.env.MODE === "review" && <p className="mb-4 text-sm text-slate-500">Demonstração do formulário. Não informe sua senha real.</p>}
         <form onSubmit={trocarSenha} className="grid max-w-md gap-4">
-          {semAtual && ehDirecao ? (
-            <Aviso tom="aviso">
-              Definindo a senha sem a anterior. Isso só vale porque você já esta
-              logado como direção.{" "}
-              <button
-                type="button"
-                className="underline"
-                onClick={() => setSemAtual(false)}
-              >
-                lembrei, quero digitar
-              </button>
-            </Aviso>
-          ) : (
-            <div>
+          <div>
               <label className="label" htmlFor="s-atual">
                 Senha atual
               </label>
@@ -170,20 +151,7 @@ export default function Acessos({ minhaConta = false }) {
                 autoComplete="current-password"
                 required
               />
-              {ehDirecao && (
-                <button
-                  type="button"
-                  className="mt-1 text-xs text-slate-500 underline hover:text-slate-900"
-                  onClick={() => {
-                    setSemAtual(true);
-                    setAtual("");
-                  }}
-                >
-                  não lembro minha senha atual
-                </button>
-              )}
             </div>
-          )}
           <div>
             <label className="label" htmlFor="s-nova">
               Nova senha
@@ -249,7 +217,7 @@ function horasDesde(iso) {
   return Number.isFinite(t) ? (Date.now() - t) / 36e5 : Infinity;
 }
 
-function UltimoBackup({ status }) {
+function UltimoBackup({ status, aoRepetir, enviando }) {
   const sistemas = status?.sistemas || (status?.em ? { painel: status } : null);
   if (!sistemas) {
     return (
@@ -272,7 +240,7 @@ function UltimoBackup({ status }) {
      inteira pode passar sem gravar nada e nada muda de cor. Aqui a própria data
      denuncia: passou de 36h, o aviso aparece. É o único lugar onde a direção
      olharia. */
-  const maisVelho = Math.max(...linhas.map(([, sx]) => horasDesde(sx.em)));
+  const maisVelho = Math.max(...linhas.map(([, sx]) => horasDesde(sx.ok?sx.em:sx.ultimoValido)));
   const atrasado = maisVelho > 36;
   return (
     <div className="space-y-2">
@@ -310,7 +278,7 @@ function UltimoBackup({ status }) {
                 <td className="px-3 py-2 font-display font-medium text-slate-800">
                   {nomeCompletoSis(k) || s.nome || k}
                 </td>
-                <td className="px-3 py-2 text-slate-500">{quandoBR(s.em) || "—"}</td>
+                <td className="px-3 py-2 text-slate-500">{quandoBR(s.ok?s.em:s.ultimoValido) || "Sem cópia confirmada"}</td>
                 <td className="px-3 py-2">
                   {s.ok === false ? (
                     <span className="chip-bad" title={s.erro || ""}>
@@ -321,6 +289,8 @@ function UltimoBackup({ status }) {
                       ok{typeof s.registros === "number" ? ` · ${s.registros} reg.` : ""}
                     </span>
                   )}
+                  {s.ok===false && <div className="mt-2"><p className="text-xs text-bad-700">{s.erro}</p>{status.capacidades?.individual && <button type="button" className="btn-outline mt-2" disabled={enviando} onClick={()=>aoRepetir(k)}>Refazer este sistema</button>}</div>}
+                  {typeof s.arquivos==='number' && <p className="text-xs text-slate-500 mt-2">{s.arquivos} arquivos com cópia dos bytes e conferência.</p>}
                   {/* COLEÇÃO QUE O BACKUP NÃO COPIOU. Só aparece quando existe,
                       e é a diferença entre "está tudo salvo" e "está salvo o que
                       alguém lembrou de listar". Já aconteceu duas vezes: as
@@ -406,11 +376,11 @@ export function BackupDados() {
     }
   }
 
-  async function rodarBackup() {
+  async function rodarBackup(sistema) {
     setEnviando(true);
     setMsg(null);
     try {
-      const r = await backupHubAgora();
+      const r = await backupHubAgora(typeof sistema==='string'?sistema:undefined);
       const sis = r.sistemas || {};
       const falharam = Object.entries(sis).filter(([, v]) => v.ok === false);
       if (falharam.length === 0) {
@@ -457,9 +427,9 @@ export function BackupDados() {
       setMsg({
         tom: voltaram.length ? "aviso" : "ok",
         texto:
-          `Restaurado: ${r.gravou} registros e ${r.contas} contas. Recarregue a pagina para ver.` +
+          `Recuperação conferida: ${r.gravou} registros, ${r.contas} contas e ${r.arquivos || 0} arquivos. Recarregue a página para ver.` +
           (voltaram.length
-            ? ` ATENCAO: ${voltaram.join(", ")} ${voltaram.length === 1 ? "voltou" : "voltaram"} do arquivo com a senha antiga. Se nao deve mais entrar, remova a conta aqui embaixo.`
+            ? ` ATENCAO: ${voltaram.join(", ")} ${voltaram.length === 1 ? "voltou" : "voltaram"} do arquivo. Confira suas permissões e remova quem não deve mais entrar.`
             : ""),
       });
       setPendente(null);
@@ -474,11 +444,11 @@ export function BackupDados() {
     <Card>
       <SectionTitle
         titulo="Backup dos dados"
-        sub="Um retrato dos dados do painel: regras, marcações, documentos e usuários. Não inclui os números do Mubisys, que se reconstroem sozinhos."
+        sub="Cópias dos dados do painel. Confira abaixo quais sistemas e arquivos têm uma cópia confirmada. Os números do Mubisys são atualizados pelo ERP."
       />
 
       <div className="mb-4">
-        {erroStatus ? <p role="alert">{erroStatus} <button className="underline" onClick={lerStatus}>Tentar novamente</button></p> : status ? <UltimoBackup status={status} /> : <p role="status">Consultando backups…</p>}
+        {erroStatus ? <p role="alert">{erroStatus} <button className="underline" onClick={lerStatus}>Tentar novamente</button></p> : status ? <UltimoBackup status={status} aoRepetir={rodarBackup} enviando={enviando}/> : <p role="status">Consultando backups…</p>}
       </div>
 
       <div className="flex flex-wrap gap-2">
@@ -492,11 +462,11 @@ export function BackupDados() {
           {enviando ? "Rodando..." : "Executar backup dos sistemas"}
         </button>
 
-        <label className="btn-outline cursor-pointer">
+        {status?.capacidades?.restauroAtomico ? <label className="btn-outline cursor-pointer">
           <Upload size={16} strokeWidth={2.4} />
           Restaurar de um arquivo
           <input type="file" accept="application/json,.json" className="hidden" onChange={escolher} />
-        </label>
+        </label> : <p role="status" className="text-sm text-slate-500">A recuperação segura ainda não está disponível. As cópias existentes continuam preservadas.</p>}
       </div>
 
       {pendente && (
@@ -505,9 +475,9 @@ export function BackupDados() {
             <AlertTriangle size={15} className="mt-0.5 shrink-0" />
             Restaurar vai gravar {pendente.nItens} coleções e {pendente.nContas} contas por cima
             do que existe hoje. O que já está lá e não está no backup continua.
-            <span className="mt-1 block font-normal">
-              <b>Cuidado com os acessos:</b> as contas voltam com a <b>senha e as permissões do dia
-              do backup</b>. Quem trocou de senha depois volta para a antiga; quem você desligou ou
+            <span className="mt-1 block font-normal">{pendente.bk.versao<3 && "Este backup antigo não contém os arquivos de fotos e anexos. "}
+              <b>Cuidado com os acessos:</b> as contas locais voltam com a <b>senha e as permissões do dia
+              do backup</b>. Contas já migradas mantêm a senha da entrada única; quem você desligou ou
               rebaixou desde então <b>volta a entrar</b>. Confira a lista de acessos logo depois.
             </span>
           </p>

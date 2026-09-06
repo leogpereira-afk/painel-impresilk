@@ -24,13 +24,16 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { verificarJwt, crachaRevogado } from "../_shared/cripto.ts";
 
+import {capturarArquivos,prepararArquivos} from "../_shared/arquivos-backup.ts";
+import {buscarComRetentativa} from "../_shared/repetir-http.ts";
+
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const JWT_SECRET = Deno.env.get("PAINEL_JWT_SECRET") ?? "";
 const TOKEN = Deno.env.get("PAINEL_TOKEN") ?? "";
 const GH_TOKEN = Deno.env.get("GITHUB_TOKEN") ?? "";
 const GH_REPO = Deno.env.get("GITHUB_REPO") ?? "";
-const VERSAO = 2; // v2: formato do Supabase (colecoes em vez de chaves de blob)
+const VERSAO = 3; // v3: arquivos com checksum e recuperação verificada
 
 /* As tabelas da tela de Gestao. Ficam FORA de painel_registros (sao tabelas
    com colunas, nao registros jsonb), entao a varredura de colecoes nao as
@@ -107,7 +110,8 @@ async function linhasDe(colecao: string): Promise<Record<string, unknown>> {
 }
 
 async function montarBackupPainel() {
-  const { data: cfg } = await sb.from("painel_config_global").select("config").eq("id", true).maybeSingle();
+  const { data: cfg, error: erroConfig } = await sb.from("painel_config_global").select("config").eq("id", true).maybeSingle();
+  if (erroConfig) throw new Error(erroConfig.message);
   const { data: contasRaw, error } = await sb.from("painel_contas").select("*");
   if (error) throw new Error(error.message);
   const contas: Record<string, unknown> = {};
@@ -168,8 +172,7 @@ async function montarBackupPainel() {
   }
   painel.gestao = gestao;
 
-  // Os BYTES dos arquivos ficam no bucket (duraveis); um backup diario deles
-  // incharia o repositorio. Mesma decisao do original com as fotos.
+  const arquivos = await capturarArquivos(sb.storage.from("painel-arquivos"));
 
   return {
     versao: VERSAO,
@@ -177,6 +180,7 @@ async function montarBackupPainel() {
     exportadoEm: new Date().toISOString(),
     painel,
     contas,
+    arquivos,
   };
 }
 
@@ -230,40 +234,42 @@ async function chamarSistema(sys: any, body: unknown) {
   // TETO DE TEMPO POR CHAMADA. Sem ele, um sistema pendurado segurava a corrida
   // inteira ate a function morrer -- e os outros cinco ficavam sem backup
   // naquele dia, sem nada dizendo por que.
-  const r = await fetch(alvo, {
+  const r = await buscarComRetentativa(alvo, {
     method: "POST",
     headers: { "Content-Type": "application/json", "x-token": sys.token },
     body: JSON.stringify(body),
     signal: AbortSignal.timeout(20_000),
   });
   if (!r.ok) throw new Error(`${sys.key}: HTTP ${r.status}`);
-  return r.json();
+  const dados = await r.json();
+  if(dados?.erro || dados?.error || dados?.ok===false) throw new Error(`${sys.key}: ${dados.erro || dados.error || "leitura recusada"}`);
+  return dados;
 }
 
 async function puxarSistema(sys: any) {
   const registros: unknown[] = [];
   let after: unknown = null;
-  let truncado = false;
   let guarda = 0;
   for (; guarda < 300; guarda++) {
     const res = await chamarSistema(sys, after != null ? { action: "list", after } : { action: "list" });
-    registros.push(...(res[sys.listKey] || res.registros || res.os || res.itens || []));
+    const itens = res[sys.listKey] || res.registros || res.os || res.itens;
+    if(!Array.isArray(itens)) throw new Error(`${sys.key}: resposta sem coleção de registros`);
+    registros.push(...itens);
     after = res.nextAfter ?? null;
     if (after == null) break;
   }
   // Bateu no teto de paginas e ainda havia mais: o backup esta INCOMPLETO.
   // Antes isso saia como um backup normal -- e so no dia de precisar dele
   // alguem descobriria que faltava metade.
-  if (after != null) truncado = true;
+  if (after != null) throw new Error("Backup incompleto: limite de páginas atingido.");
   let cfg = null;
   try {
     cfg = (await chamarSistema(sys, { action: "getCfg" })).cfg ?? null;
-  } catch { /* nem todo sistema tem getCfg */ }
+  } catch(e) { if(!/HTTP 400|a[cç][aã]o desconhecida|unknown action/i.test(String((e as Error).message))) throw e; }
   return {
     versao: VERSAO, sistema: sys.key, nome: sys.nome,
     exportadoEm: new Date().toISOString(), registros, cfg,
     fotos: "nao incluidas neste backup",
-    ...(truncado ? { incompleto: true, motivo: `parou em ${guarda} paginas` } : {}),
   };
 }
 
@@ -271,6 +277,25 @@ async function puxarSistema(sys: any) {
 
 async function enviarParaGithub(chaveSistema: string, backup: any) {
   if (!GH_TOKEN || !GH_REPO) return { ok: false, motivo: "GitHub nao configurado (falta GITHUB_TOKEN/GITHUB_REPO)" };
+  if(GH_REPO !== 'leogpereira-afk/backups-impresilk') throw new Error('Destino de backup diferente do repositório privado aprovado.');
+  const destino=await buscarComRetentativa(`https://api.github.com/repos/${GH_REPO}`,{headers:{Authorization:`Bearer ${GH_TOKEN}`,Accept:'application/vnd.github+json','User-Agent':'impresilk-painel-backup'}});
+  if(!destino.ok || (await destino.json()).private !== true) throw new Error('Não foi possível confirmar que o repositório de backup é privado.');
+  if(chaveSistema==='painel' && backup.arquivos?.length) {
+    const manifesto=[];
+    for(const arquivo of backup.arquivos) {
+      const caminhoArquivo=`arquivos/painel/${arquivo.sha256}`;
+      const urlArquivo=`https://api.github.com/repos/${GH_REPO}/contents/${caminhoArquivo}`;
+      const headers={Authorization:`Bearer ${GH_TOKEN}`,Accept:'application/vnd.github+json','User-Agent':'impresilk-painel-backup'};
+      const existe=await buscarComRetentativa(urlArquivo,{headers});
+      if(existe.status===404){
+        const enviado=await buscarComRetentativa(urlArquivo,{method:'PUT',headers,body:JSON.stringify({message:'backup de arquivo do painel',content:arquivo.base64})});
+        if(!enviado.ok) throw new Error('Falha ao guardar arquivo no repositório privado: '+enviado.status);
+      } else if(!existe.ok) throw new Error('Falha ao conferir cópia do arquivo: '+existe.status);
+      const {base64:conteudo,...metadados}=arquivo;
+      manifesto.push(metadados);
+    }
+    backup={...backup,arquivos:manifesto};
+  }
   const dia = diaSP(backup.exportadoEm);
   const caminho = `${chaveSistema}/${dia}.json`;
   // base64 em BLOCOS: espalhar um array grande em String.fromCharCode(...)
@@ -290,10 +315,10 @@ async function enviarParaGithub(chaveSistema: string, backup: any) {
   };
   let sha: string | undefined;
   try {
-    const r = await fetch(url, { headers: cab });
+    const r = await buscarComRetentativa(url, { headers: cab });
     if (r.ok) sha = (await r.json()).sha;
   } catch { /* arquivo novo */ }
-  const r = await fetch(url, {
+  const r = await buscarComRetentativa(url, {
     method: "PUT",
     headers: cab,
     body: JSON.stringify({
@@ -312,26 +337,42 @@ async function enviarParaGithub(chaveSistema: string, backup: any) {
 // ---------------------------------------------------------------- hub
 
 async function lerStatus() {
-  const { data } = await sb.from("painel_meta").select("valor").eq("chave", "backup_status").maybeSingle();
+  const {data,error}=await sb.from("painel_meta").select("valor").eq("chave","backup_status").maybeSingle();
+  if(error) throw new Error('Não foi possível consultar o estado do backup.');
   return data?.valor ?? null;
 }
 async function gravarStatus(st: unknown) {
-  // try/await, e nao .catch(): o query builder do supabase-js e "thenable" mas
-  // NAO tem .catch proprio -- chamar .catch nele lanca TypeError e derruba o
-  // backup INTEIRO depois de ele ja ter rodado (erro real, pago aqui).
-  try {
-    await sb.from("painel_meta").upsert(
-      { chave: "backup_status", valor: st, atualizado_em: new Date().toISOString() },
-      { onConflict: "chave" });
-  } catch { /* status e best-effort */ }
+  const {error}=await sb.rpc("painel_backup_estado",{p_patch:st});
+  if(error) throw new Error('A cópia foi tentada, mas seu resultado não pôde ser registrado.');
 }
 
-async function backupDoHub() {
-  const porSistema: Record<string, unknown> = {};
-  const agora = new Date().toISOString();
+async function backupDoHub(somente?: string) {
+  const operacao=crypto.randomUUID();
+  const {data:reservou,error}=await sb.rpc("painel_backup_reservar",{p_operacao:operacao});
+  if(error) throw new Error("Não foi possível iniciar o backup com segurança.");
+  if(!reservou) throw new Error("Um backup já está em andamento. Aguarde a conclusão.");
+  try {return await executarBackupHub(somente);}
+  finally {
+    const {error}=await sb.from("painel_meta").delete().eq("chave","backup_operacao").eq("valor->>operacao",operacao);
+    if(error) console.error("[painel-backup] A reserva será liberada automaticamente.");
+  }
+}
+async function executarBackupHub(somente?: string) {
+  const anterior = await lerStatus();
+  const porSistema: Record<string, any> = {...(anterior?.sistemas || {})};
+  const chaves=['painel','fortemais',...sistemasExternos().map(s=>s.key)];
+  if(somente && !chaves.includes(somente)) throw new Error('Sistema não cadastrado no backup.');
+  const executar = (chave:string) => !somente || somente===chave;
 
-  // 1) o proprio painel. Cada sistema falha sozinho.
-  try {
+  const agora = new Date().toISOString();
+  const confirmar = async(chave:string) => {
+    const valor=porSistema[chave];
+    valor.ultimoValido=valor.ok?valor.em:anterior?.sistemas?.[chave]?.ultimoValido || (anterior?.sistemas?.[chave]?.ok?anterior.sistemas[chave].em:null);
+    await gravarStatus({atualizadoEm:agora,sistemas:{[chave]:valor}});
+  };
+
+  // 1) o próprio painel. Cada sistema falha sozinho.
+  if(executar("painel")) { try {
     const bkp = await montarBackupPainel();
     /* Confere o backup contra o banco ANTES de reportar sucesso: um backup que
        nao copiou tudo nao e um backup bom com um detalhe, e a diferenca precisa
@@ -343,9 +384,10 @@ async function backupDoHub() {
       // arquivo -> arquivosMeta): confere pelos dois jeitos.
       return !copiadas.has(c) && !copiadas.has(`${c}s`) && !copiadas.has(`${c}sMeta`);
     });
+    if(naoCopiadas.length) throw new Error('Há coleções fora da cópia.');
     const gh = await enviarParaGithub("painel", bkp);
     porSistema.painel = {
-      em: agora, ok: gh.ok,
+      em: agora, ok: gh.ok, arquivos: bkp.arquivos.length, bytesArquivos: bkp.arquivos.reduce((n,a)=>n+a.bytes,0),
       // Conta TUDO o que foi salvo. Ficou parado nas quatro colecoes originais
       // enquanto o backup ja levava mais quatro: a direcao abria a tela, via
       // "132 registros" e nao tinha como saber se as abas novas entraram.
@@ -382,11 +424,14 @@ async function backupDoHub() {
     porSistema.painel = { em: agora, ok: false, erro: (e as Error)?.message ?? String(e) };
   }
 
+    await confirmar("painel");
+  }
+
   // 1b) o FORTEMAIS (obras do Léo). Mora NESTE mesmo banco — as fichas na
   // leo_estado (só a coleção `obras`; o resto da Central é vida pessoal e não
   // pertence ao backup da empresa) e o livro-caixa na leo_obra_custos. Por
   // isso entra como interno: sem HTTP, sem token, sem o que expirar.
-  try {
+  if(executar("fortemais")) { try {
     const registros: any[] = [];
     const { data: est, error: e1 } = await sb.from("leo_estado")
       .select("dados").eq("id", true).maybeSingle();
@@ -420,8 +465,12 @@ async function backupDoHub() {
     porSistema.fortemais = { nome: "Fortemais (obras)", em: agora, ok: false, erro: (e as Error)?.message ?? String(e) };
   }
 
+    await confirmar("fortemais");
+  }
+
   // 2) os outros, puxados por HTTP.
   for (const sys of sistemasExternos()) {
+    if(!executar(sys.key)) continue;
     try {
       const bkp = await puxarSistema(sys);
       const gh = await enviarParaGithub(sys.key, bkp);
@@ -433,9 +482,14 @@ async function backupDoHub() {
     } catch (e) {
       porSistema[sys.key] = { nome: sys.nome, em: agora, ok: false, erro: (e as Error)?.message ?? String(e) };
     }
+    await confirmar(sys.key);
   }
 
-  await gravarStatus({ atualizadoEm: agora, dia: diaSP(agora), sistemas: porSistema });
+  for(const [chave,valor] of Object.entries(porSistema)) {
+    valor.ultimoValido = valor.ok ? valor.em : anterior?.sistemas?.[chave]?.ultimoValido || (anterior?.sistemas?.[chave]?.ok ? anterior.sistemas[chave].em : null);
+  }
+  const diaCompleto = chaves.every(k=>porSistema[k]?.ok && diaSP(porSistema[k].em)===diaSP(agora));
+  await gravarStatus({atualizadoEm: agora, dia:diaCompleto?diaSP(agora):anterior?.dia, sistemas:porSistema});
   return porSistema;
 }
 
@@ -466,11 +520,11 @@ Deno.serve(async (req: Request) => {
        revogado -- as outras quatro (dados, gestao, config, ativos) perguntam.
        O cracha do Painel dura 12h: alguem desligado de manha seguia lendo o
        status do backup ate a tarde, e o backup diz o que a casa guarda e onde. */
-    if (s && await crachaRevogado(sb, "painel", s)) {
+    if (s && await crachaRevogado(sb, "painel", s, true)) {
       return resposta({ erro: "Seu acesso foi encerrado.", semSessao: true }, 401);
     }
     if (!s) return resposta({ erro: "Entre no sistema.", semSessao: true }, 401);
-    return resposta({ ok: true, status: await lerStatus() });
+    return resposta({ ok: true, status: {...(await lerStatus() || {}),capacidades:{restauroAtomico:true,arquivos:true,individual:true}} });
   }
 
   // sistemas: diagnostico read-only -- QUAIS sistemas este backup enxerga hoje.
@@ -519,14 +573,15 @@ Deno.serve(async (req: Request) => {
     if (diaDoUltimo === hoje && todosOk && corpo.forcar !== true) {
       return resposta({ ok: true, pulou: "ja tem backup de hoje" });
     }
-    return resposta({ ok: true, sistemas: await backupDoHub() });
+    try {return resposta({ ok: true, sistemas: await backupDoHub(corpo.sistema) });}
+    catch(e) {return resposta({erro:(e as Error).message},503);}
   }
 
   // Daqui para baixo, so a direcao.
   if (!JWT_SECRET) return resposta({ erro: "Login nao configurado." }, 503);
   const m = String(req.headers.get("authorization") ?? "").match(/^Bearer\s+(.+)$/i);
   const s = m ? await verificarJwt(m[1], JWT_SECRET) : null;
-  if (!s) return resposta({ erro: "Entre no sistema." }, 401);
+  if (!s || await crachaRevogado(sb, "painel", s, true)) return resposta({ erro: "Seu acesso expirou ou foi encerrado.", semSessao: true }, 401);
   if (s.master !== true) return resposta({ erro: "Apenas a direcao pode fazer backup." }, 403);
 
   try {
@@ -535,111 +590,59 @@ Deno.serve(async (req: Request) => {
         return resposta({ ok: true, backup: await montarBackupPainel() });
 
       case "registrarManual": {
-        const st: any = (await lerStatus()) ?? { sistemas: {} };
-        st.atualizadoEm = new Date().toISOString();
-        // De proposito NAO mexe em st.dia: baixar o arquivo no computador nao
-        // e o backup do dia na nuvem, e nao pode fazer a rodada automatica
-        // achar que o dia ja esta resolvido.
-        st.sistemas = st.sistemas ?? {};
-        st.sistemas.painel = { em: st.atualizadoEm, ok: true, destino: "Baixado no computador" };
-        await gravarStatus(st);
+        await gravarStatus({ultimoDownload:new Date().toISOString()});
         return resposta({ ok: true });
       }
 
       case "backupAgora":
-        return resposta({ ok: true, sistemas: await backupDoHub() });
+        return resposta({ ok: true, sistemas: await backupDoHub(corpo.sistema) });
 
       case "restaurar": {
         const bk = corpo.backup;
         if (!bk || bk.sistema !== "painel") {
           return resposta({ erro: "Arquivo de backup invalido (so restauro o painel por aqui)." }, 400);
         }
-        let gravou = 0;
-
-        // v2 (formato do Supabase) e v1 (formato do Blobs) sao aceitos: o
-        // backup de ontem nao vira lixo por causa da migracao.
-        const p = bk.painel ?? {};
-        const cfg = p.config ?? (bk.versao === 1 ? p.config : null);
-        if (cfg) {
-          await sb.from("painel_config_global").upsert(
-            { id: true, config: cfg, atualizado_em: new Date().toISOString() }, { onConflict: "id" });
-          gravou++;
+        if (![1, 2, 3].includes(bk.versao) || !bk.painel || Array.isArray(bk.painel)) {
+          return resposta({ erro: "Formato ou versão do backup inválidos." }, 400);
         }
-        const mapas: Array<[string, Record<string, unknown>]> = [];
-        if (bk.versao >= 2) {
-          /* A RESTAURACAO SAI DO ARQUIVO, nao de uma lista aqui. A exportacao
-             ja pergunta ao banco; esta volta era escrita a mao e NAO TINHA
-             permutas nem campanhas -- o arquivo continha as duas, o restaurar
-             as ignorava calado e respondia "Restaurado: N registros" com cara
-             de sucesso. No dia de precisar, o credito dos parceiros voltava
-             vazio. Mesma doenca corrigida na ida em 21/08, viva na volta.
-             Percorre-se o que o ARQUIVO tem, desfazendo os dois apelidos
-             historicos (ativos -> ativo, arquivosMeta -> arquivo); `config`
-             nao mora em painel_registros e fica de fora. */
-          const APELIDO_VOLTA: Record<string, string> = { ativos: "ativo", arquivosMeta: "arquivo" };
-          for (const [nome, mapa] of Object.entries(p)) {
-            // `config` e `gestao` NAO sao colecoes de painel_registros: a
-            // primeira e a configuracao global, a segunda sao tabelas
-            // proprias. Sem esta guarda, o restauro criaria registros de
-            // mentira chamados "gestao_empresa", "gestao_valor"...
-            if (nome === "config" || nome === "gestao") continue;
-            if (mapa == null || typeof mapa !== "object") continue;
-            mapas.push([APELIDO_VOLTA[nome] ?? nome, mapa as Record<string, unknown>]);
-          }
-        } else {
-          // v1: chaves de blob (ov_rec/ov_orc mapas; ativo_<id> soltos)
-          mapas.push(["ov_rec", p.ov_rec ?? {}], ["ov_orc", p.ov_orc ?? {}]);
-          const ativos: Record<string, unknown> = {};
-          for (const [k, v] of Object.entries(p)) {
-            if (k.startsWith("ativo_") && v) ativos[k.slice(6)] = v;
-          }
-          mapas.push(["ativo", ativos]);
-        }
-        /* A GESTAO VOLTA nas tabelas dela. Cada linha inteira, por upsert na
-           chave primaria -- o que existe hoje e mais novo do que o backup e
-           sobrescrito, que e o que "restaurar" quer dizer. Backups antigos nao
-           tem esta parte, e aí simplesmente nao ha o que repor. */
-        const gestaoBk = (p as any).gestao;
-        if (gestaoBk && typeof gestaoBk === "object") {
-          for (const t of TABELAS_GESTAO) {
-            const linhas = (gestaoBk as any)[t];
-            if (!Array.isArray(linhas) || !linhas.length) continue;
-            const { error } = await sb.from(t).upsert(linhas);
-            if (error) throw new Error(`restaurar ${t}: ${error.message}`);
-            gravou += linhas.length;
-          }
-        }
-
-        for (const [colecao, mapa] of mapas) {
+        const APELIDO_VOLTA: Record<string, string> = { ativos: "ativo", arquivosMeta: "arquivo" };
+        const p = bk.painel;
+        const registros: any[] = [];
+        const incluir = (colecao: string, mapa: any) => {
+          if (mapa == null) return;
+          if (typeof mapa !== "object" || Array.isArray(mapa)) throw new Error("Coleção inválida: " + colecao);
           for (const [id, registro] of Object.entries(mapa)) {
             if (registro == null) continue;
-            await sb.from("painel_registros").upsert(
-              { colecao, id, registro, atualizado_em: new Date().toISOString() },
-              { onConflict: "colecao,id" });
-            gravou++;
+            if (typeof registro !== "object" || Array.isArray(registro)) throw new Error("Registro inválido: " + colecao);
+            registros.push({ colecao, id, registro });
+          }
+        };
+        if (bk.versao >= 2) {
+          for (const [nome, mapa] of Object.entries(p)) {
+            if (nome === "config" || nome === "gestao") continue;
+            incluir(APELIDO_VOLTA[nome] ?? nome, mapa);
+          }
+        } else {
+          incluir("ov_rec", p.ov_rec); incluir("ov_orc", p.ov_orc);
+          for (const [nome, registro] of Object.entries(p)) {
+            if (nome.startsWith("ativo_")) incluir("ativo", { [nome.slice(6)]: registro });
           }
         }
-        // Quem NAO existe mais hoje volta a existir -- e isso e o certo num
-        // restauro de verdade (o caso ruim e a tabela ter sido apagada). O que
-        // nao pode e voltar CALADO: quem foi desligado depois do backup entra
-        // de novo com a senha e as permissoes antigas. Entao avisa quem voltou.
-        const { data: hojeRaw } = await sb.from("painel_contas").select("usuario");
-        const existiam = new Set((hojeRaw ?? []).map((c: any) => c.usuario));
-        const ressuscitadas: string[] = [];
-        let contas = 0;
-        for (const [u, c] of Object.entries(bk.contas ?? {}) as [string, any][]) {
-          if (!c?.hash) continue;
-          const usuario = c.usuario ?? u;
-          if (!existiam.has(usuario)) ressuscitadas.push(c.nome || usuario);
-          await sb.from("painel_contas").upsert({
-            usuario, nome: c.nome ?? u,
-            permissoes: c.permissoes ?? [], vendedor_id: c.vendedorId ?? "",
-            hash: c.hash, salt: c.salt, iter: c.iter ?? 120000,
-            atualizado_em: new Date().toISOString(),
-          }, { onConflict: "usuario" });
-          contas++;
-        }
-        return resposta({ ok: true, gravou, contas, ressuscitadas });
+        const contas = Object.entries(bk.contas ?? {}).map(([usuario, c]: [string, any]) => ({ ...c, usuario: c.usuario || usuario }));
+        const arquivos = await prepararArquivos(sb.storage.from("painel-arquivos"),bk.arquivos || [],async a=>{
+          if(!/^[a-f0-9]{64}$/.test(a.sha256)) throw new Error('Identificação de arquivo inválida.');
+          const r = await buscarComRetentativa(`https://api.github.com/repos/${GH_REPO}/contents/arquivos/painel/${a.sha256}`,{headers:{Authorization:`Bearer ${GH_TOKEN}`,Accept:'application/vnd.github.raw+json','User-Agent':'impresilk-painel-backup'}});
+          if(!r.ok) throw new Error('A cópia do arquivo não foi encontrada no repositório privado.');
+          return new Uint8Array(await r.arrayBuffer());
+        });
+        try {
+          const { data, error } = await sb.rpc("painel_restaurar_atomico", {
+            p_backup: { config: p.config ?? null, registros, contas, gestao: p.gestao ?? {} },
+          });
+          if (error || !data?.verificado) throw new Error(error?.message || "A recuperação não foi confirmada.");
+          return resposta({ ok: true, ...data, arquivos:arquivos.quantidade, arquivosIncluidos:bk.versao>=3 });
+        } catch(e) {await arquivos.desfazer();throw e;}
+
       }
 
       default:

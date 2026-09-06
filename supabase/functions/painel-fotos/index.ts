@@ -15,6 +15,16 @@ Deno.serve(async(req:Request)=>{
  if(!sessao.master&&!sessao.perms?.includes('*')&&!sessao.perms?.includes('patrimonio'))return resposta({erro:'Você não tem acesso ao Patrimônio.'},403);
  try{
  const corpo=await req.json(),bemId=String(corpo.bemId||'');
+ if(corpo.action==='resumo') {
+  const porBem:Record<string,number>={};
+  for(let de=0;;de+=1000) {
+   const {data,error}=await sb.from('painel_registros').select('registro').eq('colecao',COLECAO).order('id').range(de,de+999);
+   if(error)throw error;
+   for(const f of data || []) {const id=f.registro?.bemId;if(id)porBem[id]=(porBem[id]||0)+1;}
+   if(!data||data.length<1000)break;
+  }
+  return resposta({ok:true,porBem});
+ }
  if(!bemId||bemId.length>180)return resposta({erro:'Informe o equipamento.'},400);
  const {data:bem,error:erroBem}=await sb.from('painel_registros').select('id').eq('colecao','patrimonio').eq('id',bemId).maybeSingle();
  if(erroBem)throw erroBem;if(!bem)return resposta({erro:'Equipamento não encontrado.'},404);

@@ -716,7 +716,7 @@ export default function Compromissos() {
   const abrirForm = (c) => {
     if (formSujo() && !window.confirm("Você tem um compromisso pela metade. Descartar o que escreveu?")) return;
     setAviso(null);
-    setForm(c ? { ...VAZIO, ...c } : { ...VAZIO });
+    setForm(c ? { ...VAZIO, ...c } : { ...VAZIO, cadastroId:crypto.randomUUID() });
   };
 
   const fecharForm = () => {
@@ -738,7 +738,7 @@ export default function Compromissos() {
         // instante caiam na MESMA linha, e o servidor recusava a segunda por
         // ser de outro dono.
         const novo = !form.id;
-        const id = form.id || `cp-${sessao?.usuario || "eu"}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+        const id = form.id || form.cadastroId;
         const dados = {
           titulo: form.titulo.trim(),
           tipo: form.tipo,
@@ -771,7 +771,7 @@ export default function Compromissos() {
         setSalvando(false);
       }
     },
-    [form, dePessoa, sessao, setMapa]
+    [form, dePessoa, setMapa]
   );
 
   const alternarFeito = async (c) => {

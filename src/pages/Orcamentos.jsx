@@ -628,6 +628,7 @@ export default function Orcamentos() {
 
   const meuVendedor = useMemo(() => canonVend(vendedorDaSessao()), []);
   const [aba, setAba] = useState("mesa");
+  const [verPropostas,setVerPropostas]=useState(false);
   const [cliente360, setCliente360] = useState(null);
   const [crm, setCrm] = useState(null), [erroCrm, setErroCrm] = useState(""), [carregandoCrm, setCarregandoCrm] = useState(false), [revisaoCrm, setRevisaoCrm] = useState(0);
   useEffect(() => {
@@ -1043,15 +1044,17 @@ export default function Orcamentos() {
       )}
 
       <div id="cliente360-area" />
-      {cliente360 && <Cliente360 key={cliente360.clienteId || cliente360.id} alvo={cliente360} dados={{...dados, orcamentos: vm.lista}} hoje={hoje} indisponiveis={[...fontesNegadas,...fontesQueFalharam]} crm={crm} erroCrm={erroCrm} aoVincular={async (o, crmCardId) => { if(crmCardId && !crm?.cards?.some(c => c.id===crmCardId && c.clienteId===o.clienteId))throw new Error("Oportunidade não pertence a este cadastro."); await setOverridesOrcamento({[o.id]:{crmCardId:crmCardId||null}}); }} aoFechar={() => setCliente360(null)} aoOrcamento={o => { setCliente360(null); setAba(o.situacao === "aberto" ? "mesa" : "historico"); if(o.situacao!=="aberto")setSituacaoHist(o.situacao);setBusca(String(o.numero||o.cliente));setRecorte("mesa");setEtapaFiltro("");setAberto(o.id);setLimite(30); }} />}
+      {cliente360 && <Cliente360 key={cliente360.clienteId || cliente360.id} alvo={cliente360} dados={{...dados, orcamentos: vm.lista}} hoje={hoje} indisponiveis={[...fontesNegadas,...fontesQueFalharam]} crm={crm} erroCrm={erroCrm} aoVincular={async (o, crmCardId) => { if(crmCardId && !crm?.cards?.some(c => c.id===crmCardId && c.clienteId===o.clienteId))throw new Error("Oportunidade não pertence a este cadastro."); await setOverridesOrcamento({[o.id]:{crmCardId:crmCardId||null}}); }} aoFechar={() => setCliente360(null)} aoOrcamento={o => { setVerPropostas(true);setCliente360(null); setAba(o.situacao === "aberto" ? "mesa" : "historico"); if(o.situacao!=="aberto")setSituacaoHist(o.situacao);setBusca(String(o.numero||o.cliente));setRecorte("mesa");setEtapaFiltro("");setAberto(o.id);setLimite(30); }} />}
       {aba === "crm" && <FunilMubisys crm={crm} erro={erroCrm} carregando={carregandoCrm} aoAtualizar={() => setRevisaoCrm(n=>n+1)} aoCliente={abrirCliente} />}
       {aba === "mesa" && (
         <>
-          <AceleradorVendas lista={vm.lista} hoje={hoje} aoEtapa={id => { setEtapaFiltro(id); setRecorte("mesa"); setBusca(""); setLimite(30); }} aoAbrir={g => {
+          <AceleradorVendas lista={vm.lista} hoje={hoje} aoEtapa={id => { setVerPropostas(true);setEtapaFiltro(id); setRecorte("mesa"); setBusca(""); setLimite(30); }} aoAbrir={g => {
+            setVerPropostas(true);
             const o = g.principal;
             setEtapaFiltro(""); setRecorte(o.recall ? "recall" : "mesa"); setBusca(String(o.numero || o.cliente)); setLimite(30); setAberto(o.id); setPainel({ id: o.id, qual: "retorno" });
             requestAnimationFrame(() => document.getElementById("mesa-comercial")?.scrollIntoView({ behavior: "smooth", block: "start" }));
           }} />
+          <details open={verPropostas} onToggle={e=>setVerPropostas(e.currentTarget.open)} className="space-y-4"><summary className="cursor-pointer font-semibold text-base py-3">Consultar propostas, filtros e totais · {r.mesa.qtd} em aberto</summary>
           {etapaFiltro && <button className="chip-btn" onClick={() => setEtapaFiltro("")}>Etapa: {ETAPAS_CRM.find(e => e.id === etapaFiltro)?.nome} · Limpar filtro ×</button>}
           <div id="mesa-comercial" />
           <div className="sem-impressao">
@@ -1173,6 +1176,7 @@ export default function Orcamentos() {
               </p>
             </div>
           </Card>
+          </details>
         </>
       )}
 

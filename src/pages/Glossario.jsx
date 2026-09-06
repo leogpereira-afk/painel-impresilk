@@ -22,6 +22,7 @@ const normalizar = (s) =>
     .toLowerCase();
 
 export default function Glossario() {
+  const [modoEdicao,setModoEdicao]=useState(false);
   const [mapa, setMapa] = useState(null);
   const [erro, setErro] = useState(null);
   const [aviso, setAviso] = useState(null);
@@ -80,7 +81,7 @@ export default function Glossario() {
 
   const abrirForm = (t) => {
     setAviso(null);
-    setForm(t ? { ...VAZIO, ...t } : { ...VAZIO, categoria: filtro || CATEGORIAS[0] });
+    setForm(t ? { ...VAZIO, ...t } : { ...VAZIO, cadastroId:crypto.randomUUID(), categoria: filtro || CATEGORIAS[0] });
     setTimeout(() => cartaoForm.current?.scrollIntoView({ behavior: "smooth", block: "center" }), 60);
   };
 
@@ -93,7 +94,7 @@ export default function Glossario() {
       }
       setSalvando(true);
       try {
-        const id = form.id || `gl-${Date.now()}`;
+        const id = form.id || form.cadastroId;
         const ordem =
           form.ordem ?? Math.max(0, ...Object.values(mapa || {}).map((x) => x.ordem ?? 0)) + 1;
         const termo = {
@@ -150,11 +151,13 @@ export default function Glossario() {
         descricao="Consulte materiais, acabamentos e orientações para explicar cada solução ao cliente."
       />
 
+      <button className="btn-outline" aria-pressed={modoEdicao} onClick={()=>setModoEdicao(v=>!v)}>{modoEdicao?"Concluir edição":"Editar glossário"}</button>
       <div className="flex flex-wrap items-center gap-3">
         <div className="relative min-w-56 flex-1 sm:max-w-md">
           <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
           <input
             className="input pl-9 pr-9"
+            aria-label="Buscar termo no glossário"
             placeholder="Buscar termo (lona, ACM, ilhós, sangria...)"
             value={busca}
             onChange={(e) => setBusca(e.target.value)}
@@ -306,11 +309,11 @@ export default function Glossario() {
                   <h4 className="min-w-0 flex-1 font-display text-sm font-semibold text-slate-900">
                     {t.termo}
                   </h4>
-                  <span className="flex shrink-0 gap-0.5">
+                  {modoEdicao && <span className="flex shrink-0 gap-2">
                     <button
                       type="button"
                       onClick={() => abrirForm(t)}
-                      className="grid h-7 w-7 place-items-center rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-700"
+                      className="grid h-11 w-11 place-items-center rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-700"
                       title={`Editar ${t.termo}`}
                     >
                       <Pencil size={13} />
@@ -320,12 +323,12 @@ export default function Glossario() {
                       onClick={() => {
                         if (window.confirm(`Remover "${t.termo}" do glossário?`)) remover(t);
                       }}
-                      className="grid h-7 w-7 place-items-center rounded-lg text-slate-500 hover:bg-bad-50 hover:text-bad-700"
+                      className="grid h-11 w-11 place-items-center rounded-lg text-slate-500 hover:bg-bad-50 hover:text-bad-700"
                       title={`Remover ${t.termo}`}
                     >
                       <Trash2 size={13} />
                     </button>
-                  </span>
+                  </span>}
                 </div>
                 <p className="mt-1.5 text-sm leading-relaxed text-slate-600">{t.texto}</p>
                 {t.dica && (

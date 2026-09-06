@@ -19,7 +19,8 @@ async function chamar(action, dados = {}) {
 
 export const listarAtivos = () => chamar("listar").then((r) => r.itens || []);
 export const salvarAtivo = (item) => chamar("salvar", { item }).then((r) => r.item);
-export const removerAtivo = (id) => chamar("remover", { id });
+export const removerAtivo = (id, bemId) => chamar("remover", { id, bemId });
+export const salvarEquipamento = (item, patrimonio, bemId) => chamar("salvar",{item,patrimonio,bemId}).then(r=>r.item);
 // A lixeira de 30 dias: o servidor guarda o apagado e purga sozinho.
 export const listarLixeira = () => chamar("lixeira").then((r) => r.itens || []);
 export const restaurarAtivo = (id) => chamar("restaurar", { id });

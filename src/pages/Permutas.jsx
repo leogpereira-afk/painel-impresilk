@@ -1301,7 +1301,7 @@ export default function Permutas() {
 
           <div className="flex flex-wrap items-center gap-3 rounded-lg bg-slate-50 p-3 text-sm">
             <span>Período de busca: {desde ? dataLonga(desde) : 'todo o histórico disponível'}{ate ? ` até ${dataLonga(ate)}` : ' até hoje'}.</span>
-            {podeAbrir('configuracoes')&&<Link className="btn-outline" to={`/configuracoes?secao=permutas&permuta=${encodeURIComponent(aberta)}`}>Configurar período</Link>}
+            {podeAbrir("permutas")&&<Link className="btn-outline" to={`/configuracoes?secao=permutas&permuta=${encodeURIComponent(aberta)}`}>Configurar período</Link>}
           </div>
 
           {/* O QUE O PAINEL REALMENTE TEM. Uma permuta pode pedir 2018 e o

@@ -1,3 +1,4 @@
+import PendenciasPatrimonio from "../components/PendenciasPatrimonio.jsx";
 // Patrimonio: o que a empresa TEM, onde esta e quanto custou.
 //
 // Nao e a mesma coisa que Manutencoes. La a pergunta e "quanto custa manter";
@@ -154,6 +155,8 @@ function FormBem({ inicial, setores, salvando, aoSalvar, aoFechar }) {
           <div>
             <label className="label" htmlFor="b-nf">Nota fiscal</label>
             <input id="b-nf" className="input" placeholder="número da NF" value={f.nf} onChange={trocar("nf")} />
+            {!f.nf && <label className="label mt-3">Motivo da ausência da nota<input className="input mt-1" value={f.motivoSemNota || ''} onChange={trocar('motivoSemNota')} placeholder="Ex.: documento ainda não localizado"/></label>}
+          </div><div><label className="label" htmlFor="b-responsavel">Responsável pelo cadastro</label><input id="b-responsavel" className="input" value={f.responsavel || ''} onChange={trocar('responsavel')}/>
           </div>
 
           <div>
@@ -325,6 +328,7 @@ export default function Patrimonio() {
   const [etiquetas, setEtiquetas] = useState(null); // lista a imprimir
   const [verSetores, setVerSetores] = useState(false);
   const topoForm = useRef(null);
+  const idNovoBem = useRef(null);
   const [hojeISO] = useState(() => ymdLocal(new Date()));
 
   const pedidoLeitura = useRef(0);
@@ -377,6 +381,7 @@ export default function Patrimonio() {
     setTimeout(() => topoForm.current?.scrollIntoView({ behavior: "smooth", block: "center" }), 60);
 
   const abrirBem = (b = null) => {
+    idNovoBem.current = b?.id || `pat-${crypto.randomUUID()}`;
     setFotoBem(null);
     setFormSetor(null);
     setFormBem(
@@ -400,7 +405,7 @@ export default function Patrimonio() {
     setSalvando(true);
     setMsg(null);
     try {
-      const id = f.id || `pat-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+      const id = f.id || idNovoBem.current;
       const dados = {
         // codigo NAO vai daqui: o servidor gera na primeira gravacao e devolve.
         ...(f.codigo ? { codigo: f.codigo } : {}),
@@ -408,6 +413,8 @@ export default function Patrimonio() {
         nomeGenerico: f.nomeGenerico.trim(),
         descricaoTecnica: f.descricaoTecnica.trim(),
         nf: f.nf.trim(),
+        motivoSemNota:String(f.motivoSemNota || "").trim(),
+        responsavel:String(f.responsavel || "").trim(),
         dataAquisicao: f.dataAquisicao,
         valor: paraNumero(f.valor),
         situacao: f.situacao,
@@ -569,6 +576,7 @@ export default function Patrimonio() {
       )}
 
       <div ref={topoForm}>
+        <PendenciasPatrimonio bens={vm.ativos} aoEditar={abrirBem} aoFotos={setFotoBem}/>
         {fotoBem&&<FotosPatrimonio key={fotoBem.id} bemId={fotoBem.id} nome={fotoBem.nomeGenerico} aoFechar={()=>setFotoBem(null)}/>}
         {formBem && (
           <><FormBem
@@ -746,7 +754,7 @@ export default function Patrimonio() {
               placeholder="Buscar por etiqueta, nome, NF ou descrição"
             />
           </div>
-          <select className="input h-9 w-auto py-0" value={setorFiltro} onChange={(e) => setSetorFiltro(e.target.value)}>
+          <select aria-label="Filtrar patrimônio por setor" className="input h-9 w-auto py-0" value={setorFiltro} onChange={(e) => setSetorFiltro(e.target.value)}>
             <option value="">Todos os setores</option>
             {vm.setores.map((s) => (
               <option key={s.id} value={s.sigla}>

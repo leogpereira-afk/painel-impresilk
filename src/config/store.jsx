@@ -1,30 +1,18 @@
-// Estado central do painel. Guarda a config (regras) e os overrides (marcacoes
-// manuais: motivo, cobrado, motivo de perda, baixa). A fonte de verdade e o
-// Netlify Blobs (compartilhado entre aparelhos); o localStorage e cache
-// instantaneo no boot e fallback quando a rede falha. Qualquer mudanca aqui
-// recalcula os modulos ao vivo (os modulos derivam tudo via useMemo).
-
 import { createContext, useContext, useEffect, useMemo, useRef, useState, useCallback } from "react";
+import {useLocation} from "react-router-dom";
+import {fontesDaRota} from "../lib/fontes-por-rota.js";
 import { CONFIG_PADRAO } from "./defaults.js";
 import * as mubi from "../services/mubi.js";
 import * as marcacoes from "../services/marcacoes.js";
 import { getSessao, aoMudarSessao } from "../lib/sessao.js";
+
+import { criarSincronizacao } from "../lib/config-sincronizacao.js";
 
 const K_CONFIG = "painel_config";
 const K_OV_REC = "painel_ov_rec";
 const K_OV_ORC = "painel_ov_orc";
 
 const AppContext = createContext(null);
-
-function ler(chave, fallback) {
-  if (import.meta.env.MODE === "review") return fallback;
-  try {
-    const raw = localStorage.getItem(chave);
-    return raw ? JSON.parse(raw) : fallback;
-  } catch {
-    return fallback;
-  }
-}
 
 function mesclarConfig(salvo) {
   if (!salvo) return structuredClone(CONFIG_PADRAO);
@@ -36,9 +24,12 @@ function mesclarConfig(salvo) {
 }
 
 export function AppProvider({ children }) {
-  const [config, setConfig] = useState(() => mesclarConfig(ler(K_CONFIG, null)));
-  const [overridesRecebiveis, setOvRec] = useState(() => ler(K_OV_REC, null));
-  const [overridesOrcamentos, setOvOrc] = useState(() => ler(K_OV_ORC, null));
+  const {pathname} = useLocation();
+  const fontes = fontesDaRota(pathname);
+  const cacheFontes = useRef(new Map());
+  const [config, setConfig] = useState(() => mesclarConfig(null));
+  const [overridesRecebiveis, setOvRec] = useState(null);
+  const [overridesOrcamentos, setOvOrc] = useState(null);
 
   const [dados, setDados] = useState(null);
   const [atualizadoEm, setAtualizadoEm] = useState(null);
@@ -76,7 +67,7 @@ export function AppProvider({ children }) {
      isso é o dado de uma pessoa aparecendo para outra. */
   const geracaoRef = useRef(0);
 
-  const recarregar = useCallback(async () => {
+  const recarregar = useCallback(async (forcar = true) => {
     if (!getSessao()) return; // sem cracha nao adianta tentar
     const minhaGeracao = ++geracaoRef.current;
     const atual = () => geracaoRef.current === minhaGeracao;
@@ -85,7 +76,7 @@ export function AppProvider({ children }) {
     // O carimbo de frescor e o MAIS VELHO das fontes desta carga. Sem zerar,
     // ele guardaria para sempre o mais velho ja visto e o painel ficaria
     // vermelho para sempre depois de um unico soluco.
-    mubi.zerarFrescor();
+
 
     const semPermissao = (e) => /nao tem acesso|403/i.test(e?.message || "");
     const buscar = async (fn) => {
@@ -97,14 +88,17 @@ export function AppProvider({ children }) {
     };
 
     try {
-      const [rRec, rPag, rBan, rOrc, rOrd] = await Promise.all([
-        buscar(mubi.getRecebiveis),
-        buscar(mubi.getPagar),
-        buscar(mubi.getContasBancarias),
-        buscar(mubi.getOrcamentos),
-        buscar(mubi.getOrdensServico),
-      ]);
-      const todas = [rRec, rPag, rBan, rOrc, rOrd];
+      const carregar = {recebiveis:mubi.getRecebiveis, ordens:mubi.getOrdensServico, orcamentos:mubi.getOrcamentos};
+      const nomesMubi = {recebiveis:'contas-atrasadas',ordens:'produtos',orcamentos:'orcamentos'};
+      const todas = await Promise.all(fontes.map(async nome => {
+        const guardado = cacheFontes.current.get(nome);
+        if(!forcar && guardado && Date.now()-guardado.lidoEm < 300000) return guardado;
+        const resultado = await buscar(carregar[nome]);
+        resultado.lidoEm = Date.now();
+        resultado.atualizadoEm = mubi.getUltimaAtualizacao(nomesMubi[nome]);
+        if(atual() && resultado.ok) cacheFontes.current.set(nome,resultado);
+        return resultado;
+      }));
       const falhasReais = todas.filter((r) => !r.ok && !r.permissao);
       // Nenhuma respondeu e nao foi permissao: aí sim e erro de verdade.
       if (todas.every((r) => !r.ok) && falhasReais.length) {
@@ -113,7 +107,7 @@ export function AppProvider({ children }) {
 
       if (!atual()) return; // outra carga (outra sessão) já começou
 
-      const nomes = ["recebiveis", "pagar", "bancos", "orcamentos", "ordens"];
+      const nomes = fontes;
       const negadas = [];
       const falharam = [];
       todas.forEach((r, i) => {
@@ -123,22 +117,14 @@ export function AppProvider({ children }) {
       setFontesNegadas(negadas);
       setFontesQueFalharam(falharam);
 
-      const ordens = rOrd.valor || [];
-      setDados({
-        recebiveis: rRec.valor || [],
-        pagar: rPag.valor || [],
-        bancos: rBan.valor || [],
-        orcamentos: rOrc.valor || [],
-        ordens,
-        catalogo: mubi.getProdutosCatalogo(ordens),
-        dsoHist: mubi.getDsoHistorico(),
-      });
-      /* `atualizadoEm` (o mais velho da carga) alimenta o chip GLOBAL do
-         cabecalho. `frescorDe` deixa cada tela perguntar pela fonte que ELA
-         usa: colapsar tudo num minimo unico faria Contas Atrasadas carimbar
-         "de ontem" porque `pagar` -- que ela nem le -- atrasou. */
-      setAtualizadoEm(mubi.getUltimaAtualizacao());
-      setFrescorDe(() => mubi.getUltimaAtualizacao);
+      const valores = {recebiveis:[],pagar:[],bancos:[],orcamentos:[],ordens:[]};
+      todas.forEach((r,i)=>{valores[fontes[i]]=r.valor || [];});
+      setDados({...valores,catalogo:mubi.getProdutosCatalogo(valores.ordens),dsoHist:mubi.getDsoHistorico()});
+      const carimbos = todas.map(r=>r.atualizadoEm).filter(Boolean).sort();
+      const minimo = carimbos[0] || null;
+      setAtualizadoEm(minimo);
+      const porFonte = Object.fromEntries(todas.map((r,i)=>[nomesMubi[fontes[i]],r.atualizadoEm]));
+      setFrescorDe(()=>nome=>porFonte[nome] || minimo);
       // Semeia overrides na primeira carga (para o app ja nascer classificado).
       setOvRec((prev) => prev ?? mubi.getSeedOverridesRecebiveis());
       setOvOrc((prev) => prev ?? mubi.getSeedOverridesOrcamentos());
@@ -147,20 +133,22 @@ export function AppProvider({ children }) {
     } finally {
       if (atual()) setCarregando(false);
     }
-  }, []);
+  }, [fontes]);
 
   // Carrega ao entrar -- e RECARREGA quando a sessao muda. Sem isto, o provider
   // (que monta por cima da tela de login) buscava tudo sem cracha, tomava 401 e
   // deixava o erro gravado: a pessoa logava e continuava vendo "Entre no
   // sistema" ate apertar F5.
   useEffect(() => {
-    recarregar();
+    recarregar(false);
     return aoMudarSessao(() => {
       /* SAIR TEM DE LIMPAR. O provider não desmonta ao trocar de sessão: sem
          isto, o painel da pessoa anterior ficava na tela inteirinho até a
          carga nova terminar -- e se ela não tivesse permissão para alguma
          fonte, ficava para sempre. */
       geracaoRef.current += 1;
+      cacheFontes.current.clear();
+      mubi.zerarFrescor();
       setDados(null);   // volta ao estado de "ainda não carregou"
       setFontesNegadas([]);
       setFontesQueFalharam([]);
@@ -169,48 +157,48 @@ export function AppProvider({ children }) {
     });
   }, [recarregar]);
 
-  // Boot: puxa as marcacoes do Blobs (fonte de verdade, compartilhada entre
-  // aparelhos). O estado inicial ja veio do localStorage, entao a tela nao
-  // pisca; se a rede falhar, segue com o local mesmo.
-  // Roda no boot E a cada troca de sessao. Sem o segundo caso havia risco de
-  // PERDA DE DADOS: quem entrava nunca baixava as regras da nuvem (a chamada do
-  // boot morria com 401, sem cracha), ficava com o CONFIG_PADRAO em memoria e,
-  // ao mexer em qualquer ajuste, gravava esse padrao por cima do que estava no
-  // Blobs -- apagando as regras de todo mundo.
   const [marcacoesProntas, setMarcacoesProntas] = useState(false);
+  const [erroMarcacoes, setErroMarcacoes] = useState('');
+  const [syncConfig, setSyncConfig] = useState({status:'carregando',erro:''});
+  const [tentativaMarcacoes, setTentativaMarcacoes] = useState(0);
+  const sincronizador = useRef(null);
+  if (!sincronizador.current) sincronizador.current = criarSincronizacao({
+    salvar: marcacoes.salvarConfig,
+    normalizar: mesclarConfig,
+    aoMudar: (estado) => { setSyncConfig(estado); if (estado.config) setConfig(estado.config); },
+  });
   useEffect(() => {
-    let vivo = true;
+    let geracao = 0;
     const puxar = () => {
+      const atual = ++geracao;
+      sincronizador.current.limpar();
+      setMarcacoesProntas(false); setErroMarcacoes(''); setFalhaSync(null);
+      setConfig(mesclarConfig(null)); setOvRec(null); setOvOrc(null);
+      try { for (const chave of [K_CONFIG, K_OV_REC, K_OV_ORC]) localStorage.removeItem(chave); } catch { /* Cache antigo indisponível neste navegador. */ }
       if (!getSessao()) return;
-      marcacoes
-        .carregarMarcacoes()
-        .then((remoto) => {
-          if (!vivo || !remoto) return;
-          if (remoto.config) setConfig(mesclarConfig(remoto.config));
-          if (remoto.overridesRecebiveis) setOvRec(remoto.overridesRecebiveis);
-          if (remoto.overridesOrcamentos) setOvOrc(remoto.overridesOrcamentos);
-          setMarcacoesProntas(true);
-        })
-        .catch((e) => console.warn("marcacoes: sem nuvem, usando local:", e?.message || e));
+      marcacoes.carregarMarcacoes().then(remoto => {
+        if (atual !== geracao || !getSessao()) return;
+        sincronizador.current.carregar(mesclarConfig(remoto.config), remoto.config || {});
+        setOvRec(remoto.overridesRecebiveis || {}); setOvOrc(remoto.overridesOrcamentos || {});
+        setMarcacoesProntas(true);
+      }).catch(e => { if (atual === geracao) setErroMarcacoes(e.message || 'Não foi possível carregar as configurações.'); });
     };
-    puxar();
-    const parar = aoMudarSessao(puxar);
-    return () => {
-      vivo = false;
-      parar();
-    };
-  }, []);
-
-  // Cache local (espelho para boot instantaneo e fallback offline).
+    puxar(); const parar = aoMudarSessao(puxar);
+    return () => { geracao++; sincronizador.current.limpar(); parar(); };
+  }, [tentativaMarcacoes]);
   useEffect(() => {
-    if (import.meta.env.MODE !== "review") localStorage.setItem(K_CONFIG, JSON.stringify(config));
-  }, [config]);
+    if (syncConfig.status !== 'pendente') return;
+    const timer = setTimeout(() => sincronizador.current.salvar(), 500);
+    return () => clearTimeout(timer);
+  }, [syncConfig]);
   useEffect(() => {
-    if (import.meta.env.MODE !== "review" && overridesRecebiveis) localStorage.setItem(K_OV_REC, JSON.stringify(overridesRecebiveis));
-  }, [overridesRecebiveis]);
-  useEffect(() => {
-    if (import.meta.env.MODE !== "review" && overridesOrcamentos) localStorage.setItem(K_OV_ORC, JSON.stringify(overridesOrcamentos));
-  }, [overridesOrcamentos]);
+    if (!['pendente','salvando','erro'].includes(syncConfig.status)) return;
+    const avisar = e => { e.preventDefault(); e.returnValue = ''; };
+    window.addEventListener('beforeunload', avisar);
+    return () => window.removeEventListener('beforeunload', avisar);
+  }, [syncConfig.status]);
+  const recarregarMarcacoes = useCallback(() => setTentativaMarcacoes(n => n + 1), []);
+  const tentarSalvarConfig = useCallback(() => sincronizador.current.salvar(), []);
 
   // Mutadores. Cada um atualiza o estado na hora (UI otimista) e sincroniza com
   // o servidor em segundo plano; erro de rede nunca perde o clique.
@@ -232,30 +220,11 @@ export function AppProvider({ children }) {
     },
     []
   );
-  const updateConfig = useCallback(
-    (fn) => {
-      setConfig((c) => {
-        const novo = fn(structuredClone(c));
-        // Nao grava na nuvem antes de ter LIDO a nuvem: senao a config local
-        // (que pode ser so o padrao) sobe por cima das regras reais de todo
-        // mundo. A tela ja mostra a mudanca; a nuvem espera a leitura chegar.
-        if (marcacoesProntas) {
-          marcacoes
-            .salvarConfig(novo)
-            .catch(aoFalhar("config"));
-        } else {
-          console.warn("config: alteracao so local -- as regras da nuvem ainda nao chegaram");
-        }
-        return novo;
-      });
-    },
-    [marcacoesProntas, aoFalhar]
-  );
-  const resetarConfig = useCallback(() => {
-    const padrao = structuredClone(CONFIG_PADRAO);
-    setConfig(padrao);
-    marcacoes.salvarConfig(padrao).catch(aoFalhar("config"));
-  }, [aoFalhar]);
+  const updateConfig = useCallback(fn => {
+    try { sincronizador.current.alterar(fn); }
+    catch(e) { setErroMarcacoes(e.message); }
+  }, []);
+  const resetarConfig = useCallback(() => updateConfig(() => structuredClone(CONFIG_PADRAO)), [updateConfig]);
 
   const setOverrideRecebivel = useCallback((id, patch) => {
     setOvRec((prev) => ({ ...(prev || {}), [id]: { ...(prev?.[id] || {}), ...patch } }));
@@ -286,7 +255,7 @@ export function AppProvider({ children }) {
   const valor = useMemo(
     () => ({
       config,
-      setConfig,
+      marcacoesProntas, erroMarcacoes, recarregarMarcacoes, syncConfig, tentarSalvarConfig,
       updateConfig,
       resetarConfig,
       overridesRecebiveis: overridesRecebiveis || {},
@@ -309,6 +278,7 @@ export function AppProvider({ children }) {
     }),
     [
       config,
+      marcacoesProntas, erroMarcacoes, recarregarMarcacoes, syncConfig, tentarSalvarConfig,
       fontesNegadas,
       fontesQueFalharam,
       falhaSync,

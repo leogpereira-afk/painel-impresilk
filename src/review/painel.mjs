@@ -11,7 +11,9 @@ export async function respostaPreview(url,opcoes={}){
  const u=new URL(url,location.origin), corpo=opcoes.body ? JSON.parse(opcoes.body) : {};
  const endpoint=u.pathname.split('/').pop();
  let dados;
- if(endpoint==='painel-fotos' && corpo.action==='listar') dados={fotos:[]};
+ if(endpoint==='painel-config' && corpo.action==='lixeiraRegistros') dados={itens:[]};
+ else if(endpoint==='painel-fotos' && corpo.action==='resumo') dados={porBem:{}};
+ else if(endpoint==='painel-fotos' && corpo.action==='listar') dados={fotos:[]};
  else if(endpoint==='painel-config' && corpo.action==='get'){
    if(corpo.chave==='glossario'){
      const {GLOSSARIO}=await import('../data/glossario.js');

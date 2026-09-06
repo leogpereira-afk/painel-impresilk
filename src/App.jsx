@@ -79,7 +79,7 @@ function prefetchRotas() {
   setTimeout(() => idle(proximo), 2000);
 }
 
-import { getSessao, aoMudarSessao, podeAbrir, ehDirecao } from "./lib/sessao.js";
+import { getSessao, aoMudarSessao, podeAbrir, ehDirecao, podeConfigurar } from "./lib/sessao.js";
 import { Card } from "./components/ui.jsx";
 
 function SemAcesso() {
@@ -144,9 +144,7 @@ export default function App() {
         <Route
           path="/configuracoes"
           element={
-            <Restrito modulo="configuracoes" sessao={sessao}>
-              <Configuracoes />
-            </Restrito>
+            podeConfigurar(sessao) ? <Configuracoes /> : <SemAcesso />
           }
         />
         {/* Sem Restrito: qualquer pessoa logada precisa poder trocar a

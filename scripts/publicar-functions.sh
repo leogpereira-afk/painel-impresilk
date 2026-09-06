@@ -31,7 +31,7 @@ fi
 
 FUNCOES=("$@")
 if [ ${#FUNCOES[@]} -eq 0 ]; then
-  FUNCOES=(painel-auth painel-config painel-ativos painel-dados painel-cache painel-backup)
+  FUNCOES=(painel-auth painel-config painel-ativos painel-dados painel-cache painel-backup painel-fotos painel-vigia)
 fi
 
 cd "$RAIZ"
@@ -39,24 +39,12 @@ falhou=0
 for fn in "${FUNCOES[@]}"; do
   [ -f "$fn/index.ts" ] || { echo "$fn: nao existe em supabase/functions"; falhou=1; continue; }
 
-  # _shared/cripto.ts sobe junto de quem importa (login e conferencia de cracha).
-  # O nome do arquivo tem de ser o CAMINHO RELATIVO que o import usa
-  # ("../_shared/cripto.ts"), senao o bundle nao resolve e a function sobe morta.
   args=(-F "file=@$fn/index.ts;filename=index.ts;type=application/typescript")
-  # Procura o IMPORT, nao a mencao. Com `grep -q "_shared/cripto.ts"` bastava a
-  # palavra aparecer num comentario para o script anexar um arquivo que aquele
-  # repositorio nem tem -- e o curl morria com "Failed to open/read local data",
-  # que nao diz nada sobre a causa. Aconteceu com a equipe-auth, que so CITA o
-  # cripto.ts do painel para dizer que repete o mesmo mecanismo.
-  # Anexa TODO arquivo de _shared que o index.ts importar. O padrao casa o ALVO
-  # do import (`from "../_shared/x.ts"`), e nao a palavra solta: um `grep
-  # "_shared/cripto.ts"` pegava a mencao em COMENTARIO (e anexava arquivo que o
-  # repo nao tem), e um `grep "^import"` perdia o import MULTILINHA -- que e o
-  # do painel-auth, e o deploy dele quebrou por isso em 17/08/2026.
-  while read -r dep; do
-    [ -f "_shared/$dep" ] && args+=(-F "file=@_shared/$dep;filename=../_shared/$dep;type=application/typescript")
-  done < <(grep -oE 'from "\.\./_shared/[A-Za-z0-9_.-]+\.ts"' "$fn/index.ts" \
-             | sed -E 's|.*_shared/||; s|"$||' | sort -u)
+  # Inclui os módulos compartilhados e suas dependências transitivas. São
+  # arquivos de código, sem configurações ou segredos de ambiente.
+  for dep in _shared/*.ts; do
+    [ -f "$dep" ] && args+=(-F "file=@$dep;filename=../$dep;type=application/typescript")
+  done
 
   # POST /functions/deploy com uma parte `metadata` em JSON. O caminho antigo
   # (PATCH /functions/<slug> com os campos na query string) responde

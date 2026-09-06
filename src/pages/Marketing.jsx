@@ -308,11 +308,11 @@ export default function Marketing() {
           <form onSubmit={enviar} className="mt-5 grid gap-3 border-t pt-4 sm:grid-cols-[1fr_auto_auto]" style={{ borderColor: "var(--hairline)" }}>
             <input
               className="input"
-              placeholder="Nome (ex.: Logo horizontal fundo claro)"
+              aria-label="Nome do material de marketing" placeholder="Nome (ex.: Logo horizontal fundo claro)"
               value={nomeNovo}
               onChange={(e) => setNomeNovo(e.target.value)}
             />
-            <input ref={inputArquivo} type="file" className="input file:mr-2 file:rounded file:border-0 file:bg-slate-100 file:px-2 file:py-1 file:text-xs" />
+            <input ref={inputArquivo} aria-label="Arquivo do material de marketing" type="file" className="input file:mr-2 file:rounded file:border-0 file:bg-slate-100 file:px-2 file:py-1 file:text-xs" />
             <button className="btn-primary" disabled={subindo}>
               <Upload size={15} strokeWidth={2.4} />
               {subindo ? "Subindo..." : "Guardar"}
@@ -346,7 +346,7 @@ export default function Marketing() {
             </div>
           )}
 
-          {podeAbrir('configuracoes')&&<Link className="btn-outline mt-4" to="/configuracoes?secao=marketing">Configurar atalhos</Link>}
+          {podeAbrir("marketing")&&<Link className="btn-outline mt-4" to="/configuracoes?secao=marketing">Configurar atalhos</Link>}
         </Card>
       </div>
     </div>

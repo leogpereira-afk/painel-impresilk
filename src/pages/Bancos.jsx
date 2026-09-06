@@ -193,7 +193,7 @@ export default function Bancos() {
 
   const abrirForm = (b) => {
     setAviso(null);
-    setForm(b ? { ...VAZIO, ...b } : { ...VAZIO, grupo: grupos[0]?.nome || "" });
+    setForm(b ? { ...VAZIO, ...b } : { ...VAZIO, cadastroId:crypto.randomUUID(), grupo: grupos[0]?.nome || "" });
     setTimeout(() => cartaoForm.current?.scrollIntoView({ behavior: "smooth", block: "center" }), 60);
   };
 
@@ -206,7 +206,7 @@ export default function Bancos() {
       }
       setSalvando(true);
       try {
-        const id = form.id || `bc-${Date.now()}`;
+        const id = form.id || form.cadastroId;
         const ordem =
           form.ordem ??
           Math.max(0, ...Object.values(mapa || {}).map((x) => x.ordem ?? 0)) + 1;
@@ -277,7 +277,7 @@ export default function Bancos() {
           <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
           <input
             className="input pl-9 pr-9"
-            placeholder="Buscar banco, titular, CNPJ, conta ou chave"
+            aria-label="Buscar banco, titular, CNPJ, conta ou chave" placeholder="Buscar banco, titular, CNPJ, conta ou chave"
             value={busca}
             onChange={(e) => setBusca(e.target.value)}
           />

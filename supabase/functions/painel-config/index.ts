@@ -141,7 +141,7 @@ async function lerOverlay(colecao: string, soDoDono?: string | null): Promise<Re
     const { data, error } = await sb
       .from("painel_registros").select("id, registro")
       .eq("colecao", colecao).order("id").range(de, de + PASSO - 1);
-    if (error) throw new Error(error.message);
+    if (error) throw Object.assign(new Error(error.message), { code: error.code });
     for (const r of data ?? []) {
       // Registro sem dono (vindo de backup antigo) so aparece para a direcao.
       if (soDoDono != null && (r.registro as any)?.dono !== soDoDono) continue;
@@ -170,9 +170,10 @@ Deno.serve(async (req: Request) => {
   // acesso so a Orcamentos lia os CNPJs e as chaves Pix da empresa e apagava
   // termo do glossario -- a permissao existia so na tela.
   //
-  // ov_rec/ov_orc ficam de fora de proposito: sao as marcacoes que os modulos
-  // de contas e orcamentos ja usam, com o desenho antigo.
+  // Marcações também seguem a permissão do módulo que as utiliza.
   const MODULO_DA_CHAVE: Record<string, string> = {
+    ov_rec: "contas-atrasadas",
+    ov_orc: "orcamentos",
     bancos: "bancos",
     marketing: "marketing",
     glossario: "glossario",
@@ -191,13 +192,7 @@ Deno.serve(async (req: Request) => {
     // As contas dos sistemas sao assunto da direcao: moram na tela de Gestao.
     assinaturas: "gestao",
   };
-  /* AS MARCACOES EM MASSA DE COBRANCA/ORCAMENTO. Ler e MARCAR (merge) ov_rec
-     e ov_orc continua aberto a qualquer logado -- decisao documentada no
-     MODULO_DA_CHAVE. Mas `set` substitui a colecao INTEIRA e `removerId` apaga
-     um registro: com as duas fora do mapa de modulos, uma conta so com
-     glossario mandava set {chave:"ov_rec", valor:{}} e apagava TODAS as
-     promessas de pagamento e o historico de negociacao da casa, em silencio.
-     Apagamento em massa nao e marcacao: exige o modulo da tela dona. */
+  // Substituição e exclusão conferem a mesma permissão de leitura e edição.
   const MODULO_APAGAR: Record<string, string> = {
     ov_rec: "contas-atrasadas",
     ov_orc: "orcamentos",
@@ -298,57 +293,10 @@ Deno.serve(async (req: Request) => {
       }
 
       case "set": {
-        const chave = String(corpo.chave ?? "");
         if (!sessao) return resposta({ erro: "Entre no sistema.", semSessao: true }, 401);
-
-        if (chave === "config") {
-          if (!podeConfigurar) return resposta({ erro: "Voce nao tem acesso as Configuracoes." }, 403);
-          const { error } = await sb.from("painel_config_global").upsert(
-            { id: true, config: corpo.valor ?? null, atualizado_em: new Date().toISOString() },
-            { onConflict: "id" });
-          if (error) throw new Error(error.message);
-          return resposta({ ok: true });
-        }
-
-        if (OVERLAYS.has(chave)) {
-          const barrado = barraChave(chave);
-          if (barrado) return barrado;
-          /* PERMUTA E CAMPANHA NAO PASSAM POR AQUI. O `set` apaga a colecao
-             inteira e regrava o que o cliente mandou -- historico carimbado
-             pelo servidor incluso. As duas colecoes existem justamente para
-             que o historico NAO seja escrito pelo cliente (`troca_mexer`
-             carimba autor e hora dentro da transacao travada), e este ramo
-             furava as duas garantias de uma vez: qualquer conta com o modulo
-             podia reescrever a conversa toda ou zerar a colecao. Nenhuma tela
-             chama `set` para elas; restauracao tem porta propria
-             (painel-backup, so a direcao). */
-          if (chave === "permutas" || chave === "campanhas") {
-            return resposta({
-              erro: "Esta colecao so muda pela funcao que carimba o historico. Para restaurar, use o backup.",
-            }, 403);
-          }
-          // set substitui o overlay INTEIRO (o app usa para restaurar backup e
-          // para limpar). Apagar as linhas e regravar e a traducao fiel disso.
-          // Em chave por dono isso apagaria a agenda das colegas: so a direcao.
-          {
-            const barrado2 = barraApagar(chave);
-            if (barrado2) return barrado2;
-          }
-          if (POR_DONO.has(chave) && !ehDirecao) {
-            return resposta({ erro: "Voce nao pode substituir a lista inteira." }, 403);
-          }
-          const mapa = corpo.valor && typeof corpo.valor === "object" ? corpo.valor : {};
-          await sb.from("painel_registros").delete().eq("colecao", chave);
-          const linhas = Object.entries(mapa).map(([id, registro]) => ({
-            colecao: chave, id, registro, atualizado_em: new Date().toISOString(),
-          }));
-          if (linhas.length) {
-            const { error } = await sb.from("painel_registros").insert(linhas);
-            if (error) throw new Error(error.message);
-          }
-          return resposta({ ok: true });
-        }
-        return resposta({ erro: "chave nao gravavel" }, 403);
+        // A substituição integral antiga apagava antes de gravar e perdia
+        // alterações concorrentes. A recuperação tem transação própria.
+        return resposta({ erro: "Edite cada registro ou use a recuperação de backup para restaurar dados." }, 403);
       }
 
       // Merge por id. No Blobs isto era le-o-mapa-inteiro + regrava-o-inteiro
@@ -362,15 +310,10 @@ Deno.serve(async (req: Request) => {
 
         if (chave === "config") {
           if (!podeConfigurar) return resposta({ erro: "Voce nao tem acesso as Configuracoes." }, 403);
-          const atual = (await lerConfig()) ?? {};
-          const merged = {
-            ...atual,
-            ...patch,
-            parametros: { ...(atual.parametros ?? {}), ...(patch.parametros ?? {}) },
-          };
-          const { error } = await sb.from("painel_config_global").upsert(
-            { id: true, config: merged, atualizado_em: new Date().toISOString() }, { onConflict: "id" });
-          if (error) throw new Error(error.message);
+          const { data: merged, error } = await sb.rpc("painel_config_mesclar", {
+            p_patch: patch, p_antes: corpo.antes ?? null,
+          });
+          if (error) throw Object.assign(new Error(error.message), { code: error.code });
           return resposta({ ok: true, valor: merged });
         }
 
@@ -406,7 +349,7 @@ Deno.serve(async (req: Request) => {
                 return resposta({ erro: "Informe uma prioridade válida separadamente do chamado." }, 400);
               }
               const { error } = await sb.rpc("cobranca_priorizar", { p_id: id, p_cliente: String(c.cliente ?? id), p_prioridade: c.prioridade, p_quem: quem });
-              if (error) throw new Error(error.message);
+              if (error) throw Object.assign(new Error(error.message), { code: error.code });
               continue;
             }
             const { error } = await sb.rpc("cobranca_mexer", {
@@ -417,7 +360,7 @@ Deno.serve(async (req: Request) => {
               p_chamado_id: String(c.chamadoId ?? ""),
               p_chamado: c.chamado ?? null,
             });
-            if (error) throw new Error(error.message);
+            if (error) throw Object.assign(new Error(error.message), { code: error.code });
           }
           return resposta({ ok: true, valor: await lerOverlay(chave, donoDaVez(chave)) });
         }
@@ -466,7 +409,7 @@ Deno.serve(async (req: Request) => {
               p_anexo: null,
               p_criar: criar === true,
             });
-            if (error) throw new Error(error.message);
+            if (error) throw Object.assign(new Error(error.message), { code: error.code });
             if (reg === null) {
               const oQue = chave === "campanhas" ? "campanha" : "permuta";
               return resposta({ erro: `Essa ${oQue} nao existe mais -- recarregue a tela.` }, 409);
@@ -486,8 +429,9 @@ Deno.serve(async (req: Request) => {
           for (const [id, campos] of Object.entries(patch)) {
             const barradoDono = await barraDono(chave, id);
             if (barradoDono) return barradoDono;
-            const { data } = await sb.from("painel_registros").select("registro")
+            const { data, error: erroLeitura } = await sb.from("painel_registros").select("registro")
               .eq("colecao", chave).eq("id", id).maybeSingle();
+            if (erroLeitura) throw new Error(erroLeitura.message);
             // O CODIGO DA ETIQUETA E GERADO AQUI, nunca no cliente. Ele vai
             // virar adesivo colado no bem: dois computadores cadastrando ao
             // mesmo tempo com a mesma sequencia gerariam duas etiquetas iguais
@@ -601,9 +545,9 @@ Deno.serve(async (req: Request) => {
                adesivo errado colado num bem. */
             const sigla = (fundido as any).__etiquetaSigla;
             delete (fundido as any).__etiquetaSigla;
-            const gravar = () => sb.from("painel_registros").upsert(
-              { colecao: chave, id, registro: fundido, atualizado_em: new Date().toISOString() },
-              { onConflict: "colecao,id" });
+            const gravar = () => sb.rpc("painel_registro_gravar", {
+              p_colecao: chave, p_id: id, p_registro: fundido, p_anterior: data?.registro ?? null,
+            });
             let { error } = await gravar();
             if (error && sigla && /painel_patrimonio_codigo_unico|duplicate key/i.test(error.message)) {
               const { data: outra } = await sb.rpc("patrimonio_proxima_etiqueta", { p_sigla: sigla });
@@ -612,7 +556,7 @@ Deno.serve(async (req: Request) => {
                 ({ error } = await gravar());
               }
             }
-            if (error) throw new Error(error.message);
+            if (error) throw Object.assign(new Error(error.message), { code: error.code });
           }
           // Devolve o mapa inteiro, como o original fazia (o cliente atualiza o
           // estado local com ele). Depois de encaminhar, o item some da lista de
@@ -677,10 +621,10 @@ Deno.serve(async (req: Request) => {
             ...(arquivo ? { arquivo } : {}),
           }),
         };
-        const { error } = await sb.from("painel_registros").upsert(
-          { colecao: chave, id, registro, atualizado_em: new Date().toISOString() },
-          { onConflict: "colecao,id" });
-        if (error) throw new Error(error.message);
+        const { error } = await sb.rpc("painel_registro_gravar", {
+          p_colecao: chave, p_id: id, p_registro: registro, p_anterior: data.registro,
+        });
+        if (error) throw Object.assign(new Error(error.message), { code: error.code });
         return resposta({ ok: true, valor: await lerOverlay(chave, donoDaVez(chave)) });
       }
 
@@ -805,6 +749,24 @@ Deno.serve(async (req: Request) => {
         return resposta({ ok: true, base64: btoa(s), mime: achado.mime, nome: achado.nome });
       }
 
+      case "lixeiraRegistros": {
+        if(!sessao || !ehDirecao) return resposta({erro:"Só a Direção pode recuperar registros."},403);
+        const itens=[];
+        for(let de=0;;de+=1000){
+          const {data,error}=await sb.from("painel_registros").select("id,registro").eq("colecao","registro_lixeira").order("atualizado_em",{ascending:false}).range(de,de+999);
+          if(error)throw error;
+          itens.push(...(data || []).map((x:any)=>({id:x.id,colecao:x.registro.colecao,nome:x.registro.registro?.nome || x.registro.registro?.titulo || x.registro.id,retiradoEm:x.registro.retiradoEm})));
+          if(!data || data.length<1000)break;
+        }
+        return resposta({ok:true,itens});
+      }
+      case "recuperarRegistro": {
+        if(!sessao || !ehDirecao) return resposta({erro:"Só a Direção pode recuperar registros."},403);
+        const {error}=await sb.rpc("painel_registro_recuperar",{p_lixeira_id:String(corpo.id || "")});
+        if(error)throw error;
+        return resposta({ok:true});
+      }
+
       // Remocao por id: apaga UMA linha do overlay. Existe porque remover via
       // get+set do mapa inteiro reabre a corrida que o merge-por-linha fechou
       // (dois removedores simultaneos ressuscitavam o que o outro apagou).
@@ -817,7 +779,7 @@ Deno.serve(async (req: Request) => {
         if (barrado) return barrado;
         if (chave === "patrimonio") {
           const { data: fotos, error } = await sb.from("painel_registros").select("id").eq("colecao", "patrimonio_foto").eq("registro->>bemId", id).limit(1);
-          if (error) throw new Error(error.message);
+          if (error) throw Object.assign(new Error(error.message), { code: error.code });
           if (fotos?.length) return resposta({ erro: "Este equipamento tem fotos. Para preservar o histórico, marque como Baixado; para apagar, remova as fotos primeiro." }, 409);
         }
         {
@@ -827,26 +789,10 @@ Deno.serve(async (req: Request) => {
         if (!id) return resposta({ erro: "informe o id" }, 400);
         const barradoDono = await barraDono(chave, id);
         if (barradoDono) return barradoDono;
-        // Os anexos da conversa vao junto: sem isto ficam bytes no bucket que
-        // nenhuma tela lista, ninguem apaga e ninguem sabe que existem (foi o
-        // que aconteceu com os arquivos dos ativos ate 04/08).
-        if (POR_DONO.has(chave) || chave === "permutas" || chave === "campanhas") {
-          const { data } = await sb.from("painel_registros").select("registro")
-            .eq("colecao", chave).eq("id", id).maybeSingle();
-          const reg = (data?.registro as any) ?? {};
-          const hist: any[] = Array.isArray(reg.historico) ? reg.historico : [];
-          const anexos: any[] = Array.isArray(reg.anexos) ? reg.anexos : [];
-          const lancs: any[] = Object.values(reg.lancamentos ?? {});
-          const chaves = [
-            ...hist.map((e) => e?.arquivo?.chave),
-            ...anexos.map((a) => a?.chave),
-            ...lancs.map((l) => l?.anexo?.chave),
-          ].filter(Boolean);
-          if (chaves.length) await sb.storage.from(BUCKET).remove(chaves).catch(() => {});
-        }
-        const { error } = await sb.from("painel_registros").delete()
-          .eq("colecao", chave).eq("id", id);
-        if (error) throw new Error(error.message);
+        // A retirada copia o registro para a lixeira na mesma transação.
+        // Referências e bytes dos anexos permanecem recuperáveis.
+        const { error } = await sb.rpc("painel_registro_retirar",{p_colecao:chave,p_id:id,p_por:sessao.sub});
+        if (error) throw Object.assign(new Error(error.message), { code: error.code });
         return resposta({ ok: true });
       }
 
@@ -855,6 +801,7 @@ Deno.serve(async (req: Request) => {
     }
   } catch (e) {
     console.error("[painel-config] erro:", e);
-    return resposta({ erro: "erro interno" }, 500);
+    if ((e as any)?.code === "40001") return resposta({ erro: "Outra pessoa alterou este registro. Recarregue antes de salvar." }, 409);
+    return resposta({ erro: "Não foi possível salvar ou carregar os dados. Tente novamente." }, 500);
   }
 });

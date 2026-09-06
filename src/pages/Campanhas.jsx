@@ -346,9 +346,7 @@ function CartoesFinanceiro({ financeiro, erro, dados, linhas, quadro, aoAbrirQua
 function CartaoCampanha({ c, aoAbrir, contra, aoDuplicar }) {
   const lider = c.porCliente[0] || null;
   return (
-    <button
-      type="button"
-      onClick={() => aoAbrir(c.id)}
+    <article
       className={`w-full rounded-xl border bg-white p-4 text-left transition hover:border-brand-300 hover:shadow-sm ${
         c.encerrada ? "border-slate-200 opacity-70" : "border-slate-200"
       }`}
@@ -356,22 +354,17 @@ function CartaoCampanha({ c, aoAbrir, contra, aoDuplicar }) {
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-1.5">
-            <span className="truncate font-medium text-slate-800">{c.nome || "sem nome"}</span>
-            {/* span-botão porque o cartão inteiro já é <button> e botão dentro
-                de botão é HTML inválido. stopPropagation para o toque duplicar
-                sem abrir. */}
+            <button className="min-h-11 text-left font-semibold text-slate-800" onClick={()=>aoAbrir(c.id)}>{c.nome || "sem nome"} · Abrir</button>
             {aoDuplicar && (
-              <span
-                role="button"
-                tabIndex={0}
+              <button
+                type="button"
                 title={`Duplicar “${c.nome}” para outro ano — leva compradores e meta, sem as O.S.`}
                 aria-label={`Duplicar ${c.nome}`}
-                className="shrink-0 rounded p-1 text-slate-300 hover:bg-slate-100 hover:text-slate-600"
+                className="min-h-11 min-w-11 shrink-0 rounded p-1 text-slate-300 hover:bg-slate-100 hover:text-slate-600"
                 onClick={(e) => { e.stopPropagation(); aoDuplicar(c); }}
-                onKeyDown={(e) => { if (e.key === "Enter") { e.stopPropagation(); aoDuplicar(c); } }}
               >
                 <Copy size={13} />
-              </span>
+              </button>
             )}
           </div>
           <div className="mt-0.5 text-xs text-slate-500">
@@ -428,7 +421,7 @@ function CartaoCampanha({ c, aoAbrir, contra, aoDuplicar }) {
           {c.sumiram > 0 ? `${c.sumiram} O.S. sumiram do ERP` : `${c.mudaram} O.S. mudaram de valor`}
         </div>
       )}
-    </button>
+    </article>
   );
 }
 
@@ -2787,7 +2780,7 @@ export default function Campanhas() {
             <div>
               <div className="mb-1 text-xs text-slate-500">Meta do evento</div>
               <div className="font-semibold tabular-nums">{resumo.meta>0?dinheiro(resumo.meta):'Sem meta definida'}</div>
-              {podeAbrir('configuracoes')&&<Link className="btn-ghost mt-1" to={`/configuracoes?secao=campanhas&campanha=${encodeURIComponent(aberta)}`}>Configurar meta</Link>}
+              {podeAbrir("campanhas")&&<Link className="btn-ghost mt-1" to={`/configuracoes?secao=campanhas&campanha=${encodeURIComponent(aberta)}`}>Configurar meta</Link>}
             </div>
           </div>
           <Meta vendido={resumo.vendido} meta={resumo.meta} pct={resumo.pct} />
@@ -3189,7 +3182,7 @@ export default function Campanhas() {
               marcar errado. As duas datas são as MESMAS que limitam a busca --
               uma data só para "quando foi" e outra para "o que procurar" seriam
               duas verdades para a mesma coisa. */}
-          <div className="flex flex-wrap items-center gap-3 rounded-lg bg-slate-50 p-3 text-sm"><span>Período: {desde?dataLonga(desde):'todo o histórico disponível'}{ate?` até ${dataLonga(ate)}`:' até hoje'}.</span>{podeAbrir('configuracoes')&&<Link className="btn-outline" to={`/configuracoes?secao=campanhas&campanha=${encodeURIComponent(aberta)}`}>Configurar período</Link>}</div>
+          <div className="flex flex-wrap items-center gap-3 rounded-lg bg-slate-50 p-3 text-sm"><span>Período: {desde?dataLonga(desde):'todo o histórico disponível'}{ate?` até ${dataLonga(ate)}`:' até hoje'}.</span>{podeAbrir("campanhas")&&<Link className="btn-outline" to={`/configuracoes?secao=campanhas&campanha=${encodeURIComponent(aberta)}`}>Configurar período</Link>}</div>
 
           {/* O QUE O PAINEL REALMENTE TEM: uma campanha de 2022 pode parecer um
               fracasso quando é só dado que ainda não desceu do ERP. */}

@@ -19,3 +19,5 @@ export async function prepararFoto(file){
   const base64=canvas.toDataURL('image/jpeg',0.82).split(',')[1];if(base64.length>4*1024*1024)throw new Error('A imagem ainda está grande. Escolha uma versão menor.');return base64;
  }finally{URL.revokeObjectURL(url);}
 }
+
+export const resumoFotos=async()=>{if(import.meta.env.MODE==='review')return {};const r=await chamar('resumo','');return r.porBem || {};};

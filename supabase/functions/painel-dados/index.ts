@@ -1,3 +1,4 @@
+import {vigiarCache} from "../_shared/vigia-cache.ts";
 // ============================================================================
 // painel-dados — leituras do Painel (substitui contas-atrasadas.js,
 // fluxo-caixa.js, produtos.js e orcamentos.js)
@@ -27,9 +28,6 @@ const JWT_SECRET = Deno.env.get("PAINEL_JWT_SECRET") ?? "";
 // com cache velho dispara a recarga (auto-cura). Sem ele, vale so o agendamento
 // -- que e o caso normal. A auto-cura existe porque o cron do Netlify ja congelou
 // por 11 horas e ninguem percebeu ate abrir o painel.
-const GH_TOKEN = Deno.env.get("PAINEL_GH_ACTIONS_TOKEN") ?? "";
-const GH_REPO = Deno.env.get("PAINEL_GH_REPO") ?? "leogpereira-afk/painel-impresilk";
-const MINUTOS_ATE_AQUECER = 22;
 
 const sb = createClient(SUPABASE_URL, SERVICE_KEY, { auth: { persistSession: false } });
 
@@ -99,21 +97,13 @@ const lerCacheComData = async (chave: string): Promise<{ valor: any; em: string 
 
 // Dispara a recarga se o cache estiver velho. Fire-and-forget: a leitura NUNCA
 // espera por isto -- quem abriu o painel quer o dado que ja existe, mesmo velho.
-function talvezAquecer(status: any) {
-  try {
-    if (!GH_TOKEN) return; // sem token de Actions: vale so o agendamento
-    const em = status?.em ? new Date(status.em).getTime() : 0;
-    if (em && Date.now() - em < MINUTOS_ATE_AQUECER * 60000) return;
-    fetch(`https://api.github.com/repos/${GH_REPO}/actions/workflows/cache-mubisys.yml/dispatches`, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${GH_TOKEN}`,
-        Accept: "application/vnd.github+json",
-        "User-Agent": "painel-impresilk",
-      },
-      body: JSON.stringify({ ref: "main" }),
-    }).catch(() => {});
-  } catch { /* auto-cura nunca derruba a leitura */ }
+let ultimoVigia=0;
+function talvezAquecer(_status:any) {
+  if(Date.now()-ultimoVigia<60000)return;
+  ultimoVigia=Date.now();
+  const trabalho=vigiarCache(sb).catch(e=>console.error('[painel-dados] atualização:',e.message));
+  // Mantém a verificação viva depois da resposta ao navegador.
+  if(typeof EdgeRuntime!=='undefined') EdgeRuntime.waitUntil(trabalho);
 }
 
 const PRECISA_AQUECER = {
