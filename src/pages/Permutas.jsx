@@ -987,13 +987,23 @@ export default function Permutas() {
               <div className="text-xl font-semibold tabular-nums text-slate-800">{dinheiro(resumo.consumido)}</div>
               <div className="text-xs text-slate-500">
                 {resumo.linhas.length} O.S.
-                {resumo.lancado !== 0 && <> · {dinheiro(resumo.lancado)} manual</>}
+                {resumo.lancado !== 0 && <> · inclui {dinheiro(resumo.lancado)} de consumo manual</>}
               </div>
             </div>
             <div>
               <div className="mb-1 text-xs text-slate-500">Saldo</div>
               <Saldo valor={resumo.saldo} grande />
             </div>
+          </div>
+          <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-4" aria-label="Composição do saldo da permuta">
+            <p className="mb-3 text-sm font-semibold text-slate-800">Como chegamos ao saldo</p>
+            <dl className="grid gap-3 text-sm sm:grid-cols-2 lg:grid-cols-4">
+              <div><dt className="text-slate-500">Crédito do parceiro</dt><dd className="font-semibold tabular-nums">{dinheiro(resumo.credito)}</dd></div>
+              <div><dt className="text-slate-500">− Serviços em O.S.</dt><dd className="font-semibold tabular-nums">{dinheiro(resumo.emOS)}</dd></div>
+              <div><dt className="text-slate-500">− Consumo manual</dt><dd className="font-semibold tabular-nums">{dinheiro(resumo.lancado)}</dd></div>
+              <div><dt className="text-slate-500">= Saldo</dt><dd className="font-semibold tabular-nums">{dinheiro(resumo.saldo)}</dd></div>
+            </dl>
+            {resumo.consumos.length > 0 && <p className="mt-3 text-xs text-slate-600">Os lançamentos de consumo sem O.S. já estão abatidos neste saldo e incluídos em “Já usou”.</p>}
           </div>
           <Barra pct={resumo.pct} />
 
