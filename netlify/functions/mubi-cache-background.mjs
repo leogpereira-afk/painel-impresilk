@@ -500,8 +500,8 @@ export const chaveProduto = (nome) =>
 export async function catalogoCategorias() {
   const catalogo = await mubiGetTudo("produto");
   // Lista vazia nao e catalogo: o ERP pode responder 200 com [] e, seguindo,
-  // TODO item do ano viraria "Fora do catalogo". Melhor a carga completa falhar
-  // alto e o cache de ontem continuar valendo.
+  // TODO item do ano viraria "Fora do catalogo". Preserva as O.S. anteriores
+  // e informa a falha; os orçamentos podem atualizar independentemente.
   if (!catalogo.length) throw new Error("catalogo de produtos veio vazio");
   // Guarda a categoria CRUA (pode ser ""). Quem decide o rotulo e o normOS:
   // categoria vazia no ERP e produto fora do catalogo sao problemas diferentes.
@@ -754,16 +754,38 @@ export async function etapaCompleta() {
   const base = { status: "TODOS", filtrodata: "CADASTRO", datafinal: hojeMais(1) };
   const janela = { ...base, datainicial: desdeOrc };
 
-  const [orcBrutos, categoriaPorNome, osBrutas] = await Promise.all([
-    mubiGetTudo("orcamento", janela),
-    catalogoCategorias(),
-    mubiGetTudo("ordem-servico", { ...base, datainicial: desdeOS }),
-  ]);
-
-  const orcamentos = orcBrutos.map(normOrcamento);
-  const ordens = osBrutas.map((os, i) => normOS(os, i, categoriaPorNome)).filter((o) => !o.cancelada);
-
-  return { orcamentos, ordens };
+  // Orçamentos não dependem do catálogo. Cada ramo termina antes de devolver
+  // o resultado, inclusive quando o outro falha; não deixa consultas órfãs.
+  const falhas = [];
+  const carregarOrcamentos = async () => {
+    try {
+      return (await mubiGetTudo("orcamento", janela)).map(normOrcamento);
+    } catch (e) {
+      console.warn("carga completa: orçamentos indisponíveis:", e?.message || e);
+      falhas.push("orcamentos");
+      return null;
+    }
+  };
+  const carregarOrdens = async () => {
+    let categoriaPorNome;
+    try {
+      categoriaPorNome = await catalogoCategorias();
+    } catch (e) {
+      console.warn("carga completa: catálogo indisponível; O.S. preservadas:", e?.message || e);
+      falhas.push("catalogo-indisponivel");
+      return null;
+    }
+    try {
+      const brutas = await mubiGetTudo("ordem-servico", { ...base, datainicial: desdeOS });
+      return brutas.map((os, i) => normOS(os, i, categoriaPorNome)).filter((o) => !o.cancelada);
+    } catch (e) {
+      console.warn("carga completa: ordens indisponíveis:", e?.message || e);
+      falhas.push("ordens");
+      return null;
+    }
+  };
+  const [orcamentos, ordens] = await Promise.all([carregarOrcamentos(), carregarOrdens()]);
+  return { orcamentos, ordens, falhas };
 }
 
 // Versao do normalizador. O ciclo incremental so reescreve os ultimos 7 dias,
