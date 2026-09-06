@@ -352,6 +352,7 @@ export function BackupDados() {
   const [baixando, setBaixando] = useState(false);
   const [restaurando, setRestaurando] = useState(false);
   const [enviando, setEnviando] = useState(false);
+  const [progresso,setProgresso] = useState(null);
   const [status, setStatus] = useState(null);
   const [erroStatus,setErroStatus] = useState(null);
   const [msg, setMsg] = useState(null);
@@ -380,7 +381,7 @@ export function BackupDados() {
     setEnviando(true);
     setMsg(null);
     try {
-      const r = await backupHubAgora(typeof sistema==='string'?sistema:undefined);
+      const r = await backupHubAgora(typeof sistema==='string'?sistema:undefined,setProgresso);
       const sis = r.sistemas || {};
       const falharam = Object.entries(sis).filter(([, v]) => v.ok === false);
       if (falharam.length === 0) {
@@ -396,6 +397,7 @@ export function BackupDados() {
       setMsg({ tom: "erro", texto: e.message });
     } finally {
       setEnviando(false);
+      setProgresso(null);
     }
   }
 
@@ -459,7 +461,7 @@ export function BackupDados() {
 
         <button className="btn-outline" onClick={rodarBackup} disabled={enviando}>
           <Upload size={16} strokeWidth={2.4} />
-          {enviando ? "Rodando..." : "Executar backup dos sistemas"}
+          {enviando ? progresso ? `Copiando ${progresso.numero} de ${progresso.total}…` : "Preparando..." : "Executar backup dos sistemas"}
         </button>
 
         {status?.capacidades?.restauroAtomico ? <label className="btn-outline cursor-pointer">

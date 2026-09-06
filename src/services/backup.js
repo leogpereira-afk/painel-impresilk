@@ -4,6 +4,7 @@
 import { comCracha } from "../lib/sessao.js";
 
 import { API } from "../lib/api.js";
+import {executarBackupsSequenciais} from '../../supabase/functions/_shared/fila-backup.mjs';
 
 const BASE = `${API}/painel-backup`;
 
@@ -27,8 +28,13 @@ export const restaurarBackup = (backup, apagarAntes = false) =>
   chamar("restaurar", { backup, apagarAntes });
 export const statusBackup = () => chamar("status").then((r) => r.status);
 export const registrarManual = () => chamar("registrarManual").catch(() => {});
-// Roda o backup do HUB inteiro agora (painel + os 4 sistemas -> GitHub).
-export const backupHubAgora = (sistema) => chamar("backupAgora",sistema?{sistema}:{});
+// Cada sistema recebe uma requisição própria; uma demora não segura a rodada inteira.
+export async function backupHubAgora(sistema, progresso) {
+ const estado=await statusBackup();
+ if(!estado?.capacidades?.individual)throw new Error('Atualize a página para consultar a versão de backup individual.');
+ const chaves=sistema?[sistema]:estado.capacidades.sistemas || Object.keys(estado.sistemas || {});
+ return executarBackupsSequenciais(chaves,k=>chamar('backupAgora',{sistema:k}),progresso);
+}
 
 // Baixa o backup como arquivo .json no computador do usuario.
 export async function baixarBackup() {

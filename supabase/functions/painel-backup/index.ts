@@ -26,6 +26,7 @@ import { verificarJwt, crachaRevogado } from "../_shared/cripto.ts";
 
 import {capturarArquivos,prepararArquivos} from "../_shared/arquivos-backup.ts";
 import {buscarComRetentativa} from "../_shared/repetir-http.ts";
+import {proximoBackup} from "../_shared/fila-backup.mjs";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -524,7 +525,7 @@ Deno.serve(async (req: Request) => {
       return resposta({ erro: "Seu acesso foi encerrado.", semSessao: true }, 401);
     }
     if (!s) return resposta({ erro: "Entre no sistema.", semSessao: true }, 401);
-    return resposta({ ok: true, status: {...(await lerStatus() || {}),capacidades:{restauroAtomico:true,arquivos:true,individual:true}} });
+    return resposta({ ok: true, status: {...(await lerStatus() || {}),capacidades:{restauroAtomico:true,arquivos:true,individual:true,sistemas:['painel','fortemais',...sistemasExternos().map(s=>s.key)]}} });
   }
 
   // sistemas: diagnostico read-only -- QUAIS sistemas este backup enxerga hoje.
@@ -558,10 +559,9 @@ Deno.serve(async (req: Request) => {
     // fala de um dia e a pasta de outro. `st.dia` e gravado a partir de agosto
     // de 2026; status antigo cai no calculo pelo carimbo de hora.
     const hoje = diaSP();
-    const diaDoUltimo = st?.dia ?? (st?.atualizadoEm ? diaSP(String(st.atualizadoEm)) : null);
     const sistemas = st?.sistemas ?? {};
-    const todosOk =
-      Object.keys(sistemas).length > 0 && Object.values(sistemas).every((s: any) => s?.ok);
+    const chaves=['painel','fortemais',...sistemasExternos().map(s=>s.key)];
+    const proximo=corpo.sistema || proximoBackup(chaves,sistemas,hoje);
     /* `forcar` refaz o backup do dia mesmo com um ja pronto.
        Existe porque a trava por dia, sozinha, deixa um conserto sem efeito ate
        o dia seguinte: hoje o backup rodou de manha SEM a colecao `campanhas`
@@ -570,10 +570,11 @@ Deno.serve(async (req: Request) => {
        destrutivo, ou esperando. O dia inteiro de dado novo ficaria sem copia.
        Mesmo token da chamada normal: nao abre porta nova, so tira a trava que
        protege contra repeticao inutil, nao contra repeticao PEDIDA. */
-    if (diaDoUltimo === hoje && todosOk && corpo.forcar !== true) {
+    if (!proximo) {
       return resposta({ ok: true, pulou: "ja tem backup de hoje" });
     }
-    try {return resposta({ ok: true, sistemas: await backupDoHub(corpo.sistema) });}
+    if(corpo.forcar!==true && sistemas[proximo]?.ok && diaSP(sistemas[proximo].em)===hoje) return resposta({ok:true,pulou:'ja tem backup de hoje'});
+    try {return resposta({ ok: true, sistemas: await backupDoHub(proximo) });}
     catch(e) {return resposta({erro:(e as Error).message},503);}
   }
 
