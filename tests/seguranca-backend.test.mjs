@@ -11,7 +11,7 @@ async function funcao(nome,{revogada=false,erroBanco=false}={}) {
  globalThis.Deno={env:{get:()=> 'teste',toObject:()=>({})},serve:fn=>handler=fn};
  let s=await readFile(new URL(`../supabase/functions/${nome}/index.ts`,import.meta.url),'utf8');
  s=s.replace(/import \{ createClient \} from [^;]+;/,'const createClient=()=>globalThis.__testeBanco;')
- .replace(/import \{ verificarJwt, crachaRevogado \} from [^;]+;/,`const verificarJwt=async token=>token==='direcao'?{master:true,sub:'direcao'}:token==='glossario'?{sub:'pessoa',perms:['glossario']}:token==='vendas'?{sub:'vendas',perms:['orcamentos']}:null;const crachaRevogado=async()=>globalThis.__testeRevogada;`);
+ .replace(/import \{ verificarJwt, crachaRevogado \} from [^;]+;/,`const verificarJwt=async token=>token==='direcao'?{master:true,sub:'direcao'}:token==='glossario'?{sub:'pessoa',perms:['glossario']}:token==='vendas'?{sub:'vendas',perms:['orcamentos']}:token==='cobranca'?{sub:'cobranca',perms:['contas-atrasadas']}:null;const crachaRevogado=async()=>globalThis.__testeRevogada;`);
  s='const console={...globalThis.console,error:()=>{}};\n'+s;
  const bundle=await build({stdin:{contents:s,loader:'ts',resolveDir:fileURLToPath(new URL('../supabase/functions/'+nome+'/',import.meta.url))},bundle:true,format:'esm',platform:'neutral',write:false});const code=bundle.outputFiles[0].text;await import('data:text/javascript;base64,'+Buffer.from(code+'\n//'+Math.random()).toString('base64'));
  return {operacoes,chamar:async (token,body)=>{const r=await handler(new Request('https://teste.invalid',{method:'POST',headers:{authorization:`Bearer ${token}`},body:JSON.stringify(body)}));return {status:r.status,body:await r.json()};}};
@@ -43,4 +43,15 @@ test('substituição integral antiga é recusada sem apagar registros',async()=>
  const f=await funcao('painel-config');
  for(const chave of ['config','ov_rec','ov_orc','compromissos','patrimonio'])assert.equal((await f.chamar('direcao',{action:'set',chave,valor:{}})).status,403);
  assert.equal(f.operacoes.length,0);
+});
+
+test('matriz de permissões confirma direção, vendas, cobrança e Glossário',async()=>{
+ for(const perfil of ['direcao','vendas','cobranca','glossario']){
+  const f=await funcao('painel-config');
+  for(const chave of ['ov_rec','ov_orc'])for(const action of ['get','merge']){
+   const permitido=perfil==='direcao'||(perfil==='vendas'&&chave==='ov_orc')||(perfil==='cobranca'&&chave==='ov_rec');
+   const r=await f.chamar(perfil,{action,chave,patch:{ficticio:{motivo:'exemplo'}}});
+   assert.equal(r.status,permitido?200:403,`${perfil}: ${action} ${chave}`);
+  }
+ }
 });
