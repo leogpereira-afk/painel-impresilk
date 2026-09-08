@@ -26,7 +26,7 @@
 import {
   etapaRapidos, etapaCompleta, etapaRealizado, calcDso, normOrcamento, normOS, chaveProduto,
   SEM_CATEGORIA, FORA_CATALOGO, normRecebivel, CORTE_ATRASADOS,
-  etapaHistoricoOS, fatiasPorAno, conferirAbatimentos,
+  etapaHistoricoOS, fatiasPorAno, anosDoHistorico, conferirAbatimentos,
 } from "../netlify/functions/mubi-cache-background.mjs";
 import { mubiGetTudo, mubiConfigurado, hojeMais } from "../netlify/functions/lib/mubi.js";
 /* A faxina do mapa de pagos APAGA registro de dinheiro recebido: a decisao
@@ -482,9 +482,49 @@ async function cargaDoHistorico() {
     const doPainel = (await chamar({ action: "cfgHistorico" })).historicoDesde;
     const desde = process.env.HISTORICO_DESDE || doPainel || HISTORICO_DESDE_PADRAO;
     const ate = process.env.HISTORICO_ATE || hojeMais(0);
-    const fatias = fatiasPorAno(desde, ate);
+    const todas = fatiasPorAno(desde, ate);
+
+    /* O QUE A COMPLETA JA FAZ TODO DIA, ESTA NAO REFAZ.
+     *
+     * Os 45 minutos do job sao o recurso escasso: em 06/09/2026 esta carga
+     * gastou 40 deles nos anos 2026..2022 e MORREU no teto, no "ano 2021" --
+     * o diario registra o passo em que parou. Resultado: 2020 e 2021 ficaram
+     * com dado de 30/08, e como ela sempre recomeca do ano mais novo, morria
+     * no mesmo lugar toda semana. Os anos antigos nunca chegariam.
+     *
+     * A ordem NAO muda: continua do mais novo para o mais velho, que e o que
+     * importa primeiro. O que muda e nao gastar tempo com o que ja esta fresco
+     * -- a carga COMPLETA varre tudo desde CORTE_ATRASADOS todo dia (e agora
+     * se cura sozinha quando o agendador falha). Pular esses anos aqui e
+     * pular trabalho REPETIDO, nao trabalho necessario.
+     *
+     * TRES TRAVAS, porque pular ano e deixar de atualizar dado:
+     *   1. so pula se a completa rodou de verdade nas ultimas 48h -- se ela
+     *      esta quebrada, esta carga volta a fazer tudo;
+     *   2. nunca pula quando alguem pediu um periodo a mao (HISTORICO_DESDE/
+     *      ATE): pedido explicito manda;
+     *   3. nunca pula TODOS os anos -- se a conta desse zero fatia, a corrida
+     *      nao faria nada e ainda diria "sucesso". */
+    const pedidoAMao = !!(process.env.HISTORICO_DESDE || process.env.HISTORICO_ATE);
+    const st = (await chamar({ action: "ler", chave: "status" })).status;
+    const hCompleta = st?.ultimaCompleta
+      ? (Date.now() - new Date(st.ultimaCompleta).getTime()) / 3600000
+      : Infinity;
+    // A decisao (e as tres travas dela) mora em anosDoHistorico, com teste.
+    const { fatias, pulados, motivo } = anosDoHistorico(todas, { completaHa: hCompleta, pedidoAMao });
+    console.log(
+      pulados
+        ? `   ${pulados} ano(s) a partir de ${CORTE_ATRASADOS} ficam com a carga completa ` +
+          `(rodou ha ${Math.round(hCompleta)}h) -- os 45 min vao para os anos antigos`
+        : `   fazendo TODOS os anos -- ${motivo}`
+    );
     console.log(`carga do historico de O.S.: ${desde} ate ${ate} -- ${fatias.length} ano(s)`);
-    await anotar({ passo: "buscando O.S.", desde, ate, anosPrevistos: fatias.map((f) => f.ano) });
+    await anotar({
+      passo: "buscando O.S.", desde, ate,
+      anosPrevistos: fatias.map((f) => f.ano),
+      anosPulados: pulados,
+      completaHa: Number.isFinite(hCompleta) ? Math.round(hCompleta) : null,
+    });
 
     /* ANO A ANO, e cada ano GRAVADO ANTES do proximo comecar.
        Se o job estourar o tempo ou o ERP cair no meio, o que ja veio fica na
@@ -550,6 +590,39 @@ async function main() {
 
   const anterior = (await chamar({ action: "ler", chave: "status" })).status;
 
+  /* A COMPLETA SE CURA SOZINHA — o agendador diario nao e confiavel.
+   *
+   * A carga leve so olha O.S. dos ULTIMOS 7 DIAS (por cadastro, aprovacao ou
+   * cancelamento). Quem edita SO o valor de uma O.S. antiga nao entra nessa
+   * janela: quem atualiza esse valor e a carga COMPLETA, que varre tudo desde
+   * CORTE_ATRASADOS.
+   *
+   * Medido em 08/09/2026: a completa nao rodava havia pelo menos 4 dias. O
+   * GitHub disparava a de 20 minutos (com atraso, a cada ~40) e simplesmente
+   * engolia a tarefa de uma vez por dia -- ela tem UMA chance diaria, e quando
+   * e descartada nao ha segunda. Resultado: valor mexido no ERP ficava dias
+   * sem chegar ao painel, e a permuta seguia abatendo o valor velho.
+   *
+   * Agora a leve confere: se a ultima completa tem mais de 26 horas, ELA roda
+   * a completa. Nao depende mais de o agendador acertar um horario -- basta
+   * qualquer corrida do dia acontecer. 26h (e nao 24) para o horario normal
+   * das 06:00 UTC nao disparar uma segunda so por alguns minutos de atraso. */
+  const ULTIMA_COMPLETA_H = 26;
+  const ultimaCompleta = anterior?.ultimaCompleta ?? null;
+  const horasDesdeCompleta = ultimaCompleta
+    ? (Date.now() - new Date(ultimaCompleta).getTime()) / 3600000
+    : Infinity;
+  const curarCompleta = MODO === "incremental" && horasDesdeCompleta > ULTIMA_COMPLETA_H;
+  if (curarCompleta) {
+    console.log(
+      `carga completa atrasada (${ultimaCompleta ? Math.round(horasDesdeCompleta) + "h" : "nunca rodou"}) -- ` +
+      "esta corrida vai rodar a COMPLETA no lugar da leve"
+    );
+  }
+  // O modo REALMENTE usado nesta corrida -- e o que vale para as etapas e para
+  // o carimbo. `MODO` continua sendo o que a linha de comando pediu.
+  const modoReal = curarCompleta ? "completo" : MODO;
+
   // Os dois blocos sao INDEPENDENTES: um "fetch failed" nos orcamentos nao pode
   // descartar os recebiveis que ja vieram, e vice-versa. Antes era tudo ou nada,
   // e foi assim que o Mubisys degradado congelou o painel por 8 horas.
@@ -561,7 +634,7 @@ async function main() {
     console.warn("bloco rapido falhou inteiro:", e?.message || e);
   }
   try {
-    pesados = MODO === "completo" ? await etapaCompleta() : await janelaDe7Dias();
+    pesados = modoReal === "completo" ? await etapaCompleta() : await janelaDe7Dias();
   } catch (e) {
     console.warn("bloco pesado falhou inteiro:", e?.message || e);
   }
@@ -583,7 +656,7 @@ async function main() {
   /* Só o incremental monta o mapa de títulos pagos; a completa nem tenta — e
      gravar(null) aqui registraria "fonte falhou" sobre uma fonte não tentada,
      sujando o log de toda madrugada. */
-  if (MODO === "incremental") await gravar("recebidos_os", pesados.recebidos, recusados);
+  if (modoReal === "incremental") await gravar("recebidos_os", pesados.recebidos, recusados);
 
   /* A TABELA ANDA JUNTO. Sem isto, a O.S. de hoje entraria no cache (e nas
      outras telas) mas nao na busca da permuta, que so veria ate a ultima carga
@@ -649,7 +722,12 @@ async function main() {
     abatimentos,
     em: new Date().toISOString(), // horario do ULTIMO sucesso (frescor real)
     ok: true,
-    modo: MODO,
+    modo: modoReal,
+    /* QUANDO A COMPLETA RODOU PELA ULTIMA VEZ -- e o relogio da auto-cura
+       acima. Carregado para frente em toda corrida leve: se sumisse, a leve
+       acharia que a completa nunca rodou e rodaria uma completa a cada 20
+       minutos, martelando o ERP. */
+    ultimaCompleta: modoReal === "completo" ? new Date().toISOString() : (ultimaCompleta ?? null),
     dso,
     duracaoMs: Date.now() - inicio,
     contagens: {

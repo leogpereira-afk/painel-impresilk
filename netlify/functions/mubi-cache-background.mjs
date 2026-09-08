@@ -689,6 +689,36 @@ export function diaSeguinte(iso) {
   return d.toISOString().slice(0, 10);
 }
 
+/* QUAIS ANOS A CARGA DO HISTORICO PRECISA FAZER NESTA CORRIDA.
+ *
+ * Os 45 minutos do job sao o recurso escasso. Em 06/09/2026 a carga gastou 40
+ * deles refazendo 2026..2022 -- que a carga COMPLETA ja atualiza todo dia -- e
+ * morreu no teto, no "ano 2021". Como ela sempre recomeca do ano mais novo,
+ * morria no mesmo lugar toda semana: 2020 e 2021 nunca chegavam.
+ *
+ * A ORDEM NAO MUDA: do mais novo para o mais velho, sempre. O que muda e nao
+ * gastar tempo com o que ja esta fresco.
+ *
+ * Decide, e nada mais -- quem busca e grava e o chamador. Fica aqui, com teste,
+ * porque pular um ano e deixar de atualizar dado de dinheiro.
+ *
+ * `completaHa` — horas desde a ultima carga completa (Infinity se nunca rodou)
+ * `pedidoAMao` — alguem pediu um periodo explicito (HISTORICO_DESDE/ATE)
+ */
+export function anosDoHistorico(todas, { completaHa = Infinity, pedidoAMao = false, corte = CORTE_ATRASADOS } = {}) {
+  const lista = Array.isArray(todas) ? todas : [];
+  // A completa so pode ser levada em conta se rodou DE VERDADE, e ha pouco.
+  const completaFresca = Number.isFinite(completaHa) && completaHa <= 48;
+  // Pedido explicito manda: ninguem pede um periodo para receber outro.
+  if (!completaFresca || pedidoAMao) return { fatias: lista, pulados: 0, motivo: pedidoAMao ? "pedido a mao" : "completa atrasada" };
+  const restantes = lista.filter((f) => String(f?.de ?? "") < String(corte));
+  // NUNCA pular todos: uma corrida que nao faz nada e diz "sucesso" e pior que
+  // uma corrida lenta. Acontece quando o periodo pedido esta todo dentro do
+  // alcance da completa.
+  if (!restantes.length) return { fatias: lista, pulados: 0, motivo: "todos os anos seriam pulados" };
+  return { fatias: restantes, pulados: lista.length - restantes.length, motivo: "a completa cobre esses anos" };
+}
+
 export async function etapaHistoricoOS(desde, ate) {
   const base = { status: "TODOS", filtrodata: "CADASTRO" };
   /* SEM CATALOGO DE PRODUTOS, de proposito.
