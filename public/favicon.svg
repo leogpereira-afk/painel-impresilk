@@ -1,5 +1,1 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" width="96" height="96">
-  <rect width="96" height="96" rx="22" fill="#3840E8"/>
-  <text x="50%" y="50%" dy=".02em" text-anchor="middle" dominant-baseline="central"
-        font-family="Poppins, system-ui, sans-serif" font-weight="800" font-size="52" fill="#ffffff">i</text>
-</svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="PDG"><rect width="64" height="64" rx="14" fill="#16334f"/><text x="32" y="32" text-anchor="middle" dominant-baseline="central" font-family="system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif" font-weight="700" font-size="24" fill="#ffffff">PDG</text></svg>
