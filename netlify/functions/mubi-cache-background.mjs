@@ -764,7 +764,7 @@ export function fatiasPorAno(desde, ate) {
   return fatias;
 }
 
-export async function etapaCompleta() {
+export async function etapaCompleta(ordensAnteriores = []) {
   /* DUAS REGUAS PARA A MESMA TELA, agora uma so.
      A tela trata como cobranca ATIVA tudo que vence a partir de CORTE_ATRASADOS
      (2025-01-01). O cache buscava O.S. so a partir de 1o de janeiro do ano
@@ -798,16 +798,29 @@ export async function etapaCompleta() {
   };
   const carregarOrdens = async () => {
     let categoriaPorNome;
+    let catalogoOk = true;
     try {
       categoriaPorNome = await catalogoCategorias();
     } catch (e) {
-      console.warn("carga completa: catálogo indisponível; O.S. preservadas:", e?.message || e);
+      console.warn("carga completa: catálogo indisponível; valores das O.S. serão consultados:", e?.message || e);
       falhas.push("catalogo-indisponivel");
-      return null;
+      catalogoOk = false;
+      categoriaPorNome = new Map();
+      for (const os of Array.isArray(ordensAnteriores) ? ordensAnteriores : []) {
+        for (const item of os.itens ?? []) {
+          const categoria = String(item.categoria || "");
+          if (categoria && categoria !== SEM_CATEGORIA && categoria !== FORA_CATALOGO) categoriaPorNome.set(chaveProduto(item.produto), categoria);
+        }
+      }
     }
     try {
       const brutas = await mubiGetTudo("ordem-servico", { ...base, datainicial: desdeOS });
-      return brutas.map((os, i) => normOS(os, i, categoriaPorNome)).filter((o) => !o.cancelada);
+      return brutas.map((os, i) => {
+        const ordem = normOS(os, i, categoriaPorNome);
+        // Sem catálogo, desconhecido não significa fora do catálogo.
+        if (!catalogoOk) for (const item of ordem.itens) if (item.categoria === FORA_CATALOGO) item.categoria = "";
+        return ordem;
+      }).filter((o) => !o.cancelada);
     } catch (e) {
       console.warn("carga completa: ordens indisponíveis:", e?.message || e);
       falhas.push("ordens");

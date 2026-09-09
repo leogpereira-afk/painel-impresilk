@@ -31,6 +31,7 @@ import {
 import { mubiGetTudo, mubiConfigurado, hojeMais } from "../netlify/functions/lib/mubi.js";
 /* A faxina do mapa de pagos APAGA registro de dinheiro recebido: a decisao
    mora em lib/calc, com teste de entrada sintetica, nunca solta aqui. */
+import { ordensParaTabela, completaConfirmada } from "./lib/atualizacao-ordens.mjs";
 import { faxinarPagos } from "../src/lib/calc/financeiroOS.js";
 
 const FN = process.env.PAINEL_CACHE_URL
@@ -228,6 +229,7 @@ async function janelaDe7Dias() {
      quinta-feira com a rodada dizendo ok). Vai junto no status para o banco
      responder de que lado esta o defeito sem precisar de acesso ao ERP. */
   const janelaErp = { orc: {}, os: {}, osMaisNova: "" };
+  const atualizadasNestaCorrida = new Set();
 
   // Tres filtros de data: um orcamento aprovado hoje foi CADASTRADO ha meses e
   // nao apareceria numa janela so de cadastro.
@@ -310,7 +312,7 @@ async function janelaDe7Dias() {
            continuava na tabela (e ABATENDO credito de permuta) por ate 7 dias,
            ate a carga do historico de domingo passar por ela. */
         if (o.cancelada) { mapaOS.delete(o.id); osCanceladas.add(String(o.id)); }
-        else mapaOS.set(o.id, guardarCategoria ? guardarCategoria(o) : o);
+        else { mapaOS.set(o.id, guardarCategoria ? guardarCategoria(o) : o); atualizadasNestaCorrida.add(String(o.id)); }
       }
     }
   } catch (e) {
@@ -423,6 +425,7 @@ async function janelaDe7Dias() {
   return {
     orcamentos: [...mapaOrc.values()],
     ordens: [...mapaOS.values()],
+    ordensAtualizadas: [...mapaOS.values()].filter(o => atualizadasNestaCorrida.has(String(o.id))),
     osCanceladas: [...osCanceladas],
     janelaErp,
     recebidos,
@@ -634,7 +637,7 @@ async function main() {
     console.warn("bloco rapido falhou inteiro:", e?.message || e);
   }
   try {
-    pesados = modoReal === "completo" ? await etapaCompleta() : await janelaDe7Dias();
+    pesados = modoReal === "completo" ? await etapaCompleta(await ler("ordens")) : await janelaDe7Dias();
   } catch (e) {
     console.warn("bloco pesado falhou inteiro:", e?.message || e);
   }
@@ -663,7 +666,7 @@ async function main() {
      de historico -- e ninguem entenderia por que a O.S. de ontem "nao existe". */
   if (Array.isArray(pesados.ordens) && pesados.ordens.length) {
     try {
-      const n = await gravarOrdensTabela(pesados.ordens);
+      const n = await gravarOrdensTabela(ordensParaTabela(pesados, modoReal));
       console.log(`   painel_ordens: ${n} linhas`);
       /* O CANCELAMENTO TAMBEM ANDA JUNTO. O incremental tirava a cancelada do
          cache e a deixava na tabela ate a carga de domingo -- por ate 7 dias a
@@ -727,7 +730,7 @@ async function main() {
        acima. Carregado para frente em toda corrida leve: se sumisse, a leve
        acharia que a completa nunca rodou e rodaria uma completa a cada 20
        minutos, martelando o ERP. */
-    ultimaCompleta: modoReal === "completo" ? new Date().toISOString() : (ultimaCompleta ?? null),
+    ultimaCompleta: completaConfirmada(modoReal, pesados, recusados) ? new Date().toISOString() : (ultimaCompleta ?? null),
     dso,
     duracaoMs: Date.now() - inicio,
     contagens: {

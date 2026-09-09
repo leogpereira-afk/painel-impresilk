@@ -16,7 +16,7 @@ const respostas = {
   ],
 };
 
-async function carregar(t, alteracoes={}) {
+async function carregar(t, alteracoes={}, anteriores=[]) {
   t.mock.method(globalThis,'fetch',async url => {
     const recurso=new URL(url).pathname.split('/').at(-1);
     assert.ok(recurso in respostas, 'Somente as fontes fictícias previstas');
@@ -24,20 +24,22 @@ async function carregar(t, alteracoes={}) {
     if(typeof dados==='number') return new Response('{}',{status:dados});
     return Response.json({data:dados,pagination:{current_page:1,last_page:1}});
   });
-  return etapaCompleta();
+  return etapaCompleta(anteriores);
 }
 
 test('catálogo 500 não descarta orçamento recebido nem inventa classificação',async t=>{
   const r=await carregar(t,{produto:500});
   assert.equal(r.orcamentos[0].valor,900);
-  assert.equal(r.ordens,null);
+  assert.equal(r.ordens[0].valor,200);
+  assert.equal(r.ordens[0].itens[0].categoria,'');
   assert.deepEqual(r.falhas,['catalogo-indisponivel']);
 });
 
-test('catálogo vazio preserva as ordens anteriores e permite atualizar orçamentos',async t=>{
+test('catálogo vazio permite atualizar valores sem inventar categorias',async t=>{
   const r=await carregar(t,{produto:[]});
   assert.equal(r.orcamentos[0].id,'orc-exemplo');
-  assert.equal(r.ordens,null);
+  assert.equal(r.ordens[0].valor,200);
+  assert.equal(r.ordens[0].itens[0].categoria,'');
   assert.deepEqual(r.falhas,['catalogo-indisponivel']);
 });
 
@@ -69,4 +71,12 @@ test('duas fontes indisponíveis devolvem ausência, nunca listas vazias',async 
   assert.equal(r.orcamentos,null);
   assert.equal(r.ordens,null);
   assert.deepEqual(new Set(r.falhas),new Set(['orcamentos','ordens']));
+});
+
+ test('correção de valor antigo chega mesmo sem catálogo e conserva a categoria conhecida',async t=>{
+  const anteriores=[{id:'os-exemplo',valor:900,itens:[{produto:'Placa exemplo',categoria:'Sinalização'}]}];
+  const r=await carregar(t,{produto:500},anteriores);
+  assert.equal(r.ordens[0].valor,200);
+  assert.equal(r.ordens[0].itens[0].categoria,'Sinalização');
+  assert.equal(anteriores[0].valor,900);
 });
