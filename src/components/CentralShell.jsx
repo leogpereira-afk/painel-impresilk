@@ -2,14 +2,14 @@ import {useEffect,useRef,useState} from 'react';
 import {Link,NavLink,useLocation} from 'react-router-dom';
 import {Menu,X,LogOut,ChevronRight,ArrowUpRight} from 'lucide-react';
 import {podeAbrir,ehDirecao} from '../lib/sessao.js';
-import {SISTEMAS} from '../lib/sistemas.js';
+import {SISTEMAS,ATALHOS_EXTERNOS_CENTRAL} from '../lib/sistemas.js';
 import {MODULOS} from '../lib/modulos.js';
 import logo from '../assets/brand/logo-color.png';
 import logoWhite from '../assets/brand/logo-white.png';
 import './central-shell.css';
 
 const EMOJIS_MODULOS = {compromissos:'📅','contas-atrasadas':'💰',orcamentos:'📋',bancos:'🏦',marketing:'📣',licitacoes:'⚖️',glossario:'📖',manutencoes:'🛠️',patrimonio:'🏠',permutas:'🤝',campanhas:'🎯',documentos:'📁'};
-const EMOJIS_SISTEMAS = {rh:'👥',pcp:'🏭',brief:'📏',dre:'📊',compras:'🛒',pops:'📚',domo:'🏗️',bosques:'🌳',central:'👤',diamond:'💎'};
+const EMOJIS_SISTEMAS = {rh:'👥',pcp:'🏭',brief:'📏',dre:'📊',compras:'🛒',pops:'📚',domo:'🏗️',bosques:'🌳',central:'👤',diamond:'💎',minaslab:'🔬'};
 
 export default function CentralShell({children,sessao,aoSair,controles}) {
   const review = import.meta.env.MODE === 'review';
@@ -24,6 +24,7 @@ export default function CentralShell({children,sessao,aoSair,controles}) {
     {nome:'IMPRESILK', links:SISTEMAS.filter(s=>s.id!=='painel' && !s.pessoal && s.url)},
     {nome:'LÉO E PORTAL DOS BOSQUES', links:SISTEMAS.filter(s=>['central','bosques'].includes(s.id))},
     {nome:'DOMO', links:[...SISTEMAS.filter(s=>s.id==='domo'),{id:'diamond',nome:'Diamond Vendas',url:'https://leogpereira-afk.github.io/diamond/'}]},
+    {nome:'MINASLAB', links:ATALHOS_EXTERNOS_CENTRAL.filter(s=>s.id==='minaslab')},
   ].filter((g,i)=>i===0 || ehDirecao(sessao) || review);
   const titulo = naCentral ? 'Sistemas e configurações' : modulos.find(m=>`/${m.id}`===location.pathname)?.nome || 'Início';
   useEffect(()=>setMenu(false),[location.pathname,location.search]);

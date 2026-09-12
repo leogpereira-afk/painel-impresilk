@@ -229,6 +229,23 @@ export const SISTEMAS = [
   },
 ];
 
+// Atalhos da visão geral da central, exibida somente para a direção em Acessos.
+// Ficam fora de SISTEMAS: não cadastram permissões, contas ou entrada única.
+export const ATALHOS_EXTERNOS_CENTRAL = [
+  {
+    id: "diamond",
+    nome: "Diamond Vendas",
+    descricao: "Acesso existente fora do cadastro de permissões desta central.",
+    url: "https://leogpereira-afk.github.io/diamond/",
+  },
+  {
+    id: "minaslab",
+    nome: "MinasLab",
+    descricao: "Acesso próprio no MinasLab.",
+    url: "https://leogpereira-afk.github.io/minaslab-painel/",
+  },
+];
+
 const POR_ID = new Map(SISTEMAS.map((s) => [s.id, s]));
 
 /* Sistema que o servidor devolve e este arquivo nao conhece NAO some da tela:

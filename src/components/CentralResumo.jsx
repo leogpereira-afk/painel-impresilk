@@ -3,7 +3,7 @@ import {Link} from 'react-router-dom';
 import {ehDirecao, podeConfigurar} from '../lib/sessao.js';
 import {ArrowRight, ShieldCheck, KeyRound, Database, Users, Search, Building2} from 'lucide-react';
 import {lerAcessos} from '../services/acesso.js';
-import {doSistema} from '../lib/sistemas.js';
+import {ATALHOS_EXTERNOS_CENTRAL, doSistema} from '../lib/sistemas.js';
 import {contarAcessos,temPendencia} from '../lib/acesso-state.mjs';
 import './central-resumo.css';
 
@@ -38,7 +38,7 @@ export default function CentralResumo() {
       return <article className="central-system-card" key={s.id}><div className="central-system-top"><span className={`central-system-icon color-${i%4}`}>{s.nome.slice(0,2).toUpperCase()}</span><span className={externa?'central-status external':pendentes?'central-status warning':'central-status'}>{externa?'Gestão externa':pendentes?'Revisar acesso':'Consultado'}</span></div><h3>{s.nomeCompleto||s.nome}</h3><p>{externa?'Contas administradas no próprio sistema':`${total} ${total===1?'conta encontrada':'contas encontradas'}`}</p><div className="central-card-bottom"><Link to={`/acessos?visao=sistemas&sistema=${s.id}`}>Gerenciar acessos <ArrowRight size={14}/></Link>{s.url && <a href={s.url} target="_blank" rel="noreferrer">Abrir sistema ↗</a>}</div></article>;
     })}</section>
     {!visiveis.length&&<p role="status">Nenhum sistema encontrado.</p>}
-    <div className="central-other"><div><h3>Diamond Vendas</h3><p>Acesso existente fora do cadastro de permissões desta central.</p></div><a href="https://leogpereira-afk.github.io/diamond/" target="_blank" rel="noreferrer">Abrir sistema ↗</a></div>
+    {ATALHOS_EXTERNOS_CENTRAL.map(s=><div className="central-other" key={s.id}><div><h3>{s.nome}</h3><p>{s.descricao}</p></div><a href={s.url} target="_blank" rel="noopener noreferrer">Abrir sistema ↗</a></div>)}
     <section className="central-quick"><Link to="/minha-conta"><KeyRound size={22}/><div><h3>Minha conta e senha</h3><p>Cuide do seu próprio acesso ao Painel.</p></div><ArrowRight size={18}/></Link><Link to="/backups"><Database size={22}/><div><h3>Backups e recuperação</h3><p>Confira cópias, falhas e opções de restauração.</p></div><ArrowRight size={18}/></Link></section>
   </div>;
 }
