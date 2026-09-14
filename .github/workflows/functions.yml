@@ -1,0 +1,63 @@
+# PUBLICA AS EDGE FUNCTIONS. Sem isto, o código fica no git e o servidor
+# continua rodando a versão velha, calado.
+#
+# O QUE CUSTOU (14/09/2026): o conserto que fechou a tela "Documentos e ativos"
+# foi mergeado na main, o `pages.yml` publicou a TELA, e a porta de dados
+# continuou aberta por não ter quem a subisse. Por horas o estado foi o pior
+# possível: quem trabalha perdeu a tela (o front novo já exigia o módulo) e o
+# buraco seguiu aberto para quem chamasse a function direto. O README do
+# `publicar-functions.sh` já avisava disso desde que foi escrito -- o aviso não
+# era suficiente, porque dependia de alguém lembrar.
+#
+# A integração GitHub<->Supabase do projeto pertence ao repositório do RH e só
+# publica as functions DELE. As do painel sobem pela Management API.
+#
+# PRECISA DO SECRET `SUPABASE_ACCESS_TOKEN` (o personal access token do
+# Supabase, começa com sbp_ -- https://supabase.com/dashboard/account/tokens).
+# Sem ele o job FALHA em vez de passar pulando: "publicou 0" com check verde é a
+# mesma mentira que este arquivo existe para acabar.
+name: Edge Functions no Supabase
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'supabase/functions/**'
+      - 'scripts/publicar-functions.sh'
+      - '.github/workflows/functions.yml'
+  workflow_dispatch: {}
+
+# Duas publicações ao mesmo tempo mandariam versões diferentes da mesma
+# function; a última a chegar venceria, e não necessariamente é a mais nova.
+concurrency:
+  group: functions-supabase
+  cancel-in-progress: false
+
+jobs:
+  publicar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: O secret existe?
+        env:
+          TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: |
+          if [ -z "$TOKEN" ]; then
+            echo "::error::Falta o secret SUPABASE_ACCESS_TOKEN. As functions NAO foram publicadas -- o que esta no ar continua sendo a versao anterior."
+            exit 1
+          fi
+
+      - name: Publicar todas as functions da pasta
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: |
+          chmod +x scripts/publicar-functions.sh
+          ./scripts/publicar-functions.sh
+
+      # O script ja falha por function que nao publicou (exit 1). Este passo so
+      # deixa no log QUAL versao ficou no ar, para quem for conferir depois nao
+      # precisar adivinhar -- "deployed" na resposta nao prova corpo publicado.
+      - name: O que ficou no ar
+        if: always()
+        run: echo "Confira em https://supabase.com/dashboard/project/heveemylixartyijxewh/functions"
