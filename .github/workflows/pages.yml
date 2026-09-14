@@ -44,6 +44,16 @@ jobs:
       # cobrem o que importa nelas: que toda acao peca cracha, e que os
       # imports da carga resolvam de verdade.
       - run: node scripts/conferir-portas.mjs
+      # O conferir-portas pergunta se o ramo olhou o CRACHA. Este pergunta a
+      # coisa seguinte, que e a 4a conferencia do PADRAO-DOS-SISTEMAS §1: se o
+      # ramo que GRAVA olhou o PAPEL. A diferenca custou meses de tela aberta --
+      # o painel-ativos exigia cracha em todas as acoes (portas verde o tempo
+      # todo) e liberava documento, veiculo, maquina e seguro para qualquer
+      # pessoa logada, inclusive para salvar, remover e trocar o arquivo,
+      # porque o mapa de modulo cobria 3 dos 7 tipos e a chave ausente
+      # devolvia `true`. Ele tambem confere o mapa contra a lista fechada: tipo
+      # novo em TIPOS sem par no mapa para a CI, em vez de nascer aberto.
+      - run: node scripts/conferir-papel.mjs
       # `node --check` valida sintaxe e nada mais: import de nome que o modulo
       # nao exporta passa verde e so explode no Actions, depois de 20 minutos
       # de ERP. O script existia e nao rodava em lugar nenhum.
