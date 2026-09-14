@@ -44,6 +44,7 @@ import {
   resumoDaCampanha, resumoGeralCampanhas, compradoresDaCampanha, extratoDaCampanha,
   anosDasCampanhas, totaisDoAno, comparativoPorAno, edicoesDoMesmoEvento, anosRepetidos,
   maiorComprador, comprasPorMes, produtosDaCampanha, categoriasDosProdutos, porProduto,
+  foraDoPeriodo,
   membrosDoEvento, candidatasAVincular, comparativoDeEdicoes, eventosVinculados,
   panoramaPorAno, epocaDoAno, semCampanhas, mesCalendarioComparado,
 } from "../lib/calc/campanhas.js";
@@ -953,12 +954,17 @@ function CurvaMensal({ meses }) {
 /* AS COMPRAS EM ORDEM DE DATA. A lista de cima está agrupada por CNPJ (para
    conferir com cada comprador); esta é a linha do tempo do evento -- o que
    entrou, e quando. São as mesmas O.S. lidas por duas perguntas diferentes. */
-function LinhaCompra({ l }) {
+function LinhaCompra({ l, fora }) {
   return (
-    <div className="flex items-center gap-3 border-b border-slate-100 py-2 text-sm last:border-0">
-      <span className="w-20 shrink-0 text-xs tabular-nums text-slate-400">{dataDaOS(l.data)}</span>
+    <div className={`flex items-center gap-3 border-b border-slate-100 py-2 text-sm last:border-0 ${fora ? "bg-warn-50" : ""}`}>
+      <span className={`w-20 shrink-0 text-xs tabular-nums ${fora ? "text-warn-700" : "text-slate-400"}`}>{dataDaOS(l.data)}</span>
       <span className="w-20 shrink-0 font-medium text-slate-700">{l.numero}</span>
       <span className="min-w-0 flex-1 truncate text-slate-600">{l.cliente}</span>
+      {/* O SELO diz POR QUE esta linha esta destacada. Sem ele, a faixa amarela
+          seria cor sem explicacao -- e cor que nao se explica vira ruido. */}
+      {fora && (
+        <span className="shrink-0 rounded bg-warn-100 px-1.5 py-0.5 text-[11px] text-warn-800">fora do período</span>
+      )}
       {l.sumiu && (
         <span className="shrink-0 rounded bg-bad-50 px-1.5 py-0.5 text-[11px] text-bad-700">cancelada</span>
       )}
@@ -2141,6 +2147,15 @@ export default function Campanhas() {
     () => [...(resumo?.linhas || [])].sort((a, b) => String(a.data).localeCompare(String(b.data))),
     [resumo],
   );
+  /* AS MARCADAS QUE ESTAO FORA DO PERIODO. O periodo sempre limitou o que a
+     tela OFERECE para marcar, e nunca o que ja estava marcado -- entao O.S. de
+     antes do evento ficavam contando no total, no ranking e no PDF. Aqui elas
+     ganham nome: a lista mostra quais sao e o aviso oferece tirar de uma vez.
+     Nada sai sozinho; o clique e de quem olha. */
+  const fora = useMemo(() => foraDoPeriodo(porData, desde, ate), [porData, desde, ate]);
+  const idsFora = useMemo(() => new Set(fora.map((l) => String(l.id))), [fora]);
+  const valorFora = useMemo(() => fora.reduce((t, l) => t + (Number(l.valor) || 0), 0), [fora]);
+
   const produtos = useMemo(
     () => (campanha ? produtosDaCampanha(campanha, ordens) : null),
     [campanha, ordens],
@@ -2922,10 +2937,51 @@ export default function Campanhas() {
             <Empty>Nenhuma O.S. marcada ainda.</Empty>
           ) : (
             <>
+              {/* O PERIODO VALE PARA O QUE JA ESTA MARCADO, e nao so para a
+                  busca. A Fenics 2026 tinha 18 O.S. de janeiro a julho dentro
+                  de um evento de 01/08 a 14/09 -- R$ 25.863,18 que nao eram do
+                  evento, somando no total e no PDF sem nada na tela dizendo.
+                  O aviso mostra e oferece; tirar continua sendo um clique de
+                  gente, porque "fora do periodo" e indicio, nao sentenca: uma
+                  O.S. de vespera faturada no dia anterior e do evento, e
+                  ajustar o periodo e tao legitimo quanto tirar a O.S. */}
+              {fora.length > 0 && (
+                <div className="mb-3 flex flex-wrap items-center justify-between gap-3 rounded-lg bg-warn-50 px-3 py-2.5 text-sm text-warn-800">
+                  <span>
+                    <strong>{fora.length} {fora.length === 1 ? "O.S. está" : "O.S. estão"} fora do período</strong>{" "}
+                    ({desde ? dataLonga(desde) : "início livre"}{ate ? ` a ${dataLonga(ate)}` : " até hoje"}) —{" "}
+                    <span className="tabular-nums">{dinheiro(valorFora)}</span>, e{" "}
+                    {fora.length === 1 ? "conta" : "contam"} no total da campanha.
+                  </span>
+                  <span className="flex flex-wrap gap-1.5">
+                    <button
+                      type="button"
+                      className="btn-outline"
+                      disabled={salvando}
+                      onClick={() => {
+                        if (!window.confirm(
+                          `Tirar ${fora.length} O.S. de “${campanha.nome || "esta campanha"}”?\n\n` +
+                          `São as que estão fora de ${desde ? dataLonga(desde) : "o início"}` +
+                          `${ate ? ` a ${dataLonga(ate)}` : " até hoje"}, somando ${dinheiro(valorFora)}.\n` +
+                          `Elas voltam para a lista de marcar — nada é apagado.`
+                        )) return;
+                        marcarVarias(fora, false);
+                      }}
+                    >
+                      <X size={15} /> Tirar {fora.length === 1 ? "a que está" : `as ${fora.length}`} fora
+                    </button>
+                    {podeAbrir("campanhas") && (
+                      <Link className="btn-ghost" to={`/configuracoes?secao=campanhas&campanha=${encodeURIComponent(aberta)}`}>
+                        Ajustar período
+                      </Link>
+                    )}
+                  </span>
+                </div>
+              )}
               <CurvaMensal meses={meses} />
               <div>
                 {porData.map((l) => (
-                  <LinhaCompra key={l.id} l={l} />
+                  <LinhaCompra key={l.id} l={l} fora={idsFora.has(String(l.id))} />
                 ))}
               </div>
             </>
