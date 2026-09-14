@@ -69,7 +69,29 @@ falhou=0
 for fn in "${FUNCOES[@]}"; do
   [ -f "$fn/index.ts" ] || { echo "$fn: nao existe em supabase/functions"; falhou=1; continue; }
 
-  args=(-F "file=@$fn/index.ts;filename=index.ts;type=application/typescript")
+  # A PASTA INTEIRA, NAO SO O index.ts.
+  #
+  # Ate 14/09/2026 esta linha mandava UM arquivo: o index.ts. O painel-crm tem
+  # um irmao na propria pasta -- contrato.ts, com o pedidoCrm/codigo que o
+  # index importa na linha 3 -- e ele nunca subia. O Supabase recusava a
+  # publicacao inteira com "Module not found contrato.ts", e as outras doze
+  # subiam: uma function ficava eternamente na versao velha enquanto o script
+  # dizia "publicando as 13".
+  #
+  # E o MESMO defeito que este arquivo ja conserta duas vezes acima (lista
+  # nominal de functions, e  sem os .mjs), um nivel abaixo: lista
+  # nominal de ARQUIVOS dentro da function. Varrer a pasta nao esquece. Quem
+  # criar o proximo ajudante ao lado do index nao precisa saber deste script.
+  args=()
+  while IFS= read -r arq; do
+    rel="${arq#$fn/}"
+    case "$rel" in
+      *.mjs|*.js) tipo=application/javascript ;;
+      *.json)     tipo=application/json ;;
+      *)          tipo=application/typescript ;;
+    esac
+    args+=(-F "file=@$arq;filename=$rel;type=$tipo")
+  done < <(find "$fn" -type f \( -name '*.ts' -o -name '*.mjs' -o -name '*.js' -o -name '*.json' \) | sort)
   # Inclui os módulos compartilhados e suas dependências transitivas. São
   # arquivos de código, sem configurações ou segredos de ambiente.
   #
