@@ -1,0 +1,42 @@
+# SONDA DO ERP, A PEDIDO. Nao tem cron: so roda quando alguem aperta o botao.
+#
+# Serve para responder "o que existe no Mubisys que ainda nao usamos?" e para
+# MEDIR a janela da importacao do PCP -- que e por data de CADASTRO e 180 dias,
+# e por isso nao enxerga O.S que o ERP mantem em producao ha mais tempo. Em
+# 14/09/2026 o dono viu 148 no Mubi contra 138 no PCP e confirmou que ha pedido
+# em aberto com mais de 180 dias; a sonda mede a mesma consulta em quatro
+# larguras e diz quanto cada uma esconde.
+#
+# O LOG DESTE REPOSITORIO E PUBLICO. Por isso a sonda imprime a FORMA dos
+# registros (nome do campo, tipo, tamanho) e nunca o valor: nenhum nome de
+# cliente, CNPJ, telefone ou endereco sai daqui. Conferido com um ERP de
+# mentira que devolve dados com cara de real -- ver o cabecalho do script.
+name: Sondar o Mubisys
+
+on:
+  workflow_dispatch:
+    inputs:
+      dias:
+        description: "Janela em dias para os recursos com filtro de data (padrao 90)"
+        required: false
+        default: "90"
+
+permissions:
+  contents: read
+
+jobs:
+  sondar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Medir o que o ERP tem
+        env:
+          MUBI_BASE_URL: ${{ secrets.MUBI_BASE_URL }}
+          MUBI_PUBLIC_KEY: ${{ secrets.MUBI_PUBLIC_KEY }}
+          MUBI_TOKEN: ${{ secrets.MUBI_TOKEN }}
+          SONDA_DIAS: ${{ github.event.inputs.dias || '90' }}
+        run: node scripts/sondar-mubi.mjs
