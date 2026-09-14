@@ -1,0 +1,56 @@
+name: Importar O.S para o PCP
+
+# A importacao do PCP mora AQUI, e nao no repo do PCP, por tres motivos --
+# todos no cabecalho de scripts/importar-os-pcp.mjs:
+#   1. a Edge Function do Supabase morre aos 150 s e uma pagina do Mubisys ja
+#      levou 206 s no horario comercial (foi o que derrubou a importacao em
+#      14/09/2026, em silencio, com a fabrica trabalhando);
+#   2. MUBI_PUBLIC_KEY e MUBI_TOKEN ja sao segredos DESTE repositorio -- copiar
+#      para outro dobraria o raio de exposicao e o trabalho de girar a chave;
+#   3. o cliente que aguenta o ERP (netlify/functions/lib/mubi.js, com a trava
+#      scripts/conferir-404.mjs) tambem ja esta aqui.
+#
+# O job NAO recebe chave do banco do PCP: manda a lista pronta para a Edge
+# Function pcp-mubisys (acao importarLote), que grava aplicando deduplicacao,
+# lapide e preservacao de trabalho humano.
+#
+# Falta cadastrar: PCP_CRON_TOKEN (Settings -> Secrets -> Actions).
+
+on:
+  schedule:
+    # De hora em hora aos :25. Nao aos :20 para nao bater no ERP junto com o
+    # pg_cron do PCP, nem aos :07/:27/:47 da carga do Painel -- medido no
+    # proprio ERP: 2 chamadas em paralelo ele aguenta, 4 estouram todas.
+    - cron: "25 * * * *"
+  workflow_dispatch:
+    inputs:
+      dias_atras:
+        description: "Quantos dias para tras buscar (padrao 180)"
+        required: false
+        default: "180"
+
+concurrency:
+  group: importar-os-pcp
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  importar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Buscar no Mubisys e entregar ao PCP
+        env:
+          MUBI_BASE_URL: ${{ secrets.MUBI_BASE_URL }}
+          MUBI_PUBLIC_KEY: ${{ secrets.MUBI_PUBLIC_KEY }}
+          MUBI_TOKEN: ${{ secrets.MUBI_TOKEN }}
+          PCP_CRON_TOKEN: ${{ secrets.PCP_CRON_TOKEN }}
+          MUBI_DIAS_ATRAS: ${{ github.event.inputs.dias_atras || '180' }}
+        run: node scripts/importar-os-pcp.mjs
