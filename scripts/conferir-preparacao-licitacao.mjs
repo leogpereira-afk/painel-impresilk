@@ -2,11 +2,19 @@ import {readFile} from 'node:fs/promises';import {transform} from 'esbuild';impo
 let handler;const rows=new Map([['lic',{id:'lic',tipo:'licitacao',nome:'Edital',temArquivo:true,arquivoNome:'edital.pdf',valor:1000,acompanhamento:{proximaAcao:'Conferir',checklist:[{id:'a',texto:'Documentos',feito:true}]}}]]);
 function from(){let id,single=false,body;const q=new Proxy({}, {get(_,k){if(k==='then')return(ok,no)=>{if(body)rows.set(body.id,body.registro);return Promise.resolve({data:single?(rows.has(id)?{registro:rows.get(id)}:null):[],error:null}).then(ok,no);};return(...a)=>{if(k==='eq'&&a[0]==='id')id=a[1];if(k==='maybeSingle')single=true;if(k==='upsert')body=a[0];return q;};}});return q;}
 globalThis.__licBanco={from,rpc:async(nome,args)=>{assert.equal(nome,'painel_registro_gravar');assert.deepEqual(args.p_anterior,rows.get(args.p_id)||null);rows.set(args.p_id,args.p_registro);return{data:args.p_registro,error:null};}};globalThis.Deno={env:{get:()=> 'teste'},serve:f=>handler=f};
-let src=await readFile(new URL('../supabase/functions/painel-ativos/index.ts',import.meta.url),'utf8');src=src.replace(/import \{ createClient \} from [^;]+;/,'const createClient=()=>globalThis.__licBanco;').replace(/import \{ verificarJwt, crachaRevogado \} from [^;]+;/,`const verificarJwt=async t=>t==='lic'?{sub:'operador',perms:['licitacoes']}:t==='mkt'?{sub:'marketing',perms:['marketing']}:null;const crachaRevogado=async()=>false;`);
+let src=await readFile(new URL('../supabase/functions/painel-ativos/index.ts',import.meta.url),'utf8');src=src.replace(/import \{ createClient \} from [^;]+;/,'const createClient=()=>globalThis.__licBanco;').replace(/import \{ verificarJwt, crachaRevogado \} from [^;]+;/,`const verificarJwt=async t=>t==='lic'?{sub:'operador',perms:['licitacoes']}:t==='mkt'?{sub:'marketing',perms:['marketing']}:t==='dois'?{sub:'ambos',perms:['licitacoes','documentos']}:null;const crachaRevogado=async()=>false;`);
 const {code}=await transform(src,{loader:'ts',format:'esm',target:'es2022'});await import('data:text/javascript;base64,'+Buffer.from(code).toString('base64'));
 const req=(token,item)=>handler(new Request('https://test.invalid',{method:'POST',headers:token?{authorization:'Bearer '+token}:{},body:JSON.stringify({action:'salvar',item})}));
 assert.equal((await req(null,{tipo:'licitacao',nome:'A'})).status,401);assert.equal((await req('mkt',{tipo:'licitacao',nome:'A'})).status,403);
 let r=await req('lic',{id:'lic',tipo:'licitacao',nome:'Edital',responsavel:'Ana'});assert.equal(r.status,200);assert.equal(rows.get('lic').acompanhamento.checklist[0].feito,true);assert.equal(rows.get('lic').temArquivo,true);
 r=await req('lic',{id:'lic',tipo:'licitacao',nome:'Edital',acompanhamento:{proximaAcao:'Enviar',prazoAcao:'2026-09-10',checklist:[{id:'b',texto:'Proposta',feito:'sim'}],valorContratado:2500}});assert.equal(r.status,200);assert.equal(rows.get('lic').acompanhamento.checklist[0].feito,false);assert.equal(rows.get('lic').valor,1000);assert.equal(rows.get('lic').acompanhamento.valorContratado,2500);
-assert.equal((await req('lic',{id:'lic',tipo:'documento',nome:'Tentativa'})).status,400);
+/* A PERMISSAO VEM ANTES DA VALIDACAO, e e a ordem certa: sem acesso a
+   "documentos", a resposta nao pode revelar que o item existe e e de outro
+   tipo. Ate 14/09/2026 este caso devolvia 400 ("tipo imutavel") porque
+   documento/veiculo/maquina nao exigiam modulo nenhum; quando passaram a
+   exigir (PR "Documentos e ativos vira modulo concedivel"), o 403 chegou
+   primeiro e este verificador ficou para tras, travando o deploy da main.
+   As duas regras continuam conferidas -- cada uma com o cracha que a alcanca. */
+assert.equal((await req('lic',{id:'lic',tipo:'documento',nome:'Tentativa'})).status,403);
+assert.equal((await req('dois',{id:'lic',tipo:'documento',nome:'Tentativa'})).status,400);
 console.log('Licitações: permissão, preservação do edital, checklist, valor contratado separado e tipo imutável conferidos.');
