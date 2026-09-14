@@ -988,6 +988,16 @@ test("sem régua não se mede: sem desde nem ate, nada está fora", () => {
   assert.deepEqual(foraDoPeriodo(linhas, null, undefined), []);
 });
 
+/* O CASO QUE ESVAZIAVA A CAMPANHA. Período invertido fazia TODA O.S. cair em
+   "fora" — e a tela oferece tirar todas num clique. */
+test("período invertido não é régua: não marca nada como fora", () => {
+  const linhas = [linha(1, "2026-01-07"), linha(2, "2026-08-10"), linha(3, "2026-12-30")];
+  assert.deepEqual(foraDoPeriodo(linhas, "2026-12-31", "2026-01-01"), []);
+  assert.deepEqual(foraDoPeriodo(linhas, "2027-01-01", "2026-09-14"), []);
+  // O período de um dia só continua valendo: início igual ao fim não é inversão.
+  assert.deepEqual(foraDoPeriodo(linhas, "2026-08-10", "2026-08-10").map((l) => l.id), [1, 3]);
+});
+
 test("só o começo, ou só o fim, já é régua", () => {
   const linhas = [linha(1, "2026-01-07"), linha(2, "2026-08-10")];
   assert.deepEqual(foraDoPeriodo(linhas, "2026-08-01", "").map((l) => l.id), [1]);

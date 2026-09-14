@@ -982,6 +982,16 @@ export function foraDoPeriodo(linhas, desde, ate) {
   const de = String(desde || "").slice(0, 10);
   const ateQ = String(ate || "").slice(0, 10);
   if (!de && !ateQ) return [];
+  /* PERIODO INVERTIDO NAO E REGUA, E ISSO IMPORTA MUITO AQUI.
+     Com `desde` depois de `ate`, a condicao abaixo cobre a reta inteira: TODA
+     O.S. vira "fora", e a tela transforma isso num botao unico que esvazia a
+     campanha de uma vez. E o estado e alcancavel: a tela de Configuracoes
+     recusa `ate < desde`, mas o campo "Ano" do cabecalho grava o `desde`
+     sozinho, sem olhar o `ate` que ja esta la -- e toda edicao criada por
+     "duplicar" nasce com 01/01 e 31/12, a um erro de digitacao do ano de ficar
+     invertida. Regua quebrada nao mede: devolve vazio, e o aviso some em vez
+     de oferecer a campanha inteira. */
+  if (de && ateQ && de > ateQ) return [];
   return (linhas || []).filter((l) => {
     const d = String(l?.data || "").slice(0, 10);
     /* Data ilegível não é "fora": é desconhecida. Tirar da campanha uma O.S.

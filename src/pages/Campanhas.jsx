@@ -1164,7 +1164,13 @@ const th = { textAlign: "left", fontSize: "8pt", fontWeight: 700, padding: "3px 
 const td = { fontSize: "8.5pt", padding: "3px 6px", borderBottom: "1px solid #eee" };
 const tdN = { ...td, textAlign: "right", fontVariantNumeric: "tabular-nums" };
 
-function ExtratoImpresso({ e, produtos, categorias, meses }) {
+function ExtratoImpresso({ e, produtos, categorias, meses, desde, ate }) {
+  /* O PAPEL TAMBEM TEM DE DIZER. O cabecalho impresso declara o periodo da
+     campanha e a tabela abaixo lista as O.S. de fora dele sem uma palavra --
+     um documento que se contradiz, e que alguem le numa reuniao tres meses
+     depois sem ter como saber que a diferenca e conhecida. A tela ganhou selo
+     e faixa; a Secao onde eles moram e `semImpressao`, entao nada disso sai. */
+  const foraNoPapel = new Set(foraDoPeriodo(e.porData, desde, ate).map((l) => String(l.id)));
   return (
     <div className="apenas-impressao" style={{ marginTop: 10 }}>
       <h2 style={{ fontSize: "11pt", margin: "10px 0 4px" }}>Quem comprou</h2>
@@ -1334,6 +1340,7 @@ function ExtratoImpresso({ e, produtos, categorias, meses }) {
                 <td style={td}>{l.numero}</td>
                 <td style={td}>
                   {l.cliente}
+                  {foraNoPapel.has(String(l.id)) && <span style={{ fontWeight: 700 }}> (fora do período)</span>}
                   {l.sumiu && <span style={{ fontWeight: 700 }}> (sumiu do ERP)</span>}
                   {l.mudou && <span style={{ fontWeight: 700 }}> (valor mudou)</span>}
                 </td>
@@ -2932,6 +2939,17 @@ export default function Campanhas() {
           sub="A linha do tempo do evento — quando entrou cada O.S."
           aberta={abertas.quando}
           aoAlternar={alternar}
+          /* O CONTADOR FICA NO CABECALHO, que aparece com a secao RECOLHIDA.
+             O aviso mora dentro da secao, e quem recolheu "Compras por data"
+             uma vez carrega essa escolha no aparelho para sempre
+             (localStorage "campanhas_secoes") -- o aviso existiria e ninguem
+             veria. Justamente quem fecha a lista longa e quem precisa saber
+             que ha dinheiro de fora somando no total. */
+          acao={fora.length > 0 && (
+            <span className="rounded-full bg-warn-100 px-2.5 py-1 text-xs font-medium text-warn-800">
+              {fora.length} fora do período
+            </span>
+          )}
         >
           {!porData.length ? (
             <Empty>Nenhuma O.S. marcada ainda.</Empty>
@@ -2959,11 +2977,24 @@ export default function Campanhas() {
                       className="btn-outline"
                       disabled={salvando}
                       onClick={() => {
+                        /* O TEXTO DIZ O QUE DE FATO ACONTECE. A primeira
+                           versao prometia "elas voltam para a lista de marcar",
+                           frase copiada do "Tirar todas" -- e la e verdade,
+                           porque aquelas estao DENTRO do periodo. Aqui e falsa
+                           para 100% das O.S. que este botao tira: a lista de
+                           marcar e alimentada por uma busca limitada ao mesmo
+                           periodo (painel-dados aplica gte/lte na data), entao
+                           a O.S. que sai por estar fora dele nao tem como
+                           voltar sozinha. Prometer um caminho que nao existe e
+                           pior do que nao prometer nada. */
                         if (!window.confirm(
                           `Tirar ${fora.length} O.S. de “${campanha.nome || "esta campanha"}”?\n\n` +
                           `São as que estão fora de ${desde ? dataLonga(desde) : "o início"}` +
-                          `${ate ? ` a ${dataLonga(ate)}` : " até hoje"}, somando ${dinheiro(valorFora)}.\n` +
-                          `Elas voltam para a lista de marcar — nada é apagado.`
+                          `${ate ? ` a ${dataLonga(ate)}` : " até hoje"}, somando ${dinheiro(valorFora)}.\n\n` +
+                          `Elas saem do total, do ranking e do PDF. Como estão fora do período, NÃO ` +
+                          `voltam para a lista de marcar enquanto o período for este — para trazer ` +
+                          `alguma de volta, alargue o período antes.\n\n` +
+                          `Nada é apagado: o histórico registra cada uma, com número e valor.`
                         )) return;
                         marcarVarias(fora, false);
                       }}
@@ -3323,7 +3354,7 @@ export default function Campanhas() {
         {/* O EXTRATO fica por ÚLTIMO no DOM mas é a única coisa que vai ao
             papel: as seções acima são `sem-impressao`. */}
         {extrato && (
-          <ExtratoImpresso e={extrato} produtos={produtos} categorias={categorias} meses={meses} />
+          <ExtratoImpresso e={extrato} produtos={produtos} categorias={categorias} meses={meses} desde={desde} ate={ate} />
         )}
 
         {salvando && <div className="text-xs text-slate-400">salvando…</div>}
