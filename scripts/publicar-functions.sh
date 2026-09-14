@@ -31,7 +31,37 @@ fi
 
 FUNCOES=("$@")
 if [ ${#FUNCOES[@]} -eq 0 ]; then
-  FUNCOES=(painel-auth painel-config painel-ativos painel-dados painel-cache painel-backup painel-fotos painel-vigia)
+  # "TODAS" E A PASTA, NAO UMA LISTA ESCRITA A MAO.
+  #
+  # Ate 14/09/2026 esta linha era uma lista nominal com 8 nomes, enquanto a
+  # pasta ja tinha 12 functions: painel-acesso, painel-crm, painel-gestao e
+  # acesso-entrar nunca subiam por aqui, e o script dizia "publica todas" e
+  # terminava com exit 0, sem uma linha de aviso. Uma function nova entrava no
+  # git, a CI ficava verde, o operador via 8 "deployed" -- e a tela nova
+  # respondia 404 porque a porta dela nunca tinha sido publicada.
+  #
+  # E o MESMO defeito que deixou o casa.js do PCP fora do ar por dias em 13/09:
+  # deploy por lista nominal esquece exatamente o arquivo novo, que e o unico
+  # que ninguem ainda sabe conferir. Varrer o diretorio nao esquece.
+  #
+  # `_shared` fica de fora porque nao e function: e biblioteca, e vai junto com
+  # cada uma no laco abaixo.
+  FUNCOES=()
+  for dir in "$RAIZ"/*/; do
+    nome="$(basename "$dir")"
+    [ "$nome" = "_shared" ] && continue
+    [ -f "$dir/index.ts" ] || continue
+    FUNCOES+=("$nome")
+  done
+  # Varredura sem resultado NAO pode terminar em sucesso: "publicou 0" com
+  # exit 0 e a mesma mentira que a lista nominal contava. (E com `set -u` no
+  # bash 3.2 do Mac, expandir um array vazio ainda estoura "unbound variable",
+  # que nao explica nada a quem esta publicando.)
+  if [ ${#FUNCOES[@]} -eq 0 ]; then
+    echo "Nenhuma function encontrada em $RAIZ -- nada foi publicado." >&2
+    exit 1
+  fi
+  echo "Publicando as ${#FUNCOES[@]} functions de supabase/functions: ${FUNCOES[*]}"
 fi
 
 cd "$RAIZ"
@@ -42,8 +72,19 @@ for fn in "${FUNCOES[@]}"; do
   args=(-F "file=@$fn/index.ts;filename=index.ts;type=application/typescript")
   # Inclui os módulos compartilhados e suas dependências transitivas. São
   # arquivos de código, sem configurações ou segredos de ambiente.
+  #
+  # OS .mjs TAMBÉM. O laço pegava só `_shared/*.ts` e três módulos ficavam
+  # sempre de fora: acesso-leitura.mjs, fila-backup.mjs e backup-partes.mjs.
+  # Enquanto a lista de functions era nominal isso dormia, porque as duas que
+  # os importam (painel-acesso e painel-backup) não estavam nela; com a
+  # varredura do diretório elas passaram a subir, e subiriam sem o arquivo que
+  # o `import` do topo procura -- a porta da Central de Acessos publicada
+  # quebrada. O tipo do .mjs é javascript, não typescript.
   for dep in _shared/*.ts; do
     [ -f "$dep" ] && args+=(-F "file=@$dep;filename=../$dep;type=application/typescript")
+  done
+  for dep in _shared/*.mjs; do
+    [ -f "$dep" ] && args+=(-F "file=@$dep;filename=../$dep;type=application/javascript")
   done
 
   # POST /functions/deploy com uma parte `metadata` em JSON. O caminho antigo

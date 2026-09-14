@@ -14,6 +14,8 @@
 export const MODULOS = [
   { id: "gestao", aposentado: true, nome: "Gestão", sub: "identidade, plano do ano, táticas e atas — a tela de direção" },
   { id: "compromissos", nome: "Compromissos", sub: "a agenda de cada um — cada pessoa vê só a dela" },
+  { id: "agenda", nome: "Agenda da produção", sub: "as O.S de cada dia, os plantões e a grade de saída — só para ver, sem o valor" },
+  { id: "calendario-empresa", nome: "Calendário da empresa", sub: "feriados, datas comemorativas, reuniões e eventos — só para ver, sem nada de ficha de pessoa" },
   { id: "contas-atrasadas", nome: "Contas Atrasadas", sub: "quem deve e a cobrança" },
   { id: "orcamentos", nome: "Orçamentos", sub: "funil e conversão do time" },
   { id: "bancos", nome: "Bancos e Pix", sub: "contas, CNPJs e chaves de todas as empresas" },
