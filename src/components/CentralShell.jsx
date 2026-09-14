@@ -19,7 +19,9 @@ export default function CentralShell({children,sessao,aoSair,controles}) {
   const lateralRef = useRef(null);
   const conteudoRef = useRef(null);
   const naCentral = ['/acessos','/minha-conta','/backups','/configuracoes'].includes(location.pathname);
-  const modulos = [...MODULOS.filter(m=>m.id!=='configuracoes' && podeAbrir(m.id,sessao)),{id:'documentos',nome:'Documentos e ativos'}];
+  // `documentos` agora e um modulo como os outros (src/lib/modulos.js): sai
+  // do acrescimo a mao, que o punha no menu de TODA sessao, e entra no filtro.
+  const modulos = MODULOS.filter(m=>m.id!=='configuracoes' && podeAbrir(m.id,sessao));
   const gruposAcesso = [
     {nome:'IMPRESILK', links:SISTEMAS.filter(s=>s.id!=='painel' && !s.pessoal && s.url)},
     {nome:'LÉO E PORTAL DOS BOSQUES', links:SISTEMAS.filter(s=>['central','bosques'].includes(s.id))},

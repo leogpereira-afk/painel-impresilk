@@ -58,7 +58,7 @@ const ROTAS_PREFETCH = [
   { m: "manutencoes", imp: () => import("./pages/Manutencoes.jsx") },
   { m: "bancos", imp: () => import("./pages/Bancos.jsx") },
   { m: "patrimonio", imp: () => import("./pages/Patrimonio.jsx") },
-  { m: "ativos", imp: () => import("./pages/Ativos.jsx") },
+  { m: "documentos", imp: () => import("./pages/Ativos.jsx") },
   { m: "licitacoes", imp: () => import("./pages/Licitacoes.jsx") },
   { m: "marketing", imp: () => import("./pages/Marketing.jsx") },
   { m: null, imp: () => import("./pages/Glossario.jsx") },
@@ -226,9 +226,20 @@ export default function App() {
         <Route path="/acessos" element={<Acessos />} />
         <Route path="/minha-conta" element={<Acessos minhaConta />} />
         <Route path="/backups" element={ehDirecao(sessao) ? <Backups/> : <Navigate to="/minha-conta" replace/>} />
-        {/* Documentos/veiculos/maquinas nao sao dado financeiro: qualquer
-            pessoa logada cuida deles (o servidor tambem so exige sessao). */}
-        <Route path="/documentos" element={<Ativos />} />
+        {/* Documentos e ativos passa a exigir o modulo `documentos`, como
+            qualquer outra tela. Ate 14/09/2026 esta rota abria sem `Restrito`
+            e a porta de dados nao pedia modulo para documento/veiculo/
+            maquina/seguro -- quem tivesse um unico modulo de consulta lia e
+            APAGAVA certidao, contrato social e apolice. O corte que vale e o
+            do painel-ativos; este aqui so evita a tela vazia. */}
+        <Route
+          path="/documentos"
+          element={
+            <Restrito modulo="documentos" sessao={sessao}>
+              <Ativos />
+            </Restrito>
+          }
+        />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
       </Suspense>

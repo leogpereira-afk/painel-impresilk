@@ -17,10 +17,9 @@
 // simultaneos se apagarem (aconteceu no primeiro teste da funcao). Uma linha
 // por item no Postgres da a mesma garantia, agora pelo banco.
 //
-// Permissao: documento/veiculo/maquina sao abertos a qualquer pessoa logada
-// (dados operacionais da casa, como no original). Os tipos que chegaram
-// depois -- marketing e licitacao -- exigem o modulo da tela deles, inclusive
-// nas acoes por id, onde o tipo e lido do registro gravado.
+// Permissao: CADA tipo exige o modulo da tela dele -- inclusive nas acoes por
+// id, onde o tipo e lido do registro gravado. Tipo sem modulo cadastrado no
+// mapa e RECUSADO, nao liberado (ver MODULOS_DO_TIPO, la embaixo).
 // ============================================================================
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
@@ -124,23 +123,42 @@ Deno.serve(async (req: Request) => {
   if (!sessao) return resposta({ erro: "Entre no sistema.", semSessao: true }, 401);
   const quem = sessao.nome || sessao.sub || "alguem";
 
-  // Tres tipos moram nesta colecao mas pertencem a TELAS diferentes, com
+  // Os sete tipos moram nesta colecao mas pertencem a TELAS diferentes, com
   // permissoes diferentes. Sem esta amarra, uma conta com acesso so a
   // Orcamentos listava os editais e podia baixar e apagar arquivo deles --
   // o modulo existia so no menu.
   //
-  // documento/veiculo/maquina ficam sem modulo de proposito: a tela
-  // "Documentos e ativos" e aberta a qualquer pessoa logada (assim ja era).
-  const MODULO_DO_TIPO: Record<string, string> = {
-    marketing: "marketing",
-    licitacao: "licitacoes",
-    predial: "manutencoes",
+  // ATE 14/09/2026 QUATRO TIPOS FICAVAM DE FORA DESTE MAPA -- documento,
+  // veiculo, maquina e seguro -- e o `if (!mod) return true` de entao abria a
+  // porta para eles. Qualquer pessoa logada, ainda que a direcao tivesse
+  // marcado um unico modulo de consulta, listava, GRAVAVA, APAGAVA e baixava
+  // as certidoes da empresa, o contrato social, as apolices com a importancia
+  // segurada e a ficha dos carros e maquinas. A tela de conceder acesso
+  // prometia o contrario, com todas as letras: "o que nao estiver marcado nao
+  // aparece no menu nem responde se a pessoa digitar o endereco".
+  //
+  // Agora TODO tipo tem dono, e tipo SEM dono RECUSA (ver `podeTipo`). Tipo
+  // novo nasce fechado: esquecer de cadastrar aqui tranca a tela, e tranca
+  // aparece no mesmo dia -- ao contrario de abrir, que ninguem vai procurar.
+  const MODULOS_DO_TIPO: Record<string, string[]> = {
+    documento: ["documentos"],
+    seguro: ["documentos"],
+    // Veiculo e maquina tem DUAS telas: "Documentos e ativos" (a validade do
+    // IPVA, do licenciamento, da revisao) e "Manutencoes", que cadastra o
+    // mesmo carro para lancar gasto e historico. Exigir so `documentos`
+    // trancaria quem cuida da manutencao fora do cadastro dela.
+    veiculo: ["documentos", "manutencoes"],
+    maquina: ["documentos", "manutencoes"],
+    marketing: ["marketing"],
+    licitacao: ["licitacoes"],
+    predial: ["manutencoes"],
   };
   const perms: string[] = Array.isArray(sessao.perms) ? sessao.perms : [];
   const podeTipo = (tipo: string) => {
-    const mod = MODULO_DO_TIPO[tipo];
-    if (!mod) return true;
-    return sessao.master === true || perms.includes("*") || perms.includes(mod);
+    if (sessao.master === true || perms.includes("*")) return true;
+    const mods = Object.hasOwn(MODULOS_DO_TIPO, tipo) ? MODULOS_DO_TIPO[tipo] : null;
+    if (!mods) return false;
+    return mods.some((m) => perms.includes(m));
   };
   // Le o tipo do item guardado -- as acoes por id (remover, arquivos) so
   // recebem o id, entao a permissao depende do que esta gravado.
