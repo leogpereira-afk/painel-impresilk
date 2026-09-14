@@ -960,3 +960,40 @@ export function mesesPorAno(porMes, { hoje } = {}) {
     };
   });
 }
+
+/* AS O.S. MARCADAS QUE ESTÃO FORA DO PERÍODO DA CAMPANHA.
+ *
+ * O período (`desde`/`ate`) sempre limitou o que a tela OFERECE para marcar,
+ * mas nunca o que já foi marcado: uma O.S. escolhida antes de o período existir
+ * — ou marcada em lote quando o corte era outro — ficava na campanha para
+ * sempre, contando no total, no ranking e no PDF. Na Fenics 2026 eram 18 O.S.
+ * de janeiro a julho dentro de um evento de 01/08 a 14/09, R$ 25.863,18 que não
+ * eram do evento.
+ *
+ * Esta função não tira nada: ela só DIZ quais são. Quem tira é o clique de
+ * quem olha — porque "fora do período" é indício, não sentença: uma O.S. de
+ * véspera, faturada no dia anterior, é do evento do mesmo jeito, e ajustar o
+ * período é tão legítimo quanto tirar a O.S.
+ *
+ * Sem `desde` nem `ate` não há período — e sem régua não se mede nada, então
+ * devolve vazio em vez de chutar.
+ */
+export function foraDoPeriodo(linhas, desde, ate) {
+  const de = String(desde || "").slice(0, 10);
+  const ateQ = String(ate || "").slice(0, 10);
+  if (!de && !ateQ) return [];
+  return (linhas || []).filter((l) => {
+    const d = String(l?.data || "").slice(0, 10);
+    /* Data ilegível não é "fora": é desconhecida. Tirar da campanha uma O.S.
+       por causa de um campo vazio seria apagar venda por falta de dado.
+
+       E O FORMATO NÃO BASTA. "2026-13-45" passa no 4-2-2 e, comparado como
+       TEXTO, é maior que qualquer fim de período — entrava na lista de tirar.
+       O teste pegou isso antes de subir. Por isso a data também tem de existir
+       de verdade: mês 13 e 31 de fevereiro não são datas. */
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(d)) return false;
+    const dt = new Date(d + "T12:00:00Z");
+    if (!Number.isFinite(+dt) || dt.toISOString().slice(0, 10) !== d) return false;
+    return (!!de && d < de) || (!!ateQ && d > ateQ);
+  });
+}

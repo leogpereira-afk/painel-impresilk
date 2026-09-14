@@ -7,7 +7,7 @@ import {
   resumoDaCampanha, resumoGeralCampanhas, compradoresDaCampanha, fichaDaOS,
   extratoDaCampanha, anosDasCampanhas, totaisDoAno, comparativoPorAno, edicoesDoMesmoEvento,
   anosRepetidos, eventosVinculados, membrosDoEvento, candidatasAVincular, comparativoDeEdicoes, maiorComprador, comprasPorMes, produtosDaCampanha, categoriasDosProdutos,
-  porProduto,
+  porProduto, foraDoPeriodo,
 } from "./campanhas.js";
 
 const os = (id, cliente, valor, extra = {}) => ({
@@ -956,4 +956,75 @@ test("mesesPorAno: mês vazio no meio é zero de verdade; futuro fica apagado", 
   const a26 = anos[1];
   assert.equal(a26.meses[8].fora, true, "set/2026 ainda não aconteceu — apagado, não zero");
   assert.equal(a26.meses[7].parcial, true, "agosto corrente está pela metade");
+});
+
+/* ---------------------------------------------------------------- período --
+ * O caso real: Fenics 2026, evento de 01/08 a 14/09, com 18 O.S. de janeiro a
+ * julho marcadas dentro dela. O período existia e não valia para nada depois
+ * que a O.S. já estava marcada.
+ */
+const linha = (id, data) => ({ id, numero: `2${id}`, cliente: "Cliente", data, valor: 100 });
+
+test("fora do período: pega o que veio antes e o que veio depois", () => {
+  const linhas = [
+    linha(1, "2026-01-07"),   // antes
+    linha(2, "2026-07-08"),   // antes
+    linha(3, "2026-08-10"),   // dentro
+    linha(4, "2026-09-11"),   // dentro
+    linha(5, "2026-09-20"),   // depois
+  ];
+  const fora = foraDoPeriodo(linhas, "2026-08-01", "2026-09-14");
+  assert.deepEqual(fora.map((l) => l.id), [1, 2, 5]);
+});
+
+test("as bordas do período estão DENTRO: o primeiro e o último dia contam", () => {
+  const linhas = [linha(1, "2026-08-01"), linha(2, "2026-09-14")];
+  assert.deepEqual(foraDoPeriodo(linhas, "2026-08-01", "2026-09-14"), []);
+});
+
+test("sem régua não se mede: sem desde nem ate, nada está fora", () => {
+  const linhas = [linha(1, "2020-01-01"), linha(2, "2099-12-31")];
+  assert.deepEqual(foraDoPeriodo(linhas, "", ""), []);
+  assert.deepEqual(foraDoPeriodo(linhas, null, undefined), []);
+});
+
+test("só o começo, ou só o fim, já é régua", () => {
+  const linhas = [linha(1, "2026-01-07"), linha(2, "2026-08-10")];
+  assert.deepEqual(foraDoPeriodo(linhas, "2026-08-01", "").map((l) => l.id), [1]);
+  assert.deepEqual(foraDoPeriodo(linhas, "", "2026-02-01").map((l) => l.id), [2]);
+});
+
+/* O caso que mais importa: data ilegível NÃO pode virar "fora". Se virasse, um
+   campo vazio tiraria a venda da campanha e o total cairia sem motivo. */
+test("data ausente ou quebrada não é fora do período — é desconhecida", () => {
+  const linhas = [
+    { id: 1, data: "", valor: 100 },
+    { id: 2, data: null, valor: 100 },
+    { id: 3, valor: 100 },
+    { id: 4, data: "07/01/2026", valor: 100 },
+    { id: 5, data: "2026-13-45", valor: 100 },
+  ];
+  assert.deepEqual(foraDoPeriodo(linhas, "2026-08-01", "2026-09-14"), []);
+});
+
+/* O formato não basta: "2026-13-45" casa com o 4-2-2 e, como TEXTO, é maior
+   que qualquer fim de período — ia parar na lista de "tirar da campanha". */
+test("data com formato certo e valor impossível também não é fora", () => {
+  const impossiveis = [
+    { id: 1, data: "2026-13-45", valor: 100 },
+    { id: 2, data: "2026-02-31", valor: 100 },
+    { id: 3, data: "2026-08-00", valor: 100 },
+    { id: 4, data: "2026-00-10", valor: 100 },
+  ];
+  assert.deepEqual(foraDoPeriodo(impossiveis, "2026-08-01", "2026-09-14"), []);
+});
+
+test("carimbo com hora junto ainda é comparável pelo dia", () => {
+  const linhas = [linha(1, "2026-01-07T18:30:00Z"), linha(2, "2026-08-10T00:00:00Z")];
+  assert.deepEqual(foraDoPeriodo(linhas, "2026-08-01", "2026-09-14").map((l) => l.id), [1]);
+});
+
+test("lista vazia ou ausente não quebra", () => {
+  assert.deepEqual(foraDoPeriodo([], "2026-08-01", "2026-09-14"), []);
+  assert.deepEqual(foraDoPeriodo(null, "2026-08-01", "2026-09-14"), []);
 });
