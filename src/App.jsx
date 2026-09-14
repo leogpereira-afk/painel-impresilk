@@ -34,6 +34,8 @@ const Manutencoes = lazy(() => import("./pages/Manutencoes.jsx"));
 const Permutas = lazy(() => import("./pages/Permutas.jsx"));
 const Campanhas = lazy(() => import("./pages/Campanhas.jsx"));
 const Patrimonio = lazy(() => import("./pages/Patrimonio.jsx"));
+const Agenda = lazy(() => import("./pages/Agenda.jsx"));
+const CalendarioEmpresa = lazy(() => import("./pages/CalendarioEmpresa.jsx"));
 
 /* PREFETCH EM OCIOSIDADE: depois que a tela atual assentou, os chunks das
    OUTRAS rotas descem em segundo plano -- e o clique seguinte abre do disco,
@@ -53,6 +55,8 @@ const ROTAS_PREFETCH = [
   { m: "contas-atrasadas", imp: () => import("./pages/ContasAtrasadas.jsx") },
   { m: "orcamentos", imp: () => import("./pages/Orcamentos.jsx") },
   { m: "compromissos", imp: () => import("./pages/Compromissos.jsx") },
+  { m: "agenda", imp: () => import("./pages/Agenda.jsx") },
+  { m: "calendario-empresa", imp: () => import("./pages/CalendarioEmpresa.jsx") },
   { m: "permutas", imp: () => import("./pages/Permutas.jsx") },
   { m: "campanhas", imp: () => import("./pages/Campanhas.jsx") },
   { m: "manutencoes", imp: () => import("./pages/Manutencoes.jsx") },
@@ -179,6 +183,26 @@ export default function App() {
           element={
             <Restrito modulo="compromissos" sessao={sessao}>
               <Compromissos />
+            </Restrito>
+          }
+        />
+        {/* As duas telas de agenda sao SO PARA VER. Nao ha rota de edicao
+            porque nao ha edicao: a function painel-agenda nao tem acao de
+            escrita. Quem programa continua no PCP; quem lanca evento da
+            empresa, no RH. */}
+        <Route
+          path="/agenda"
+          element={
+            <Restrito modulo="agenda" sessao={sessao}>
+              <Agenda />
+            </Restrito>
+          }
+        />
+        <Route
+          path="/calendario-empresa"
+          element={
+            <Restrito modulo="calendario-empresa" sessao={sessao}>
+              <CalendarioEmpresa />
             </Restrito>
           }
         />

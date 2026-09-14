@@ -46,7 +46,12 @@ const sb = createClient(SUPABASE_URL, SERVICE_KEY, { auth: { persistSession: fal
 // fluxo-caixa e produtos sairam: as telas nao existem mais no painel (menu e
 // rotas removidos). Conta antiga pode ter o id guardado; ele simplesmente nao
 // abre nada, e some na proxima gravacao.
-const MODULOS = ["gestao", "contas-atrasadas", "orcamentos", "bancos", "marketing", "licitacoes", "glossario", "compromissos", "manutencoes", "patrimonio", "permutas", "campanhas",
+const MODULOS = ["gestao", "contas-atrasadas", "orcamentos", "bancos", "marketing", "licitacoes", "glossario", "compromissos",
+  // As duas telas de agenda so para ver (14/09/2026): "agenda" e o calendario
+  // e a programacao da producao; "calendario-empresa" sao os eventos da casa.
+  // A porta das duas e a function painel-agenda, que nao tem acao de escrita.
+  "agenda", "calendario-empresa",
+  "manutencoes", "patrimonio", "permutas", "campanhas",
   // 14/09/2026 -- "Documentos e ativos" vira modulo de verdade. Ate aqui a
   // tela nao tinha modulo nenhum: rota sem `Restrito`, item no menu fora do
   // filtro, e a porta de dados abria documento/veiculo/maquina/seguro para

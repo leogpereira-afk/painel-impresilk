@@ -8,7 +8,7 @@ import logo from '../assets/brand/logo-color.png';
 import logoWhite from '../assets/brand/logo-white.png';
 import './central-shell.css';
 
-const EMOJIS_MODULOS = {compromissos:'📅','contas-atrasadas':'💰',orcamentos:'📋',bancos:'🏦',marketing:'📣',licitacoes:'⚖️',glossario:'📖',manutencoes:'🛠️',patrimonio:'🏠',permutas:'🤝',campanhas:'🎯',documentos:'📁'};
+const EMOJIS_MODULOS = {compromissos:'📅',agenda:'🗓️','calendario-empresa':'🎉','contas-atrasadas':'💰',orcamentos:'📋',bancos:'🏦',marketing:'📣',licitacoes:'⚖️',glossario:'📖',manutencoes:'🛠️',patrimonio:'🏠',permutas:'🤝',campanhas:'🎯',documentos:'📁'};
 const EMOJIS_SISTEMAS = {rh:'👥',pcp:'🏭',brief:'📏',dre:'📊',compras:'🛒',pops:'📚',domo:'🏗️',bosques:'🌳',central:'👤',diamond:'💎',minaslab:'🔬'};
 
 export default function CentralShell({children,sessao,aoSair,controles}) {

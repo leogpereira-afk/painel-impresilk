@@ -27,6 +27,29 @@ export async function respostaPreview(url,opcoes={}){
  ]};
  else if(endpoint==='painel-auth' && corpo.action==='listarPessoas')dados={pessoas:[{usuario:'demo',nome:'Conta de demonstração'},{usuario:'ana-exemplo',nome:'Ana Exemplo'}]};
  else if(endpoint==='painel-dados' && (!opcoes.method || opcoes.method==='GET')) dados={itens:[],meses:[],anos:[],linhas:[],cobertura:{desde:null,ate:null}};
+ /* A AGENDA SÓ LÊ, então na prévia ela precisa RESPONDER, não cair no 409 de
+    escrita lá embaixo — uma tela de consulta abrindo com "esta ação não grava
+    alterações" é uma mensagem que não faz sentido nenhum para quem revisa.
+    O mês pedido entra nas datas para a grade não nascer vazia. */
+ else if(endpoint==='painel-agenda'){
+   const mes=/^\d{4}-(0[1-9]|1[0-2])$/.test(corpo.mes||'') ? corpo.mes : '2026-09';
+   const d=n=>`${mes}-${String(n).padStart(2,'0')}`;
+   if(corpo.action==='producao') dados={hoje:d(14),consultadoEm:new Date().toISOString(),
+     os:[
+      {id:'os-demo-1',numero:'23096',cliente:'Cliente de demonstração',servico:'Placa de obra',endereco:'Rua de exemplo, 100',data:d(14),rotuloHora:'07:30',ordemHora:'07:30',duracaoDias:1,equipe:['Ana Exemplo','Bruno Exemplo'],veiculo:'Utilitário de exemplo',dias:[d(14)],status:'confirmada',rotuloStatus:'Confirmada',interno:false,finalizada:false},
+      {id:'os-demo-2',numero:'23131',cliente:'Outro cliente de exemplo',servico:'Fachada em ACM',endereco:'Avenida de exemplo, 2000',data:d(16),rotuloHora:'Manhã',ordemHora:'08:00',duracaoDias:2,equipe:['Ana Exemplo'],veiculo:'',dias:[d(16),d(17)],status:'agendada',rotuloStatus:'Agendada',interno:false,finalizada:false},
+      {id:'os-demo-3',numero:'23182',cliente:'Retirada de demonstração',servico:'Adesivos',endereco:'',data:d(18),rotuloHora:'—',ordemHora:'23:59',duracaoDias:1,equipe:[],veiculo:'',dias:[d(18)],status:'apto',rotuloStatus:'Pronto p/ retirada',interno:true,finalizada:false},
+     ],
+     eventos:[{id:'ev-demo',titulo:'Manutenção da impressora (exemplo)',data:d(16)}],
+     plantoes:[{id:'pl-demo',data:d(14),tipo:'diarista',quem:'Bruno Exemplo',titulo:'Plantão de exemplo',inicio:'08:00',fim:'17:00'}]};
+   else if(corpo.action==='empresa') dados={hoje:d(14),consultadoEm:new Date().toISOString(),
+     eventos:[
+      {id:'ev-1',titulo:'Feriado de demonstração',data:d(7),tipo:'Feriado',cor:'#dc2626',hora:'',descricao:'',recorrenteAnual:true},
+      {id:'ev-2',titulo:'Reunião geral (exemplo)',data:d(14),tipo:'Reunião',cor:'#16334f',hora:'09:00',descricao:'Exemplo para conferir o desenho.',recorrenteAnual:false},
+      {id:'ev-3',titulo:'Aniversário da empresa (exemplo)',data:d(22),tipo:'Empresa',cor:'#16a34a',hora:'',descricao:'',recorrenteAnual:true},
+     ]};
+   else return new Response(JSON.stringify({erro:'Prévia local: ação desconhecida.'}),{status:400,headers:{'Content-Type':'application/json'}});
+ }
  else return new Response(JSON.stringify({erro:'Prévia local: esta ação não grava alterações nos sistemas.'}),{status:409,headers:{'Content-Type':'application/json'}});
  return new Response(JSON.stringify({ok:true,...dados}),{status:200,headers:{'Content-Type':'application/json'}});
 }
