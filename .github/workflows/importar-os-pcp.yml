@@ -41,8 +41,12 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      # v5: a v4 tem como alvo o Node 20, que o GitHub aposentou -- ela ainda
+      # roda, forcada no Node 24, mas com aviso em toda execucao. Os outros
+      # workflows deste repo seguem na v4; subir os oito de uma vez nao cabe
+      # numa correcao de importacao.
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
           node-version: "22"
 
