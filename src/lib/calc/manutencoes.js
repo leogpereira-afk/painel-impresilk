@@ -119,6 +119,12 @@ export const ESPEC_CAMPOS = {
     { id: "combustivel", rotulo: "Combustível", opcoes: ["Flex", "Gasolina", "Etanol", "Diesel", "Elétrico", "GNV"] },
     { id: "renavam", rotulo: "Renavam", ph: "só números" },
     { id: "chassi", rotulo: "Chassi", ph: "17 caracteres", maiusculo: true },
+    // Lotação: é o que o PCP usa para montar a programação do dia ("02 lugares;
+    // possui grade; motorista: ...") e para avisar quando a equipe não cabe no
+    // carro. Uma base só: o PCP lê daqui, não tem lista própria de carros.
+    { id: "lugares", rotulo: "Lugares (com o motorista)", ph: "2", curto: true },
+    { id: "possuiGrade", rotulo: "Possui grade?", opcoes: ["Sim", "Não"] },
+    { id: "motorista", rotulo: "Motorista padrão", ph: "nome como está no RH" },
   ],
   maquina: [
     { id: "fabricante", rotulo: "Fabricante", ph: "Ampla, MyPrint, Bodor..." },

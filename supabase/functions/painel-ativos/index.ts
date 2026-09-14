@@ -50,7 +50,7 @@ const TIPOS = new Set(["documento", "veiculo", "maquina", "marketing", "licitaca
 //
 // Espelhado em src/lib/calc/manutencoes.js (ESPEC_CAMPOS). Mexeu la, mexe aqui.
 const ESPEC_PERMITIDA: Record<string, string[]> = {
-  veiculo: ["placa", "marcaModelo", "ano", "cor", "combustivel", "renavam", "chassi"],
+  veiculo: ["placa", "marcaModelo", "ano", "cor", "combustivel", "renavam", "chassi", "lugares", "possuiGrade", "motorista"],
   maquina: ["fabricante", "modelo", "numeroSerie", "ano", "setor", "potencia"],
   predial: ["local", "marcaModelo", "quantidade", "instalacao"],
 };
