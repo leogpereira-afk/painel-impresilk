@@ -5,8 +5,14 @@ const url='https://heveemylixartyijxewh.supabase.co/functions/v1/painel-cache';
 let falhas=0;
 for(const [chave,carregar] of [['crm_clientes',carregarClientes],['crm_funil',carregarFunil]]){
  if(chave==='crm_clientes'&&process.env.CRM_SOMENTE_FUNIL==='true')continue;
+ /* QUAL DAS DUAS PONTAS? O `try` cobre as duas: ler o ERP e gravar o cache. Sem
+    dizer qual delas caiu, "ECONNREFUSED" nao distingue "o Mubisys recusou" de
+    "nao consegui falar com o Supabase" -- e sao donos, causas e consertos
+    diferentes. O carimbo anda junto com o codigo. */
+ let etapa = 'lendo o Mubisys';
  try{
   const valor=await carregar(mubiGetTudo);
+  etapa = 'gravando no painel-cache';
   const resp=await fetch(url,{method:'POST',headers:{'content-type':'application/json','x-token':process.env.PAINEL_TOKEN},body:JSON.stringify({chave,valor}),signal:AbortSignal.timeout(120000)});
   const b=await resp.json();if(!resp.ok||b.pulou)throw new Error('Gravação não confirmada');
   console.log(`${chave}: cópia atualizada com sucesso`);
@@ -25,7 +31,7 @@ for(const [chave,carregar] of [['crm_clientes',carregarClientes],['crm_funil',ca
      (ECONNREFUSED, ENOTFOUND, UND_ERR_CONNECT_TIMEOUT): é constante, não carrega
      host nem caminho, e é o que separa "o ERP recusou" de "o guarda barrou". */
   const codigo = e?.cause?.code ? ` (${e.cause.code})` : '';
-  console.error(`${chave}: não foi possível concluir; cópia anterior preservada — causa: ${e?.message ?? e}${codigo}`);
+  console.error(`${chave}: não foi possível concluir ${etapa}; cópia anterior preservada — causa: ${e?.message ?? e}${codigo}`);
  }
 }
 if(falhas)process.exitCode=1;
