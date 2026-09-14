@@ -62,7 +62,25 @@ async function entregarAoPcp(os) {
     body: JSON.stringify({ action: "importarLote", os, vazioEsperado: os.length === 0 }),
   });
   const corpo = await r.json().catch(() => null);
-  if (!r.ok) throw new Error(`o PCP recusou o lote (HTTP ${r.status}): ${corpo?.error ?? ""}`);
+  if (!r.ok) {
+    /* 401 AQUI E SEMPRE O MESMO TOKEN, e a mensagem sozinha nao diz qual dos
+       tres casos e: secret ausente, secret com valor errado, ou secret colado
+       com espaco/quebra de linha no fim. Os tres dao "Entre no sistema." e
+       mandam a gente adivinhar.
+
+       Entao o formato vai junto -- NUNCA o valor. O repositorio e publico e o
+       log do Actions tambem: sai o TAMANHO e se ha espaco nas pontas, que e o
+       que separa os tres casos numa rodada so. Comparar com o tamanho do
+       PCP_CRON_TOKEN que esta em Supabase -> Edge Functions -> Secrets resolve
+       sem ninguem precisar mostrar o segredo para ninguem. */
+    if (r.status === 401) {
+      const cru = process.env.PCP_CRON_TOKEN || "";
+      const bordas = cru !== cru.trim() ? " (ATENCAO: tem espaco ou quebra de linha nas pontas)" : "";
+      console.error(`o x-token enviado tem ${cru.length} caracteres${bordas}.`);
+      console.error("Ele precisa ser IGUAL ao PCP_CRON_TOKEN de Supabase -> Project Settings -> Edge Functions -> Secrets.");
+    }
+    throw new Error(`o PCP recusou o lote (HTTP ${r.status}): ${corpo?.error ?? ""}`);
+  }
   return corpo;
 }
 
