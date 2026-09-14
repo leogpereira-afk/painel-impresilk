@@ -117,11 +117,31 @@ async function mubiGetSemFila(caminho, query) {
         continue;
       }
       if (!resp.ok) {
-        // httpStatus marcado para o fallback saber distinguir "o servidor
-        // respondeu errado" de "a rede caiu".
-        throw Object.assign(new Error(`Mubi ${caminho} respondeu ${resp.status}`), {
+        /* 429 E O ERP PEDINDO PARA IR MAIS DEVAGAR, e recuo curto nao atende o
+           pedido -- insiste. Em 14/09/2026, quando o Mubisys voltou de uma
+           queda, a carga do CRM passou nos clientes e morreu no funil com
+           `funil-vendas-card respondeu 429` nas quatro tentativas: elas somavam
+           15s de espera (2,5 + 5 + 7,5), e o limitador precisa de mais.
+
+           O funil e o pedido mais pesado da casa -- uma chamada por FASE de
+           cada grupo, em serie -- entao e ele quem bate no teto primeiro.
+
+           Duas coisas mudam para o 429, e so para ele: o `Retry-After`, quando
+           o servidor manda um, e obedecido; sem ele, o recuo vai a 15s/30s/45s (seis vezes o normal).
+           O teto por pagina (CAP_POR_PAGINA_MS) continua valendo por cima, e e
+           ele que impede a espera de virar eternidade. */
+        const erro = Object.assign(new Error(`Mubi ${caminho} respondeu ${resp.status}`), {
           httpStatus: resp.status,
         });
+        if (resp.status === 429) {
+          const pedido = Number(resp.headers.get("retry-after"));
+          // `retry-after` tambem existe em formato de data; so o numerico e
+          // usado, e limitado a 2 min para nao segurar a carga inteira.
+          erro.esperaSugerida = Number.isFinite(pedido) && pedido > 0
+            ? Math.min(pedido * 1000, 120000)
+            : null;
+        }
+        throw erro;
       }
       return await resp.json();
     } catch (e) {
@@ -134,7 +154,14 @@ async function mubiGetSemFila(caminho, query) {
       // do servidor dizendo que deu errado -- nunca deve virar "nao ha nada".
       ultimoFoiRede = foiTimeout || !e.httpStatus;
       if (Date.now() - inicioChamada > CAP_POR_PAGINA_MS) break; // nao insiste alem do cap por pagina
-      if (tentativa < 4) await new Promise((r) => setTimeout(r, ESPERA_MS * tentativa));
+      if (tentativa < 4) {
+        // Recuo normal para tudo; recuo LONGO para o 429, que e um pedido
+        // explicito de calma e nao um solucao passageiro.
+        const espera = e.httpStatus === 429
+          ? (e.esperaSugerida ?? ESPERA_MS * 6 * tentativa)
+          : ESPERA_MS * tentativa;
+        await new Promise((r) => setTimeout(r, espera));
+      }
     }
   }
   // Vazio so no caso que o comentario promete: dois 404 concordando, e o ultimo
