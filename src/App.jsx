@@ -25,6 +25,7 @@ const Configuracoes = lazy(() => import("./pages/Configuracoes.jsx"));
 const Acessos = lazy(() => import("./pages/Acessos.jsx"));
 const Backups = lazy(() => import("./pages/Backups.jsx"));
 const Ativos = lazy(() => import("./pages/Ativos.jsx"));
+const Planilhas = lazy(() => import("./pages/Planilhas.jsx"));
 const Bancos = lazy(() => import("./pages/Bancos.jsx"));
 const Marketing = lazy(() => import("./pages/Marketing.jsx"));
 const Licitacoes = lazy(() => import("./pages/Licitacoes.jsx"));
@@ -63,6 +64,7 @@ const ROTAS_PREFETCH = [
   { m: "bancos", imp: () => import("./pages/Bancos.jsx") },
   { m: "patrimonio", imp: () => import("./pages/Patrimonio.jsx") },
   { m: "documentos", imp: () => import("./pages/Ativos.jsx") },
+  { m: "planilhas", imp: () => import("./pages/Planilhas.jsx") },
   { m: "licitacoes", imp: () => import("./pages/Licitacoes.jsx") },
   { m: "marketing", imp: () => import("./pages/Marketing.jsx") },
   { m: null, imp: () => import("./pages/Glossario.jsx") },
@@ -261,6 +263,20 @@ export default function App() {
           element={
             <Restrito modulo="documentos" sessao={sessao}>
               <Ativos />
+            </Restrito>
+          }
+        />
+        {/* O ITEM DE MENU NASCE DA LISTA DE MODULOS (CentralShell monta o menu
+            com MODULOS.filter(podeAbrir)), entao acrescentar `planilhas` em
+            src/lib/modulos.js ja o poe na lateral. Sem esta rota o clique caia
+            no `path="*"` logo abaixo e voltava para o Inicio -- botao que leva
+            ao lugar errado, sem erro nenhum. Modulo novo entra na lista E na
+            rota, no mesmo commit. */}
+        <Route
+          path="/planilhas"
+          element={
+            <Restrito modulo="planilhas" sessao={sessao}>
+              <Planilhas sessao={sessao} />
             </Restrito>
           }
         />
