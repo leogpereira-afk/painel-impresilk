@@ -4,14 +4,14 @@ import {readFile} from 'node:fs/promises';
 import {build} from 'esbuild';
 import {fileURLToPath} from 'node:url';
 
-async function funcao(nome,{revogada=false,erroBanco=false,linhas=[]}={}) {
+async function funcao(nome,{revogada=false,erroBanco=false,linhas=[],unico=null}={}) {
  let handler;const operacoes=[];
- const banco={storage:{from:()=>({})},rpc:async (nome,args)=>{operacoes.push({nome,args});return erroBanco?{data:null,error:{message:'falha de gravação simulada'}}:{data:{gravou:2,contas:0,verificado:true},error:null};},from:tabela=>{let q; q=new Proxy({}, {get(_,key){if(key==='then')return(resolve,reject)=>Promise.resolve(erroBanco?{data:null,error:{message:'falha de gravação simulada'}}:{data:globalThis.__testeLinhas??[],error:null}).then(resolve,reject);if(key==='maybeSingle')return async()=>({data:null,error:null});return()=>q;}});operacoes.push({tabela});return q;}};
- globalThis.__testeBanco=banco;globalThis.__testeRevogada=revogada;globalThis.__testeLinhas=linhas;
+ const banco={storage:{from:()=>({})},rpc:async (nome,args)=>{operacoes.push({nome,args});return erroBanco?{data:null,error:{message:'falha de gravação simulada'}}:{data:{gravou:2,contas:0,verificado:true},error:null};},from:tabela=>{let q; q=new Proxy({}, {get(_,key){if(key==='then')return(resolve,reject)=>Promise.resolve(erroBanco?{data:null,error:{message:'falha de gravação simulada'}}:{data:globalThis.__testeLinhas??[],error:null}).then(resolve,reject);if(key==='maybeSingle')return async()=>({data:globalThis.__testeUnico??null,error:null});return()=>q;}});operacoes.push({tabela});return q;}};
+ globalThis.__testeBanco=banco;globalThis.__testeRevogada=revogada;globalThis.__testeLinhas=linhas;globalThis.__testeUnico=unico;
  globalThis.Deno={env:{get:()=> 'teste',toObject:()=>({})},serve:fn=>handler=fn};
  let s=await readFile(new URL(`../supabase/functions/${nome}/index.ts`,import.meta.url),'utf8');
  s=s.replace(/import \{ createClient \} from [^;]+;/,'const createClient=()=>globalThis.__testeBanco;')
- .replace(/import \{ verificarJwt, crachaRevogado \} from [^;]+;/,`const verificarJwt=async token=>token==='direcao'?{master:true,sub:'direcao'}:token==='glossario'?{sub:'pessoa',perms:['glossario']}:token==='vendas'?{sub:'vendas',perms:['orcamentos']}:token==='cobranca'?{sub:'cobranca',perms:['contas-atrasadas']}:token==='documentos'?{sub:'documentos',perms:['documentos']}:token==='manutencao'?{sub:'manutencao',perms:['manutencoes']}:null;const crachaRevogado=async()=>globalThis.__testeRevogada;`);
+ .replace(/import \{ verificarJwt, crachaRevogado \} from [^;]+;/,`const verificarJwt=async token=>token==='direcao'?{master:true,sub:'direcao'}:token==='glossario'?{sub:'pessoa',perms:['glossario']}:token==='vendas'?{sub:'vendas',perms:['orcamentos']}:token==='cobranca'?{sub:'cobranca',perms:['contas-atrasadas']}:token==='documentos'?{sub:'documentos',perms:['documentos']}:token==='manutencao'?{sub:'manutencao',perms:['manutencoes']}:token==='planilheiro'?{sub:'planilheiro',perms:['planilhas']}:token==='curinga'?{sub:'curinga',perms:['*']}:null;const crachaRevogado=async()=>globalThis.__testeRevogada;`);
  s='const console={...globalThis.console,error:()=>{}};\n'+s;
  const bundle=await build({stdin:{contents:s,loader:'ts',resolveDir:fileURLToPath(new URL('../supabase/functions/'+nome+'/',import.meta.url))},bundle:true,format:'esm',platform:'neutral',write:false});const code=bundle.outputFiles[0].text;await import('data:text/javascript;base64,'+Buffer.from(code+'\n//'+Math.random()).toString('base64'));
  return {operacoes,chamar:async (token,body)=>{const r=await handler(new Request('https://teste.invalid',{method:'POST',headers:{authorization:`Bearer ${token}`},body:JSON.stringify(body)}));return {status:r.status,body:await r.json()};}};
@@ -164,4 +164,88 @@ test('a leitura afrouxada não contaminou as outras chaves', async () => {
  // trocar `LEITORES_EXTRA[chave]` por uma lista global, estas três caem.
  for (const chave of ['ov_orc', 'ov_rec', 'bancos'])
   assert.equal((await f.chamar('manutencao', { action: 'get', chave })).status, 403, `get ${chave}`);
+});
+
+/* PLANILHAS: O MÓDULO ABRE A TELA, O SETOR ABRE A PLANILHA.
+ *
+ * O registro de uma planilha guarda o id do documento no Google — e quem tem o
+ * id, abre. Então a poda não pode ser "esconder o link": a linha inteira não
+ * pode existir para quem não tem aquele setor. O nome já conta o que a casa tem.
+ *
+ * O caso ruim vem primeiro em cada teste. São quatro coisas que só podem
+ * falhar trancando, nunca abrindo, e a última é a que não depende de vigilância:
+ * a tabela de CONCESSÃO fica fora de OVERLAYS, então os três verbos genéricos a
+ * recusam por construção — não existe caminho para alguém se auto-conceder.
+ */
+const PLANILHAS = [
+  { id: 'p1', registro: { nome: 'Caixinha', setor: 'set-fin', docId: 'AAA' } },
+  { id: 'p2', registro: { nome: 'Projetos', setor: 'set-prj', docId: 'BBB' } },
+];
+
+test('sem o módulo Planilhas, a lista nem responde', async () => {
+ const f = await funcao('painel-config', { linhas: PLANILHAS });
+ assert.equal((await f.chamar('glossario', { action: 'get', chave: 'planilhas' })).status, 403);
+});
+
+test('com o módulo e NENHUM setor, a lista vem vazia — não vem inteira', async () => {
+ const f = await funcao('painel-config', { linhas: PLANILHAS });   // unico:null = sem concessão
+ const r = await f.chamar('planilheiro', { action: 'get', chave: 'planilhas' });
+ assert.equal(r.status, 200);
+ assert.deepEqual(r.body.valor, {}, 'módulo sem setor não pode ver planilha nenhuma');
+ // A asserção que importa é sobre os BYTES: nenhum id do Google pode ter saído.
+ const bytes = JSON.stringify(r.body);
+ for (const doc of ['AAA', 'BBB']) assert.ok(!bytes.includes(doc), `vazou o id ${doc}`);
+});
+
+test('com um setor liberado, vem SÓ a planilha daquele setor', async () => {
+ const f = await funcao('painel-config', {
+   linhas: PLANILHAS,
+   unico: { registro: { setores: ['set-fin'] } },
+ });
+ const r = await f.chamar('planilheiro', { action: 'get', chave: 'planilhas' });
+ assert.equal(r.status, 200);
+ assert.deepEqual(Object.keys(r.body.valor), ['p1']);
+ const bytes = JSON.stringify(r.body);
+ assert.ok(bytes.includes('AAA'), 'a planilha do setor liberado tem de vir inteira');
+ assert.ok(!bytes.includes('BBB'), 'a planilha de OUTRO setor não pode aparecer');
+});
+
+test('"Acesso total" não pula a régua de setor — só o master vê tudo', async () => {
+ const f = await funcao('painel-config', { linhas: PLANILHAS });
+ // Decisão do dono (15/09/2026): o setor vale para todo mundo. `ehDirecao` deste
+ // arquivo aceita perms:["*"], e a tela de Acessos NÃO chama essa pessoa de
+ // direção — se a poda usasse ehDirecao, marcar "Acesso total" abriria tudo.
+ const curinga = await f.chamar('curinga', { action: 'get', chave: 'planilhas' });
+ assert.equal(curinga.status, 200);
+ assert.deepEqual(curinga.body.valor, {}, 'curinga sem setor não vê planilha');
+ const master = await f.chamar('direcao', { action: 'get', chave: 'planilhas' });
+ assert.deepEqual(Object.keys(master.body.valor).sort(), ['p1', 'p2']);
+});
+
+test('cadastrar, editar e remover planilha é da direção', async () => {
+ const f = await funcao('painel-config', { linhas: PLANILHAS });
+ for (const cracha of ['planilheiro', 'curinga']) {
+  for (const [action, corpo] of [
+    ['merge', { patch: { nova: { nome: 'Minha', setor: 'set-fin', docId: 'CCC' } } }],
+    ['removerId', { id: 'p1' }],
+  ]) {
+   const r = await f.chamar(cracha, { action, chave: 'planilhas', ...corpo });
+   assert.equal(r.status, 403, `${cracha} ${action}`);
+  }
+ }
+});
+
+test('a tabela de concessão não tem porta genérica — ninguém se auto-concede', async () => {
+ const f = await funcao('painel-config', { linhas: [] });
+ // Fora de OVERLAYS: os três verbos a recusam por CONSTRUÇÃO, não por vigilância.
+ for (const cracha of ['planilheiro', 'curinga', 'direcao']) {
+  assert.equal((await f.chamar(cracha, { action: 'get', chave: 'planilhas_acesso' })).status, 400);
+  assert.equal((await f.chamar(cracha, { action: 'merge', chave: 'planilhas_acesso', patch: {} })).status, 403);
+  assert.equal((await f.chamar(cracha, { action: 'removerId', chave: 'planilhas_acesso', id: 'x' })).status, 403);
+ }
+ // E a porta de verdade é master-only.
+ for (const acao of ['setoresDaPessoa', 'salvarSetoresDaPessoa'])
+  for (const cracha of ['planilheiro', 'curinga'])
+   assert.equal((await f.chamar(cracha, { action: acao, usuario: 'alguem', setores: ['set-fin'] })).status, 403,
+     `${cracha} ${acao}`);
 });

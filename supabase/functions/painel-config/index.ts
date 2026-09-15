@@ -37,7 +37,14 @@ const sb = createClient(SUPABASE_URL, SERVICE_KEY, { auth: { persistSession: fal
 // "assinaturas" sao as contas dos SISTEMAS (Supabase, GitHub, Claude...): dia
 // do vencimento, valor e o mes que ja foi pago. Mesmo mecanismo, um registro
 // por servico.
-const OVERLAYS = new Set(["ov_rec", "ov_orc", "marketing", "bancos", "glossario", "compromissos", "manutencoes", "patrimonio", "setores", "assinaturas", "permutas", "cobrancas", "campanhas", "grupos_clientes"]);
+const OVERLAYS = new Set(["ov_rec", "ov_orc", "marketing", "bancos", "glossario", "compromissos", "manutencoes", "patrimonio", "setores", "assinaturas", "permutas", "cobrancas", "campanhas", "grupos_clientes", "planilhas"]);
+/* A CONCESSAO DE SETOR FICA DE FORA DE `OVERLAYS`, e isso e a tranca, nao um
+   esquecimento. Chave fora dali morre sozinha nos tres verbos genericos:
+   `get` responde "chave invalida", `merge` e `removerId` respondem "chave nao
+   gravavel". Para abri-la seria preciso um acrescimo DELIBERADO nesta linha --
+   e ai o `conferir-papel.mjs` cobra o par em MODULO_DA_CHAVE. A unica porta e
+   a acao `setoresDaPessoa`/`salvarSetoresDaPessoa`, master-only, la embaixo. */
+const COLECAO_ACESSO_SETOR = "planilhas_acesso";
 // Chaves em que cada pessoa so enxerga e mexe no que E DELA. A vendedora nao
 // pode ver a agenda da colega, e a direcao ve tudo. Isso e checado no
 // SERVIDOR: filtrar so na tela seria conforto, nao separacao.
@@ -133,8 +140,36 @@ async function pessoaValida(
   return null;
 }
 
+/* COLECOES QUE NAO PODEM SAIR INTEIRAS.
+   `planilhas` e a primeira: cada linha pertence a um SETOR, e quem nao tem
+   aquele setor nao pode nem saber que a planilha existe -- o registro carrega o
+   id do documento no Google, que e a chave dela (quem tem o id, abre).
+
+   A poda mora AQUI, e nao em cada ramo, porque `lerOverlay` e o funil: sao SEIS
+   chamadores (get, os tres merges, evento e permutaAnexo, mais o lerArquivo que
+   passa null). Espalhar a poda por seis lugares e garantir que o setimo nasca
+   sem ela.
+
+   E por isso o `throw` abaixo em vez de um parametro opcional: parametro que
+   pode faltar LIBERA por omissao, e omissao e o que acontece. Nao adianta
+   confiar no compilador -- a CI do painel NAO type-checa Edge Function nenhuma
+   (`npm run lint` e `eslint src`, e o proprio pages.yml diz isso por escrito).
+   Entao a defesa e em tempo de execucao: quem chamar sem crivo recebe 500 na
+   primeira vez que o ramo rodar, alto e claro, em vez de devolver a lista
+   inteira para quem nao devia. */
+const PODADAS = new Set(["planilhas"]);
+
 // Mapa {id: campos} remontado das linhas — o formato que o cliente espera.
-async function lerOverlay(colecao: string, soDoDono?: string | null): Promise<Record<string, unknown>> {
+// `crivo` recebe o registro e devolve o que pode sair (ou null para esconder a
+// linha inteira). Obrigatorio para as colecoes de PODADAS.
+async function lerOverlay(
+  colecao: string,
+  soDoDono?: string | null,
+  crivo?: ((reg: unknown, id: string) => unknown | null) | null,
+): Promise<Record<string, unknown>> {
+  if (PODADAS.has(colecao) && typeof crivo !== "function") {
+    throw new Error(`lerOverlay("${colecao}") sem crivo: colecao podada por setor.`);
+  }
   const out: Record<string, unknown> = {};
   const PASSO = 1000;
   for (let de = 0; ; de += PASSO) {
@@ -145,6 +180,12 @@ async function lerOverlay(colecao: string, soDoDono?: string | null): Promise<Re
     for (const r of data ?? []) {
       // Registro sem dono (vindo de backup antigo) so aparece para a direcao.
       if (soDoDono != null && (r.registro as any)?.dono !== soDoDono) continue;
+      if (crivo) {
+        const podado = crivo(r.registro, r.id);
+        if (podado == null) continue;
+        out[r.id] = podado;
+        continue;
+      }
       out[r.id] = r.registro;
     }
     if ((data ?? []).length < PASSO) break;
@@ -184,6 +225,9 @@ Deno.serve(async (req: Request) => {
     setores: "patrimonio",
     permutas: "permutas",
     campanhas: "campanhas",
+    // Sem esta linha `barraChave` cai no `!m` e LIBERA por omissao: qualquer
+    // pessoa logada leria a lista inteira de planilhas, com os ids do Google.
+    planilhas: "planilhas",
     // Os grupos de compra (CNPJs do mesmo dono) sao vocabulario das analises
     // de venda, que moram na tela de Campanhas.
     grupos_clientes: "campanhas",
@@ -221,7 +265,20 @@ Deno.serve(async (req: Request) => {
      setor desmancha a etiqueta de todo bem que estava nele. Trocar um defeito
      por outro pior. Por isso o leitor extra e SO LEITOR. */
   const LEITORES_EXTRA: Record<string, string[]> = {
-    setores: ["manutencoes"],
+    // A tela de Planilhas escreve o NOME do setor ao lado de cada planilha, e
+    // a de conceder mostra "FIN — Financeiro" em vez de uma sigla crua. Ler,
+    // so; criar e apagar setor continua sendo do Patrimonio.
+    setores: ["manutencoes", "planilhas"],
+  };
+  /* CADASTRAR PLANILHA E DA DIRECAO -- e "direcao" aqui e `master`, nao o
+     `ehDirecao` largo deste arquivo (que tambem aceita `perms.includes("*")`).
+     Quem tem o modulo `planilhas` USA a lista; quem a monta e quem responde por
+     ela. O link de uma planilha e a chave dela: cadastrar uma planilha no setor
+     errado nao e um erro de digitacao, e uma concessao. */
+  const barraEscritaDePlanilha = (chave: string) => {
+    if (chave !== "planilhas") return null;
+    if (sessao?.master === true) return null;
+    return resposta({ erro: "Só a direção cadastra, edita e remove planilha." }, 403);
   };
   const barraChave = (chave: string, modo: "ler" | "gravar" = "gravar") => {
     // Sem sessao, quem responde e o 401 de cada ramo: o cliente usa esse 401
@@ -236,6 +293,47 @@ Deno.serve(async (req: Request) => {
        ninguem vem reclamar. */
     if (modo === "ler" && (LEITORES_EXTRA[chave] ?? []).some(temModulo)) return null;
     return resposta({ erro: "Voce nao tem acesso a este modulo." }, 403);
+  };
+
+  /* ------------------------------------------------------------- SETOR
+     A regua fina das Planilhas. Tres decisoes ficam aqui:
+
+     1. SO O MASTER ATRAVESSA. `ehDirecao` (logo abaixo) tambem aceita
+        `perms.includes("*")`, e a tela de Acessos NAO chama essa pessoa de
+        direcao -- `souDirecao` do cliente e `master === true`. Se a poda usasse
+        `ehDirecao`, marcar "Acesso total" para alguem entregaria todas as
+        planilhas de todos os setores, sem que a caixa clicada dissesse isso.
+        Decisao do dono em 15/09/2026: o setor vale para todo mundo.
+
+     2. A CONCESSAO GUARDA O ID DO SETOR, nunca a sigla. A tela de Patrimonio
+        preserva o id e deixa EDITAR a sigla (src/pages/Patrimonio.jsx:468):
+        guardar "FIN" faria um "FIN" virar "CTB" revogar todo mundo em silencio,
+        e a caixa reapareceria desmarcada como se ninguem tivesse concedido.
+
+     3. FALHA DE LEITURA TRANCA E GRITA. Um `catch` que devolvesse lista vazia
+        transformaria banco fora do ar em "voce nao tem setor nenhum" -- zero
+        apresentado como resultado. Aqui o erro sobe. */
+  const setoresDaPessoa = async (usuario: string): Promise<string[]> => {
+    const { data, error } = await sb.from("painel_registros").select("registro")
+      .eq("colecao", COLECAO_ACESSO_SETOR).eq("id", usuario).maybeSingle();
+    if (error) throw Object.assign(new Error(error.message), { code: error.code });
+    const lista = (data?.registro as any)?.setores;
+    return Array.isArray(lista) ? lista.map(String) : [];
+  };
+
+  /* O crivo de `planilhas`. Devolve o registro que pode sair, ou null para a
+     linha nem existir para quem esta perguntando -- e nao basta esconder o
+     `docId`: o nome da planilha ja conta o que a casa tem. */
+  const crivoDe = async (chave: string) => {
+    if (chave !== "planilhas") return null;
+    // O master ve tudo -- mas passa pelo crivo do mesmo jeito, para o
+    // `lerOverlay` nunca ser chamado sem ele nesta colecao.
+    if (sessao?.master === true) return (reg: unknown) => reg;
+    const meus = new Set(await setoresDaPessoa(String(sessao?.sub ?? "")));
+    return (reg: unknown) => {
+      const setor = String((reg as any)?.setor ?? "");
+      return setor && meus.has(setor) ? reg : null;
+    };
   };
 
   // Quem NAO e direcao so enxerga e mexe no que e dela nas chaves POR_DONO.
@@ -312,7 +410,7 @@ Deno.serve(async (req: Request) => {
           const barrado = barraChave(chave, "ler");
           if (barrado) return barrado;
           if (!sessao) return resposta({ erro: "Entre no sistema.", semSessao: true }, 401);
-          return resposta({ ok: true, chave, valor: await lerOverlay(chave, donoDaVez(chave)) });
+          return resposta({ ok: true, chave, valor: await lerOverlay(chave, donoDaVez(chave), await crivoDe(chave)) });
         }
         return resposta({ erro: "chave invalida" }, 400);
       }
@@ -387,7 +485,7 @@ Deno.serve(async (req: Request) => {
             });
             if (error) throw Object.assign(new Error(error.message), { code: error.code });
           }
-          return resposta({ ok: true, valor: await lerOverlay(chave, donoDaVez(chave)) });
+          return resposta({ ok: true, valor: await lerOverlay(chave, donoDaVez(chave), await crivoDe(chave)) });
         }
 
         /* PERMUTA E CAMPANHA: a mesma maquina (`troca_mexer`), porque e o
@@ -445,12 +543,14 @@ Deno.serve(async (req: Request) => {
               await sb.storage.from(BUCKET).remove(paraApagar).catch(() => {});
             }
           }
-          return resposta({ ok: true, valor: await lerOverlay(chave, donoDaVez(chave)) });
+          return resposta({ ok: true, valor: await lerOverlay(chave, donoDaVez(chave), await crivoDe(chave)) });
         }
 
         if (OVERLAYS.has(chave)) {
           const barrado = barraChave(chave);
           if (barrado) return barrado;
+          const barradoPlanilha = barraEscritaDePlanilha(chave);
+          if (barradoPlanilha) return barradoPlanilha;
           for (const [id, campos] of Object.entries(patch)) {
             const barradoDono = await barraDono(chave, id);
             if (barradoDono) return barradoDono;
@@ -586,7 +686,7 @@ Deno.serve(async (req: Request) => {
           // Devolve o mapa inteiro, como o original fazia (o cliente atualiza o
           // estado local com ele). Depois de encaminhar, o item some da lista de
           // quem passou -- e por isso que o cliente adota esta resposta.
-          return resposta({ ok: true, valor: await lerOverlay(chave, donoDaVez(chave)) });
+          return resposta({ ok: true, valor: await lerOverlay(chave, donoDaVez(chave), await crivoDe(chave)) });
         }
         return resposta({ erro: "chave nao gravavel" }, 403);
       }
@@ -650,7 +750,7 @@ Deno.serve(async (req: Request) => {
           p_colecao: chave, p_id: id, p_registro: registro, p_anterior: data.registro,
         });
         if (error) throw Object.assign(new Error(error.message), { code: error.code });
-        return resposta({ ok: true, valor: await lerOverlay(chave, donoDaVez(chave)) });
+        return resposta({ ok: true, valor: await lerOverlay(chave, donoDaVez(chave), await crivoDe(chave)) });
       }
 
       /* ANEXAR A NOTA DE UM LANCAMENTO DE CREDITO.
@@ -724,7 +824,7 @@ Deno.serve(async (req: Request) => {
           await sb.storage.from(BUCKET).remove([chaveArq]).catch(() => {});
           return resposta({ erro: "Essa permuta nao existe mais." }, 409);
         }
-        return resposta({ ok: true, valor: await lerOverlay(colecao, null) });
+        return resposta({ ok: true, valor: await lerOverlay(colecao, null, await crivoDe(colecao)) });
       }
 
       // Baixar um anexo da conversa. A permissao e a MESMA do compromisso: a
@@ -774,6 +874,54 @@ Deno.serve(async (req: Request) => {
         return resposta({ ok: true, base64: btoa(s), mime: achado.mime, nome: achado.nome });
       }
 
+      /* ------------------------------------------------ setor das Planilhas
+         A UNICA porta da colecao `planilhas_acesso`. Ela fica fora de
+         `OVERLAYS` de proposito: get/merge/removerId a recusam por construcao,
+         entao nao existe caminho generico para alguem se auto-conceder setor.
+
+         `master === true`, nao `ehDirecao`: `ehDirecao` aceita
+         `perms.includes("*")`, e quem tem `*` e uma pessoa comum na tela de
+         Acessos. Conceder acesso e da direcao de verdade.
+
+         O ECO E OBRIGATORIO. A resposta devolve o que FICOU GRAVADO, nao o que
+         foi pedido, e a tela compara. Permutas (19/08) e campanhas (20/08)
+         foram marcadas na tela, responderam ok, e nao concederam nada -- em
+         ambos os casos porque alguem filtrou em silencio. Aqui o que nao existe
+         na lista de setores volta em `descartados`. */
+      case "setoresDaPessoa": {
+        if (!sessao) return resposta({ erro: "Entre no sistema.", semSessao: true }, 401);
+        if (sessao.master !== true) return resposta({ erro: "Só a direção vê e concede setor." }, 403);
+        const usuario = String(corpo.usuario ?? "").trim();
+        if (!usuario) return resposta({ erro: "informe o usuario" }, 400);
+        return resposta({ ok: true, usuario, setores: await setoresDaPessoa(usuario) });
+      }
+
+      case "salvarSetoresDaPessoa": {
+        if (!sessao) return resposta({ erro: "Entre no sistema.", semSessao: true }, 401);
+        if (sessao.master !== true) return resposta({ erro: "Só a direção vê e concede setor." }, 403);
+        const usuario = String(corpo.usuario ?? "").trim();
+        if (!usuario) return resposta({ erro: "informe o usuario" }, 400);
+        const pedidos = Array.isArray(corpo.setores) ? corpo.setores.map(String) : [];
+        // A LISTA FECHADA e a colecao `setores` do Patrimonio, lida agora --
+        // nunca uma copia. Setor apagado no Patrimonio deixa de poder ser
+        // concedido no mesmo instante.
+        const existentes = new Set(Object.keys(await lerOverlay("setores", null)));
+        const setores = [...new Set(pedidos.filter((x: string) => existentes.has(x)))];
+        const descartados = pedidos.filter((x: string) => !existentes.has(x));
+        const { error } = await sb.from("painel_registros").upsert({
+          colecao: COLECAO_ACESSO_SETOR, id: usuario,
+          registro: { setores, por: String(sessao.sub ?? ""), em: new Date().toISOString() },
+          atualizado_em: new Date().toISOString(),
+        }, { onConflict: "colecao,id" });
+        if (error) throw Object.assign(new Error(error.message), { code: error.code });
+        // Le de volta: o eco e o que FICOU, nao o que foi mandado.
+        return resposta({
+          ok: true, usuario,
+          setores: await setoresDaPessoa(usuario),
+          descartados: descartados.length ? descartados : undefined,
+        });
+      }
+
       case "lixeiraRegistros": {
         if(!sessao || !ehDirecao) return resposta({erro:"Só a Direção pode recuperar registros."},403);
         const itens=[];
@@ -802,6 +950,8 @@ Deno.serve(async (req: Request) => {
         if (!OVERLAYS.has(chave)) return resposta({ erro: "chave nao gravavel" }, 403);
         const barrado = barraChave(chave);
         if (barrado) return barrado;
+        const barradoPlanilha = barraEscritaDePlanilha(chave);
+        if (barradoPlanilha) return barradoPlanilha;
         if (chave === "patrimonio") {
           const { data: fotos, error } = await sb.from("painel_registros").select("id").eq("colecao", "patrimonio_foto").eq("registro->>bemId", id).limit(1);
           if (error) throw Object.assign(new Error(error.message), { code: error.code });

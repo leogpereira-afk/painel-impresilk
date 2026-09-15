@@ -27,6 +27,7 @@ export const MODULOS = [
   { id: "documentos", nome: "Documentos e ativos", sub: "certidões, contrato social, apólices e a ficha dos carros e máquinas — com aviso de vencimento" },
   { id: "permutas", nome: "Permutas", sub: "o que o parceiro nos deu, as O.S. que ele já gastou e o saldo" },
   { id: "campanhas", nome: "Campanhas", sub: "cada evento e quem comprou — e o padrão de venda da casa inteira, mês a mês desde 2020" },
+  { id: "planilhas", nome: "Planilhas", sub: "as planilhas do Google que a casa mexe, abertas aqui dentro — cada uma pertence a um setor, e o setor se libera separado, logo abaixo" },
   { id: "configuracoes", nome: "Configurações", sub: "motivos, régua de cobrança e parâmetros — vale para todo mundo" },
 ].filter((modulo) => !modulo.aposentado);
 
@@ -48,6 +49,12 @@ export const COM_DINHEIRO = new Set([
   // marcado. E o que um concorrente pagaria para ver. Quem concede o módulo
   // precisa saber que está abrindo isso.
   "campanhas",
+  // A Caixinha da casa e uma planilha: saldo do dia, quem retirou, quanto
+  // pagou, quanto voltou de troco. E os "Servicos" de terceiro sao pagamentos
+  // e dividas. Quem concede o modulo precisa ver que esta abrindo dinheiro --
+  // e no caso das planilhas o aviso vale em dobro, porque a regua fina e o
+  // SETOR: o modulo sozinho nao mostra planilha nenhuma.
+  "planilhas",
 ]);
 
 // Ids que já foram módulos e não são mais (as telas saíram do menu e das rotas
