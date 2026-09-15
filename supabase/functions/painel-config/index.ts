@@ -205,13 +205,36 @@ Deno.serve(async (req: Request) => {
     }
     return null;
   };
-  const barraChave = (chave: string) => {
+  /* LER E GRAVAR NAO SAO A MESMA PERGUNTA -- e ate 15/09/2026 este mapa tratava
+     as duas como se fossem uma so.
+
+     A chave `setores` e do Patrimonio: e la que se cria, edita e remove setor.
+     Mas MANUTENCOES TAMBEM PRECISA LER a lista, para escrever o nome do setor
+     ao lado do carro e da maquina. Com um mapa unico, quem tinha Manutencoes e
+     nao tinha Patrimonio levava 403 na leitura; o `Promise.all` da tela
+     (src/pages/Manutencoes.jsx) caia inteiro, `itens` ficava null, e a pessoa
+     via a pagina de erro dizendo "Voce nao tem acesso a este modulo" -- sobre
+     um modulo que ELA TEM. Medido em 15/09/2026: 2 das 10 contas.
+
+     Liberar a chave inteira para `manutencoes` consertaria a leitura e abriria
+     a escrita: a tela de Manutencoes passaria a poder APAGAR setor, e apagar
+     setor desmancha a etiqueta de todo bem que estava nele. Trocar um defeito
+     por outro pior. Por isso o leitor extra e SO LEITOR. */
+  const LEITORES_EXTRA: Record<string, string[]> = {
+    setores: ["manutencoes"],
+  };
+  const barraChave = (chave: string, modo: "ler" | "gravar" = "gravar") => {
     // Sem sessao, quem responde e o 401 de cada ramo: o cliente usa esse 401
     // (com semSessao) para deslogar sozinho. Trocar por 403 aqui esconderia a
     // sessao vencida atras de "voce nao tem acesso".
     if (!sessao) return null;
     const m = MODULO_DA_CHAVE[chave];
     if (!m || temModulo(m)) return null;
+    /* `gravar` e o padrao DE PROPOSITO: quem acrescentar um ramo novo e
+       esquecer de dizer o modo recebe a regra ESTREITA. Esquecimento que tranca
+       aparece no mesmo dia, reclamado por quem trabalha; esquecimento que abre
+       ninguem vem reclamar. */
+    if (modo === "ler" && (LEITORES_EXTRA[chave] ?? []).some(temModulo)) return null;
     return resposta({ erro: "Voce nao tem acesso a este modulo." }, 403);
   };
 
@@ -284,7 +307,9 @@ Deno.serve(async (req: Request) => {
           return resposta({ ok: true, chave, valor: cfg });
         }
         if (OVERLAYS.has(chave)) {
-          const barrado = barraChave(chave);
+          // "ler": o UNICO ramo de leitura desta function. Todos os outros
+          // ficam no padrao `gravar`, que e o estreito.
+          const barrado = barraChave(chave, "ler");
           if (barrado) return barrado;
           if (!sessao) return resposta({ erro: "Entre no sistema.", semSessao: true }, 401);
           return resposta({ ok: true, chave, valor: await lerOverlay(chave, donoDaVez(chave)) });
