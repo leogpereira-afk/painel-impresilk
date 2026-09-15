@@ -57,6 +57,14 @@ const MODULOS = ["gestao", "contas-atrasadas", "orcamentos", "bancos", "marketin
   // filtro, e a porta de dados abria documento/veiculo/maquina/seguro para
   // qualquer pessoa logada -- inclusive para APAGAR.
   "documentos",
+  // 15/09/2026 -- "planilhas". O modulo e PLANO: cada planilha pertence a um
+  // setor, e o setor e concedido a parte, nunca como "planilhas:FIN" dentro
+  // desta lista. Medido antes de decidir: `somenteValidos` do cliente
+  // (src/lib/modulos.js) descarta "planilhas:FIN" porque compara id inteiro, e
+  // o `filter(includes)` do equipe-auth faz o mesmo na gravacao -- a concessao
+  // de setor sumiria duas vezes, calada. A regua de setor mora na poda da
+  // leitura, no painel-config.
+  "planilhas",
   "configuracoes"];
 
 // Mensagem UNICA para qualquer falha de login: usuario inexistente e senha
