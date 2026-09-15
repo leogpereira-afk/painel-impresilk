@@ -61,3 +61,44 @@ jobs:
       - name: O que ficou no ar
         if: always()
         run: echo "Confira em https://supabase.com/dashboard/project/heveemylixartyijxewh/functions"
+
+  # AS DO PCP TAMBEM, E DAQUI.
+  #
+  # As functions do PCP moram em leogpereira-afk/impresilk, que NAO tem o
+  # secret -- e criar o mesmo token duas vezes e uma copia a mais para girar no
+  # dia em que ele vazar. O projeto Supabase e o MESMO
+  # (heveemylixartyijxewh): um token cobre os dois repositorios.
+  #
+  # O checkout de repositorio publico irmao ja e o padrao desta casa: o
+  # pages.yml faz exatamente isso com o vida-leo, para ler a terceira lista de
+  # modulos.
+  #
+  # O QUE CUSTOU: em 14/09/2026 o aviso do PCP estampava a MUBI_PUBLIC_KEY e a
+  # janela da importacao escondia oito O.S em producao. Os dois consertos
+  # entraram no git do PCP no mesmo dia -- e nenhum dos dois chegou no ar,
+  # porque publicar Edge Function de la dependia de alguem lembrar de rodar o
+  # script a mao. O dono abriu a tela no dia seguinte e viu tudo igual.
+  publicar-pcp:
+    runs-on: ubuntu-latest
+    needs: publicar
+    if: always()
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: leogpereira-afk/impresilk
+
+      - name: O secret existe?
+        env:
+          TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: |
+          if [ -z "$TOKEN" ]; then
+            echo "::error::Falta o secret SUPABASE_ACCESS_TOKEN. As functions do PCP NAO foram publicadas."
+            exit 1
+          fi
+
+      - name: Publicar as functions do PCP
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: |
+          chmod +x scripts/publicar-functions.sh
+          ./scripts/publicar-functions.sh
