@@ -121,3 +121,47 @@ test('sem crachá nenhum a porta de ativos não responde', async () => {
   assert.equal(r.status, 401, action);
  }
 });
+
+/* SETOR: MANUTENÇÕES LÊ, PATRIMÔNIO MANDA.
+ *
+ * Até 15/09/2026 a chave `setores` valia só para `patrimonio`, e `barraChave`
+ * respondia a mesma coisa para ler e para gravar. Quem tinha Manutenções e não
+ * tinha Patrimônio levava 403 ao LER a lista de setores; o `Promise.all` de
+ * src/pages/Manutencoes.jsx caía inteiro, `itens` ficava null, e a tela virava
+ * a página de erro dizendo "Você não tem acesso a este módulo" — sobre um
+ * módulo que a pessoa TEM. Eram 2 das 10 contas.
+ *
+ * O conserto abre a LEITURA e mantém a escrita fechada: setor apagado desmancha
+ * a etiqueta de todo bem que estava nele, e isso continua sendo do Patrimônio.
+ * O teste do caso ruim vem primeiro de propósito — é ele que falha se alguém
+ * "simplificar" o LEITORES_EXTRA para valer nos dois sentidos.
+ */
+test('quem tem Manutenções LÊ os setores mas não os altera', async () => {
+ const f = await funcao('painel-config');
+ // O caso ruim: a leitura liberada não pode ter levado a escrita junto.
+ for (const [action, corpo] of [
+   ['merge', { patch: { qualquer: { sigla: 'XXX', nome: 'Inventado' } } }],
+   ['removerId', { id: 'qualquer' }],
+ ]) {
+  const r = await f.chamar('manutencao', { action, chave: 'setores', ...corpo });
+  assert.equal(r.status, 403, `${action} em setores tinha de ser recusado`);
+ }
+ // E o que o conserto existe para permitir.
+ assert.equal((await f.chamar('manutencao', { action: 'get', chave: 'setores' })).status, 200,
+   'ler setores com o módulo Manutenções é o motivo deste conserto');
+});
+
+test('o leitor extra de setores não vale para quem não tem nenhum dos dois módulos', async () => {
+ const f = await funcao('painel-config');
+ for (const action of ['get', 'merge'])
+  assert.equal((await f.chamar('glossario', { action, chave: 'setores', patch: {} })).status, 403,
+    `${action} em setores sem Patrimônio nem Manutenções`);
+});
+
+test('a leitura afrouxada não contaminou as outras chaves', async () => {
+ const f = await funcao('painel-config');
+ // `manutencoes` é leitor extra de `setores` e de mais nada. Se um dia alguém
+ // trocar `LEITORES_EXTRA[chave]` por uma lista global, estas três caem.
+ for (const chave of ['ov_orc', 'ov_rec', 'bancos'])
+  assert.equal((await f.chamar('manutencao', { action: 'get', chave })).status, 403, `get ${chave}`);
+});
