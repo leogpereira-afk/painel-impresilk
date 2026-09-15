@@ -32,7 +32,14 @@ const PG = { page: 1, per_page: 5 };
 // Os recursos que hoje NAO consumimos, com os parametros que a doc marca como
 // obrigatorios. Valores em MAIUSCULAS -- minusculo devolve 422.
 const ALVOS = [
-  ["ordem-servico", { ...PERIODO, ...PG }, "CONTROLE (ja usamos)"],
+  /* O CONTROLE PRECISA DOS MESMOS PARAMETROS QUE O RESTO DA CASA MANDA. Sem
+     `status` e `filtrodata` o ERP devolve 422, e a sonda terminava SEMPRE com
+     "o controle veio vazio/falhou" -- ou seja, nenhum `vazio` medido abaixo
+     valia como resultado, justamente o contrario do que o controle serve.
+     Controle que nao pode passar nao e controle. A forma abaixo e a mesma do
+     scripts/auditar-crm-mubi.mjs, que roda contra o ERP de verdade. */
+  ["ordem-servico", { status: "TODOS", filtrodata: "CADASTRO", ...PERIODO, ...PG },
+    "CONTROLE (ja usamos)"],
   ["cliente", { ...PG }, "10.700 registros na ultima sondagem"],
   ["fornecedor", { ...PG }, "1.299 registros"],
   ["classificacao-cliente", { ...PG }, "tabela de apoio"],
@@ -172,4 +179,9 @@ const controle = res.find((r) => r.caminho === "ordem-servico");
 if (!controle?.qtd) {
   console.log("\n!! O CONTROLE veio vazio/falhou. Nenhum 'vazio' acima vale como");
   console.log("   resultado: primeiro conferir credencial e janela de datas.");
+  /* SAI VERMELHO. O controle existe para dizer se a medicao vale; quando ele
+     cai, a sonda inteira e ruido -- e ruido impresso em verde vira "sondei e
+     nao tem nada", que e a conclusao errada. Verde aqui passa a significar
+     "a credencial respondeu e os zeros abaixo sao zeros de verdade". */
+  process.exit(1);
 }
