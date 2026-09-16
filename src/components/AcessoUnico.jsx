@@ -35,6 +35,8 @@ import { estadoDoPapel, temPendencia, contarAcessos, situacaoEntrada } from "../
 import { Card, SectionTitle, Empty } from "./ui.jsx";
 import { Selo, FaixaNumeros, LinhaLista } from "./lista.jsx";
 import { MODULOS, COM_DINHEIRO, somenteValidos } from "../lib/modulos.js";
+import { lerSetores } from "../services/patrimonio.js";
+import { lerPlanilhas, lerSetoresDaPessoa, salvarSetoresDaPessoa } from "../services/planilhas.js";
 import { SISTEMAS as SISTEMAS_CASA, doSistema, nomeSis, papelAoCriar } from "../lib/sistemas.js";
 
 /* Nome, endereco, pagina de acessos, papeis e papel inicial de cada sistema
@@ -301,8 +303,127 @@ function NovaPessoa({ sistemas, vendedores, contratos, aoCriar, aoCancelar }) {
 
 // O que a pessoa enxerga DENTRO do painel. Ficava numa segunda tela, que
 // repetia usuario, nome e senha -- duas listas de conta na mesma pagina, cada
+/* O SETOR DAS PLANILHAS -- a régua fina, e a única sub-permissão do painel.
+   Três decisões estão desenhadas aqui, e cada uma tem uma cicatriz atrás:
+
+   1. SÓ APARECE NO CARTÃO DE QUEM JÁ EXISTE. O `ModulosDoPainel` é usado
+      TAMBÉM no formulário de pessoa nova, e lá o `aoCriar` manda só
+      `{permissoes, vendedorId}` -- uma caixa de setor marcada ali não viraria
+      pedido nenhum: não seria recusada, não geraria aviso, simplesmente sumia.
+      É permutas 19/08 com roupa nova. A guarda é o `usuario`: sem ele, este
+      bloco não existe.
+
+   2. SÓ OS SETORES QUE TÊM PLANILHA. São 24 setores cadastrados e hoje 2
+      planilhas -- mostrar 24 caixas por pessoa é uma tela que ninguém confere.
+      E ao lado de cada uma vão os NOMES das planilhas daquele setor: marcar
+      "FIN" tem de deixar visível que isso abre a Caixinha.
+
+   3. O ECO MANDA. A tela mostra o que FICOU GRAVADO (o servidor devolve a
+      lista relida), não o que foi clicado -- e diz o que foi descartado. */
+function SetoresDasPlanilhas({ usuario, aoAvisar }) {
+  const [meus, setMeus] = useState(null);
+  const [setores, setSetores] = useState({});
+  const [planilhas, setPlanilhas] = useState({});
+  const [erro, setErro] = useState("");
+  const [ocupado, setOcupado] = useState(false);
+
+  useEffect(() => {
+    let vivo = true;
+    Promise.all([lerSetoresDaPessoa(usuario), lerSetores(), lerPlanilhas()])
+      .then(([m, s, p]) => { if (vivo) { setMeus(m); setSetores(s || {}); setPlanilhas(p || {}); setErro(""); } })
+      /* FALHA DE LEITURA TRANCA E GRITA. Devolver lista vazia aqui faria banco
+         fora do ar parecer "esta pessoa não tem setor nenhum" -- zero
+         apresentado como resultado, e a gravação seguinte apagaria de verdade. */
+      .catch((e) => { if (vivo) { setMeus(null); setErro(e.message); } });
+    return () => { vivo = false; };
+  }, [usuario]);
+
+  // Só os setores que de fato têm planilha, com os nomes delas ao lado.
+  const comPlanilha = useMemo(() => {
+    const por = new Map();
+    for (const pl of Object.values(planilhas || {})) {
+      const k = pl?.setor;
+      if (!k) continue;
+      if (!por.has(k)) por.set(k, []);
+      por.get(k).push(pl.nome || "sem nome");
+    }
+    return [...por.entries()]
+      .map(([id, nomes]) => ({
+        id,
+        sigla: setores?.[id]?.sigla || id,
+        nome: setores?.[id]?.nome || "",
+        nomes: nomes.sort((a, b) => a.localeCompare(b, "pt-BR", { sensitivity: "base" })),
+      }))
+      .sort((a, b) => a.sigla.localeCompare(b.sigla, "pt-BR", { sensitivity: "base" }));
+  }, [planilhas, setores]);
+
+  const totalPlanilhas = Object.keys(planilhas || {}).length;
+
+  async function marcar(id) {
+    if (ocupado || meus === null) return;
+    const lista = meus.includes(id) ? meus.filter((x) => x !== id) : [...meus, id];
+    setOcupado(true);
+    try {
+      const r = await salvarSetoresDaPessoa(usuario, lista);
+      setMeus(r.setores || []);          // o que FICOU, não o que mandei
+      if (r.descartados?.length) {
+        aoAvisar?.({ tom: "erro", texto: `O servidor não conhece: ${r.descartados.join(", ")} — esses NÃO foram liberados.` });
+      }
+    } catch (e) { aoAvisar?.({ tom: "erro", texto: e.message }); }
+    finally { setOcupado(false); }
+  }
+
+  if (erro) {
+    return <p role="alert" className="mt-3 text-xs text-bad-700">Não consegui ler os setores desta pessoa: {erro}</p>;
+  }
+  if (meus === null) return <p className="mt-3 text-xs text-slate-500" role="status">Carregando os setores…</p>;
+
+  const vistas = comPlanilha.filter((s) => meus.includes(s.id))
+    .reduce((n, s) => n + s.nomes.length, 0);
+
+  return (
+    <div className="mt-3 rounded-lg border border-slate-200 bg-white p-3">
+      <p className="text-sm font-medium">Quais planilhas esta pessoa enxerga</p>
+      {!totalPlanilhas ? (
+        <p className="mt-1 text-xs text-slate-500">
+          Nenhuma planilha cadastrada ainda. Cadastre em <b>Planilhas</b> e o setor dela aparece aqui.
+        </p>
+      ) : !comPlanilha.length ? (
+        <p className="mt-1 text-xs text-slate-500">As planilhas cadastradas ainda não têm setor.</p>
+      ) : (
+        <>
+          <div className="mt-2 grid gap-x-4 gap-y-2 sm:grid-cols-2">
+            {comPlanilha.map((s) => (
+              <label key={s.id} className="flex cursor-pointer items-start gap-2 text-sm">
+                <input type="checkbox" checked={meus.includes(s.id)} disabled={ocupado}
+                  onChange={() => marcar(s.id)}
+                  className="mt-0.5 h-4 w-4 rounded border-slate-300 text-brand focus:ring-brand-200" />
+                <span className="min-w-0">
+                  {s.sigla}{s.nome ? ` — ${s.nome}` : ""}
+                  <span className="block text-xs leading-tight text-slate-500">{s.nomes.join(" · ")}</span>
+                </span>
+              </label>
+            ))}
+          </div>
+          {/* CONTAR DOS DOIS LADOS: sem este número, "2 setores marcados" não
+              diz quantas planilhas isso abre. */}
+          <p className="mt-2 text-[11px] text-slate-500">
+            Hoje enxerga <b>{vistas}</b> de {totalPlanilhas} {totalPlanilhas === 1 ? "planilha" : "planilhas"}.
+            {" "}Sem setor marcado, a tela de Planilhas abre vazia.
+          </p>
+        </>
+      )}
+      {/* A SEGUNDA TRANCA, dita onde a decisão acontece -- e não só lá dentro. */}
+      <p className="mt-1 text-[11px] text-slate-400">
+        Isto decide quem <b>acha</b> a planilha no Painel. Quem <b>lê</b> o conteúdo é o Google,
+        pelo compartilhamento do próprio documento.
+      </p>
+    </div>
+  );
+}
+
 // uma mandando num pedaco. Agora e aqui, no cartao da propria pessoa.
-function ModulosDoPainel({ permissoes, aoMudar }) {
+function ModulosDoPainel({ permissoes, aoMudar, usuario, aoAvisar }) {
   // Descarta na LEITURA o que nao existe mais (fluxo-caixa, produtos). Sem isto,
   // marcar qualquer caixa reenviaria o id aposentado junto e a tela levaria um
   // aviso de erro por causa de um dado velho que ela mesma carregou.
@@ -365,6 +486,14 @@ function ModulosDoPainel({ permissoes, aoMudar }) {
         O que não estiver marcado não aparece no menu nem responde se a pessoa digitar o endereço.
         <span className="ml-1 text-warn-700">R$</span> = mostra dinheiro.
       </p>
+
+      {/* `usuario` só chega do cartão de quem JÁ existe -- ver o comentário do
+          SetoresDasPlanilhas. E vale também para "Acesso total": por decisão do
+          dono (15/09/2026) o setor poda todo mundo; só a conta da direção vê
+          todas as planilhas. */}
+      {usuario && (total || atuais.includes("planilhas")) && (
+        <SetoresDasPlanilhas usuario={usuario} aoAvisar={aoAvisar} />
+      )}
     </div>
   );
 }
@@ -428,7 +557,7 @@ function TrocarLogin({ sistema, atual, soltas, aoConfirmar, aoFechar }) {
    caixa e do papel, ela mostra COM QUE LOGIN a pessoa entra ali e se aquela
    conta existe. Quando nao existe, os tres caminhos ficam na cara -- apontar
    para a conta certa, criar la, ou tirar da lista. */
-function LinhaSistema({ c, sis, p, soltas, vendedores, aoAlternar, aoPapel, aoModulos, aoApontar, aoSenha, aoCriarLa, aoVendedor }) {
+function LinhaSistema({ c, sis, p, soltas, vendedores, aoAlternar, aoPapel, aoModulos, aoApontar, aoSenha, aoCriarLa, aoVendedor, aoAvisar }) {
   const [editando, setEditando] = useState(false);
   const [vendendo, setVendendo] = useState(false);
   const opcoes = PAPEIS[sis] || [];
@@ -599,6 +728,8 @@ function LinhaSistema({ c, sis, p, soltas, vendedores, aoAlternar, aoPapel, aoMo
         <ModulosDoPainel
           permissoes={p.real.permissoes || p.permissoes || []}
           aoMudar={(perms) => aoModulos(perms)}
+          usuario={c.usuario}
+          aoAvisar={aoAvisar}
         />
       )}
     </LinhaLista>
@@ -852,6 +983,7 @@ function Conta({ c, sistemas, soltas, vendedores, acoes, aoMudar, aoAvisar, aoSe
                   aoSenha={senhaAqui}
                   aoCriarLa={criarLa}
                   aoVendedor={trocarVendedor}
+                  aoAvisar={aoAvisar}
                 />
               ))}
             </div>

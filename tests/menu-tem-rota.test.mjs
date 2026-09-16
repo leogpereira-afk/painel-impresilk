@@ -52,3 +52,34 @@ test("rota de módulo é protegida por <Restrito>", async () => {
   assert.deepEqual(desprotegidos, [],
     `rota de módulo sem <Restrito>: ${desprotegidos.join(", ")}`);
 });
+
+/* A CAIXA DE SETOR NÃO PODE APARECER NO CADASTRO DE PESSOA NOVA.
+ *
+ * `ModulosDoPainel` é usado em DOIS lugares com semânticas opostas: no cartão
+ * de quem já existe, cada clique grava; no formulário "Novo acesso", o estado é
+ * local e o `aoCriar` envia só `{permissoes, vendedorId}`. Não existe campo de
+ * setor nesse envio — então uma caixa de setor marcada ali não viraria pedido
+ * nenhum: não seria recusada, não voltaria em `descartados`, não geraria aviso.
+ * Sumiria. É exatamente o caso de `permutas` (19/08/2026), com o agravante de
+ * que lá o servidor pelo menos respondia.
+ *
+ * A guarda é a prop `usuario`: o bloco só renderiza quando ela existe, e ela só
+ * é passada do cartão de quem já existe. Este teste cobra as duas pontas.
+ */
+test("o setor só é oferecido para quem já existe, nunca no cadastro novo", async () => {
+  const src = await readFile(new URL("../src/components/AcessoUnico.jsx", import.meta.url), "utf8");
+
+  // O bloco depende de `usuario` para existir.
+  assert.match(src, /\{usuario && \(total \|\| atuais\.includes\("planilhas"\)\) && \(/,
+    "o bloco de setor tem de depender da prop `usuario`");
+
+  // O formulário de pessoa nova chama sem `usuario`.
+  assert.match(src, /<ModulosDoPainel permissoes=\{modulos\} aoMudar=\{setModulos\} \/>/,
+    "o cadastro de pessoa nova não pode passar `usuario` — lá o setor sumiria sem erro");
+
+  // E o envio da criação continua sem campo de setor: se alguém acrescentar um
+  // `setores` ali sem mexer no servidor, é este teste que avisa.
+  const criar = src.slice(src.indexOf("aoCriar"), src.indexOf("aoCriar") + 1200);
+  assert.ok(!/setores/.test(criar),
+    "o `aoCriar` não manda setor; acrescentar o campo aqui sem o servidor aceitar é concessão que nunca acontece");
+});
