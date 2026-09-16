@@ -3,10 +3,21 @@
 // O molde é a aba Planilhas da Central do Léo, que ele já usa todo dia -- e o
 // que se copia dela não é o desenho, é a inteligência:
 //   1. o link colado vira id + aba, e o id nunca aparece no bundle público;
-//   2. o quadro embutido é o editor do Google (`rm=minimal`), então quem pode
-//      escrever escreve sem sair; quem quiser o Google inteiro tem o botão;
-//   3. quando o Google RECUSA ser embutido, o quadro fica em `about:blank` e o
-//      navegador NÃO avisa -- por isso a conferência, senão é tela branca muda.
+//   2. o link colado vira id + aba, e a lista mora no servidor;
+//   3. a ordem alfabética numa CÓPIA, para não mexer no que veio guardado.
+//
+// O QUE NÃO SE COPIA DELA: o quadro embutido. Medido em 16/09/2026, no mesmo
+// navegador e com a mesma conta: a planilha abre inteira como ABA, e fica em
+// BRANCO dentro de um iframe -- nas cinco formas (`/edit`, `/edit?rm=minimal`,
+// `/preview`, `/htmlembed`, `/pubhtml`), com HTTP 200 e sem uma linha de erro no
+// console. O Google não roda o editor dentro de outro site. A aba Planilhas da
+// Central tem o mesmo quadro branco embaixo da frase "editando aqui dentro" --
+// ninguém percebeu porque branco parece "carregando".
+//
+// `pubhtml` é o único que embeda de verdade, e exige PUBLICAR NA WEB: tornaria a
+// Caixinha pública para a internet. É o contrário do que este módulo existe para
+// fazer. Então o cartão abre numa ABA, que é o que funciona -- e a tela diz isso
+// antes do clique, em vez de entregar um retângulo branco.
 //
 // O que a Central não precisa e aqui é o ponto: o SETOR. Lá existe uma pessoa;
 // aqui, dez contas. A lista que chega já vem podada pelo servidor -- esta tela
@@ -14,85 +25,15 @@
 // não separação.
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ArrowUpRight, Plus, Trash2 } from "lucide-react";
+import { Plus, Trash2 } from "lucide-react";
 import "./planilhas.css";
 import { ehDirecao } from "../lib/sessao.js";
 import { lerSetores } from "../services/patrimonio.js";
 import {
   lerPlanilhas, salvarPlanilha, removerPlanilha,
-  lerLinkDePlanilha, urlNoQuadro, urlNoGoogle, emOrdem,
+  lerLinkDePlanilha, urlNoGoogle, emOrdem,
 } from "../services/planilhas.js";
 import { Card, PageTitle, Empty, CarregandoModulo, ErroModulo } from "../components/ui.jsx";
-
-/* O QUADRO. A conferência do `about:blank` é a peça que não se pode cortar:
-   iframe recusado não dispara erro nenhum -- nem `onerror`, nem console. O que
-   dá para ler é que o documento ficou em `about:blank`, que é mesma origem.
-   Duas conferências: uma logo após o `onload` (recusa rápida) e outra aos 9s
-   (o Google às vezes redireciona antes de desistir). */
-function Quadro({ planilha, aoVoltar, aoEditar, podeEditar }) {
-  const [recusado, setRecusado] = useState(false);
-  const quadro = useRef(null);
-  const frame = useRef(null);
-
-  useEffect(() => {
-    setRecusado(false);
-    const f = frame.current;
-    if (!f) return;
-    let vivo = true;
-    const conferir = () => {
-      if (!vivo || !f.isConnected) return;
-      try {
-        const doc = f.contentDocument;
-        if (doc && doc.location && doc.location.href === "about:blank") setRecusado(true);
-      } catch { /* origem cruzada = o Google ACEITOU: é o caso bom */ }
-    };
-    const t1 = setTimeout(conferir, 400);
-    const t2 = setTimeout(conferir, 9000);
-    f.addEventListener("load", () => setTimeout(conferir, 400));
-    return () => { vivo = false; clearTimeout(t1); clearTimeout(t2); };
-  }, [planilha.docId, planilha.gid]);
-
-  return (
-    <div className="flex flex-col gap-3">
-      <div className="flex flex-wrap items-center gap-2">
-        <button className="btn-ghost" onClick={aoVoltar}>← Todas as planilhas</button>
-        <span className="flex-1 min-w-0" />
-        {podeEditar && (
-          <button className="btn-ghost" onClick={aoEditar}>✏️ Editar atalho</button>
-        )}
-        <a className="btn-ghost" href={urlNoGoogle(planilha)} target="_blank" rel="noopener noreferrer">
-          Abrir no Google <ArrowUpRight size={16} aria-hidden />
-        </a>
-      </div>
-
-      <div ref={quadro} className="pl-quadro">
-        {recusado ? (
-          <div className="h-full grid place-content-center gap-3 p-6 text-center">
-            <p className="text-slate-600">O Google não deixou esta planilha ser aberta aqui dentro.</p>
-            <a className="btn-primary justify-self-center" href={urlNoGoogle(planilha)} target="_blank" rel="noopener noreferrer">
-              Abrir no Google <ArrowUpRight size={16} aria-hidden />
-            </a>
-          </div>
-        ) : (
-          <iframe
-            ref={frame}
-            title={`Planilha ${planilha.nome || ""}`}
-            src={urlNoQuadro(planilha)}
-            referrerPolicy="no-referrer-when-downgrade"
-          />
-        )}
-      </div>
-
-      {/* A SEGUNDA TRANCA, dita onde ela morde. Sem esta frase a tela promete um
-          controle que ela não tem: o Painel escolheu quem vê o atalho, mas quem
-          libera o CONTEÚDO é o Google. */}
-      <p className="text-sm text-slate-500">
-        A edição usa a conta Google deste navegador — não o acesso que o Painel guarda.
-        Se pedir permissão, entre no Google com uma conta que tenha a planilha.
-      </p>
-    </div>
-  );
-}
 
 function Formulario({ inicial, setores, aoSalvar, aoFechar, aoRemover, salvando }) {
   const novo = !inicial;
@@ -158,7 +99,6 @@ export default function Planilhas({ sessao }) {
   const [mapa, setMapa] = useState(null);
   const [setoresMapa, setSetoresMapa] = useState(null);
   const [erro, setErro] = useState(null);
-  const [aberta, setAberta] = useState(null);   // id
   const [form, setForm] = useState(null);       // {id} | {novo:true} | null
   const [salvando, setSalvando] = useState(false);
   // `ehDirecao` e master-only (sessao.js:138) -- e e exatamente o que a porta
@@ -222,7 +162,6 @@ export default function Planilhas({ sessao }) {
     setSalvando(true);
     try {
       await removerPlanilha(id);
-      if (aberta === id) setAberta(null);
       setForm(null);
       await carregar();
     } catch (e) { setErro(e.message); }
@@ -232,25 +171,17 @@ export default function Planilhas({ sessao }) {
   if (erro && mapa === null) return <ErroModulo mensagem={erro} aoTentar={carregar} />;
   if (mapa === null || setoresMapa === null) return <CarregandoModulo />;
 
-  const planilhaAberta = lista.find((p) => p.id === aberta);
   const emEdicao = form?.id ? lista.find((p) => p.id === form.id) : null;
 
   return (
     <div className="grid gap-4">
       <PageTitle
         titulo="📊 Planilhas"
-        descricao="As que a casa mexe, abertas e editadas aqui dentro — em ordem alfabética, ✏️ para renomear. Cada uma pertence a um setor, e só quem tem o setor a enxerga."
+        descricao="As que a casa mexe, reunidas por setor — só quem tem o setor enxerga a planilha. O clique abre no Google, numa aba nova: o Google não roda o editor dentro de outro site."
       />
       {erro && <p role="alert" className="text-sm text-rose-700">{erro}</p>}
 
-      {planilhaAberta ? (
-        <Quadro
-          planilha={planilhaAberta}
-          podeEditar={direcao}
-          aoVoltar={() => setAberta(null)}
-          aoEditar={() => { setAberta(null); setForm({ id: planilhaAberta.id }); }}
-        />
-      ) : form ? (
+      {form ? (
         <Formulario
           inicial={emEdicao}
           setores={setores}
@@ -276,7 +207,7 @@ export default function Planilhas({ sessao }) {
               </p>
               <p className="mt-1">
                 {direcao
-                  ? "Clique em “Nova planilha”, cole o link e escolha o setor — ela passa a abrir por aqui."
+                  ? "Clique em “Planilha”, cole o link e escolha o setor — ela passa a aparecer aqui para quem tiver o setor."
                   : "Aparecem aqui as planilhas dos setores que a direção liberou para você."}
               </p>
             </Empty>
@@ -292,13 +223,17 @@ export default function Planilhas({ sessao }) {
                        de botão o navegador desmonta, e o clique passa a cair em
                        lugar errado. É a mesma montagem da Central. */
                     <div key={p.id} className="pl-cel">
-                      <button className="pl-cartao" title={p.nome || ""} onClick={() => setAberta(p.id)}>
+                      {/* LINK DE VERDADE, não botão: assim valem cmd+clique,
+                          "abrir em nova aba", copiar o endereço e favoritar --
+                          hábitos de quem abre a mesma planilha todo dia. */}
+                      <a className="pl-cartao" title={p.nome || ""}
+                         href={urlNoGoogle(p)} target="_blank" rel="noopener noreferrer">
                         <span className="ic" aria-hidden>📊</span>
                         <span style={{ minWidth: 0 }}>
                           <span className="nm block">{p.nome || "sem nome"}</span>
-                          <span className="sub block">abrir e editar aqui</span>
+                          <span className="sub block">abrir no Google ↗</span>
                         </span>
-                      </button>
+                      </a>
                       {direcao && (
                         <button
                           className="pl-lapis"

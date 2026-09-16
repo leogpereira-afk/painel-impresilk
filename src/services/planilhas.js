@@ -61,13 +61,13 @@ export function lerLinkDePlanilha(url) {
   return { docId: m[1], gid: g ? g[1] : "" };
 }
 
-// Duas URLs, e a diferença importa: `rm=minimal` tira a moldura do Google (é a
-// que vai no quadro embutido); a outra é a que abre numa aba do navegador, com
-// tudo que o Google oferece.
-export const urlNoQuadro = (p) =>
-  `https://docs.google.com/spreadsheets/d/${encodeURIComponent(p.docId)}/edit?rm=minimal` +
-  (p.gid ? `&gid=${encodeURIComponent(p.gid)}` : "");
-
+/* UMA URL SÓ, e o `rm=minimal` foi embora junto com o quadro embutido.
+   Medido em 16/09/2026, mesmo navegador e mesma conta: a planilha abre inteira
+   como ABA e fica em BRANCO dentro de um iframe -- nas cinco formas testadas
+   (`/edit`, `/edit?rm=minimal`, `/preview`, `/htmlembed`, `/pubhtml`), com HTTP
+   200 e sem erro no console. O Google não roda o editor dentro de outro site.
+   `pubhtml` é o único que embeda, e exige PUBLICAR NA WEB -- tornaria a planilha
+   pública para a internet, que é o contrário do que este módulo faz. */
 export const urlNoGoogle = (p) =>
   `https://docs.google.com/spreadsheets/d/${encodeURIComponent(p.docId)}/edit` +
   (p.gid ? `#gid=${encodeURIComponent(p.gid)}` : "");

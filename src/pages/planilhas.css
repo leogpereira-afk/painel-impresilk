@@ -41,17 +41,6 @@
 }
 .pl-lapis:hover { border-color: #0f9d58; color: #0f172a; }
 
-/* O quadro do editor do Google. `min-height` em vez de altura fixa para não
-   virar uma fresta no celular deitado. */
-.pl-quadro {
-  border: 1px solid var(--hairline);
-  border-radius: 16px;
-  overflow: hidden;
-  background: var(--surface, #fff);
-  height: 72vh; min-height: 420px;
-}
-.pl-quadro iframe { width: 100%; height: 100%; border: 0; display: block; }
-
 .pl-setor {
   font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase;
   color: #64748b;
@@ -59,5 +48,4 @@
 
 @media (max-width: 640px) {
   .pl-grade { grid-template-columns: 1fr; }
-  .pl-quadro { height: 66vh; min-height: 340px; }
 }
