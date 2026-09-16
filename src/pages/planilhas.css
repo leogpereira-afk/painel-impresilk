@@ -1,0 +1,63 @@
+/* O cartão de planilha, portado da aba Planilhas da Central do Léo
+   (vida-leo/publico/index.html, .dv-pastas/.dv-pasta/.dv-cel/.dv-lapis).
+   Mesmas medidas, mesmos gestos — quem usa os dois sistemas não deve precisar
+   aprender duas telas para a mesma coisa. */
+
+.pl-grade {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+}
+
+/* A CÉLULA: o cartão que abre + o lápis que edita. São DOIS botões IRMÃOS, e
+   isso não é gosto: botão dentro de botão não existe em HTML — o navegador
+   desmonta o de fora e o clique passa a cair em lugar errado. */
+.pl-cel { display: flex; align-items: stretch; gap: 6px; min-width: 0; }
+.pl-cel .pl-cartao { flex: 1; min-width: 0; }
+
+.pl-cartao {
+  display: flex; align-items: center; gap: 10px;
+  padding: 11px 13px;
+  background: var(--surface, #fff);
+  border: 1px solid var(--hairline);
+  border-radius: 12px;
+  cursor: pointer; text-align: left; font: inherit; color: inherit;
+  transition: .15s; min-width: 0;
+}
+.pl-cartao:hover { border-color: #0f9d58; transform: translateY(-1px); }
+.pl-cartao .ic { font-size: 22px; flex: none; line-height: 1; }
+.pl-cartao .nm { font-weight: 600; font-size: 13.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pl-cartao .sub { font-size: 11.5px; color: #64748b; margin-top: 1px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* O LÁPIS FICA SEMPRE VISÍVEL, e não só no hover: no celular não há hover, e um
+   botão invisível que responde ao toque é pior do que botão nenhum. */
+.pl-lapis {
+  flex: none; padding: 0 11px;
+  background: var(--surface, #fff);
+  border: 1px solid var(--hairline);
+  border-radius: 12px;
+  cursor: pointer; font: inherit; font-size: 13px; color: #64748b;
+  transition: .15s;
+}
+.pl-lapis:hover { border-color: #0f9d58; color: #0f172a; }
+
+/* O quadro do editor do Google. `min-height` em vez de altura fixa para não
+   virar uma fresta no celular deitado. */
+.pl-quadro {
+  border: 1px solid var(--hairline);
+  border-radius: 16px;
+  overflow: hidden;
+  background: var(--surface, #fff);
+  height: 72vh; min-height: 420px;
+}
+.pl-quadro iframe { width: 100%; height: 100%; border: 0; display: block; }
+
+.pl-setor {
+  font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase;
+  color: #64748b;
+}
+
+@media (max-width: 640px) {
+  .pl-grade { grid-template-columns: 1fr; }
+  .pl-quadro { height: 66vh; min-height: 340px; }
+}

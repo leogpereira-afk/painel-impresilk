@@ -14,7 +14,8 @@
 // não separação.
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ArrowUpRight, Pencil, Plus, Table2, Trash2 } from "lucide-react";
+import { ArrowUpRight, Plus, Trash2 } from "lucide-react";
+import "./planilhas.css";
 import { ehDirecao } from "../lib/sessao.js";
 import { lerSetores } from "../services/patrimonio.js";
 import {
@@ -57,16 +58,14 @@ function Quadro({ planilha, aoVoltar, aoEditar, podeEditar }) {
         <button className="btn-ghost" onClick={aoVoltar}>← Todas as planilhas</button>
         <span className="flex-1 min-w-0" />
         {podeEditar && (
-          <button className="btn-ghost" onClick={aoEditar}>
-            <Pencil size={16} aria-hidden /> Editar atalho
-          </button>
+          <button className="btn-ghost" onClick={aoEditar}>✏️ Editar atalho</button>
         )}
         <a className="btn-ghost" href={urlNoGoogle(planilha)} target="_blank" rel="noopener noreferrer">
           Abrir no Google <ArrowUpRight size={16} aria-hidden />
         </a>
       </div>
 
-      <div ref={quadro} className="rounded-xl border border-slate-200 overflow-hidden bg-white" style={{ height: "72vh" }}>
+      <div ref={quadro} className="pl-quadro">
         {recusado ? (
           <div className="h-full grid place-content-center gap-3 p-6 text-center">
             <p className="text-slate-600">O Google não deixou esta planilha ser aberta aqui dentro.</p>
@@ -80,7 +79,6 @@ function Quadro({ planilha, aoVoltar, aoEditar, podeEditar }) {
             title={`Planilha ${planilha.nome || ""}`}
             src={urlNoQuadro(planilha)}
             referrerPolicy="no-referrer-when-downgrade"
-            style={{ width: "100%", height: "100%", border: 0 }}
           />
         )}
       </div>
@@ -240,8 +238,8 @@ export default function Planilhas({ sessao }) {
   return (
     <div className="grid gap-4">
       <PageTitle
-        titulo="Planilhas"
-        descricao="As planilhas do Google que a casa mexe, abertas aqui dentro. Cada uma pertence a um setor, e só quem tem o setor a enxerga."
+        titulo="📊 Planilhas"
+        descricao="As que a casa mexe, abertas e editadas aqui dentro — em ordem alfabética, ✏️ para renomear. Cada uma pertence a um setor, e só quem tem o setor a enxerga."
       />
       {erro && <p role="alert" className="text-sm text-rose-700">{erro}</p>}
 
@@ -266,7 +264,7 @@ export default function Planilhas({ sessao }) {
           {direcao && (
             <div>
               <button className="btn-primary" onClick={() => setForm({ novo: true })}>
-                <Plus size={16} aria-hidden /> Nova planilha
+                <Plus size={16} aria-hidden /> Planilha
               </button>
             </div>
           )}
@@ -285,30 +283,31 @@ export default function Planilhas({ sessao }) {
           ) : (
             grupos.map(([setorId, itens]) => (
               <section key={setorId || "sem-setor"} className="grid gap-2">
-                <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
+                <h3 className="pl-setor">
                   {nomeDoSetor(setorId)}
                 </h3>
-                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                <div className="pl-grade">
                   {itens.map((p) => (
-                    <Card key={p.id} className="flex items-center gap-3">
-                      <button className="flex flex-1 min-w-0 items-center gap-3 text-left" onClick={() => setAberta(p.id)}>
-                        <Table2 size={20} aria-hidden className="shrink-0 text-emerald-600" />
-                        <span className="min-w-0">
-                          <span className="block truncate font-medium">{p.nome || "sem nome"}</span>
-                          <span className="block text-sm text-slate-500">abrir e editar aqui</span>
+                    /* DOIS BOTÕES IRMÃOS, nunca um dentro do outro: botão dentro
+                       de botão o navegador desmonta, e o clique passa a cair em
+                       lugar errado. É a mesma montagem da Central. */
+                    <div key={p.id} className="pl-cel">
+                      <button className="pl-cartao" title={p.nome || ""} onClick={() => setAberta(p.id)}>
+                        <span className="ic" aria-hidden>📊</span>
+                        <span style={{ minWidth: 0 }}>
+                          <span className="nm block">{p.nome || "sem nome"}</span>
+                          <span className="sub block">abrir e editar aqui</span>
                         </span>
                       </button>
                       {direcao && (
                         <button
-                          className="btn-ghost shrink-0"
-                          aria-label={`Editar ${p.nome || "planilha"}`}
+                          className="pl-lapis"
+                          aria-label={`Editar “${p.nome || "sem nome"}”`}
                           title="Renomear, trocar o setor ou o link"
                           onClick={() => setForm({ id: p.id })}
-                        >
-                          <Pencil size={16} aria-hidden />
-                        </button>
+                        >✏️</button>
                       )}
-                    </Card>
+                    </div>
                   ))}
                 </div>
               </section>
