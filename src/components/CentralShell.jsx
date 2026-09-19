@@ -2,7 +2,7 @@ import {useEffect,useRef,useState} from 'react';
 import {Link,NavLink,useLocation} from 'react-router-dom';
 import {Menu,X,LogOut,ChevronRight,ArrowUpRight} from 'lucide-react';
 import {podeAbrir,ehDirecao} from '../lib/sessao.js';
-import {SISTEMAS,ATALHOS_EXTERNOS_CENTRAL} from '../lib/sistemas.js';
+import {SISTEMAS} from '../lib/sistemas.js';
 import {MODULOS} from '../lib/modulos.js';
 import logo from '../assets/brand/logo-color.png';
 import logoWhite from '../assets/brand/logo-white.png';
@@ -24,9 +24,7 @@ export default function CentralShell({children,sessao,aoSair,controles}) {
   const modulos = MODULOS.filter(m=>!['configuracoes','agenda','calendario-empresa'].includes(m.id) && podeAbrir(m.id,sessao));
   const gruposAcesso = [
     {nome:'IMPRESILK', links:SISTEMAS.filter(s=>s.id!=='painel' && !s.pessoal && s.url)},
-    {nome:'LÉO E PORTAL DOS BOSQUES', links:SISTEMAS.filter(s=>['central','bosques'].includes(s.id))},
-    {nome:'DOMO', links:[...SISTEMAS.filter(s=>s.id==='domo'),{id:'diamond',nome:'Diamond Vendas',url:'https://leogpereira-afk.github.io/diamond/'}]},
-    {nome:'MINASLAB', links:ATALHOS_EXTERNOS_CENTRAL.filter(s=>s.id==='minaslab')},
+    {nome:'CENTRAL DO LÉO', links:SISTEMAS.filter(s=>s.id==='central')},
   ].filter((g,i)=>i===0 || ehDirecao(sessao) || review);
   const noCalendario=['/agenda','/calendario-empresa'].includes(location.pathname);
   const calendarioDestino=podeAbrir('calendario-empresa',sessao)?'/calendario-empresa':'/agenda';

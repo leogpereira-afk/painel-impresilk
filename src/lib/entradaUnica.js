@@ -24,7 +24,7 @@ import { API } from "./api.js";
    ganha a gaveta do cracha, o atalho e o nome de uma vez so. */
 // Nao ha ciclo: sistemas.js nao importa nada -- e uma tabela, so.
 // Quem precisa do NOME de um sistema chama `nomeSis` do registro direto.
-import { CHAVE_CRACHA as CHAVE, ENDERECO_DIRETO as ENDERECO } from "./sistemas.js";
+import { CHAVE_CRACHA as CHAVE, ENDERECO_DIRETO as ENDERECO, sistemaNoPainel } from "./sistemas.js";
 
 const K_SISTEMAS = "painel_meus_sistemas";
 
@@ -47,7 +47,7 @@ export function plantarCrachas(crachas = {}) {
 export function meusSistemas() {
   try {
     const l = JSON.parse(localStorage.getItem(K_SISTEMAS) || "[]");
-    return Array.isArray(l) ? l.filter((s) => ENDERECO[s]) : [];
+    return Array.isArray(l) ? l.filter((s) => ENDERECO[s] && sistemaNoPainel(s)) : [];
   } catch {
     return [];
   }

@@ -10,6 +10,8 @@
 import { comCracha, mensagemDoStatus } from "../lib/sessao.js";
 import { API } from "../lib/api.js";
 
+import { sistemaNoPainel } from "../lib/sistemas.js";
+
 const BASE = `${API}/painel-acesso`;
 
 async function chamar(action, corpo = {}) {
@@ -27,7 +29,12 @@ async function chamar(action, corpo = {}) {
   return body;
 }
 
-export const lerAcessos = () => chamar("listar");
+export const lerAcessos = () => chamar("listar").then(dados => ({
+  ...dados,
+  sistemas: dados.sistemas.filter(sistemaNoPainel),
+  contas: dados.contas.map(conta => ({...conta, papeis: (conta.papeis || []).filter(p => sistemaNoPainel(p.sistema))})),
+  soltas: Object.fromEntries(Object.entries(dados.soltas || {}).filter(([id]) => sistemaNoPainel(id))),
+}));
 export const salvarConta = (conta) => chamar("salvarConta", { conta }).then((r) => r.conta);
 
 // `criar` e PEDIDO EXPLICITO. Sem ele, gravar papel numa linha cujo login nao

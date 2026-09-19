@@ -24,6 +24,8 @@ import {
 import { lerBancos, salvarBanco, removerBanco } from "../services/bancos.js";
 import { Card, PageTitle, SectionTitle, CarregandoModulo, ErroModulo } from "../components/ui.jsx";
 
+import { bancosDaImpresilk, contaDaImpresilk } from "../lib/calc/bancos-impresilk.js";
+
 const ABERTOS_KEY = "painel_bancos_abertos";
 
 const TIPOS_PIX = ["CNPJ", "CPF", "E-mail", "Telefone", "Aleatoria", "Conta e agencia"];
@@ -102,7 +104,7 @@ export default function Bancos() {
     // painel e lia 19 contas, 9 CPF/CNPJ (inclusive o do dono) e 15 chaves Pix
     // sem nenhum login. Plantada a semente, o arquivo virou so risco.
     lerBancos()
-      .then((m) => vivo && setMapa(m))
+      .then((m) => vivo && setMapa(bancosDaImpresilk(m)))
       .catch((e) => vivo && setErro(e.message));
     return () => {
       vivo = false;
@@ -132,7 +134,7 @@ export default function Bancos() {
 
     const lista = [];
     itens.forEach((b) => {
-      const nome = b.grupo || "Sem grupo";
+      const nome = /^universo(?:\s|$)/i.test(b.titular.trim()) ? "Universo" : "Impresilk";
       let g = lista.find((x) => x.nome === nome);
       if (!g) {
         g = { nome, itens: [] };
@@ -193,7 +195,7 @@ export default function Bancos() {
 
   const abrirForm = (b) => {
     setAviso(null);
-    setForm(b ? { ...VAZIO, ...b } : { ...VAZIO, cadastroId:crypto.randomUUID(), grupo: grupos[0]?.nome || "" });
+    setForm(b ? { ...VAZIO, ...b } : { ...VAZIO, cadastroId:crypto.randomUUID(), grupo: "Impresilk e Universo", titular: "Impresilk" });
     setTimeout(() => cartaoForm.current?.scrollIntoView({ behavior: "smooth", block: "center" }), 60);
   };
 
@@ -204,6 +206,9 @@ export default function Bancos() {
       if (!form.banco.trim() || !form.titular.trim()) {
         return setAviso({ tom: "erro", texto: "Banco e titular são obrigatórios." });
       }
+      if (!contaDaImpresilk(form)) {
+        return setAviso({ tom: "erro", texto: "Cadastre aqui somente contas de titularidade da Impresilk ou da Universo." });
+      }
       setSalvando(true);
       try {
         const id = form.id || form.cadastroId;
@@ -211,7 +216,7 @@ export default function Bancos() {
           form.ordem ??
           Math.max(0, ...Object.values(mapa || {}).map((x) => x.ordem ?? 0)) + 1;
         const conta = {
-          grupo: form.grupo.trim() || "Sem grupo",
+          grupo: /^universo(?:\s|$)/i.test(form.titular.trim()) ? "Universo" : "Impresilk",
           banco: form.banco.trim(),
           titular: form.titular.trim(),
           doc: form.doc.trim(),
@@ -256,20 +261,20 @@ export default function Bancos() {
   if (erro) {
     return (
       <div className="space-y-6">
-        <PageTitle titulo="Bancos e Pix" descricao="Contas, CNPJs e chaves de todas as empresas." />
+        <PageTitle titulo="Bancos e Pix" descricao="Contas e chaves Pix da Impresilk e da Universo." />
         <ErroModulo mensagem={erro} aoTentar={() => window.location.reload()}/>
       </div>
     );
   }
   if (mapa === null) return <CarregandoModulo />;
 
-  const nomesDeGrupo = [...new Set(Object.values(mapa).map((b) => b.grupo).filter(Boolean))];
+
 
   return (
     <div className="space-y-6">
       <PageTitle
         titulo="Bancos e Pix"
-        descricao="Encontre os dados bancários por empresa. Copie uma informação ou prepare o compartilhamento."
+        descricao="Contas e chaves Pix da Impresilk e da Universo. Copie os dados ou prepare o compartilhamento."
       />
 
       <div className="flex flex-wrap items-center gap-3">
@@ -316,22 +321,6 @@ export default function Bancos() {
           />
           <form onSubmit={salvar} className="space-y-4">
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              <div>
-                <label className="label" htmlFor="b-grupo">Grupo</label>
-                <input
-                  id="b-grupo"
-                  className="input"
-                  list="lista-grupos"
-                  placeholder="ex.: Impresilk e Universo"
-                  value={form.grupo}
-                  onChange={(e) => setForm((f) => ({ ...f, grupo: e.target.value }))}
-                />
-                <datalist id="lista-grupos">
-                  {nomesDeGrupo.map((g) => (
-                    <option key={g} value={g} />
-                  ))}
-                </datalist>
-              </div>
               <div>
                 <label className="label" htmlFor="b-banco">Banco</label>
                 <input
