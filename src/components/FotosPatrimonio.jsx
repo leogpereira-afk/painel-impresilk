@@ -1,11 +1,12 @@
 import {useEffect,useState} from 'react';
 import {listarFotos,adicionarFoto,removerFoto,prepararFoto} from '../services/fotos.js';
 import {Card,SectionTitle} from './ui.jsx';
-export default function FotosPatrimonio({bemId,nome,aoFechar}){
+export default function FotosPatrimonio({bemId,nome,aoFechar,aoAlterar,aoOcupado}){
  const [fotos,setFotos]=useState(null),[erro,setErro]=useState(''),[ocupado,setOcupado]=useState(false),[tentar,setTentar]=useState(0);
+ useEffect(()=>{aoOcupado?.(ocupado);return()=>aoOcupado?.(false);},[ocupado,aoOcupado]);
  useEffect(()=>{let vivo=true;setFotos(null);setErro('');listarFotos(bemId).then(f=>vivo&&setFotos(f)).catch(e=>vivo&&setErro(e.message));return()=>{vivo=false;};},[bemId,tentar]);
- async function enviar(e){const file=e.target.files?.[0];e.target.value='';if(!file)return;setOcupado(true);setErro('');let salvo=false;try{const base64=await prepararFoto(file);await adicionarFoto(bemId,base64,file.name);salvo=true;setFotos(await listarFotos(bemId));}catch(e){setErro((salvo?'A foto foi salva, mas a galeria não atualizou. Use Atualizar fotos. ':'')+e.message);}finally{setOcupado(false);}}
- async function remover(f){if(!window.confirm(`Remover a foto “${f.nome}” deste equipamento?`))return;setOcupado(true);setErro('');try{await removerFoto(bemId,f.id);setFotos(l=>l.filter(x=>x.id!==f.id));}catch(e){setErro(e.message);}finally{setOcupado(false);}}
+ async function enviar(e){const file=e.target.files?.[0];e.target.value='';if(!file)return;setOcupado(true);setErro('');let salvo=false;try{const base64=await prepararFoto(file);await adicionarFoto(bemId,base64,file.name);salvo=true;setFotos(await listarFotos(bemId));aoAlterar?.();}catch(e){if(salvo)aoAlterar?.();setErro((salvo?'A foto foi salva, mas a galeria não atualizou. Use Atualizar fotos. ':'')+e.message);}finally{setOcupado(false);}}
+ async function remover(f){if(!window.confirm(`Remover a foto “${f.nome}” deste equipamento?`))return;setOcupado(true);setErro('');try{await removerFoto(bemId,f.id);setFotos(l=>l.filter(x=>x.id!==f.id));aoAlterar?.();}catch(e){setErro(e.message);}finally{setOcupado(false);}}
  return <Card className="mt-4"><SectionTitle titulo={`Fotos · ${nome}`} sub="Identifique o equipamento, a etiqueta e os detalhes. As imagens são reduzidas antes do envio." acao={<><button className="btn-ghost" disabled={ocupado} onClick={()=>setTentar(n=>n+1)}>Atualizar fotos</button>{aoFechar&&<button className="btn-ghost" disabled={ocupado} onClick={aoFechar}>Fechar galeria</button>}</>}/>
  {erro&&<p role="alert" className="text-bad-700 mb-3">{erro}</p>}
  <label className="label">Adicionar foto<input className="input mt-2" type="file" accept="image/jpeg,image/png,image/webp" disabled={ocupado||fotos===null} onChange={enviar}/></label>

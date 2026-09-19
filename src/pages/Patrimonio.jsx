@@ -1,876 +1,184 @@
-import PendenciasPatrimonio from "../components/PendenciasPatrimonio.jsx";
-// Patrimonio: o que a empresa TEM, onde esta e quanto custou.
-//
-// Nao e a mesma coisa que Manutencoes. La a pergunta e "quanto custa manter";
-// aqui e "de quem e, onde fica, por quanto foi comprado e qual a etiqueta".
-// O mesmo ar condicionado aparece nos dois -- separar e o que permite
-// responder cada pergunta sem poluir a outra.
-//
-// Tres usos concretos guiaram a tela:
-//   1. INVENTARIO: imprimir a lista de um setor e conferir item por item pela
-//      etiqueta, andando pelo galpao, sem computador na mao.
-//   2. SEGURO: quanto vale o que esta dentro de cada setor.
-//   3. COMPRA: quando foi comprado, por quanto, com qual nota.
-//
-// O CODIGO DA ETIQUETA e gerado pelo servidor e nunca muda -- nem quando o bem
-// troca de setor, porque o adesivo ja esta colado nele.
+import {useCallback, useEffect, useMemo, useRef, useState} from 'react';
+import {Plus, Search, Printer, Building2, Boxes, Wallet, AlertTriangle, Camera, LayoutGrid, List, ArrowUpRight, Pencil, Trash2, RefreshCw, Tag, ChevronLeft, ChevronRight, X} from 'lucide-react';
+import {lerBens, lerSetores, salvarBem, removerBem, salvarSetor, removerSetor, semearSetores} from '../services/patrimonio.js';
+import {resumoFotos, listarFotos} from '../services/fotos.js';
+import {calcPatrimonio, SETORES_PADRAO, SITUACOES, idadeEmAnos} from '../lib/calc/patrimonio.js';
+import {FILTROS_INICIAIS, filtrarInventario, pendenciasBem, bensParaImpressao} from '../lib/calc/inventario.js';
+import {moedaCheia, numero, dataLonga, ymdLocal, paraNumero, paraCampo} from '../lib/format.js';
+import {CarregandoModulo, ErroModulo, AvisoAtualizacao} from '../components/ui.jsx';
+import JanelaFormulario from '../components/JanelaFormulario.jsx';
+import FotosPatrimonio from '../components/FotosPatrimonio.jsx';
+import {FormBem, FormSetor} from '../components/patrimonio/Formularios.jsx';
+import './patrimonio.css';
 
-import FotosPatrimonio from "../components/FotosPatrimonio.jsx";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import {
-  Tag,
-  Plus,
-  Trash2,
-  Pencil,
-  AlertTriangle,
-  Search,
-  X,
-  Printer,
-  Building2,
-  Boxes,
-  Coins,
-  Wallet,
-} from "lucide-react";
-import { lerBens, lerSetores, salvarBem, removerBem, salvarSetor, removerSetor, semearSetores } from "../services/patrimonio.js";
-import {
-  calcPatrimonio,
-  SETORES_PADRAO,
-  SITUACOES,
-  NOMES_GENERICOS,
-  idadeEmAnos,
-} from "../lib/calc/patrimonio.js";
-import { moeda, moedaCheia, numero, dataLonga, ymdLocal, paraNumero, paraCampo } from "../lib/format.js";
-import {
-  Card,
-  PageTitle,
-  SectionTitle,
-  StatCard,
-  Empty,
-  CarregandoModulo,
-  ErroModulo,
-  AvisoAtualizacao,
-} from "../components/ui.jsx";
+const VAZIO = {id:'', codigo:'', setorSigla:'', nomeGenerico:'', descricaoTecnica:'', nf:'', dataAquisicao:'', valor:'', situacao:'uso', observacao:'', responsavel:'', motivoSemNota:''};
+const SETOR_VAZIO = {id:'', sigla:'', nome:'', area:''};
+const POR_PAGINA = 12;
+const rotuloSituacao = b => (SITUACOES[b.situacao] || SITUACOES.uso).rotulo;
+const nomeSetor = (b, setores) => setores.find(s => s.sigla === b.setorSigla)?.nome || 'Setor a definir';
 
-const BEM_VAZIO = {
-  id: "",
-  codigo: "",
-  setorSigla: "",
-  nomeGenerico: "",
-  descricaoTecnica: "",
-  nf: "",
-  dataAquisicao: "",
-  valor: "",
-  situacao: "uso",
-  observacao: "",
-};
-
-const SETOR_VAZIO = { id: "", sigla: "", nome: "", area: "" };
-
-// ---------------------------------------------------------------- formularios
-// No escopo do modulo: componente declarado dentro de outro vira tipo novo a
-// cada render e o campo perde o foco a cada letra.
-
-function FormBem({ inicial, setores, salvando, aoSalvar, aoFechar }) {
-  const [f, setF] = useState(inicial);
-  const trocar = (campo) => (e) => setF((v) => ({ ...v, [campo]: e.target.value }));
-  return (
-    <Card>
-      <SectionTitle
-        titulo={f.id ? `Editar ${f.codigo || "bem"}` : "Novo bem"}
-        sub={
-          f.id
-            ? "O código da etiqueta não muda -- ele já esta colado no bem."
-            : "O código da etiqueta é gerado ao salvar, com a sigla do setor."
-        }
-        acao={
-          <button className="btn-ghost" onClick={aoFechar}>
-            <X size={15} /> Fechar
-          </button>
-        }
-      />
-      <form
-        className="space-y-4"
-        onSubmit={(e) => {
-          e.preventDefault();
-          aoSalvar(f);
-        }}
-      >
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          <div>
-            <label className="label" htmlFor="b-setor">Setor</label>
-            <select id="b-setor" className="input" value={f.setorSigla} onChange={trocar("setorSigla")} required>
-              <option value="">escolha o setor</option>
-              {setores.map((s) => (
-                <option key={s.id} value={s.sigla}>
-                  {s.sigla} — {s.nome}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <label className="label" htmlFor="b-nome">Nome generico</label>
-            <input
-              id="b-nome"
-              className="input"
-              list="nomes-genericos"
-              placeholder="ex: Computador, Cadeira, Compressor"
-              value={f.nomeGenerico}
-              onChange={trocar("nomeGenerico")}
-              required
-            />
-            <datalist id="nomes-genericos">
-              {NOMES_GENERICOS.map((n) => (
-                <option key={n} value={n} />
-              ))}
-            </datalist>
-            <p className="mt-1 text-xs text-slate-500">E o que agrupa: quantos computadores a empresa tem.</p>
-          </div>
-
-          <div>
-            <label className="label" htmlFor="b-situacao">Situação</label>
-            <select id="b-situacao" className="input" value={f.situacao} onChange={trocar("situacao")}>
-              {Object.entries(SITUACOES).map(([id, s]) => (
-                <option key={id} value={id}>
-                  {s.rotulo}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div className="sm:col-span-2 lg:col-span-3">
-            <label className="label" htmlFor="b-descricao">Descrição técnica</label>
-            <input
-              id="b-descricao"
-              className="input"
-              placeholder="marca, modelo, número de série, capacidade, cor..."
-              value={f.descricaoTecnica}
-              onChange={trocar("descricaoTecnica")}
-            />
-            <p className="mt-1 text-xs text-slate-500">
-              O detalhe que identifica ESTE bem: &quot;Dell Optiplex 7090, i5, 16 GB, SSD 512, série 8HJ2K1&quot;.
-            </p>
-          </div>
-
-          <div>
-            <label className="label" htmlFor="b-nf">Nota fiscal</label>
-            <input id="b-nf" className="input" placeholder="número da NF" value={f.nf} onChange={trocar("nf")} />
-            {!f.nf && <label className="label mt-3">Motivo da ausência da nota<input className="input mt-1" value={f.motivoSemNota || ''} onChange={trocar('motivoSemNota')} placeholder="Ex.: documento ainda não localizado"/></label>}
-          </div><div><label className="label" htmlFor="b-responsavel">Responsável pelo cadastro</label><input id="b-responsavel" className="input" value={f.responsavel || ''} onChange={trocar('responsavel')}/>
-          </div>
-
-          <div>
-            <label className="label" htmlFor="b-data">Data de aquisição</label>
-            <input id="b-data" type="date" className="input" value={f.dataAquisicao} onChange={trocar("dataAquisicao")} />
-          </div>
-
-          <div>
-            {/* Texto, nao type=number: 1.250,00 num campo numerico vira lixo. */}
-            <label className="label" htmlFor="b-valor">Valor pago (R$)</label>
-            <input
-              id="b-valor"
-              inputMode="decimal"
-              className="input"
-              placeholder="ex: 3.480,00"
-              value={f.valor}
-              onChange={trocar("valor")}
-              onBlur={(e) => setF((v) => ({ ...v, valor: paraCampo(paraNumero(e.target.value)) }))}
-            />
-          </div>
-
-          <div className="sm:col-span-2 lg:col-span-3">
-            <label className="label" htmlFor="b-obs">Observação</label>
-            <input
-              id="b-obs"
-              className="input"
-              placeholder="garantia até, fornecedor, com quem esta..."
-              value={f.observacao}
-              onChange={trocar("observacao")}
-            />
-          </div>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-2">
-          <button className="btn-primary" disabled={salvando}>
-            {salvando ? "Salvando..." : f.id ? "Salvar alterações" : "Cadastrar e gerar etiqueta"}
-          </button>
-          <button type="button" className="btn-ghost" onClick={aoFechar}>
-            Cancelar
-          </button>
-        </div>
-      </form>
-    </Card>
-  );
-}
-
-function FormSetor({ inicial, salvando, aoSalvar, aoFechar }) {
-  const [f, setF] = useState(inicial);
-  const trocar = (campo) => (e) => setF((v) => ({ ...v, [campo]: e.target.value }));
-  return (
-    <Card>
-      <SectionTitle
-        titulo={f.id ? `Editar setor ${f.sigla}` : "Novo setor"}
-        sub="A sigla vai na etiqueta (PRD-001). Curta: etiqueta comprida não cabe na lateral da máquina."
-        acao={
-          <button className="btn-ghost" onClick={aoFechar}>
-            <X size={15} /> Fechar
-          </button>
-        }
-      />
-      <form
-        className="space-y-4"
-        onSubmit={(e) => {
-          e.preventDefault();
-          aoSalvar(f);
-        }}
-      >
-        <div className="grid gap-4 sm:grid-cols-3">
-          <div>
-            <label className="label" htmlFor="s-sigla">Sigla</label>
-            <input
-              id="s-sigla"
-              className="input uppercase"
-              maxLength={4}
-              placeholder="ex: PRD"
-              value={f.sigla}
-              onChange={(e) => setF((v) => ({ ...v, sigla: e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "") }))}
-              required
-              disabled={!!f.id}
-            />
-            {f.id && <p className="mt-1 text-xs text-slate-500">A sigla não muda: ela já esta nas etiquetas coladas.</p>}
-          </div>
-          <div>
-            <label className="label" htmlFor="s-nome">Nome do setor</label>
-            <input id="s-nome" className="input" placeholder="ex: Produção" value={f.nome} onChange={trocar("nome")} required />
-          </div>
-          <div>
-            <label className="label" htmlFor="s-area">Área (opcional)</label>
-            <input id="s-area" className="input" placeholder="ex: Operações" value={f.area} onChange={trocar("area")} />
-          </div>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <button className="btn-primary" disabled={salvando}>
-            {salvando ? "Salvando..." : "Salvar setor"}
-          </button>
-          <button type="button" className="btn-ghost" onClick={aoFechar}>
-            Cancelar
-          </button>
-        </div>
-      </form>
-    </Card>
-  );
-}
-
-// Folha de etiquetas. Substitui a tela inteira de proposito: brigar com CSS de
-// impressao para esconder menu, cartoes e rodape sempre deixa alguma sobra no
-// papel. Aqui o que esta na tela E o que sai na impressora.
-function FolhaEtiquetas({ bens, aoVoltar }) {
+function CapaBem({bem, quantidade, revisao}) {
+  const [url, setUrl] = useState('');
+  const [falhou, setFalhou] = useState(false);
+  const ref = useRef(null);
   useEffect(() => {
-    const t = setTimeout(() => window.print(), 350);
-    return () => clearTimeout(t);
-  }, []);
-  return (
-    <div className="space-y-4">
-      <div className="sem-impressao flex flex-wrap items-center gap-2">
-        <button className="btn-ghost" onClick={aoVoltar}>
-          <X size={15} /> Voltar para o patrimônio
-        </button>
-        <button className="btn-primary" onClick={() => window.print()}>
-          <Printer size={15} strokeWidth={2.4} /> Imprimir de novo
-        </button>
-        <span className="text-sm text-slate-500">
-          {bens.length} {bens.length === 1 ? "etiqueta" : "etiquetas"} — recorte pelas linhas.
-        </span>
-      </div>
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-        {bens.map((b) => (
-          <div
-            key={b.id}
-            className="break-inside-avoid rounded border p-2 text-center"
-            style={{ borderColor: "#94a3b8" }}
-          >
-            <div className="font-display text-lg font-bold tracking-wide text-slate-900">{b.codigo}</div>
-            <div className="truncate text-xs text-slate-700">{b.nomeGenerico}</div>
-            <div className="truncate text-[10px] text-slate-500">{b.descricaoTecnica || b.setorSigla}</div>
-            <div className="mt-0.5 text-[9px] uppercase tracking-wider text-slate-400">IMPRESILK</div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
+    let vivo = true;
+    setUrl(''); setFalhou(false);
+    if (!quantidade) return;
+    // Só busca imagens das fichas visíveis, nunca baixa todo o acervo.
+    const observer = new IntersectionObserver(entries => {
+      if (!entries.some(e => e.isIntersecting)) return;
+      observer.disconnect();
+      listarFotos(bem.id).then(f => {if(vivo) setUrl(f[0]?.url || '');}).catch(() => {if(vivo) setFalhou(true);});
+    }, {rootMargin:'100px'});
+    observer.observe(ref.current);
+    return () => {vivo=false; observer.disconnect();};
+  }, [bem.id, quantidade, revisao]);
+  return <div ref={ref} className="pat-cover">
+    {url && !falhou ? <img src={url} alt={bem.nomeGenerico} loading="lazy" onError={()=>setFalhou(true)}/> : <div className="pat-cover-empty"><Camera size={28}/><span>{falhou ? 'Abra a ficha para rever as fotos' : quantidade ? 'Foto do equipamento' : quantidade === undefined ? 'Fotos não conferidas' : 'Adicione uma foto'}</span></div>}
+    {quantidade > 0 && <span className="pat-photo-count"><Camera size={13}/>{quantidade}</span>}
+  </div>;
 }
-
-// ---------------------------------------------------------------- pagina
+function Situacao({bem}) {return <span className={`pat-status pat-status-${bem.situacao || 'uso'}`}>{rotuloSituacao(bem)}</span>;}
+function Indicador({titulo,valor,descricao,icone:Icone,aoClicar,ativo}) {
+  return <button className={`pat-metric ${ativo?'is-active':''}`} onClick={aoClicar}><span className="pat-metric-top">{titulo}<Icone size={19}/></span><strong>{valor}</strong><span>{descricao}</span></button>;
+}
+function Impressao({tipo,bens,setores,contexto,aoVoltar}) {
+  return <div className="pat-print">
+    <div className="sem-impressao pat-print-toolbar"><button className="btn-ghost" onClick={aoVoltar}><ChevronLeft size={18}/>Voltar ao inventário</button><button className="btn-primary" onClick={()=>window.print()}><Printer size={18}/>Imprimir / salvar PDF</button><p>Confira a prévia abaixo. Na impressão, escolha “Salvar como PDF” para guardar o relatório.</p></div>
+    {tipo==='etiquetas' ? <div className="pat-labels">{bens.map(b=><div className="pat-label" key={b.id}><small>IMPRESILK · PATRIMÔNIO</small><strong>{b.codigo || 'Sem etiqueta'}</strong><span>{b.nomeGenerico}</span><small>{b.descricaoTecnica || nomeSetor(b,setores)}</small></div>)}</div> : <>
+      <header className="pat-report-title"><span>IMPRESILK · CONTROLE PATRIMONIAL</span><h1>Inventário de bens</h1><p>{contexto}</p><p>Emitido em {dataLonga(ymdLocal(new Date()))} · {bens.length} bens · Valor de aquisição informado: {moedaCheia(bens.reduce((s,b)=>s+b.valor,0))}</p><small>Valores de aquisição, sem depreciação ou avaliação de mercado. {bens.filter(b=>!(b.valor>0)).length} {bens.filter(b=>!(b.valor>0)).length===1?'bem sem valor informado':'bens sem valor informado'}.</small></header>
+      <div className="pat-table-wrap"><table className="pat-table pat-report-table"><thead><tr><th>Etiqueta / bem</th><th>Setor / situação</th><th>Compra / nota fiscal</th><th>Valor pago</th><th>Conferência</th></tr></thead><tbody>{bens.map(b=><tr key={b.id}><td><strong>{b.codigo || 'Sem etiqueta'} · {b.nomeGenerico}</strong><small>{b.descricaoTecnica}</small></td><td>{nomeSetor(b,setores)}<small>{rotuloSituacao(b)}</small></td><td>{b.dataAquisicao?dataLonga(b.dataAquisicao):'Data não informada'}<small>{b.nf?`NF ${b.nf}`:b.motivoSemNota || 'Nota não informada'}</small></td><td>{b.valor>0?moedaCheia(b.valor):'Não informado'}</td><td><span className="pat-check-print">□ Conferido</span></td></tr>)}</tbody></table></div>
+      <p className="pat-report-sign">Conferido por: __________________________________ Data: ____ / ____ / ______</p>
+    </>}
+  </div>;
+}
 
 export default function Patrimonio() {
-  const [bens, setBens] = useState(null);
-  const [setoresMapa, setSetoresMapa] = useState(null);
-  const [erro, setErro] = useState(null);
-  const [msg, setMsg] = useState(null);
-  const [busca, setBusca] = useState("");
-  const [setorFiltro, setSetorFiltro] = useState("");
-  const [verBaixados, setVerBaixados] = useState(false);
-  /* OS CARTÕES VIRAM RECORTE. "Sem nota: 14" era um número que não virava
-     lista: para achar os 14 era caçar na tabela. Clicar filtra, clicar de novo
-     volta -- o mesmo gesto das outras telas. */
-  const [recorte, setRecorte] = useState(null); // "semNota" | "semValor" | null
-  /* O TIPO ESCOLHIDO NO CARTÃO. Antes o clique só jogava o nome na BUSCA, que
-     casa por pedaço de texto em cinco campos e mantinha setor e recorte
-     ligados: o cartão dizia "12x Cadeira" e a lista mostrava outro número --
-     às vezes menos (setor ligado), às vezes mais ("Cadeira" aparecendo na
-     descrição de outro bem). Igualdade exata, e o clique limpa os outros
-     cortes, para os dois números serem sempre o mesmo. */
-  const [tipoFiltro, setTipoFiltro] = useState(null);
-  const [fotoBem, setFotoBem] = useState(null);
-  const [formBem, setFormBem] = useState(null);
-  const [formSetor, setFormSetor] = useState(null);
-  const [salvando, setSalvando] = useState(false);
-  const [etiquetas, setEtiquetas] = useState(null); // lista a imprimir
-  const [verSetores, setVerSetores] = useState(false);
-  const topoForm = useRef(null);
-  const idNovoBem = useRef(null);
-  const [hojeISO] = useState(() => ymdLocal(new Date()));
-
-  const pedidoLeitura = useRef(0);
-  const carregar = useCallback(async () => {
-    const pedido = ++pedidoLeitura.current;
-    try {
-      const [b, s] = await Promise.all([lerBens(), lerSetores()]);
-      if (pedido !== pedidoLeitura.current) return;
-      setBens(b);
-      setSetoresMapa(s);
-      setErro(null);
-    } catch (e) {
-      if (pedido !== pedidoLeitura.current) return;
-      setErro(e.message);
-
-    }
-  }, []);
-
-  useEffect(() => {
-    carregar();
-  }, [carregar]);
-
-  const vm = useMemo(
-    () => calcPatrimonio(bens || {}, setoresMapa || {}, hojeISO),
-    [bens, setoresMapa, hojeISO]
-  );
-
-  const visiveis = useMemo(() => {
-    const q = busca.trim().toLowerCase();
-    const base = verBaixados ? vm.bens : vm.ativos;
-    return base
-      .filter((b) => !tipoFiltro || b.nomeGenerico === tipoFiltro)
-      .filter((b) => !setorFiltro || b.setorSigla === setorFiltro)
-      .filter((b) =>
-        !q
-          ? true
-          : `${b.codigo} ${b.nomeGenerico} ${b.descricaoTecnica} ${b.nf} ${b.observacao}`
-              .toLowerCase()
-              .includes(q)
-      )
-      // O recorte dos cartões: "sem nota" e "sem valor" viram lista.
-      .filter((b) =>
-        recorte === "semNota" ? !String(b.nf || "").trim()
-          : recorte === "semValor" ? !b.valor
-            : true
-      );
-  }, [vm, busca, setorFiltro, verBaixados, recorte, tipoFiltro]);
-
-  const rolar = () =>
-    setTimeout(() => topoForm.current?.scrollIntoView({ behavior: "smooth", block: "center" }), 60);
-
-  const abrirBem = (b = null) => {
-    idNovoBem.current = b?.id || `pat-${crypto.randomUUID()}`;
-    setFotoBem(null);
-    setFormSetor(null);
-    setFormBem(
-      b
-        ? { ...BEM_VAZIO, ...b, valor: paraCampo(b.valor) }
-        : { ...BEM_VAZIO, setorSigla: setorFiltro || "", dataAquisicao: hojeISO }
-    );
-    rolar();
-  };
-
-  const abrirSetor = (s = null) => {
-    setFotoBem(null);
-    setFormBem(null);
-    setFormSetor(s ? { ...SETOR_VAZIO, ...s } : { ...SETOR_VAZIO });
-    rolar();
-  };
+  const [bens,setBens]=useState(null), [setoresMapa,setSetoresMapa]=useState(null), [erro,setErro]=useState(null);
+  const [atualizando,setAtualizando]=useState(false), [msg,setMsg]=useState(null), [salvando,setSalvando]=useState(false);
+  const [filtros,setFiltros]=useState(FILTROS_INICIAIS), [aba,setAba]=useState('inventario'), [modo,setModo]=useState('cards');
+  const [pagina,setPagina]=useState(1), [selecionados,setSelecionados]=useState([]), [janela,setJanela]=useState(null), [impressao,setImpressao]=useState(null);
+  const [fotos,setFotos]=useState(null), [erroFotos,setErroFotos]=useState(''), [revisaoFotos,setRevisaoFotos]=useState(0);
+  const [fotoOcupada,setFotoOcupada]=useState(false);
+  const pedido=useRef(0), idNovo=useRef(null);
+  const hoje=ymdLocal(new Date());
+  const carregarFotos=useCallback(async()=>{
+    try {const resultado=await resumoFotos();setFotos(resultado);setErroFotos('');setRevisaoFotos(n=>n+1);}
+    catch(e){setFotos(null);setErroFotos(e.message);}
+  },[]);
+  const carregar=useCallback(async()=>{
+    const atual=++pedido.current;setAtualizando(true);
+    try {const [b,s]=await Promise.all([lerBens(),lerSetores()]);if(atual!==pedido.current)return;setBens(b);setSetoresMapa(s);setErro(null);}
+    catch(e){if(atual===pedido.current)setErro(e.message);}
+    finally{if(atual===pedido.current)setAtualizando(false);}
+  },[]);
+  useEffect(()=>{carregar();carregarFotos();const controle=pedido;return()=>{controle.current++;};},[carregar,carregarFotos]);
+  const vm=useMemo(()=>calcPatrimonio(bens||{},setoresMapa||{},hoje),[bens,setoresMapa,hoje]);
+  const pendentes=useMemo(()=>vm.ativos.filter(b=>pendenciasBem(b,vm.setores,fotos).length),[vm,fotos]);
+  const visiveis=useMemo(()=>filtrarInventario(vm.bens,vm.setores,fotos,filtros),[vm,fotos,filtros]);
+  const paginas=Math.max(1,Math.ceil(visiveis.length/POR_PAGINA)), atual=Math.min(pagina,paginas);
+  const nestaPagina=visiveis.slice((atual-1)*POR_PAGINA,atual*POR_PAGINA);
+  const selecionadosVisiveis=visiveis.filter(b=>selecionados.includes(b.id));
+  const mudouFiltro=Object.keys(FILTROS_INICIAIS).some(k=>k!=='ordem'&&filtros[k]!==FILTROS_INICIAIS[k]);
+  const detalhe=janela?.tipo==='detalhe'?vm.bens.find(b=>b.id===janela.bem.id):null;
+  const filtrar=(patch)=>{setFiltros(f=>({...f,...patch}));setPagina(1);setSelecionados([]);};
+  const recortar=(patch)=>{setFiltros({...FILTROS_INICIAIS,...patch});setPagina(1);setSelecionados([]);setAba('inventario');};
+  const selecionar=id=>setSelecionados(ids=>ids.includes(id)?ids.filter(x=>x!==id):[...ids,id]);
+  const abrirBem=(b=null)=>{setMsg(null);idNovo.current=b?.id||`pat-${crypto.randomUUID()}`;setJanela({tipo:'bem',bem:b?{...VAZIO,...b,valor:paraCampo(b.valor)}:{...VAZIO,setorSigla:vm.setores.some(s=>s.sigla===filtros.setor)?filtros.setor:'',dataAquisicao:''}});};
+  const abrirSetor=(s=null)=>{setMsg(null);setJanela({tipo:'setor',setor:s?{...SETOR_VAZIO,...s}:SETOR_VAZIO});};
+  const fechar=()=>{if(!salvando&&!fotoOcupada){setJanela(null);setMsg(null);}};
+  const verDetalhe=b=>{setMsg(null);setJanela({tipo:'detalhe',bem:b});};
 
   async function gravarBem(f) {
-    if (!f.setorSigla) return setMsg({ tom: "erro", texto: "Escolha o setor -- a sigla dele forma a etiqueta." });
-    if (!f.nomeGenerico.trim()) return setMsg({ tom: "erro", texto: "Informe o nome generico do bem." });
-    setSalvando(true);
-    setMsg(null);
+    if(!f.setorSigla||!f.nomeGenerico.trim())return setMsg({erro:true,texto:'Informe o tipo do bem e o setor.'});
+    if(paraNumero(f.valor)<0)return setMsg({erro:true,texto:'O valor pago não pode ser negativo.'});
+    if(f.dataAquisicao>hoje)return setMsg({erro:true,texto:'A aquisição não pode estar no futuro.'});
+    setSalvando(true);setMsg(null);
     try {
-      const id = f.id || idNovoBem.current;
-      const dados = {
-        // codigo NAO vai daqui: o servidor gera na primeira gravacao e devolve.
-        ...(f.codigo ? { codigo: f.codigo } : {}),
-        setorSigla: f.setorSigla,
-        nomeGenerico: f.nomeGenerico.trim(),
-        descricaoTecnica: f.descricaoTecnica.trim(),
-        nf: f.nf.trim(),
-        motivoSemNota:String(f.motivoSemNota || "").trim(),
-        responsavel:String(f.responsavel || "").trim(),
-        dataAquisicao: f.dataAquisicao,
-        valor: paraNumero(f.valor),
-        situacao: f.situacao,
-        observacao: f.observacao.trim(),
-      };
-      const novo = await salvarBem(id, dados);
-      setBens(novo);
-      if (!f.id) setFotoBem({...novo[id],id});
-      setFormBem(null);
-      setMsg({
-        tom: "ok",
-        texto: novo[id]?.codigo
-          ? `${novo[id].nomeGenerico} cadastrado com a etiqueta ${novo[id].codigo}.`
-          : "Bem salvo.",
-      });
-    } catch (e) {
-      setMsg({ tom: "erro", texto: e.message });
-    } finally {
-      setSalvando(false);
-    }
+      const id=f.id||idNovo.current;
+      const dados={...(f.codigo?{codigo:f.codigo}:{}),setorSigla:f.setorSigla,nomeGenerico:f.nomeGenerico.trim(),descricaoTecnica:f.descricaoTecnica.trim(),nf:f.nf.trim(),motivoSemNota:String(f.motivoSemNota||'').trim(),responsavel:String(f.responsavel||'').trim(),dataAquisicao:f.dataAquisicao,valor:paraNumero(f.valor),situacao:f.situacao,observacao:f.observacao.trim()};
+      const novo=await salvarBem(id,dados);setBens(novo);setJanela({tipo:'detalhe',bem:{...novo[id],id}});
+      setMsg({texto:f.id?'Alterações salvas.':`Bem cadastrado. A etiqueta é ${novo[id]?.codigo||'gerada pelo servidor'}. Você já pode adicionar as fotos.`});
+    }catch(e){setMsg({erro:true,texto:e.message});}finally{setSalvando(false);}
   }
-
   async function apagarBem(b) {
-    if (
-      !window.confirm(
-        `Apagar ${b.codigo} (${b.nomeGenerico})?\n\nSe o bem saiu da empresa (vendido, sucateado, roubado), o certo e mudar a situação para "Baixado" em vez de apagar -- assim ele sai do inventário mas continua no histórico.`
-      )
-    )
-      return;
-    setMsg(null);
-    try {
-      await removerBem(b.id);
-      setBens((m) => {
-        const novo = { ...(m || {}) };
-        delete novo[b.id];
-        return novo;
-      });
-      setMsg({ tom: "aviso", texto: `${b.codigo} apagado.` });
-    } catch (e) {
-      setMsg({ tom: "erro", texto: e.message });
-    }
+    if(!window.confirm(`Excluir o cadastro ${b.codigo||b.nomeGenerico}?\n\nPara um bem vendido ou descartado, edite a situação para “Baixado” e preserve o histórico.`))return;
+    setSalvando(true);setMsg(null);
+    try{await removerBem(b.id);setBens(m=>{const n={...m};delete n[b.id];return n;});setJanela(null);setSelecionados(ids=>ids.filter(id=>id!==b.id));setMsg({texto:'Cadastro removido.'});}
+    catch(e){setMsg({erro:true,texto:e.message});}finally{setSalvando(false);}
   }
-
   async function gravarSetor(f) {
-    if (!f.sigla || !f.nome.trim()) return setMsg({ tom: "erro", texto: "Sigla e nome são obrigatórios." });
-    const repetida = vm.setores.some((s) => s.sigla === f.sigla && s.id !== f.id);
-    if (repetida) return setMsg({ tom: "erro", texto: `Já existe um setor com a sigla ${f.sigla}.` });
-    setSalvando(true);
-    setMsg(null);
-    try {
-      const id = f.id || `set-${f.sigla.toLowerCase()}`;
-      setSetoresMapa(await salvarSetor(id, { sigla: f.sigla, nome: f.nome.trim(), area: f.area.trim() }));
-      setFormSetor(null);
-      setMsg({ tom: "ok", texto: `Setor ${f.sigla} salvo.` });
-    } catch (e) {
-      setMsg({ tom: "erro", texto: e.message });
-    } finally {
-      setSalvando(false);
-    }
+    if(!f.sigla||!f.nome.trim())return setMsg({erro:true,texto:'Informe a sigla e o nome do setor.'});
+    if(vm.setores.some(s=>s.sigla===f.sigla&&s.id!==f.id))return setMsg({erro:true,texto:'Essa sigla já está em uso.'});
+    setSalvando(true);setMsg(null);
+    try{setSetoresMapa(await salvarSetor(f.id||`set-${f.sigla.toLowerCase()}`,{sigla:f.sigla,nome:f.nome.trim(),area:f.area.trim()}));setJanela(null);setMsg({texto:'Setor salvo.'});}
+    catch(e){setMsg({erro:true,texto:e.message});}finally{setSalvando(false);}
   }
-
   async function apagarSetor(s) {
-    const quantos = vm.porSetor.find((x) => x.id === s.id)?.quantos || 0;
-    if (quantos) {
-      return setMsg({
-        tom: "erro",
-        texto: `${s.sigla} tem ${quantos} ${quantos === 1 ? "bem" : "bens"}. Mova os bens para outro setor antes de remover -- senão eles ficam sem lugar e somem do inventário por setor.`,
-      });
-    }
-    if (!window.confirm(`Remover o setor ${s.sigla} — ${s.nome}?`)) return;
-    setMsg(null);
-    try {
-      await removerSetor(s.id);
-      setSetoresMapa((m) => {
-        const novo = { ...(m || {}) };
-        delete novo[s.id];
-        return novo;
-      });
-      setMsg({ tom: "aviso", texto: `Setor ${s.sigla} removido.` });
-    } catch (e) {
-      setMsg({ tom: "erro", texto: e.message });
-    }
-  }
-
-  async function semear() {
-    if (!window.confirm(`Cadastrar os ${SETORES_PADRAO.length} setores da Impresilk de uma vez?\n\nVoce pode editar ou remover depois.`)) return;
+    // Também protege o setor dos bens baixados: o histórico continua vinculado.
+    if(vm.bens.some(b=>b.setorSigla===s.sigla))return setMsg({erro:true,texto:'Este setor possui bens, inclusive no histórico. Transfira os bens antes de remover o setor.'});
+    if(!window.confirm(`Remover o setor ${s.sigla} — ${s.nome}?`))return;
     setSalvando(true);
-    setMsg(null);
-    try {
-      setSetoresMapa(await semearSetores(SETORES_PADRAO));
-      setVerSetores(true);
-      setMsg({ tom: "ok", texto: `${SETORES_PADRAO.length} setores cadastrados.` });
-    } catch (e) {
-      setMsg({ tom: "erro", texto: e.message });
-    } finally {
-      setSalvando(false);
-    }
+    try{await removerSetor(s.id);setSetoresMapa(m=>{const n={...m};delete n[s.id];return n;});setMsg({texto:'Setor removido.'});}
+    catch(e){setMsg({erro:true,texto:e.message});}finally{setSalvando(false);}
   }
+  async function semear() {
+    if(!window.confirm(`Cadastrar os ${SETORES_PADRAO.length} setores da Impresilk?`))return;
+    setSalvando(true);
+    try{setSetoresMapa(await semearSetores(SETORES_PADRAO));setAba('setores');setMsg({texto:'Setores cadastrados.'});}
+    catch(e){setMsg({erro:true,texto:e.message});}finally{setSalvando(false);}
+  }
+  const imprimir=tipo=>{
+    const lista=bensParaImpressao(visiveis,selecionados);
+    const contexto=[selecionadosVisiveis.length?'Bens selecionados':'Recorte do inventário',filtros.busca&&`Busca: ${filtros.busca}`,filtros.setor&&(vm.setores.find(s=>s.sigla===filtros.setor)?.nome||'Sem setor'),filtros.tipo,filtros.situacao==='ativos'?'Bens ativos':filtros.situacao==='todos'?'Inclui baixados':SITUACOES[filtros.situacao]?.rotulo,filtros.pendencia&&`Pendência: ${filtros.pendencia}`].filter(Boolean).join(' · ');
+    setImpressao({tipo,bens:lista,contexto});
+  };
+  if(erro&&bens===null)return <ErroModulo mensagem={erro} aoTentar={carregar}/>;
+  if(bens===null||setoresMapa===null)return <CarregandoModulo/>;
+  if(impressao)return <Impressao {...impressao} setores={vm.setores} aoVoltar={()=>setImpressao(null)}/>;
 
-  if (erro && bens === null) return <ErroModulo mensagem={erro} aoTentar={carregar} />;
-  if (bens === null || setoresMapa === null) return <CarregandoModulo />;
-
-  if (etiquetas) return <FolhaEtiquetas bens={etiquetas} aoVoltar={() => setEtiquetas(null)} />;
-
-  const k = vm.kpis;
-
-  return (
-    <div className="space-y-8">
-      <AvisoAtualizacao erro={erro} aoTentar={carregar}/>
-      <PageTitle
-        titulo="Patrimônio"
-        descricao="Organize os bens por setor, acompanhe valores e encontre cada item pela etiqueta."
-        acao={
-          <div className="flex flex-wrap gap-2">
-            <button className="btn-primary" onClick={() => abrirBem()} disabled={!vm.setores.length}>
-              <Plus size={16} strokeWidth={2.4} />
-              Novo bem
-            </button>
-            <button className="btn-ghost" onClick={() => setVerSetores((v) => !v)}>
-              <Building2 size={16} strokeWidth={2.2} />
-              Setores ({vm.setores.length})
-            </button>
-          </div>
-        }
-      />
-
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <StatCard rotulo="Bens" valor={numero(k.quantos)} sub={k.baixados ? `${k.baixados} baixados` : "todos em uso"} tom="neutral" icone={Boxes} />
-        {/* SEM NOTA APARECE NO SUBTÍTULO. `semValor` já era contado e ninguém
-            via: este é o número que vai para o seguro, e ele pode estar
-            mentindo PARA BAIXO sem nada avisando. "Soma do que foi pago" sem
-            dizer quantos itens não têm valor é meia verdade. */}
-        <StatCard rotulo="Valor total" valor={moeda(k.valor)}
-          ativo={recorte === "semValor"}
-          onClick={k.semValor ? () => setRecorte((r) => (r === "semValor" ? null : "semValor")) : undefined}
-          sub={k.semValor ? `soma do que foi pago · ${k.semValor} item(ns) sem valor` : "soma do que foi pago"}
-          tom={k.semValor ? "warn" : "neutral"} icone={Wallet} />
-        <StatCard rotulo="Comprados no ano" valor={moeda(k.noAno)} sub={`${numero(k.compradosNoAno)} ${k.compradosNoAno === 1 ? "bem" : "bens"}`} tom="neutral" icone={Coins} />
-        <StatCard
-          rotulo="Sem nota"
-          valor={numero(k.semNota)}
-          sub={k.semNota ? "faltou o número da NF" : "todos com nota"}
-          tom={k.semNota ? "warn" : "ok"}
-          icone={AlertTriangle}
-          ativo={recorte === "semNota"}
-          onClick={k.semNota ? () => setRecorte((r) => (r === "semNota" ? null : "semNota")) : undefined}
-        />
-      </div>
-
-      {msg && (
-        <p
-          className={`flex items-start gap-2 rounded-lg px-3 py-2 text-sm ${
-            msg.tom === "ok" ? "bg-ok-50 text-ok-700" : msg.tom === "aviso" ? "bg-warn-50 text-warn-700" : "bg-bad-50 text-bad-700"
-          }`}
-        >
-          <AlertTriangle size={15} className="mt-0.5 shrink-0" />
-          {msg.texto}
-        </p>
-      )}
-
-      <div ref={topoForm}>
-        <PendenciasPatrimonio bens={vm.ativos} aoEditar={abrirBem} aoFotos={setFotoBem}/>
-        {fotoBem&&<FotosPatrimonio key={fotoBem.id} bemId={fotoBem.id} nome={fotoBem.nomeGenerico} aoFechar={()=>setFotoBem(null)}/>}
-        {formBem && (
-          <><FormBem
-            key={formBem.id || "novo"}
-            inicial={formBem}
-            setores={vm.setores}
-            salvando={salvando}
-            aoSalvar={gravarBem}
-            aoFechar={() => setFormBem(null)}
-          />{formBem.id ? <FotosPatrimonio key={formBem.id} bemId={formBem.id} nome={formBem.nomeGenerico}/> : <p className="text-sm mt-3 text-slate-600">Salve o equipamento para adicionar as fotos.</p>}</>
-        )}
-        {formSetor && (
-          <FormSetor
-            key={formSetor.id || "novo-setor"}
-            inicial={formSetor}
-            salvando={salvando}
-            aoSalvar={gravarSetor}
-            aoFechar={() => setFormSetor(null)}
-          />
-        )}
-      </div>
-
-      {vm.setores.length === 0 && (
-        <Card>
-          <SectionTitle
-            titulo="Comece pelos setores"
-            sub="A sigla do setor forma o código da etiqueta (PRD-001). Sem setor não da para cadastrar bem."
-          />
-          <div className="flex flex-wrap gap-2">
-            <button className="btn-primary" onClick={semear} disabled={salvando}>
-              <Building2 size={16} strokeWidth={2.4} />
-              Cadastrar os {SETORES_PADRAO.length} setores da Impresilk
-            </button>
-            <button className="btn-ghost" onClick={() => abrirSetor()}>
-              <Plus size={16} /> Criar um setor na mão
-            </button>
-          </div>
-        </Card>
-      )}
-
-      {verSetores && vm.setores.length > 0 && (
-        <Card>
-          <SectionTitle
-            titulo="Setores"
-            sub="A sigla vai na etiqueta e não muda depois de criada."
-            acao={
-              <button className="btn-ghost" onClick={() => abrirSetor()}>
-                <Plus size={15} /> Novo setor
-              </button>
-            }
-          />
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[520px] border-collapse">
-              <thead>
-                <tr>
-                  <th className="th text-left">Sigla</th>
-                  <th className="th text-left">Setor</th>
-                  <th className="th text-left">Área</th>
-                  <th className="th text-right">Bens</th>
-                  <th className="th text-right">Valor</th>
-                  <th className="th text-right"></th>
-                </tr>
-              </thead>
-              <tbody>
-                {vm.porSetor.map((s) => (
-                  <tr key={s.id}>
-                    <td className="td font-display font-semibold text-slate-900">{s.sigla}</td>
-                    <td className="td text-slate-700">{s.nome}</td>
-                    <td className="td text-slate-500">{s.area || "-"}</td>
-                    <td className="td text-right tabular-nums">{numero(s.quantos)}</td>
-                    <td className="td text-right tabular-nums">{moeda(s.valor)}</td>
-                    <td className="td text-right">
-                      <span className="inline-flex gap-0.5">
-                        <button
-                          type="button"
-                          onClick={() => abrirSetor(s)}
-                          className="grid h-8 w-8 place-items-center rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-900"
-                          title="Editar"
-                        >
-                          <Pencil size={14} />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => apagarSetor(s)}
-                          className="grid h-8 w-8 place-items-center rounded-lg text-slate-500 hover:bg-bad-50 hover:text-bad-700"
-                          title="Remover"
-                        >
-                          <Trash2 size={14} />
-                        </button>
-                      </span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </Card>
-      )}
-
-      {vm.porTipo.length > 0 && (
-        <Card>
-          <SectionTitle titulo="O que a empresa tem" sub="Agrupado pelo nome generico -- quantos e quanto valem." />
-          <div className="flex flex-wrap gap-2">
-            {vm.porTipo.map((t) => (
-              <button
-                key={t.nome}
-                type="button"
-                onClick={() => {
-                  const ligando = tipoFiltro !== t.nome;
-                  setTipoFiltro(ligando ? t.nome : null);
-                  if (ligando) { setBusca(""); setSetorFiltro(""); setRecorte(null); }
-                }}
-                className="rounded-lg border px-3 py-1.5 text-left transition-colors hover:border-brand-300 hover:bg-brand-50"
-                style={{ borderColor: "var(--hairline)" }}
-              >
-                <span className="block font-display text-sm font-medium text-slate-900">
-                  {t.quantos}x {t.nome}
-                </span>
-                <span className="block text-xs text-slate-500">{moeda(t.valor)}</span>
-              </button>
-            ))}
-          </div>
-        </Card>
-      )}
-
-      <Card>
-        <SectionTitle
-          titulo="Bens"
-          sub="Ordenados pelo código. Marque os que quiser e imprima as etiquetas."
-          acao={
-            <button
-              className="btn-ghost"
-              onClick={() => setEtiquetas(visiveis)}
-              disabled={!visiveis.length}
-              title="Abre a folha de etiquetas dos bens que estão na lista"
-            >
-              <Printer size={15} strokeWidth={2.2} />
-              Etiquetas ({visiveis.length})
-            </button>
-          }
-        />
-
-        {/* Saída do recorte ao lado do resultado: a lista encurta e o motivo
-            está lá em cima, num cartão que pode nem estar na tela. */}
-        {tipoFiltro && (
-          <div className="sem-impressao mb-3 flex flex-wrap items-center gap-2 rounded-lg bg-brand-50 px-3 py-2 text-sm text-brand-700">
-            <span>
-              Mostrando só <strong>{tipoFiltro}</strong> — {visiveis.length}{" "}
-              {visiveis.length === 1 ? "bem" : "bens"}.
-            </span>
-            <button className="btn-ghost !py-1 !px-2 text-xs" onClick={() => setTipoFiltro(null)}>
-              <X size={13} /> ver todos
-            </button>
-          </div>
-        )}
-        {recorte && (
-          <div className="sem-impressao mb-3 flex flex-wrap items-center gap-2 rounded-lg bg-brand-50 px-3 py-2 text-sm text-brand-700">
-            <span>
-              Mostrando só o que está {recorte === "semNota" ? "sem nota fiscal" : "sem valor"} —{" "}
-              {visiveis.length} {visiveis.length === 1 ? "bem" : "bens"}.
-            </span>
-            <button className="btn-ghost !py-1 !px-2 text-xs" onClick={() => setRecorte(null)}>
-              <X size={13} /> ver todos
-            </button>
-          </div>
-        )}
-
-        <div className="sem-impressao mb-4 flex flex-wrap items-center gap-3">
-          <div className="relative min-w-0 flex-1 sm:max-w-xs">
-            <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-            <input
-              className="input pl-9"
-              aria-label="Buscar nesta seção" value={busca}
-              onChange={(e) => setBusca(e.target.value)}
-              placeholder="Buscar por etiqueta, nome, NF ou descrição"
-            />
-          </div>
-          <select aria-label="Filtrar patrimônio por setor" className="input h-9 w-auto py-0" value={setorFiltro} onChange={(e) => setSetorFiltro(e.target.value)}>
-            <option value="">Todos os setores</option>
-            {vm.setores.map((s) => (
-              <option key={s.id} value={s.sigla}>
-                {s.sigla} — {s.nome}
-              </option>
-            ))}
-          </select>
-          <label className="flex cursor-pointer items-center gap-2 text-sm text-slate-600">
-            <input
-              type="checkbox"
-              className="h-4 w-4 rounded border-slate-300 text-brand focus:ring-brand-200"
-              checked={verBaixados}
-              onChange={(e) => setVerBaixados(e.target.checked)}
-            />
-            Mostrar baixados
-          </label>
-        </div>
-
-        {visiveis.length === 0 ? (
-          <Empty>
-            {recorte
-              ? `Nenhum bem ${recorte === "semNota" ? "sem nota" : "sem valor"} com esse filtro.`
-              : busca.trim() || setorFiltro
-              ? "Nenhum bem com esse filtro."
-              : "Nenhum bem cadastrado ainda. Use 'Novo bem' para começar o inventário."}
-          </Empty>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[760px] border-collapse">
-              <thead>
-                <tr>
-                  <th className="th text-left">Etiqueta</th>
-                  <th className="th text-left">Bem</th>
-                  <th className="th text-left">Setor</th>
-                  <th className="th text-left">NF</th>
-                  <th className="th text-left">Aquisição</th>
-                  <th className="th text-right">Valor</th>
-                  <th className="th text-right"></th>
-                </tr>
-              </thead>
-              <tbody>
-                {visiveis.map((b) => {
-                  const idade = idadeEmAnos(b.dataAquisicao, hojeISO);
-                  const sit = SITUACOES[b.situacao] || SITUACOES.uso;
-                  return (
-                    <tr key={b.id}>
-                      <td className="td">
-                        <span className="inline-flex items-center gap-1.5 font-display font-semibold tabular-nums text-slate-900">
-                          <Tag size={13} className="shrink-0 text-slate-400" />
-                          {b.codigo || "sem código"}
-                        </span>
-                      </td>
-                      <td className="td">
-                        <span className="block text-slate-900">{b.nomeGenerico}</span><button type="button" className="btn-ghost text-sm" onClick={()=>{setFormBem(null);setFormSetor(null);setFotoBem(b);rolar();}}>Fotos do equipamento</button>
-                        <span className="block text-xs text-slate-500">
-                          {b.descricaoTecnica || "sem descrição técnica"}
-                        </span>
-                      </td>
-                      <td className="td">
-                        <span className="block text-slate-700">{b.setorSigla || "-"}</span>
-                        {b.situacao !== "uso" && <span className={`${sit.chip} mt-0.5`}>{sit.rotulo}</span>}
-                      </td>
-                      <td className="td text-slate-600">{b.nf || "-"}</td>
-                      <td className="td whitespace-nowrap text-slate-600">
-                        {b.dataAquisicao ? dataLonga(b.dataAquisicao) : "-"}
-                        {idade !== null && (
-                          <span className="block text-xs text-slate-400">
-                            {idade === 0 ? "menos de 1 ano" : `${idade} ${idade === 1 ? "ano" : "anos"}`}
-                          </span>
-                        )}
-                      </td>
-                      <td className="td text-right tabular-nums font-medium text-slate-900">{moedaCheia(b.valor)}</td>
-                      <td className="td text-right">
-                        <span className="inline-flex gap-0.5">
-                          <button
-                            type="button"
-                            onClick={() => setEtiquetas([b])}
-                            className="grid h-8 w-8 place-items-center rounded-lg text-slate-500 hover:bg-slate-100 hover:text-brand"
-                            title="Imprimir só esta etiqueta"
-                          >
-                            <Printer size={14} />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => abrirBem(b)}
-                            className="grid h-8 w-8 place-items-center rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-900"
-                            title="Editar"
-                          >
-                            <Pencil size={14} />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => apagarBem(b)}
-                            className="grid h-8 w-8 place-items-center rounded-lg text-slate-500 hover:bg-bad-50 hover:text-bad-700"
-                            title="Apagar"
-                          >
-                            <Trash2 size={14} />
-                          </button>
-                        </span>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
-
-        {vm.semSetor.length > 0 && (
-          <p className="mt-4 rounded-lg bg-warn-50 px-3 py-2 text-sm text-warn-700">
-            {vm.semSetor.length} {vm.semSetor.length === 1 ? "bem esta" : "bens estão"} sem setor válido
-            (o setor foi removido). Edite {vm.semSetor.length === 1 ? "ele" : "eles"} e escolha um setor,
-            senão {vm.semSetor.length === 1 ? "ele não aparece" : "eles não aparecem"} no inventário por setor.
-          </p>
-        )}
-      </Card>
+  return <div className="patrimonio-page">
+    <AvisoAtualizacao erro={erro} aoTentar={carregar}/>
+    <header className="pat-heading"><div><span className="pat-eyebrow">EQUIPAMENTOS E BENS DA EMPRESA</span><h1>Patrimônio</h1><p>Saiba o que temos, onde está e o que precisa de atenção.</p></div><div className="pat-actions"><button className="btn-ghost" disabled={atualizando||salvando} onClick={()=>{carregar();carregarFotos();}} aria-label="Atualizar patrimônio"><RefreshCw size={18} className={atualizando?'animate-spin':''}/></button><button className="btn-primary" disabled={!vm.setores.length} onClick={()=>abrirBem()}><Plus size={18}/>Novo bem</button></div></header>
+    <div className="pat-metrics">
+      <Indicador titulo="Bens ativos" valor={numero(vm.kpis.quantos)} descricao={`${vm.kpis.baixados} no histórico de baixas`} icone={Boxes} aoClicar={()=>recortar({})}/>
+      <Indicador titulo="Investido em bens" valor={moedaCheia(vm.kpis.valor)} descricao={`${moedaCheia(vm.kpis.noAno)} adquiridos em ${hoje.slice(0,4)}`} icone={Wallet} aoClicar={()=>recortar({ordem:'valor'})}/>
+      <Indicador titulo="Em manutenção" valor={vm.ativos.filter(b=>b.situacao==='manutencao').length} descricao="Ver equipamentos indisponíveis" icone={Building2} ativo={filtros.situacao==='manutencao'} aoClicar={()=>recortar({situacao:'manutencao'})}/>
+      <Indicador titulo="Cadastros a completar" valor={pendentes.length} descricao={fotos===null?'Conferência parcial: fotos pendentes':'Fotos, localização e documentação'} icone={AlertTriangle} ativo={aba==='pendencias'} aoClicar={()=>{setAba('pendencias');setMsg(null);}}/>
     </div>
-  );
+    {msg&&!janela&&<p className={`pat-notice ${msg.erro?'is-error':''}`} role={msg.erro?'alert':'status'}>{msg.texto}</p>}
+    {erroFotos&&<div className="pat-notice is-error" role="alert">Não foi possível conferir as fotos. A consulta dos bens continua disponível. <button onClick={carregarFotos} className="btn-ghost">Tentar novamente</button></div>}
+    {!vm.setores.length&&<div className="pat-empty"><Building2 size={30}/><h2>Organize os primeiros setores</h2><p>O setor identifica a localização e gera a etiqueta de cada bem.</p><div className="pat-actions"><button className="btn-primary" disabled={salvando} onClick={semear}>Usar os setores da Impresilk</button><button className="btn-outline" onClick={()=>abrirSetor()}>Criar setor</button></div></div>}
+    <nav className="pat-tabs" aria-label="Visões do patrimônio">{[['inventario','Inventário'],['setores','Por setor'],['pendencias','Pendências']].map(([id,nome])=><button key={id} aria-current={aba===id?'page':undefined} onClick={()=>{setAba(id);setMsg(null);}}>{nome}{id==='pendencias'&&<span>{pendentes.length}</span>}</button>)}</nav>
+
+    {aba==='inventario'&&<>
+      <div className="pat-toolbar">
+        <div className="pat-search"><Search size={19}/><input className="input" aria-label="Buscar bens" placeholder="Etiqueta, equipamento, série, nota ou responsável…" value={filtros.busca} onChange={e=>filtrar({busca:e.target.value})}/>{filtros.busca&&<button onClick={()=>filtrar({busca:''})} aria-label="Limpar busca"><X size={17}/></button>}</div>
+        <div className="pat-filters">
+          <label>Setor<select className="input" value={filtros.setor} onChange={e=>filtrar({setor:e.target.value})}><option value="">Todos os setores</option>{vm.setores.map(s=><option key={s.id} value={s.sigla}>{s.nome}</option>)}<option value="__sem_setor">Sem setor válido</option></select></label>
+          <label>Tipo<select className="input" value={filtros.tipo} onChange={e=>filtrar({tipo:e.target.value})}><option value="">Todos os tipos</option>{[...new Set(vm.bens.map(b=>b.nomeGenerico).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'pt-BR')).map(n=><option key={n}>{n}</option>)}</select></label>
+          <label>Situação<select className="input" value={filtros.situacao} onChange={e=>filtrar({situacao:e.target.value})}><option value="ativos">Ativos (sem baixados)</option>{Object.entries(SITUACOES).map(([id,s])=><option key={id} value={id}>{s.rotulo}</option>)}<option value="todos">Todas, incluindo baixados</option></select></label>
+          <label>Ordenar por<select className="input" value={filtros.ordem} onChange={e=>filtrar({ordem:e.target.value})}><option value="codigo">Etiqueta</option><option value="nome">Nome do equipamento</option><option value="valor">Maior valor</option><option value="recentes">Compra mais recente</option></select></label>
+        </div>
+        {mudouFiltro&&<div className="pat-active-filters"><span>{filtros.pendencia?`Cadastros a completar${filtros.pendencia==='foto'?' · sem foto':filtros.pendencia==='valor'?' · sem valor':''}`:'Filtros aplicados'}</span><button onClick={()=>recortar({})}>Limpar filtros <X size={14}/></button></div>}
+      </div>
+      <div className="pat-list-heading"><div><h2>Seu inventário <span>{visiveis.length}</span></h2><p>{moedaCheia(visiveis.reduce((s,b)=>s+b.valor,0))} em valores informados neste recorte</p></div><div className="pat-actions"><div className="pat-view-switch" aria-label="Apresentação do inventário"><button aria-label="Ver em cartões" aria-pressed={modo==='cards'} onClick={()=>setModo('cards')}><LayoutGrid size={18}/></button><button aria-label="Ver em lista" aria-pressed={modo==='lista'} onClick={()=>setModo('lista')}><List size={18}/></button></div><button className="btn-outline" disabled={!visiveis.length} onClick={()=>imprimir('inventario')}><Printer size={16}/>Relatório / PDF</button></div></div>
+      {!!visiveis.length&&<div className="pat-selection"><label><input type="checkbox" checked={nestaPagina.every(b=>selecionados.includes(b.id))} onChange={e=>setSelecionados(ids=>e.target.checked?[...new Set([...ids,...nestaPagina.map(b=>b.id)])]:ids.filter(id=>!nestaPagina.some(b=>b.id===id)))}/>Selecionar esta página</label><span>{selecionadosVisiveis.length?`${selecionadosVisiveis.length} selecionados`:'Selecione bens para imprimir só as etiquetas desejadas'}</span><button className="btn-ghost" onClick={()=>imprimir('etiquetas')}><Tag size={16}/>{selecionadosVisiveis.length?`Etiquetas (${selecionadosVisiveis.length})`:'Etiquetas do recorte'}</button>{!!selecionadosVisiveis.length&&<button className="btn-ghost" onClick={()=>setSelecionados([])}>Limpar seleção</button>}</div>}
+      {!visiveis.length?<div className="pat-empty"><Boxes size={36}/><h2>{vm.bens.length?'Nenhum bem neste recorte':'Vamos montar seu inventário'}</h2><p>{vm.bens.length?'Experimente outro setor, situação ou termo de busca.':'Cadastre um equipamento, identifique o setor e adicione suas fotos.'}</p><button className="btn-outline" disabled={!vm.bens.length&&!vm.setores.length} onClick={()=>vm.bens.length?recortar({}):abrirBem()}>{vm.bens.length?'Limpar filtros':'Cadastrar primeiro bem'}</button></div>:modo==='cards'?<div className="pat-grid">{nestaPagina.map(b=><article key={b.id} className={`pat-asset ${selecionados.includes(b.id)?'is-selected':''}`}>
+        <label className="pat-select-asset"><input type="checkbox" aria-label={`Selecionar ${b.codigo||b.nomeGenerico}`} checked={selecionados.includes(b.id)} onChange={()=>selecionar(b.id)}/></label>
+        <button className="pat-open-cover" onClick={()=>verDetalhe(b)} aria-label={`Abrir fotos e ficha de ${b.codigo||b.nomeGenerico}`}><CapaBem bem={b} quantidade={fotos===null?undefined:(fotos[b.id]||0)} revisao={revisaoFotos}/></button>
+        <div className="pat-asset-body"><div className="pat-asset-meta"><span>{b.codigo||'Sem etiqueta'}</span><Situacao bem={b}/></div><button className="pat-asset-name" onClick={()=>verDetalhe(b)}>{b.nomeGenerico||'Bem sem nome'}<ArrowUpRight size={17}/></button><p className="pat-asset-description">{b.descricaoTecnica||'Adicione marca, modelo e número de série.'}</p><p className="pat-location"><Building2 size={15}/>{nomeSetor(b,vm.setores)}</p><footer><div><small>Valor de aquisição</small><strong>{b.valor>0?moedaCheia(b.valor):'A informar'}</strong></div><button className="btn-ghost" onClick={()=>verDetalhe(b)}>Ver ficha</button></footer></div>
+      </article>)}</div>:<div className="pat-table-wrap"><table className="pat-table"><thead><tr><th>Seleção</th><th>Bem / etiqueta</th><th>Setor</th><th>Situação</th><th>Valor de aquisição</th><th>Ficha</th></tr></thead><tbody>{nestaPagina.map(b=><tr key={b.id}><td><input type="checkbox" aria-label={`Selecionar ${b.codigo||b.nomeGenerico}`} checked={selecionados.includes(b.id)} onChange={()=>selecionar(b.id)}/></td><td><button className="pat-table-name" onClick={()=>verDetalhe(b)}>{b.nomeGenerico}</button><small>{b.codigo||'Sem etiqueta'} · {b.descricaoTecnica||'Sem descrição'}</small></td><td>{nomeSetor(b,vm.setores)}</td><td><Situacao bem={b}/></td><td>{b.valor>0?moedaCheia(b.valor):'A informar'}</td><td><button className="btn-ghost" aria-label={`Ver ficha de ${b.codigo||b.nomeGenerico}`} onClick={()=>verDetalhe(b)}><ArrowUpRight size={18}/></button></td></tr>)}</tbody></table></div>}
+      {!!visiveis.length&&<div className="pat-pagination"><span>{(atual-1)*POR_PAGINA+1}–{Math.min(atual*POR_PAGINA,visiveis.length)} de {visiveis.length} bens</span><div><button className="btn-outline" disabled={atual===1} aria-label="Página anterior" onClick={()=>setPagina(atual-1)}><ChevronLeft size={18}/></button><span>{atual} / {paginas}</span><button className="btn-outline" disabled={atual===paginas} aria-label="Próxima página" onClick={()=>setPagina(atual+1)}><ChevronRight size={18}/></button></div></div>}
+    </>}
+    {aba==='setores'&&<><div className="pat-list-heading"><div><h2>Onde estão os bens</h2><p>Veja a distribuição do patrimônio e abra o inventário de cada setor.</p></div><button className="btn-primary" onClick={()=>abrirSetor()}><Plus size={17}/>Novo setor</button></div><div className="pat-sector-grid">{vm.porSetor.map(s=><article className="pat-sector" key={s.id}><div className="pat-sector-top"><span className="pat-sector-code">{s.sigla}</span><div className="pat-actions"><button className="btn-ghost" onClick={()=>abrirSetor(s)} aria-label={`Editar setor ${s.nome}`}><Pencil size={16}/></button><button className="btn-ghost" disabled={salvando} onClick={()=>apagarSetor(s)} aria-label={`Remover setor ${s.nome}`}><Trash2 size={16}/></button></div></div><h3>{s.nome}</h3><p>{s.area||'Área não informada'}</p><div className="pat-sector-value"><strong>{moedaCheia(s.valor)}</strong><span>{s.quantos} bens ativos</span></div><button className="pat-sector-open" onClick={()=>recortar({setor:s.sigla})}>Ver bens do setor <ArrowUpRight size={17}/></button></article>)}</div>{vm.semSetor.length>0&&<div className="pat-notice"><span>{vm.semSetor.length} {vm.semSetor.length===1?'bem precisa':'bens precisam'} de um setor válido.</span><button className="btn-ghost" onClick={()=>recortar({setor:'__sem_setor'})}>Ver e corrigir</button></div>}</>}
+    {aba==='pendencias'&&<><div className="pat-list-heading"><div><h2>Complete o inventário</h2><p>Comece pelos bens de maior valor. Pendências de cadastro não significam defeito no equipamento.</p></div><button className="btn-outline" onClick={()=>recortar({pendencia:'todas',ordem:'valor'})}>Ver no inventário</button></div><div className="pat-pending-shortcuts"><button className="btn-outline" disabled={fotos===null} onClick={()=>recortar({pendencia:'foto'})}><Camera size={17}/>Sem foto</button><button className="btn-outline" onClick={()=>recortar({pendencia:'valor'})}><Wallet size={17}/>Sem valor de aquisição</button></div>{!pendentes.length?<div className="pat-empty"><h3>{fotos===null?'Cadastro conferido; fotos ainda não verificadas':'Cadastros completos'}</h3><p>{fotos===null?'Tente atualizar a conferência das fotos.':'Os bens ativos têm etiqueta, setor, responsável, documentação, valor e foto.'}</p></div>:<div className="pat-pending-list">{[...pendentes].sort((a,b)=>b.valor-a.valor).map(b=><article key={b.id}><div><span className="pat-eyebrow">{b.codigo||'Sem etiqueta'} · {nomeSetor(b,vm.setores)}</span><h3>{b.nomeGenerico}</h3><div className="pat-missing">{pendenciasBem(b,vm.setores,fotos).map(p=><span key={p.id}>{p.nome}</span>)}</div></div><div><strong>{b.valor>0?moedaCheia(b.valor):'Valor a informar'}</strong><button className="btn-outline" onClick={()=>verDetalhe(b)}>Completar ficha</button></div></article>)}</div>}</>}
+    {janela&&<JanelaFormulario titulo={janela.tipo==='bem'?(janela.bem.id?'Editar bem':'Novo bem'):janela.tipo==='setor'?(janela.setor.id?'Editar setor':'Novo setor'):(detalhe?.nomeGenerico||'Ficha do bem')} ocupado={salvando||fotoOcupada} aoFechar={fechar}>
+      {msg&&<p className={`pat-notice ${msg.erro?'is-error':''}`} role={msg.erro?'alert':'status'}>{msg.texto}</p>}
+      {janela.tipo==='bem'&&<FormBem key={janela.bem.id||'novo'} inicial={janela.bem} setores={vm.setores} salvando={salvando} aoSalvar={gravarBem} aoFechar={fechar}/>}
+      {janela.tipo==='setor'&&<FormSetor key={janela.setor.id||'novo'} inicial={janela.setor} salvando={salvando} aoSalvar={gravarSetor} aoFechar={fechar}/>}
+      {detalhe&&<div className="pat-detail"><div className="pat-detail-heading"><div><span className="pat-detail-code"><Tag size={17}/>{detalhe.codigo||'Etiqueta não informada'}</span><Situacao bem={detalhe}/></div><button className="btn-primary" disabled={fotoOcupada} onClick={()=>abrirBem(detalhe)}><Pencil size={16}/>Editar ficha</button></div><p className="pat-detail-description">{detalhe.descricaoTecnica||'Descrição técnica não informada.'}</p><dl className="pat-facts">{[['Setor',nomeSetor(detalhe,vm.setores)],['Valor de aquisição',detalhe.valor>0?moedaCheia(detalhe.valor):'Não informado'],['Aquisição',detalhe.dataAquisicao?`${dataLonga(detalhe.dataAquisicao)}${idadeEmAnos(detalhe.dataAquisicao,hoje)!==null?` · ${idadeEmAnos(detalhe.dataAquisicao,hoje)} ano(s)`:''}`:'Data não informada'],['Nota fiscal',detalhe.nf||detalhe.motivoSemNota||'Não informada'],['Responsável pelo cadastro',detalhe.responsavel||'Não informado'],['Observações',detalhe.observacao||'Nenhuma observação']].map(([t,v])=><div key={t}><dt>{t}</dt><dd>{v}</dd></div>)}</dl><FotosPatrimonio bemId={detalhe.id} nome={detalhe.nomeGenerico} aoAlterar={carregarFotos} aoOcupado={setFotoOcupada}/><div className="pat-detail-footer"><button className="btn-outline" disabled={salvando||fotoOcupada} onClick={()=>{setJanela(null);setImpressao({tipo:'etiquetas',bens:[detalhe]});}}><Printer size={16}/>Imprimir etiqueta</button><button className="btn-ghost" disabled={salvando||fotoOcupada} onClick={()=>apagarBem(detalhe)}><Trash2 size={16}/>Excluir cadastro</button></div><p className="pat-footnote">Vendeu ou descartou? Em “Editar ficha”, altere a situação para “Baixado” e registre o motivo nas observações.</p></div>}
+    </JanelaFormulario>}
+  </div>;
 }
