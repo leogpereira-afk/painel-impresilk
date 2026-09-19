@@ -56,12 +56,15 @@ export default function CentralShell({children,sessao,aoSair,controles}) {
     {menu&&<button aria-label="Fechar menu" className="review-scrim sem-impressao" onClick={()=>setMenu(false)}/>}
     <aside ref={lateralRef} id="menu-painel" className={`review-sidebar sem-impressao ${menu?'open':''}`}>
       {menu && <button className="btn-ghost" onClick={()=>setMenu(false)} aria-label="Fechar navegação"><X size={22}/></button>}
-      <Link to="/" className="review-brand"><img src={logo} alt="Impresilk" className="dark:hidden"/><img src={logoWhite} alt="Impresilk" className="hidden dark:block"/><span>PAINEL DE GESTÃO</span></Link>
+      <Link to="/" className="review-brand"><img src={logo} alt="Impresilk" className="dark:hidden"/><img src={logoWhite} alt="Impresilk" className="hidden dark:block"/></Link>
+      <details className="review-gestao" open>
+        <summary>PAINEL DE GESTÃO <ChevronRight size={15} aria-hidden="true"/></summary>
       <nav aria-label="Navegação principal">
         <NavLink end to="/" className={({isActive})=>isActive?'selected':''}><span className="review-link-emoji" aria-hidden="true">🏠</span>Início</NavLink>
         {(podeAbrir('calendario-empresa',sessao)||podeAbrir('agenda',sessao))&&<Link to={calendarioDestino} className={noCalendario?'selected':''} aria-current={noCalendario?'page':undefined}><span className="review-link-emoji" aria-hidden="true">📅</span>Calendário</Link>}
         <Link className={naCentral?'selected':''} to="/acessos" aria-current={naCentral?'page':undefined}><span className="review-link-emoji" aria-hidden="true">⚙️</span>Sistemas e configurações</Link>
       </nav>
+      </details>
       <div className="review-sidebar-scroll">
         <details key={`modulos-${location.pathname}`} open><summary>MÓDULOS DO PAINEL <ChevronRight size={15}/></summary>
           <nav aria-label="Módulos do painel">{modulos.map(m=>{return <NavLink key={m.id} to={`/${m.id}`} className={({isActive})=>isActive?'selected':''}><span className="review-link-emoji" aria-hidden="true">{EMOJIS_MODULOS[m.id]||"📁"}</span><span>{m.nome}</span></NavLink>;})}</nav>
