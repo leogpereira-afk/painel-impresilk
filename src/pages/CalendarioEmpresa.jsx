@@ -1,24 +1,6 @@
-// ============================================================================
-// Calendário da empresa — feriados, datas comemorativas, reuniões e eventos.
-//
-// Vem do calendário do RH, mas SÓ a parte que é da casa. O calendário do RH
-// mostra também, calculado da ficha de cada pessoa: data de nascimento
-// (aniversário), período de férias, exame agendado, NR vencendo, vencimento de
-// documento, fim de experiência e o dia do pagamento.
-//
-// NADA DISSO ENTRA AQUI. Decisão do dono em 14/09/2026: "não mostrar isso no
-// painel de gestão". E o corte não é desta tela -- a function painel-agenda
-// lê UMA coleção, `eventos`, e não abre as coleções colaboradores, documentos,
-// certificacoesNr nem ferias, que são de onde aqueles avisos saem. Não há o que
-// filtrar no desenho porque não há o que chegar pela rede. Réguas diferentes na
-// tela e na porta de dados já vazaram folha de pagamento nesta casa uma vez.
-//
-// Por isso também não existe "Tempo de empresa" (que sai da data de admissão):
-// ele é derivado de ficha, como os outros. Se um dia ele tiver de voltar, volta
-// como evento lançado à mão no RH, não como cálculo em cima do cadastro.
-//
-// Somente para consulta: lançar evento continua no RH.
-// ============================================================================
+import useMesCalendario from '../lib/useMesCalendario.js';
+// Consulta a base do RH: eventos, aniversários e tempo de empresa.
+// Edição dos registros permanece na origem.
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight, RefreshCw, Eye, CalendarDays } from "lucide-react";
@@ -54,7 +36,7 @@ const porExtenso = (iso) => {
 };
 
 export default function CalendarioEmpresa() {
-  const [mes, setMes] = useState(mesAtual);
+  const [mes, setMes] = useMesCalendario(mesAtual);
   const [foco, setFoco] = useState("");
   const [dados, setDados] = useState(null);
   const [erro, setErro] = useState("");
@@ -125,7 +107,7 @@ export default function CalendarioEmpresa() {
       <AvisoAtualizacao erro={erro} aoTentar={recarregar} />
       <PageTitle
         titulo="Calendário da empresa"
-        descricao="Feriados, datas comemorativas, reuniões e eventos da casa. Clique num tipo para ver só ele."
+        descricao="Aniversários, tempo de empresa, feriados, reuniões e eventos do RH."
         acao={
           <button type="button" className="btn-outline" disabled={atualizando} onClick={recarregar}>
             <RefreshCw size={16} className={atualizando ? "animate-spin" : ""} />
@@ -137,9 +119,8 @@ export default function CalendarioEmpresa() {
       <p className="flex items-start gap-2 rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-600">
         <Eye size={16} className="mt-0.5 shrink-0" aria-hidden="true" />
         <span>
-          Somente para consulta — lançar evento continua no RH. Aniversários, férias,
-          exames, NR e dia de pagamento <strong>não aparecem aqui</strong>: são da ficha
-          de cada pessoa e ficam no RH.
+          Dados compartilhados com o RH. Aniversários e tempo de empresa são atualizados
+          a partir dos cadastros; eventos continuam sendo registrados no RH.
         </span>
       </p>
 
@@ -250,7 +231,7 @@ export default function CalendarioEmpresa() {
           )}
           <p className="mt-4 flex items-center gap-1.5 text-xs text-slate-400">
             <CalendarDays size={13} aria-hidden="true" />
-            Lançado no RH · Calendário.
+            Fonte: RH · eventos e cadastros.
           </p>
         </Card>
       </div>

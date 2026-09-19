@@ -29,7 +29,7 @@ export const lerProducao = (mes) =>
     consultadoEm: r?.consultadoEm || "",
   }));
 
-/** Calendario da empresa: so os eventos lancados no RH. Sem dado de pessoa. */
+/** Calendário da empresa: eventos e celebrações projetadas do RH. */
 export const lerEmpresa = (mes) =>
   chamar("empresa", mes).then((r) => ({
     eventos: Array.isArray(r?.eventos) ? r.eventos : [],

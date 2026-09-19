@@ -8,7 +8,7 @@ import logo from '../assets/brand/logo-color.png';
 import logoWhite from '../assets/brand/logo-white.png';
 import './central-shell.css';
 
-const EMOJIS_MODULOS = {compromissos:'📅',agenda:'🗓️','calendario-empresa':'🎉','contas-atrasadas':'💰',orcamentos:'📋',bancos:'🏦',marketing:'📣',licitacoes:'⚖️',glossario:'📖',manutencoes:'🛠️',patrimonio:'🏠',permutas:'🤝',campanhas:'🎯',documentos:'📁'};
+const EMOJIS_MODULOS = {compromissos:'📅',agenda:'🗓️','calendario-empresa':'📅','contas-atrasadas':'💰',orcamentos:'📋',bancos:'🏦',marketing:'📣',licitacoes:'⚖️',glossario:'📖',manutencoes:'🛠️',patrimonio:'🏠',permutas:'🤝',campanhas:'🎯',documentos:'📁'};
 const EMOJIS_SISTEMAS = {rh:'👥',pcp:'🏭',brief:'📏',dre:'📊',compras:'🛒',pops:'📚',domo:'🏗️',bosques:'🌳',central:'👤',diamond:'💎',minaslab:'🔬'};
 
 export default function CentralShell({children,sessao,aoSair,controles}) {
@@ -21,14 +21,16 @@ export default function CentralShell({children,sessao,aoSair,controles}) {
   const naCentral = ['/acessos','/minha-conta','/backups','/configuracoes'].includes(location.pathname);
   // `documentos` agora e um modulo como os outros (src/lib/modulos.js): sai
   // do acrescimo a mao, que o punha no menu de TODA sessao, e entra no filtro.
-  const modulos = MODULOS.filter(m=>m.id!=='configuracoes' && podeAbrir(m.id,sessao));
+  const modulos = MODULOS.filter(m=>!['configuracoes','agenda','calendario-empresa'].includes(m.id) && podeAbrir(m.id,sessao));
   const gruposAcesso = [
     {nome:'IMPRESILK', links:SISTEMAS.filter(s=>s.id!=='painel' && !s.pessoal && s.url)},
     {nome:'LÉO E PORTAL DOS BOSQUES', links:SISTEMAS.filter(s=>['central','bosques'].includes(s.id))},
     {nome:'DOMO', links:[...SISTEMAS.filter(s=>s.id==='domo'),{id:'diamond',nome:'Diamond Vendas',url:'https://leogpereira-afk.github.io/diamond/'}]},
     {nome:'MINASLAB', links:ATALHOS_EXTERNOS_CENTRAL.filter(s=>s.id==='minaslab')},
   ].filter((g,i)=>i===0 || ehDirecao(sessao) || review);
-  const titulo = naCentral ? 'Sistemas e configurações' : modulos.find(m=>`/${m.id}`===location.pathname)?.nome || 'Início';
+  const noCalendario=['/agenda','/calendario-empresa'].includes(location.pathname);
+  const calendarioDestino=podeAbrir('calendario-empresa',sessao)?'/calendario-empresa':'/agenda';
+  const titulo = noCalendario ? 'Calendário' : naCentral ? 'Sistemas e configurações' : modulos.find(m=>`/${m.id}`===location.pathname)?.nome || 'Início';
   useEffect(()=>setMenu(false),[location.pathname,location.search]);
   useEffect(()=>{
     if(!menu)return;
@@ -59,6 +61,7 @@ export default function CentralShell({children,sessao,aoSair,controles}) {
       <Link to="/" className="review-brand"><img src={logo} alt="Impresilk" className="dark:hidden"/><img src={logoWhite} alt="Impresilk" className="hidden dark:block"/><span>PAINEL DE GESTÃO</span></Link>
       <nav aria-label="Navegação principal">
         <NavLink end to="/" className={({isActive})=>isActive?'selected':''}><span className="review-link-emoji" aria-hidden="true">🏠</span>Início</NavLink>
+        {(podeAbrir('calendario-empresa',sessao)||podeAbrir('agenda',sessao))&&<Link to={calendarioDestino} className={noCalendario?'selected':''} aria-current={noCalendario?'page':undefined}><span className="review-link-emoji" aria-hidden="true">📅</span>Calendário</Link>}
         <Link className={naCentral?'selected':''} to="/acessos" aria-current={naCentral?'page':undefined}><span className="review-link-emoji" aria-hidden="true">⚙️</span>Sistemas e configurações</Link>
       </nav>
       <div className="review-sidebar-scroll">

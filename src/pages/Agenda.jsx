@@ -1,3 +1,4 @@
+import useMesCalendario from '../lib/useMesCalendario.js';
 // ============================================================================
 // Agenda da producao — o Calendario e a Programacao do PCP, SO PARA VER.
 //
@@ -133,7 +134,7 @@ function LinhaOS({ o, comEndereco }) {
 }
 
 export default function Agenda() {
-  const [mes, setMes] = useState(mesAtual);
+  const [mes, setMes] = useMesCalendario(mesAtual);
   const [aba, setAba] = useState("calendario");
   /* O dia NASCE em hoje, e nao vazio. Com "" o efeito abaixo rodava a primeira
      vez antes de a porta responder (quando `hoje` ainda e ""), gravava

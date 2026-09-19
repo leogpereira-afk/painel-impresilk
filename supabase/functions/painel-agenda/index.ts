@@ -33,17 +33,16 @@
 //     da producao tem a tela do PCP. Modulo sem dinheiro fica fora do
 //     COM_DINHEIRO de src/lib/modulos.js -- e continua fora enquanto for assim.
 //   - CNPJ/CPF, WhatsApp e telefone do cliente.
-//   - QUALQUER dado de pessoa do RH: data de nascimento, ferias, exame
-//     agendado, NR vencendo e dia do pagamento (decisao do dono, 14/09/2026).
-//     Repare que a acao "empresa" le SO a colecao `eventos` -- as colecoes
-//     colaboradores, documentos, certificacoesNr e ferias, que sao de onde o
-//     calendario do RH tira esses avisos, nao sao consultadas em lugar nenhum
-//     deste arquivo. Nao ha o que filtrar na tela porque nao ha o que chegar.
+//   - Ficha completa, idade, ano de nascimento, documentos, saúde e pagamentos.
+// Autorização de 19/09/2026: exibir nome e dia do aniversário e tempo de empresa,
+// derivados dos mesmos cadastros e status utilizados pelo calendário do RH.
 // ============================================================================
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { verificarJwt, crachaRevogado } from "../_shared/cripto.ts";
 import { diasCasa, encerradaERP, projetarOS, hojeSP } from "../_shared/agenda-pcp.ts";
+
+import { celebracoesRH } from "../_shared/calendario-celebracoes.mjs";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -168,11 +167,7 @@ async function producao(mes: string) {
 }
 
 // ----------------------------------------------------------------- empresa --
-/* AS CORES dos tipos de fabrica, copiadas de rh/src/lib/tiposEvento.ts
-   (TIPOS_DE_FABRICA). Os tipos DERIVADOS de la -- Aniversario, Ferias, Exame
-   agendado, NR vence, Pagamento, Documento vence, Experiencia, Tempo de
-   empresa -- NAO entram aqui nem por engano: sao calculados a partir da ficha
-   da pessoa, e esta porta nao le ficha de pessoa nenhuma. */
+// Cores dos eventos registrados no RH.
 const CORES_DE_FABRICA: Record<string, string> = {
   "Comemorativa": "#2563eb",
   "Reunião": "#16334f",
@@ -183,7 +178,11 @@ const CORES_DE_FABRICA: Record<string, string> = {
 const COR_PADRAO = "#64748b";
 
 async function empresa(mes: string) {
-  const eventos = await lerColecao("registros", "eventos");
+  const [eventos,colaboradores,status] = await Promise.all([
+    lerColecao("registros", "eventos"),
+    lerColecao("registros", "colaboradores"),
+    lerColecao("registros", "status"),
+  ]);
   /* O `error` E CONFERIDO. Descartado, uma falha passageira devolveria 200 com
      todo tipo criado pela empresa em cinza -- e quem olhasse concluiria que a
      cor tinha se perdido no RH. Falhar alto e melhor do que mentir baixo. */
@@ -217,7 +216,7 @@ async function empresa(mes: string) {
   const ultimoDia = new Date(Date.UTC(ano, numeroDoMes, 0)).getUTCDate();
 
   return {
-    eventos: doMes.map((e: any) => {
+    eventos: [...celebracoesRH(colaboradores,status,mes), ...doMes.map((e: any) => {
       const tipo = texto(e?.tipo, 40) || "Outro";
       const d = texto(e?.data, 10);
       const diaDoMes = Math.min(Number(d.slice(8, 10)), ultimoDia);
@@ -233,7 +232,7 @@ async function empresa(mes: string) {
         descricao: texto(e?.descricao, 400),
         recorrenteAnual: !!e?.recorrenteAnual,
       };
-    }),
+    })],
     hoje: hojeSP(),
     consultadoEm: new Date().toISOString(),
   };

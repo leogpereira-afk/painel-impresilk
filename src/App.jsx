@@ -1,3 +1,4 @@
+import CalendarioAbas from './components/CalendarioAbas.jsx';
 // Sem sessao, o painel inteiro e a tela de login -- nem o Layout monta. Assim
 // nenhuma rota "vaza" por digitar o endereco direto.
 //
@@ -196,7 +197,7 @@ export default function App() {
           path="/agenda"
           element={
             <Restrito modulo="agenda" sessao={sessao}>
-              <Agenda />
+              <><CalendarioAbas sessao={sessao}/><Agenda /></>
             </Restrito>
           }
         />
@@ -204,7 +205,7 @@ export default function App() {
           path="/calendario-empresa"
           element={
             <Restrito modulo="calendario-empresa" sessao={sessao}>
-              <CalendarioEmpresa />
+              <><CalendarioAbas sessao={sessao}/><CalendarioEmpresa /></>
             </Restrito>
           }
         />
