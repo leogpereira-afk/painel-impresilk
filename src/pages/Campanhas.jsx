@@ -1051,11 +1051,14 @@ function Produtos({ produtos, categorias, grao, aoTrocar }) {
                   ? `${x.quantidade % 1 === 0 ? x.quantidade.toLocaleString("pt-BR") : x.quantidade.toFixed(2)} un.`
                   : `${x.itens ?? x.produtos} ${(x.itens ?? x.produtos) === 1 ? "item" : "itens"}`}
               </span>
-              {/* A LARGURA ACOMPANHA O CONTEÚDO. Com as sublinhas, "em aberto
-                  R$ 135.884,85" a 11px passa dos 112px da coluna e vaza por
-                  cima da barra do produto -- e um valor que vaza parece valor
-                  de outra linha. */}
-              <span className={`${temDinheiro ? "w-36" : "w-28"} shrink-0 whitespace-nowrap text-right font-medium tabular-nums text-slate-800`}>
+              {/* A LARGURA ACOMPANHA O CONTEÚDO, e não um número que eu chutei.
+                  Com as sublinhas, "em aberto R$ 135.884,85" a 11px não cabe
+                  nos 112px da coluna antiga e vaza por cima da barra do produto
+                  -- e valor que vaza parece valor de outra linha. Largura FIXA
+                  só empurra o problema para a campanha seguinte, que pode ter
+                  um produto maior: com `min-w` a coluna tem piso e cresce
+                  sozinha, e quem cede é o rótulo, que já trunca. */}
+              <span className={`${temDinheiro ? "min-w-[9rem]" : "w-28"} shrink-0 whitespace-nowrap text-right font-medium tabular-nums text-slate-800`}>
                 {dinheiro(x.valor)}
                 {/* A DIVISÃO DO DINHEIRO fica embaixo do valor, e só aparece
                     quando a resposta do financeiro chegou. Bucket zerado não é
