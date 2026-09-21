@@ -570,7 +570,15 @@ export function chaveProduto(nome) {
  * um ranking pela metade parece completo, e a direção decide o estoque da
  * próxima eleição com metade da venda invisível. Zero não é resultado.
  */
-export function produtosDaCampanha(campanha, ordens) {
+/* O DINHEIRO POR PRODUTO É ESTIMATIVA, e a tela precisa dizer isso.
+   O ERP cobra a O.S., não o item dentro dela: não existe "esta bandeira foi
+   paga e este adesivo não". O que dá para afirmar é a proporção -- se a O.S.
+   de R$ 1.000 tem R$ 600 de bandeira e R$ 400 de adesivo, e R$ 500 entraram,
+   entraram 300 de bandeira e 200 de adesivo. Serve para saber onde o dinheiro
+   está preso; não serve para cobrar alguém por um item.
+   `financeiro` é o retorno de financeiroDasLinhas. Sem ele, a função devolve
+   exatamente o que devolvia antes -- as colunas simplesmente não nascem. */
+export function produtosDaCampanha(campanha, ordens, financeiro) {
   const cem = (n) => Math.round(n * 100) / 100;
   const aceitas = Object.keys(campanha?.os || {}).map(String);
   /* LISTA VAZIA NÃO É RESPOSTA -- é ausência de resposta. `linhasDaPermuta`
@@ -594,6 +602,20 @@ export function produtosDaCampanha(campanha, ordens) {
     itensNaoPedidos: conferivel && !ordens.comItens,
   };
   let brutoDasLidas = 0;
+  /* O DINHEIRO QUE NÃO CHEGA A PRODUTO NENHUM: O.S. sem itens lidos, fora da
+     busca, ou com itens todos zerados. Some isso calado e o rodapé do ranking
+     discorda do cartão do topo sem explicar por quê -- e um zero passaria por
+     "nada em aberto" quando na verdade é "não sei". */
+  const dinheiroFora = { recebido: 0, aberto: 0, permuta: 0, os: 0 };
+  const temFinanceiro = !!(financeiro && financeiro.porNumero);
+  const doNumero = (n) => (temFinanceiro ? financeiro.porNumero[String(n ?? "")] || null : null);
+  const somaFora = (d) => {
+    if (!d) return;
+    dinheiroFora.os += 1;
+    dinheiroFora.recebido = cem(dinheiroFora.recebido + (d.recebido || 0));
+    dinheiroFora.aberto = cem(dinheiroFora.aberto + (d.aReceber || 0));
+    dinheiroFora.permuta = cem(dinheiroFora.permuta + (d.permutado || 0));
+  };
   /* QUAIS COMPRADORES A BUSCA REALMENTE ALCANÇOU.
    *
    * Não é a lista de ligados: é quem VOLTOU com O.S. A diferença entre as duas
@@ -617,6 +639,8 @@ export function produtosDaCampanha(campanha, ordens) {
     const o = porId.get(id);
     if (!o) {
       cobertura.foraDaBusca += 1;
+      // Sem a O.S. não há itens: o dinheiro dela fica fora do ranking, no rodapé.
+      somaFora(doNumero((campanha?.os || {})[id]?.numero));
       /* A ficha congelada guarda quem comprou. Se a busca não trouxe NENHUMA
          O.S. desse comprador, o vínculo dele está quebrado -- e é isso que a
          tela tem de dizer, em vez de "cancelada ou fora do período". */
@@ -632,7 +656,7 @@ export function produtosDaCampanha(campanha, ordens) {
       continue;
     }
     const itens = Array.isArray(o.itens) ? o.itens : [];
-    if (!itens.length) { cobertura.semItens += 1; continue; }
+    if (!itens.length) { cobertura.semItens += 1; somaFora(doNumero(o.numero)); continue; }
     cobertura.comItens += 1;
     /* O BRUTO DO CABEÇALHO das mesmas O.S., para conferir contra a soma dos
        itens. São dois números de caminhos DIFERENTES -- um vem do topo da O.S.,
@@ -640,6 +664,17 @@ export function produtosDaCampanha(campanha, ordens) {
        um total consigo mesmo já me fez "provar" que um desconto estava aplicado
        quando não estava. */
     brutoDasLidas += num(o.bruto ?? o.valorBruto ?? o.valor);
+    /* O DIVISOR É SÓ O QUE VIRA PRODUTO. Item sem nome é descartado logo
+       abaixo (`if (!nome) continue`): se ele entrasse na base, a fatia dele
+       não seria somada a grupo nenhum nem ao rodapé -- sumiria calada, e a
+       conta do ranking ficaria menor que o cartão do topo sem dizer por quê.
+       Tirando-o da base, o dinheiro da O.S. se reparte inteiro entre os itens
+       que dá para nomear; o que o item sem nome VALE continua aparecendo em
+       `naoAtribuido`, que é o lugar dele. */
+    const somaItens = itens.reduce(
+      (acc, x) => (String(x?.produto ?? "").trim() ? acc + num(x?.valorTotal) : acc), 0);
+    const dinheiro = doNumero(o.numero);
+    if (dinheiro && somaItens <= 0) somaFora(dinheiro);
     for (const it of itens) {
       const nome = String(it?.produto ?? "").trim();
       if (!nome) continue;
@@ -666,16 +701,26 @@ export function produtosDaCampanha(campanha, ordens) {
         rotulo: modelo || nome,
         categoria: String(it?.categoria ?? ""),
         quantidade: 0, valor: 0, os: new Set(),
+        recebido: 0, aberto: 0, permuta: 0,
       };
       g.quantidade += num(it?.quantidade);
       g.valor += num(it?.valorTotal);
+      /* A FATIA é o peso do item dentro da PRÓPRIA O.S. Base zero não vira
+         divisão igual: viraria número inventado. Essa O.S. sai para o rodapé. */
+      if (dinheiro && somaItens > 0) {
+        const f = num(it?.valorTotal) / somaItens;
+        g.recebido += (dinheiro.recebido || 0) * f;
+        g.aberto += (dinheiro.aReceber || 0) * f;
+        g.permuta += (dinheiro.permutado || 0) * f;
+      }
       g.os.add(id);
       mapa.set(k, g);
     }
   }
 
   const itens = [...mapa.values()]
-    .map((g) => ({ ...g, quantidade: cem(g.quantidade), valor: cem(g.valor), os: g.os.size }))
+    .map((g) => ({ ...g, quantidade: cem(g.quantidade), valor: cem(g.valor), os: g.os.size,
+      recebido: cem(g.recebido), aberto: cem(g.aberto), permuta: cem(g.permuta) }))
     .sort((a, b) => b.valor - a.valor);
 
   const total = cem(itens.reduce((s, i) => s + i.valor, 0));
@@ -695,6 +740,13 @@ export function produtosDaCampanha(campanha, ordens) {
   return {
     itens,
     cobertura,
+    // Só existe quando a resposta do financeiro veio junto.
+    dinheiro: temFinanceiro
+      ? { fora: dinheiroFora,
+          recebido: cem(itens.reduce((acc, i) => acc + i.recebido, 0)),
+          aberto: cem(itens.reduce((acc, i) => acc + i.aberto, 0)),
+          permuta: cem(itens.reduce((acc, i) => acc + i.permuta, 0)) }
+      : null,
     total,
     brutoDasLidas: cem(brutoDasLidas),
     naoAtribuido,
@@ -728,16 +780,19 @@ export function porProduto(produtos) {
     const k = chaveProduto(p.produto);
     const g = mapa.get(k) || {
       chave: k, rotulo: p.produto, categoria: p.categoria,
-      itens: 0, valor: 0, os: 0,
+      itens: 0, valor: 0, os: 0, recebido: 0, aberto: 0, permuta: 0,
     };
     g.itens += 1;
     g.valor += p.valor;
+    g.recebido += p.recebido || 0;
+    g.aberto += p.aberto || 0;
+    g.permuta += p.permuta || 0;
     g.os = Math.max(g.os, p.os);
     if (!g.categoria) g.categoria = p.categoria;
     mapa.set(k, g);
   }
   return [...mapa.values()]
-    .map((g) => ({ ...g, valor: cem(g.valor) }))
+    .map((g) => ({ ...g, valor: cem(g.valor), recebido: cem(g.recebido), aberto: cem(g.aberto), permuta: cem(g.permuta) }))
     .sort((a, b) => b.valor - a.valor);
 }
 
@@ -748,7 +803,10 @@ export function categoriasDosProdutos(produtos) {
   const mapa = new Map();
   for (const p of produtos?.itens || []) {
     const nome = p.categoria || "sem categoria";
-    const g = mapa.get(nome) || { categoria: nome, rotulo: nome, valor: 0, produtos: 0 };
+    const g = mapa.get(nome) || { categoria: nome, rotulo: nome, valor: 0, produtos: 0, recebido: 0, aberto: 0, permuta: 0 };
+    g.recebido += p.recebido || 0;
+    g.aberto += p.aberto || 0;
+    g.permuta += p.permuta || 0;
     // Sem somar quantidade, pelo mesmo motivo do rollup por produto: adesivo
     // com bandeira não tem unidade comum.
     g.valor += p.valor;
@@ -756,7 +814,7 @@ export function categoriasDosProdutos(produtos) {
     mapa.set(nome, g);
   }
   return [...mapa.values()]
-    .map((g) => ({ ...g, valor: cem(g.valor) }))
+    .map((g) => ({ ...g, valor: cem(g.valor), recebido: cem(g.recebido), aberto: cem(g.aberto), permuta: cem(g.permuta) }))
     .sort((a, b) => b.valor - a.valor);
 }
 

@@ -1038,3 +1038,128 @@ test("lista vazia ou ausente não quebra", () => {
   assert.deepEqual(foraDoPeriodo([], "2026-08-01", "2026-09-14"), []);
   assert.deepEqual(foraDoPeriodo(null, "2026-08-01", "2026-09-14"), []);
 });
+
+/* ------------------------------------------------ dinheiro por produto -- */
+import { financeiroDasLinhas } from "./financeiroOS.js";
+
+const comItens = (id, valor, itens) => ({
+  id, numero: `2${id}`, cliente: "Candidato A", data: "2026-03-10", cnpj: "", valor,
+  itens: itens.map(([produto, modelo, valorTotal]) => ({ produto, modelo, valorTotal, quantidade: 1, categoria: "Politico" })),
+});
+const campanhaCom = (ordens) => ({
+  nome: "Eleições 2026", ano: "2026",
+  os: Object.fromEntries(ordens.map((o) => [o.id, fichaDaOS(o)])),
+});
+
+test("produtos: o dinheiro da O.S. se reparte entre os itens, proporcional ao valor", () => {
+  const ordens = [comItens("1", 1000, [["Material", "Bandeira", 600], ["Material", "Adesivo", 400]])];
+  const fin = { porNumero: { "21": { tipo: "pagoParcial", recebido: 500, aReceber: 500, permutado: 0 } } };
+  const p = produtosDaCampanha(campanhaCom(ordens), ordens, fin);
+  const bandeira = p.itens.find((i) => i.rotulo === "Bandeira");
+  const adesivo = p.itens.find((i) => i.rotulo === "Adesivo");
+  assert.equal(bandeira.recebido, 300);
+  assert.equal(bandeira.aberto, 300);
+  assert.equal(adesivo.recebido, 200);
+  assert.equal(adesivo.aberto, 200);
+});
+
+/* O número do ranking tem de fechar com o cartão do topo. Se as duas contas
+   divergirem, a tela mostra dois totais e ninguém sabe qual vale. */
+test("produtos: a soma das colunas bate com os totais do financeiro", () => {
+  const ordens = [
+    comItens("1", 1000, [["Material", "Bandeira", 600], ["Material", "Adesivo", 400]]),
+    comItens("2", 500, [["Material", "Placa", 500]]),
+  ];
+  const linhas = ordens.map((o) => ({ id: o.id, numero: o.numero, valor: o.valor, data: o.data }));
+  const fin = financeiroDasLinhas(linhas, {
+    temPagos: true, desdeDados: "2025-01-01",
+    abertos: [{ id: "t1", os: "22", valor: 500, pago: 0, vencimento: "2026-01-01" }],
+    pagos: [{ id: "t2", os: "21", pago: 1000 }],
+  }, "2026-09-21");
+  const p = produtosDaCampanha(campanhaCom(ordens), ordens, fin);
+  assert.equal(p.dinheiro.recebido, fin.totais.recebido);
+  assert.equal(p.dinheiro.aberto, fin.totais.aReceber);
+  assert.equal(p.dinheiro.fora.os, 0);
+});
+
+test("produtos: permuta vai para a coluna de troca, nunca para recebido", () => {
+  const ordens = [comItens("1", 800, [["Material", "Bandeira", 800]])];
+  const fin = { porNumero: { "21": { tipo: "permuta", recebido: 0, aReceber: 0, permutado: 800 } } };
+  const p = produtosDaCampanha(campanhaCom(ordens), ordens, fin);
+  assert.equal(p.itens[0].permuta, 800);
+  assert.equal(p.itens[0].recebido, 0);
+  assert.equal(p.itens[0].aberto, 0);
+});
+
+/* O.S. sem itens lidos tem dinheiro e não tem produto. Espalhar esse valor
+   pelos outros produtos seria inventar; omitir faria o rodapé mentir. */
+test("produtos: O.S. sem itens não some — o dinheiro dela vai para o rodapé", () => {
+  const semItens = { id: "9", numero: "29", cliente: "Candidato A", data: "2026-03-10", valor: 700, itens: [] };
+  const ordens = [comItens("1", 1000, [["Material", "Bandeira", 1000]]), semItens];
+  const fin = { porNumero: {
+    "21": { tipo: "pago", recebido: 1000, aReceber: 0, permutado: 0 },
+    "29": { tipo: "aberto", recebido: 0, aReceber: 700, permutado: 0 },
+  } };
+  const p = produtosDaCampanha(campanhaCom(ordens), ordens, fin);
+  assert.equal(p.dinheiro.recebido, 1000);
+  assert.equal(p.dinheiro.aberto, 0, "não pode ter virado produto");
+  assert.deepEqual(
+    { os: p.dinheiro.fora.os, aberto: p.dinheiro.fora.aberto },
+    { os: 1, aberto: 700 });
+});
+
+test("produtos: itens todos zerados não viram divisão igual", () => {
+  const ordens = [comItens("1", 900, [["Material", "Bandeira", 0], ["Material", "Adesivo", 0]])];
+  const fin = { porNumero: { "21": { tipo: "aberto", recebido: 0, aReceber: 900, permutado: 0 } } };
+  const p = produtosDaCampanha(campanhaCom(ordens), ordens, fin);
+  assert.equal(p.itens.every((i) => i.aberto === 0), true, "dividiu por base zero");
+  assert.equal(p.dinheiro.fora.aberto, 900);
+});
+
+test("produtos: sem o financeiro junto, nada muda — as colunas não nascem", () => {
+  const ordens = [comItens("1", 1000, [["Material", "Bandeira", 1000]])];
+  const p = produtosDaCampanha(campanhaCom(ordens), ordens);
+  assert.equal(p.dinheiro, null);
+  assert.equal(p.total, 1000);
+});
+
+test("produtos: os rollups por produto e por categoria levam o dinheiro junto", () => {
+  const ordens = [comItens("1", 1000, [["Material", "Bandeira", 600], ["Material", "Adesivo", 400]])];
+  const fin = { porNumero: { "21": { tipo: "pago", recebido: 1000, aReceber: 0, permutado: 0 } } };
+  const p = produtosDaCampanha(campanhaCom(ordens), ordens, fin);
+  assert.equal(porProduto(p)[0].recebido, 1000);
+  assert.equal(categoriasDosProdutos(p)[0].recebido, 1000);
+});
+
+/* Item sem nome não vira produto. Se ele entrasse no divisor, a fatia dele não
+   iria para grupo nenhum nem para o rodapé -- sumiria, e a soma do ranking
+   ficaria menor que o cartão do topo sem nada explicando a diferença. */
+test("produtos: item sem nome não come parte do dinheiro", () => {
+  const ordens = [{
+    id: "1", numero: "21", cliente: "Candidato A", data: "2026-03-10", valor: 1000,
+    itens: [
+      { produto: "Material", modelo: "Bandeira", valorTotal: 600, quantidade: 1, categoria: "Politico" },
+      { produto: "   ", modelo: "", valorTotal: 400, quantidade: 1, categoria: "" },
+    ],
+  }];
+  const fin = { porNumero: { "21": { tipo: "pago", recebido: 1000, aReceber: 0, permutado: 0 } } };
+  const p = produtosDaCampanha(campanhaCom(ordens), ordens, fin);
+  assert.equal(p.itens.length, 1);
+  assert.equal(p.itens[0].recebido, 1000, "os R$ 1.000 têm de sobrar inteiros no único produto");
+  assert.equal(p.dinheiro.recebido, 1000);
+  assert.equal(p.dinheiro.fora.os, 0);
+});
+
+/* Todos os itens sem nome: não há em quem repartir, e a O.S. vai para o rodapé
+   em vez de evaporar. */
+test("produtos: O.S. só com itens sem nome cai no rodapé", () => {
+  const ordens = [{
+    id: "1", numero: "21", cliente: "Candidato A", data: "2026-03-10", valor: 500,
+    itens: [{ produto: "", modelo: "", valorTotal: 500, quantidade: 1, categoria: "" }],
+  }];
+  const fin = { porNumero: { "21": { tipo: "aberto", recebido: 0, aReceber: 500, permutado: 0 } } };
+  const p = produtosDaCampanha(campanhaCom(ordens), ordens, fin);
+  assert.equal(p.itens.length, 0);
+  assert.equal(p.dinheiro.fora.aberto, 500);
+  assert.equal(p.dinheiro.fora.os, 1);
+});

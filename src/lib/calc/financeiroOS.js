@@ -167,9 +167,24 @@ export function financeiroDasLinhas(linhas, dados, hoje) {
     else if (desdeDados && String(l?.data || "").slice(0, 10) < desdeDados) tipo = "semDado";
     else tipo = "semTitulo";
 
+    /* O QUE ESTA O.S. PESA EM CADA BALDE DA TELA -- e não só o seu estado.
+       Os três cartões do topo são somas destes números; expor a parcela por
+       O.S. aqui é o que permite outra tela (o ranking de produtos) repartir o
+       dinheiro sem reimplementar a régua. Régua copiada é régua que sai de
+       sincronia: quando a de lá divergisse da daqui, a soma dos produtos
+       deixaria de bater com o cartão logo acima, e ninguém saberia qual das
+       duas está certa. A guarda de TOLERÂNCIA é a MESMA usada no total. */
+    const sobraSemTitulo = (tipo === "semTitulo" || tipo === "pagoParcial")
+      ? CENT(Math.max(0, valor - b.pago - b.aberto)) : 0;
+    const contaDinheiro = tipo !== "permuta" && tipo !== "naoConsultada";
+
     porNumero[numero] = {
       tipo, aberto: b.aberto, pago: b.pago, vencido: b.vencido,
       compartilhado: b.compartilhado, incerto: b.incerto, permuta,
+      recebido: contaDinheiro ? b.pago : 0,
+      aReceber: contaDinheiro ? CENT(b.aberto + (sobraSemTitulo > TOLERANCIA ? sobraSemTitulo : 0)) : 0,
+      permutado: tipo === "permuta" ? valor : 0,
+      valor,
     };
 
     /* O QUE ESTÁ EM TROCA SAI DAS DUAS CONTAS DE DINHEIRO. Deixar o título
@@ -202,11 +217,11 @@ export function financeiroDasLinhas(linhas, dados, hoje) {
       totais.abertas += 1;
       if (b.vencido) { totais.vencidas += 1; totais.vencidoValor = CENT(totais.vencidoValor + b.aberto); }
     }
-    if (tipo === "semTitulo" || tipo === "pagoParcial") {
-      // O que a O.S. vale além do que tem título (pago ou aberto): ainda não
-      // foi faturado no ERP. É aviso, não cobrança.
-      const semTitulo = CENT(Math.max(0, valor - b.pago - b.aberto));
-      if (semTitulo > TOLERANCIA) { totais.semTitulo += 1; totais.semTituloValor = CENT(totais.semTituloValor + semTitulo); }
+    // O que a O.S. vale além do que tem título (pago ou aberto): ainda não
+    // foi faturado no ERP. É aviso, não cobrança.
+    if (sobraSemTitulo > TOLERANCIA) {
+      totais.semTitulo += 1;
+      totais.semTituloValor = CENT(totais.semTituloValor + sobraSemTitulo);
     }
     if (tipo === "semDado") totais.semDado += 1;
   }

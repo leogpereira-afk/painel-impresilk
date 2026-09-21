@@ -1005,6 +1005,7 @@ function Produtos({ produtos, categorias, grao, aoTrocar }) {
       : produtos.itens;
   const teto = Math.max(...lista.map((x) => x.valor), 1);
   const detalhado = grao === "item";
+  const temDinheiro = !!produtos.dinheiro;
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-center gap-2 sem-impressao">
@@ -1050,8 +1051,23 @@ function Produtos({ produtos, categorias, grao, aoTrocar }) {
                   ? `${x.quantidade % 1 === 0 ? x.quantidade.toLocaleString("pt-BR") : x.quantidade.toFixed(2)} un.`
                   : `${x.itens ?? x.produtos} ${(x.itens ?? x.produtos) === 1 ? "item" : "itens"}`}
               </span>
-              <span className="w-28 shrink-0 text-right font-medium tabular-nums text-slate-800">
+              {/* A LARGURA ACOMPANHA O CONTEÚDO. Com as sublinhas, "em aberto
+                  R$ 135.884,85" a 11px passa dos 112px da coluna e vaza por
+                  cima da barra do produto -- e um valor que vaza parece valor
+                  de outra linha. */}
+              <span className={`${temDinheiro ? "w-36" : "w-28"} shrink-0 whitespace-nowrap text-right font-medium tabular-nums text-slate-800`}>
                 {dinheiro(x.valor)}
+                {/* A DIVISÃO DO DINHEIRO fica embaixo do valor, e só aparece
+                    quando a resposta do financeiro chegou. Bucket zerado não é
+                    impresso: três zeros em toda linha viram ruído e escondem o
+                    que importa. */}
+                {temDinheiro && (x.recebido > 0 || x.aberto > 0 || x.permuta > 0) && (
+                  <span className="mt-0.5 block text-[11px] font-normal leading-tight">
+                    {x.recebido > 0 && <span className="block text-ok-700">recebido {dinheiro(x.recebido)}</span>}
+                    {x.aberto > 0 && <span className="block text-bad-700">em aberto {dinheiro(x.aberto)}</span>}
+                    {x.permuta > 0 && <span className="block text-brand-700">permuta {dinheiro(x.permuta)}</span>}
+                  </span>
+                )}
               </span>
             </div>
           ))}
@@ -1068,6 +1084,35 @@ function Produtos({ produtos, categorias, grao, aoTrocar }) {
             ? "Marque as O.S. da campanha para ver o que foi vendido."
             : "Nenhum item lido nas O.S. desta campanha."}
         </Empty>
+      )}
+
+      {/* A DIVISÃO É PROPORCIONAL, E ISSO PRECISA ESTAR ESCRITO. O ERP cobra a
+          O.S., não o item: não existe "esta bandeira foi paga". Sem a ressalva,
+          o número vira uma afirmação que ninguém pode sustentar na frente do
+          cliente. */}
+      {temDinheiro && lista.length > 0 && (
+        <p className="text-[11px] text-slate-400">
+          O ERP cobra a O.S., não o item. A divisão acima é proporcional ao valor de cada
+          item dentro da sua O.S. — serve para ver onde o dinheiro está preso, não para cobrar por item.
+        </p>
+      )}
+      {/* O DINHEIRO QUE NÃO TEM PRODUTO. Fica declarado em vez de sumir: sem
+          esta linha, a soma das colunas não fecharia com os cartões do topo e
+          não haveria como saber por quê. */}
+      {temDinheiro && produtos.dinheiro.fora.os > 0 &&
+        (produtos.dinheiro.fora.recebido > 0 || produtos.dinheiro.fora.aberto > 0 || produtos.dinheiro.fora.permuta > 0) && (
+        <div className="rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-600">
+          {/* Três causas caem aqui: O.S. que a busca não alcançou, O.S. sem
+              item nenhum e O.S. cujos itens vieram todos zerados. Dizer só
+              "sem itens lidos" descreveria uma e calaria as outras duas. */}
+          Fora deste ranking: {produtos.dinheiro.fora.os}{" "}
+          {produtos.dinheiro.fora.os === 1 ? "O.S. sem item que desse para repartir" : "O.S. sem itens que dessem para repartir"} —{" "}
+          {[produtos.dinheiro.fora.recebido > 0 ? `${dinheiro(produtos.dinheiro.fora.recebido)} recebidos` : null,
+            produtos.dinheiro.fora.aberto > 0 ? `${dinheiro(produtos.dinheiro.fora.aberto)} em aberto` : null,
+            produtos.dinheiro.fora.permuta > 0 ? `${dinheiro(produtos.dinheiro.fora.permuta)} em permuta` : null]
+            .filter(Boolean).join(" · ")}. Esse valor entra nos cartões do topo, mas não dá para
+          atribuir a produto nenhum.
+        </div>
       )}
 
       {/* O QUE ESTE RANKING NÃO COBRE. Sem esta linha, um ranking de metade da
@@ -2163,9 +2208,13 @@ export default function Campanhas() {
   const idsFora = useMemo(() => new Set(fora.map((l) => String(l.id))), [fora]);
   const valorFora = useMemo(() => fora.reduce((t, l) => t + (Number(l.valor) || 0), 0), [fora]);
 
+  /* O FINANCEIRO VAI JUNTO: é ele que dá as colunas de recebido/aberto/troca
+     por produto. Ele chega depois (é outra ida à rede), e até chegar
+     `produtos.dinheiro` é null e o ranking sai como sempre foi -- sem coluna
+     nenhuma, em vez de com zeros que pareceriam "nada recebido". */
   const produtos = useMemo(
-    () => (campanha ? produtosDaCampanha(campanha, ordens) : null),
-    [campanha, ordens],
+    () => (campanha ? produtosDaCampanha(campanha, ordens, financeiro) : null),
+    [campanha, ordens, financeiro],
   );
   const categorias = useMemo(() => (produtos ? categoriasDosProdutos(produtos) : []), [produtos]);
 
