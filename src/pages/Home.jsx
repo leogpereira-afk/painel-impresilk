@@ -161,24 +161,29 @@ export default function Home() {
 
   return (
     <div className="mx-auto w-full max-w-6xl px-2">
-      {/* Topo: logo, saudacao, frase e os avisos. Continua centralizado -- e a
-          parte que se le de relance. */}
-      <div className="flex flex-col items-center pt-4 text-center">
-      <img src={logoColor} alt="Impresilk" className="h-12 w-auto dark:hidden sm:h-14" />
-      <img src={logoWhite} alt="Impresilk" className="hidden h-12 w-auto dark:block sm:h-14" />
+      {/* TOPO EM UMA LINHA (pedido do Leo, 23/09/2026: "essa parte de cima da
+          pra ficar mais reduzida"). Logo, saudacao e frase ocupavam ~680px
+          antes de o conteudo comecar -- a entrada virava um scroll obrigatorio
+          ate os valores. Empilhado so no celular, onde nao cabe de lado. */}
+      <div className="flex flex-col items-center gap-3 pt-3 text-center sm:flex-row sm:justify-center sm:gap-5 sm:text-left">
+        <img src={logoColor} alt="Impresilk" className="h-9 w-auto shrink-0 dark:hidden" />
+        <img src={logoWhite} alt="Impresilk" className="hidden h-9 w-auto shrink-0 dark:block" />
+        <div>
+          <h1 className="font-display text-xl font-bold tracking-tight text-slate-900 sm:text-2xl">
+            {saudacao()}
+          </h1>
+          <p className="text-sm leading-snug text-slate-500 sm:text-base">{fraseDoDia()}</p>
+        </div>
+      </div>
 
-      <h1 className="mt-7 font-display text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">
-        {saudacao()}
-      </h1>
-
-      <p className="mt-4 max-w-xl text-lg leading-relaxed text-slate-500 sm:text-xl">
-        {fraseDoDia()}
-      </p>
+      {/* Os avisos lado a lado no desktop: empilhados em coluna de 32rem eles
+          sozinhos empurravam os valores para fora da primeira tela. */}
+      <div className="mt-5 grid gap-3 md:grid-cols-2">
 
       {backupFalhou > 0 && (
         <button
           onClick={() => navigate("/backups")}
-          className="card card-hover mt-6 w-full max-w-lg border-l-4 border-l-bad-600 p-4 text-left"
+          className="card card-hover w-full border-l-4 border-l-bad-600 p-4 text-left"
         >
           <span className="flex items-center gap-2 text-sm">
             <AlertTriangle size={16} className="shrink-0 text-bad-700" />
@@ -192,7 +197,7 @@ export default function Home() {
       )}
 
       {cargaDegradada && (
-        <div className="card mt-6 w-full max-w-lg border-l-4 border-l-warn-500 p-4 text-left">
+        <div className="card w-full border-l-4 border-l-warn-500 p-4 text-left">
           <span className="flex items-center gap-2 text-sm">
             <AlertTriangle size={16} className="shrink-0 text-warn-600" />
             <span className="min-w-0 flex-1 text-slate-700">
@@ -205,7 +210,7 @@ export default function Home() {
       )}
 
       {cargaParada && cargaParada.fontes?.length > 0 && (
-        <div className="card mt-6 w-full max-w-lg border-l-4 border-l-warn-500 p-4 text-left">
+        <div className="card w-full border-l-4 border-l-warn-500 p-4 text-left">
           <span className="flex items-center gap-2 text-sm">
             <AlertTriangle size={16} className="shrink-0 text-warn-600" />
             <span className="min-w-0 flex-1 text-slate-700">
@@ -226,7 +231,7 @@ export default function Home() {
       {backupParadoHoras != null && (
         <button
           onClick={() => navigate("/backups")}
-          className="card card-hover mt-6 w-full max-w-lg border-l-4 border-l-bad-600 p-4 text-left"
+          className="card card-hover w-full border-l-4 border-l-bad-600 p-4 text-left"
         >
           <span className="flex items-center gap-2 text-sm">
             <AlertTriangle size={16} className="shrink-0 text-bad-700" />
@@ -247,7 +252,7 @@ export default function Home() {
       {criticos.length > 0 && (
         <button
           onClick={() => navigate("/documentos")}
-          className="card card-hover mt-8 w-full max-w-lg border-l-4 border-l-warn-600 p-4 text-left"
+          className="card card-hover w-full border-l-4 border-l-warn-600 p-4 text-left"
         >
           <span className="flex items-center gap-2">
             <AlertTriangle size={16} className="shrink-0 text-warn-700" />
