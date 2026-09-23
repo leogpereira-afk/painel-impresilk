@@ -12,7 +12,7 @@
  * paga o download.
  */
 import { useEffect, useMemo, useState } from "react";
-import { AlertTriangle, Search, X } from "lucide-react";
+import { AlertTriangle, ChevronDown, Search, X } from "lucide-react";
 import { lerVendasEmAberto } from "../services/permutas.js";
 import {
   vendasEmAberto, totaisDe, empresasDe, ordenarVendas, ORDENS_VENDAS,
@@ -43,6 +43,64 @@ const SELO_ESTADO = {
   semTitulo: { tom: "warn", rotulo: () => "sem título no ERP" },
 };
 
+/* UMA VENDA NÃO QUITADA. A lista de cima e as O.S. abertas debaixo de cada
+   empresa usam esta mesma linha: duas cópias da régua de selo e de saldo saem
+   de sincronia caladas. Dentro da empresa o nome do cliente se repetiria em
+   toda linha, então o título passa a ser o número da O.S. */
+function LinhaVenda({ l, corte, dentroDaEmpresa = false }) {
+  const sel = SELO_ESTADO[l.estado] || SELO_ESTADO.semTitulo;
+  const partes = [
+    `de ${moeda(l.valor)}`,
+    l.recebido > 0 ? `${moeda(l.recebido)} recebido` : "",
+    l.atraso > 0 ? `${moeda(l.atraso)} em atraso` : "",
+    l.aVencer > 0 ? `${moeda(l.aVencer)} a vencer` : "",
+    l.antigo > 0 ? `${moeda(l.antigo)} vencido antes de ${dataLonga(corte)}` : "",
+    l.semTitulo > 0 ? `${moeda(l.semTitulo)} sem título` : "",
+  ].filter(Boolean);
+  const titulo = dentroDaEmpresa ? `O.S. ${l.numero}` : l.cliente;
+  const detalhe = [
+    dentroDaEmpresa ? "" : `O.S. ${l.numero}`,
+    l.data ? `vendida em ${dataLonga(l.data)}` : "",
+    l.vendedor || "sem vendedor",
+  ].filter(Boolean).join(" · ");
+  return (
+    <LinhaLista tom={sel.tom === "bad" ? "bad" : sel.tom === "warn" ? "warn" : "neutral"}>
+      {/* O texto guarda 10rem: sem isso o valor, que não encolhe, espremia o
+          número da O.S. até sumir no celular. Sem espaço, o valor desce. */}
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-[10rem] flex-1">
+          <p className="truncate font-display text-[15px] font-semibold leading-tight text-slate-900">{titulo}</p>
+          <p className="truncate text-sm text-slate-500">{detalhe}</p>
+          <div className="mt-1.5 flex flex-wrap items-center gap-2">
+            <Selo tom={sel.tom}>{sel.rotulo(l)}</Selo>
+            {l.compartilhado && (
+              <span className="text-xs text-slate-500" title="Um título do ERP cobra esta e outras O.S.; o valor desta foi repartido pelo valor de cada uma.">
+                * valor repartido{l.incerto ? " por igual (aproximado)" : ""}
+              </span>
+            )}
+            {l.excesso > 0 && (
+              <span className="text-xs text-warn-700" title="O título aberto no ERP é maior que o valor da venda. O saldo mostra o que o ERP cobra; confira a venda no ERP.">
+                título {moeda(l.excesso)} maior que a venda, conferir no ERP
+              </span>
+            )}
+            {l.numeroRepetido && (
+              <span className="text-xs text-warn-700" title="O ERP tem mais de uma O.S. com este número; os valores foram somados numa venda só.">
+                número repetido no ERP ({numero(l.ids.length)} O.S.)
+              </span>
+            )}
+          </div>
+        </div>
+        <div className="ml-auto max-w-full shrink-0">
+          <span className="sem-impressao"><Dinheiro valor={l.saldo} formatar={numero} abaixo={partes.join(" · ")} /></span>
+          <span className="apenas-impressao text-right text-sm">
+            {moedaCheia(l.saldo)}<br /><small>{partes.join(" · ")}</small>
+          </span>
+        </div>
+      </div>
+    </LinhaLista>
+  );
+}
+
 export default function VendasEmAberto({ ordens, ordensNegadas, corte, totalAtrasadoTitulos, atualizadoEm }) {
   const [estado, setEstado] = useState({ carregando: true, erro: "", resposta: null });
   const [fora, setFora] = useState(() => new Set(lerLS(CHAVE_FORA, [])));
@@ -53,6 +111,7 @@ export default function VendasEmAberto({ ordens, ordensNegadas, corte, totalAtra
   const [ordem, setOrdem] = useState("saldo");
   const [mostrar, setMostrar] = useState(POR_PAGINA);
   const [secoes, setSecoes] = useState(() => lerLS(CHAVE_SECOES, { empresas: false }));
+  const [empresasAbertas, setEmpresasAbertas] = useState(() => new Set());
 
   useEffect(() => {
     if (ordensNegadas) { setEstado({ carregando: false, erro: "", resposta: null }); return; }
@@ -84,12 +143,26 @@ export default function VendasEmAberto({ ordens, ordensNegadas, corte, totalAtra
     return ordenarVendas(f, ordem);
   }, [selecionadas, busca, recorte, ordem]);
   const somaLista = useMemo(() => totaisDe(lista), [lista]);
+  // As vendas de cada empresa, na ordem escolhida, para abrir debaixo do nome.
+  const vendasDaEmpresa = useMemo(() => {
+    const m = new Map();
+    for (const l of ordenarVendas(selecionadas, ordem)) {
+      if (!m.has(l.empresa)) m.set(l.empresa, []);
+      m.get(l.empresa).push(l);
+    }
+    return m;
+  }, [selecionadas, ordem]);
 
   const alterarFora = (novo) => { setFora(novo); gravarLS(CHAVE_FORA, [...novo]); setMostrar(POR_PAGINA); };
   const alternarEmpresa = (chave) => {
     const n = new Set(fora);
     if (n.has(chave)) n.delete(chave); else n.add(chave);
     alterarFora(n);
+  };
+  const alternarAberta = (chave) => {
+    const n = new Set(empresasAbertas);
+    if (n.has(chave)) n.delete(chave); else n.add(chave);
+    setEmpresasAbertas(n);
   };
   const alternarSecao = (id) => {
     const n = { ...secoes, [id]: !secoes[id] };
@@ -234,53 +307,7 @@ export default function VendasEmAberto({ ordens, ordensNegadas, corte, totalAtra
               {numero(lista.length)} {lista.length === 1 ? "venda" : "vendas"} · saldo {moeda(somaLista.saldo)}
               {somaLista.atraso > 0 ? ` · ${moeda(somaLista.atraso)} em atraso` : ""}
             </p>
-            {lista.slice(0, mostrar).map((l) => {
-              const sel = SELO_ESTADO[l.estado] || SELO_ESTADO.semTitulo;
-              const partes = [
-                `de ${moeda(l.valor)}`,
-                l.recebido > 0 ? `${moeda(l.recebido)} recebido` : "",
-                l.atraso > 0 ? `${moeda(l.atraso)} em atraso` : "",
-                l.aVencer > 0 ? `${moeda(l.aVencer)} a vencer` : "",
-                l.antigo > 0 ? `${moeda(l.antigo)} vencido antes de ${dataLonga(corte)}` : "",
-                l.semTitulo > 0 ? `${moeda(l.semTitulo)} sem título` : "",
-              ].filter(Boolean);
-              return (
-                <LinhaLista key={l.id} tom={sel.tom === "bad" ? "bad" : sel.tom === "warn" ? "warn" : "neutral"}>
-                  <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate font-display text-[15px] font-semibold leading-tight text-slate-900">{l.cliente}</p>
-                      <p className="truncate text-sm text-slate-500">
-                        O.S. {l.numero}{l.data ? ` · vendida em ${dataLonga(l.data)}` : ""} · {l.vendedor || "sem vendedor"}
-                      </p>
-                      <div className="mt-1.5 flex flex-wrap items-center gap-2">
-                        <Selo tom={sel.tom}>{sel.rotulo(l)}</Selo>
-                        {l.compartilhado && (
-                          <span className="text-xs text-slate-500" title="Um título do ERP cobra esta e outras O.S.; o valor desta foi repartido pelo valor de cada uma.">
-                            * valor repartido{l.incerto ? " por igual (aproximado)" : ""}
-                          </span>
-                        )}
-                        {l.excesso > 0 && (
-                          <span className="text-xs text-warn-700" title="O título aberto no ERP é maior que o valor da venda. O saldo mostra o que o ERP cobra; confira a venda no ERP.">
-                            título {moeda(l.excesso)} maior que a venda, conferir no ERP
-                          </span>
-                        )}
-                        {l.numeroRepetido && (
-                          <span className="text-xs text-warn-700" title="O ERP tem mais de uma O.S. com este número; os valores foram somados numa venda só.">
-                            número repetido no ERP ({numero(l.ids.length)} O.S.)
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                    <div className="shrink-0">
-                      <span className="sem-impressao"><Dinheiro valor={l.saldo} formatar={numero} abaixo={partes.join(" · ")} /></span>
-                      <span className="apenas-impressao text-right text-sm">
-                        {moedaCheia(l.saldo)}<br /><small>{partes.join(" · ")}</small>
-                      </span>
-                    </div>
-                  </div>
-                </LinhaLista>
-              );
-            })}
+            {lista.slice(0, mostrar).map((l) => <LinhaVenda key={l.id} l={l} corte={corte} />)}
             {lista.length > mostrar && (
               <div className="border-t px-4 py-3 text-center sem-impressao" style={{ borderColor: "var(--hairline)" }}>
                 <button type="button" className="h-10 rounded-lg border px-4 text-sm text-slate-700 hover:bg-slate-50"
@@ -304,23 +331,41 @@ export default function VendasEmAberto({ ordens, ordensNegadas, corte, totalAtra
       <Secao
         id="empresas"
         titulo="Por empresa"
-        sub="Quanto cada empresa ainda deve, somando as vendas não quitadas. Segue o seletor de empresas."
+        sub="Quanto cada empresa ainda deve, somando as vendas não quitadas. Clique na empresa para ver as O.S. Segue o seletor de empresas."
         aberta={!!secoes.empresas}
         aoAlternar={alternarSecao}
       >
         <ul className="divide-y" style={{ borderColor: "var(--hairline)" }}>
-          {empresas.filter((e) => !fora.has(e.chave)).slice(0, 30).map((e) => (
-            <li key={e.chave} className="flex items-center gap-3 py-2 text-sm">
-              <button type="button" className="min-w-0 flex-1 truncate text-left text-slate-800 hover:underline"
-                onClick={() => { setBusca(e.nome); setRecorte("todas"); setMostrar(POR_PAGINA); }}
-                title="Ver só as vendas desta empresa na lista">
-                {e.nome}
-              </button>
-              <span className="shrink-0 text-xs text-slate-500">{numero(e.n)} {e.n === 1 ? "venda" : "vendas"}</span>
-              {e.atraso > 0 && <span className="shrink-0 text-xs text-bad-700">{moeda(e.atraso)} em atraso</span>}
-              <span className="w-28 shrink-0 text-right tabular-nums text-slate-800">{moeda(e.saldo)}</span>
-            </li>
-          ))}
+          {empresas.filter((e) => !fora.has(e.chave)).slice(0, 30).map((e) => {
+            const aberta = empresasAbertas.has(e.chave);
+            return (
+              <li key={e.chave}>
+                <button type="button" aria-expanded={aberta} onClick={() => alternarAberta(e.chave)}
+                  className="flex min-h-10 w-full items-center gap-3 py-2 text-left text-sm hover:bg-slate-50">
+                  <ChevronDown size={15}
+                    className={`shrink-0 text-slate-400 transition-transform ${aberta ? "" : "-rotate-90"}`} />
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-slate-800">{e.nome}</span>
+                    {/* No celular a contagem desce para baixo do nome, para o nome não sumir. */}
+                    <span className="block text-xs text-slate-500 sm:hidden">
+                      {numero(e.n)} {e.n === 1 ? "venda" : "vendas"}
+                      {e.atraso > 0 && <span className="text-bad-700"> · {moeda(e.atraso)} em atraso</span>}
+                    </span>
+                  </span>
+                  <span className="hidden shrink-0 text-xs text-slate-500 sm:inline">{numero(e.n)} {e.n === 1 ? "venda" : "vendas"}</span>
+                  {e.atraso > 0 && <span className="hidden shrink-0 text-xs text-bad-700 sm:inline">{moeda(e.atraso)} em atraso</span>}
+                  <span className="w-28 shrink-0 text-right tabular-nums text-slate-800">{moeda(e.saldo)}</span>
+                </button>
+                {aberta && (
+                  <div className="mb-2 ml-2 overflow-hidden rounded-xl border sm:ml-6" style={{ borderColor: "var(--hairline)" }}>
+                    {(vendasDaEmpresa.get(e.chave) || []).map((l) => (
+                      <LinhaVenda key={l.id} l={l} corte={corte} dentroDaEmpresa />
+                    ))}
+                  </div>
+                )}
+              </li>
+            );
+          })}
         </ul>
         {nDentro > 30 && <p className="text-xs text-slate-500">Mostrando as 30 maiores de {numero(nDentro)} empresas.</p>}
       </Secao>
