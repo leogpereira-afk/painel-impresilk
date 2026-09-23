@@ -132,6 +132,14 @@ export const lerOsFinanceiro = (numeros, ids) =>
         ...(ids?.length ? { ids: ids.join("|") } : {}),
       });
 
+/* VENDAS EM ABERTO (aba de Contas Atrasadas): todas as vendas não quitadas,
+   com o pago somado por O.S. A conta mora em src/lib/calc/vendasEmAberto.js;
+   aqui é transporte. */
+export const lerVendasEmAberto = async () => {
+  if (import.meta.env.MODE === "review") return (await import("./demo/vendasEmAberto.js")).respostaDemo();
+  return pedirDados("vendasEmAberto", {});
+};
+
 /* A SAÚDE DA CARGA. O vigia do banco grava `carga_alarme` de hora em hora
    quando alguma fonte para de ser atualizada; até esta rodada ninguém lia
    esse alarme -- ele existia só para quem fosse consultar o banco à mão. */

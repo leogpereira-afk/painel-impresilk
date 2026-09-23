@@ -288,7 +288,13 @@ function construirOrdens() {
 const RECEBIVEIS = construirRecebiveis();
 const PAGAR = construirPagar();
 const ORCAMENTOS = construirOrcamentos();
-const ORDENS = construirOrdens();
+/* O VALOR FINAL da O.S., como em produção (normOS: bruto menos desconto). A
+   demonstração não tinha o campo e as telas que cruzam venda com cobrança
+   (Vendas em aberto) ficavam sem nada para mostrar. */
+const ORDENS = construirOrdens().map((o) => ({
+  ...o,
+  valor: o.valor ?? Math.round((o.itens || []).reduce((s, it) => s + (Number(it.valorTotal) || 0), 0) * 100) / 100,
+}));
 
 // ---------------------------------------------------------------- getters
 export function getRecebiveis() {

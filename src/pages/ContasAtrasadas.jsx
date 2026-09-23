@@ -29,6 +29,7 @@ import {
   ordenarCarteira, filtrarCarteira, ORDENS,
 } from "../lib/calc/cobrancas.js";
 import AcompanhamentoCobranca from '../components/AcompanhamentoCobranca.jsx';
+import VendasEmAberto from "../components/VendasEmAberto.jsx";
 import { VisaoMensalCobranca } from "../components/InteligenciaComercial.jsx";
 import { sugestaoCobranca } from "../lib/calc/inteligencia.js";
 import { lerCobrancas, salvarChamado, salvarPrioridade } from "../services/cobrancas.js";
@@ -670,15 +671,19 @@ export default function ContasAtrasadas() {
           recortando a lista -- o mesmo desenho de Orçamentos. DSO e maior
           atraso desceram para a aba Análise: são leitura de reunião, não de
           cobrança. */}
-      <div className="sem-impressao">
+      {/* Quatro abas não cabem lado a lado no celular: a faixa rola sozinha em
+          vez de empurrar a página inteira para o lado. */}
+      <div className="sem-impressao overflow-x-auto">
         <Segmented
           opcoes={[
             { valor: "lista", rotulo: `Títulos e meses (${numero(k.qtd)})` },
             { valor: "cobranca", rotulo: `Próximos contatos (${numero(carteira.length)})` },
+            { valor: "vendas", rotulo: "Vendas em aberto" },
             { valor: "analise", rotulo: "Análise" },
           ]}
           valor={aba}
           onChange={setAba}
+          className="[&_button]:whitespace-nowrap"
         />
       </div>
 
@@ -1319,6 +1324,16 @@ export default function ContasAtrasadas() {
           empilhados embaixo da lista: leitura de reunião ocupando a tela de
           quem está cobrando. Nada foi apagado -- mudou de lugar. */}
       {/* ------------------------------------------------------- COBRANÇA */}
+      {aba === "vendas" && (
+        <VendasEmAberto
+          ordens={dados?.ordens}
+          ordensNegadas={fontesNegadas.includes("ordens")}
+          corte={config?.parametros?.dataCorteAtrasados || ""}
+          totalAtrasadoTitulos={k.totalAtrasado}
+          atualizadoEm={atualizadoEm}
+        />
+      )}
+
       {aba === "cobranca" && (
         <div className="space-y-4 sem-impressao">
           {avisoCob && (
