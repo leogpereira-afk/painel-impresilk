@@ -70,14 +70,14 @@ export const VALORES = [
     n: 8,
     titulo: "Sempre disponíveis",
     texto:
-      "Dentro do expediente, ninguém fica sem resposta. Fora dele, a casa não cobra — sem treinamento à noite, sem tarefa no domingo.",
+      "Dentro do expediente, ninguém fica sem resposta. Fora dele, a casa não cobra: sem treinamento à noite, sem tarefa no domingo.",
     quebra: "Deixar o colega esperando retorno a manhã inteira.",
   },
   {
     n: 9,
     titulo: "Total abertura e feedback",
     texto:
-      "Dito na hora, na frente, com nome — e nos dois sentidos: o time cobra o encarregado, e a direção também ouve. A cobrança faz crescer; cobrança sim, humilhação não.",
+      "Dito na hora, na frente, com nome. E nos dois sentidos: o time cobra o encarregado, e a direção também ouve. A cobrança faz crescer; cobrança sim, humilhação não.",
     quebra: "Reclamar do colega para três pessoas e nunca para ele.",
   },
   {

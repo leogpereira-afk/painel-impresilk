@@ -13,7 +13,8 @@
     "test": "TZ=UTC node --test src/lib/calc/*.test.mjs",
     "review": "vite --mode review --host 127.0.0.1 --port 5173 --strictPort",
     "build:review": "vite build --mode review --config vite.review.config.js",
-    "test:acessos": "node --test src/lib/acesso-state.test.mjs"
+    "test:acessos": "node --test src/lib/acesso-state.test.mjs",
+    "valores:pdf": "node scripts/valores-pdf.mjs"
   },
   "dependencies": {
     "@netlify/blobs": "^8.2.0",
