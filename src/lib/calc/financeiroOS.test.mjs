@@ -365,6 +365,44 @@ test("resto de O.S. paga em parte tambem entra no 'a receber'", () => {
   assert.equal(r.totais.aReceber, 6000);
 });
 
+/* TÍTULO ABERTO MENOR QUE A O.S. — o caso real da "Política 2026 - Deputados"
+   em 23/09/2026. O.S. 23031 de R$ 23.513,88 com título aberto de R$ 23.144,88:
+   os R$ 369,00 do meio não caíam em cartão nenhum e Recebido + Em aberto +
+   Permuta deixavam de fechar com o vendido. */
+test("titulo aberto menor que a O.S.: o resto entra no 'a receber' e o total fecha", () => {
+  const linhas = [{ id: "39784", numero: "23031", valor: 23513.88, data: "2026-07-31" }];
+  const r = financeiroDasLinhas(linhas, {
+    temPagos: true, desdeDados: "2025-01-01",
+    abertos: [{ id: "t31", os: "23031", valor: 23144.88, pago: 0, vencimento: "2026-10-30" }],
+    pagos: [],
+  }, HOJE);
+  const f = r.porNumero["23031"];
+  assert.equal(f.tipo, "aberto");
+  assert.equal(f.resto, 369);
+  assert.equal(f.aReceber, 23513.88);
+  assert.equal(r.totais.aReceber, 23513.88);
+  assert.equal(r.totais.restoComTituloValor, 369);
+  // Contada uma vez só: é "com título", e o resto não a duplica em "sem nota".
+  assert.equal(r.totais.aReceberOS, 1);
+  assert.equal(r.totais.abertas, 1);
+  assert.equal(r.totais.semTitulo, 0);
+  // E a lista do quadro fecha com o cartão.
+  const ab = osDoQuadro(linhas, r.porNumero, "aberto");
+  assert.equal(ab.length, 1);
+  assert.equal(ab[0].parte, 23513.88);
+});
+
+test("titulo aberto que cobre a O.S. inteira nao ganha resto", () => {
+  const r = financeiroDasLinhas([linha("101", 3000)], {
+    temPagos: true, desdeDados: "2025-01-01",
+    abertos: [{ id: "t2", os: "101", valor: 2000, pago: 1000, vencimento: "2026-09-20" }],
+    pagos: [],
+  }, HOJE);
+  assert.equal(r.porNumero["101"].resto, 0);
+  assert.equal(r.totais.restoComTitulo, 0);
+  assert.equal(r.totais.aReceber, 2000);
+});
+
 /* O DETALHE DOS QUADROS — a lista que abre ao clicar. O teste que importa e o
    de FECHAMENTO: a soma da lista tem de bater, ao centavo, com o total do
    cartao. Lista que nao fecha com o numero acima dela e pior que lista nenhuma. */

@@ -7,7 +7,7 @@ import {
   resumoDaCampanha, resumoGeralCampanhas, compradoresDaCampanha, fichaDaOS,
   extratoDaCampanha, anosDasCampanhas, totaisDoAno, comparativoPorAno, edicoesDoMesmoEvento,
   anosRepetidos, eventosVinculados, membrosDoEvento, candidatasAVincular, comparativoDeEdicoes, maiorComprador, comprasPorMes, produtosDaCampanha, categoriasDosProdutos,
-  porProduto, foraDoPeriodo,
+  porProduto, foraDoPeriodo, atualizacaoDaCampanha,
 } from "./campanhas.js";
 
 const os = (id, cliente, valor, extra = {}) => ({
@@ -1162,4 +1162,39 @@ test("produtos: O.S. só com itens sem nome cai no rodapé", () => {
   assert.equal(p.itens.length, 0);
   assert.equal(p.dinheiro.fora.aberto, 500);
   assert.equal(p.dinheiro.fora.os, 1);
+});
+
+/* O BOTÃO "ATUALIZAR COM O ERP" (23/09). O caso real: na "Política 2026 -
+   Deputados" nove fichas tinham envelhecido (a 22996 congelada em R$ 91.950,
+   o ERP dizia R$ 79.495) e uma O.S. tinha sido cancelada. */
+test("atualizar com o ERP: regrava a ficha que mudou, NUNCA tira a cancelada sozinho", () => {
+  const campanha = { os: {
+    a: { numero: "22996", valor: 91950, cliente: "X", data: "2026-08-04" },
+    b: { numero: "23084", valor: 900, cliente: "X", data: "2026-08-24" },
+    c: { numero: "23100", valor: 500, cliente: "X", data: "2026-08-25" },
+  } };
+  const vivas = [
+    { id: "a", numero: "22996", valor: 79495, cliente: "X", data: "2026-08-04" },
+    { id: "c", numero: "23100", valor: 500, cliente: "X", data: "2026-08-25" },
+    // "b" não voltou: foi cancelada no ERP
+  ];
+  const r = atualizacaoDaCampanha(campanha, vivas);
+  assert.equal(r.conferivel, true);
+  assert.deepEqual(r.mudaram.map((l) => l.id), ["a"]);
+  assert.equal(r.fichas.a.valor, 79495);
+  assert.deepEqual(r.sumiram.map((l) => l.id), ["b"]);
+  // A cancelada não entra nas fichas: tirar é decisão da tela, com confirmação.
+  assert.ok(!("b" in r.fichas));
+  // A que não mudou não é regravada.
+  assert.ok(!("c" in r.fichas));
+});
+
+test("atualizar com o ERP: sem lista do ERP nada é proposto (senão tudo pareceria cancelado)", () => {
+  const campanha = { os: { a: { numero: "1", valor: 100 } } };
+  for (const vazio of [[], null, undefined]) {
+    const r = atualizacaoDaCampanha(campanha, vazio);
+    assert.equal(r.conferivel, false);
+    assert.deepEqual(r.fichas, {});
+    assert.equal(r.sumiram.length, 0);
+  }
 });

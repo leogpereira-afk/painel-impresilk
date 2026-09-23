@@ -18,7 +18,7 @@
  */
 
 import {
-  chaveCliente, valorDaOS, linhasDaPermuta, linhasPorCliente, linhasDosLancamentos,
+  chaveCliente, valorDaOS, linhasDaPermuta, linhasPorCliente, linhasDosLancamentos, fichaDaOS as fichaDaOSLocal,
 } from "./permutas.js";
 
 const num = (v) => {
@@ -83,6 +83,28 @@ export function resumoDaCampanha(campanha, ordens) {
     sumiram: linhas.filter((l) => l.sumiu).length,
     semConferir: linhas.some((l) => l.semConferir),
   };
+}
+
+/* O QUE O BOTÃO "ATUALIZAR COM O ERP" GRAVA.
+ *
+ * `vivas` é a busca FRESCA por id das O.S. aceitas. Devolve as fichas novas
+ * das que mudaram de valor e a lista das que sumiram -- e NUNCA põe as
+ * sumidas no patch: tirar uma O.S. muda o vendido, e isso é decisão da
+ * direção, feita na tela com confirmação.
+ *
+ * Lista vazia não é resposta (a mesma guarda de linhasDaPermuta): sem ela
+ * toda O.S. pareceria cancelada, então nada é proposto. */
+export function atualizacaoDaCampanha(campanha, vivas) {
+  if (!Array.isArray(vivas) || !vivas.length) {
+    return { conferivel: false, fichas: {}, mudaram: [], sumiram: [] };
+  }
+  const porId = new Map(vivas.map((o) => [String(o.id), o]));
+  const linhas = linhasDaPermuta(campanha, vivas);
+  const mudaram = linhas.filter((l) => l.mudou);
+  const sumiram = linhas.filter((l) => l.sumiu);
+  const fichas = {};
+  for (const l of mudaram) fichas[l.id] = fichaDaOSLocal(porId.get(l.id));
+  return { conferivel: true, fichas, mudaram, sumiram };
 }
 
 /* Todas as campanhas com o seu resumo, para a lista de abertura.

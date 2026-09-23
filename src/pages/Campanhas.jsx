@@ -39,9 +39,9 @@ import {
   lerAnosPanorama, lerAnosMes, lerAnosMesCal, lerOsFinanceiro,
 } from "../services/campanhas.js";
 import { financeiroDasLinhas, osDoQuadro } from "../lib/calc/financeiroOS.js";
-import { fichaDaOS, ordensDosClientes, donoPorOS, unirOrdens } from "../lib/calc/permutas.js";
+import { fichaDaOS, ordensDosClientes, donoPorOS, unirOrdens, valorDaOS } from "../lib/calc/permutas.js";
 import {
-  resumoDaCampanha, resumoGeralCampanhas, compradoresDaCampanha, extratoDaCampanha,
+  resumoDaCampanha, resumoGeralCampanhas, compradoresDaCampanha, extratoDaCampanha, atualizacaoDaCampanha,
   anosDasCampanhas, totaisDoAno, comparativoPorAno, edicoesDoMesmoEvento, anosRepetidos,
   maiorComprador, comprasPorMes, produtosDaCampanha, categoriasDosProdutos, porProduto,
   foraDoPeriodo,
@@ -162,6 +162,9 @@ function ListaDoQuadro({ quadro, linhas, financeiro }) {
                 {o.fin?.tipo === "pagoParcial" && (
                   <span className="text-[11px] text-warn-800">resto sem nota</span>
                 )}
+                {o.fin?.tipo === "aberto" && o.fin.resto > 0 && (
+                  <span className="text-[11px] text-warn-800">+ {dinheiro(o.fin.resto)} além do título</span>
+                )}
                 {o.fin?.compartilhado && <span className="text-[11px] text-slate-400">∗</span>}
               </span>
               <span className="block text-[11px] text-slate-400">
@@ -262,6 +265,12 @@ function CartoesFinanceiro({ financeiro, erro, dados, linhas, quadro, aoAbrirQua
                 )}
                 {t.semTitulo > 0 && (
                   <> · {t.semTitulo} sem nota emitida ({dinheiro(t.semTituloValor)})</>
+                )}
+                {/* A O.S. já está contada em "com título"; aqui só aparece a
+                    parte que o título não cobre -- senão a soma das divisões
+                    não bateria com o número grande acima. */}
+                {t.restoComTitulo > 0 && (
+                  <> · {dinheiro(t.restoComTituloValor)} além do título em {t.restoComTitulo} O.S.</>
                 )}
               </>
             ) : "nada em aberto"}
@@ -1827,6 +1836,7 @@ export default function Campanhas() {
      ficava com a tela aberta enquanto pedidos novos desciam do ERP (a carga
      traz de 20 em 20 minutos) só via a lista nova fechando e reabrindo. */
   const [versaoBusca, setVersaoBusca] = useState(0);
+  const [atualizandoErp, setAtualizandoErp] = useState(false);
   const [buscaCliente, setBuscaCliente] = useState("");
   const [achados, setAchados] = useState([]);
   const [buscaOS, setBuscaOS] = useState("");
@@ -2545,6 +2555,110 @@ export default function Campanhas() {
     [aberta, ordens, mexer],
   );
 
+  /* ATUALIZAR COM O ERP -- pedido do Léo (23/09): "um botão atualizar que
+   * altere os que já foram modificados, para sempre estar atualizado".
+   *
+   * O TOTAL JÁ SEGUE O ERP (linhasDaPermuta usa o valor vivo quando ele
+   * responde). O que envelhece é a FICHA guardada no aceite -- e ela não é
+   * enfeite: é o número que a tela usa quando o ERP não responde. Com nove
+   * fichas velhas (R$ 7 mil de diferença na "Política 2026 - Deputados"), uma
+   * sessão sem ERP mostraria um vendido que não existe mais. Este botão
+   * regrava as fichas com o que o ERP diz AGORA.
+   *
+   * SÓ PARA CAMPANHA. Na permuta a ficha congelada é o valor combinado com o
+   * parceiro -- regravá-la apagaria a prova do acordo.
+   *
+   * REGRAS:
+   * - Busca FRESCA, por id, na hora do clique: decidir com a lista de quando
+   *   a tela abriu seria regravar com um ERP de vinte minutos atrás.
+   * - Lista vazia não é resposta: sem ela, nada é alterado (a mesma guarda de
+   *   linhasDaPermuta -- sem ela TODA O.S. pareceria cancelada).
+   * - Valor que mudou: regrava sem perguntar. Não mexe no total, só no
+   *   registro.
+   * - O.S. CANCELADA: pergunta, com número e valor. Tirar muda o vendido, e
+   *   quem decide o que conta é a direção -- não o botão sozinho.
+   * - Um patch só, e confere o EFEITO O.S. por O.S. */
+  const atualizarComErp = useCallback(async () => {
+    if (!aberta || !campanha) return;
+    const aceitas = Object.keys(campanha.os || {});
+    if (!aceitas.length) return;
+    setAtualizandoErp(true);
+    try {
+      const vivas = await buscarOrdensPorId(aceitas);
+      // A decisão mora em lib/calc/campanhas.js, onde tem teste.
+      const { conferivel, fichas, mudaram, sumiram } = atualizacaoDaCampanha(campanha, vivas);
+      if (!conferivel) {
+        setAviso({ tom: "erro", texto: "Não consegui ler as O.S. no ERP agora. Nada foi alterado — tente de novo em alguns minutos." });
+        return;
+      }
+      const porId = new Map(vivas.map((o) => [String(o.id), o]));
+
+      const patch = {};
+      for (const l of mudaram) {
+        const ficha = fichas[l.id];
+        // O banco pula em silêncio o que não for objeto: melhor não gravar nada.
+        if (!ficha || typeof ficha !== "object") {
+          setAviso({ tom: "erro", texto: `Não consegui montar a ficha da O.S. ${l.numero || l.id}. Nada foi alterado.` });
+          return;
+        }
+        patch[l.id] = ficha;
+      }
+
+      let tirar = false;
+      if (sumiram.length) {
+        const somaSumiu = sumiram.reduce((n, l) => n + (Number(l.congelado) || 0), 0);
+        const lista = sumiram.slice(0, 8).map((l) => `O.S. ${l.numero} (${dinheiro(l.congelado)})`).join(", ");
+        tirar = window.confirm(
+          `${sumiram.length === 1 ? "1 O.S. foi cancelada" : `${sumiram.length} O.S. foram canceladas`} no ERP: ${lista}${sumiram.length > 8 ? ` e mais ${sumiram.length - 8}` : ""}.\n\n`
+          + `Tirar da campanha? O vendido cai ${dinheiro(somaSumiu)}.\n\n`
+          + "Cancelar mantém na campanha — use se ela foi refeita com outro número e ainda não foi marcada.",
+        );
+        if (tirar) for (const l of sumiram) patch[l.id] = null;
+      }
+
+      if (!Object.keys(patch).length) {
+        setAviso({
+          tom: "ok",
+          texto: sumiram.length
+            ? "Os valores já batiam com o ERP. A O.S. cancelada continua na campanha, como você escolheu."
+            : "Tudo já batia com o ERP. Nada a atualizar.",
+        });
+        return;
+      }
+
+      const gravado = await mexer(aberta, { osPatch: patch });
+      if (!gravado) return; // erro de rede já avisado pelo mexer
+
+      // CONFERE O EFEITO: "não deu erro" nunca foi prova de que gravou.
+      const os = gravado.os || {};
+      const naoGravou = [
+        ...mudaram.filter((l) => {
+          const f = os[l.id];
+          return !f || Math.abs((Number(f.valor) || 0) - valorDaOS(porId.get(l.id))) >= 0.01;
+        }),
+        ...(tirar ? sumiram.filter((l) => !!os[l.id]) : []),
+      ];
+      if (naoGravou.length) {
+        setAviso({
+          tom: "erro",
+          texto: `Não consegui atualizar: ${naoGravou.slice(0, 5).map((l) => l.numero || l.id).join(", ")}${naoGravou.length > 5 ? ` e mais ${naoGravou.length - 5}` : ""}. Tente de novo.`,
+        });
+      } else {
+        const partes = [];
+        if (mudaram.length) partes.push(`${mudaram.length} O.S. com o valor novo do ERP`);
+        if (tirar) partes.push(`${sumiram.length} cancelada${sumiram.length > 1 ? "s" : ""} fora da campanha`);
+        else if (sumiram.length) partes.push(`${sumiram.length} cancelada${sumiram.length > 1 ? "s" : ""} mantida${sumiram.length > 1 ? "s" : ""}, como você escolheu`);
+        setAviso({ tom: "ok", texto: `Campanha atualizada: ${partes.join("; ")}.` });
+      }
+      // Recarrega lista e cobrança com o registro novo.
+      setVersaoBusca((v) => v + 1);
+    } catch (e) {
+      setAviso({ tom: "erro", texto: e.message });
+    } finally {
+      setAtualizandoErp(false);
+    }
+  }, [aberta, campanha, mexer]);
+
   const ligarCliente = useCallback(
     async (c) => {
       if (!aberta) return;
@@ -2872,10 +2986,26 @@ export default function Campanhas() {
           )}
 
           {(resumo.mudaram > 0 || resumo.sumiram > 0 || resumo.semConferir) && (
-            <div className="rounded-lg bg-warn-50 px-3 py-2 text-xs text-warn-800">
-              {resumo.semConferir && "As O.S. não carregaram nesta sessão: o total está usando o valor congelado na marcação. "}
-              {resumo.mudaram > 0 && `${resumo.mudaram} O.S. mudaram de valor no ERP depois de marcadas (o total já usa o valor novo). `}
-              {resumo.sumiram > 0 && `${resumo.sumiram} O.S. sumiram do ERP (cancelamento) e continuam somando — confira se ainda contam.`}
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg bg-warn-50 px-3 py-2 text-xs text-warn-800">
+              <span className="min-w-0 flex-1">
+                {resumo.semConferir && "As O.S. não carregaram nesta sessão: o total está usando o valor congelado na marcação. "}
+                {resumo.mudaram > 0 && `${resumo.mudaram} O.S. mudaram de valor no ERP depois de marcadas (o total já usa o valor novo). `}
+                {resumo.sumiram > 0 && `${resumo.sumiram} O.S. sumiram do ERP (cancelamento) e continuam somando — confira se ainda contam.`}
+              </span>
+              {/* Sem a lista do ERP não há o que conferir: o botão some, em vez
+                  de prometer uma atualização que não pode fazer. */}
+              {!resumo.semConferir && (resumo.mudaram > 0 || resumo.sumiram > 0) && (
+                <button
+                  type="button"
+                  className="btn-ghost shrink-0 border border-warn-200 bg-white text-warn-800"
+                  disabled={atualizandoErp || salvando}
+                  title="Regrava as O.S. marcadas com o que o ERP diz agora. As canceladas só saem se você confirmar."
+                  onClick={atualizarComErp}
+                >
+                  <RotateCw size={14} className={atualizandoErp ? "animate-spin" : ""} />
+                  {atualizandoErp ? "Atualizando…" : "Atualizar com o ERP"}
+                </button>
+              )}
             </div>
           )}
         </Card>

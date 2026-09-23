@@ -132,6 +132,10 @@ export function financeiroDasLinhas(linhas, dados, hoje) {
     recebido: 0, aberto: 0,
     pagas: 0, abertas: 0, vencidas: 0, vencidoValor: 0,
     semTitulo: 0, semTituloValor: 0, semDado: 0,
+    /* O.S. COM TÍTULO MENOR QUE ELA: a parte que o título não cobre. Fica
+       num balde próprio para as contagens da tela continuarem sendo de O.S.
+       distintas -- ela já é contada em "com título". */
+    restoComTitulo: 0, restoComTituloValor: 0,
     // Pedidas mas não respondidas (teto do servidor / número recusado).
     naoConsultadas: 0, naoConsultadoValor: 0,
     // Quantas O.S. dependem de título que cobra mais de uma (valor repartido).
@@ -174,7 +178,14 @@ export function financeiroDasLinhas(linhas, dados, hoje) {
        sincronia: quando a de lá divergisse da daqui, a soma dos produtos
        deixaria de bater com o cartão logo acima, e ninguém saberia qual das
        duas está certa. A guarda de TOLERÂNCIA é a MESMA usada no total. */
-    const sobraSemTitulo = (tipo === "semTitulo" || tipo === "pagoParcial")
+    /* O RESTO SEM NOTA vale também para O.S. com título ABERTO. Ficava de fora
+       e sumia de todo cartão: na "Política 2026 - Deputados" (23/09/2026) a
+       O.S. 23031 valia R$ 23.513,88 e tinha título aberto de R$ 23.144,88 --
+       os R$ 369,00 do meio não estavam em Recebido, nem em Em aberto, nem em
+       Permuta, e os três cartões não fechavam com o vendido. É a mesma régua
+       do pagoParcial: o que o título não cobre ainda não foi faturado, e
+       continua sendo dívida (régua do Leonardo, 04/09). */
+    const sobraSemTitulo = (tipo === "semTitulo" || tipo === "pagoParcial" || tipo === "aberto")
       ? CENT(Math.max(0, valor - b.pago - b.aberto)) : 0;
     const contaDinheiro = tipo !== "permuta" && tipo !== "naoConsultada";
 
@@ -184,6 +195,9 @@ export function financeiroDasLinhas(linhas, dados, hoje) {
       recebido: contaDinheiro ? b.pago : 0,
       aReceber: contaDinheiro ? CENT(b.aberto + (sobraSemTitulo > TOLERANCIA ? sobraSemTitulo : 0)) : 0,
       permutado: tipo === "permuta" ? valor : 0,
+      // A parte ainda não faturada, para a lista mostrar por que a linha vale
+      // mais que o título.
+      resto: contaDinheiro && sobraSemTitulo > TOLERANCIA ? sobraSemTitulo : 0,
       valor,
     };
 
@@ -220,8 +234,13 @@ export function financeiroDasLinhas(linhas, dados, hoje) {
     // O que a O.S. vale além do que tem título (pago ou aberto): ainda não
     // foi faturado no ERP. É aviso, não cobrança.
     if (sobraSemTitulo > TOLERANCIA) {
-      totais.semTitulo += 1;
-      totais.semTituloValor = CENT(totais.semTituloValor + sobraSemTitulo);
+      if (tipo === "aberto") {
+        totais.restoComTitulo += 1;
+        totais.restoComTituloValor = CENT(totais.restoComTituloValor + sobraSemTitulo);
+      } else {
+        totais.semTitulo += 1;
+        totais.semTituloValor = CENT(totais.semTituloValor + sobraSemTitulo);
+      }
     }
     if (tipo === "semDado") totais.semDado += 1;
   }
@@ -235,7 +254,8 @@ export function financeiroDasLinhas(linhas, dados, hoje) {
      Fica FORA: permuta (ja acertada), e o que a tela nao pode afirmar --
      `semDado` (anterior ao mapa de pagamentos) e `naoConsultada` (fora do teto
      do servidor). Somar esses dois seria cobrar por dedução. */
-  totais.aReceber = CENT(totais.aberto + totais.semTituloValor);
+  totais.aReceber = CENT(totais.aberto + totais.semTituloValor + totais.restoComTituloValor);
+  // O.S. distintas: a que tem resto já está em `abertas`.
   totais.aReceberOS = totais.abertas + totais.semTitulo;
 
   return { porNumero, totais };
@@ -265,7 +285,7 @@ export function osDoQuadro(linhas, porNumero, quadro) {
       if (f.tipo === "permuta" || f.tipo === "naoConsultada") continue;
       if (f.pago > 0) out.push({ ...l, parte: f.pago, fin: f });
     } else if (quadro === "aberto") {
-      if (f.tipo === "aberto") out.push({ ...l, parte: f.aberto, fin: f });
+      if (f.tipo === "aberto") out.push({ ...l, parte: f.aReceber, fin: f });
       else if (f.tipo === "semTitulo" || f.tipo === "pagoParcial") {
         const resto = CENT(Math.max(0, valor - f.pago - f.aberto));
         if (resto > TOLERANCIA) out.push({ ...l, parte: resto, fin: f });
