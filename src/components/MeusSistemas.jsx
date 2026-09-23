@@ -18,14 +18,23 @@ import { iconeDoSistema } from "./iconesDosSistemas.js";
 // iconesDosSistemas.js. A tabela local que morava aqui divergia da lateral:
 // Brief era prancheta aqui e régua lá, lado a lado no mesmo desktop.
 
-export default function MeusSistemas() {
+/**
+ * `coluna` = empilhado, para a lateral esquerda da Home (pedido do Leo em
+ * 23/09/2026: "os botoes de sistemas fica a esquerda"). Sem ele, continua o
+ * que sempre foi: cartoes lado a lado, centralizados.
+ *
+ * O cartao muda de FORMA, nao de conteudo: em coluna o icone fica ao lado do
+ * nome (uma linha por sistema) em vez de em cima. Sete cartoes quadrados
+ * empilhados fariam uma torre de 1,5 tela.
+ */
+export default function MeusSistemas({ coluna = false }) {
   const sistemas = meusSistemas();
   if (!sistemas.length) return null;
 
   return (
-    <div className="mt-10">
+    <div className={coluna ? "" : "mt-10"}>
       <p className="label mb-3">Seus sistemas</p>
-      <div className="flex flex-wrap justify-center gap-3">
+      <div className={coluna ? "flex flex-col gap-2" : "flex flex-wrap justify-center gap-3"}>
         {sistemas.map((s) => {
           const Icone = iconeDoSistema(doSistema(s));
           /* DERIVADO DO FATO, não escrito à mão: pede senha quem tem endereço
@@ -40,23 +49,31 @@ export default function MeusSistemas() {
               target="_blank"
               rel="noopener noreferrer"
               title={pedeSenha ? "O RH ainda pede a senha uma vez" : "Abre já entrado"}
-              className="group flex w-28 flex-col items-center gap-2 rounded-2xl border bg-white px-3 py-4
-                         transition hover:-translate-y-0.5 hover:border-brand-300 hover:shadow-md
-                         focus:outline-none focus:ring-2 focus:ring-brand-200"
+              className={
+                (coluna
+                  ? "flex w-full items-center gap-3 px-3 py-2.5"
+                  : "flex w-28 flex-col items-center gap-2 px-3 py-4 hover:-translate-y-0.5") +
+                " group rounded-2xl border bg-white transition hover:border-brand-300 hover:shadow-md" +
+                " focus:outline-none focus:ring-2 focus:ring-brand-200"
+              }
               style={{ borderColor: "var(--hairline)" }}
             >
               <span
-                className="flex h-12 w-12 items-center justify-center rounded-xl bg-brand text-white
-                           transition group-hover:bg-brand-600"
+                className={
+                  (coluna ? "h-9 w-9 shrink-0 rounded-lg" : "h-12 w-12 rounded-xl") +
+                  " flex items-center justify-center bg-brand text-white transition group-hover:bg-brand-600"
+                }
               >
-                <Icone size={24} strokeWidth={2.1} />
+                <Icone size={coluna ? 18 : 24} strokeWidth={2.1} />
               </span>
-              <span className="font-display text-sm font-semibold text-slate-800">
-                {nomeSis(s)}
+              <span className={coluna ? "min-w-0 flex-1" : ""}>
+                <span className="block font-display text-sm font-semibold text-slate-800">
+                  {nomeSis(s)}
+                </span>
+                {pedeSenha && (
+                  <span className="block text-[11px] leading-tight text-slate-400">pede senha</span>
+                )}
               </span>
-              {pedeSenha && (
-                <span className="-mt-1 text-[11px] leading-tight text-slate-400">pede senha</span>
-              )}
             </a>
           );
         })}

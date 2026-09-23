@@ -19,6 +19,8 @@ import { calcAtivos, TIPOS } from "../lib/calc/ativos.js";
 import { ymdLocal } from "../lib/format.js";
 import { Card } from "../components/ui.jsx";
 import MeusSistemas from "../components/MeusSistemas.jsx";
+import { meusSistemas } from "../lib/entradaUnica.js";
+import MissaoValores from "../components/MissaoValores.jsx";
 import logoColor from "../assets/brand/logo-color.png";
 import logoWhite from "../assets/brand/logo-white.png";
 
@@ -58,6 +60,7 @@ function fraseDoDia() {
 
 export default function Home() {
   const navigate = useNavigate();
+  const temSistemas = meusSistemas().length > 0;
 
   // Documentos e manutencoes que vencem: e a unica coisa que a Home mostra alem
   // da saudacao, porque e a unica que ninguem lembra de ir olhar sozinho -- um
@@ -157,7 +160,10 @@ export default function Home() {
 
 
   return (
-    <div className="flex min-h-[60vh] flex-col items-center justify-center px-2 text-center">
+    <div className="mx-auto w-full max-w-6xl px-2">
+      {/* Topo: logo, saudacao, frase e os avisos. Continua centralizado -- e a
+          parte que se le de relance. */}
+      <div className="flex flex-col items-center pt-4 text-center">
       <img src={logoColor} alt="Impresilk" className="h-12 w-auto dark:hidden sm:h-14" />
       <img src={logoWhite} alt="Impresilk" className="hidden h-12 w-auto dark:block sm:h-14" />
 
@@ -272,15 +278,42 @@ export default function Home() {
         </button>
       )}
 
-      {/* No celular NAO existe menu ao lado: a lateral vira o botao de tres
-          tracos no alto. Mandar "olhe ao lado" para quem esta no telefone e
-          mandar olhar para o nada. */}
-      <MeusSistemas />
+      </div>
 
-      <p className="mt-8 text-sm text-slate-400">
-        <span className="lg:hidden">Toque no menu, no alto a esquerda, para escolher um módulo.</span>
-        <span className="hidden lg:inline">Escolha um módulo no menu ao lado para começar.</span>
-      </p>
+      {/* A ENTRADA ABRE COM A IDENTIDADE (pedido do Leo, 23/09/2026): missao,
+          visao e os doze valores ocupam o corpo da pagina, e os atalhos dos
+          sistemas passam para a coluna da esquerda.
+
+          No CELULAR a ordem inverte: a identidade vem primeiro e os sistemas
+          depois -- "abrir com missao, visao e valores" nao pode virar "role
+          uma tela e meia ate achar os valores". */}
+      <div
+        className={
+          "mt-10 grid gap-8 pb-10 " +
+          /* Sem crachá da entrada única não HÁ atalhos, e a coluna da esquerda
+             fica um vão de 15rem com uma frase solta no alto. Quem entrou pela
+             porta antiga via isso. Sem sistemas, os valores ocupam a largura. */
+          (temSistemas ? "lg:grid-cols-[15rem_minmax(0,1fr)]" : "")
+        }
+      >
+        <aside
+          className={
+            "order-last lg:order-first lg:sticky lg:top-6 lg:self-start " +
+            (temSistemas ? "" : "lg:hidden")
+          }
+        >
+          <MeusSistemas coluna />
+          <p className="mt-6 text-sm text-slate-400">
+            {/* No celular NAO existe menu ao lado: a lateral vira o botao de
+                tres tracos no alto. Mandar "olhe ao lado" para quem esta no
+                telefone e mandar olhar para o nada. */}
+            <span className="lg:hidden">Toque no menu, no alto à esquerda, para escolher um módulo.</span>
+            <span className="hidden lg:inline">Escolha um módulo no menu ao lado para começar.</span>
+          </p>
+        </aside>
+
+        <MissaoValores />
+      </div>
     </div>
   );
 }
