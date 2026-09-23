@@ -261,6 +261,57 @@ export function financeiroDasLinhas(linhas, dados, hoje) {
   return { porNumero, totais };
 }
 
+/* O DINHEIRO DE UM COMPRADOR — os chips de cada linha da lista "O.S. desta
+ * campanha". Pedido do Léo (23/09): "um chip com o valor recebido, em aberto,
+ * permuta de cada pessoa".
+ *
+ * SOMA AS MESMAS PARCELAS DOS CARTÕES DO TOPO (`recebido`, `aReceber`,
+ * `permutado` de cada O.S.), e por isso a soma de todos os chips de uma cor
+ * fecha com o cartão daquela cor. O chip que existia antes somava só o título
+ * aberto e discordava do cartão "Em aberto", que inclui o que ainda não tem
+ * nota -- régua copiada é régua que sai de sincronia.
+ *
+ * `semConferir` é a parte que a conta não pode afirmar (O.S. anterior ao mapa
+ * de pagamentos, ou fora do teto da consulta). Sem ela, uma linha sem chip
+ * nenhum leria "nada recebido, nada devido" -- afirmação sem dado.
+ *
+ * Sem `porNumero` (a cobrança ainda não chegou, ou a tela é a da permuta, que
+ * não o passa) devolve null: nenhum chip, em vez de zeros inventados. */
+export function dinheiroDoGrupo(linhas, porNumero) {
+  if (!porNumero) return null;
+  // Em centavos inteiros: somar reais em ponto flutuante deixa a soma dos
+  // chips a um centavo do cartão, e o cartão é conferido contra ela.
+  const c = (n) => Math.round((Number(n) || 0) * 100);
+  let valor = 0, recebido = 0, aReceber = 0, permutado = 0, comTitulo = 0, vencido = 0;
+  const permutas = new Set();
+  for (const l of linhas || []) {
+    valor += c(l?.valor);
+    const f = porNumero[String(l?.numero || "")];
+    if (!f) continue;
+    recebido += c(f.recebido);
+    aReceber += c(f.aReceber);
+    permutado += c(f.permutado);
+    if (f.tipo === "aberto") {
+      comTitulo += c(f.aberto);
+      if (f.vencido) vencido += c(f.aberto);
+    }
+    if (f.tipo === "permuta" && f.permuta) permutas.add(f.permuta);
+  }
+  const fora = valor - recebido - aReceber - permutado;
+  return {
+    recebido: recebido / 100,
+    aReceber: aReceber / 100,
+    // A divisão do "em aberto", para a dica do chip: o que já dá para cobrar
+    // (tem título) e o que o financeiro ainda precisa faturar.
+    comTitulo: comTitulo / 100,
+    semNota: (aReceber - comTitulo) / 100,
+    vencidoValor: vencido / 100,
+    permutado: permutado / 100,
+    permutas: [...permutas],
+    semConferir: fora > Math.round(TOLERANCIA * 100) ? fora / 100 : 0,
+  };
+}
+
 /* AS O.S. QUE FORMAM CADA QUADRO — o detalhe por trás do número.
  *
  * Pedido do Léo (04/09): "quando clicar nos cards eles deveriam abrir as O.S.

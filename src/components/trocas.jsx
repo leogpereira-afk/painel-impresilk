@@ -15,6 +15,7 @@
 import { ChevronDown, Trash2, X, Check, AlertTriangle, Paperclip } from "lucide-react";
 import { moedaCheia, dataCurta, dataLonga, ymdLocal } from "../lib/format.js";
 import { Card, Empty } from "./ui.jsx";
+import { dinheiroDoGrupo } from "../lib/calc/financeiroOS.js";
 
 /* AQUI O CENTAVO CONTA, ao contrário do resto do painel. Nas outras telas o
    dinheiro é grandeza e o `moeda()` corta os centavos. Permuta e campanha são
@@ -205,19 +206,73 @@ function SeloFinanceiro({ f }) {
   return null; // semDado: sem afirmação
 }
 
-export function GrupoCliente({ g, aberto, aoAlternar, aoTirar, onde = "permuta", finPorNumero }) {
-  /* O QUANTO DESTE CNPJ AINDA ESTÁ EM ABERTO, visível com o grupo RECOLHIDO —
-     é recolhido que ele nasce, e cobrança escondida atrás de um clique não
-     cobra ninguém. */
-  let abertoRs = 0;
-  let temVencida = false;
-  if (finPorNumero) {
-    for (const l of g.linhas) {
-      const f = finPorNumero[String(l.numero)];
-      if (f?.tipo === "aberto") { abertoRs += f.aberto; temVencida = temVencida || f.vencido; }
-    }
-    abertoRs = Math.round(abertoRs * 100) / 100;
+/* OS CHIPS DO COMPRADOR — recebido, em aberto e permuta, visíveis com o grupo
+   RECOLHIDO: é recolhido que ele nasce, e cobrança escondida atrás de um
+   clique não cobra ninguém. A conta mora em lib/calc/financeiroOS.js
+   (dinheiroDoGrupo), com a mesma régua dos cartões do topo -- somando as
+   linhas, cada cor fecha com o seu cartão. Valor zerado não vira chip: três
+   zeros em cada linha viram ruído e escondem o que importa. */
+function chipsDoGrupo(d) {
+  if (!d) return null;
+  const chips = [];
+  if (d.recebido > 0) {
+    chips.push(
+      <span
+        key="r"
+        className="whitespace-nowrap rounded bg-ok-50 px-1.5 py-0.5 text-[11px] text-ok-700"
+        title="Dinheiro que já entrou pelas O.S. deste comprador, inclusive pagamento parcial. Permuta não entra aqui."
+      >
+        recebido {dinheiro(d.recebido)}
+      </span>,
+    );
   }
+  if (d.aReceber > 0) {
+    const partes = [];
+    if (d.comTitulo > 0) {
+      partes.push(`${dinheiro(d.comTitulo)} com título${d.vencidoValor > 0 ? ` (${dinheiro(d.vencidoValor)} vencido)` : ""}`);
+    }
+    if (d.semNota > 0) partes.push(`${dinheiro(d.semNota)} sem nota emitida`);
+    chips.push(
+      <span
+        key="a"
+        className={`whitespace-nowrap rounded px-1.5 py-0.5 text-[11px] ${
+          d.vencidoValor > 0 ? "bg-bad-50 font-medium text-bad-700" : "bg-warn-50 text-warn-800"
+        }`}
+        title={`O que este comprador ainda deve: ${partes.join(" + ")}.`}
+      >
+        em aberto {dinheiro(d.aReceber)}
+      </span>,
+    );
+  }
+  if (d.permutado > 0) {
+    chips.push(
+      <span
+        key="p"
+        className="whitespace-nowrap rounded bg-brand-50 px-1.5 py-0.5 text-[11px] text-brand-700"
+        title={`Quitado em troca${d.permutas.length ? ` na permuta “${d.permutas.join("”, “")}”` : ""} — não é dinheiro e não gera cobrança.`}
+      >
+        permuta {dinheiro(d.permutado)}
+      </span>,
+    );
+  }
+  if (d.semConferir > 0) {
+    chips.push(
+      <span
+        key="s"
+        className="whitespace-nowrap rounded bg-slate-100 px-1.5 py-0.5 text-[11px] text-slate-500"
+        title="Parte que a cobrança não consegue afirmar: O.S. anteriores ao mapa de pagamentos, ou fora do teto da consulta."
+      >
+        sem conferir {dinheiro(d.semConferir)}
+      </span>,
+    );
+  }
+  return chips.length ? chips : null;
+}
+
+export function GrupoCliente({ g, aberto, aoAlternar, aoTirar, onde = "permuta", finPorNumero }) {
+  // Função, não componente: o mesmo conjunto aparece em dois lugares
+  // (celular e tela larga), e a linha precisa saber se ele veio vazio.
+  const chips = chipsDoGrupo(dinheiroDoGrupo(g.linhas, finPorNumero));
   return (
     <div className="border-b border-slate-100 last:border-0">
       <button
@@ -235,16 +290,11 @@ export function GrupoCliente({ g, aberto, aoAlternar, aoTirar, onde = "permuta",
           <span className="text-[11px] text-slate-400">
             {g.cnpj ? formatarDoc(g.cnpj) : "sem CNPJ no cadastro"} · {g.qtd} O.S.
           </span>
+          {/* No celular os chips descem para baixo do nome: ao lado dele, três
+              chips espremeriam o nome até sumir. */}
+          {chips && <span className="mt-1 flex flex-wrap gap-1 sm:hidden">{chips}</span>}
         </span>
-        {abertoRs > 0 && (
-          <span
-            className={`shrink-0 rounded px-1.5 py-0.5 text-[11px] ${
-              temVencida ? "bg-bad-50 font-medium text-bad-700" : "bg-warn-50 text-warn-800"
-            }`}
-          >
-            em aberto {dinheiro(abertoRs)}
-          </span>
-        )}
+        {chips && <span className="hidden shrink-0 flex-wrap justify-end gap-1 sm:flex">{chips}</span>}
         <span className="shrink-0 font-medium tabular-nums text-slate-700">{dinheiro(g.valor)}</span>
       </button>
       {aberto && (

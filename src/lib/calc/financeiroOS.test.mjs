@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { financeiroDasLinhas, faxinarPagos, osDoQuadro } from "./financeiroOS.js";
+import { financeiroDasLinhas, faxinarPagos, osDoQuadro, dinheiroDoGrupo } from "./financeiroOS.js";
 
 const HOJE = "2026-09-04";
 const linha = (numero, valor, data = "2026-08-20") => ({ numero, valor, data });
@@ -450,4 +450,69 @@ test("quadro vazio devolve lista vazia, sem quebrar", () => {
   const r = financeiroDasLinhas([], { temPagos: true, desdeDados: "2025-01-01", abertos: [], pagos: [] }, HOJE);
   assert.deepEqual(osDoQuadro([], r.porNumero, "aberto"), []);
   assert.deepEqual(osDoQuadro(null, null, "recebido"), []);
+});
+
+/* OS CHIPS DE CADA COMPRADOR (23/09). O teste que importa é o de FECHAMENTO:
+   somando todos os compradores, cada chip bate com o seu cartão -- é a mesma
+   régua. */
+test("chips por comprador: somando todos, cada chip fecha com o seu cartao", () => {
+  const linhas = [
+    { id: "x1", numero: "10", valor: 45965.57, data: "2026-08-01", cliente: "A" }, // titulo aberto
+    { id: "x2", numero: "20", valor: 172230.05, data: "2026-08-02", cliente: "A" }, // sem nota
+    { id: "x3", numero: "30", valor: 136556.24, data: "2026-08-03", cliente: "B" }, // permuta
+    { id: "x4", numero: "40", valor: 81555.55, data: "2026-08-04", cliente: "C" },  // quitada
+    { id: "x5", numero: "50", valor: 10000, data: "2026-08-05", cliente: "C" },     // parcial 4.000
+  ];
+  const r = financeiroDasLinhas(linhas, {
+    temPagos: true, desdeDados: "2025-01-01",
+    abertos: [{ id: "ta", os: "10", valor: 45965.57, pago: 0, vencimento: "2026-12-01" }],
+    pagos: [
+      { id: "tp", os: "40", pago: 81555.55, em: "2026-08-20" },
+      { id: "tq", os: "50", pago: 4000, em: "2026-08-21" },
+    ],
+    permutaDaOS: { x3: "Politica Marcelo Freitas" },
+  }, HOJE);
+  const grupos = ["A", "B", "C"].map((c) => dinheiroDoGrupo(linhas.filter((l) => l.cliente === c), r.porNumero));
+  const soma = (k) => Math.round(grupos.reduce((n, g) => n + g[k] * 100, 0)) / 100;
+  assert.equal(soma("recebido"), r.totais.recebido);
+  assert.equal(soma("aReceber"), r.totais.aReceber);
+  assert.equal(soma("permutado"), r.totais.permutadoValor);
+  // O comprador B é todo permuta, com o nome dela para a dica do chip.
+  assert.deepEqual(grupos[1].permutas, ["Politica Marcelo Freitas"]);
+  assert.equal(grupos[1].recebido, 0);
+});
+
+/* O defeito do chip antigo: ele somava só o título aberto. Um comprador com
+   R$ 42.500 de título e R$ 19.470 sem nota aparecia devendo R$ 42.500. */
+test("chips por comprador: o em aberto inclui o que ainda nao tem nota", () => {
+  const linhas = [
+    { id: "p1", numero: "23085", valor: 42500, data: "2026-08-24" },
+    { id: "p2", numero: "23350", valor: 19470, data: "2026-09-17" },
+  ];
+  const r = financeiroDasLinhas(linhas, {
+    temPagos: true, desdeDados: "2025-01-01",
+    abertos: [{ id: "t1", os: "23085", valor: 42500, pago: 0, vencimento: "2026-09-01" }],
+    pagos: [],
+  }, HOJE);
+  const g = dinheiroDoGrupo(linhas, r.porNumero);
+  assert.equal(g.aReceber, 61970);
+  assert.equal(g.comTitulo, 42500);
+  assert.equal(g.semNota, 19470);
+  assert.equal(g.vencidoValor, 42500); // venceu em 01/09, antes de HOJE
+  assert.equal(g.semConferir, 0);
+});
+
+test("chips por comprador: O.S. que a conta nao pode afirmar vira 'sem conferir', nunca zero calado", () => {
+  const linhas = [{ id: "v1", numero: "900", valor: 5000, data: "2024-11-10" }]; // antes do mapa
+  const r = financeiroDasLinhas(linhas, {
+    temPagos: true, desdeDados: "2025-01-01", abertos: [], pagos: [],
+  }, HOJE);
+  const g = dinheiroDoGrupo(linhas, r.porNumero);
+  assert.equal(g.recebido + g.aReceber + g.permutado, 0);
+  assert.equal(g.semConferir, 5000);
+});
+
+test("chips por comprador: sem a resposta da cobranca, nenhum chip (null), nao zeros", () => {
+  assert.equal(dinheiroDoGrupo([{ numero: "1", valor: 100 }], null), null);
+  assert.equal(dinheiroDoGrupo([{ numero: "1", valor: 100 }], undefined), null);
 });
