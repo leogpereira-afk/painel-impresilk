@@ -86,13 +86,10 @@ const porHora = (a, b) =>
 
 function SoLeitura() {
   return (
-    <p className="flex items-start gap-2 rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-600">
-      <Eye size={16} className="mt-0.5 shrink-0" aria-hidden="true" />
-      <span>
-        Esta tela é <strong>somente para consulta</strong>. Programar O.S., lançar
-        plantão, registrar evento e mandar a mensagem do dia continuam no PCP.
-      </span>
-    </p>
+    <details className="page-help text-sm text-slate-600">
+      <summary className="cursor-pointer"><Eye size={14} className="inline mr-2" />Somente consulta · editar no PCP</summary>
+      <p className="mt-2">Programar O.S., lançar plantão, registrar evento e enviar a mensagem do dia continuam no PCP.</p>
+    </details>
   );
 }
 

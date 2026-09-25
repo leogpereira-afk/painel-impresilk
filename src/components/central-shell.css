@@ -51,3 +51,13 @@ html.dark .review-sidebar nav a:hover{background:#2a302d}
 .review-account .review-avatar{width:30px;height:30px;flex-shrink:0}
 .review-account .review-logout{margin:0;padding:8px;min-height:40px;white-space:nowrap;font-size:12px}
 @media(max-width:600px){.review-top{flex-wrap:wrap}.review-controls{width:100%}.review-account{flex:1;justify-content:space-between}.review-account .review-user{max-width:65%}}
+/* Cabeçalhos compartilhados: mais área útil sem reduzir os controles. */
+.review-top{min-height:54px;padding:6px 24px}
+.review-content{padding-top:18px}
+.review-content .page-title{margin-bottom:12px;gap:12px}
+.review-content .page-title h1{font-size:25px;line-height:1.2;margin:0}
+.review-content .page-title-description{font-size:14px;line-height:1.45;margin-top:5px}
+.review-content>.space-y-8>:not([hidden])~:not([hidden]),
+.review-content>.space-y-6>:not([hidden])~:not([hidden]){margin-top:16px}
+.review-content .page-help{padding:8px 12px;border:1px solid var(--hairline);border-radius:10px;background:var(--surface)}
+@media(max-width:900px){.review-content{padding-top:14px}.review-top{padding:6px 12px}.review-content .page-title h1{font-size:23px}}

@@ -116,13 +116,10 @@ export default function CalendarioEmpresa() {
         }
       />
 
-      <p className="flex items-start gap-2 rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-600">
-        <Eye size={16} className="mt-0.5 shrink-0" aria-hidden="true" />
-        <span>
-          Dados compartilhados com o RH. Aniversários e tempo de empresa são atualizados
-          a partir dos cadastros; eventos continuam sendo registrados no RH.
-        </span>
-      </p>
+      <details className="page-help text-sm text-slate-600">
+        <summary className="cursor-pointer"><Eye size={14} className="inline mr-2" />Dados do RH · como funciona</summary>
+        <p className="mt-2">Aniversários e tempo de empresa vêm dos cadastros; eventos são registrados no RH.</p>
+      </details>
 
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap items-center gap-2">

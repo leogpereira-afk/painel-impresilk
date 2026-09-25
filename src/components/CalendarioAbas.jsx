@@ -4,7 +4,7 @@ import { podeAbrir } from '../lib/sessao.js';
 
 export default function CalendarioAbas({sessao}) {
   const {search} = useLocation();
-  return <nav aria-label="Calendário" className="flex flex-wrap gap-2 mb-5">
+  return <nav aria-label="Calendário" className="flex flex-wrap gap-2 mb-3">
     {[
       ['calendario-empresa','Empresa',CalendarDays],
       ['agenda','Produção',Factory],

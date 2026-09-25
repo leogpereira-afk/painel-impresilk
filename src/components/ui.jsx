@@ -256,7 +256,7 @@ export function Skeleton({ className }) {
 // Cabecalho grande no topo de cada modulo.
 export function PageTitle({ titulo, descricao, acao }) {
   return (
-    <div className="page-title mb-6 flex flex-wrap items-end justify-between gap-4">
+    <div className="page-title flex flex-wrap items-center justify-between gap-3">
       <div>
         <h1 className="font-display text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">{titulo}</h1>
         {descricao && <p className="page-title-description mt-2 max-w-2xl text-slate-500">{descricao}</p>}
