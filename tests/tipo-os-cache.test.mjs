@@ -12,3 +12,11 @@ test('preserva o tipo comercial do ERP junto do valor líquido', () => {
 test('tipo ausente nunca é inventado como Normal', () => {
   assert.equal(normOS({ id: 2 }, 0, new Map()).tipo, '');
 });
+
+test('preserva sinal do ERP sem reduzir o valor comercial nem inventar dado ausente', () => {
+  const o = normOS({ id: 1, valor_total: 110294.8, valor_desconto: 10294.8, valor_sinal: 65000 }, 0, new Map());
+  assert.equal(o.valor, 100000);
+  assert.equal(o.sinalPago, 65000);
+  assert.equal(normOS({ id: 2 }, 0, new Map()).sinalPago, null);
+  assert.equal(normOS({ id: 3, valor_sinal: 0 }, 0, new Map()).sinalPago, 0);
+});

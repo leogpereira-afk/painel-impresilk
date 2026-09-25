@@ -220,3 +220,36 @@ test("todas as 372 empresas são alcançáveis, sem repetir ou perder empresas",
   assert.equal(paginarEmpresas(es.slice(0, 3), 19).pagina, 1);
   assert.deepEqual(paginarEmpresas([], 2).itens, []);
 });
+
+test('sinal pago no pedido abate a venda ainda não faturada', () => {
+  const r = vendasEmAberto([os('23322', 100000, { sinalPago: 65000 })], resposta(), { hoje: HOJE });
+  const l = linhaDe(r, '23322');
+  assert.equal(l.recebido, 65000);
+  assert.equal(l.saldo, 35000);
+  assert.equal(l.sinalPago, 65000);
+});
+test('sinal e títulos são fontes sobrepostas, não pagamentos para somar', () => {
+  for (const pago of [30000, 65000, 80000]) {
+    const r = vendasEmAberto([os('1', 100000, { sinalPago: 65000 })], resposta({ pagosPorOS: { '1': [pago, 0, 0] } }), { hoje: HOJE });
+    const l = linhaDe(r, '1');
+    assert.equal(l.recebido, Math.max(65000, pago));
+    assert.equal(l.saldo, 100000 - Math.max(65000, pago));
+  }
+});
+test('sinal não abate de novo as parcelas que já representam o saldo', () => {
+  const r = vendasEmAberto([os('1', 100000, { sinalPago: 65000 })], resposta({ abertos: [{ id: 't', os: '1', valor: 35000, pago: 65000, vencimento: HOJE }] }), { hoje: HOJE });
+  assert.equal(linhaDe(r, '1').saldo, 35000);
+  assert.equal(linhaDe(r, '1').semTitulo, 0);
+});
+test('sinal integral quita; sinal negativo não aumenta dívida; retrabalho continua excluído', () => {
+  const r = vendasEmAberto([os('1', 100, { sinalPago: 100 }), os('2', 100, { sinalPago: -10 }), os('3', 100, { sinalPago: 30, tipo: 'Retrabalho' })], resposta(), { hoje: HOJE });
+  assert.equal(r.fora.quitadas.n, 1);
+  assert.equal(r.fora.retrabalho.n, 1);
+  assert.equal(linhaDe(r, '2').saldo, 100);
+});
+test('números repetidos somam sinais por id sem duplicar a mesma ordem', () => {
+  const a = os('1', 100, { id: 'a', sinalPago: 20 });
+  const b = os('1', 200, { id: 'b', sinalPago: 30 });
+  const r = vendasEmAberto([a, a, b], resposta(), { hoje: HOJE });
+  assert.equal(linhaDe(r, '1').saldo, 250);
+});

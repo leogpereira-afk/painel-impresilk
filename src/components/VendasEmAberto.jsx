@@ -53,6 +53,7 @@ function LinhaVenda({ l, corte, dentroDaEmpresa = false }) {
     `venda líquida ${moedaCheia(l.valor)}`,
     l.descontoVenda > 0 ? `${moedaCheia(l.descontoVenda)} de desconto já abatido` : "",
     l.recebido > 0 ? `${moedaCheia(l.recebido)} recebido` : "",
+    l.sinalPago > 0 ? `sinal pago no pedido ${moedaCheia(l.sinalPago)} (já considerado)` : "",
     l.atraso > 0 ? `${moedaCheia(l.atraso)} em atraso` : "",
     l.aVencer > 0 ? `${moedaCheia(l.aVencer)} a vencer` : "",
     l.antigo > 0 ? `${moedaCheia(l.antigo)} vencido antes de ${dataLonga(corte)}` : "",

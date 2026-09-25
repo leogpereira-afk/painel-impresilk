@@ -155,6 +155,13 @@ export function financeiroDasLinhas(linhas, dados, hoje) {
     const numero = String(l?.numero || "");
     const valor = Number(l?.valor) || 0;
     const b = porOS.get(numero) || { aberto: 0, pago: 0, vencido: false, compartilhado: false, incerto: false };
+    // Sinal e títulos podem representar o MESMO dinheiro. O sinal estabelece
+    // um mínimo comprovado no pedido, nunca uma parcela para somar às cegas.
+    // Se houver pagamentos adicionais sem vínculo suficiente, conciliar no ERP.
+    const sinalPago = Math.max(0, CENT(l?.sinalPago));
+    const pagoTitulos = b.pago;
+    b.pago = Math.max(pagoTitulos, sinalPago);
+    const sinalComplementar = CENT(b.pago - pagoTitulos);
     const permuta = permutaDaOS[String(l?.id ?? "")] || null;
 
     let tipo;
@@ -191,6 +198,7 @@ export function financeiroDasLinhas(linhas, dados, hoje) {
 
     porNumero[numero] = {
       tipo, aberto: b.aberto, pago: b.pago, vencido: b.vencido,
+      sinalPago, sinalComplementar, pagoTitulos,
       compartilhado: b.compartilhado, incerto: b.incerto, permuta,
       recebido: contaDinheiro ? b.pago : 0,
       aReceber: contaDinheiro ? CENT(b.aberto + (sobraSemTitulo > TOLERANCIA ? sobraSemTitulo : 0)) : 0,

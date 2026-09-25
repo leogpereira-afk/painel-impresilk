@@ -90,6 +90,7 @@ export function vendasEmAberto(ordens, resposta, { hoje, corte = "" } = {}) {
     } else {
       ja.valor = CENT(ja.valor + (Number(o?.valor) || 0));
       ja.desconto = CENT(ja.desconto + (Number(o?.desconto) || 0));
+      ja.sinalPago = CENT(Math.max(0, Number(ja.sinalPago) || 0) + Math.max(0, Number(o?.sinalPago) || 0));
       ja.ids.push(String(o?.id ?? ""));
       if (String(o?.data || "") && String(o.data) < String(ja.data || "9999")) ja.data = o.data;
     }
@@ -103,7 +104,7 @@ export function vendasEmAberto(ordens, resposta, { hoje, corte = "" } = {}) {
     if (achou && !permutaDaOS[l.ids[0]]) permutaDaOS[l.ids[0]] = permutaDaOS[achou];
   }
   const fin = financeiroDasLinhas(
-    linhasBase.map((l) => ({ id: l.ids[0], numero: l.numero, valor: l.valor, data: l.data })),
+    linhasBase.map((l) => ({ id: l.ids[0], numero: l.numero, valor: l.valor, data: l.data, sinalPago: l.sinalPago })),
     { ...dados, permutaDaOS },
     hoje
   );
@@ -169,6 +170,9 @@ export function vendasEmAberto(ordens, resposta, { hoje, corte = "" } = {}) {
       valor: l.valor,
       descontoVenda: l.desconto,
       recebido: f.pago,
+      sinalPago: f.sinalPago,
+      sinalComplementar: f.sinalComplementar,
+      pagoTitulos: f.pagoTitulos,
       saldo: f.aReceber,
       atraso,
       aVencer,

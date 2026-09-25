@@ -339,6 +339,9 @@ export function normOS(os, i, categoriaPorNome) {
      */
     valorBruto: num(os.valor_total),
     desconto: num(os.valor_desconto),
+    // Adiantamento confirmado na própria O.S. (Sinal pago na tela do ERP).
+    // Ausência não é zero: só uma nova consulta pode afirmar o sinal.
+    sinalPago: os.valor_sinal == null ? null : Math.max(0, num(os.valor_sinal)),
     valor: Math.round((num(os.valor_total) - num(os.valor_desconto)) * 100) / 100,
 
     cliente: String(os.cliente || "Cliente"),
