@@ -1,20 +1,10 @@
-// Home: a porta de entrada. Saudacao e uma frase do dia, so isso.
-//
-// Nao ha numero nem resumo aqui de proposito: cada modulo tem os seus, e a
-// lateral leva a eles. A entrada e para respirar antes de trabalhar, nao para
-// levar um susto com o caixa.
-//
-// A frase muda por DIA (nao a cada carregamento): recarregar a pagina tres
-// vezes e ver tres frases diferentes faria o painel parecer instavel. O indice
-// vem do dia do ano, entao e a mesma o dia inteiro, em qualquer aparelho.
-
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { AlertTriangle, ChevronDown, ChevronRight } from "lucide-react";
 import { listarAtivos } from "../services/ativos.js";
 import { statusBackup } from "../services/backup.js";
 import { lerCargaAlarme } from "../services/permutas.js";
-import { ehDirecao } from "../lib/sessao.js";
+import { ehDirecao, getSessao } from "../lib/sessao.js";
 import { calcAtivos, TIPOS } from "../lib/calc/ativos.js";
 import { ymdLocal } from "../lib/format.js";
 import { Card } from "../components/ui.jsx";
@@ -34,32 +24,37 @@ function saudacao() {
 // Frases sobre trabalho feito com cuidado e constancia, no tom da casa: uma
 // empresa de comunicacao visual que vive de prazo, acabamento e palavra dada.
 const FRASES = [
-  "Feito com capricho hoje, cobrado com tranquilidade amanha.",
-  "Quem cuida do detalhe nao precisa explicar o resultado.",
-  "Prazo cumprido e o melhor cartao de visita.",
+  "Feito com capricho hoje, cobrado com tranquilidade amanhã.",
+  "Quem cuida do detalhe não precisa explicar o resultado.",
+  "Prazo cumprido é o melhor cartão de visita.",
   "Um cliente bem atendido volta e ainda traz outro.",
   "Trabalho bom aparece de longe. Literalmente, no nosso caso.",
-  "Constancia vence talento que nao aparece.",
+  "Constância vence talento que não aparece.",
   "O que se mede, melhora. O que se acompanha, cresce.",
   "Fazer certo da primeira vez sai mais barato que refazer.",
-  "Cada letreiro instalado e a marca de alguem confiando na nossa.",
-  "Ordem na casa da liberdade para crescer.",
-  "Nao existe atalho para reputacao: e um trabalho de cada vez.",
+  "Cada letreiro instalado é a marca de alguém confiando na nossa.",
+  "Ordem na casa dá liberdade para crescer.",
+  "Nao existe atalho para reputação: é um trabalho de cada vez.",
   "Time alinhado entrega mais que time apressado.",
   "O caixa agradece quem cobra no dia certo, sem constrangimento.",
-  "Planejar a semana custa uma hora e devolve varias.",
-  "Qualidade e o que voce entrega quando ninguem esta olhando.",
+  "Planejar a semana custa uma hora e devolve várias.",
+  "Qualidade é o que você entrega quando ninguém está olhando.",
 ];
 
-function fraseDoDia() {
-  const hoje = new Date();
-  const inicio = new Date(hoje.getFullYear(), 0, 0);
-  const diaDoAno = Math.floor((hoje - inicio) / 86400000);
-  return FRASES[diaDoAno % FRASES.length];
+function escolherFrase() {
+  let anterior = -1;
+  try { anterior = Number(sessionStorage.getItem("painel_ultima_frase") ?? -1); } catch { /* armazenamento indisponível */ }
+  const opcoes = FRASES.map((_, i) => i).filter(i => i !== anterior);
+  return opcoes[Math.floor(Math.random() * opcoes.length)];
 }
 
 export default function Home() {
   const navigate = useNavigate();
+  const primeiroNome = (getSessao()?.nome || "").trim().split(/\s+/)[0];
+  const [frase] = useState(escolherFrase);
+  useEffect(() => {
+    try { sessionStorage.setItem("painel_ultima_frase", String(frase)); } catch { /* armazenamento indisponível */ }
+  }, [frase]);
   const temSistemas = meusSistemas().length > 0;
 
   // Documentos e manutencoes que vencem: e a unica coisa que a Home mostra alem
@@ -162,14 +157,14 @@ export default function Home() {
   return (
     <div className="mx-auto w-full max-w-6xl px-2 pb-10 pt-3">
         <section className="min-w-0" aria-label="Identidade da empresa">
-          <div className="flex items-center gap-4 border-b border-slate-200/80 pb-5">
+          <div className="flex flex-col items-center gap-3 border-b border-slate-200/80 pb-5 text-center">
             <img src={logoColor} alt="Impresilk" className="h-10 w-auto shrink-0 dark:hidden" />
             <img src={logoWhite} alt="Impresilk" className="hidden h-10 w-auto shrink-0 dark:block" />
             <div className="min-w-0">
               <h1 className="font-display text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">
-                {saudacao()}
+                {saudacao()}{primeiroNome ? `, ${primeiroNome}!` : "!"}
               </h1>
-              <p className="text-sm leading-snug text-slate-500 sm:text-base">{fraseDoDia()}</p>
+              <p className="text-sm leading-snug text-slate-500 sm:text-base">{FRASES[frase]}</p>
             </div>
           </div>
           <div className="mt-7">
