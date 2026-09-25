@@ -15,10 +15,10 @@ import { useEffect, useMemo, useState } from "react";
 import { AlertTriangle, ChevronDown, Search, X } from "lucide-react";
 import { lerVendasEmAberto } from "../services/permutas.js";
 import {
-  vendasEmAberto, totaisDe, empresasDe, ordenarVendas, ORDENS_VENDAS,
+  vendasEmAberto, totaisDe, empresasDe, ordenarVendas, ORDENS_VENDAS, paginarEmpresas,
 } from "../lib/calc/vendasEmAberto.js";
-import { moeda, moedaCheia, numero, dataLonga, ymdLocal } from "../lib/format.js";
-import { Selo, Dinheiro, FaixaNumeros, LinhaLista } from "./lista.jsx";
+import { moedaCheia, numero, dataLonga, ymdLocal } from "../lib/format.js";
+import { Selo, FaixaNumeros, LinhaLista } from "./lista.jsx";
 import { Card, SectionTitle, Empty, CarregandoModulo, BotaoPDF, CabecalhoImpressao } from "./ui.jsx";
 import { Secao } from "./trocas.jsx";
 
@@ -50,12 +50,13 @@ const SELO_ESTADO = {
 function LinhaVenda({ l, corte, dentroDaEmpresa = false }) {
   const sel = SELO_ESTADO[l.estado] || SELO_ESTADO.semTitulo;
   const partes = [
-    `de ${moeda(l.valor)}`,
-    l.recebido > 0 ? `${moeda(l.recebido)} recebido` : "",
-    l.atraso > 0 ? `${moeda(l.atraso)} em atraso` : "",
-    l.aVencer > 0 ? `${moeda(l.aVencer)} a vencer` : "",
-    l.antigo > 0 ? `${moeda(l.antigo)} vencido antes de ${dataLonga(corte)}` : "",
-    l.semTitulo > 0 ? `${moeda(l.semTitulo)} sem título` : "",
+    `venda líquida ${moedaCheia(l.valor)}`,
+    l.descontoVenda > 0 ? `${moedaCheia(l.descontoVenda)} de desconto já abatido` : "",
+    l.recebido > 0 ? `${moedaCheia(l.recebido)} recebido` : "",
+    l.atraso > 0 ? `${moedaCheia(l.atraso)} em atraso` : "",
+    l.aVencer > 0 ? `${moedaCheia(l.aVencer)} a vencer` : "",
+    l.antigo > 0 ? `${moedaCheia(l.antigo)} vencido antes de ${dataLonga(corte)}` : "",
+    l.semTitulo > 0 ? `${moedaCheia(l.semTitulo)} sem título` : "",
   ].filter(Boolean);
   const titulo = dentroDaEmpresa ? `O.S. ${l.numero}` : l.cliente;
   const detalhe = [
@@ -80,7 +81,7 @@ function LinhaVenda({ l, corte, dentroDaEmpresa = false }) {
             )}
             {l.excesso > 0 && (
               <span className="text-xs text-warn-700" title="O título aberto no ERP é maior que o valor da venda. O saldo mostra o que o ERP cobra; confira a venda no ERP.">
-                título {moeda(l.excesso)} maior que a venda, conferir no ERP
+                título {moedaCheia(l.excesso)} maior que a venda, conferir no ERP
               </span>
             )}
             {l.numeroRepetido && (
@@ -91,7 +92,7 @@ function LinhaVenda({ l, corte, dentroDaEmpresa = false }) {
           </div>
         </div>
         <div className="ml-auto max-w-full shrink-0">
-          <span className="sem-impressao"><Dinheiro valor={l.saldo} formatar={numero} abaixo={partes.join(" · ")} /></span>
+          <div className="sem-impressao text-right"><p className="tnum text-[17px] font-semibold text-slate-900">{moedaCheia(l.saldo)}</p><p className="tnum max-w-xl text-xs text-slate-500">{partes.join(" · ")}</p></div>
           <span className="apenas-impressao text-right text-sm">
             {moedaCheia(l.saldo)}<br /><small>{partes.join(" · ")}</small>
           </span>
@@ -110,17 +111,21 @@ export default function VendasEmAberto({ ordens, ordensNegadas, corte, totalAtra
   const [recorte, setRecorte] = useState("todas"); // todas | atraso | aVencer | semTitulo
   const [ordem, setOrdem] = useState("saldo");
   const [mostrar, setMostrar] = useState(POR_PAGINA);
+  const [paginaEmpresa, setPaginaEmpresa] = useState(1);
+  const [tamanhoPagina, setTamanhoPagina] = useState(20);
+  const [buscaNoGrupo, setBuscaNoGrupo] = useState("");
   const [secoes, setSecoes] = useState(() => lerLS(CHAVE_SECOES, { empresas: false }));
   const [empresasAbertas, setEmpresasAbertas] = useState(() => new Set());
 
   useEffect(() => {
     if (ordensNegadas) { setEstado({ carregando: false, erro: "", resposta: null }); return; }
     let vivo = true;
+    setEstado({ carregando: true, erro: "", resposta: null });
     lerVendasEmAberto()
       .then((r) => vivo && setEstado({ carregando: false, erro: "", resposta: r }))
       .catch((e) => vivo && setEstado({ carregando: false, erro: e.message || "Não foi possível carregar as vendas.", resposta: null }));
     return () => { vivo = false; };
-  }, [ordensNegadas]);
+  }, [ordensNegadas, atualizadoEm, ordens]);
 
   const hoje = ymdLocal(new Date());
   const calc = useMemo(
@@ -146,12 +151,16 @@ export default function VendasEmAberto({ ordens, ordensNegadas, corte, totalAtra
   // As vendas de cada empresa, na ordem escolhida, para abrir debaixo do nome.
   const vendasDaEmpresa = useMemo(() => {
     const m = new Map();
-    for (const l of ordenarVendas(selecionadas, ordem)) {
+    for (const l of lista) {
       if (!m.has(l.empresa)) m.set(l.empresa, []);
       m.get(l.empresa).push(l);
     }
     return m;
-  }, [selecionadas, ordem]);
+  }, [lista]);
+  const empresasNoRecorte = useMemo(() => empresasDe(lista).filter((e) =>
+    !buscaNoGrupo.trim() || norm(`${e.nome} ${e.cnpj}`).includes(norm(buscaNoGrupo.trim()))), [lista, buscaNoGrupo]);
+  const paginacao = paginarEmpresas(empresasNoRecorte, paginaEmpresa, tamanhoPagina);
+  useEffect(() => { setPaginaEmpresa(1); }, [busca, recorte, fora, buscaNoGrupo, tamanhoPagina]);
 
   const alterarFora = (novo) => { setFora(novo); gravarLS(CHAVE_FORA, [...novo]); setMostrar(POR_PAGINA); };
   const alternarEmpresa = (chave) => {
@@ -216,21 +225,25 @@ export default function VendasEmAberto({ ordens, ordensNegadas, corte, totalAtra
 
       <SectionTitle
         titulo="Vendas em aberto"
-        sub="Todas as vendas da empresa que ainda não foram quitadas: em produção, entregues ou faturadas. Só fica de fora o que está quitado."
+        sub="Vendas com saldo a receber, entregues ou ainda em produção. Descontos já abatidos e pedidos de retrabalho fora da conta."
         acao={<BotaoPDF titulo="Gera um PDF com as vendas em aberto do recorte que está na tela" />}
       />
+
+      {f.semTipo.n > 0 && <p role="status" className="rounded-xl border border-warn-200 bg-warn-50 p-4 text-sm text-warn-700">
+        Apuração parcial: falta ler o tipo de {numero(f.semTipo.n)} pedidos do Mubisys. Eles ficam fora do saldo até ser possível distinguir venda de retrabalho.
+      </p>}
 
       <div className="sem-impressao">
         <FaixaNumeros
           ativo={recorte}
           aoEscolher={(id) => { setRecorte(recorte === id && id !== "todas" ? "todas" : id); setMostrar(POR_PAGINA); }}
           celulas={[
-            { id: "todas", rotulo: "Saldo em aberto", valor: moeda(tot.saldo), sub: `${numero(tot.n)} vendas não quitadas`, curto: `${numero(tot.n)} vendas` },
-            { id: "atraso", rotulo: "Saldo em atraso", valor: moeda(tot.atraso), cor: tot.atraso > 0 ? "text-bad-700" : undefined,
+            { id: "todas", rotulo: "Saldo em aberto", valor: moedaCheia(tot.saldo), sub: `${numero(tot.n)} vendas não quitadas`, curto: `${numero(tot.n)} vendas` },
+            { id: "atraso", rotulo: "Saldo em atraso", valor: moedaCheia(tot.atraso), cor: tot.atraso > 0 ? "text-bad-700" : undefined,
               sub: `${numero(tot.nAtraso)} vendas com parcela vencida`, curto: `${numero(tot.nAtraso)} vendas` },
-            { id: "aVencer", rotulo: "A vencer (até 90 dias)", valor: moeda(tot.aVencer), sub: `${numero(tot.nAVencer)} vendas com parcela no prazo`, curto: `${numero(tot.nAVencer)} vendas` },
-            { id: "semTitulo", rotulo: "Sem título no ERP", valor: moeda(tot.semTitulo), cor: tot.semTitulo > 0 ? "text-warn-700" : undefined,
-              sub: `${numero(tot.nSemTitulo)} vendas ainda sem cobrança emitida`, curto: `${numero(tot.nSemTitulo)} vendas` },
+            { id: "aVencer", rotulo: "A vencer (até 90 dias)", valor: moedaCheia(tot.aVencer), sub: `${numero(tot.nAVencer)} vendas com parcela no prazo`, curto: `${numero(tot.nAVencer)} vendas` },
+            { id: "semTitulo", rotulo: "Sem título no ERP", valor: moedaCheia(tot.semTitulo), cor: tot.semTitulo > 0 ? "text-warn-700" : undefined,
+              sub: `${numero(tot.nSemTitulo)} vendas com saldo sem título identificado`, curto: `${numero(tot.nSemTitulo)} vendas` },
           ]}
         />
       </div>
@@ -290,7 +303,7 @@ export default function VendasEmAberto({ ordens, ordensNegadas, corte, totalAtra
                     <input type="checkbox" className="h-4 w-4" checked={!fora.has(e.chave)} onChange={() => alternarEmpresa(e.chave)} />
                     <span className="min-w-0 flex-1 truncate text-sm text-slate-800">{e.nome}</span>
                     <span className="shrink-0 text-xs text-slate-500">{numero(e.n)} {e.n === 1 ? "venda" : "vendas"}</span>
-                    <span className="w-28 shrink-0 text-right text-sm tabular-nums text-slate-700">{moeda(e.saldo)}</span>
+                    <span className="w-28 shrink-0 text-right text-sm tabular-nums text-slate-700">{moedaCheia(e.saldo)}</span>
                   </label>
                 </li>
               ))}
@@ -304,10 +317,11 @@ export default function VendasEmAberto({ ordens, ordensNegadas, corte, totalAtra
         {lista.length ? (
           <>
             <p className="px-4 pt-3 text-xs text-slate-500">
-              {numero(lista.length)} {lista.length === 1 ? "venda" : "vendas"} · saldo {moeda(somaLista.saldo)}
-              {somaLista.atraso > 0 ? ` · ${moeda(somaLista.atraso)} em atraso` : ""}
+              {numero(lista.length)} {lista.length === 1 ? "venda" : "vendas"} · saldo {moedaCheia(somaLista.saldo)}
+              {somaLista.atraso > 0 ? ` · ${moedaCheia(somaLista.atraso)} em atraso` : ""}
             </p>
             {lista.slice(0, mostrar).map((l) => <LinhaVenda key={l.id} l={l} corte={corte} />)}
+            <div className="apenas-impressao">{lista.slice(mostrar).map((l) => <LinhaVenda key={l.id} l={l} corte={corte} />)}</div>
             {lista.length > mostrar && (
               <div className="border-t px-4 py-3 text-center sem-impressao" style={{ borderColor: "var(--hairline)" }}>
                 <button type="button" className="h-10 rounded-lg border px-4 text-sm text-slate-700 hover:bg-slate-50"
@@ -322,7 +336,7 @@ export default function VendasEmAberto({ ordens, ordensNegadas, corte, totalAtra
             <Empty>
               {calc.linhas.length
                 ? "Nenhuma venda neste recorte. Limpe a busca, o recorte ou marque mais empresas."
-                : "Nenhuma venda em aberto: tudo o que foi vendido está quitado."}
+                : "Nenhuma venda com saldo apurado nesta base. Confira abaixo as exclusões e pendências."}
             </Empty>
           </div>
         )}
@@ -331,12 +345,23 @@ export default function VendasEmAberto({ ordens, ordensNegadas, corte, totalAtra
       <Secao
         id="empresas"
         titulo="Por empresa"
-        sub="Quanto cada empresa ainda deve, somando as vendas não quitadas. Clique na empresa para ver as O.S. Segue o seletor de empresas."
+        sub="Veja as empresas do recorte acima e abra cada uma para conferir as O.S. A troca de página não altera os totais."
         aberta={!!secoes.empresas}
         aoAlternar={alternarSecao}
       >
-        <ul className="divide-y" style={{ borderColor: "var(--hairline)" }}>
-          {empresas.filter((e) => !fora.has(e.chave)).slice(0, 30).map((e) => {
+        <div className="flex flex-wrap items-end gap-3 sem-impressao">
+          <label className="min-w-56 flex-1 text-xs text-slate-500">Buscar nesta lista de empresas
+            <input className="input mt-1" placeholder="Nome ou CNPJ…" value={buscaNoGrupo} onChange={(e) => setBuscaNoGrupo(e.target.value)} />
+          </label>
+          <label className="text-xs text-slate-500">Empresas por página
+            <select className="input mt-1 w-36" value={tamanhoPagina} onChange={(e) => setTamanhoPagina(Number(e.target.value))}>
+              {[10, 20, 30, 50].map((n) => <option key={n} value={n}>{n}</option>)}
+            </select>
+          </label>
+        </div>
+        <PaginacaoEmpresas dados={paginacao} aoMudar={setPaginaEmpresa} />
+        <ul className="divide-y sem-impressao" style={{ borderColor: "var(--hairline)" }}>
+          {paginacao.itens.map((e) => {
             const aberta = empresasAbertas.has(e.chave);
             return (
               <li key={e.chave}>
@@ -349,12 +374,12 @@ export default function VendasEmAberto({ ordens, ordensNegadas, corte, totalAtra
                     {/* No celular a contagem desce para baixo do nome, para o nome não sumir. */}
                     <span className="block text-xs text-slate-500 sm:hidden">
                       {numero(e.n)} {e.n === 1 ? "venda" : "vendas"}
-                      {e.atraso > 0 && <span className="text-bad-700"> · {moeda(e.atraso)} em atraso</span>}
+                      {e.atraso > 0 && <span className="text-bad-700"> · {moedaCheia(e.atraso)} em atraso</span>}
                     </span>
                   </span>
                   <span className="hidden shrink-0 text-xs text-slate-500 sm:inline">{numero(e.n)} {e.n === 1 ? "venda" : "vendas"}</span>
-                  {e.atraso > 0 && <span className="hidden shrink-0 text-xs text-bad-700 sm:inline">{moeda(e.atraso)} em atraso</span>}
-                  <span className="w-28 shrink-0 text-right tabular-nums text-slate-800">{moeda(e.saldo)}</span>
+                  {e.atraso > 0 && <span className="hidden shrink-0 text-xs text-bad-700 sm:inline">{moedaCheia(e.atraso)} em atraso</span>}
+                  <span className="w-28 shrink-0 text-right tabular-nums text-slate-800">{moedaCheia(e.saldo)}</span>
                 </button>
                 {aberta && (
                   <div className="mb-2 ml-2 overflow-hidden rounded-xl border sm:ml-6" style={{ borderColor: "var(--hairline)" }}>
@@ -367,35 +392,63 @@ export default function VendasEmAberto({ ordens, ordensNegadas, corte, totalAtra
             );
           })}
         </ul>
-        {nDentro > 30 && <p className="text-xs text-slate-500">Mostrando as 30 maiores de {numero(nDentro)} empresas.</p>}
+        {!paginacao.total && <p className="text-sm text-slate-500">Nenhuma empresa neste recorte.</p>}
+        {paginacao.paginas > 1 && <PaginacaoEmpresas dados={paginacao} aoMudar={setPaginaEmpresa} />}
+        <div className="apenas-impressao">
+          <p>{numero(empresasNoRecorte.length)} empresas{buscaNoGrupo ? ` · busca: ${buscaNoGrupo}` : ""}</p>
+          {empresasNoRecorte.map((e) => <p key={e.chave} className="flex justify-between gap-3 border-b py-2 text-sm"><span>{e.nome} · {e.n} vendas</span><span>{moedaCheia(e.saldo)}</span></p>)}
+        </div>
       </Secao>
+
+      {calc.conferir.length > 0 && <details className="rounded-xl border border-warn-200 bg-warn-50 p-4 text-sm text-warn-700">
+        <summary className="cursor-pointer font-medium">Conferir baixas: {numero(f.conferencia.n)} vendas · {moedaCheia(f.conferencia.valor)} fora do saldo de cobrança</summary>
+        <p className="my-2">Diferenças de até 2% após pagamentos, sem título aberto. Podem ser descontos, mas a base não informa o motivo. Não foram declaradas como dívida nem como quitação confirmada.</p>
+        {calc.conferir.map((l) => <p key={l.numero} className="border-t py-2">O.S. {l.numero} · {l.cliente}: líquido {moedaCheia(l.valor)}, recebido {moedaCheia(l.recebido)}, diferença {moedaCheia(l.diferenca)}</p>)}
+      </details>}
+      <p className="text-xs text-slate-500">Cobertura atual: O.S. desde 01/01/2025. O saldo usa o valor líquido de cada venda; desconto já concedido não entra como dívida. Esta base não confirma descontos negociados apenas na baixa.</p>
 
       {/* O QUE FICOU DE FORA, CONTADO: nenhuma venda some calada. */}
       <div className="space-y-1 text-xs text-slate-500">
         <p>
           Fora da lista: {numero(f.quitadas.n)} quitadas
-          {f.permuta.n ? ` · ${numero(f.permuta.n)} acertadas em permuta (${moeda(f.permuta.valor)})` : ""}
-          {f.baixa.n ? ` · ${numero(f.baixa.n)} com diferença de baixa até 2% (${moeda(f.baixa.valor)}), que não é dívida` : ""}
+          {f.retrabalho.n ? ` · ${numero(f.retrabalho.n)} pedidos de retrabalho (${moedaCheia(f.retrabalho.valor)})` : ""}
+          {f.permuta.n ? ` · ${numero(f.permuta.n)} acertadas em permuta (${moedaCheia(f.permuta.valor)})` : ""}
+
           {f.valorZero.n ? ` · ${numero(f.valorZero.n)} de valor zero` : ""}.
         </p>
         {(f.semDado.n > 0 || f.naoConsultadas.n > 0) && (
           <p className="text-warn-700">
-            {f.semDado.n ? `${numero(f.semDado.n)} vendas (${moeda(f.semDado.valor)}) são anteriores ao registro de pagamentos (${dataLonga(calc.desdeDados)}) e não dá para afirmar se estão quitadas. ` : ""}
-            {f.naoConsultadas.n ? `${numero(f.naoConsultadas.n)} vendas (${moeda(f.naoConsultadas.valor)}) chegaram depois da última leitura e ficam para a próxima.` : ""}
+            {f.semDado.n ? `${numero(f.semDado.n)} vendas (${moedaCheia(f.semDado.valor)}) são anteriores ao registro de pagamentos (${dataLonga(calc.desdeDados)}) e não dá para afirmar se estão quitadas. ` : ""}
+            {f.naoConsultadas.n ? `${numero(f.naoConsultadas.n)} vendas (${moedaCheia(f.naoConsultadas.valor)}) chegaram depois da última leitura e ficam para a próxima.` : ""}
           </p>
         )}
         {Math.abs(difTitulos) > 0.05 && (
           <p>
             O saldo em atraso desta aba ({moedaCheia(tot.atraso)}) difere do total atrasado da aba Títulos e meses
             ({moedaCheia(totalAtrasadoTitulos)}) em {moedaCheia(Math.abs(difTitulos))}: são parcelas vencidas que não
-            cobram nenhuma venda desta lista (título sem O.S. identificada, venda acertada em permuta ou de antes do período).
+            foram conciliadas nesta lista. É preciso conferir os vínculos, permutas e a cobertura do período no ERP.
           </p>
         )}
         <p>
           "A vencer" mostra as parcelas que vencem nos próximos 90 dias: é o horizonte que o painel busca no ERP.
-          "Sem título" é a parte da venda que ainda não virou cobrança no ERP (nota não emitida ou faturamento pendente).
+          "Sem título" é saldo sem cobrança identificada nesta consulta; não comprova ausência de nota fiscal. Títulos além desse horizonte e pagamentos sem vínculo com a O.S. precisam ser conferidos no ERP.
         </p>
       </div>
     </div>
   );
+}
+
+function PaginacaoEmpresas({ dados: p, aoMudar }) {
+  return <nav aria-label="Páginas de empresas" className="flex flex-wrap items-center justify-between gap-3 py-2 sem-impressao">
+    <span role="status" className="text-xs text-slate-500">Empresas {p.de}–{p.ate} de {numero(p.total)}</span>
+    <div className="flex flex-wrap items-center gap-2">
+      <button type="button" className="btn-ghost disabled:opacity-40" disabled={p.pagina === 1} onClick={() => aoMudar(p.pagina - 1)}>Anterior</button>
+      <label className="flex items-center gap-2 text-sm text-slate-600">Página
+        <select aria-label="Página de empresas" className="input w-20" value={p.pagina} onChange={(e) => aoMudar(Number(e.target.value))}>
+          {Array.from({ length: p.paginas }, (_, i) => <option key={i + 1} value={i + 1}>{i + 1}</option>)}
+        </select>de {p.paginas}
+      </label>
+      <button type="button" className="btn-ghost disabled:opacity-40" disabled={p.pagina === p.paginas} onClick={() => aoMudar(p.pagina + 1)}>Próxima</button>
+    </div>
+  </nav>;
 }

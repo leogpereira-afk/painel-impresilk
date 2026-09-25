@@ -26,11 +26,10 @@ import { chaveCliente } from "./cobrancas.js";
 
 const CENT = (n) => Math.round((Number(n) || 0) * 100) / 100;
 
-/* DIFERENÇA DE BAIXA. Venda paga com um resto pequeno e sem título aberto (a
-   baixa com desconto, o arredondamento da maquininha) não é dívida: medido em
-   23/09/2026, 38 O.S. somavam R$ 590. Até 2% do valor, fica fora da lista e é
-   contada no rodapé; acima disso é saldo de verdade. */
-export const LIMIAR_BAIXA = 0.02;
+/* Diferença pequena sem título é uma pendência de conferência, não prova
+   de desconto nem autorização de baixa. Fica separada do saldo de cobrança
+   até que o ERP permita confirmar o abatimento ou a dívida. */
+const LIMIAR_CONFERENCIA = 0.02;
 
 // A porta manda os pagos SOMADOS por O.S.; a régua pede a forma de lista.
 export function dadosDaPorta(resposta) {
@@ -72,14 +71,25 @@ export function vendasEmAberto(ordens, resposta, { hoje, corte = "" } = {}) {
      a lista contaria o mesmo dinheiro duas vezes. Viram uma venda só, com o
      valor somado e o aviso na linha. */
   const porNum = new Map();
+  const idsLidos = new Set();
+  const fora = { quitadas: vazio(), permuta: vazio(), conferencia: vazio(), retrabalho: vazio(), semTipo: vazio(), semDado: vazio(), naoConsultadas: vazio(), valorZero: vazio() };
+  const somar = (balde, valor) => { balde.n += 1; balde.valor = CENT(balde.valor + (Number(valor) || 0)); };
   for (const o of ordens || []) {
     const numero = String(o?.numero || "").trim();
     if (!numero) continue;
+    const id = String(o?.id ?? "");
+    if (id && idsLidos.has(id)) continue;
+    if (id) idsLidos.add(id);
+    // Tipo do pedido no ERP, não a ocorrência operacional na venda original.
+    const tipo = String(o?.tipo || "").trim().toLowerCase();
+    if (tipo === "retrabalho") { somar(fora.retrabalho, o.valor); continue; }
+    if (!tipo) { somar(fora.semTipo, o.valor); continue; }
     const ja = porNum.get(numero);
     if (!ja) {
-      porNum.set(numero, { ...o, numero, valor: Number(o?.valor) || 0, ids: [String(o?.id ?? "")] });
+      porNum.set(numero, { ...o, numero, valor: Number(o?.valor) || 0, desconto: Number(o?.desconto) || 0, ids: [String(o?.id ?? "")] });
     } else {
       ja.valor = CENT(ja.valor + (Number(o?.valor) || 0));
+      ja.desconto = CENT(ja.desconto + (Number(o?.desconto) || 0));
       ja.ids.push(String(o?.id ?? ""));
       if (String(o?.data || "") && String(o.data) < String(ja.data || "9999")) ja.data = o.data;
     }
@@ -106,10 +116,9 @@ export function vendasEmAberto(ordens, resposta, { hoje, corte = "" } = {}) {
     parcelas.get(n).push(t);
   }
 
-  const fora = { quitadas: vazio(), permuta: vazio(), baixa: vazio(), semDado: vazio(), naoConsultadas: vazio(), valorZero: vazio() };
-  const somar = (balde, valor) => { balde.n += 1; balde.valor = CENT(balde.valor + (Number(valor) || 0)); };
 
   const linhas = [];
+  const conferir = [];
   for (const l of linhasBase) {
     const f = fin.porNumero[l.numero];
     if (!f) continue;
@@ -118,8 +127,10 @@ export function vendasEmAberto(ordens, resposta, { hoje, corte = "" } = {}) {
     if (f.tipo === "semDado") { somar(fora.semDado, l.valor); continue; }
     if (f.tipo === "pago") { somar(fora.quitadas, l.valor); continue; }
     if (f.aberto <= 0 && l.valor <= TOLERANCIA) { somar(fora.valorZero, l.valor); continue; }
-    if (f.tipo === "pagoParcial" && f.aberto <= 0 && l.valor > 0 && f.resto <= l.valor * LIMIAR_BAIXA) {
-      somar(fora.baixa, f.resto); continue;
+    if (f.tipo === "pagoParcial" && f.aberto <= 0 && l.valor > 0 && f.resto <= l.valor * LIMIAR_CONFERENCIA) {
+      somar(fora.conferencia, f.resto);
+      conferir.push({ numero: l.numero, cliente: l.cliente, valor: l.valor, recebido: f.pago, diferenca: f.resto });
+      continue;
     }
     if (!(f.aReceber > TOLERANCIA)) { somar(fora.quitadas, l.valor); continue; }
 
@@ -156,6 +167,7 @@ export function vendasEmAberto(ordens, resposta, { hoje, corte = "" } = {}) {
       vendedor: String(l.vendedor || ""),
       data: String(l.data || "").slice(0, 10),
       valor: l.valor,
+      descontoVenda: l.desconto,
       recebido: f.pago,
       saldo: f.aReceber,
       atraso,
@@ -174,7 +186,7 @@ export function vendasEmAberto(ordens, resposta, { hoje, corte = "" } = {}) {
     });
   }
 
-  return { linhas, fora, desdeDados: dados.desdeDados, temPagos: dados.temPagos };
+  return { linhas, conferir, fora, desdeDados: dados.desdeDados, temPagos: dados.temPagos };
 }
 
 /* OS TOTAIS DE UM RECORTE -- somados das linhas, para o topo nunca discordar
@@ -227,4 +239,15 @@ export function ordenarVendas(linhas, ordem) {
     recentes: porData(-1),
   }[ordem] || ((a, b) => b.saldo - a.saldo);
   return [...(linhas || [])].sort(f);
+}
+
+// Paginação não altera somas nem o conjunto usado na impressão.
+export function paginarEmpresas(empresas, pagina = 1, tamanho = 20) {
+  const porPagina = Math.max(1, Math.trunc(Number(tamanho)) || 20);
+  const total = empresas.length;
+  const paginas = Math.max(1, Math.ceil(total / porPagina));
+  const atual = Math.min(paginas, Math.max(1, Math.trunc(Number(pagina)) || 1));
+  const inicio = (atual - 1) * porPagina;
+  return { itens: empresas.slice(inicio, inicio + porPagina), pagina: atual, paginas,
+    total, de: total ? inicio + 1 : 0, ate: Math.min(inicio + porPagina, total) };
 }

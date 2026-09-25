@@ -1,10 +1,10 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { vendasEmAberto, totaisDe, empresasDe, ordenarVendas, dadosDaPorta, chaveEmpresa } from "./vendasEmAberto.js";
+import { vendasEmAberto, totaisDe, empresasDe, ordenarVendas, dadosDaPorta, chaveEmpresa, paginarEmpresas } from "./vendasEmAberto.js";
 
 const HOJE = "2026-09-23";
 const CORTE = "2025-01-01";
-const os = (numero, valor, extra = {}) => ({ id: `id${numero}`, numero, valor, cliente: `Cliente ${numero}`, cnpj: "", vendedor: "Ana", data: "2026-08-01", ...extra });
+const os = (numero, valor, extra = {}) => ({ id: `id${numero}`, numero, tipo: "Normal", valor, cliente: `Cliente ${numero}`, cnpj: "", vendedor: "Ana", data: "2026-08-01", ...extra });
 const resposta = (extra = {}) => ({ temPagos: true, desdeDados: "2025-01-01", abertos: [], pagosPorOS: {}, permutaDaOS: {}, ...extra });
 const linhaDe = (r, numero) => r.linhas.find((l) => l.numero === numero);
 
@@ -61,11 +61,13 @@ test("paga em parte com resto grande entra; o resto é saldo sem título", () =>
   assert.equal(l.estado, "parcialSemTitulo");
 });
 
-test("diferença de baixa (até 2%, sem título aberto) não é dívida: fica fora e é contada", () => {
+test("diferença pequena sem motivo de baixa vai para conferência, sem presumir desconto ou quitação", () => {
   const r = vendasEmAberto([os("105", 1000)], resposta({ pagosPorOS: { "105": [985, 0, 0] } }), { hoje: HOJE, corte: CORTE });
   assert.equal(linhaDe(r, "105"), undefined);
-  assert.equal(r.fora.baixa.n, 1);
-  assert.equal(r.fora.baixa.valor, 15);
+  assert.equal(r.fora.conferencia.n, 1);
+  assert.equal(r.fora.conferencia.valor, 15);
+  assert.equal(r.fora.quitadas.n, 0);
+  assert.equal(r.conferir[0].numero, "105");
 });
 
 test("quitada em permuta não entra, mesmo com título aberto no ERP", () => {
@@ -177,4 +179,44 @@ test("ordenar: mais atrasada primeiro", () => {
   assert.equal(ordenarVendas(l, "atraso")[0].numero, "2");
   assert.equal(ordenarVendas(l, "saldo")[0].numero, "1");
   assert.equal(ordenarVendas(l, "antigas")[0].numero, "1");
+});
+
+test("pedido de retrabalho fica fora, mas a venda original com ocorrência continua", () => {
+  const r = vendasEmAberto([
+    os('501', 1000, { retrabalho: true }),
+    os('502', 250, { tipo: 'Retrabalho' }),
+    os('503', 10, { tipo: ' RETRABALHO ' }),
+  ], resposta({ abertos: [{ id: 't', os: '502', valor: 250, vencimento: '2026-08-01' }] }), { hoje: HOJE });
+  assert.deepEqual(r.linhas.map(l => l.numero), ['501']);
+  assert.equal(totaisDe(r.linhas).saldo, 1000);
+  assert.deepEqual(r.fora.retrabalho, { n: 2, valor: 260 });
+});
+
+test("cache antigo sem tipo fica pendente de classificação, sem virar dívida", () => {
+  const r = vendasEmAberto([os('504', 50, { tipo: undefined })], resposta(), { hoje: HOJE });
+  assert.equal(r.linhas.length, 0);
+  assert.deepEqual(r.fora.semTipo, { n: 1, valor: 50 });
+});
+
+test("desconto da O.S. não é cobrado nem descontado duas vezes", () => {
+  const r = vendasEmAberto([os('505', 800, { valorBruto: 1000, desconto: 200 })], resposta({ pagosPorOS: { '505': [100, 0, 0] } }), { hoje: HOJE });
+  assert.equal(r.linhas[0].saldo, 700);
+  assert.equal(r.linhas[0].descontoVenda, 200);
+});
+
+test("a mesma O.S. repetida no cache não duplica o saldo", () => {
+  const a = os('506', 900);
+  const r = vendasEmAberto([a, { ...a }], resposta(), { hoje: HOJE });
+  assert.equal(r.linhas.length, 1);
+  assert.equal(totaisDe(r.linhas).saldo, 900);
+});
+
+test("todas as 372 empresas são alcançáveis, sem repetir ou perder empresas", () => {
+  const es = Array.from({ length: 372 }, (_, i) => ({ chave: `empresa-${i}` }));
+  const juntas = Array.from({ length: 19 }, (_, i) => paginarEmpresas(es, i + 1).itens).flat();
+  assert.deepEqual(juntas, es);
+  assert.equal(paginarEmpresas(es, 99).pagina, 19);
+  assert.equal(paginarEmpresas(es, 19).ate, 372);
+  assert.equal(paginarEmpresas(es.slice(0, 3), 19).pagina, 1);
+  assert.deepEqual(paginarEmpresas([], 2).itens, []);
 });

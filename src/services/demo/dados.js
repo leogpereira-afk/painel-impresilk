@@ -293,6 +293,7 @@ const ORCAMENTOS = construirOrcamentos();
    (Vendas em aberto) ficavam sem nada para mostrar. */
 const ORDENS = construirOrdens().map((o) => ({
   ...o,
+  tipo: 'Normal',
   valor: o.valor ?? Math.round((o.itens || []).reduce((s, it) => s + (Number(it.valorTotal) || 0), 0) * 100) / 100,
 }));
 
