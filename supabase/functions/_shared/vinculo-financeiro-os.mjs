@@ -3,7 +3,7 @@
 // pagamentos do cliente e não reduzem o saldo da venda.
 export function numerosDeOSComercial(descricao) {
   const texto = String(descricao ?? "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase();
-  if (/\bEMPRESTIM\w*\b|\bAPORTE\b|\bTRANSFERENCIA\b|\bSEM\s+O\.?\s*S\.?\b/.test(texto)) return [];
+  if (/\bEMPRESTIM\w*\b|\bAPORTE\b|\bTRANSFERENCIA\s+(?:INTERNA|ENTRE\s+CONTAS)\b|\bSEM\s+O\.?\s*S\.?\b/.test(texto)) return [];
   const numerica = /^[\d\s,;|/+.\-E]+$/.test(texto);
   // Em texto livre, só os números logo após O.S.; datas e NF adiante não
   // viram serviços adicionais por coincidência.

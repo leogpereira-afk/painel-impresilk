@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { numerosDeOSComercial } from '../supabase/functions/_shared/vinculo-financeiro-os.mjs';
 
 test('empréstimo que cita O.S. não quita venda do cliente', () => {
-  for (const texto of ['EMPRESTIMO REF OS 12345', 'Empréstimos O.S. 12345', 'APORTE REF OS 12345', 'Transferência ref OS 12345']) {
+  for (const texto of ['EMPRESTIMO REF OS 12345', 'Empréstimos O.S. 12345', 'APORTE REF OS 12345', 'Transferência entre contas ref OS 12345']) {
     assert.deepEqual(numerosDeOSComercial(texto), []);
   }
 });
@@ -19,4 +19,5 @@ test('recebimento comercial simples, compartilhado ou antecipado mantém o vínc
   assert.deepEqual(numerosDeOSComercial('antecipacao - os 12345 - 12346 -'), ['12345', '12346']);
   assert.deepEqual(numerosDeOSComercial('OS 12345 nota fiscal 54321 em 25/09/2026'), ['12345']);
   assert.deepEqual(numerosDeOSComercial('OS 12345 e OS 12346'), ['12345', '12346']);
+  assert.deepEqual(numerosDeOSComercial('Transferência bancária referente à OS 12345'), ['12345']);
 });
