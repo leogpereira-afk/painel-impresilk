@@ -1,4 +1,5 @@
 import {vigiarCache} from "../_shared/vigia-cache.ts";
+import { numerosDeOSComercial } from "../_shared/vinculo-financeiro-os.mjs";
 // ============================================================================
 // painel-dados — leituras do Painel (substitui contas-atrasadas.js,
 // fluxo-caixa.js, produtos.js e orcamentos.js)
@@ -120,6 +121,9 @@ async function financeiroDasOS(pedidos: Set<string>, ids: string[]) {
   const [rec, pag] = await Promise.all([
     lerCacheComData("recebiveis"), lerCacheComData("recebidos_os"),
   ]);
+  if (!Array.isArray(rec.valor) || !pag.valor?.titulos) {
+    throw new Error("Fontes de recebimentos indisponíveis para conciliar vendas");
+  }
 
   /* UM TÍTULO PODE COBRIR VÁRIAS O.S. — e é comum: o ERP escreve
      "23208-23206-23051-23021" no campo `despesa`. Casar o texto inteiro
@@ -136,10 +140,7 @@ async function financeiroDasOS(pedidos: Set<string>, ids: string[]) {
      desconhecida aqui, o rateio vira divisão igual e a resposta carrega
      `incerto: true`: a tela mostra o número como aproximado em vez de
      afirmar centavo que não pode provar. */
-  const numerosDo = (s: unknown): string[] => {
-    const achados = String(s ?? "").match(/\d{1,12}/g) || [];
-    return [...new Set(achados)];
-  };
+  const numerosDo = numerosDeOSComercial;
   const cem = (n: number) => Math.round(n * 100) / 100;
 
   const titulos = pag.valor?.titulos && typeof pag.valor.titulos === "object"
@@ -177,9 +178,10 @@ async function financeiroDasOS(pedidos: Set<string>, ids: string[]) {
   const valorDaOS = new Map<string, number>();
   const lista = [...envolvidas];
   for (let i = 0; i < lista.length; i += 500) {
-    const { data } = await sb.from("painel_ordens")
+    const { data, error } = await sb.from("painel_ordens")
       .select("numero, valor").in("numero", lista.slice(i, i + 500));
-    for (const o of data ?? []) valorDaOS.set(String(o.numero), Number(o.valor) || 0);
+    if (error) throw new Error("Não foi possível conferir os valores das O.S.");
+    for (const o of data ?? []) valorDaOS.set(String(o.numero), (valorDaOS.get(String(o.numero)) || 0) + (Number(o.valor) || 0));
   }
 
   // Passo 3: reparte cada título entre as O.S. pedidas que ele cita.
@@ -221,8 +223,9 @@ async function financeiroDasOS(pedidos: Set<string>, ids: string[]) {
     const alvo = new Set(ids);
     const PASSO = 500;
     for (let de = 0; ; de += PASSO) {
-      const { data } = await sb.from("painel_registros")
+      const { data, error } = await sb.from("painel_registros")
         .select("registro").eq("colecao", "permutas").order("id").range(de, de + PASSO - 1);
+      if (error) throw new Error("Não foi possível conferir as permutas");
       for (const linha of data ?? []) {
         const reg = (linha as any)?.registro ?? {};
         const nome = String(reg?.nome ?? "").slice(0, 80);
