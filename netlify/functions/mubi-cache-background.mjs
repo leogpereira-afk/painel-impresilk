@@ -308,6 +308,10 @@ export function normOS(os, i, categoriaPorNome) {
   return {
     id: String(os.id ?? `os-${i}`),
     numero: String(os.sequencial_ordem || os.sequencial_orcamento || os.id || ""),
+    // Campo `tipo` do ERP (Normal / Retrabalho / Amostra / Cortesia).
+    // Sem ele, um pedido de retrabalho parecia uma nova venda não quitada.
+    // Ausência permanece explícita até a próxima carga completa.
+    tipo: String(os.tipo || "").trim(),
 
     /* O VALOR FINAL DA O.S.: bruto menos desconto. E o que o cliente deve.
      *
