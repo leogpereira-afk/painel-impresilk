@@ -1,3 +1,4 @@
+import { useAbaNavegavel } from "../hooks/useAbaNavegavel.js";
 // Contas Atrasadas: quem esta devendo, por que, e o que fazer agora.
 // Conclusao primeiro. Todo o calculo vem de calcContasAtrasadas e recalcula ao
 // vivo quando o usuario marca motivo, marca cobrado ou muda a config.
@@ -285,7 +286,7 @@ export default function ContasAtrasadas() {
   const atualizadoEm = frescorDe("contas-atrasadas");
 
   // Duas abas: a lista de cobrança (o trabalho) e a análise (a reunião).
-  const [aba, setAba] = useState("cobranca");
+  const [aba, setAba] = useAbaNavegavel("cobranca", ["lista", "cobranca", "vendas", "analise"]);
   const [maisFiltros, setMaisFiltros] = useState(false);
   const [filtro, setFiltro] = useState("todos");
   const [diasMin, setDiasMin] = useState(30);

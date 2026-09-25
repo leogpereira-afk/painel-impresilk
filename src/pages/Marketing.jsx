@@ -1,3 +1,4 @@
+import { useAbaNavegavel } from "../hooks/useAbaNavegavel.js";
 // Marketing: logomarcas e materiais de marca num lugar so, mais os atalhos do
 // Drive para o que e grande demais para morar aqui (o servidor aceita ~3 MB
 // por arquivo -- logo cabe; video de campanha, nao).
@@ -29,7 +30,7 @@ import {
   abrirBase64,
 } from "../services/ativos.js";
 import { lerAtalhos } from "../services/marketing.js";
-import { Card, PageTitle, SectionTitle, Empty, CarregandoModulo, ErroModulo } from "../components/ui.jsx";
+import { Card, PageTitle, SectionTitle, Segmented, Empty, CarregandoModulo, ErroModulo } from "../components/ui.jsx";
 
 const MAX_BYTES = 3 * 1024 * 1024; // o servidor barra ~4 MB de base64 (~3 MB reais)
 
@@ -72,6 +73,7 @@ async function miniaturaDe(file) {
 }
 
 export default function Marketing() {
+  const [aba, setAba] = useAbaNavegavel("acoes", ["acoes", "materiais"]);
   const [itens, setItens] = useState(null);
   const [atalhos, setAtalhos] = useState(null);
   const [materialForm, setMaterialForm] = useState(null);
@@ -229,7 +231,9 @@ export default function Marketing() {
         descricao="Encontre logomarcas, materiais aprovados e atalhos da marca em um só lugar."
       />
 
-      <PlanejamentoMarketing mapa={atalhos} aoAtualizar={setAtalhos}/>
+      <Segmented opcoes={[{valor:"acoes",rotulo:"Ações e resultados"},{valor:"materiais",rotulo:"Materiais e Drive"}]} valor={aba} onChange={setAba}/>
+      <div hidden={aba !== "acoes"}><PlanejamentoMarketing mapa={atalhos} aoAtualizar={setAtalhos}/></div>
+      <div hidden={aba !== "materiais"} className="space-y-5">
       {materialForm&&<Card><SectionTitle titulo={`Organizar material · ${materialForm.nome}`}/><form className="space-y-4" onSubmit={async e=>{e.preventDefault();setGravandoMaterial(true);setAviso(null);try{const salvo=await salvarAtivo(materialForm);setItens(l=>l.map(i=>i.id===salvo.id?salvo:i));setMaterialForm(null);}catch(e){setAviso({tom:"erro",texto:e.message});}finally{setGravandoMaterial(false);}}}><div className="grid gap-4 sm:grid-cols-2">
       <label className="label">Categoria<input className="input" placeholder="Ex.: Fachadas, Apresentações, Identidade visual" value={materialForm.categoria||""} onChange={e=>setMaterialForm(f=>({...f,categoria:e.target.value}))}/></label>
       <label className="label">Situação<select className="input" value={materialForm.status||"rascunho"} onChange={e=>setMaterialForm(f=>({...f,status:e.target.value}))}><option value="rascunho">A revisar</option><option value="aprovado">Aprovado para uso</option><option value="arquivado">Arquivado / versão antiga</option></select></label>
@@ -348,6 +352,7 @@ export default function Marketing() {
 
           {podeAbrir("marketing")&&<Link className="btn-outline mt-4" to="/configuracoes?secao=marketing">Configurar atalhos</Link>}
         </Card>
+      </div>
       </div>
     </div>
   );

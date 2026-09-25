@@ -130,7 +130,7 @@ export function StatCard({ rotulo, valor, sub, tom = "neutral", icone: Icone, te
       onClick={onClick}
       aria-pressed={clicavel ? !!ativo : undefined}
       className={clsx(
-        "card p-5 text-left w-full transition-all",
+        "card p-4 text-left w-full transition-all",
         clicavel && "card-hover cursor-pointer",
         ativo && "ring-2 ring-brand ring-offset-2 ring-offset-transparent"
       )}
@@ -143,7 +143,7 @@ export function StatCard({ rotulo, valor, sub, tom = "neutral", icone: Icone, te
           </span>
         )}
       </div>
-      <div className="mt-3 flex items-end gap-2">
+      <div className="mt-2 flex items-end gap-2">
         <span className="kpi-value text-3xl text-slate-900">{valor}</span>
         {tendencia && <TrendArrow tendencia={tendencia} />}
       </div>
@@ -211,7 +211,7 @@ export function Segmented({ opcoes, valor, onChange, className }) {
     // a lado e nenhuma marcada (a regra de impressao zera o fundo do botao
     // ativo), fazendo o leitor achar que via um dado.
     <div
-      className={clsx("sem-impressao inline-flex rounded-xl border bg-white p-1", className)}
+      className={clsx("sem-impressao inline-flex max-w-full flex-wrap gap-1 rounded-xl border bg-white p-1", className)}
       style={{ borderColor: "var(--hairline)" }}
     >
       {opcoes.map((o) => (
@@ -224,7 +224,7 @@ export function Segmented({ opcoes, valor, onChange, className }) {
           // iguais; aria-pressed diz qual esta ligado.
           aria-pressed={valor === o.valor}
           className={clsx(
-            "rounded-lg px-3 py-1.5 font-display text-sm font-medium transition-all",
+            "min-h-10 rounded-lg px-3 py-2 font-display text-sm font-medium transition-all",
             valor === o.valor ? "bg-brand text-white shadow-sm" : "text-slate-600 hover:bg-slate-100"
           )}
         >

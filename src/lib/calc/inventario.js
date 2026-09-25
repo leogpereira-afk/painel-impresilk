@@ -39,3 +39,10 @@ export function bensParaImpressao(visiveis, selecionados) {
   const marcados = visiveis.filter(b => selecionados.includes(b.id));
   return marcados.length ? marcados : visiveis;
 }
+
+// A fila prioriza identificação, localização e responsável, antes de foto.
+export function ordenarPendencias(bens, setores, fotos) {
+  const essenciais = new Set(['etiqueta', 'setor', 'responsavel']);
+  const peso = bem => pendenciasBem(bem, setores, fotos).reduce((n, p) => n + (essenciais.has(p.id) ? 10 : p.id === 'foto' ? 1 : 3), 0);
+  return [...bens].sort((a, b) => peso(b) - peso(a) || (Number(b.valor) || 0) - (Number(a.valor) || 0) || String(a.id).localeCompare(String(b.id)));
+}

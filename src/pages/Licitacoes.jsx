@@ -381,6 +381,12 @@ export default function Licitacoes() {
         <StatCard rotulo="Ganhas" valor={String(vm.ganhas)} sub="histórico de vitorias" tom={vm.ganhas ? "ok" : "neutral"} icone={Trophy} />
       </div>
 
+      {vm.naMesa.some(it => !it.responsavel?.trim() || !it.validade) && <details className="rounded-xl border border-warn-200 bg-warn-50 p-4 text-sm text-warn-700">
+        <summary className="cursor-pointer font-medium">Preparar acompanhamento · {vm.naMesa.filter(it => !it.responsavel?.trim() || !it.validade).length} {vm.naMesa.filter(it => !it.responsavel?.trim() || !it.validade).length === 1 ? "edital com informação pendente" : "editais com informação pendente"}</summary>
+        <p className="my-2">Defina responsável e data quando conhecidos para organizar os próximos passos.</p>
+        {vm.naMesa.filter(it => !it.responsavel?.trim() || !it.validade).map(it => <div key={it.id} className="flex flex-wrap items-center justify-between gap-2 border-t border-warn-200 py-2"><span>{it.nome} · {[!it.responsavel?.trim() && "sem responsável", !it.validade && "sem data"].filter(Boolean).join(" · ")}</span><button className="btn-outline" onClick={()=>editar(it)}>Completar cadastro</button></div>)}
+      </details>}
+
       <div className="flex justify-end"><button className="btn-primary" onClick={()=>{fecharForm();setFormAberto(true);}}>Nova licitação</button></div>
       {aviso && (
         <p

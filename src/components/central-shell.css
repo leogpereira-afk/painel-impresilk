@@ -61,3 +61,15 @@ html.dark .review-sidebar nav a:hover{background:#2a302d}
 .review-content>.space-y-6>:not([hidden])~:not([hidden]){margin-top:16px}
 .review-content .page-help{padding:8px 12px;border:1px solid var(--hairline);border-radius:10px;background:var(--surface)}
 @media(max-width:900px){.review-content{padding-top:14px}.review-top{padding:6px 12px}.review-content .page-title h1{font-size:23px}}
+
+/* Densidade confortável: apenas o espaçamento entre blocos principais. */
+.review-content > .space-y-8 > :not([hidden]) ~ :not([hidden]){margin-top:1.25rem}
+.review-content .page-title{gap:12px}
+.review-content .page-title h1{font-size:26px;line-height:1.25}
+.review-content .page-title-description{font-size:14px;line-height:1.5;margin-top:5px}
+.review-content .card .kpi-value{font-size:1.65rem;overflow-wrap:anywhere}
+@media(max-width:640px){
+ .review-content .page-title h1{font-size:23px}
+ .review-content > .space-y-8 > :not([hidden]) ~ :not([hidden]){margin-top:1rem}
+}
+@media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}}

@@ -1013,7 +1013,7 @@ export default function Permutas() {
             <div className="rounded-lg bg-warn-50 px-3 py-2 text-xs text-warn-800">
               {resumo.semConferir && "As O.S. não carregaram nesta sessão: o saldo está usando o valor congelado no aceite. "}
               {resumo.mudaram > 0 && `${resumo.mudaram} O.S. mudaram de valor no ERP depois do aceite (o saldo já usa o valor novo). `}
-              {resumo.sumiram > 0 && `${resumo.sumiram} O.S. sumiram do ERP (cancelamento) e continuam abatendo — confira se o crédito deve voltar.`}
+              {resumo.sumiram > 0 && `${resumo.sumiram} O.S. não foram encontradas na consulta do ERP e continuam abatendo — confira a situação antes de ajustar o crédito.`}
             </div>
           )}
         </Card>
@@ -1443,12 +1443,10 @@ export default function Permutas() {
             </div>
             <div className="mt-0.5 text-xs text-slate-500">
               {totais.semCredito > 0 ? (
-                /* Sem este aviso o número acima parece prejuízo, e na base real
-                   ele é cadastro faltando: duas permutas com crédito zero e
-                   dezenas de milhares em O.S. */
+                /* Regra confirmada: o saldo segue como dívida até lançar o crédito. */
                 <span className="text-warn-700">
                   {totais.semCredito} {totais.semCredito === 1 ? "permuta está" : "permutas estão"} sem crédito lançado —
-                  confira antes de cobrar
+                  o saldo permanece como dívida até registrar o crédito
                 </span>
               ) : "entregamos mais do que recebemos — é a receber"}
             </div>

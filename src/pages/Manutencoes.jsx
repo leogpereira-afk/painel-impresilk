@@ -1,3 +1,4 @@
+import { useAbaNavegavel } from "../hooks/useAbaNavegavel.js";
 // Manutenções: o que a empresa gasta para as coisas continuarem funcionando --
 // os carros, as máquinas e o prédio (câmeras, ar condicionado, elétrica,
 // hidráulica, portões).
@@ -786,7 +787,7 @@ export default function Manutencoes() {
   const [busca, setBusca] = useState("");
   // "itens" (o que existe e quanto já custou) x "historico" (quanto saiu em
   // cada mês de cada ano). São duas perguntas diferentes na mesma tela.
-  const [aba, setAba] = useState("itens");
+  const [aba, setAba] = useAbaNavegavel("itens", ["itens", "historico"]);
   const [anoHist, setAnoHist] = useState("");
   const [mesAberto, setMesAberto] = useState(null);
   const [erp, setErp] = useState(null);
@@ -1166,8 +1167,8 @@ export default function Manutencoes() {
         <StatCard
           rotulo="Atrasadas"
           valor={numero(k.atrasadas)}
-          sub={k.atrasadas ? (k.atrasadas === 1 ? "passou da data prevista" : "passaram da data prevista") : "nada atrasado"}
-          tom={k.atrasadas ? "bad" : "ok"}
+          sub={k.atrasadas ? (k.atrasadas === 1 ? "passou da data prevista" : "passaram da data prevista") : k.semPrevisao ? `${k.semPrevisao} itens sem previsão; confira a programação` : "nenhum atraso identificado"}
+          tom={k.atrasadas ? "bad" : k.semPrevisao ? "warn" : "neutral"}
           icone={AlertTriangle}
           ativo={aba === "itens" && recorte === "vencida"}
           onClick={k.atrasadas ? () => verNaLista("vencida") : undefined}

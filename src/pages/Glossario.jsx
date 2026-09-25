@@ -330,6 +330,8 @@ export default function Glossario() {
                     </button>
                   </span>}
                 </div>
+                <details key={`${t.id}-${Boolean(busca.trim())}`} open={busca.trim() ? true : undefined} className="mt-2">
+                  <summary className="cursor-pointer text-sm font-medium text-brand">Definição e orientações</summary>
                 <p className="mt-1.5 text-sm leading-relaxed text-slate-600">{t.texto}</p>
                 {t.dica && (
                   <p className="mt-2.5 flex items-start gap-1.5 rounded-lg bg-warn-50 px-2.5 py-2 text-xs leading-relaxed text-warn-700">
@@ -337,6 +339,7 @@ export default function Glossario() {
                     <span>{t.dica}</span>
                   </p>
                 )}
+                </details>
               </div>
             ))}
           </div>

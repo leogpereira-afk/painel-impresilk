@@ -1,3 +1,4 @@
+import { useAbaNavegavel } from "../hooks/useAbaNavegavel.js";
 // Orçamentos — a mesa.
 //
 // A tela abre com O QUE ESTÁ NA MESA: um orçamento por linha, do maior para o
@@ -627,7 +628,7 @@ export default function Orcamentos() {
   } = useApp();
 
   const meuVendedor = useMemo(() => canonVend(vendedorDaSessao()), []);
-  const [aba, setAba] = useState("mesa");
+  const [aba, setAba] = useAbaNavegavel("mesa", ["mesa", "agenda", "historico", "crm"]);
   const [verPropostas,setVerPropostas]=useState(false);
   const [cliente360, setCliente360] = useState(null);
   const [crm, setCrm] = useState(null), [erroCrm, setErroCrm] = useState(""), [carregandoCrm, setCarregandoCrm] = useState(false), [revisaoCrm, setRevisaoCrm] = useState(0);

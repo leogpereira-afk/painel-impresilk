@@ -1,3 +1,4 @@
+import { useAbaNavegavel } from "../hooks/useAbaNavegavel.js";
 // Documentos, veiculos e maquinas -- tres lentes do mesmo controle: coisas com
 // data que alguem precisa renovar antes de vencer.
 //
@@ -77,7 +78,7 @@ export default function Ativos() {
   const [itens, setItens] = useState(null);
   const [lixeira, setLixeira] = useState(null); // null = fechada
   const [erro, setErro] = useState(null);
-  const [tipo, setTipo] = useState("documento");
+  const [tipo, setTipo] = useAbaNavegavel("documento", ["documento", "veiculo", "maquina", "seguro"]);
   const [busca, setBusca] = useState("");
   /* OS CARTÕES VIRAM RECORTE. "Vencidos: 3" era um número que não virava
      lista: para achar os 3 era conferir item por item, e eles podiam estar em
@@ -284,22 +285,24 @@ export default function Ativos() {
         acao={
           <button className="btn-primary" onClick={() => setForm(vazio(tipo))}>
             <Plus size={16} strokeWidth={2.4} />
-            Novo {TIPOS[tipo].singular.toLowerCase()}
+            {tipo === "maquina" ? "Nova" : "Novo"} {TIPOS[tipo].singular.toLowerCase()}
           </button>
         }
       />
+
+      <p className="text-sm text-slate-500">Resumo geral de documentos, veículos, máquinas e seguros. Clique em um indicador para conferir os itens.</p>
 
       {/* Os cartões recortam a lista. "Cadastrados" é o botão de voltar: ele
           limpa o recorte em vez de aplicar um. */}
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <StatCard
-          rotulo="Vencidos" valor={numero(k.vencidos)} sub={k.vencidos ? "precisam de ação hoje" : "nada vencido"}
-          tom={k.vencidos ? "bad" : "ok"} icone={AlertTriangle}
+          rotulo="Vencidos" valor={numero(k.vencidos)} sub={k.vencidos ? "precisam de ação hoje" : k.semControle ? "há itens sem data para conferir" : "nenhum vencimento identificado"}
+          tom={k.vencidos ? "bad" : k.semControle ? "warn" : "neutral"} icone={AlertTriangle}
           ativo={recorte === "vencido"}
           onClick={k.vencidos ? () => recortar("vencido") : undefined}
         />
         <StatCard
-          rotulo="Vencem em 30 dias" valor={numero(k.urgentes)} sub={k.urgentes ? "renovar já" : "nada vencendo"}
+          rotulo="Vencem em 30 dias" valor={numero(k.urgentes)} sub={k.urgentes ? "renovar já" : "nas datas informadas"}
           tom={k.urgentes ? "warn" : "ok"} icone={AlertTriangle}
           ativo={recorte === "urgente"}
           onClick={k.urgentes ? () => recortar("urgente") : undefined}
@@ -311,7 +314,7 @@ export default function Ativos() {
           onClick={recorte ? () => setRecorte(null) : undefined}
         />
         <StatCard
-          rotulo="Sem data" valor={numero(k.semControle)} sub={k.semControle ? "ninguém será avisado" : "todos com data"}
+          rotulo="Sem data" valor={numero(k.semControle)} sub={k.semControle ? "conferir validade dos itens" : k.total ? "todos com data" : "nenhum item cadastrado"}
           tom={k.semControle ? "warn" : "ok"} icone={AlertTriangle}
           ativo={recorte === "sem"}
           onClick={k.semControle ? () => recortar("sem") : undefined}
@@ -332,7 +335,7 @@ export default function Ativos() {
       {form && (
         <Card>
           <SectionTitle
-            titulo={form.id ? `Editar ${TIPOS[form.tipo].singular.toLowerCase()}` : `Novo ${TIPOS[form.tipo].singular.toLowerCase()}`}
+            titulo={form.id ? `Editar ${TIPOS[form.tipo].singular.toLowerCase()}` : `${form.tipo === "maquina" ? "Nova" : "Novo"} ${TIPOS[form.tipo].singular.toLowerCase()}`}
             sub="A data de validade e o que faz o painel avisar antes de vencer."
             acao={
               <button className="btn-ghost" onClick={() => { setForm(null); setArquivo(null); }}>
@@ -637,7 +640,7 @@ export default function Ativos() {
                     {it.observacao && <p className="mt-0.5 text-xs text-slate-400">{it.observacao}</p>}
                   </div>
 
-                  <span className={`${t.chip} shrink-0`}>{it.sit.rotulo}</span>
+                  <span className={`${t.chip} shrink-0`}>{(it.tipo === "maquina" || it.tipo === "veiculo") && it.validade ? "Validade cadastrada: " : ""}{it.sit.rotulo}</span>
 
                   <div className="flex shrink-0 items-center gap-1">
                     {it.temArquivo && (

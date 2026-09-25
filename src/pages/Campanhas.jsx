@@ -1,3 +1,4 @@
+import { useAbaNavegavel } from "../hooks/useAbaNavegavel.js";
 import {Link} from 'react-router-dom';
 import {podeAbrir} from '../lib/sessao.js';
 /* CAMPANHAS: quanto vendemos para um evento, e quem comprou.
@@ -428,7 +429,7 @@ function CartaoCampanha({ c, aoAbrir, contra, aoDuplicar }) {
       {(c.mudaram > 0 || c.sumiram > 0) && (
         <div className="mt-2 flex items-center gap-1.5 text-xs text-warn-700">
           <AlertTriangle size={12} className="shrink-0" />
-          {c.sumiram > 0 ? `${c.sumiram} O.S. sumiram do ERP` : `${c.mudaram} O.S. mudaram de valor`}
+          {c.sumiram > 0 ? `${c.sumiram} O.S. não encontradas na consulta` : `${c.mudaram} O.S. mudaram de valor`}
         </div>
       )}
     </article>
@@ -1854,7 +1855,7 @@ export default function Campanhas() {
      (Fenics + eleição no mesmo número não responde nada) -- e TODA a
      comparação concentrada numa aba própria: ano a ano, eventos vinculados e
      ranking. */
-  const [abaLista, setAbaLista] = useState("campanhas");
+  const [abaLista, setAbaLista] = useAbaNavegavel("campanhas", ["campanhas", "analise", "anos", "vendedores", "clientes", "produtos"]);
   /* PREFERÊNCIA DO DONO (23/08): em análise, TODO quadro recolhe -- e a tela
      lembra a escolha. Chave por seção, para uma seção nova não apagar o que
      já estava configurado. */
@@ -2609,7 +2610,7 @@ export default function Campanhas() {
         const somaSumiu = sumiram.reduce((n, l) => n + (Number(l.congelado) || 0), 0);
         const lista = sumiram.slice(0, 8).map((l) => `O.S. ${l.numero} (${dinheiro(l.congelado)})`).join(", ");
         tirar = window.confirm(
-          `${sumiram.length === 1 ? "1 O.S. foi cancelada" : `${sumiram.length} O.S. foram canceladas`} no ERP: ${lista}${sumiram.length > 8 ? ` e mais ${sumiram.length - 8}` : ""}.\n\n`
+          `${sumiram.length === 1 ? "1 O.S. não foi encontrada" : `${sumiram.length} O.S. não foram encontradas`} no ERP: ${lista}${sumiram.length > 8 ? ` e mais ${sumiram.length - 8}` : ""}.\n\n`
           + `Tirar da campanha? O vendido cai ${dinheiro(somaSumiu)}.\n\n`
           + "Cancelar mantém na campanha — use se ela foi refeita com outro número e ainda não foi marcada.",
         );
@@ -2646,8 +2647,8 @@ export default function Campanhas() {
       } else {
         const partes = [];
         if (mudaram.length) partes.push(`${mudaram.length} O.S. com o valor novo do ERP`);
-        if (tirar) partes.push(`${sumiram.length} cancelada${sumiram.length > 1 ? "s" : ""} fora da campanha`);
-        else if (sumiram.length) partes.push(`${sumiram.length} cancelada${sumiram.length > 1 ? "s" : ""} mantida${sumiram.length > 1 ? "s" : ""}, como você escolheu`);
+        if (tirar) partes.push(`${sumiram.length} não encontrada${sumiram.length > 1 ? "s" : ""} fora da campanha`);
+        else if (sumiram.length) partes.push(`${sumiram.length} não encontrada${sumiram.length > 1 ? "s" : ""} mantida${sumiram.length > 1 ? "s" : ""}, como você escolheu`);
         setAviso({ tom: "ok", texto: `Campanha atualizada: ${partes.join("; ")}.` });
       }
       // Recarrega lista e cobrança com o registro novo.
@@ -2990,7 +2991,7 @@ export default function Campanhas() {
               <span className="min-w-0 flex-1">
                 {resumo.semConferir && "As O.S. não carregaram nesta sessão: o total está usando o valor congelado na marcação. "}
                 {resumo.mudaram > 0 && `${resumo.mudaram} O.S. mudaram de valor no ERP depois de marcadas (o total já usa o valor novo). `}
-                {resumo.sumiram > 0 && `${resumo.sumiram} O.S. sumiram do ERP (cancelamento) e continuam somando — confira se ainda contam.`}
+                {resumo.sumiram > 0 && `${resumo.sumiram} O.S. não foram encontradas na consulta do ERP e continuam somando — confira a situação antes de removê-las.`}
               </span>
               {/* Sem a lista do ERP não há o que conferir: o botão some, em vez
                   de prometer uma atualização que não pode fazer. */}

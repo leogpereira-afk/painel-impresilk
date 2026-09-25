@@ -230,6 +230,14 @@ export default function VendasEmAberto({ ordens, ordensNegadas, corte, totalAtra
         acao={<BotaoPDF titulo="Gera um PDF com as vendas em aberto do recorte que está na tela" />}
       />
 
+      {calc.conferir.length > 0 && <details className="rounded-xl border border-warn-200 bg-warn-50 p-4 text-sm text-warn-700">
+        <summary className="cursor-pointer font-medium">Conferir baixas: {numero(f.conferencia.n)} vendas · {moedaCheia(f.conferencia.valor)} fora do saldo de cobrança</summary>
+        <p className="my-2">Diferenças de até 2% após pagamentos, sem título aberto. Podem ser descontos, mas a base não informa o motivo. Não foram declaradas como dívida nem como quitação confirmada.</p>
+        {calc.conferir.map((l) => <p key={l.numero} className="border-t py-2">O.S. {l.numero} · {l.cliente}: líquido {moedaCheia(l.valor)}, recebido {moedaCheia(l.recebido)}, diferença {moedaCheia(l.diferenca)}</p>)}
+      </details>}
+      <p className="text-xs text-slate-500">Cobertura atual: O.S. desde 01/01/2025. O saldo usa o valor líquido de cada venda; desconto já concedido não entra como dívida. Esta base não confirma descontos negociados apenas na baixa.</p>
+
+
       {f.semTipo.n > 0 && <p role="status" className="rounded-xl border border-warn-200 bg-warn-50 p-4 text-sm text-warn-700">
         Apuração parcial: falta ler o tipo de {numero(f.semTipo.n)} pedidos do Mubisys. Eles ficam fora do saldo até ser possível distinguir venda de retrabalho.
       </p>}
@@ -400,13 +408,6 @@ export default function VendasEmAberto({ ordens, ordensNegadas, corte, totalAtra
           {empresasNoRecorte.map((e) => <p key={e.chave} className="flex justify-between gap-3 border-b py-2 text-sm"><span>{e.nome} · {e.n} vendas</span><span>{moedaCheia(e.saldo)}</span></p>)}
         </div>
       </Secao>
-
-      {calc.conferir.length > 0 && <details className="rounded-xl border border-warn-200 bg-warn-50 p-4 text-sm text-warn-700">
-        <summary className="cursor-pointer font-medium">Conferir baixas: {numero(f.conferencia.n)} vendas · {moedaCheia(f.conferencia.valor)} fora do saldo de cobrança</summary>
-        <p className="my-2">Diferenças de até 2% após pagamentos, sem título aberto. Podem ser descontos, mas a base não informa o motivo. Não foram declaradas como dívida nem como quitação confirmada.</p>
-        {calc.conferir.map((l) => <p key={l.numero} className="border-t py-2">O.S. {l.numero} · {l.cliente}: líquido {moedaCheia(l.valor)}, recebido {moedaCheia(l.recebido)}, diferença {moedaCheia(l.diferenca)}</p>)}
-      </details>}
-      <p className="text-xs text-slate-500">Cobertura atual: O.S. desde 01/01/2025. O saldo usa o valor líquido de cada venda; desconto já concedido não entra como dívida. Esta base não confirma descontos negociados apenas na baixa.</p>
 
       {/* O QUE FICOU DE FORA, CONTADO: nenhuma venda some calada. */}
       <div className="space-y-1 text-xs text-slate-500">
