@@ -160,7 +160,41 @@ export default function Home() {
 
 
   return (
-    <div className="mx-auto w-full max-w-6xl px-2">
+    <div className="mx-auto w-full max-w-6xl px-2 pb-10 pt-3">
+        <section className="min-w-0" aria-label="Identidade da empresa">
+          <div className="flex items-center gap-4 border-b border-slate-200/80 pb-5">
+            <img src={logoColor} alt="Impresilk" className="h-10 w-auto shrink-0 dark:hidden" />
+            <img src={logoWhite} alt="Impresilk" className="hidden h-10 w-auto shrink-0 dark:block" />
+            <div className="min-w-0">
+              <h1 className="font-display text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">
+                {saudacao()}
+              </h1>
+              <p className="text-sm leading-snug text-slate-500 sm:text-base">{fraseDoDia()}</p>
+            </div>
+          </div>
+          <div className="mt-7">
+            <MissaoValores />
+          </div>
+        </section>
+
+      {temSistemas && (
+        <section className="mt-8" aria-label="Seus sistemas">
+          <details open className="group card overflow-hidden">
+            <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 font-display text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
+              <span>Seus sistemas</span>
+              <ChevronDown
+                aria-hidden="true"
+                size={17}
+                className="shrink-0 text-slate-400 transition-transform group-open:rotate-180"
+              />
+            </summary>
+            <div className="px-3 pb-4 pt-1">
+              <MeusSistemas coluna grade mostrarTitulo={false} />
+            </div>
+          </details>
+        </section>
+      )}
+
       {/* Os avisos lado a lado no desktop: empilhados em coluna de 32rem eles
           sozinhos empurravam os valores para fora da primeira tela. */}
       <div className="mt-5 grid gap-3 md:grid-cols-2">
@@ -270,61 +304,6 @@ export default function Home() {
 
       </div>
 
-      {/* A identidade fica na coluna principal, acima dos valores. A lateral
-          concentra os sistemas e pode ser fechada para deixar o conteudo livre. */}
-      <div
-        className={
-          "mt-8 grid gap-8 pb-10 " +
-          /* Sem crachá da entrada única não HÁ atalhos, e a coluna da esquerda
-             fica um vão de 15rem com uma frase solta no alto. Quem entrou pela
-             porta antiga via isso. Sem sistemas, os valores ocupam a largura. */
-          (temSistemas ? "lg:grid-cols-[15rem_minmax(0,1fr)]" : "")
-        }
-      >
-        <aside
-          className={
-            "order-last lg:order-first lg:sticky lg:top-6 lg:self-start " +
-            (temSistemas ? "" : "lg:hidden")
-          }
-        >
-          <details open className="group card overflow-hidden">
-            <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 font-display text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
-              <span>Seus sistemas</span>
-              <ChevronDown
-                aria-hidden="true"
-                size={17}
-                className="shrink-0 text-slate-400 transition-transform group-open:rotate-180"
-              />
-            </summary>
-            <div className="px-3 pb-4 pt-1">
-              <MeusSistemas coluna mostrarTitulo={false} mostrarAjuda={false} />
-            </div>
-          </details>
-          <p className="mt-6 text-sm text-slate-400">
-            {/* No celular NAO existe menu ao lado: a lateral vira o botao de
-                tres tracos no alto. Mandar "olhe ao lado" para quem esta no
-                telefone e mandar olhar para o nada. */}
-            <span className="lg:hidden">Toque no menu, no alto à esquerda, para escolher um módulo.</span>
-            <span className="hidden lg:inline">Escolha um módulo no menu ao lado para começar.</span>
-          </p>
-        </aside>
-
-        <section className="min-w-0" aria-label="Identidade da empresa">
-          <div className="flex items-center gap-4 border-b border-slate-200/80 pb-5">
-            <img src={logoColor} alt="Impresilk" className="h-10 w-auto shrink-0 dark:hidden" />
-            <img src={logoWhite} alt="Impresilk" className="hidden h-10 w-auto shrink-0 dark:block" />
-            <div className="min-w-0">
-              <h1 className="font-display text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">
-                {saudacao()}
-              </h1>
-              <p className="text-sm leading-snug text-slate-500 sm:text-base">{fraseDoDia()}</p>
-            </div>
-          </div>
-          <div className="mt-7">
-            <MissaoValores />
-          </div>
-        </section>
-      </div>
     </div>
   );
 }
