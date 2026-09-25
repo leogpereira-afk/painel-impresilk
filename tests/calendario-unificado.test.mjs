@@ -22,7 +22,11 @@ test('Navegação reúne as duas rotas sem retirar suas permissões',()=>{
  const shell=readFileSync(new URL('../src/components/CentralShell.jsx',import.meta.url),'utf8');
  const abas=readFileSync(new URL('../src/components/CalendarioAbas.jsx',import.meta.url),'utf8');
  const app=readFileSync(new URL('../src/App.jsx',import.meta.url),'utf8');
- assert.ok(shell.indexOf('>Calendário</Link>')<shell.indexOf('>Sistemas e configurações</Link>'));
+ const lateral=shell.slice(shell.indexOf('<aside'),shell.indexOf('</aside>'));
+ const topo=shell.slice(shell.indexOf('<header'),shell.indexOf('</header>'));
+ assert.ok(lateral.includes('>Calendário</Link>'));
+ assert.ok(!lateral.includes('to="/acessos"'));
+ assert.ok(topo.includes('aria-label="Sistemas e configurações"'));
  assert.ok(abas.includes('podeAbrir(id,sessao)'));assert.ok(abas.includes('${search}'));
  for(const modulo of ['agenda','calendario-empresa'])assert.ok(app.includes(`<Restrito modulo="${modulo}"`));
 });

@@ -1,6 +1,6 @@
 import {useEffect,useRef,useState} from 'react';
 import {Link,NavLink,useLocation} from 'react-router-dom';
-import {Menu,X,LogOut,ChevronRight,ArrowUpRight} from 'lucide-react';
+import {Menu,X,LogOut,ChevronRight,ArrowUpRight,Settings} from 'lucide-react';
 import {podeAbrir,ehDirecao} from '../lib/sessao.js';
 import {SISTEMAS} from '../lib/sistemas.js';
 import {MODULOS} from '../lib/modulos.js';
@@ -63,7 +63,6 @@ export default function CentralShell({children,sessao,aoSair,controles}) {
         <NavLink end to="/" className={({isActive})=>isActive?'selected':''}><span className="review-link-emoji" aria-hidden="true">🏠</span>Início</NavLink>
         {(podeAbrir('calendario-empresa',sessao)||podeAbrir('agenda',sessao))&&<Link to={calendarioDestino} className={noCalendario?'selected':''} aria-current={noCalendario?'page':undefined}><span className="review-link-emoji" aria-hidden="true">📅</span>Calendário</Link>}
         {podeAbrir('compromissos',sessao)&&<NavLink to="/compromissos" className={({isActive})=>isActive?'selected':''}><span className="review-link-emoji" aria-hidden="true">📅</span>Compromissos</NavLink>}
-        <Link className={naCentral?'selected':''} to="/acessos" aria-current={naCentral?'page':undefined}><span className="review-link-emoji" aria-hidden="true">⚙️</span>Sistemas e configurações</Link>
       </nav>
       </details>
       <div className="review-sidebar-scroll">
@@ -75,7 +74,7 @@ export default function CentralShell({children,sessao,aoSair,controles}) {
 
     </aside>
     <div ref={conteudoRef} className="review-main">
-      <header className="review-top sem-impressao"><div><button ref={abrirRef} className="review-menu-toggle" aria-expanded={menu} aria-controls="menu-painel" aria-label={menu?'Fechar navegação':'Abrir navegação'} onClick={()=>setMenu(!menu)}>{menu?<X size={22}/>:<Menu size={22}/>}</button><Link to="/">Painel de Gestão</Link><ChevronRight size={12}/><span>{titulo}</span></div><div className="review-controls">{review && <b>Prévia local · dados fictícios</b>}{controles}<div className="review-account">      <Link to="/minha-conta" className="review-user"><span className="review-avatar">{(sessao?.nome || 'DE').slice(0,2).toUpperCase()}</span><div>{sessao?.nome || 'Conta de demonstração'}<small>{ehDirecao(sessao)?'Direção':'Acesso da equipe'}</small></div></Link>
+      <header className="review-top sem-impressao"><div><button ref={abrirRef} className="review-menu-toggle" aria-expanded={menu} aria-controls="menu-painel" aria-label={menu?'Fechar navegação':'Abrir navegação'} onClick={()=>setMenu(!menu)}>{menu?<X size={22}/>:<Menu size={22}/>}</button><Link to="/">Painel de Gestão</Link><ChevronRight size={12}/><span>{titulo}</span></div><div className="review-controls">{review && <b>Prévia local · dados fictícios</b>}{controles}<div className="review-account"><Link to="/acessos" className={`review-settings ${naCentral?'selected':''}`} aria-current={naCentral?'page':undefined} aria-label="Sistemas e configurações" title="Sistemas e configurações"><Settings size={18} aria-hidden="true"/><span>Sistemas e configurações</span></Link><Link to="/minha-conta" className="review-user"><span className="review-avatar">{(sessao?.nome || 'DE').slice(0,2).toUpperCase()}</span><div>{sessao?.nome || 'Conta de demonstração'}<small>{ehDirecao(sessao)?'Direção':'Acesso da equipe'}</small></div></Link>
       {review ? <Link className="review-logout" to="/entrada"><LogOut size={17}/>Ver tela de entrada</Link> : <button className="review-logout" onClick={aoSair}><LogOut size={17}/>Sair do Painel</button>}</div></div></header>
       <main id="conteudo-painel" tabIndex={-1} className="review-content">
         {children}

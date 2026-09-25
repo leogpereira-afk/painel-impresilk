@@ -130,16 +130,16 @@ export function StatCard({ rotulo, valor, sub, tom = "neutral", icone: Icone, te
       onClick={onClick}
       aria-pressed={clicavel ? !!ativo : undefined}
       className={clsx(
-        "card p-4 text-left w-full transition-all",
+        "card stat-card relative p-3 text-left w-full transition-all",
         clicavel && "card-hover cursor-pointer",
         ativo && "ring-2 ring-brand ring-offset-2 ring-offset-transparent"
       )}
     >
       <div className="flex items-start justify-between gap-3">
-        <p className="label mb-0">{rotulo}</p>
+        <p className="label mb-0 pr-8">{rotulo}</p>
         {Icone && (
-          <span className={clsx("grid h-9 w-9 place-items-center rounded-xl", t.bg, t.texto)}>
-            <Icone size={18} strokeWidth={2.2} />
+          <span className={clsx("absolute right-3 top-3 grid h-7 w-7 place-items-center rounded-lg", t.bg, t.texto)}>
+            <Icone size={16} strokeWidth={2.2} />
           </span>
         )}
       </div>
