@@ -10,7 +10,7 @@
 
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { AlertTriangle, ChevronRight } from "lucide-react";
+import { AlertTriangle, ChevronDown, ChevronRight } from "lucide-react";
 import { listarAtivos } from "../services/ativos.js";
 import { statusBackup } from "../services/backup.js";
 import { lerCargaAlarme } from "../services/permutas.js";
@@ -161,21 +161,6 @@ export default function Home() {
 
   return (
     <div className="mx-auto w-full max-w-6xl px-2">
-      {/* TOPO EM UMA LINHA (pedido do Leo, 23/09/2026: "essa parte de cima da
-          pra ficar mais reduzida"). Logo, saudacao e frase ocupavam ~680px
-          antes de o conteudo comecar -- a entrada virava um scroll obrigatorio
-          ate os valores. Empilhado so no celular, onde nao cabe de lado. */}
-      <div className="flex flex-col items-center gap-3 pt-3 text-center sm:flex-row sm:justify-center sm:gap-5 sm:text-left">
-        <img src={logoColor} alt="Impresilk" className="h-9 w-auto shrink-0 dark:hidden" />
-        <img src={logoWhite} alt="Impresilk" className="hidden h-9 w-auto shrink-0 dark:block" />
-        <div>
-          <h1 className="font-display text-xl font-bold tracking-tight text-slate-900 sm:text-2xl">
-            {saudacao()}
-          </h1>
-          <p className="text-sm leading-snug text-slate-500 sm:text-base">{fraseDoDia()}</p>
-        </div>
-      </div>
-
       {/* Os avisos lado a lado no desktop: empilhados em coluna de 32rem eles
           sozinhos empurravam os valores para fora da primeira tela. */}
       <div className="mt-5 grid gap-3 md:grid-cols-2">
@@ -285,16 +270,11 @@ export default function Home() {
 
       </div>
 
-      {/* A ENTRADA ABRE COM A IDENTIDADE (pedido do Leo, 23/09/2026): missao,
-          visao e os doze valores ocupam o corpo da pagina, e os atalhos dos
-          sistemas passam para a coluna da esquerda.
-
-          No CELULAR a ordem inverte: a identidade vem primeiro e os sistemas
-          depois -- "abrir com missao, visao e valores" nao pode virar "role
-          uma tela e meia ate achar os valores". */}
+      {/* A identidade fica na coluna principal, acima dos valores. A lateral
+          concentra os sistemas e pode ser fechada para deixar o conteudo livre. */}
       <div
         className={
-          "mt-10 grid gap-8 pb-10 " +
+          "mt-8 grid gap-8 pb-10 " +
           /* Sem crachá da entrada única não HÁ atalhos, e a coluna da esquerda
              fica um vão de 15rem com uma frase solta no alto. Quem entrou pela
              porta antiga via isso. Sem sistemas, os valores ocupam a largura. */
@@ -307,7 +287,19 @@ export default function Home() {
             (temSistemas ? "" : "lg:hidden")
           }
         >
-          <MeusSistemas coluna />
+          <details open className="group card overflow-hidden">
+            <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 font-display text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
+              <span>Seus sistemas</span>
+              <ChevronDown
+                aria-hidden="true"
+                size={17}
+                className="shrink-0 text-slate-400 transition-transform group-open:rotate-180"
+              />
+            </summary>
+            <div className="px-3 pb-4 pt-1">
+              <MeusSistemas coluna mostrarTitulo={false} mostrarAjuda={false} />
+            </div>
+          </details>
           <p className="mt-6 text-sm text-slate-400">
             {/* No celular NAO existe menu ao lado: a lateral vira o botao de
                 tres tracos no alto. Mandar "olhe ao lado" para quem esta no
@@ -317,7 +309,21 @@ export default function Home() {
           </p>
         </aside>
 
-        <MissaoValores />
+        <section className="min-w-0" aria-label="Identidade da empresa">
+          <div className="flex items-center gap-4 border-b border-slate-200/80 pb-5">
+            <img src={logoColor} alt="Impresilk" className="h-10 w-auto shrink-0 dark:hidden" />
+            <img src={logoWhite} alt="Impresilk" className="hidden h-10 w-auto shrink-0 dark:block" />
+            <div className="min-w-0">
+              <h1 className="font-display text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">
+                {saudacao()}
+              </h1>
+              <p className="text-sm leading-snug text-slate-500 sm:text-base">{fraseDoDia()}</p>
+            </div>
+          </div>
+          <div className="mt-7">
+            <MissaoValores />
+          </div>
+        </section>
       </div>
     </div>
   );

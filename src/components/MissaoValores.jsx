@@ -11,6 +11,7 @@
 // discreto, em cinza, embaixo -- quem passa o olho le os doze titulos, quem
 // para para ler entende o que esta sendo cobrado.
 
+import { ChevronDown } from "lucide-react";
 import { MISSAO, VISAO, VALORES } from "../lib/identidade.js";
 
 export default function MissaoValores() {
@@ -24,20 +25,29 @@ export default function MissaoValores() {
       <p className="label mb-3 mt-8">Nossos valores</p>
       <ol className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
         {VALORES.map((v) => (
-          <li
+          <details
             key={v.n}
-            className="rounded-2xl border bg-white p-4"
+            className="group rounded-2xl border bg-white p-4"
             style={{ borderColor: "var(--hairline)" }}
           >
-            <p className="flex gap-2 font-display text-sm font-semibold text-slate-900">
-              <span className="text-brand tabular-nums">{v.n}.</span>
-              <span>{v.titulo}</span>
-            </p>
-            <p className="mt-1.5 text-sm leading-relaxed text-slate-600">{v.texto}</p>
-            <p className="mt-2 text-xs leading-relaxed text-slate-400">
-              <span className="font-semibold">Se quebra:</span> {v.quebra}
-            </p>
-          </li>
+            <summary className="flex cursor-pointer list-none items-start justify-between gap-3 font-display text-sm font-semibold text-slate-900">
+              <span className="flex min-w-0 gap-2">
+                <span className="shrink-0 text-brand tabular-nums">{v.n}.</span>
+                <span>{v.titulo}</span>
+              </span>
+              <ChevronDown
+                aria-hidden="true"
+                size={16}
+                className="mt-0.5 shrink-0 text-slate-400 transition-transform group-open:rotate-180"
+              />
+            </summary>
+            <div className="mt-3 border-t border-slate-100 pt-3">
+              <p className="text-sm leading-relaxed text-slate-600">{v.texto}</p>
+              <p className="mt-2 text-xs leading-relaxed text-slate-400">
+                <span className="font-semibold">Se quebra:</span> {v.quebra}
+              </p>
+            </div>
+          </details>
         ))}
       </ol>
     </section>

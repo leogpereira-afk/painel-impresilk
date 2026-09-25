@@ -8,8 +8,6 @@
 // painel ainda nao planta. O atalho leva ate a porta; a senha ainda e digitada
 // uma vez.
 
-import {
-  } from "lucide-react";
 import { meusSistemas, enderecoDe } from "../lib/entradaUnica.js";
 import { nomeSis, doSistema, CHAVE_CRACHA } from "../lib/sistemas.js";
 import { iconeDoSistema } from "./iconesDosSistemas.js";
@@ -27,13 +25,13 @@ import { iconeDoSistema } from "./iconesDosSistemas.js";
  * nome (uma linha por sistema) em vez de em cima. Sete cartoes quadrados
  * empilhados fariam uma torre de 1,5 tela.
  */
-export default function MeusSistemas({ coluna = false }) {
+export default function MeusSistemas({ coluna = false, mostrarTitulo = true, mostrarAjuda = true }) {
   const sistemas = meusSistemas();
   if (!sistemas.length) return null;
 
   return (
     <div className={coluna ? "" : "mt-10"}>
-      <p className="label mb-3">Seus sistemas</p>
+      {mostrarTitulo && <p className="label mb-3">Seus sistemas</p>}
       <div className={coluna ? "flex flex-col gap-2" : "flex flex-wrap justify-center gap-3"}>
         {sistemas.map((s) => {
           const Icone = iconeDoSistema(doSistema(s));
@@ -78,9 +76,11 @@ export default function MeusSistemas({ coluna = false }) {
           );
         })}
       </div>
-      <p className="mt-3 text-xs text-slate-400">
-        Abrem já entrados. Ao sair do painel, esses acessos saem junto.
-      </p>
+      {mostrarAjuda && (
+        <p className="mt-3 text-xs text-slate-400">
+          Abrem já entrados. Ao sair do painel, esses acessos saem junto.
+        </p>
+      )}
     </div>
   );
 }

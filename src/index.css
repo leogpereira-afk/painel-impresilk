@@ -408,3 +408,9 @@ html.dark ::-webkit-scrollbar-thumb {
 .dark .text-warn-800\/80 { color: rgba(252, 211, 77, 0.8); }
 .dark .text-ok-700\/80 { color: rgba(134, 239, 172, 0.8); }
 .dark .text-bad-700\/80 { color: rgba(252, 165, 165, 0.8); }
+
+/* Os detalhes da entrada usam o summary como cabecalho clicavel. Remover o
+   marcador nativo mantem o chevron desenhado pela interface alinhado em todos
+   os navegadores. */
+details > summary { list-style: none; }
+details > summary::-webkit-details-marker { display: none; }
