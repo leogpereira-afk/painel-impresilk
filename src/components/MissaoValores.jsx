@@ -12,13 +12,16 @@
 // para para ler entende o que esta sendo cobrado.
 
 import { useState } from "react";
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, Download } from "lucide-react";
+import { imprimirIdentidade } from "../lib/imprimirIdentidade.js";
+import "./missao-valores.css";
 import { MISSAO, VISAO, VALORES } from "../lib/identidade.js";
 
 export default function MissaoValores() {
   const [abertos, setAbertos] = useState(false);
   return (
-    <section className="text-left">
+    <section className="identidade text-left">
+      <div className="identidade-actions"><button className="btn-ghost" onClick={imprimirIdentidade}><Download size={17}/> Salvar missão, visão e valores em PDF</button></div>
       <div className="grid gap-4 sm:grid-cols-2">
         <Frase rotulo="Missão" texto={MISSAO} />
         <Frase rotulo="Visão" texto={VISAO} />
@@ -31,7 +34,7 @@ export default function MissaoValores() {
             key={v.n}
             open={abertos}
             className="group rounded-2xl border bg-white p-4"
-            style={{ borderColor: "var(--hairline)" }}
+            style={{ "--identidade-cor": ["#007ba7", "#bb2872", "#25835b", "#b27600"][(v.n - 1) % 4] }}
           >
             <summary
               onClick={(event) => {
@@ -66,7 +69,7 @@ export default function MissaoValores() {
 function Frase({ rotulo, texto }) {
   return (
     <div
-      className="rounded-2xl border bg-white p-5"
+      className={`identidade-frase identidade-${rotulo === "Missão" ? "missao" : "visao"} rounded-2xl border bg-white p-5`}
       style={{ borderColor: "var(--hairline)" }}
     >
       <p className="label">{rotulo}</p>

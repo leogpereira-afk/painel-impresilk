@@ -1,0 +1,12 @@
+.identidade-actions{display:flex;justify-content:flex-end;margin-bottom:16px}
+.identidade-actions button{display:inline-flex;align-items:center;gap:8px;white-space:normal;text-align:left}
+.identidade .identidade-frase{border-top:4px solid #007ba7!important}
+.identidade .identidade-visao{border-top-color:#bb2872!important}
+.identidade .identidade-missao .label{color:#007ba7}
+.identidade .identidade-visao .label{color:#bb2872}
+.identidade details{border-color:var(--hairline);border-top:3px solid var(--identidade-cor)}
+.identidade details summary .text-brand{color:var(--identidade-cor)}
+.identidade p:not(.label){text-align:justify;hyphens:auto}
+html.dark .identidade details,html.dark .identidade-frase{background:var(--surface)}
+html.dark .identidade .text-slate-900{color:#edf2f7}
+html.dark .identidade .text-slate-600,html.dark .identidade .text-slate-400{color:#bdc8d7}
