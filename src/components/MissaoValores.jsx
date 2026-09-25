@@ -11,10 +11,12 @@
 // discreto, em cinza, embaixo -- quem passa o olho le os doze titulos, quem
 // para para ler entende o que esta sendo cobrado.
 
+import { useState } from "react";
 import { ChevronDown } from "lucide-react";
 import { MISSAO, VISAO, VALORES } from "../lib/identidade.js";
 
 export default function MissaoValores() {
+  const [abertos, setAbertos] = useState(false);
   return (
     <section className="text-left">
       <div className="grid gap-4 sm:grid-cols-2">
@@ -27,10 +29,17 @@ export default function MissaoValores() {
         {VALORES.map((v) => (
           <details
             key={v.n}
+            open={abertos}
             className="group rounded-2xl border bg-white p-4"
             style={{ borderColor: "var(--hairline)" }}
           >
-            <summary className="flex cursor-pointer list-none items-start justify-between gap-3 font-display text-sm font-semibold text-slate-900">
+            <summary
+              onClick={(event) => {
+                event.preventDefault();
+                setAbertos((atual) => !atual);
+              }}
+              className="flex cursor-pointer list-none items-start justify-between gap-3 font-display text-sm font-semibold text-slate-900"
+            >
               <span className="flex min-w-0 gap-2">
                 <span className="shrink-0 text-brand tabular-nums">{v.n}.</span>
                 <span>{v.titulo}</span>
