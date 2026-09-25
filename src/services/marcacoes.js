@@ -53,3 +53,5 @@ export function mesclarOverrideOrcamento(id, campos) {
 export function mesclarOverridesOrcamento(patch) {
   return chamar("merge", { chave: "ov_orc", patch });
 }
+
+export const lerConferenciasBaixas = () => chamar('get', { chave: 'ov_rec' }).then(r => r.valor || {});
