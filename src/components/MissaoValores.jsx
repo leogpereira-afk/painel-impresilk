@@ -21,18 +21,18 @@ export default function MissaoValores() {
   const [abertos, setAbertos] = useState(false);
   return (
     <section className="identidade text-left">
-      <div className="grid gap-3 sm:grid-cols-2">
+      <div className="grid gap-2.5 sm:grid-cols-2">
         <Frase rotulo="Missão" texto={MISSAO} />
         <Frase rotulo="Visão" texto={VISAO} />
       </div>
 
       <h2 className="identidade-titulo">Nossos valores</h2>
-      <ol className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+      <ol className="grid gap-2.5 sm:grid-cols-2 xl:grid-cols-3">
         {VALORES.map((v) => (
           <details
             key={v.n}
             open={abertos}
-            className="group rounded-2xl border bg-white p-5"
+            className="group rounded-xl border bg-white px-4 py-3"
             style={{ "--identidade-cor": ["#007ba7", "#bb2872", "#25835b", "#b27600"][(v.n - 1) % 4] }}
           >
             <summary
@@ -40,7 +40,7 @@ export default function MissaoValores() {
                 event.preventDefault();
                 setAbertos((atual) => !atual);
               }}
-              className="flex cursor-pointer list-none items-start justify-between gap-3 font-display text-base font-bold text-slate-900"
+              className="flex cursor-pointer list-none items-start justify-between gap-2 font-display text-[15px] font-bold leading-snug text-slate-900"
             >
               <span className="flex min-w-0 gap-2">
                 <span className="shrink-0 text-brand tabular-nums">{v.n}.</span>
@@ -52,7 +52,7 @@ export default function MissaoValores() {
                 className="mt-0.5 shrink-0 text-slate-400 transition-transform group-open:rotate-180"
               />
             </summary>
-            <div className="mt-3 border-t border-slate-100 pt-3">
+            <div className="mt-2 border-t border-slate-100 pt-2">
               <p className="text-[15px] leading-relaxed text-slate-700">{v.texto}</p>
             </div>
           </details>
@@ -68,11 +68,11 @@ export default function MissaoValores() {
 function Frase({ rotulo, texto }) {
   return (
     <div
-      className={`identidade-frase identidade-${rotulo === "Missão" ? "missao" : "visao"} rounded-2xl border bg-white px-6 py-5`}
+      className={`identidade-frase identidade-${rotulo === "Missão" ? "missao" : "visao"} rounded-xl border bg-white px-5 py-4`}
       style={{ borderColor: "var(--hairline)" }}
     >
       <p className="label">{rotulo}</p>
-      <p className="identidade-frase-texto mt-3 font-display font-bold text-slate-900">
+      <p className="identidade-frase-texto mt-1.5 font-display font-bold text-slate-900">
         {texto}
       </p>
     </div>
