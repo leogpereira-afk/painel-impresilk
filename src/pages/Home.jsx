@@ -34,7 +34,7 @@ const FRASES = [
   "Fazer certo da primeira vez sai mais barato que refazer.",
   "Cada letreiro instalado é a marca de alguém confiando na nossa.",
   "Ordem na casa dá liberdade para crescer.",
-  "Nao existe atalho para reputação: é um trabalho de cada vez.",
+  "Não existe atalho para reputação: é um trabalho de cada vez.",
   "Time alinhado entrega mais que time apressado.",
   "O caixa agradece quem cobra no dia certo, sem constrangimento.",
   "Planejar a semana custa uma hora e devolve várias.",

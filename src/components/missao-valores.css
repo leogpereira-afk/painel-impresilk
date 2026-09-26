@@ -1,4 +1,4 @@
-.identidade-actions{display:flex;justify-content:flex-end;margin-bottom:16px}
+.identidade-actions{display:flex;justify-content:center;margin-top:28px}
 .identidade-actions button{display:inline-flex;align-items:center;gap:8px;white-space:normal;text-align:left}
 .identidade .identidade-frase{border-top:4px solid #007ba7!important}
 .identidade .identidade-visao{border-top-color:#bb2872!important}
@@ -6,7 +6,18 @@
 .identidade .identidade-visao .label{color:#bb2872}
 .identidade details{border-color:var(--hairline);border-top:3px solid var(--identidade-cor)}
 .identidade details summary .text-brand{color:var(--identidade-cor)}
-.identidade p:not(.label){text-align:justify;hyphens:auto}
+/* Justificado sem hífen de quebra ("lu-crar" no meio da frase tira a força do texto). */
+.identidade p:not(.label){text-align:justify;hyphens:manual}
+.identidade .identidade-frase .label{font-size:.8rem;letter-spacing:.12em}
+.identidade .identidade-frase-texto{font-size:1.55rem;line-height:1.25;letter-spacing:-.01em}
+/* Missão e Visão são título: justificar letra grande em cartão de meia largura
+   abre buraco entre as palavras. O justificado fica nos textos dos valores. */
+.identidade p.identidade-frase-texto{text-align:left}
+@media(min-width:1024px){.identidade .identidade-frase-texto{font-size:1.75rem}}
+.identidade .identidade-titulo{margin:40px 0 16px;font-family:var(--font-display,inherit);font-size:1.05rem;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:#17263c;text-align:center}
+.identidade .identidade-titulo::after{content:"";display:block;width:56px;height:3px;margin:10px auto 0;border-radius:3px;background:linear-gradient(90deg,#007ba7,#bb2872,#25835b,#b27600)}
+html.dark .identidade .identidade-titulo{color:#edf2f7}
+html.dark .identidade .text-slate-700{color:#cfd8e3}
 html.dark .identidade details,html.dark .identidade-frase{background:var(--surface)}
 html.dark .identidade .text-slate-900{color:#edf2f7}
 html.dark .identidade .text-slate-600,html.dark .identidade .text-slate-400{color:#bdc8d7}
