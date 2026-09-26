@@ -21,13 +21,13 @@ export default function MissaoValores() {
   const [abertos, setAbertos] = useState(false);
   return (
     <section className="identidade text-left">
-      <div className="grid gap-5 sm:grid-cols-2">
+      <div className="grid gap-3 sm:grid-cols-2">
         <Frase rotulo="Missão" texto={MISSAO} />
         <Frase rotulo="Visão" texto={VISAO} />
       </div>
 
       <h2 className="identidade-titulo">Nossos valores</h2>
-      <ol className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+      <ol className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
         {VALORES.map((v) => (
           <details
             key={v.n}
@@ -68,7 +68,7 @@ export default function MissaoValores() {
 function Frase({ rotulo, texto }) {
   return (
     <div
-      className={`identidade-frase identidade-${rotulo === "Missão" ? "missao" : "visao"} rounded-2xl border bg-white p-6 sm:p-7`}
+      className={`identidade-frase identidade-${rotulo === "Missão" ? "missao" : "visao"} rounded-2xl border bg-white px-6 py-5`}
       style={{ borderColor: "var(--hairline)" }}
     >
       <p className="label">{rotulo}</p>

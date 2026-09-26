@@ -10,11 +10,12 @@
 .identidade p:not(.label){text-align:justify;hyphens:manual}
 .identidade .identidade-frase .label{font-size:.8rem;letter-spacing:.12em}
 .identidade .identidade-frase-texto{font-size:1.55rem;line-height:1.25;letter-spacing:-.01em}
-/* Missão e Visão são título: justificar letra grande em cartão de meia largura
-   abre buraco entre as palavras. O justificado fica nos textos dos valores. */
-.identidade p.identidade-frase-texto{text-align:left}
+/* Missão e Visão centralizadas (pedido do Léo, 26/09): título não se justifica,
+   letra grande em cartão de meia largura abria buraco entre as palavras. */
+.identidade .identidade-frase{text-align:center}
+.identidade p.identidade-frase-texto{text-align:center}
 @media(min-width:1024px){.identidade .identidade-frase-texto{font-size:1.75rem}}
-.identidade .identidade-titulo{margin:40px 0 16px;font-family:var(--font-display,inherit);font-size:1.05rem;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:#17263c;text-align:center}
+.identidade .identidade-titulo{margin:28px 0 14px;font-family:var(--font-display,inherit);font-size:1.05rem;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:#17263c;text-align:center}
 .identidade .identidade-titulo::after{content:"";display:block;width:56px;height:3px;margin:10px auto 0;border-radius:3px;background:linear-gradient(90deg,#007ba7,#bb2872,#25835b,#b27600)}
 html.dark .identidade .identidade-titulo{color:#edf2f7}
 html.dark .identidade .text-slate-700{color:#cfd8e3}
