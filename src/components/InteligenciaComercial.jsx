@@ -17,8 +17,13 @@ export function AceleradorVendas({lista,hoje,aoAbrir,aoEtapa}){
 }
 export function VisaoMensalCobranca({titulos,aoMes}){
  const {meses,semData}=useMemo(()=>mesesDaDivida(titulos),[titulos]);const maior=Math.max(1,...meses.map(m=>m.valor));
- return <section className="intel-panel sem-impressao" aria-label="Visão mensal da dívida"><header><div><span className="intel-kicker">MESES EM ABERTO</span><h2>Onde a dívida se concentra</h2><p>Saldo dos títulos vencidos carregados, inclusive anteriores ao corte. Agrupado pelo mês de vencimento.</p></div><select className="input" aria-label="Consultar mês de vencimento" value="" onChange={e=>e.target.value&&aoMes(e.target.value)}><option value="">Escolher qualquer mês</option>{meses.map(m=><option key={m.mes} value={m.mes}>{rotuloMes(m.mes)} · {moeda(m.valor)}</option>)}</select></header>
- <div className="intel-meses">{meses.slice(0,6).map(m=><button key={m.mes} onClick={()=>aoMes(m.mes)}><span>{rotuloMes(m.mes)}</span><strong>{moeda(m.valor)}</strong><small>{m.quantidade} {m.quantidade === 1 ? "título" : "títulos"} · ver detalhes</small><span className="intel-barra"><i style={{width:`${m.valor/maior*100}%`}}/></span></button>)}</div>
- {semData>0&&<p className="intel-nota">{semData} títulos sem mês de vencimento válido não entram nos meses.</p>}
+ /* UMA LINHA, NÃO UM PAINEL. Eram título, parágrafo e seis cartões de ~190px em
+    duas fileiras: quase 500px antes do primeiro número da cobrança, e a lista de
+    títulos, que é onde o trabalho acontece, ficava lá embaixo. Agora os meses são
+    pastilhas baixas numa faixa que rola de lado; o seletor dá qualquer outro mês. */
+ return <section className="divida-meses sem-impressao" aria-label="Meses em aberto">
+  <div className="divida-meses-topo"><span>Meses em aberto</span><select className="input" aria-label="Consultar mês de vencimento" value="" onChange={e=>e.target.value&&aoMes(e.target.value)}><option value="">Outro mês</option>{meses.map(m=><option key={m.mes} value={m.mes}>{rotuloMes(m.mes)} · {moeda(m.valor)}</option>)}</select></div>
+  <div className="divida-meses-faixa">{meses.slice(0,12).map(m=><button type="button" key={m.mes} onClick={()=>aoMes(m.mes)} title={`${rotuloMes(m.mes)}: ${m.quantidade} ${m.quantidade === 1 ? "título" : "títulos"}, ver na lista`}><span>{rotuloMes(m.mes)}</span><small>{m.quantidade}</small><strong>{moeda(m.valor)}</strong><i style={{width:`${m.valor/maior*100}%`}}/></button>)}</div>
+  {semData>0&&<p className="divida-meses-nota">{semData} títulos sem mês de vencimento válido não entram nos meses.</p>}
  </section>;
 }
