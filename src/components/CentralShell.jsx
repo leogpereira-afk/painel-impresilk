@@ -9,7 +9,7 @@ import logoWhite from '../assets/brand/logo-white.png';
 import './central-shell.css';
 
 const EMOJIS_MODULOS = {compromissos:'📅',agenda:'🗓️','calendario-empresa':'📅','contas-atrasadas':'💰',orcamentos:'📋',bancos:'🏦',marketing:'📣',licitacoes:'⚖️',glossario:'📖',manutencoes:'🛠️',patrimonio:'🏠',permutas:'🤝',campanhas:'🎯',documentos:'📁'};
-const EMOJIS_SISTEMAS = {rh:'👥',pcp:'🏭',brief:'📏',dre:'📊',compras:'🛒',pops:'📚',domo:'🏗️',bosques:'🌳',central:'👤',diamond:'💎',minaslab:'🔬'};
+const EMOJIS_SISTEMAS = {rh:'👥',pcp:'🏭',brief:'📏',dre:'📊',compras:'🛒',pops:'📚',vof:'🧭',domo:'🏗️',bosques:'🌳',central:'👤',diamond:'💎',minaslab:'🔬'};
 
 export default function CentralShell({children,sessao,aoSair,controles}) {
   const review = import.meta.env.MODE === 'review';

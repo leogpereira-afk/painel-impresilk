@@ -7,16 +7,17 @@
  * Antes eram duas tabelas de escolha (lateral e Home) e elas divergiam: Brief
  * era régua num lugar e prancheta no outro, lado a lado na mesma tela de
  * desktop. Importar `* as icons` do lucide resolveria sem mapa — e custaria o
- * tree-shaking inteiro (centenas de kB); o mapa explícito importa só os oito.
+ * tree-shaking inteiro (centenas de kB); o mapa explícito importa só os que o
+ * registro usa. Ícone novo no registro entra AQUI também, senão vira a seta.
  */
 import {
   LayoutDashboard, Users, ClipboardList, Ruler, BarChart3, ShoppingCart,
-  BookOpen, UserCircle, Trees, Building2, ArrowUpRight,
+  BookOpen, UserCircle, Trees, Building2, Compass, ArrowUpRight,
 } from "lucide-react";
 
 const ICONES = {
   LayoutDashboard, Users, ClipboardList, Ruler, BarChart3, ShoppingCart,
-  BookOpen, UserCircle, Trees, Building2,
+  BookOpen, UserCircle, Trees, Building2, Compass,
 };
 
 /** O componente do ícone declarado no registro; seta genérica quando faltar. */

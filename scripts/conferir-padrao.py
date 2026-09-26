@@ -41,6 +41,12 @@ PORTAS = {
     # A Central do Léo: app pessoal, mas porta padrão como as outras. A leitura
     # dela é GET, não POST — o conferidor trata isso abaixo.
     "central": ("leo-sync", "dono", None),
+    # Método V.O.F. (25/09/2026): a leitura é "rev", e não "list". No vof-sync
+    # o "list" sem coleção é a exportação inteira (backup), só de admin ou da
+    # máquina: com o papel mais baixo (facilitador) ele responde 403 e a coluna
+    # "próprio" acusaria uma porta que está certa. "rev" o facilitador pode, e
+    # ele lê o banco (vof_meta).
+    "vof": ("vof-sync", "facilitador", "rev"),
     # o Compras tem gate duplo (token público do fornecedor + crachá); a
     # conferência dele é a do token, feita à parte
 }
@@ -49,6 +55,7 @@ BUNDLES = {
     "brief": "https://leogpereira-afk.github.io/brief-medicao/config.js",
     "pcp": "https://leogpereira-afk.github.io/impresilk/config.js",
     "dre": "https://leogpereira-afk.github.io/impresilk-dre/config.js",
+    "vof": "https://leogpereira-afk.github.io/metodo-vof/config.js",
 }
 USUARIO, SENHA = "zz_padrao", "conferencia-do-padrao-707"
 

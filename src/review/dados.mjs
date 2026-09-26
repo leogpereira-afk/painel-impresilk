@@ -3,7 +3,7 @@ const papel = (sistema, usuario, temporaria = false, permissoes = ['orcamentos']
  const cargo=doSistema(sistema).papelInicial || '';
  return {sistema,login:usuario,papel:cargo,permissoes,real:{existe:true,ativo:true,login:usuario,papel:cargo,temporaria,permissoes}};
 };
-const sistemas = ['painel','rh','pcp','brief','dre','compras','pops','central','bosques','domo'];
+const sistemas = ['painel','rh','pcp','brief','dre','compras','pops','vof','central','bosques','domo'];
 const conta = (usuario,nome,papeis,tipo='pessoa') => ({usuario,nome,tipo,ativo:true,colaborador:nome,papeis,senhas:[]});
 const initial = {
   sistemas, contas:[

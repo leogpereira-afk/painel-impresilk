@@ -337,7 +337,7 @@ function senhaTemporaria() {
 
 // Os sete sistemas da casa. Lista fechada: sistema digitado errado viraria uma
 // linha de papel que nenhuma tela le e ninguem descobre.
-const SISTEMAS = ["painel", "rh", "pcp", "brief", "dre", "compras", "pops", "central", "bosques", "domo"];
+const SISTEMAS = ["painel", "rh", "pcp", "brief", "dre", "compras", "pops", "vof", "central", "bosques", "domo"];
 
 // ============================================================================
 // A PORTA DA FRENTE TAMBEM. Sem isto, trocar a senha de alguem nao trocava nada.

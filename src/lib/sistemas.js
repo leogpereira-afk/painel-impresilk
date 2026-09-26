@@ -161,6 +161,37 @@ export const SISTEMAS = [
     entradaUnica: { endereco: "https://leogpereira-afk.github.io/pops-fabricacao/", chave: "pops_cracha" },
   },
   {
+    id: "vof",
+    // Bussola: o metodo e direcao. `Compass` precisa estar tambem no mapa de
+    // components/iconesDosSistemas.js; fora dele cai na seta generica, calado.
+    icone: "Compass",
+    nome: "Método V.O.F.",
+    nomeCompleto: "Método V.O.F.",
+    /* Sistema proprio desde 25/09/2026 (antes era uma tela da Central do Leo).
+       Sem atalho no dominio da empresa por enquanto: o endereco e o github.io. */
+    url: "https://leogpereira-afk.github.io/metodo-vof/",
+    // App vanilla de tela unica: nao ha pagina de acessos la dentro. Quem entra
+    // e com que papel se decide aqui. (A tela mostra `caminho` depois de
+    // "acessos la dentro:"; "Painel → Acessos" ali mandaria a pessoa para a
+    // propria tela em que ela ja esta.)
+    acessos: { url: "", caminho: "não tem. Quem entra, e com que papel, se marca aqui" },
+    /* admin: o Leo (tudo, inclusive apagar e editar o conteudo do APN).
+       facilitador: le tudo; cria e edita turmas, empresas, diagnosticos, planos
+       e salas; nao apaga. Participante de turma NAO tem conta. */
+    papeis: ["admin", "facilitador"],
+    papelInicial: "facilitador",
+    papeisAdmin: ["admin"],
+    soLeitura: false,
+    /* SO EM "MEUS SISTEMAS" (decisao do Leo, 26/09/2026). `pessoal` tira o
+       atalho da lateral de TODOS: o grupo IMPRESILK pula quem e pessoal, e o
+       grupo da direcao so lista a Central. "Meus sistemas", a entrada unica e
+       a tela de Acessos nao leem `pessoal`: quem tem acesso continua vendo o
+       V.O.F. em "Meus sistemas" e recebendo o vof_cracha. Guarda em
+       tests/vof-so-em-meus-sistemas.test.mjs. */
+    pessoal: true,
+    entradaUnica: { endereco: "https://leogpereira-afk.github.io/metodo-vof/", chave: "vof_cracha" },
+  },
+  {
     id: "domo",
     icone: "Building2",
     nome: "Domo",
