@@ -442,6 +442,14 @@ Deno.serve(async (req: Request) => {
     return json({
       ok: true,
       usuario, nome: conta.nome || usuario, tipo: conta.tipo,
+      /* A SENHA PROVISORIA PASSA A OBRIGAR POR AQUI. Esta e a porta que a
+         equipe usa, e ela nunca dizia se a senha era temporaria: quem recebia
+         uma senha da direcao e entrava pelo Painel nunca era obrigado a
+         trocar, em sistema nenhum. A marca mora na pessoa (acesso_conta,
+         posta pelo gatilho da guarda de senha). Os crachas continuam saindo
+         como antes: e a TELA que, vendo isto, so abre "Minha conta" e so
+         planta os crachas dos outros sistemas depois da troca. */
+      trocarSenha: conta.trocar_senha === true,
       // A sessao do Supabase Auth: e ela que o RH usa, e e ela que um dia vai
       // substituir os crachas dos outros seis.
       sessao: { access_token: sessao.access_token, refresh_token: sessao.refresh_token, expires_at: sessao.expires_at },

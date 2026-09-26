@@ -37,6 +37,9 @@ const HOME = process.env.HOME;
 const ARQUIVOS = {
   registro: resolve(PAINEL, "src/lib/sistemas.js"),
   servidor: resolve(PAINEL, "supabase/functions/painel-acesso/index.ts"),
+  // SO_LEITURA saiu da painel-acesso em 26/09/2026: a troca de senha usa a
+  // mesma regra, e ela passou a morar num lugar so.
+  soLeitura: resolve(PAINEL, "supabase/functions/_shared/senha-lojas.ts"),
   modulosTela: resolve(PAINEL, "src/lib/modulos.js"),
   modulosServidor: resolve(PAINEL, "supabase/functions/painel-auth/index.ts"),
   /* O equipe-auth mora em OUTRO repositorio. Na maquina do Leo ele esta em
@@ -159,7 +162,7 @@ console.log("1. Lista fechada do servidor (painel-acesso)");
   }
   if (!problemas) ok(`os ${doServidor.length} batem`);
 
-  const soLeituraServidor = conjunto(servidor, "SO_LEITURA", "painel-acesso");
+  const soLeituraServidor = conjunto(ler("senha-lojas", ARQUIVOS.soLeitura), "SO_LEITURA", "_shared/senha-lojas.ts");
   const soLeituraRegistro = new Set(SISTEMAS.filter((s) => s.soLeitura).map((s) => s.id));
   const antes = problemas;
   for (const id of soLeituraRegistro) {

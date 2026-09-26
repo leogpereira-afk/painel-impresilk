@@ -123,7 +123,7 @@ export const SISTEMAS = [
        entra com o cracha do Painel, e quem entra e quem estiver marcado aqui.
        Nao ha pagina de acessos la dentro, e agora isso e ainda mais verdade --
        nao ha o que administrar de dentro. */
-    acessos: { url: "", caminho: "não tem — entra-se com a senha do Painel, e quem entra se marca aqui" },
+    acessos: { url: "", caminho: "não tem: entra-se com a senha do Painel, e quem entra se marca aqui" },
     papeis: ["equipe"],
     papelInicial: "equipe",
     papeisAdmin: [],
@@ -240,7 +240,7 @@ export const SISTEMAS = [
     nome: "Central do Léo",
     // App pessoal do dono: nao tem atalho no dominio da empresa.
     url: "https://leogpereira-afk.github.io/vida-leo/",
-    acessos: { url: "", caminho: "não se administra por aqui — porta própria (leo-sync)" },
+    acessos: { url: "", caminho: "não se administra por aqui: porta própria (leo-sync)" },
     papeis: ["dono"],
     papelInicial: "dono",
     papeisAdmin: [],

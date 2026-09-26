@@ -1,0 +1,335 @@
+/* A AREA "Sistemas e configuracoes": Visao geral, Sistemas, Pessoas, Minha
+   conta, Backups e Configuracoes. Substitui central-resumo.css e acessos.css.
+
+   Tres regras deste arquivo, cada uma com um defeito atras:
+   1. COR SO DAS FICHAS. Os CSS antigos usavam var(--paper) e var(--ink), que
+      nao existem: caiam sempre no valor claro, e a Visao geral ficava com
+      cartoes BRANCOS sobre o fundo grafite no tema escuro. Aqui a cor vem das
+      quatro variaveis de index.css (que ja tem par no escuro) ou de theme(),
+      e toda cor de theme() tem o par html.dark logo abaixo.
+   2. NENHUM font-family. A area herda o que o Painel usa.
+   3. O LAYOUT DECIDE PELA LARGURA DO CONTEUDO (@container area), nao da
+      janela: a barra lateral come espaco, e grade que decidia pela janela
+      espremia cartoes com a barra aberta. container-type mora SO na raiz da
+      area, um bloco de largura cheia; em cartao ou celula, uma grade em flex
+      sem largura encolheu cartoes para 26px. */
+
+.area-sistemas {
+  container-type: inline-size;
+  container-name: area;
+  --area-toque: 44px;
+  --area-controle: 40px;
+  --area-raio: 16px;
+  --area-raio-interno: 12px;
+  --area-realce: rgba(56, 64, 232, 0.08);
+  --area-sombra-grudada: 0 8px 24px -12px rgba(24, 26, 84, 0.25);
+  min-width: 0;
+}
+html.dark .area-sistemas {
+  --area-realce: rgba(112, 118, 240, 0.18);
+  --area-sombra-grudada: 0 8px 24px -12px rgba(0, 0, 0, 0.6);
+}
+
+/* Ritmo entre os blocos da aba: 16px no estreito, 24px no largo. */
+.area-sistemas > * + * { margin-top: 16px; }
+.area-bloco > * + * { margin-top: 16px; }
+@container area (min-width: 720px) {
+  .area-sistemas > * + * { margin-top: 24px; }
+  .area-bloco > * + * { margin-top: 24px; }
+}
+.area-sistemas [hidden] { display: none !important; }
+
+/* Fio claro em toda borda sem cor propria. :where() zera a especificidade:
+   qualquer classe de cor (border-bad-200, border-brand, .input) continua
+   mandando, e so a borda "sem cor" (que o Tailwind pinta de cinza fixo, sem
+   par no escuro) passa a usar o fio do tema. */
+:where(.area-sistemas) :where(.border, .border-t, .border-b, .border-y, .border-l, .border-r, .border-2) {
+  border-color: var(--hairline);
+}
+
+/* ------------------------------------------------------------ cabecalho */
+.area-cabecalho .page-title { margin-bottom: 12px; }
+@container area (max-width: 639px) {
+  .area-sistemas .page-title-description { display: none; }
+}
+.area-abas { max-width: 100%; }
+.area-abas-trilho {
+  max-width: 100%;
+  overflow-x: auto;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+.area-abas-trilho::-webkit-scrollbar { display: none; }
+.area-abas-grupo { border-color: var(--hairline); }
+
+/* --------------------------------------------------------------- avisos */
+.area-grudado > div { box-shadow: var(--area-sombra-grudada); }
+.area-saiba > summary { list-style: none; }
+.area-saiba > summary .area-seta { transition: transform 0.15s; }
+.area-saiba[open] > summary .area-seta { transform: rotate(180deg); }
+.area-resultado > li + li { border-top: 1px solid var(--hairline); }
+
+.area-realce { background-color: var(--area-realce); transition: background-color 0.6s; }
+
+/* --------------------------------------------------- listas e linhas */
+.area-linhas-sistemas { display: grid; gap: 8px; grid-template-columns: minmax(0, 1fr); }
+@container area (min-width: 880px) {
+  .area-linhas-sistemas { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+/* Uma conta dentro do sistema (aba Sistemas). */
+.area-linha-conta {
+  display: grid;
+  gap: 6px 12px;
+  align-items: center;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas: "login situacao" "pessoa acoes" "papel papel";
+}
+.area-linha-conta > .c-login { grid-area: login; }
+.area-linha-conta > .c-pessoa { grid-area: pessoa; }
+.area-linha-conta > .c-situacao { grid-area: situacao; justify-self: end; }
+.area-linha-conta > .c-papel:empty, .area-linha-sistema > .c-papel:empty { display: none; }
+.area-linha-conta > .c-papel { grid-area: papel; }
+.area-linha-conta > .c-acoes { grid-area: acoes; }
+.area-colunas-conta { display: none; }
+/* Faixa do meio (tablet, e notebook com a barra lateral aberta): as cinco
+   colunas nao cabem. Com elas a partir de 720px, o login virava "bruno.exem..."
+   e o papel "montager". Aqui a linha tem dois andares, com o papel e o selo
+   alinhados numa coluna a direita. */
+@container area (min-width: 560px) and (max-width: 879px) {
+  .area-linha-conta {
+    grid-template-columns: minmax(0, 1fr) minmax(180px, 240px) auto;
+    grid-template-areas: "login situacao acoes" "pessoa papel acoes";
+  }
+  .area-linha-conta > .c-situacao { justify-self: start; }
+}
+@container area (min-width: 880px) {
+  .area-linha-conta, .area-colunas-conta {
+    grid-template-columns: minmax(100px, 1fr) minmax(120px, 1.4fr) 150px minmax(120px, 0.9fr) 136px;
+    grid-template-areas: "login pessoa situacao papel acoes";
+  }
+  .area-linha-conta > .c-situacao { justify-self: start; }
+  .area-colunas-conta { display: grid; gap: 12px; min-height: 0; align-items: end; }
+}
+
+/* Um sistema dentro do cartao da pessoa. */
+.area-linha-sistema {
+  display: grid;
+  gap: 6px 12px;
+  align-items: center;
+  grid-template-columns: minmax(0, 1fr) auto 40px;
+  grid-template-areas: "sis situacao menu" "entra entra entra" "papel papel papel";
+}
+.area-linha-sistema > .c-sis { grid-area: sis; }
+.area-linha-sistema > .c-entra { grid-area: entra; }
+.area-linha-sistema > .c-situacao { grid-area: situacao; justify-self: end; }
+.area-linha-sistema > .c-papel { grid-area: papel; }
+.area-linha-sistema > .c-menu { grid-area: menu; }
+.area-colunas-sistema { display: none; }
+@container area (min-width: 560px) and (max-width: 879px) {
+  .area-linha-sistema {
+    grid-template-columns: minmax(0, 1fr) minmax(180px, 240px) 40px;
+    grid-template-areas: "sis situacao menu" "entra papel .";
+  }
+  .area-linha-sistema > .c-situacao { justify-self: start; }
+}
+@container area (min-width: 880px) {
+  .area-linha-sistema, .area-colunas-sistema {
+    grid-template-columns: minmax(140px, 1.2fr) minmax(120px, 1fr) 150px minmax(130px, 0.9fr) 40px;
+    grid-template-areas: "sis entra situacao papel menu";
+  }
+  .area-linha-sistema > .c-situacao { justify-self: start; }
+  .area-colunas-sistema { display: grid; gap: 12px; min-height: 0; }
+  .area-colunas-sistema > .c-entra-rotulo { display: none; }
+}
+/* "Entra como", escrito so no estreito: no largo o cabecalho da coluna diz. */
+@container area (min-width: 880px) {
+  .area-linha-sistema .c-entra-rotulo { display: none; }
+}
+
+/* No estreito a lista de sistemas da pessoa perde a borda de fora: a coluna
+   util fica com ~330px numa tela de 390px, em vez de quatro caixas dentro de
+   caixa. */
+.area-lista-sistemas { border-top: 1px solid var(--hairline); border-bottom: 1px solid var(--hairline); }
+@container area (min-width: 720px) {
+  .area-lista-sistemas { border: 1px solid var(--hairline); border-radius: 12px; overflow: hidden; }
+}
+.area-cartao-corpo { padding: 12px; }
+@container area (min-width: 720px) {
+  .area-cartao-corpo { padding: 16px; }
+}
+.area-lista-sistemas .area-margem-estreita { margin-left: -12px; margin-right: -12px; }
+@container area (min-width: 720px) {
+  .area-lista-sistemas .area-margem-estreita { margin-left: 0; margin-right: 0; }
+}
+
+/* Falhas de entrada. */
+.area-falha-linha {
+  display: grid;
+  gap: 6px 12px;
+  align-items: center;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas: "login selo" "leitura leitura" "meta meta";
+}
+.area-falha-linha > .c-login { grid-area: login; }
+.area-falha-linha > .c-leitura { grid-area: leitura; }
+.area-falha-linha > .c-selo { grid-area: selo; justify-self: end; }
+.area-falha-linha > .c-meta { grid-area: meta; }
+@container area (min-width: 880px) {
+  .area-falha-linha {
+    grid-template-columns: minmax(100px, 1fr) minmax(160px, 2.4fr) 180px 240px;
+    grid-template-areas: "login leitura selo meta";
+  }
+  .area-falha-linha > .c-selo { justify-self: start; }
+}
+
+/* Backup por sistema: lista, nao tabela. A tabela antiga rolava de lado no
+   celular e a coluna que importa (situacao e o botao Refazer) ficava cortada. */
+/* No estreito o nome ocupa tudo menos o selo: com duas colunas so, a coluna
+   da direita crescia ate caber "O que foi salvo" + "Refazer" e o nome do
+   sistema que FALHOU virava "Pops & Fa...". */
+.area-backup-linha {
+  display: grid;
+  gap: 6px 12px;
+  align-items: center;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  grid-template-areas: "nome nome selo" "quando acao acao";
+}
+.area-backup-linha > .c-nome { grid-area: nome; }
+.area-backup-linha > .c-quando { grid-area: quando; }
+.area-backup-linha > .c-selo { grid-area: selo; justify-self: end; }
+.area-backup-linha > .c-acao { grid-area: acao; }
+.area-backup-linha > .c-acao { justify-self: end; }
+@container area (min-width: 880px) {
+  .area-backup-linha {
+    grid-template-columns: minmax(150px, 1.2fr) minmax(140px, 1fr) 170px 240px;
+    grid-template-areas: "nome quando selo acao";
+  }
+  .area-backup-linha > .c-selo { justify-self: start; }
+
+}
+
+/* Minha conta: formulario e "Vai valer em" lado a lado no largo. */
+.area-duas-colunas { display: grid; gap: 16px; grid-template-columns: minmax(0, 1fr); align-items: start; }
+@container area (min-width: 880px) {
+  .area-duas-colunas { grid-template-columns: minmax(0, 460px) minmax(0, 1fr); gap: 24px; }
+}
+.area-so-estreito { display: block; }
+.area-so-largo { display: none; }
+@container area (min-width: 880px) {
+  .area-so-estreito { display: none; }
+  .area-so-largo { display: block; }
+}
+
+/* Modulos do Painel: 1 coluna no estreito, 2 no largo. */
+.area-grade-modulos { display: grid; gap: 0 16px; grid-template-columns: minmax(0, 1fr); }
+@container area (min-width: 720px) {
+  .area-grade-modulos { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+/* Configuracoes: linha de motivo de atraso. Nenhum select cortado a 360px. */
+/* No estreito a lixeira sobe para o lado do nome (posicionada), e os dois
+   selects ficam com metade da linha cada: com a lixeira na mesma linha deles,
+   "Falha interna" virava "Falha int". */
+.area-motivo-linha {
+  position: relative;
+  display: grid;
+  gap: 8px;
+  align-items: center;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  grid-template-areas: "nome nome" "grupo tag";
+}
+.area-motivo-linha > .c-nome { margin-right: 48px; width: auto; min-width: 0; }
+.area-motivo-linha > .c-lixo { position: absolute; top: 8px; right: 8px; }
+.area-motivo-linha > .c-nome { grid-area: nome; }
+.area-motivo-linha > .c-grupo { grid-area: grupo; }
+.area-motivo-linha > .c-tag { grid-area: tag; }
+.area-motivo-linha > .c-lixo { grid-area: lixo; }
+@container area (min-width: 720px) {
+  .area-motivo-linha {
+    grid-template-columns: minmax(0, 1fr) 190px 190px 44px;
+    grid-template-areas: "nome grupo tag lixo";
+  }
+  .area-motivo-linha > .c-nome { margin-right: 0; }
+  .area-motivo-linha > .c-lixo { position: static; }
+}
+
+/* Botao de largura cheia no estreito (Minha conta, backup). */
+@container area (max-width: 719px) {
+  .area-cheio-estreito { width: 100%; }
+  .area-esconde-estreito { display: none; }
+}
+@container area (min-width: 720px) {
+  .area-so-estreito-720 { display: none; }
+}
+/* Texto que no largo corta com reticencias e no estreito quebra a linha. */
+@container area (max-width: 719px) {
+  .area-quebra-estreito { white-space: normal; overflow: visible; text-overflow: clip; }
+}
+
+/* ---------------------------------------------------------- janelas */
+.janela-formulario.janela-estreita { width: min(560px, calc(100% - 24px)); }
+/* Rodape grudado no fim da janela de cadastro: o formulario e comprido e o
+   botao de criar nao pode morar so no fim da rolagem. */
+.area-rodape-fixo {
+  position: sticky;
+  bottom: 0;
+  z-index: 1;
+  margin: 16px -24px -24px;
+  padding: 12px 24px;
+  background: var(--surface);
+  border-top: 1px solid var(--hairline);
+}
+@media (max-width: 600px) {
+  .area-rodape-fixo { margin: 16px -16px -16px; padding: 12px 16px; }
+}
+
+/* Barra de estado das Configuracoes, grudada no topo. */
+.area-barra-estado { border-color: var(--hairline); box-shadow: var(--area-sombra-grudada); }
+
+/* Grupos recolhiveis das Configuracoes. */
+.area-grupo { border-color: var(--hairline); }
+.area-grupo > summary { list-style: none; }
+.area-grupo > summary > svg { transition: transform 0.15s; }
+.area-grupo[open] > summary > svg { transform: rotate(180deg); }
+.area-grupo .area-sub + .area-sub { border-top: 1px solid var(--hairline); margin-top: 20px; padding-top: 20px; }
+.area-grupo { scroll-margin-top: 72px; }
+
+/* Os rotulos dos formularios de modulo (Permutas, Marketing, Campanhas) com a
+   mesma cara do resto: .label. */
+.area-sistemas .config-editor label { display: grid; gap: 0; }
+
+@media (prefers-reduced-motion: reduce) {
+  .area-sistemas *, .area-sistemas *::before, .area-sistemas *::after {
+    transition: none !important;
+    animation: none !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Linhas separadas por fio (listas de marcar, "Dar acesso"). */
+.area-linhas > * + * { border-top: 1px solid var(--hairline); }
+
+/* O avatar tem texto indigo escuro: no tema escuro ele sumia sobre o fundo. */
+html.dark .area-sistemas .text-brand-ink { color: theme('colors.brand.200'); }
+
+/* Caixa de marcar e botao de opcao na cor da marca (sem o plugin de
+   formularios do Tailwind, `text-brand` nao pinta a caixa). */
+.area-sistemas input[type="checkbox"], .area-sistemas input[type="radio"] { accent-color: theme('colors.brand.500'); }
+html.dark .area-sistemas input[type="checkbox"], html.dark .area-sistemas input[type="radio"] { accent-color: theme('colors.brand.400'); }
+
+/* No celular o titulo da janela estreita cabe em uma linha a mais, nao em tres. */
+@media (max-width: 600px) {
+  .janela-formulario.janela-estreita > header h2 { font-size: 18px; line-height: 1.3; }
+}
+
+/* A celula LIGADA da faixa de numeros (FaixaNumeros, de lista.jsx, que esta
+   area nao muda). Sobre o fundo da marca, o cinza do rotulo e o ambar do
+   numero ficavam abaixo de 4,5:1: justo a celula escolhida era a mais dificil
+   de ler. */
+.area-sistemas button[aria-pressed="true"] .text-slate-500,
+.area-sistemas button[aria-pressed="true"] .text-slate-400 { color: theme('colors.slate.600'); }
+.area-sistemas button[aria-pressed="true"] .text-warn-700 { color: theme('colors.warn.800'); }
+html.dark .area-sistemas button[aria-pressed="true"] .text-slate-500,
+html.dark .area-sistemas button[aria-pressed="true"] .text-slate-400 { color: theme('colors.slate.300'); }
+html.dark .area-sistemas button[aria-pressed="true"] .text-warn-700 { color: theme('colors.warn.300'); }

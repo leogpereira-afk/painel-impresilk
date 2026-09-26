@@ -11,6 +11,14 @@ export function estadoDoPapel(p) {
 
 export const temPendencia = p => ['fantasma', 'vazia'].includes(estadoDoPapel(p).chave);
 
+/* SENHA PROVISORIA DA PESSOA. Desde 26/09/2026 a marca mora tambem na PESSOA
+   (acesso_conta.trocar_senha, posta quando a direcao define a senha). Quem so
+   tem Painel e RH nao tem conta de sistema marcada, e a contagem olhava so as
+   contas de sistema: o cartao dizia "senha provisoria" e o numero de cima e o
+   recorte nao a contavam. Contagem, recorte e selo usam ESTA regra. */
+export const temSenhaProvisoria = c => c?.ativo !== false &&
+  (c?.trocar_senha === true || (c?.papeis || []).some(p => estadoDoPapel(p).chave === 'temporaria'));
+
 export function contarAcessos(dados) {
   const contas = dados.contas || [];
   const papeis = contas.flatMap(c => c.papeis || []);
@@ -20,7 +28,7 @@ export function contarAcessos(dados) {
     ausentes: papeis.filter(p => estadoDoPapel(p).chave === 'fantasma').length,
     vazias: papeis.filter(p => estadoDoPapel(p).chave === 'vazia').length,
     temporarias: papeis.filter(p => estadoDoPapel(p).chave === 'temporaria').length,
-    pessoasTemporarias: contas.filter(c => c.papeis.some(p => estadoDoPapel(p).chave === 'temporaria')).length,
+    pessoasTemporarias: contas.filter(temSenhaProvisoria).length,
     pessoasFora: contas.filter(c => c.papeis.some(temPendencia)).length,
     soltas: Object.values(dados.soltas || {}).reduce((n, xs) => n + xs.length, 0),
     naPorta: (dados.naPorta || []).length,

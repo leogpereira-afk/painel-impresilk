@@ -1,18 +1,23 @@
-import {useState} from 'react';
+import {useCallback,useEffect,useState} from 'react';
 import {comCracha,mensagemDoStatus} from '../lib/sessao.js';
 import {API} from '../lib/api.js';
+// A lixeira dos cadastros. Mora dentro do grupo "Cadastros retirados" das
+// Configuracoes, e so e montada quando o grupo abre pela primeira vez: a lista
+// so e pedida ao servidor quando alguem quer ve-la.
+async function chamar(action,id){
+ const r=await comCracha(`${API}/painel-config`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action,id})});
+ const b=await r.json();if(!r.ok)throw new Error(b.erro||mensagemDoStatus(r.status));return b;
+}
 export default function LixeiraRegistros(){
  const [itens,setItens]=useState(null),[erro,setErro]=useState(''),[ocupado,setOcupado]=useState(false);
- async function chamar(action,id){
-  const r=await comCracha(`${API}/painel-config`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action,id})});
-  const b=await r.json();if(!r.ok)throw new Error(b.erro||mensagemDoStatus(r.status));return b;
- }
- async function carregar(){setOcupado(true);setErro('');try{setItens((await chamar('lixeiraRegistros')).itens||[]);}catch(e){setErro(e.message);}finally{setOcupado(false);}}
+ const carregar=useCallback(async()=>{setOcupado(true);setErro('');try{setItens((await chamar('lixeiraRegistros')).itens||[]);}catch(e){setErro(e.message);}finally{setOcupado(false);}},[]);
  async function recuperar(item){setOcupado(true);setErro('');try{await chamar('recuperarRegistro',item.id);setItens(lista=>lista.filter(x=>x.id!==item.id));}catch(e){setErro(e.message);}finally{setOcupado(false);}}
- return <details className="config-card" onToggle={e=>{if(e.currentTarget.open&&itens===null&&!ocupado)carregar();}}><summary><div><h3>Cadastros retirados</h3><p>Recupere cadastros com seus anexos. Documentos e equipamentos têm a própria lixeira.</p></div></summary><div className="config-card-conteudo">
- {erro&&<p role="alert">{erro}</p>}{ocupado&&<p role="status">Aguarde…</p>}
- {itens?.length===0&&<p>Nenhum cadastro na lixeira.</p>}
- {itens?.map(item=><div key={item.id} className="flex flex-wrap items-center justify-between gap-3 border-b py-3"><div><strong>{item.nome}</strong><p className="text-sm text-slate-500">{item.colecao} · {new Date(item.retiradoEm).toLocaleDateString('pt-BR')}</p></div><button className="btn-outline" disabled={ocupado} onClick={()=>recuperar(item)} aria-label={`Recuperar ${item.nome}`}>Recuperar</button></div>)}
- <button className="btn-ghost mt-3" disabled={ocupado} onClick={carregar}>Atualizar lixeira</button>
- </div></details>;
+ useEffect(()=>{carregar();},[carregar]);
+ return <div className="space-y-2">
+ {erro&&<p role="alert" className="rounded-xl bg-bad-50 px-4 py-3 text-sm text-bad-700">{erro}</p>}
+ {ocupado&&<p role="status" className="text-sm text-slate-500">Aguarde…</p>}
+ {itens?.length===0&&<p className="text-sm text-slate-500">Nenhum cadastro na lixeira.</p>}
+ {itens?.length>0&&<ul className="area-linhas">{itens.map(item=><li key={item.id} className="flex min-h-14 flex-wrap items-center justify-between gap-3 py-2"><div className="min-w-0"><p className="text-sm font-semibold text-slate-900">{item.nome}</p><p className="text-sm text-slate-500">{item.colecao} · {new Date(item.retiradoEm).toLocaleDateString('pt-BR')}</p></div><button type="button" className="btn-outline h-10" disabled={ocupado} onClick={()=>recuperar(item)} aria-label={`Recuperar ${item.nome}`}>Recuperar</button></li>)}</ul>}
+ <button type="button" className="btn-ghost h-10" disabled={ocupado} onClick={carregar}>Atualizar lixeira</button>
+ </div>;
 }

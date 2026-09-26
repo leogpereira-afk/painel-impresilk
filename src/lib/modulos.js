@@ -12,10 +12,10 @@
 // Gestão permanece no registro histórico para compatibilidade com as portas de login.
 // Módulos aposentados não são oferecidos na interface.
 export const MODULOS = [
-  { id: "gestao", aposentado: true, nome: "Gestão", sub: "identidade, plano do ano, táticas e atas — a tela de direção" },
-  { id: "compromissos", nome: "Compromissos", sub: "a agenda de cada um — cada pessoa vê só a dela" },
-  { id: "agenda", nome: "Agenda da produção", sub: "as O.S de cada dia, os plantões e a grade de saída — só para ver, sem o valor" },
-  { id: "calendario-empresa", nome: "Calendário da empresa", sub: "eventos do RH, aniversários e tempo de empresa — somente consulta" },
+  { id: "gestao", aposentado: true, nome: "Gestão", sub: "identidade, plano do ano, táticas e atas: a tela de direção" },
+  { id: "compromissos", nome: "Compromissos", sub: "a agenda de cada um: cada pessoa vê só a dela" },
+  { id: "agenda", nome: "Agenda da produção", sub: "as O.S de cada dia, os plantões e a grade de saída, só para ver, sem o valor" },
+  { id: "calendario-empresa", nome: "Calendário da empresa", sub: "eventos do RH, aniversários e tempo de empresa, somente consulta" },
   { id: "contas-atrasadas", nome: "Contas Atrasadas", sub: "quem deve e a cobrança" },
   { id: "orcamentos", nome: "Orçamentos", sub: "funil e conversão do time" },
   { id: "bancos", nome: "Bancos e Pix", sub: "contas, CNPJs e chaves de todas as empresas" },
@@ -24,11 +24,11 @@ export const MODULOS = [
   { id: "glossario", nome: "Glossário", sub: "os termos de comunicação visual explicados" },
   { id: "manutencoes", nome: "Manutenções", sub: "carros, máquinas e prédio: gasto e histórico" },
   { id: "patrimonio", nome: "Patrimônio", sub: "o que a empresa tem, por setor, com etiqueta e valor" },
-  { id: "documentos", nome: "Documentos e ativos", sub: "certidões, contrato social, apólices e a ficha dos carros e máquinas — com aviso de vencimento" },
+  { id: "documentos", nome: "Documentos e ativos", sub: "certidões, contrato social, apólices e a ficha dos carros e máquinas, com aviso de vencimento" },
   { id: "permutas", nome: "Permutas", sub: "o que o parceiro nos deu, as O.S. que ele já gastou e o saldo" },
-  { id: "campanhas", nome: "Campanhas", sub: "cada evento e quem comprou — e o padrão de venda da casa inteira, mês a mês desde 2020" },
-  { id: "planilhas", nome: "Planilhas", sub: "as planilhas do Google que a casa mexe, abertas aqui dentro — cada uma pertence a um setor, e o setor se libera separado, logo abaixo" },
-  { id: "configuracoes", nome: "Configurações", sub: "motivos, régua de cobrança e parâmetros — vale para todo mundo" },
+  { id: "campanhas", nome: "Campanhas", sub: "cada evento e quem comprou, e o padrão de venda da casa inteira, mês a mês desde 2020" },
+  { id: "planilhas", nome: "Planilhas", sub: "as planilhas do Google que a casa mexe, abertas aqui dentro. Cada uma pertence a um setor, e o setor se libera separado, logo abaixo" },
+  { id: "configuracoes", nome: "Configurações", sub: "motivos, régua de cobrança e parâmetros: vale para todo mundo" },
 ].filter((modulo) => !modulo.aposentado);
 
 // Módulos que mostram DINHEIRO. Não muda nada no servidor; serve para a tela

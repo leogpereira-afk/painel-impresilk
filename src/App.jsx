@@ -122,6 +122,23 @@ export default function App() {
 
   if (!sessao) return <Login aoEntrar={() => setSessao(getSessao())} />;
 
+  /* SENHA PROVISORIA: SO MINHA CONTA ABRE, ate a pessoa escolher a dela
+     (contrato das senhas, secao 5). O servidor manda a marca na entrada; a
+     entrada unica, vendo a marca, nao planta os crachas dos outros sistemas.
+     Qualquer outro endereco volta para /minha-conta. Sair continua no menu. */
+  if (sessao.trocarSenha === true) {
+    return (
+      <Layout sessao={sessao}>
+        <Suspense fallback={<p className="p-6 text-sm text-slate-400">Carregando…</p>}>
+          <Routes>
+            <Route path="/minha-conta" element={<Acessos minhaConta />} />
+            <Route path="*" element={<Navigate to="/minha-conta" replace />} />
+          </Routes>
+        </Suspense>
+      </Layout>
+    );
+  }
+
   return (
     <Layout sessao={sessao}>
       {/* O Suspense e OBRIGATORIO com rota preguicosa: sem ele, a primeira

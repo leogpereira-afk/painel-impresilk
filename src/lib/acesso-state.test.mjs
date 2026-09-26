@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {estadoDoPapel,temPendencia,contarAcessos,situacaoEntrada} from './acesso-state.mjs';
+import {estadoDoPapel,temPendencia,temSenhaProvisoria,contarAcessos,situacaoEntrada} from './acesso-state.mjs';
 import {agruparEntradas,elencoRh} from '../../supabase/functions/_shared/acesso-leitura.mjs';
 
 test('contagem inclui conta existente sem módulos e coincide com filtro',()=>{
@@ -12,6 +12,13 @@ test('uma pessoa com dois acessos temporários não vira duas pessoas',()=>{
  const p={sistema:'pcp',real:{existe:true,temporaria:true}};
  const n=contarAcessos({contas:[{papeis:[p,{...p,sistema:'brief'}]}]});
  assert.equal(n.temporarias,2); assert.equal(n.pessoasTemporarias,1);
+});
+test('senha provisória marcada na PESSOA conta, uma vez só, e desativada não conta',()=>{
+ const soPainel={trocar_senha:true,papeis:[{sistema:'painel',real:{existe:true,permissoes:['*']}}]};
+ const asDuas={trocar_senha:true,papeis:[{sistema:'pcp',real:{existe:true,temporaria:true}}]};
+ const desligada={...soPainel,ativo:false};
+ assert.equal(temSenhaProvisoria(soPainel),true);
+ assert.equal(contarAcessos({contas:[soPainel,asDuas,desligada]}).pessoasTemporarias,2);
 });
 test('sistema não integrado não vira conta ausente',()=>{
  assert.equal(temPendencia({sistema:'domo',fonte:'nao_integrado'}),false);

@@ -81,6 +81,24 @@ export async function entradaUnica(usuario, senha) {
      plantado aos outros sistemas no computador. */
   if (!corpo.crachas?.painel) return null;
 
+  /* SENHA PROVISORIA: ENTRA NO PAINEL, E SO NELE, ATE TROCAR.
+     Quem digitou a senha que a direcao definiu recebe `trocarSenha: true` (a
+     marca mora na pessoa, em acesso_conta). Plantar os crachas dos outros
+     sistemas agora deixaria a senha provisoria abrir o PCP, o Brief e o resto
+     sem a pessoa nunca escolher a dela, e a janela da direcao promete o
+     contrario. Os crachas velhos deste aparelho saem tambem (senao o de ontem
+     abriria o PCP). A LISTA dos sistemas fica: sao so nomes, e e dela que
+     Minha conta tira o "Vai valer em". Depois da troca, Minha conta chama esta
+     funcao de novo com a senha nova, e ai os crachas sao plantados. */
+  if (corpo.trocarSenha === true) {
+    limparCrachas();
+    try {
+      const lista = [...new Set(corpo.sistemas || [])].filter((s) => ENDERECO[s]);
+      localStorage.setItem(K_SISTEMAS, JSON.stringify(lista));
+    } catch {}
+    return { ...corpo.crachas.painel, trocarSenha: true };
+  }
+
   const plantados = plantarCrachas(corpo.crachas);
   try {
     // O RH nao ganha cracha nosso (la o cracha e a sessao do Supabase Auth), mas

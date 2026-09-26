@@ -25,7 +25,13 @@ async function chamar(action, corpo = {}) {
     body: JSON.stringify({ action, ...corpo }),
   });
   const body = await resp.json().catch(() => null);
-  if (!resp.ok) throw new Error(body?.erro || mensagemDoStatus(resp.status));
+  if (!resp.ok) {
+    // O status viaja junto: a tela separa "senha atual incorreta" (401) de
+    // "tente de novo" (503) e de "outra troca em andamento" (409) sem ler texto.
+    const erro = new Error(body?.erro || mensagemDoStatus(resp.status));
+    erro.status = resp.status;
+    throw erro;
+  }
   return body;
 }
 
@@ -60,6 +66,16 @@ export const senhaDoSistema = (usuario, sistema) =>
 export const criarPessoa = (conta, papeis) =>
   chamar("criarPessoa", { conta, papeis });
 
-export const definirSenha = (usuario) => chamar("definirSenha", { usuario });
+// UMA senha para UMA pessoa em todos os sistemas dela (contrato das senhas,
+// acao B). Uma pessoa por chamada, sempre: lista, estrela ou vazio sao
+// recusados aqui, antes de sair do navegador, e de novo no servidor. Sem
+// `senha`, o servidor gera uma; com `senha`, vale a regra (6 caracteres ou
+// mais, ate 72, sem espaco nas pontas) e nada e aparado.
+// A resposta traz a senha UMA vez: a tela mostra e esquece ao fechar.
+export function definirSenha(usuario, senha) {
+  if (typeof usuario !== "string" || !usuario.trim()) throw new Error("Escolha uma pessoa.");
+  if (/[*,;]/.test(usuario)) throw new Error("Uma pessoa por vez.");
+  return chamar("definirSenha", senha === undefined ? { usuario } : { usuario, senha });
+}
 
 export const desativar = (usuario, ativo) => chamar("desativar", { usuario, ativo });

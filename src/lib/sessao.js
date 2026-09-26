@@ -73,7 +73,7 @@ export function getSessao() {
   }
 }
 
-export function entrar({ token, usuario, nome, permissoes, master, vendedorId }) {
+export function entrar({ token, usuario, nome, permissoes, master, vendedorId, trocarSenha }) {
   try {
     localStorage.setItem(K_TOKEN, token);
     localStorage.setItem(
@@ -85,11 +85,30 @@ export function entrar({ token, usuario, nome, permissoes, master, vendedorId })
         master: !!master,
         // Vendedor vinculado: quem tem entra e ja cai na propria fila de acoes.
         vendedorId: vendedorId || "",
+        /* SENHA PROVISORIA: o servidor manda (acesso-entrar e painel-auth) e a
+           tela so abre Minha conta ate a pessoa escolher a dela (App.jsx).
+           Ate 26/09/2026 este campo era jogado fora aqui, e a obrigacao que a
+           direcao via prometida nunca acontecia. Fica guardado junto com a
+           sessao: recarregar a pagina ou abrir outra aba nao fura. */
+        trocarSenha: trocarSenha === true,
         visto: Date.now(),
       })
     );
   } catch {}
   avisar();
+}
+
+/* A TROCA OBRIGATORIA FOI FEITA: a marca sai da sessao guardada.
+   `avisarTela: false` tira a marca calado, logo que o servidor confirma a
+   troca: a tela termina de mostrar "onde valeu", e se a pessoa recarregar a
+   pagina nesse meio-tempo ela nao cai de novo em "Crie a sua senha" (onde teria
+   de escolher OUTRA senha, porque a atual ja e a nova). */
+export function senhaTrocada({ avisarTela = true } = {}) {
+  try {
+    const raw = localStorage.getItem(K_SESSAO);
+    if (raw) localStorage.setItem(K_SESSAO, JSON.stringify({ ...JSON.parse(raw), trocarSenha: false }));
+  } catch {}
+  if (avisarTela) avisar();
 }
 
 // Vendedor da pessoa logada ("" = direcao ou conta sem vinculo, ve todos).
@@ -222,6 +241,13 @@ export async function chamarAuth(action, dados = {}) {
     body: JSON.stringify({ action, ...dados }),
   });
   const corpo = await resp.json().catch(() => null);
-  if (!resp.ok) throw new Error(corpo?.erro || "Falha na operacao.");
+  if (!resp.ok) {
+    // O status viaja junto, como em services/acesso.js: Minha conta separa
+    // "tente de novo" (503) de "outra troca em andamento" (409) sem depender
+    // so da frase (lib/regra-senha.mjs, classificarErroTroca).
+    const erro = new Error(corpo?.erro || "Falha na operacao.");
+    erro.status = resp.status;
+    throw erro;
+  }
   return corpo;
 }

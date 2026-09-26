@@ -29,6 +29,12 @@
 import { agruparEntradas, elencoRh } from "../_shared/acesso-leitura.mjs";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { hashSenha, verificarJwt, crachaRevogado } from "../_shared/cripto.ts";
+import {
+  texto, normalizar, alvoNoSistema, SO_LEITURA, OBRIGA_TROCA,
+  lerLojas, linhasDoLog, perfisDaPessoa, lojaDeOutro, FalhaLeitura, type Lojas,
+} from "../_shared/senha-lojas.ts";
+import { senhaPedida, pedidoEmLote, motivoSeguro, falhaDeCredencial } from "../_shared/senha-regra.ts";
+import { recusaCerta } from "../_shared/troca-senha.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -52,7 +58,10 @@ const resposta = (b: unknown, s = 200) =>
     headers: { ...CORS, "Content-Type": "application/json", "Cache-Control": "no-store" },
   });
 
-const texto = (v: unknown, max = 200) => String(v ?? "").trim().slice(0, max);
+// `texto`, `normalizar`, `alvoNoSistema` e `SO_LEITURA` moram em
+// _shared/senha-lojas.ts desde 26/09/2026: a troca de senha precisa achar a
+// pessoa no MESMO login que esta tela mostra, e duas copias da regra
+// envelheceriam separadas.
 
 // ============================================================================
 // POR QUE NAO REESCREVI AS REGRAS AQUI
@@ -71,6 +80,16 @@ const texto = (v: unknown, max = 200) => String(v ?? "").trim().slice(0, max);
 // Ela chama a equipe-auth, que ja faz tudo isso, identificando-se com o cracha
 // da Central. O que ela mantem por conta propria e so a tabela nova
 // (acesso_conta/acesso_papel), que e a visao "uma linha por pessoa".
+//
+// A EXCECAO, E SO ELA: A SENHA DE "DEFINIR SENHA EM TODOS" (26/09/2026).
+// `definirSenha` grava pela funcao de banco `acesso_senha_gravar`, numa
+// transacao so, e SO nas colunas de senha (hash, salt, iter, trocar_senha).
+// Nao e atalho: trocar senha nao cria conta, nao muda papel, nao conta gestor
+// nem espelha elenco, que sao as regras que justificam passar pela
+// equipe-auth. E passar por ela OBRIGA a reenviar papel e modulos junto: era
+// assim que "gerar senha" promovia, rebaixava ou tirava modulos do Painel de
+// quem tinha a tabela de intencao divergente do sistema. Quem "consertar" isto
+// de volta para a equipe-auth traz esse defeito junto.
 // ============================================================================
 
 // Cracha da Central, no formato que a equipe-auth ja aceita:
@@ -112,48 +131,6 @@ async function chamarEquipe(corpo: Record<string, unknown>) {
     descartados: perdidos,
   };
 }
-
-// Mesma normalizacao do equipe-auth (e do painel-auth, e do RH): o login e a
-// chave, entao tem de casar com acento, maiuscula e espaco sobrando. O `ç`
-// decompoe em `c` + cedilha, e a cedilha esta na faixa apagada -- e por isso
-// que "Golçalves" casa com "golcalves" em perfis.
-const normalizar = (s: unknown): string =>
-  String(s ?? "").normalize("NFKD").replace(/[̀-ͯ]/g, "")
-    .toLowerCase().replace(/\s+/g, " ").trim();
-
-// O LOGIN DAQUELA PESSOA NAQUELE SISTEMA.
-//
-// Gravado em acesso_papel.login quando alguem o corrigiu pela tela; senao a
-// regra antiga: no RH a chave e o NOME COMPLETO (perfis.usuario e casado com o
-// nome da ficha do colaborador -- mandar "karen" criaria uma SEGUNDA conta ao
-// lado da Karen Luiza de verdade), e nos outros e o usuario curto.
-//
-// A deducao continua valendo por omissao, mas ela e um PALPITE: quando erra,
-// erra criando conta nova em vez de mexer na que existe. Por isso tudo que
-// escreve confere `existeNoSistema` antes.
-const alvoNoSistema = (conta: any, sistema: string, papel?: any) => {
-  /* NO RH A IDENTIDADE E A FICHA, e nao um login digitado -- por isso este ramo
-     vem ANTES do login gravado. Casar por nome ja estava quebrado em producao,
-     nao era risco futuro: `perfis` guarda "leonardo goncalves" sem cedilha e a
-     Central guardava "Leonardo Gonçalves" com, e DUAS das seis linhas do RH nao
-     casavam. Quem nao casa e tratado como "nao existe la" -- e ai a tela oferece
-     criar conta para quem ja tem uma.
-     `perfis.colaborador_id` e `acesso_conta.colaborador_id` apontam para a mesma
-     ficha; comparados por id, casam seis de seis. O nome fica de rede para conta
-     que ainda nao tenha id. */
-  if (sistema === "rh") {
-    return texto(conta.colaborador_id, 120) || texto(conta.colaborador, 160);
-  }
-  /* O DRE NAO TEM MAIS CONTA COM SENHA. Decisao do Leonardo em 18/08/2026: quem
-     entra la entra pelo cracha do Painel, e a senha compartilhada (`equipe`) foi
-     aposentada. O cracha carrega o USUARIO DA CONTA como `sub` -- nunca o login
-     por sistema --, entao e o usuario que tem de casar. Obedecer a um login
-     gravado aqui faria a tela procurar um nome que o cracha nao carrega. */
-  if (sistema === "dre") return texto(conta.usuario, 60);
-  const gravado = texto(papel?.login, 160);
-  if (gravado) return gravado;
-  return texto(conta.usuario, 60);
-};
 
 // O painel nao tem papel: tem lista de modulos. A equipe-auth so entende
 // "acesso total" pelo papel literal "tudo" (painelSalvar), entao a estrela da
@@ -293,18 +270,8 @@ async function estadoReal(): Promise<MapaReal> {
   return mapa;
 }
 
-/* A Central nao se administra por aqui. Criar conta ou trocar senha nela cairia
-   em equipe_contas pela equipe-auth -- que ainda nao tem "central" na lista
-   EXTERNOS -- e fabricaria uma SEGUNDA senha, valida, para o app pessoal do
-   dono. Enquanto o outro lado nao fecha, quem fecha e este. */
-/* SO LEITURA: sistemas que esta tela MOSTRA mas NAO administra.
-   `dre` entrou em 18/08/2026, junto com a aposentadoria da conta compartilhada.
-   Sem isto o desenho ficava metade feito: `estadoReal` passou a ler o DRE pela
-   linha de acesso, mas `senhaDoSistema` e `definirSenha` ainda achavam a linha e
-   mandavam senha para a `equipe-auth`, que RECRIAVA em equipe_contas a conta com
-   senha que acabara de ser apagada -- e a tela nao a enxergaria mais, porque o
-   ramo novo nao le equipe_contas. Uma conta com senha, viva, invisivel. */
-const SO_LEITURA = new Set(["central", "dre", "bosques", "domo"]);
+// A lista SO_LEITURA (quais sistemas esta tela so mostra) mora em
+// _shared/senha-lojas.ts, com o comentario que conta por que cada um esta la.
 const RECADO_SO_LEITURA =
   "Este sistema tem porta e contas próprias (fora da equipe-auth). " +
   "Ele aparece aqui só para registro: não se cria conta nem se troca senha dele por esta tela.";
@@ -320,20 +287,8 @@ async function acharNoSistema(sistema: string, alvo: string, mapa?: MapaReal) {
   return m[sistema]?.[chave] ?? null;
 }
 
-// Senha temporaria legivel: quem recebe consegue digitar sem errar, e ela morre
-// na primeira entrada (a equipe-auth marca trocar_senha).
-const PALAVRAS = ["pedra", "verde", "chuva", "campo", "vento", "folha", "porta",
-  "praia", "monte", "peixe", "trilho", "barro", "vidro", "fogo", "areia", "nuvem",
-  "raiz", "galho", "prego", "tinta", "lona", "placa", "risco", "molde", "corte",
-  "serra", "regua", "farol", "ilha", "ponte", "muro", "telha"];
-// Tres palavras de 32 + tres digitos: ~35 bits, contra os ~17 de antes (duas de
-// 14 + tres digitos). A senha e temporaria, mas quem a recebe pode demorar dias
-// para trocar -- e adivinhavel nesse meio-tempo e adivinhavel de verdade.
-function senhaTemporaria() {
-  const n = crypto.getRandomValues(new Uint32Array(4));
-  const p = (i: number) => PALAVRAS[n[i] % PALAVRAS.length];
-  return `${p(0)}-${p(1)}-${p(2)}-${100 + (n[3] % 900)}`;
-}
+// A senha temporaria gerada mora em _shared/senha-regra.ts (gerarSenha):
+// quatro palavras e tres digitos, a mesma regra da troca propria.
 
 // Os sete sistemas da casa. Lista fechada: sistema digitado errado viraria uma
 // linha de papel que nenhuma tela le e ninguem descobre.
@@ -380,6 +335,24 @@ async function derrubarSessoes(authUserId: string) {
   }
 }
 
+/* A SENHA NOVA ABRE A ENTRADA? Pergunta feita ao proprio Auth, quando a
+   gravacao nele deu erro que nao e recusa certa (ver recusaCerta). "sim": ela
+   gravou e so a resposta se perdeu; "nao": o Auth ficou com a anterior;
+   "nao-sei": nem a pergunta teve resposta. */
+async function entradaAceitou(authUserId: string, senha: string): Promise<"sim" | "nao" | "nao-sei"> {
+  if (!ANON) return "nao-sei";
+  const { data, error } = await sb.auth.admin.getUserById(authUserId);
+  if (error || !data?.user?.email) return "nao-sei";
+  const cliente = createClient(SUPABASE_URL, ANON, { auth: { persistSession: false } });
+  const { data: entrada, error: falha } = await cliente.auth.signInWithPassword({ email: data.user.email, password: senha });
+  if (!falha && entrada?.session) return "sim";
+  return falhaDeCredencial(falha) ? "nao" : "nao-sei";
+}
+
+// O log de senha e testemunha, nao dono: falhar aqui nao desfaz a troca.
+const registrarSenha = (linha: { p_sistema: string; p_usuario: string; p_acao: string; p_por: string; p_detalhe: string }) =>
+  sb.rpc("porta_registrar", linha).then(() => {}, () => {});
+
 async function senhaNaPortaDaFrente(conta: any, senha: string) {
   const avisos: string[] = [];
   if (conta.auth_user_id) {
@@ -390,11 +363,19 @@ async function senhaNaPortaDaFrente(conta: any, senha: string) {
     if (error) avisos.push(`nao consegui trocar a senha da entrada unica: ${error.message}`);
   }
   const reg = await hashSenha(senha);
-  await sb.from("acesso_senha_legado").delete().eq("conta_id", conta.id);
-  const { error: e2 } = await sb.from("acesso_senha_legado").insert({
-    conta_id: conta.id, origem: "central", hash: reg.hash, salt: reg.salt, iter: reg.iter,
-  });
-  if (e2) avisos.push(`nao consegui guardar a senha da entrada unica: ${e2.message}`);
+  /* GRAVA A NOVA ANTES DE APAGAR AS ANTIGAS. A ordem era a contraria: apagar
+     tudo e depois inserir. Se o insert falhasse, quem ainda nao migrou ficava
+     SEM senha nenhuma na entrada unica, e a tela so mostrava um aviso. Agora a
+     linha nova entra (ou substitui a de mesma origem) primeiro, e so depois as
+     outras saem; falhou a gravacao, as antigas continuam valendo. */
+  const { error: e2 } = await sb.from("acesso_senha_legado").upsert({
+    conta_id: conta.id, origem: "central", hash: reg.hash, salt: reg.salt, iter: reg.iter, usado_em: null,
+  }, { onConflict: "conta_id,origem" });
+  if (e2) {
+    avisos.push(`nao consegui guardar a senha da entrada unica: ${motivoSeguro(e2, [senha])}`);
+    return avisos;
+  }
+  await sb.from("acesso_senha_legado").delete().eq("conta_id", conta.id).neq("origem", "central");
   return avisos;
 }
 
@@ -816,21 +797,36 @@ Deno.serve(async (req: Request) => {
         if (!/^[a-z0-9._-]+$/.test(usuario)) {
           return resposta({ erro: "O usuario aceita so letras sem acento, numeros, ponto, hifen e sublinhado." }, 400);
         }
+        // A mesma regra da troca de senha: nada aparado nem cortado calado.
+        // Conferida ANTES da retentativa abaixo, que apaga o cadastro pela
+        // metade: senha recusada nao pode custar a linha que ja existia.
+        const pedida = senhaPedida(corpo.senha);
+        if ("erro" in pedida) return resposta({ erro: pedida.erro }, 400);
+        const senha = pedida.senha;
         /* Retentativa: se a criacao anterior gravou a conta e falhou em TODOS os
            sistemas, a pessoa ficou sem acesso nenhum e o segundo "Criar" batia
            em "ja existe" -- sem caminho para consertar pela tela. Conta sem
            papel nenhum e um cadastro pela metade: da para retomar. */
         const { data: existe } = await sb.from("acesso_conta")
-          .select("id").eq("usuario", usuario).maybeSingle();
+          .select("id, usuario, ativo, auth_user_id").eq("usuario", usuario).maybeSingle();
         if (existe) {
           const { count } = await sb.from("acesso_papel")
             .select("sistema", { count: "exact", head: true }).eq("conta_id", existe.id);
           if ((count ?? 0) > 0) return resposta({ erro: "Ja existe alguem com esse usuario." }, 409);
+          /* SO O CADASTRO PELA METADE DE VERDADE e retomado. Conta sem papel
+             tambem e a de quem foi DESATIVADO e teve os acessos tirados, e a de
+             quem ja entrou pela entrada unica (tem identidade no Auth). Apagar e
+             recriar essas era outro caminho para dar senha nova a pessoa
+             desligada, ja ativa de novo, e para soltar a identidade dela do
+             quadro. A direcao nunca e recriada por aqui. */
+          if (existe.ativo === false) {
+            return resposta({ erro: "Já existe essa pessoa, desativada. Reative-a em vez de criar de novo." }, 409);
+          }
+          if (existe.auth_user_id || normalizar(existe.usuario) === normalizar(sessao.sub)) {
+            return resposta({ erro: "Ja existe alguem com esse usuario." }, 409);
+          }
           await sb.from("acesso_conta").delete().eq("id", existe.id);
         }
-
-        const senha = texto(corpo.senha, 80) || senhaTemporaria();
-        if (senha.length < 6) return resposta({ erro: "A senha precisa ter ao menos 6 caracteres." }, 400);
 
         const linha = {
           usuario,
@@ -890,7 +886,9 @@ Deno.serve(async (req: Request) => {
             // a pessoa passa o primeiro dia vendo a mesa do time inteiro.
             ...(p.vendedorId ? { vendedorId: texto(p.vendedorId, 120) } : {}),
             senha,
-            temporaria: true,
+            // Porta compartilhada nasce com a definitiva (ver definirSenha): o
+            // gatilho da guarda ja nao marca a pessoa de funcao como provisoria.
+            temporaria: linha.tipo !== "funcao",
           });
           if (!r.ok) { recusados.push({ sistema, erro: r.erro || "nao consegui" }); continue; }
           entraram.push(sistema);
@@ -919,61 +917,195 @@ Deno.serve(async (req: Request) => {
       }
 
       // ------------------------------------------------------------ nova senha
-      case "definirSenha": {
-        const id = await contaPorUsuario(corpo.usuario);
-        if (!id) return resposta({ erro: "Conta nao encontrada." }, 404);
-        const { data: conta } = await sb.from("acesso_conta").select("*").eq("id", id).single();
-        const senha = texto(corpo.senha, 80) || senhaTemporaria();
-        if (senha.length < 6) return resposta({ erro: "A senha precisa ter ao menos 6 caracteres." }, 400);
+      /* ================================================================
+         (B) DEFINIR UMA SENHA PARA ESTA PESSOA EM TODOS OS SISTEMAS
+         (contrato das senhas, 26/09/2026). So a direcao, uma pessoa por clique.
 
-        const { data: papeis } = await sb.from("acesso_papel").select("*").eq("conta_id", id);
-        const trocados: string[] = [];
-        const recusados: { sistema: string; erro: string }[] = [];
-        const real = await estadoReal();
-        for (const p of papeis ?? []) {
-          /* SISTEMA APOSENTADO NAO GANHA SENHA NOVA. A regra SO_LEITURA valia
-             em senhaDoSistema e aqui nao: "gerar senha em TODOS" para quem tem
-             papel no DRE mandava salvarConta com senha a equipe-auth, que
-             ACEITAVA -- ressuscitando uma credencial viva e invisivel no
-             sistema que a direcao aposentou em 18/08. Os numeros financeiros
-             da casa atras de uma senha que ninguem sabia que existia. */
-          if (SO_LEITURA.has(p.sistema)) {
-            recusados.push({ sistema: p.sistema, erro: RECADO_SO_LEITURA });
-            continue;
-          }
-          const login = await alvoParaEscrever(conta, p.sistema, p);
-          /* NAO CRIAR CONTA AQUI. Este era o pior efeito da divergencia: quando
-             o login nao existia no sistema, a equipe-auth recebia senha junto e
-             CRIAVA uma conta com aquele nome. O dono clicava "gerar nova senha",
-             a tela dizia que deu certo nos sete, e a conta que ele usa de
-             verdade (`leo`, no PCP) continuava com a senha velha -- agora com
-             uma sosia `leonardo` ao lado. Quem nao existe la e recusado, com o
-             nome do login que faltou. */
-          if (!(await acharNoSistema(p.sistema, login, real))) {
-            recusados.push({
-              sistema: p.sistema,
-              erro: `nao existe conta "${login}" ali — aponte para a conta certa antes`,
-            });
-            continue;
-          }
-          const r = await chamarEquipe({
-            acao: "salvarConta", sistema: p.sistema,
-            usuario: login, nome: conta.nome,
-            papel: papelNoSistema(p.sistema, p.papel, p.permissoes ?? []),
-            permissoes: p.permissoes ?? [], senha, temporaria: true,
-          });
-          if (r.ok) trocados.push(p.sistema);
-          else recusados.push({ sistema: p.sistema, erro: r.erro || "nao consegui" });
+         Substitui a de antes, com o mesmo nome e o mesmo corpo (a tela manda
+         so `usuario`), porque a de antes era a perigosa e nao podia ficar viva
+         ao lado. O que ela fazia e deixou de fazer:
+           * mandava a `salvarConta` da equipe-auth o papel e os modulos da
+             tabela de INTENCAO (acesso_papel). Quando a intencao divergia do
+             sistema, "gerar senha" promovia, rebaixava ou tirava modulos do
+             Painel sem ninguem pedir. Agora so as colunas de senha mudam, pela
+             funcao de banco, e papel nenhum e reenviado;
+           * um sistema por vez, por HTTP, sem desfazer nada quando o do meio
+             falhava, e respondia `ok: true` mesmo sem ter trocado nada. Agora
+             o banco muda numa transacao so e a resposta diz o que valeu onde;
+           * nao reservava a pessoa, e o log dizia `por = central`;
+           * apagava a guarda da entrada antes de gravar a nova.
+         ================================================================ */
+      case "definirSenha": {
+        // 1. A PORTA NO MODO ESTRITO: banco sem responder se o cracha vale nao
+        // deixa definir senha de ninguem.
+        if (await crachaRevogado(sb, "painel", sessao, true)) {
+          return resposta({ erro: "Entre no sistema.", semSessao: true }, 401);
         }
-        // A PORTA DA FRENTE. Antes aqui so se carimbava `usado_em`, e o carimbo
-        // nao tirava nada: a entrada unica aceita o hash antigo do mesmo jeito.
-        // Senha nova tambem derruba quem esta dentro: senao a sessao antiga
-        // continua valendo e "troquei a senha dela" nao significa nada.
-        if (conta.auth_user_id) await derrubarSessoes(conta.auth_user_id);
-        const avisos = await senhaNaPortaDaFrente(conta, senha);
-        for (const a of avisos) recusados.push({ sistema: "entrada", erro: a });
-        if (!avisos.length) trocados.push("entrada");
-        return resposta({ ok: true, senha, trocados, recusados });
+        const direcao = normalizar(sessao.sub);
+        const por = `painel:${direcao}`;
+        const indisponivel = () => resposta({ erro: "Não consegui ler as contas agora. Tente de novo em instantes." }, 503);
+
+        // 2. UMA PESSOA, e a senha dentro da regra (quando a direcao digitou).
+        if (pedidoEmLote(corpo)) return resposta({ erro: "Uma pessoa por vez." }, 400);
+        const usuario = typeof corpo.usuario === "string" ? corpo.usuario.trim().toLowerCase() : "";
+        if (!usuario || usuario.length > 60 || !/^[a-z0-9._-]+$/.test(usuario)) {
+          return resposta({ erro: "Escolha uma pessoa." }, 400);
+        }
+        const pedida = senhaPedida(corpo.senha);
+        if ("erro" in pedida) return resposta({ erro: pedida.erro }, 400);
+
+        /* FREIO DE LOTE: mais de 10 pessoas em 15 minutos da 429. Nenhum uso
+           real chega perto disso; um laco por script para aqui. Banco sem
+           responder NAO deixa passar: e caminho de escrita de senha. */
+        const { data: travou, error: erroFreio } = await sb.rpc("porta_travada", { p_sistema: "definir-senha", p_usuario: direcao });
+        if (erroFreio) return resposta({ erro: "Não consegui conferir o limite de trocas agora. Tente de novo em instantes." }, 503);
+        if (travou === true) {
+          await registrarSenha({ p_sistema: "definir-senha", p_usuario: direcao, p_acao: "troca-barrada", p_por: por, p_detalhe: "freio de lote" });
+          return resposta({ erro: "Muitas senhas definidas em pouco tempo. Espere 15 minutos." }, 429);
+        }
+
+        // 3. A PESSOA.
+        const { data: conta, error: erroConta } = await sb.from("acesso_conta").select("*").eq("usuario", usuario).maybeSingle();
+        if (erroConta) return indisponivel();
+        if (!conta) return resposta({ erro: "Conta não encontrada." }, 404);
+        if (normalizar(conta.usuario) === direcao) {
+          return resposta({ erro: "A sua própria senha se troca em Minha conta." }, 400);
+        }
+        if (conta.ativo === false) {
+          return resposta({ erro: "Esta pessoa está desativada. Reative antes de definir uma senha." }, 409);
+        }
+        const { data: papeis, error: erroPapeis } = await sb.from("acesso_papel").select("*").eq("conta_id", conta.id);
+        if (erroPapeis) return indisponivel();
+        if (!papeis?.length) {
+          return resposta({ erro: "Esta pessoa não tem acesso a nenhum sistema. Dê um acesso antes de definir a senha." }, 409);
+        }
+
+        // 4. A RESERVA: (A) e (B) da mesma pessoa ao mesmo tempo, a segunda espera.
+        const operacao = crypto.randomUUID();
+        const { data: reservou, error: falhaReserva } = await sb.rpc("painel_senha_reservar", { p_usuario: conta.usuario, p_operacao: operacao });
+        if (falhaReserva) return indisponivel();
+        if (!reservou) return resposta({ erro: "Já há uma troca de senha em andamento para esta pessoa. Espere um minuto." }, 409);
+        try {
+          let lojas: Lojas;
+          try {
+            lojas = await lerLojas(sb, { modo: "direcao", conta, papeis, direcao });
+          } catch (e) {
+            if (e instanceof FalhaLeitura) return indisponivel();
+            throw e;
+          }
+          // A entrada desta pessoa e tambem a de outra conta: a senha nova
+          // valeria para as duas. Nada e gravado ate o vinculo ser corrigido.
+          if (lojas.conflito) {
+            await registrarSenha({ p_sistema: "*", p_usuario: conta.usuario, p_acao: "senha-nao-definida", p_por: por, p_detalhe: lojas.conflito });
+            return resposta({ erro: `Nada mudou: ${lojas.conflito}. Corrija o vínculo antes de definir a senha.` }, 409);
+          }
+
+          /* 5. A SENHA. Provisoria, com uma excecao: CONTA DE FUNCAO (porta
+             compartilhada) recebe a definitiva. Obrigar a troca ali faria o
+             primeiro que entrasse escolher uma senha que os outros da mesma
+             porta nao sabem. */
+          const senha = pedida.senha;
+          const temporaria = String(conta.tipo ?? "") !== "funcao";
+          const detalhe = temporaria ? "definida pela direção, temporária" : "definitiva, porta compartilhada";
+          const reg = await hashSenha(senha);
+          const naoDefinida = (motivo: string) => registrarSenha({
+            p_sistema: "*", p_usuario: conta.usuario, p_acao: "senha-nao-definida", p_por: por, p_detalhe: motivo,
+          });
+
+          /* 6. O BANCO PRIMEIRO, numa transacao so. Falhou: nada mudou, e a
+             senha NAO volta na resposta (ela nao vale em lugar nenhum). O
+             `antes` fica so na memoria, para desfazer; nunca sai daqui. */
+          const { data: gravou, error: erroGravar } = await sb.rpc("acesso_senha_gravar", {
+            p_conta: conta.id, p_equipe: lojas.equipe, p_painel: lojas.painel,
+            p_hash: reg, p_temporaria: temporaria, p_origem: "direcao",
+          });
+          if (erroGravar || !gravou?.antes) {
+            const motivo = motivoSeguro(erroGravar ?? "gravação não confirmada", [senha]);
+            await naoDefinida(`banco recusou: ${motivo}`);
+            return resposta({ erro: `Nada mudou: não consegui gravar (${motivo}). A senha anterior continua valendo.` }, 500);
+          }
+
+          /* 7. A ENTRADA UNICA (E), DEPOIS do banco. Aqui a ordem e a contraria
+             da troca propria porque a senha anterior NAO e conhecida: o Auth
+             nao se desfaz, entao ele vem depois do que se desfaz. */
+          if (lojas.authUserId) {
+            const { error: erroE } = await sb.auth.admin.updateUserById(lojas.authUserId, { password: senha });
+            /* RECUSA CERTA OU DUVIDA? 4xx e o GoTrue dizendo nao: a entrada
+               ficou com a anterior. Rede caida ou 5xx podem ter gravado e so
+               perdido a resposta; desfazer o banco nesse caso e dizer "nada
+               mudou" deixava a pessoa com uma senha que ninguem sabe na porta
+               que abre todos. Na duvida, pergunta-se ao proprio Auth: a senha
+               nova abre? */
+            const aceitou = !erroE ? "sim" : recusaCerta(erroE) ? "nao" : await entradaAceitou(lojas.authUserId, senha);
+            if (aceitou !== "sim") {
+              const motivo = motivoSeguro(erroE, [senha]);
+              const { error: erroRepor } = await sb.rpc("acesso_senha_repor", {
+                p_conta: conta.id, p_antes: gravou.antes, p_hash_gravado: reg.hash,
+              });
+              await naoDefinida(`entrada ${aceitou === "nao" ? "recusou" : "não confirmou"}: ${motivo}${erroRepor ? "; desfazer também falhou" : ""}`);
+              if (erroRepor) {
+                return resposta({ erro: aceitou === "nao"
+                  ? "A senha nova ficou nos sistemas, mas a entrada pelo Painel continua com a anterior. Clique de novo: a próxima tentativa regrava todos."
+                  : "A senha nova ficou nos sistemas, e não consegui confirmar a entrada pelo Painel. Clique de novo: a próxima tentativa regrava todos." }, 500);
+              }
+              if (aceitou === "nao-sei") {
+                return resposta({ erro: `Não consegui confirmar se a entrada pelo Painel recebeu a senha nova (${motivo}). Os outros sistemas continuam com a anterior. Clique de novo: a próxima tentativa regrava todos.` }, 500);
+              }
+              return resposta({ erro: `Nada mudou: a entrada pelo Painel recusou a senha nova (${motivo}). A senha anterior continua valendo em todos.` }, 500);
+            }
+          }
+
+          // 8. O RH COM IDENTIDADE PROPRIA, por ultimo. Recusou: parcial.
+          const falhasRh: string[] = [];
+          const rhTrocados: string[] = [];
+          for (const r of lojas.rh) {
+            const { error } = await sb.auth.admin.updateUserById(r.userId, { password: senha });
+            // Erro que nao e recusa certa pode ter gravado: pergunta ao Auth.
+            if (!error || (!recusaCerta(error) && (await entradaAceitou(r.userId, senha)) === "sim")) rhTrocados.push(r.userId);
+            else falhasRh.push(motivoSeguro(error, [senha]));
+          }
+
+          /* 9. SENHA NOVA DERRUBA QUEM ESTA DENTRO, senao a sessao antiga
+             continua valendo e "troquei a senha dela" nao significa nada.
+             (So o Auth: os crachas do Painel e das equipes seguem ate vencer,
+             pendencia antiga da entrada unica.) */
+          if (lojas.authUserId) await derrubarSessoes(lojas.authUserId);
+          for (const id of rhTrocados) await derrubarSessoes(id);
+
+          const sistemas = lojas.sistemas.map((item) => {
+            if (item.sistema === "rh" && item.resultado === "trocada" && falhasRh.length) {
+              return {
+                sistema: "rh", resultado: "falhou" as const,
+                motivo: lojas.rh.length > 1 ? `${falhasRh.length} de ${lojas.rh.length} identidades do RH recusaram: ${falhasRh[0]}` : falhasRh[0],
+              };
+            }
+            if (item.resultado === "trocada" || item.resultado === "pela-entrada") {
+              return { ...item, obriga: temporaria && OBRIGA_TROCA[item.sistema] === true };
+            }
+            return item;
+          });
+          const parcial = sistemas.some((i) => i.resultado === "falhou");
+
+          // 10. O RASTRO: "quem trocou de quem", sem a senha.
+          for (const linha of linhasDoLog(lojas, sistemas, { entrada: true, por, detalhe })) {
+            await registrarSenha(linha);
+          }
+
+          /* A SENHA VOLTA UMA VEZ, nesta resposta (Cache-Control: no-store), para
+             a direcao passar adiante. Nao fica guardada em lugar nenhum legivel.
+             `trocados`/`recusados` sao o formato de antes: a tela antiga, presa
+             numa aba, continua mostrando o que nao alcancou. */
+          return resposta({
+            ok: true, senha, temporaria, parcial, entrada: "trocada", sistemas,
+            trocados: ["entrada", ...sistemas.filter((i) => i.resultado === "trocada").map((i) => i.sistema)],
+            recusados: sistemas
+              .filter((i) => i.resultado === "sem-conta" || i.resultado === "fora" || i.resultado === "falhou")
+              .map((i) => ({ sistema: i.sistema, erro: i.motivo ?? "" })),
+          });
+        } finally {
+          const { error } = await sb.from("painel_senha_operacao").delete().eq("usuario", conta.usuario).eq("operacao", operacao);
+          if (error) console.error("[painel-acesso] reserva de troca aguarda expiração");
+        }
       }
 
       // ------------------------------------------------------------- desativar
@@ -1090,7 +1222,9 @@ Deno.serve(async (req: Request) => {
             precisaCriar: true, login,
           }, 409);
         }
-        const senha = nova ? (texto(corpo.senha, 80) || senhaTemporaria()) : "";
+        const pedida = nova ? senhaPedida(corpo.senha) : { senha: "" };
+        if ("erro" in pedida) return resposta({ erro: pedida.erro }, 400);
+        const senha = pedida.senha;
 
         const r = await chamarEquipe({
           acao: "salvarConta", sistema,
@@ -1234,12 +1368,32 @@ Deno.serve(async (req: Request) => {
       // de uma vez para consertar uma so era o caminho mais caro possivel:
       // quem tinha a senha do RH na cabeca perdia ela para consertar o PCP.
       case "senhaDoSistema": {
+        // Grava senha: a porta confere no modo estrito, como em definirSenha.
+        if (await crachaRevogado(sb, "painel", sessao, true)) {
+          return resposta({ erro: "Entre no sistema.", semSessao: true }, 401);
+        }
         const sistema = texto(corpo.sistema, 20);
         if (!SISTEMAS.includes(sistema)) return resposta({ erro: "Sistema desconhecido." }, 400);
+        // A regra da senha antes de qualquer leitura ou ficha: nada aparado.
+        const pedida = senhaPedida(corpo.senha);
+        if ("erro" in pedida) return resposta({ erro: pedida.erro }, 400);
+        const senha = pedida.senha;
+        const direcao = normalizar(sessao.sub);
         const id = await contaPorUsuario(corpo.usuario);
         if (!id) return resposta({ erro: "Conta nao encontrada." }, 404);
         const { data: conta } = await sb.from("acesso_conta").select("*").eq("id", id).single();
         if (SO_LEITURA.has(sistema)) return resposta({ erro: RECADO_SO_LEITURA }, 400);
+        /* AS MESMAS PORTAS FECHADAS DO "DEFINIR SENHA EM TODOS". Sem elas, este
+           era o outro caminho: a senha da propria direcao (que so se troca em
+           Minha conta, provando a atual) saia na tela, sistema por sistema, de
+           um cracha de 12 horas; e pessoa desativada ganhava senha nova para
+           quando alguem a religasse. */
+        if (normalizar(conta.usuario) === direcao) {
+          return resposta({ erro: "A sua própria senha se troca em Minha conta." }, 400);
+        }
+        if (conta.ativo === false) {
+          return resposta({ erro: "Esta pessoa está desativada. Reative antes de definir uma senha." }, 409);
+        }
         const { data: papel } = await sb.from("acesso_papel")
           .select("*").eq("conta_id", id).eq("sistema", sistema).maybeSingle();
         if (!papel) return resposta({ erro: `Essa pessoa nao tem acesso ao ${sistema}.` }, 404);
@@ -1251,8 +1405,44 @@ Deno.serve(async (req: Request) => {
             erro: `Nao existe a conta "${login}" no ${sistema} — aponte para a conta certa antes de trocar a senha.`,
           }, 404);
         }
-        const senha = texto(corpo.senha, 80) || senhaTemporaria();
-        if (senha.length < 6) return resposta({ erro: "A senha precisa ter ao menos 6 caracteres." }, 400);
+        // O login dela ali tambem e de outra pessoa (ou da direcao): a senha
+        // nova seria de quem nao foi clicado. Ver donosDeFora.
+        let divide: string | null;
+        try {
+          divide = await lojaDeOutro(sb, conta, sistema, login, direcao);
+        } catch (e) {
+          if (e instanceof FalhaLeitura) return resposta({ erro: "Não consegui ler as contas agora. Tente de novo em instantes." }, 503);
+          throw e;
+        }
+        if (divide) {
+          return resposta({ erro: sistema === "rh"
+            ? `A ficha do RH desta pessoa também está ligada a ${divide}. Corrija o vínculo antes de trocar a senha.`
+            : `O login "${login}" no ${sistema} também é de ${divide}. Aponte cada pessoa para a própria conta antes de trocar a senha.` }, 409);
+        }
+        /* NO RH DE QUEM TEM A IDENTIDADE COMPARTILHADA, "SO ESTE SISTEMA" NAO
+           EXISTE. Para quem foi adotado do RH na primeira entrada, o usuario do
+           Auth do RH E o da entrada unica: trocar "so o RH" trocava a senha da
+           porta que abre todos, enquanto a tela prometia o contrario. Aqui
+           recusa e manda para a acao que troca em todos, que diz a verdade. */
+        if (sistema === "rh" && conta.auth_user_id) {
+          const { data: perfis, error: erroPerfis } = await sb.from("perfis").select("user_id, usuario, colaborador_id");
+          if (erroPerfis) return resposta({ erro: "Não consegui ler as contas agora. Tente de novo em instantes." }, 503);
+          const doRh = perfisDaPessoa(conta, perfis ?? []).perfis;
+          if (doRh.some((p: any) => String(p.user_id) === String(conta.auth_user_id))) {
+            return resposta({
+              erro: "No RH desta pessoa a senha é a mesma da entrada pelo Painel. Use Definir senha em todos os sistemas.",
+            }, 409);
+          }
+        }
+        /* O MESMO FREIO DE LOTE do "Definir senha em todos", no mesmo balde:
+           sem ele, um laco por script trocava a senha de todo mundo, sistema
+           por sistema, sem limite nenhum. Banco sem responder nao deixa passar. */
+        const { data: travou, error: erroFreio } = await sb.rpc("porta_travada", { p_sistema: "definir-senha", p_usuario: direcao });
+        if (erroFreio) return resposta({ erro: "Não consegui conferir o limite de trocas agora. Tente de novo em instantes." }, 503);
+        if (travou === true) {
+          await registrarSenha({ p_sistema: "definir-senha", p_usuario: direcao, p_acao: "troca-barrada", p_por: `painel:${direcao}`, p_detalhe: "freio de lote" });
+          return resposta({ erro: "Muitas senhas definidas em pouco tempo. Espere 15 minutos." }, 429);
+        }
 
         const r = await chamarEquipe({
           acao: "salvarConta", sistema, usuario: login, nome: conta.nome,
@@ -1262,9 +1452,17 @@ Deno.serve(async (req: Request) => {
             ? (achado.permissoes?.includes("*") ? "tudo" : "")
             : achado.papel,
           permissoes: achado.permissoes ?? papel.permissoes ?? [],
-          senha, temporaria: true,
+          // Porta compartilhada recebe a definitiva, como no "Definir senha em
+          // todos": obrigar a troca ali faria o primeiro que entrasse escolher
+          // uma senha que os outros da mesma porta nao sabem.
+          senha, temporaria: String(conta.tipo ?? "") !== "funcao",
         });
         if (!r.ok) return resposta({ erro: r.erro || "Nao consegui trocar a senha ali." }, 400);
+        // O rastro com QUEM trocou: a linha da equipe-auth diz so `por = central`.
+        await registrarSenha({
+          p_sistema: sistema, p_usuario: login, p_acao: "trocou-senha",
+          p_por: `painel:${direcao}`, p_detalhe: "só neste sistema",
+        });
         return resposta({ ok: true, senha, login });
       }
 

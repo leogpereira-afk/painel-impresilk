@@ -1,4 +1,3 @@
-import {trocarSenhaConsistente} from "../_shared/troca-senha.ts";
 // ============================================================================
 // painel-auth — login do Painel de Gestao (substitui netlify/functions/auth.mjs)
 //
@@ -22,6 +21,9 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import {
   assinarJwt, hashSenha, conferirSenha, normalizarUsuario, sessaoDoPedido, crachaRevogado,
 } from "../_shared/cripto.ts";
+import { trocarSenhaConsistente, FalhaTroca, recusaCerta } from "../_shared/troca-senha.ts";
+import { problemaDaSenha, falhaDeCredencial, motivoSeguro } from "../_shared/senha-regra.ts";
+import { lerLojas, linhasDoLog, FalhaLeitura, type ItemSistema, type Lojas } from "../_shared/senha-lojas.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -124,6 +126,25 @@ async function conferirIdentidade(id:string,senha:string) {
   return !falha && !!entrada?.session;
 }
 
+/* A MESMA CONFERENCIA, com a resposta em TRES, para a troca de senha: "ok",
+   "errada" ou "fora" (nao deu para saber). A de cima fica como esta, porque no
+   login a resposta tem de ser uma frase so para qualquer falha. Na troca a
+   pessoa ja esta dentro, e dizer "senha atual incorreta" quando o GoTrue caiu
+   a fazia errar de novo, contra o proprio freio. */
+async function conferirNoAuth(id: string, senha: string): Promise<"ok" | "errada" | "fora"> {
+  if (!ANON_KEY) return "fora";
+  const { data, error } = await sb.auth.admin.getUserById(id);
+  if (error || !data?.user?.email) return "fora";
+  const cliente = createClient(SUPABASE_URL, ANON_KEY, { auth: { persistSession: false } });
+  const { data: entrada, error: falha } = await cliente.auth.signInWithPassword({ email: data.user.email, password: senha });
+  if (!falha && entrada?.session) return "ok";
+  return falhaDeCredencial(falha) ? "errada" : "fora";
+}
+
+// O log da troca e testemunha, nao dono: falhar aqui nao desfaz a troca.
+const registrarTroca = (linha: { p_sistema: string; p_usuario: string; p_acao: string; p_por: string; p_detalhe: string }) =>
+  sb.rpc("porta_registrar", linha).then(() => {}, () => {});
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
   if (req.method !== "POST") return json({ erro: "Use POST." }, 405);
@@ -200,7 +221,11 @@ Deno.serve(async (req: Request) => {
              pulava a consulta a acesso_conta, e isso o denunciava pelo relogio:
              ~0,49s constante contra 0,7-1,2s de todo mundo (medido em 6 amostras
              por usuario). Quem cronometrasse a porta descobria QUEM e o dono. */
-          const {data:identidade,error:erroIdentidade}=await sb.from("acesso_conta").select("ativo,auth_user_id").eq("usuario",usuario).maybeSingle();
+          /* `*` e nao a lista de colunas: `trocar_senha` nasce na migracao das
+             senhas, e pedir a coluna pelo nome antes dela existir derrubaria o
+             login inteiro (400 do PostgREST vira 503 aqui). A tabela nao guarda
+             hash; o que viaja a mais sao nome e tipo. */
+          const {data:identidade,error:erroIdentidade}=await sb.from("acesso_conta").select("*").eq("usuario",usuario).maybeSingle();
           if(erroIdentidade) return json({erro:"Entrada temporariamente indisponível."},503);
           if(identidade?.ativo===false) return json({erro:ERRO_LOGIN},401);
           const propria = await lerConta(MASTER_USUARIO);
@@ -216,7 +241,13 @@ Deno.serve(async (req: Request) => {
           return json({
             token, usuario: MASTER_USUARIO, nome: propria?.nome || "Direcao",
             permissoes: ["*"], master: true, vendedorId: "",
-            trocarSenha: !propria, // avisa a tela para pedir a troca da senha inicial
+            /* OBRIGA A TROCAR quando a senha em uso e a INICIAL do ambiente
+               (sem identidade no Auth e sem linha propria) ou quando a pessoa
+               esta marcada como provisoria. Antes era so `!propria`, e a tela
+               ignorava o campo; agora ela obedece, entao o campo tem de ser
+               exato: a direcao ja migrada, sem linha no Painel, usa a senha do
+               Auth, e obriga-la a trocar toda entrada seria castigo. */
+            trocarSenha: (!identidade?.auth_user_id && !propria) || identidade?.trocar_senha === true,
           });
         }
 
@@ -225,8 +256,9 @@ Deno.serve(async (req: Request) => {
            e a tabela nova (acesso_conta). Sem esta consulta, desativar alguem na
            tela de Acessos fechava a porta nova e deixava ESTA aberta -- a pessoa
            digitava usuario e senha e entrava com todas as permissoes. */
+        // `*` pelo mesmo motivo do ramo da direcao: `trocar_senha` e da migracao.
         const { data: unica, error: falhaIdentidade } = await sb.from("acesso_conta")
-          .select("ativo,auth_user_id").eq("usuario", usuario).maybeSingle();
+          .select("*").eq("usuario", usuario).maybeSingle();
         if(falhaIdentidade) return json({erro:"Entrada temporariamente indisponível."},503);
         if (unica && unica.ativo === false) return json({ erro: ERRO_LOGIN }, 401);
 
@@ -246,84 +278,219 @@ Deno.serve(async (req: Request) => {
         return json({
           token, usuario: conta.usuario, nome: conta.nome,
           permissoes: perms, master: false, vendedorId: vend,
+          /* A SENHA PROVISORIA OBRIGA TAMBEM NA PORTA ANTIGA. A marca mora na
+             pessoa (acesso_conta.trocar_senha), e e ela que a entrada unica
+             devolve; sem isto, quem entrasse pelo login antigo do Painel
+             nunca seria obrigado a trocar. */
+          trocarSenha: unica?.trocar_senha === true,
         });
       }
 
       case "eu": {
         const s = await sessaoViva();
         if (!s) return json({ erro: "Sessao invalida ou expirada.", semSessao: true }, 401);
+        /* A OBRIGACAO SOBREVIVE A RECARREGAR A PAGINA. Sem este campo, abrir
+           outra aba ou apertar F5 apagava o "crie a sua senha" que o login
+           tinha mandado. Banco sem responder deixa passar (trocarSenha falso):
+           e leitura de tela, e trancar a casa por uma consulta que falhou e
+           pior que a obrigacao esperar a proxima entrada. */
+        const chaveEu = normalizarUsuario(s.sub);
+        const { data: marca, error: erroMarca } = await sb.from("acesso_conta").select("*").eq("usuario", chaveEu).maybeSingle();
+        let trocarSenha = marca?.trocar_senha === true;
+        if (!trocarSenha && !erroMarca && s.master === true && !marca?.auth_user_id) {
+          // Ainda na senha inicial do ambiente? So quando a leitura RESPONDEU que
+          // nao ha linha: erro de leitura nao pode virar "obrigar a trocar".
+          const { data: linha, error: erroLinha } = await sb.from("painel_contas")
+            .select("usuario").eq("usuario", MASTER_USUARIO).maybeSingle();
+          trocarSenha = !erroLinha && !linha;
+        }
         return json({
           usuario: s.sub, nome: s.nome || s.sub,
           permissoes: s.perms || [], master: s.master === true, vendedorId: s.vend || "",
+          trocarSenha,
         });
       }
 
-      // Exige a senha atual: um cracha roubado nao pode tomar a conta.
+      /* ================================================================
+         (A) TROCAR A MINHA SENHA EM TODOS OS SISTEMAS (contrato das senhas).
+         Qualquer pessoa com cracha do Painel. O alvo e SEMPRE o dono do
+         cracha: `usuario` no corpo e ignorado, senao um cracha qualquer
+         trocaria a senha de outra pessoa.
+
+         Por que aqui e nao na painel-acesso: aquela porta so abre para a
+         direcao e tem de continuar assim; esta e para todo mundo. Mesmo nome
+         e mesmo corpo de antes, de proposito: uma segunda acao para o mesmo
+         fim deixaria a antiga viva e divergente (foi o que aconteceu com
+         listarContas/salvarConta, aposentadas com 410). A tela antiga, presa
+         numa aba, continua funcionando e ganha o comportamento novo.
+
+         O que ela deixou de fazer, e por que:
+           * gravar `equipe_contas where usuario = <nome>`: o `leo` do PCP
+             nunca recebia a senha do `leonardo`. As lojas agora saem por id
+             (_shared/senha-lojas.ts);
+           * deixar o RH com identidade propria para tras, e com isso trancar
+             a entrada unica de quem nao migrou (409 "e a senha de la que
+             vale"). O RH agora recebe a nova, por ultimo;
+           * dizer "senha atual incorreta" quando o GoTrue caiu (vira 503);
+           * aceitar tentativa sem freio e sem rastro.
+         ================================================================ */
       case "trocarMinhaSenha": {
-        const s = await sessaoViva();
+        /* 1. CRACHA NO MODO ESTRITO. Para ler tela, cair aberto quando o banco
+           nao responde e aceitavel; para gravar senha, nao: um cracha de quem
+           acabou de ser desligado nao escolhe a senha de ninguem. */
+        const s = await sessaoDoPedido(req, JWT_SECRET);
         // semSessao: true e o sinal que o cliente usa para deslogar e mostrar
         // "sua sessao expirou". Sem ele, quem passou das 12 horas do cracha
         // ficava preso numa tela de erro que nao dizia o que fazer.
-        if (!s?.sub) return json({ erro: "Sua sessao expirou. Entre de novo para trocar a senha.", semSessao: true }, 401);
-        const atual = String(body.senhaAtual || "");
-        const nova = String(body.novaSenha || "");
-        if (nova.length < 6) return json({ erro: "A nova senha precisa ter ao menos 6 caracteres." }, 400);
-
+        if (!s?.sub || (await crachaRevogado(sb, "painel", s, true))) {
+          return json({ erro: "Sua sessão expirou. Entre de novo para trocar a senha.", semSessao: true }, 401);
+        }
         const chave = normalizarUsuario(s.sub);
-        const conta = await lerConta(chave);
         const ehMaster = s.master === true;
+        const por = `painel:${chave}`;
 
-        const { data: unificada, error: erroIdentidade } = await sb.from("acesso_conta")
-          .select("auth_user_id").eq("usuario", chave).maybeSingle();
-        if(erroIdentidade) return json({erro:"Não foi possível confirmar sua identidade agora."},503);
-        const idAuth = unificada?.auth_user_id ?? null;
-        if(!atual) return json({erro:"Confirme sua senha atual para continuar."},400);
+        // 2. AS REGRAS, antes de gastar ficha do freio: digitar curto nao e
+        // tentativa contra a senha de ninguem.
+        const atual = typeof body.senhaAtual === "string" ? body.senhaAtual : "";
+        const nova = body.novaSenha;
+        if (!atual) return json({ erro: "Digite a sua senha atual." }, 400);
+        const furo = problemaDaSenha(nova, atual);
+        if (furo) return json({ erro: furo }, 400);
 
-        let confere = false;
-        if (!confere && idAuth && ANON_KEY) {
-          const { data: u } = await sb.auth.admin.getUserById(idAuth);
-          const email = u?.user?.email;
-          if (email) {
-            const cliente = createClient(SUPABASE_URL, ANON_KEY, { auth: { persistSession: false } });
-            const { data: ok } = await cliente.auth.signInWithPassword({ email, password: atual });
-            confere = !!ok?.session;
-          }
+        /* 3. O FREIO, com a ficha consumida ANTES de conferir, na mesma
+           operacao que decide (a rajada de 17/08: 16 tentativas no mesmo
+           segundo passaram por um freio que lia antes de escrever).
+           Balde PROPRIO ("senha-atual") e nao o `*` da entrada: quem tem um
+           cracha roubado errando a senha atual nao pode trancar o dono fora
+           do login por 15 minutos. Banco sem responder aqui NAO deixa passar:
+           e caminho de escrita de senha. */
+        const { data: travou, error: erroFreio } = await sb.rpc("porta_travada", { p_sistema: "senha-atual", p_usuario: chave });
+        if (erroFreio) return json({ erro: "Não consegui conferir a sua senha agora. Tente de novo em instantes." }, 503);
+        if (travou === true) {
+          await registrarTroca({ p_sistema: "senha-atual", p_usuario: chave, p_acao: "troca-barrada", p_por: por, p_detalhe: "freio de tentativas" });
+          return json({ erro: "Muitas tentativas seguidas. Espere 15 minutos e tente de novo." }, 429);
         }
-        if (!idAuth) {
-          confere = conta
-            ? await conferirSenha(atual, conta)
-            : ehMaster && !!MASTER_SENHA && igual(atual, MASTER_SENHA);
-        }
-        if (!confere) return json({ erro: "Senha atual incorreta." }, 401);
 
-        const operacao=crypto.randomUUID();
-        const {data:reservou,error:falhaReserva}=await sb.rpc('painel_senha_reservar',{p_usuario:chave,p_operacao:operacao});
-        if(falhaReserva) return json({erro:'Não foi possível iniciar a troca. Tente novamente.'},503);
-        if(!reservou) return json({erro:'Já há uma troca de senha em andamento. Aguarde antes de repetir.'},409);
-        const mudarAuth = async (password:string) => {
-          const {error}=await sb.auth.admin.updateUserById(idAuth,{password});
-          if(error) throw new Error('Não foi possível atualizar a senha na entrada central.');
-        };
+        /* A RESERVA VEM ANTES DE CONFERIR, e nao depois. Conferida a atual e so
+           entao reservada, uma "Definir senha" da direcao que terminasse no meio
+           dessas duas etapas era atropelada por uma senha provada contra a
+           senha VELHA; e, se o banco recusasse, a compensacao devolvia a senha
+           velha a entrada, por cima da que a direcao acabara de definir.
+           (A) e (B) da mesma pessoa ao mesmo tempo: a segunda espera. */
+        const operacao = crypto.randomUUID();
+        const { data: reservou, error: falhaReserva } = await sb.rpc("painel_senha_reservar", { p_usuario: chave, p_operacao: operacao });
+        if (falhaReserva) return json({ erro: "Não foi possível iniciar a troca. Tente de novo." }, 503);
+        if (!reservou) return json({ erro: "Já há uma troca de senha em andamento. Espere um minuto e tente de novo." }, 409);
         try {
-          const reg=await hashSenha(nova);
-          await trocarSenhaConsistente({
-            aplicarAuth:idAuth?()=>mudarAuth(nova):undefined,
-            reporAuth:idAuth?()=>mudarAuth(atual):undefined,
-            salvarLegado:async()=>{
-              const {data,error}=await sb.rpc('painel_senha_sincronizar',{
-                p_usuario:chave,p_hash:reg,
-                p_conta:{nome:conta?.nome || (ehMaster?'Direção':chave),permissoes:ehMaster?['*']:conta?.permissoes || [],vendedor_id:conta?.vendedor_id || ''},
-              });
-              if(error || data!==true) throw new Error('Gravação não confirmada.');
-            },
-          });
-          return json({ok:true});
-        } catch(e) {return json({erro:(e as Error).message},500);}
-        finally {
-          const {error}=await sb.from('painel_senha_operacao').delete().eq('usuario',chave).eq('operacao',operacao);
-          if(error) console.error('[painel-auth] reserva de troca aguarda expiração');
-        }
+          /* 4. A SENHA ATUAL E CONFERIDA ONDE ELA VALE (PADRAO §3): no Auth para
+             quem migrou; senao no hash do Painel; a direcao sem linha propria,
+             na senha inicial do ambiente.
+             5. E NUNCA E PULADA, nem com a senha marcada como provisoria: e a
+             prova de que quem troca e a pessoa. (A equipe-auth pula quando a
+             conta e provisoria; aqui esse caminho nao existe.) */
+          const indisponivel = () => json({ erro: "Não consegui conferir a sua senha agora. Tente de novo em instantes." }, 503);
+          const { data: pessoa, error: erroPessoa } = await sb.from("acesso_conta").select("*").eq("usuario", chave).maybeSingle();
+          if (erroPessoa) return indisponivel();
+          const idAuth: string | null = pessoa?.auth_user_id ?? null;
+          const { data: propria, error: erroPropria } = await sb.from("painel_contas").select("*").eq("usuario", chave).maybeSingle();
+          if (erroPropria) return indisponivel();
+          const conferencia = idAuth
+            ? await conferirNoAuth(idAuth, atual)
+            : propria
+              ? ((await conferirSenha(atual, propria)) ? "ok" : "errada")
+              : (ehMaster && !!MASTER_SENHA && igual(atual, MASTER_SENHA) ? "ok" : "errada");
+          if (conferencia === "fora") return indisponivel();
+          if (conferencia !== "ok") {
+            // O texto digitado NUNCA vai para o log: so o fato.
+            await registrarTroca({ p_sistema: "senha-atual", p_usuario: chave, p_acao: "senha-atual-errada", p_por: por, p_detalhe: "" });
+            return json({ erro: "Senha atual incorreta." }, 401);
+          }
 
+          // 7. AS LOJAS. Sem acesso_conta (conta ainda nao consolidada), so o Painel.
+          let lojas: Lojas;
+          try {
+            lojas = await lerLojas(sb, {
+              modo: "propria", conta: pessoa ?? null, painelAlvo: chave,
+              ehDirecao: ehMaster, nomeDirecao: propria?.nome || "Direção",
+              direcao: MASTER_USUARIO,
+            });
+          } catch (e) {
+            if (e instanceof FalhaLeitura) return indisponivel();
+            throw e;
+          }
+          // A entrada desta pessoa e tambem a de outra: trocar aqui trocaria a
+          // senha da outra na porta que abre todos. Nada e gravado.
+          if (lojas.conflito) {
+            await registrarTroca({ p_sistema: "*", p_usuario: chave, p_acao: "troca-barrada", p_por: por, p_detalhe: lojas.conflito });
+            return json({ erro: `Não troquei nada: ${lojas.conflito}. Peça à direção para corrigir o vínculo.` }, 409);
+          }
+          const reg = await hashSenha(nova as string);
+          const mudarE = async (password: string) => {
+            const { error } = await sb.auth.admin.updateUserById(idAuth, { password });
+            if (error) {
+              // O status viaja junto: 4xx e recusa certa, o resto e duvida
+              // (ver recusaCerta em _shared/troca-senha.ts).
+              const falha: any = new Error(motivoSeguro(error, [nova as string, atual]));
+              falha.status = (error as any)?.status;
+              throw falha;
+            }
+          };
+
+          /* 8. TUDO OU NADA. Tudo que mora no banco (Painel, Brief, PCP,
+             Compras, POPs, V.O.F. e a guarda da entrada) muda numa transacao
+             so, pela funcao de banco, e so nas colunas de senha. A entrada (E)
+             vem antes e e desfeita com a senha atual se o banco recusar. */
+          try {
+            await trocarSenhaConsistente({
+              aplicarAuth: idAuth ? () => mudarE(nova as string) : undefined,
+              reporAuth: idAuth ? () => mudarE(atual) : undefined,
+              salvarLegado: async () => {
+                const { data, error } = await sb.rpc("acesso_senha_gravar", {
+                  p_conta: lojas.contaId, p_equipe: lojas.equipe, p_painel: lojas.painel,
+                  p_hash: reg, p_temporaria: false, p_origem: "propria",
+                });
+                if (error || !data) throw new Error(motivoSeguro(error ?? "gravação não confirmada"));
+              },
+            });
+          } catch (e) {
+            const causa = e instanceof FalhaTroca ? `${e.etapa}: ${e.causa}` : (e as Error)?.message;
+            await registrarTroca({
+              p_sistema: "*", p_usuario: chave, p_acao: "troca-falhou", p_por: por,
+              p_detalhe: motivoSeguro(causa, [nova as string, atual]),
+            });
+            return json({ erro: e instanceof FalhaTroca ? e.message : "A troca não foi concluída. A sua senha anterior continua valendo em todos os sistemas." }, 500);
+          }
+
+          /* 9. O RH COM IDENTIDADE PROPRIA, POR ULTIMO. Se ele recusar, nao ha
+             como desfazer o banco e a entrada com seguranca, e nem precisa: a
+             resposta sai PARCIAL, dizendo que no RH ficou a anterior e por que. */
+          const falhasRh: string[] = [];
+          for (const r of lojas.rh) {
+            const { error } = await sb.auth.admin.updateUserById(r.userId, { password: nova as string });
+            if (!error) continue;
+            // Erro que nao e recusa certa pode ter gravado: pergunta ao Auth se
+            // a nova abre, para o relatorio nao dizer "ficou a anterior" a toa.
+            if (!recusaCerta(error) && (await conferirNoAuth(r.userId, nova as string)) === "ok") continue;
+            falhasRh.push(motivoSeguro(error, [nova as string, atual]));
+          }
+          const sistemas: ItemSistema[] = lojas.sistemas.map((item) =>
+            item.sistema === "rh" && item.resultado === "trocada" && falhasRh.length
+              ? {
+                  sistema: "rh", resultado: "falhou",
+                  motivo: lojas.rh.length > 1 ? `${falhasRh.length} de ${lojas.rh.length} identidades do RH recusaram: ${falhasRh[0]}` : falhasRh[0],
+                }
+              : item);
+          const parcial = sistemas.some((i) => i.resultado === "falhou");
+
+          // 10. O RASTRO: uma linha por loja, com o login daquele sistema.
+          for (const linha of linhasDoLog(lojas, sistemas, { entrada: !!lojas.contaId, por, detalhe: "própria" })) {
+            await registrarTroca(linha);
+          }
+          return json({ ok: true, parcial, entrada: lojas.contaId ? "trocada" : "nao-consolidada", sistemas });
+        } finally {
+          const { error } = await sb.from("painel_senha_operacao").delete().eq("usuario", chave).eq("operacao", operacao);
+          if (error) console.error("[painel-auth] reserva de troca aguarda expiração");
+        }
       }
 
       // Quem trabalha aqui -- so nome e usuario, para montar o "encaminhar para"
