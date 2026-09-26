@@ -2,7 +2,7 @@
 """Confere se os sistemas da Impresilk estão dentro do padrão.
 
 O padrão está escrito em Dre/PADRAO-DOS-SISTEMAS.md. Aqui ele vira pergunta que
-se responde BATENDO nas portas que estão no ar — não lendo código.
+se responde BATENDO nas portas que estão no ar, e não lendo código.
 
     export SBP=sbp_...        # token do Supabase (Account → Access Tokens)
     python3 scripts/conferir-padrao.py
@@ -34,12 +34,27 @@ MGMT = f"https://api.supabase.com/v1/projects/{PROJ}"
 
 # sistema -> (function de dados, papel mais baixo, ação de leitura)
 PORTAS = {
-    "pops": ("pops-sync", "equipe", "list"),
+    # POPs (26/09/2026): a leitura é "rev", e não "list". Desde 06/09/2026
+    # (commit 48adb3f do pops-fabricacao) o "list" sem coleção é a exportação
+    # inteira (backup), só de admin ou da máquina: com o papel mais baixo
+    # (equipe) ele responde 403 e a coluna "próprio" acusava uma porta que
+    # está certa. "rev" a equipe pode, e ele lê o banco (pops_meta).
+    "pops": ("pops-sync", "equipe", "rev"),
     "brief": ("brief-sync", "medidor", "list"),
-    "pcp": ("pcp-sync", "montagem", "list"),
+    # PCP (26/09/2026): papel "pcp", e não "montagem". Montagem sem conta em
+    # equipe_contas com o nome do crachá é, pela regra 3 da acesso_revogado, um
+    # aparelho de toque: só entra se o nome estiver na lista de instaladores.
+    # A zz_padrao não tem essa conta nem está na lista, então levava 401 ("Seu
+    # acesso ao PCP foi encerrado") e a coluna "próprio" acusava uma porta que
+    # está certa. Conferido no banco em 26/09/2026: nenhuma pessoa real com
+    # papel no PCP estava trancada pela entrada única.
+    # Não criar linha de zz_padrao em equipe_contas para testar montagem: o
+    # gatilho espelhar_elenco reescreve pcp_config_global.config.usuarios, que
+    # todo aparelho do PCP baixa.
+    "pcp": ("pcp-sync", "pcp", "list"),
     "dre": ("dre-sync", "equipe", "list"),
     # A Central do Léo: app pessoal, mas porta padrão como as outras. A leitura
-    # dela é GET, não POST — o conferidor trata isso abaixo.
+    # dela é GET, não POST: o conferidor trata isso abaixo.
     "central": ("leo-sync", "dono", None),
     # Método V.O.F. (25/09/2026): a leitura é "rev", e não "list". No vof-sync
     # o "list" sem coleção é a exportação inteira (backup), só de admin ou da
@@ -146,15 +161,23 @@ def main() -> int:
         meu = crachas.get(sis, "")
         outro = next((t for s, t in crachas.items() if s != sis), "")
         corpo = {"action": acao} if acao else None   # None = GET (a Central lê por GET)
-        a, _ = http(f"{FN}/{fn}", corpo,
-                    cab={"apikey": anon, "Authorization": f"Bearer {meu}"})
+        a, ra = http(f"{FN}/{fn}", corpo,
+                     cab={"apikey": anon, "Authorization": f"Bearer {meu}"})
         b, _ = http(f"{FN}/{fn}", corpo,
                     cab={"apikey": anon, "Authorization": f"Bearer {outro}"})
         c, _ = http(f"{FN}/{fn}", corpo, cab={"apikey": anon})
         # 400 conta como "passou pela porta": a ação existe, o corpo é que não serve
         ok = (a in (200, 400), b in (401, 403), c in (401, 403))
         if not ok[0]:
-            fora.append(f"{sis}: o próprio crachá não abre (HTTP {a})")
+            # A FRASE DA PORTA VAI JUNTO (26/09/2026). O PCP responde 401 tanto
+            # para crachá que não abre ("Entre no sistema.") quanto para crachá
+            # revogado ("Seu acesso ao PCP foi encerrado"); só o número não diz
+            # qual, e separar os dois custou ler o código das portas. Só o campo
+            # de erro: o corpo de uma resposta que abriu pode trazer dados.
+            ra = ra if isinstance(ra, dict) else {}
+            porque = ra.get("erro") or ra.get("error") or ra.get("_") or ""
+            fora.append(f"{sis}: o próprio crachá não abre (HTTP {a}"
+                        + (f": {str(porque)[:80]}" if porque else "") + ")")
         if not ok[1]:
             fora.append(f"{sis}: crachá de OUTRO sistema abre (HTTP {b})")
         if not ok[2]:
