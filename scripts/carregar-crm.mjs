@@ -1,4 +1,4 @@
-import {mubiGetTudo,mubiConfigurado} from '../netlify/functions/lib/mubi.js';
+import {mubiGetTudo,mubiConfigurado} from './lib/mubi.js';
 import {carregarClientes,carregarFunil} from './lib/crm-mubi.mjs';
 if(!mubiConfigurado()||!process.env.PAINEL_TOKEN)throw new Error('Integração não configurada');
 const url='https://heveemylixartyijxewh.supabase.co/functions/v1/painel-cache';

@@ -31,7 +31,7 @@ globalThis.fetch = async () => {
   };
 };
 
-const { mubiGet, mubiGetTudo } = await import("../netlify/functions/lib/mubi.js");
+const { mubiGet, mubiGetTudo } = await import("./lib/mubi.js");
 
 const CASOS = [
   {

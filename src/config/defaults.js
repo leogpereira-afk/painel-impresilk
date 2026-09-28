@@ -1,6 +1,6 @@
 // Configuracao padrao do painel. TUDO aqui e editavel em Configuracoes e fica
-// salvo (localStorage agora, Netlify Blobs no deploy). Nenhuma regra fica fixa
-// no codigo dos modulos: todos leem daqui.
+// salvo no servidor (painel-config). Nenhuma regra fica fixa no codigo dos
+// modulos: todos leem daqui.
 
 export const CONFIG_PADRAO = {
   parametros: {

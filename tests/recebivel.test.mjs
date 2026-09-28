@@ -1,12 +1,12 @@
 /* A REGRA DO PAGAMENTO PARCIAL, com os números reais do ERP.
- *   node --test netlify/functions/recebivel.test.mjs
+ *   node --test tests/recebivel.test.mjs
  *
  * Existe porque o painel cobrava R$ 28.000 de um cliente que devia R$ 7.000.
  * Se alguém voltar a usar `valor_titulo` cru, isto reprova antes da tela.
  */
 import test from "node:test";
 import assert from "node:assert/strict";
-import { normRecebivel } from "./mubi-cache-background.mjs";
+import { normRecebivel } from "../scripts/lib/mubi-cache.mjs";
 
 test("o valor é o que RESTA, não o do título", () => {
   // ZEROTRINTAEOITOBURGUER, real: 28.000 com 21.000 pagos.
@@ -61,7 +61,7 @@ test("pagamento com valor sujo não vira NaN", () => {
 
 // -------------------------------- a MESMA regra nas outras fontes de dinheiro
 
-import { normPagar, normOrcamento } from "./mubi-cache-background.mjs";
+import { normPagar, normOrcamento } from "../scripts/lib/mubi-cache.mjs";
 
 test("contas a PAGAR seguem a mesma regra do receber", () => {
   // Hoje nenhuma esta parcelada -- e por isso o defeito estava dormindo.

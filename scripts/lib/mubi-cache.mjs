@@ -1,40 +1,18 @@
 // ============================================================================
-// VIVO -- NAO APAGUE.
+// Etapas da carga do Mubisys: buscam no ERP e normalizam recebiveis, contas a
+// pagar, bancos, orcamentos e O.S. para o cache do painel.
 //
-// Apesar de morar em netlify/functions/, este arquivo NAO e uma function morta:
-// ele e importado por scripts/carregar-cache.mjs, que e o que o workflow
-// "Cache do Mubisys" roda em producao a cada 20 minutos. Sao ~600 linhas de
-// regra afinada no ar (janela de vencidos que escondia R$ 52 mil de calote,
-// rateio das unioes de itens que inflava 23% do faturamento, DSO com corte).
-// Apagar isto derruba a carga do painel inteiro -- e, como a carga ja quebrou
-// uma vez por outro motivo (401 do token), a quebra nova seria confundida com
-// aquela.
+// Quem roda e scripts/carregar-cache.mjs, no workflow "Cache do Mubisys" (a
+// cada 20 minutos), e quem grava o resultado e a Edge Function painel-cache.
+// A carga fica fora das Edge Functions de proposito: ela leva MINUTOS e uma
+// Edge Function morre em 150s.
 //
-// Ficou aqui de proposito na migracao para o Supabase: Edge Function morre em
-// 150s e a carga leva MINUTOS. O que NAO vale mais e a parte de Netlify Blobs
-// abaixo (o handler); quem grava hoje e a Edge Function painel-cache.
+// Sao ~600 linhas de regra afinada no ar (janela de vencidos que escondia
+// R$ 52 mil de calote, rateio das unioes de itens que inflava 23% do
+// faturamento, DSO com corte). Mexer aqui mexe no painel inteiro.
 // ============================================================================
-// Trabalho pesado: busca dados do Mubisys e grava no Netlify Blobs; o painel le
-// esse cache instantaneamente. Dois modos (o Mubisys leva MINUTOS por pagina em
-// horario comercial, entao a recarga completa so roda de madrugada):
-//
-//   ?modo=incremental (padrao; cron a cada 20 min)
-//     - recebiveis, contas a pagar e bancos: recarga completa (endpoints rapidos)
-//     - orcamentos e OS: janela dos ultimos 7 dias (CADASTRO + APROVACAO +
-//       CANCELAMENTO), mesclada por id no cache existente. Edicao de valor num
-//       registro ANTIGO so consolida na recarga completa da madrugada (a API
-//       nao filtra por data de alteracao).
-//   ?modo=completo (cron noturno; ou manual)
-//     - tudo desde 1 de janeiro
-//
-// ESCRITA ATOMICA: nada e gravado no Blobs durante a busca. Tudo e montado em
-// memoria e gravado de uma vez SO NO FIM. Se a busca falhar ou a Function for
-// morta por tempo, o cache anterior (completo e consistente) fica intacto.
-//
-// Functions 2.0 (ESM): o runtime injeta o contexto do Blobs sozinho.
 
-import { getStore } from "@netlify/blobs";
-import { mubiGetTudo, mubiConfigurado, hojeMais, num } from "./lib/mubi.js";
+import { mubiGetTudo, hojeMais, num } from "./mubi.js";
 
 // ---- normalizacoes (campos reais do Mubisys, confirmados em 2026-07-14) ----
 
@@ -411,7 +389,7 @@ export function calcDso(recebiveis) {
 }
 
 // ---------------------------------------------------------------- etapas
-// (nenhuma etapa grava no Blobs; todas RETORNAM os dados montados)
+// (nenhuma etapa grava nada; todas RETORNAM os dados montados)
 
 export async function etapaRapidos() {
   // Recebiveis: PENDENTE olha a janela curta (o que esta por vencer), mas
@@ -429,7 +407,7 @@ export async function etapaRapidos() {
   const jPagVencido = { filtrodata: "VENCIMENTO", datainicial: "2015-01-01", datafinal: hojeMais(60) };
 
   // Recursos independentes: em paralelo. Em serie, so esta etapa ja comia
-  // metade do orcamento de tempo da Function.
+  // metade do tempo da carga.
   //
   // TOLERANTE A FALHA POR FONTE. Antes era Promise.all cru: um timeout do
   // Mubisys em UMA fonte derrubava o ciclo inteiro e NADA era gravado -- foi o
@@ -519,8 +497,8 @@ export async function catalogoCategorias() {
 // FLUXO REALIZADO MES A MES: o que de fato ENTROU (contas-receber PAGO) e SAIU
 // (contas-pagar PAGO), agrupado pelo mes do PAGAMENTO.
 //
-// Portado de mubi-realizado-background.mjs (Netlify), que parou de rodar na
-// migracao e deixou o grafico do Fluxo congelado no ultimo valor gravado. A
+// Portado da rotina antiga do realizado, que parou de rodar na migracao para o
+// Supabase e deixou o grafico do Fluxo congelado no ultimo valor gravado. A
 // logica e a mesma, palavra por palavra -- inclusive a sutileza abaixo, que
 // custou uma conferencia inteira contra o ERP para ser descoberta.
 //
@@ -837,267 +815,3 @@ export async function etapaCompleta(ordensAnteriores = []) {
   const [orcamentos, ordens] = await Promise.all([carregarOrcamentos(), carregarOrdens()]);
   return { orcamentos, ordens, falhas };
 }
-
-// Versao do normalizador. O ciclo incremental so reescreve os ultimos 7 dias,
-// entao um conserto na normalizacao (ex: destrinchar unioes de itens) ficaria
-// preso no historico ate a proxima varredura completa. Subir este numero junto
-// com a mudanca faz o proximo ciclo se reconstruir sozinho.
-const VERSAO_NORM = 3;
-
-// Versao do normalizador de ORCAMENTO, contada a parte da de OS. Sao dois
-// normalizadores independentes: mexer num deles nao pode obrigar o outro a
-// remigrar o ano inteiro de graca (a API e lenta e o ciclo tem 15 min).
-//   1 = celular do contato, margem, custo, validade, motivo do ERP.
-const VERSAO_NORM_ORC = 1;
-
-export async function etapaIncremental(store, remigrarOS = false, remigrarOrc = false) {
-  // hojeMais(1): a datafinal do ERP corta na meia-noite (ver diaSeguinte).
-  const janela = { status: "TODOS", datainicial: hojeMais(-7), datafinal: hojeMais(1) };
-
-  // Orcamentos: normalmente so os ultimos 7 dias. Quando a normalizacao muda,
-  // rebusca o ano para o historico ganhar os campos novos -- mesma logica das
-  // OS abaixo, e igualmente resiliente: se estourar, cai no merge leve e a
-  // versao nao e carimbada, entao a proxima rodada tenta de novo.
-  const orcAtual = (await store.get("cache_orcamentos", { type: "json" })) || [];
-  const mapaOrc = new Map(orcAtual.map((o) => [o.id, o]));
-  let remigrouOrc = false;
-  if (remigrarOrc) {
-    try {
-      const brutos = await mubiGetTudo("orcamento", {
-        status: "TODOS",
-        filtrodata: "CADASTRO",
-        datainicial: `${new Date().getFullYear()}-01-01`,
-        datafinal: hojeMais(1),
-      });
-      mapaOrc.clear();
-      brutos.map(normOrcamento).forEach((o) => mapaOrc.set(o.id, o));
-      remigrouOrc = true;
-    } catch (e) {
-      console.warn("mubi-cache: remigracao de orcamentos falhou, seguindo com merge leve:", e?.message || e);
-    }
-  }
-  if (!remigrouOrc) {
-    for (const filtro of ["CADASTRO", "APROVACAO", "CANCELAMENTO"]) {
-      const brutos = await mubiGetTudo("orcamento", { ...janela, filtrodata: filtro }, 100);
-      brutos.map(normOrcamento).forEach((o) => mapaOrc.set(o.id, o));
-    }
-  }
-
-  const categoriaPorNome = await catalogoCategorias();
-
-  // O normalizador de OS mudou: o merge de 7 dias so consertaria a ponta, o
-  // historico ficaria com a normalizacao velha. Rebusca o ano inteiro de OS --
-  // e a UNICA fonte afetada, entao nao paga o preco da varredura completa (que
-  // no horario comercial nem cabe nos 15 min da Function).
-  //
-  // Resiliente: se a rebusca do ano estourar (API lenta no comercial), NAO
-  // deixa o ciclo inteiro falhar -- cai pro merge leve de 7 dias. O cache
-  // continua fresco (ainda com a normalizacao velha nas OS antigas) e a versao
-  // nao e carimbada, entao a proxima rodada tenta remigrar de novo.
-  if (remigrarOS) {
-    try {
-      const osBrutas = await mubiGetTudo("ordem-servico", {
-        status: "TODOS",
-        filtrodata: "CADASTRO",
-        // Mesma regua da tela (ver etapaCompleta): o ano corrente deixava
-        // titulo de 2025 sem vendedor para sempre.
-        datainicial: CORTE_ATRASADOS,
-        datafinal: hojeMais(1),
-      });
-      const ordens = osBrutas
-        .map((os, i) => normOS(os, i, categoriaPorNome))
-        .filter((o) => !o.cancelada);
-      return { orcamentos: [...mapaOrc.values()], ordens, remigrouOS: true, remigrouOrc };
-    } catch (e) {
-      console.warn("mubi-cache: remigracao de OS falhou, seguindo com merge leve:", e?.message || e);
-    }
-  }
-
-  const osAtual = (await store.get("cache_ordens", { type: "json" })) || [];
-  const mapaOS = new Map(osAtual.map((o) => [o.id, o]));
-  for (const filtro of ["CADASTRO", "APROVACAO", "CANCELAMENTO"]) {
-    const brutos = await mubiGetTudo("ordem-servico", { ...janela, filtrodata: filtro }, 100);
-    for (const [i, bruto] of brutos.entries()) {
-      const o = normOS(bruto, i, categoriaPorNome);
-      if (o.cancelada) mapaOS.delete(o.id);
-      else mapaOS.set(o.id, o);
-    }
-  }
-
-  return { orcamentos: [...mapaOrc.values()], ordens: [...mapaOS.values()], remigrouOrc };
-}
-
-// ---------------------------------------------------------------- o trabalho
-
-export default async (req) => {
-  // Auth fail-CLOSED: sem TOKEN no ambiente, recusa tudo (nunca liberar sem segredo).
-  const SEGREDO = process.env.TOKEN;
-  if (!SEGREDO) {
-    console.error("mubi-cache: TOKEN nao configurado no ambiente");
-    return new Response(JSON.stringify({ erro: "servidor sem TOKEN" }), { status: 500 });
-  }
-  if (req.headers.get("x-token") !== SEGREDO) {
-    return new Response(JSON.stringify({ erro: "nao autorizado" }), { status: 401 });
-  }
-  if (!mubiConfigurado()) {
-    return new Response(JSON.stringify({ erro: "Mubi nao configurado" }), { status: 501 });
-  }
-
-  const modo = new URL(req.url).searchParams.get("modo") === "completo" ? "completo" : "incremental";
-  const store = getStore("painel");
-
-  // Cache normalizado por uma versao antiga: manda o incremental remigrar as
-  // OS do ano. NAO forca "completo" -- no horario comercial ele nao cabe nos
-  // 15 min da Function, falharia a cada ciclo e congelaria o cache inteiro.
-  const statusAnterior = await store.get("cache_status", { type: "json" });
-  const remigrarOS = (statusAnterior?.versao ?? 0) !== VERSAO_NORM;
-  if (remigrarOS) {
-    console.log(
-      `mubi-cache: cache na versao ${statusAnterior?.versao ?? 0}, normalizador na ${VERSAO_NORM} -> remigrando OS do ano`
-    );
-  }
-  const remigrarOrc = (statusAnterior?.versaoOrc ?? 0) !== VERSAO_NORM_ORC;
-  if (remigrarOrc) {
-    console.log(
-      `mubi-cache: orcamentos na versao ${statusAnterior?.versaoOrc ?? 0}, normalizador na ${VERSAO_NORM_ORC} -> remigrando orcamentos do ano`
-    );
-  }
-
-  // Trava anti-corrida: nao roda dois ciclos ao mesmo tempo (cron x noturno).
-  const LOCK_MS = 14 * 60 * 1000;
-  const lock = await store.get("cache_lock", { type: "json" });
-  if (lock && lock.em && Date.now() - new Date(lock.em).getTime() < LOCK_MS) {
-    console.log("mubi-cache: ja ha um ciclo rodando; pulando");
-    return new Response(JSON.stringify({ ok: false, motivo: "ja rodando" }), { status: 200 });
-  }
-  await store.setJSON("cache_lock", { em: new Date().toISOString(), modo });
-
-  const inicio = Date.now();
-  console.log(`mubi-cache: inicio (${modo})`);
-
-  try {
-    // 1) Busca tudo em memoria (nada gravado ainda).
-    //
-    // Os dois blocos sao INDEPENDENTES: um "fetch failed" ao buscar orcamentos/OS
-    // (bloco pesado) nao pode descartar os recebiveis e o caixa que ja vieram
-    // (bloco rapido), e vice-versa. Antes, um erro em qualquer ponto matava o
-    // ciclo inteiro -- foi assim que o Mubisys degradado congelou o painel.
-    let rapidos = {};
-    let pesados = {};
-    try {
-      rapidos = await etapaRapidos();
-    } catch (e) {
-      console.warn("mubi-cache: bloco rapido falhou inteiro:", e?.message || e);
-      rapidos = { recebiveis: null, pagar: null, bancos: null, falhas: ["bloco-rapido"] };
-    }
-    try {
-      pesados =
-        modo === "completo" ? await etapaCompleta() : await etapaIncremental(store, remigrarOS, remigrarOrc);
-    } catch (e) {
-      console.warn("mubi-cache: bloco pesado falhou inteiro:", e?.message || e);
-      pesados = { orcamentos: null, ordens: null, falhas: ["bloco-pesado"] };
-    }
-    const dados = { ...rapidos, ...pesados };
-
-    // Se NADA veio de nenhum bloco, e falha total: nao carimba sucesso.
-    const veioAlgo =
-      dados.recebiveis != null ||
-      dados.pagar != null ||
-      dados.bancos != null ||
-      dados.orcamentos != null ||
-      dados.ordens != null;
-    if (!veioAlgo) {
-      throw new Error(
-        `Mubisys indisponivel: ${[...(rapidos.falhas || []), ...(pesados.falhas || [])].join(", ") || "sem detalhe"}`
-      );
-    }
-
-    // So migrou de verdade se a varredura completa rodou ou a remigracao de OS
-    // terminou sem cair no fallback leve.
-    const migrouOS = (modo === "completo" || pesados.remigrouOS === true) && dados.ordens != null;
-    const migrouOrc = (modo === "completo" || pesados.remigrouOrc === true) && dados.orcamentos != null;
-
-    // 2) DSO do dia + acumula historico real (um ponto por dia, ultimos 180).
-    // Sem recebiveis novos, mantem o DSO anterior em vez de gravar um numero
-    // calculado sobre lista vazia (que daria 0 e mentiria na curva).
-    const dso = dados.recebiveis ? calcDso(dados.recebiveis) : (statusAnterior?.dso ?? 0);
-    const histAntigo = (await store.get("cache_dso_hist", { type: "json" })) || [];
-    const dia = diaBR();
-    const dsoHist = [...histAntigo.filter((p) => p && p.dia !== dia), { dia, dso }].slice(-180);
-
-    const contagens = {
-      recebiveis: dados.recebiveis?.length ?? "manteve",
-      pagar: dados.pagar?.length ?? "manteve",
-      bancos: dados.bancos?.length ?? "manteve",
-      orcamentos: dados.orcamentos?.length ?? "manteve",
-      ordens: dados.ordens?.length ?? "manteve",
-    };
-
-    // 3) Grava tudo de uma vez SO AGORA (janela minima de inconsistencia).
-    //
-    // Fonte que falhou vem null e NAO e gravada: o valor anterior fica. Um dado
-    // de uma hora atras e util; um zero falso ("voce nao deve nada a ninguem")
-    // e pior que nao atualizar.
-    const gravarSeVeio = async (chave, valor) => {
-      if (valor === null || valor === undefined) return false;
-      await store.setJSON(chave, valor);
-      return true;
-    };
-    await gravarSeVeio("cache_recebiveis", dados.recebiveis);
-    await gravarSeVeio("cache_pagar", dados.pagar);
-    await gravarSeVeio("cache_bancos", dados.bancos);
-    await gravarSeVeio("cache_orcamentos", dados.orcamentos);
-    await gravarSeVeio("cache_ordens", dados.ordens);
-    await store.setJSON("cache_dso_hist", dsoHist);
-    await store.setJSON("cache_status", {
-      em: new Date().toISOString(), // horario do ULTIMO sucesso (frescor real)
-      ok: true,
-      modo,
-      // So carimba quando o historico de OS foi de fato renormalizado. Um
-      // incremental comum (ou uma remigracao que caiu no fallback) so toca 7 dias.
-      versao: migrouOS ? VERSAO_NORM : (statusAnterior?.versao ?? 0),
-      versaoOrc: migrouOrc ? VERSAO_NORM_ORC : (statusAnterior?.versaoOrc ?? 0),
-      dso,
-      duracaoMs: Date.now() - inicio,
-      contagens,
-      // Ciclo parcial: algumas fontes falharam e mantiveram o valor anterior.
-      // ok:true porque o cache ESTA utilizavel -- mas o painel precisa saber.
-      fontesQueFalharam: pesados.falhas?.length ? pesados.falhas : rapidos.falhas || [],
-      parcial: !!(rapidos.falhas?.length || pesados.falhas?.length),
-    });
-
-    // Auto-provisiona o fluxo realizado mes a mes na primeira vez (ou se sumir).
-    // Roda numa background propria (nao pesa este ciclo); fire-and-forget.
-    try {
-      const temMensal = await store.get("cache_fluxo_mensal", { type: "json" });
-      if (!temMensal) {
-        const base = process.env.URL || "https://impresilk.netlify.app";
-        fetch(`${base}/.netlify/functions/mubi-realizado-background`, {
-          method: "POST",
-          headers: { "x-token": SEGREDO },
-        }).catch(() => {});
-        console.log("mubi-cache: disparou mubi-realizado (primeira carga do mensal)");
-      }
-    } catch {}
-
-    console.log("mubi-cache: fim ok", JSON.stringify(contagens));
-    return new Response(JSON.stringify({ ok: true, modo, contagens }), { status: 200 });
-  } catch (e) {
-    // Uma tentativa que falhou NAO rebaixa o cache. `em` e `ok` descrevem o
-    // ULTIMO DADO gravado, nao a ultima tentativa -- entao um ciclo lento que
-    // morre nao pode marcar como "parado" o dado que outro ciclo acabou de
-    // atualizar. A falha se registra so em ultimaFalhaEm/erro, campos a parte.
-    // (Antes, o `{...prev, ok:false}` daqui pisoteava o sucesso concorrente e o
-    // painel mostrava dado fresco como parado.)
-    console.error("mubi-cache: ERRO", e?.message || e);
-    const prev = (await store.get("cache_status", { type: "json" })) || {};
-    await store.setJSON("cache_status", {
-      ...prev,
-      ultimaFalhaEm: new Date().toISOString(),
-      erro: String(e?.message || e),
-    });
-    return new Response(JSON.stringify({ erro: "falha ao atualizar o cache" }), { status: 502 });
-  } finally {
-    await store.delete("cache_lock").catch(() => {});
-  }
-};

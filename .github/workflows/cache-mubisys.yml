@@ -1,7 +1,6 @@
 name: Cache do Mubisys
 
-# Substitui os crons do Netlify (mubi-cache-cron a cada 20 min e
-# mubi-cache-noturno as 06:00 UTC).
+# Carrega o cache do painel a partir do Mubisys (agenda abaixo).
 #
 # POR QUE AQUI E NAO NO SUPABASE: a carga leva MINUTOS -- o Mubisys responde em
 # 25-40s por pagina. Edge Function morre em 150s. O Actions nao tem esse limite.

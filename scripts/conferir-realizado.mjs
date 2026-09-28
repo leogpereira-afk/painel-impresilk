@@ -7,7 +7,7 @@
 // parcelas e as vezes vem ZERADO. Quem reescrever isto olhando so o campo do
 // topo faz o grafico do Fluxo mentir sem nenhum erro aparecer.
 //
-// A rotina original ficou parada meses depois da migracao Netlify->Supabase e
+// A rotina original ficou parada meses depois da migracao para o Supabase e
 // ninguem percebeu, porque grafico congelado nao da erro: so para de andar.
 //
 //   node scripts/conferir-realizado.mjs
@@ -50,7 +50,7 @@ globalThis.fetch = async (url) => {
   return { status: 201, ok: true, json: async () => ({ data: alvo }) };
 };
 
-const { etapaRealizado } = await import("../netlify/functions/mubi-cache-background.mjs");
+const { etapaRealizado } = await import("./lib/mubi-cache.mjs");
 
 const r = await etapaRealizado(ANO, null);
 const ent = r.valor?.anos?.[ANO]?.entradas ?? {};

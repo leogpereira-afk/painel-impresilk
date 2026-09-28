@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
-  "description": "Painel de Gestao Impresilk — visao executiva de contas atrasadas, fluxo de caixa, produtos e orcamentos. React + Vite, dados do ERP Mubi via Netlify Functions, configuracoes no Netlify Blobs.",
+  "description": "Painel de Gestao Impresilk — visao executiva de contas atrasadas, fluxo de caixa, produtos e orcamentos. React + Vite no GitHub Pages; dados e configuracoes no Supabase (Edge Functions + Postgres), carga do ERP Mubi pelo GitHub Actions.",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
@@ -17,7 +17,6 @@
     "valores:pdf": "node scripts/valores-pdf.mjs"
   },
   "dependencies": {
-    "@netlify/blobs": "^8.2.0",
     "clsx": "^2.1.1",
     "lucide-react": "^0.456.0",
     "react": "^18.3.1",

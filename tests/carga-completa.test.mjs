@@ -5,7 +5,7 @@ process.env.MUBI_BASE_URL = 'https://mubi.exemplo.invalid/api';
 process.env.MUBI_PUBLIC_KEY = 'publica-ficticia';
 process.env.MUBI_TOKEN = 'credencial-ficticia';
 process.env.MUBI_ESPERA_MS = '1';
-const {etapaCompleta} = await import('../netlify/functions/mubi-cache-background.mjs');
+const {etapaCompleta} = await import('../scripts/lib/mubi-cache.mjs');
 
 const respostas = {
   orcamento: [{id:'orc-exemplo',status:'ABERTO',valor_total:1000,valor_desconto:100}],

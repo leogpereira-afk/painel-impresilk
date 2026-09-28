@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 process.env.MUBI_BASE_URL = 'https://mubi.exemplo.invalid/api';
 process.env.MUBI_PUBLIC_KEY = 'publica-ficticia';
 process.env.MUBI_TOKEN = 'credencial-ficticia';
-const { anosDoHistorico, fatiasPorAno } = await import('../netlify/functions/mubi-cache-background.mjs');
+const { anosDoHistorico, fatiasPorAno } = await import('../scripts/lib/mubi-cache.mjs');
 
 // Os anos reais da casa: 2020 ate 2026, do mais novo para o mais velho.
 const TODAS = fatiasPorAno('2020-01-01', '2026-09-08');

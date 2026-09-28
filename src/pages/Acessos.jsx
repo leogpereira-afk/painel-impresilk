@@ -1,8 +1,6 @@
 // Sistemas e configuracoes: a Visao geral, as abas Sistemas e Pessoas e a
 // Minha conta. As acoes do servidor moram em supabase/functions/painel-acesso
 // (acessos, so a direcao) e painel-auth (a propria senha, todo mundo).
-// (Ate 08/2026 este comentario apontava para netlify/functions/auth.mjs, que ja
-// tinha sido migrado e foi apagado.)
 //
 // Backups mora em pages/Backups.jsx e Configuracoes em pages/Configuracoes.jsx;
 // as seis abas da area sao as mesmas nas tres paginas (components/AreaSistemas.jsx).

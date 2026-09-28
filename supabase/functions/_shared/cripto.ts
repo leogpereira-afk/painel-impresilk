@@ -1,10 +1,10 @@
 // Autenticacao sem dependencias: JWT HS256 + hash de senha PBKDF2, usando so a
-// Web Crypto do runtime (Node 20 do Netlify). Pequeno e auditavel de proposito.
+// Web Crypto do runtime. Pequeno e auditavel de proposito.
 //
 // Portado do app de RH para o painel manter o MESMO mecanismo dos dois lados:
 // uma falha encontrada la vale aqui, e vice-versa.
 //
-// COPIADO SEM ALTERACAO do netlify/lib/cripto.mjs na migracao para o Supabase.
+// O mecanismo veio sem alteracao na migracao para o Supabase.
 // Usa apenas Web Crypto, que existe igual no Deno -- e reescrever mecanismo de
 // senha e a forma mais facil de enfraquecer um. As senhas ja gravadas (PBKDF2,
 // 120 mil iteracoes) continuam validas: o hash nao muda.

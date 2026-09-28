@@ -23,7 +23,6 @@ export const SUGESTOES = [
   { nome: "GitHub", oQue: "código dos sistemas e as publicações (Actions)", moeda: "USD", url: "https://github.com/settings/billing" },
   { nome: "Claude", oQue: "assistente que mantém os sistemas", moeda: "USD", url: "https://claude.ai/settings/billing" },
   { nome: "Locaweb", oQue: "domínio impresilk.com.br e os atalhos", moeda: "BRL", url: "" },
-  { nome: "Netlify", oQue: "o que ainda não migrou para o GitHub Pages", moeda: "USD", url: "" },
 ];
 
 export const mesDe = (iso) => String(iso || "").slice(0, 7);

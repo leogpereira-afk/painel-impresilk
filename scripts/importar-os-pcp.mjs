@@ -28,7 +28,7 @@
 //   PCP_CRON_TOKEN   (o mesmo que o robô horário do PCP já usa)
 // ============================================================================
 
-import { mubiGetTudo, mubiConfigurado } from "../netlify/functions/lib/mubi.js";
+import { mubiGetTudo, mubiConfigurado } from "./lib/mubi.js";
 
 const PCP_TOKEN = process.env.PCP_CRON_TOKEN || "";
 const PCP_FN =

@@ -1,12 +1,8 @@
 // ============================================================================
-// VIVO -- NAO APAGUE.
-//
-// Mora em netlify/functions/lib/, mas e importado por scripts/carregar-cache.mjs
-// (o que o workflow "Cache do Mubisys" roda em producao). E este arquivo que
-// fala com o ERP; sem ele nao ha carga.
+// Cliente do ERP Mubisys (somente GET), usado pelos scripts de carga que os
+// workflows do GitHub Actions rodam (carregar-cache, carregar-crm,
+// importar-os-pcp). E este arquivo que fala com o ERP; sem ele nao ha carga.
 // ============================================================================
-// Helper compartilhado das Functions. Guarda as credenciais do Mubisys no
-// servidor e fala com o ERP (somente GET). Este arquivo NAO vira uma Function.
 //
 // API real (confirmada no OpenAPI em api.mubisys.com/api/documentation):
 //   base:  https://api.mubisys.com/api
@@ -14,7 +10,7 @@
 //   auth:  header "Access-Token" (token de autorizacao do usuario) + publicKey no caminho
 //   403 =  cliente sem pacote MubiPro (a API exige esse pacote)
 //
-// Variaveis de ambiente do Netlify:
+// Variaveis de ambiente (secrets dos workflows):
 //   MUBI_BASE_URL    https://api.mubisys.com/api
 //   MUBI_PUBLIC_KEY  chave publica (vai no caminho)
 //   MUBI_TOKEN       Access-Token do usuario
@@ -31,7 +27,7 @@ export function mubiConfigurado() {
 // tentativas. No horario comercial uma pagina de 500 itens ja foi medida em
 // 206s; 120s (o valor antigo) abortava paginas validas e derrubava a etapa.
 // 280s cobre o pior caso observado sem deixar uma resposta pendurada travar a
-// background (cujo teto e 900s).
+// carga inteira.
 // Espera entre tentativas (cresce: 1x, 2x, 3x). Configuravel so para o teste de
 // regressao (scripts/conferir-404.mjs) nao levar 33s na CI -- em producao a
 // variavel nao existe e o valor e o de sempre.
@@ -60,7 +56,7 @@ async function mubiGetSemFila(caminho, query) {
 
   // O Mubisys as vezes devolve 404 intermitente para um recurso valido; ate 4
   // tentativas absorvem a piscada. Teto de 180s por pagina no total, para nao
-  // acumular timeouts e estourar o limite de 15 min da background.
+  // acumular timeouts e estourar o tempo da carga.
   let ultimoErro;
   let n404 = 0;
   let ultimoFoi404 = false;
@@ -194,21 +190,8 @@ function ultimaPagina(bruto, qtdRecebida, perPage) {
   return qtdRecebida < perPage; // sem meta: para quando a pagina vem incompleta
 }
 
-// Busca UMA pagina de um recurso e devolve tambem o total de paginas.
-// IMPORTANTE: cada invocacao de Function deve fazer NO MAXIMO uma chamada ao
-// Mubisys (a API leva 5-8s por pagina e o limite da Function e 10s); quem
-// orquestra as paginas em paralelo e o navegador.
-export async function mubiGetPagina(caminho, query = {}, page = 1) {
-  const perPage = 500;
-  const bruto = await mubiGet(caminho, { ...query, page, per_page: perPage });
-  const arr = itens(bruto);
-  const pag = bruto?.pagination || bruto?.meta || {};
-  const totalPaginas = Number(pag.last_page) || (arr.length < perPage ? page : page + 1);
-  return { lista: arr, totalPaginas };
-}
-
-// Busca TODAS as paginas de um recurso. So usar em background functions (o
-// Mubisys e lento demais para Functions sincronas). Trava de seguranca em 100
+// Busca TODAS as paginas de um recurso. So usar nos scripts de carga (o Mubisys
+// e lento demais para uma requisicao que alguem espera). Trava de seguranca em 100
 // paginas; se ainda houver mais, FALHA em vez de truncar em silencio (melhor
 // erro visivel do que faturamento subestimado sem ninguem saber).
 // Limite GLOBAL de chamadas simultaneas ao Mubisys. Medido contra a API real:
@@ -308,28 +291,6 @@ export function hojeMais(dias) {
   return d.toISOString().slice(0, 10);
 }
 
-export function json(body, status = 200) {
-  return {
-    statusCode: status,
-    headers: { "Content-Type": "application/json", "Cache-Control": "no-store" },
-    body: JSON.stringify(body),
-  };
-}
-
-// Resposta padrao quando o Mubi ainda nao foi ligado: o front usa MODO_DEMO.
-export function semConfig() {
-  return json(
-    { erro: "Mubi nao configurado. O painel roda em MODO_DEMO ate as variaveis de ambiente serem definidas." },
-    501
-  );
-}
-
-// Erro generico para o cliente (nao vaza mensagem/stack interna); detalhe so no log.
-export function erroInterno(e, status = 502) {
-  console.error("[painel] erro na Function:", e?.message || e);
-  return json({ erro: "Erro ao carregar os dados. Tente de novo em instantes." }, status);
-}
-
 // Converte number, "1234.56", "1.234,56" (BR com centavos) e "1.234.567" (BR
 // milhar sem centavos) em Number seguro.
 export function num(v) {
@@ -358,31 +319,4 @@ export function campo(obj, ...nomes) {
     if (v !== undefined && v !== null && v !== "") return v;
   }
   return undefined;
-}
-
-// Auto-cura: quando um modulo e aberto e o cache esta velho, dispara a
-// reconstrucao em segundo plano SEM esperar. E a defesa contra os dois pontos
-// fracos que ja travaram o painel: o agendador do Netlify (que congelou) e o
-// Mubisys estar fora do ar num instante especifico. Assim o painel se atualiza
-// sempre que alguem o usa e o Mubisys responde -- nao depende so do cron.
-//
-// A trava (cache_lock) da propria background deduplica: varias aberturas ao
-// mesmo tempo geram um unico ciclo. Fire-and-forget: a leitura nao espera.
-export function talvezAquecer(store, cacheStatus) {
-  try {
-    const SEGREDO = process.env.TOKEN;
-    if (!SEGREDO) return;
-    const em = cacheStatus?.em ? new Date(cacheStatus.em).getTime() : 0;
-    const idadeMin = em ? (Date.now() - em) / 60000 : Infinity;
-    // 22 min: um pouco acima do ciclo de 20 do cron, para nao competir com ele
-    // quando ele esta saudavel.
-    if (idadeMin < 22) return;
-    const base = process.env.URL || "https://impresilk.netlify.app";
-    fetch(`${base}/.netlify/functions/mubi-cache-background`, {
-      method: "POST",
-      headers: { "x-token": SEGREDO },
-    }).catch(() => {});
-  } catch {
-    /* nunca deixa a auto-cura derrubar a leitura */
-  }
 }

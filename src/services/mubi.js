@@ -1,13 +1,12 @@
-// Camada unica de acesso ao ERP Mubi(sys). O React NUNCA fala com o Mubi
-// direto: chama as Netlify Functions (que guardam as credenciais). Cada
-// invocacao de Function busca UMA pagina do Mubisys (limite de 10s); quem
-// junta as paginas, em paralelo, e esta camada.
+// Camada unica de acesso aos dados do ERP Mubi(sys). O React NUNCA fala com o
+// Mubi direto: le o cache que o servidor guarda (Edge Function painel-dados),
+// carregado do Mubisys pelo GitHub Actions (scripts/carregar-cache.mjs).
 
 import * as demo from "./demo/dados.js";
 import { comCracha } from "../lib/sessao.js";
 
-// MODO_DEMO desligado em 2026-07-14: o painel agora le os dados reais do
-// Mubisys via Netlify Functions. Religar (true) so para demonstracoes.
+// MODO_DEMO desligado em 2026-07-14: o painel le os dados reais do Mubisys.
+// Religar (true) so para demonstracoes.
 export const MODO_DEMO = import.meta.env.MODE === "review";
 
 import { API } from "../lib/api.js";

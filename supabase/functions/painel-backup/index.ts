@@ -1,21 +1,17 @@
 // ============================================================================
-// painel-backup — backup do Hub inteiro (substitui backup.js)
+// painel-backup — backup do Hub inteiro
 //
 // O painel e a capa, entao e ele quem orquestra: guarda o proprio dado E PUXA
 // os outros sistemas pelos endpoints que eles ja tem ({action:"list"} paginado
 // + getCfg). Registry em SISTEMAS_BACKUP (secret, JSON):
-//   [{key,nome,url,fn,listKey,token}]
-// Na transicao o secret aponta para os endpoints NOVOS (Edge Functions); o
-// painel antigo no Netlify segue fazendo o backup dele em paralelo — dois
-// backups por dia nao machucam ninguem.
+//   [{key,nome,url,listKey,token}]
+// `url` e o endereco completo da Edge Function de cada sistema.
 //
 // Destino: repositorio privado no GitHub (GITHUB_REPO), uma pasta por sistema,
 // um arquivo por dia (versionado). GITHUB_TOKEN e um PAT restrito a esse repo.
 //
-// DISPARO: pg_cron diario chama {action:"auto"} com o x-token. No Netlify o
-// gatilho era piggyback no login, porque o cron de la ja congelou 11 horas; o
-// pg_cron daqui tem execucao comprovada, entao o agendamento volta a ser o
-// caminho normal. A trava e por dia: rodar duas vezes no mesmo dia nao repete.
+// DISPARO: pg_cron chama {action:"auto"} com o x-token. A trava e por dia:
+// rodar duas vezes no mesmo dia nao repete.
 //
 // Acoes: status (qualquer sessao) | auto (x-token, um por dia) |
 //        exportar / registrarManual / backupAgora / restaurar (so a direcao).
@@ -229,10 +225,8 @@ function sistemasExternos(): any[] {
 }
 
 async function chamarSistema(sys: any, body: unknown) {
-  // url completa no registry (as Edge Functions nao tem o caminho
-  // /.netlify/functions/, entao o registry traz o endpoint inteiro em `url`
-  // quando `fn` estiver vazio).
-  const alvo = sys.fn ? `${sys.url}/.netlify/functions/${sys.fn}` : sys.url;
+  // O registry traz o endpoint inteiro em `url`.
+  const alvo = sys.url;
   // TETO DE TEMPO POR CHAMADA. Sem ele, um sistema pendurado segurava a corrida
   // inteira ate a function morrer -- e os outros cinco ficavam sem backup
   // naquele dia, sem nada dizendo por que.
@@ -572,7 +566,7 @@ Deno.serve(async (req: Request) => {
     if (!TOKEN || req.headers.get("x-token") !== TOKEN) return resposta({ erro: "nao autorizado" }, 401);
     const vistos = sistemasExternos().map((s: any) => ({
       key: s.key, nome: s.nome ?? null, listKey: s.listKey ?? null,
-      url: s.fn ? `${s.url}/.netlify/functions/${s.fn}` : s.url,
+      url: s.url,
       temToken: !!s.token,
     }));
     return resposta({ ok: true, quantos: vistos.length, sistemas: vistos });

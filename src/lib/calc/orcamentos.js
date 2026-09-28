@@ -399,7 +399,7 @@ export function calcOrcamentos(orcamentos, overrides, config, opcoes = {}) {
     perdidosSemMotivo: perdidos.filter((o) => !o.motivoPerdaNome).length,
     filaSemMargem: naFila.filter((o) => o.semMargem).length,
     // O normalizador do cache manda para "ganho" todo status que ele nao
-    // conhece (netlify/functions/mubi-cache-background.mjs). Ganho sem data de
+    // conhece (scripts/lib/mubi-cache.mjs). Ganho sem data de
     // aprovacao e o sintoma disso -- se este numero crescer, a conversao esta
     // inflada e o normalizador precisa de conserto.
     ganhosSemFechamento: ganhos.filter((o) => !o.fechadoEm).length,

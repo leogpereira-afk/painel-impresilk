@@ -17,7 +17,7 @@
 // vazio, o problema e a credencial -- nao a ausencia de dado. Zero so vira
 // resultado depois que o controle passa.
 // ============================================================================
-import { mubiGet, mubiConfigurado, itens } from "../netlify/functions/lib/mubi.js";
+import { mubiGet, mubiConfigurado, itens } from "./lib/mubi.js";
 
 const DIAS = Number(process.env.SONDA_DIAS || 90);
 const hoje = new Date();

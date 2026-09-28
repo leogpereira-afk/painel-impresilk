@@ -7,7 +7,7 @@ name: Importar O.S para o PCP
 #      14/09/2026, em silencio, com a fabrica trabalhando);
 #   2. MUBI_PUBLIC_KEY e MUBI_TOKEN ja sao segredos DESTE repositorio -- copiar
 #      para outro dobraria o raio de exposicao e o trabalho de girar a chave;
-#   3. o cliente que aguenta o ERP (netlify/functions/lib/mubi.js, com a trava
+#   3. o cliente que aguenta o ERP (scripts/lib/mubi.js, com a trava
 #      scripts/conferir-404.mjs) tambem ja esta aqui.
 #
 # O job NAO recebe chave do banco do PCP: manda a lista pronta para a Edge

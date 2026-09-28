@@ -10,7 +10,7 @@
  */
 const ALVOS = [
   {
-    modulo: "../netlify/functions/mubi-cache-background.mjs",
+    modulo: "./lib/mubi-cache.mjs",
     nomes: [
       "etapaRapidos", "etapaCompleta", "etapaRealizado", "calcDso",
       "normOrcamento", "normOS", "chaveProduto", "SEM_CATEGORIA", "FORA_CATALOGO",
@@ -18,7 +18,7 @@ const ALVOS = [
     ],
   },
   {
-    modulo: "../netlify/functions/lib/mubi.js",
+    modulo: "./lib/mubi.js",
     nomes: ["mubiGetTudo", "mubiConfigurado", "hojeMais", "num"],
   },
 ];
@@ -40,7 +40,7 @@ for (const alvo of ALVOS) {
 import { readFileSync } from "node:fs";
 const fonte = readFileSync(new URL("./carregar-cache.mjs", import.meta.url), "utf8");
 for (const [, dentro, de] of fonte.matchAll(/import\s*\{([^}]+)\}\s*from\s*"([^"]+)"/g)) {
-  if (!de.startsWith("..")) continue;
+  if (!de.startsWith(".")) continue;
   const m = await import(de);
   const faltando = dentro.split(",").map((x) => x.trim().split(" as ")[0]).filter(Boolean)
     .filter((n) => m[n] === undefined);

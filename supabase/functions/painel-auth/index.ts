@@ -1,8 +1,7 @@
 // ============================================================================
-// painel-auth — login do Painel de Gestao (substitui netlify/functions/auth.mjs)
+// painel-auth — login do Painel de Gestao
 //
-// O CONTRATO E O MESMO: { action, ... } e as mesmas respostas. So o backend
-// mudou -- store "painel-auth" (1 blob por conta) -> tabela painel_contas.
+// Contrato: { action, ... }. As contas moram na tabela painel_contas.
 //
 // O painel NAO usa Supabase Auth de proposito: ele ja tem login proprio com
 // permissao por modulo, e o hash das senhas (PBKDF2, 120 mil iteracoes) fica em

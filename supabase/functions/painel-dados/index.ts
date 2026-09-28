@@ -27,7 +27,7 @@ const JWT_SECRET = Deno.env.get("PAINEL_JWT_SECRET") ?? "";
 
 // Opcional: token do GitHub com permissao de Actions. Se existir, uma leitura
 // com cache velho dispara a recarga (auto-cura). Sem ele, vale so o agendamento
-// -- que e o caso normal. A auto-cura existe porque o cron do Netlify ja congelou
+// -- que e o caso normal. A auto-cura existe porque um agendamento ja congelou
 // por 11 horas e ninguem percebeu ate abrir o painel.
 
 const sb = createClient(SUPABASE_URL, SERVICE_KEY, { auth: { persistSession: false } });

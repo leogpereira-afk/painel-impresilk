@@ -7,7 +7,7 @@
 // IMPORTANTE: nada aqui autoriza coisa alguma de verdade. Esconder um item do
 // menu e conforto, nao seguranca -- quem manda e o servidor, que confere o
 // cracha em toda chamada (supabase/functions/_shared/cripto.ts, usado por cada
-// painel-*; o antigo netlify/functions/lib/guarda.js nao roda mais).
+// painel-*).
 
 import { API } from "./api.js";
 import { entradaUnica, limparCrachas } from "./entradaUnica.js";

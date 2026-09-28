@@ -12,7 +12,7 @@
 // sozinho. Se ele vazar, o estrago e alguem escrever numeros errados ate a
 // proxima carga; nao e acesso ao banco.
 //
-// Reusa as etapas de netlify/functions/mubi-cache-background.mjs de proposito:
+// Reusa as etapas de scripts/lib/mubi-cache.mjs de proposito:
 // sao 600 linhas de regra de negocio afinada em producao (janela de vencidos que
 // escondia R$ 52 mil de calote, rateio das unioes de itens que inflava 23% do
 // faturamento, DSO com corte). Copiar isso seria criar uma segunda verdade.
@@ -27,8 +27,8 @@ import {
   etapaRapidos, etapaCompleta, etapaRealizado, calcDso, normOrcamento, normOS, chaveProduto,
   SEM_CATEGORIA, FORA_CATALOGO, normRecebivel, CORTE_ATRASADOS,
   etapaHistoricoOS, fatiasPorAno, anosDoHistorico, conferirAbatimentos,
-} from "../netlify/functions/mubi-cache-background.mjs";
-import { mubiGetTudo, mubiConfigurado, hojeMais } from "../netlify/functions/lib/mubi.js";
+} from "./lib/mubi-cache.mjs";
+import { mubiGetTudo, mubiConfigurado, hojeMais } from "./lib/mubi.js";
 /* A faxina do mapa de pagos APAGA registro de dinheiro recebido: a decisao
    mora em lib/calc, com teste de entrada sintetica, nunca solta aqui. */
 import { ordensParaTabela, completaConfirmada } from "./lib/atualizacao-ordens.mjs";
@@ -182,8 +182,7 @@ async function gravarOrdensTabela(ordens) {
   return total;
 }
 
-// Janela de 7 dias mesclada no cache atual, por id. Substitui a etapaIncremental
-// da versao Netlify, que dependia do store do Blobs para ler o que ja existia.
+// Janela de 7 dias mesclada no cache atual, por id.
 async function janelaDe7Dias() {
   /* `datafinal` vai um dia ALEM de hoje. O Mubisys compara a data final na
      meia-noite: `datafinal=2026-08-24` significa "cadastro < 24/08 00:00", e a
