@@ -23,7 +23,7 @@ import { verificarJwt, crachaRevogado } from "../_shared/cripto.ts";
 import {capturarArquivos,prepararArquivos} from "../_shared/arquivos-backup.ts";
 import {buscarComRetentativa} from "../_shared/repetir-http.ts";
 import {proximoBackup} from "../_shared/fila-backup.mjs";
-import {avancarCopia} from "../_shared/backup-partes.mjs";
+import {avancarCopia,base64} from "../_shared/backup-partes.mjs";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -271,11 +271,19 @@ async function puxarSistema(sys: any) {
 
 // ---------------------------------------------------------------- github
 
-async function enviarParaGithub(chaveSistema: string, backup: any, caminhoParte?: string) {
+// Conferido a CADA envio: repositorio aprovado e privado. Devolve o motivo
+// quando o GitHub nao esta configurado; null quando pode enviar.
+async function conferirDestino() {
   if (!GH_TOKEN || !GH_REPO) return { ok: false, motivo: "GitHub nao configurado (falta GITHUB_TOKEN/GITHUB_REPO)" };
   if(GH_REPO !== 'leogpereira-afk/backups-impresilk') throw new Error('Destino de backup diferente do repositório privado aprovado.');
   const destino=await buscarComRetentativa(`https://api.github.com/repos/${GH_REPO}`,{headers:{Authorization:`Bearer ${GH_TOKEN}`,Accept:'application/vnd.github+json','User-Agent':'impresilk-painel-backup'}});
   if(!destino.ok || (await destino.json()).private !== true) throw new Error('Não foi possível confirmar que o repositório de backup é privado.');
+  return null;
+}
+
+async function enviarParaGithub(chaveSistema: string, backup: any) {
+  const semDestino = await conferirDestino();
+  if (semDestino) return semDestino;
   if(chaveSistema==='painel' && backup.arquivos?.length) {
     const manifesto=[];
     for(const arquivo of backup.arquivos) {
@@ -293,16 +301,20 @@ async function enviarParaGithub(chaveSistema: string, backup: any, caminhoParte?
     backup={...backup,arquivos:manifesto};
   }
   const dia = diaSP(backup.exportadoEm);
-  const caminho = caminhoParte || `${chaveSistema}/${dia}.json`;
-  // base64 em BLOCOS: espalhar um array grande em String.fromCharCode(...)
-  // estoura a pilha -- e um backup de sistema (RH ~900 KB) e grande.
-  const bytes = new TextEncoder().encode(JSON.stringify(backup));
-  let bin = "";
-  const BLOCO = 0x8000;
-  for (let i = 0; i < bytes.length; i += BLOCO) {
-    bin += String.fromCharCode(...bytes.subarray(i, i + BLOCO));
-  }
-  const conteudo = btoa(bin);
+  return gravarNoGithub(`${chaveSistema}/${dia}.json`, new TextEncoder().encode(JSON.stringify(backup)),
+    `backup ${chaveSistema} ${backup.exportadoEm}`);
+}
+
+// As partes da copia particionada chegam prontas em bytes: o sha256 do
+// manifesto e destes bytes, entao eles vao como estao.
+async function enviarParteParaGithub(caminho: string, bytes: Uint8Array, mensagem: string) {
+  return (await conferirDestino()) ?? gravarNoGithub(caminho, bytes, mensagem);
+}
+
+async function gravarNoGithub(caminho: string, bytes: Uint8Array, mensagem: string) {
+  // base64 em blocos (ver backup-partes.mjs): um backup de sistema e grande
+  // (RH ~900 KB; uma parte do Bosques chega a ~25 MB).
+  const conteudo = base64(bytes);
   const url = `https://api.github.com/repos/${GH_REPO}/contents/${caminho}`;
   const cab = {
     Authorization: `Bearer ${GH_TOKEN}`,
@@ -318,7 +330,7 @@ async function enviarParaGithub(chaveSistema: string, backup: any, caminhoParte?
     method: "PUT",
     headers: cab,
     body: JSON.stringify({
-      message: `backup ${chaveSistema} ${backup.exportadoEm}`,
+      message: mensagem,
       content: conteudo,
       ...(sha ? { sha } : {}),
     }),
@@ -330,19 +342,21 @@ async function enviarParaGithub(chaveSistema: string, backup: any, caminhoParte?
   return { ok: true, caminho };
 }
 
-// Bosques excede 40 MB: nunca acumula a base inteira dentro da função.
-// Cada chamada grava uma parte e só então avança o cursor persistido.
+// Bosques excede 100 MB: nunca acumula a base inteira dentro da função.
+// Cada chamada grava uma parte (até ~8 MB, ver TETO_PARTE) e só então avança o
+// cursor persistido.
 async function copiarPorPartes(sys:any) {
  const chave=`backup_etapa_${sys.key}`;
  const {data,error}=await sb.from('painel_meta').select('valor').eq('chave',chave).maybeSingle();
  if(error)throw new Error('Não foi possível consultar o progresso da cópia.');
  let estado=data?.valor;
  if(!estado || diaSP(estado.exportadoEm)!==diaSP() || estado.terminou)estado={sistema:sys.key,operacao:crypto.randomUUID(),exportadoEm:new Date().toISOString(),partes:[],registros:0,paginas:0,after:null,terminou:false};
+ const mensagem=`backup ${sys.key} ${estado.exportadoEm}`;
  estado=await avancarCopia(estado,async(after:any)=>{
   const r=await chamarSistema(sys,after==null?{action:'list'}:{action:'list',after});
   return {registros:r[sys.listKey] || r.registros || r.os || r.itens,nextAfter:r.nextAfter};
- },async(caminho:string,corpo:any)=>{
-  const envio=await enviarParaGithub(sys.key,{...corpo},caminho);
+ },async(caminho:string,bytes:Uint8Array)=>{
+  const envio=await enviarParteParaGithub(caminho,bytes,mensagem);
   if(!envio.ok)throw new Error((envio as any).motivo);
  });
  if(estado.terminou) {
