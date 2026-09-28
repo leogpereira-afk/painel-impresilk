@@ -1,0 +1,81 @@
+# PUBLICA AS FUNCTIONS DOS OUTROS SISTEMAS que ficaram para trás.
+#
+# O functions.yml publica as do Painel (e as do PCP de carona) a cada push aqui.
+# Os outros sistemas não tinham nada: Brief, DRE, Compras, POPs, Método V.O.F.,
+# Domo, Diamond, Bosques, Portal dos Bosques e Minaslab dependiam de alguém
+# lembrar de publicar à mão. Em 28/09/2026 a primeira conferência achou a
+# domo-rotina rodando uma versão de 19/08: o varredor de arquivos órfãos dela
+# não conhecia as permutas e apagaria a nota anexada a um lançamento na
+# madrugada seguinte, e três functions do Diamond e do Bosques com correções
+# de segurança paradas na main havia dias.
+#
+# Um push num repositório não dispara workflow em outro, então este roda de hora
+# em hora (o GitHub pode atrasar em horário cheio) e sob demanda. Ele NÃO
+# republica às cegas: só sobe a function cuja main tem commit depois da versão
+# que está no ar. Os detalhes estão em scripts/publicar-sistemas.mjs.
+#
+# Usa o mesmo secret SUPABASE_ACCESS_TOKEN do functions.yml: um token só, com
+# Edge Functions read-write nos dois projetos (impresilk e Projetos Léo).
+name: Edge Functions dos outros sistemas
+
+on:
+  schedule:
+    - cron: '23 * * * *'
+  workflow_dispatch:
+    inputs:
+      sistema:
+        description: 'Só este repositório (vazio = todos)'
+        required: false
+        default: ''
+      funcao:
+        description: 'Só esta function'
+        required: false
+        default: ''
+      forcar:
+        description: 'Publicar mesmo em dia ou pendente (exige a function)'
+        type: boolean
+        default: false
+      simular:
+        description: 'Só mostrar o que publicaria'
+        type: boolean
+        default: false
+
+# Mesmo grupo do functions.yml: duas publicações ao mesmo tempo mandariam
+# versões diferentes da mesma function.
+concurrency:
+  group: functions-supabase
+  cancel-in-progress: false
+
+jobs:
+  publicar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: O secret existe?
+        env:
+          TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: |
+          if [ -z "$TOKEN" ]; then
+            echo "::error::Falta o secret SUPABASE_ACCESS_TOKEN. Nenhuma function dos outros sistemas foi publicada."
+            exit 1
+          fi
+
+      - name: Publicar o que ficou para trás
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SISTEMA: ${{ inputs.sistema }}
+          FUNCAO: ${{ inputs.funcao }}
+          FORCAR: ${{ inputs.forcar }}
+          SIMULAR: ${{ inputs.simular }}
+        run: |
+          args=()
+          [ -n "$SISTEMA" ] && args+=(--sistema "$SISTEMA")
+          [ -n "$FUNCAO" ] && args+=(--funcao "$FUNCAO")
+          [ "$FORCAR" = "true" ] && args+=(--forcar)
+          [ "$SIMULAR" = "true" ] && args+=(--simular)
+          node scripts/publicar-sistemas.mjs "${args[@]}"

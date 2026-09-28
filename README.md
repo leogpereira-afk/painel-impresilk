@@ -11,6 +11,8 @@ Todo `git push` na `main` passa pelas verificacoes e publica sozinho:
 - a tela, pelo workflow `pages.yml` (testes, lint, build com `BASE_PATH=/painel-impresilk/`);
 - as Edge Functions, pelo workflow `functions.yml` (`scripts/publicar-functions.sh`), quando algo muda em `supabase/functions/`.
 
+As functions dos **outros sistemas** (lista em `scripts/sistemas-functions.json`) sobem pelo workflow `functions-sistemas.yml`, de hora em hora: so a function cuja main tem commit mais novo que a versao no ar (`scripts/publicar-sistemas.mjs`). Os dois workflows usam o mesmo secret `SUPABASE_ACCESS_TOKEN` (Edge Functions read-write nos projetos impresilk e Projetos Léo).
+
 ## Como rodar
 
 ```bash
