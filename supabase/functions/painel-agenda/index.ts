@@ -40,7 +40,7 @@
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { verificarJwt, crachaRevogado } from "../_shared/cripto.ts";
-import { diasCasa, encerradaERP, projetarOS, hojeSP } from "../_shared/agenda-pcp.ts";
+import { diasCasa, encerradaERP, projetarOS, hojeSP, pessoasDaAgenda } from "../_shared/agenda-pcp.ts";
 
 import { celebracoesRH } from "../_shared/calendario-celebracoes.mjs";
 
@@ -157,10 +157,24 @@ async function producao(mes: string) {
      os dois perde a confianca nos dois. */
   const doMes = todas.filter((o) => !encerradaERP(o) && diasCasa(o).some((d) => d.startsWith(mes)));
   const { eventos, plantoes } = await agendaDaProducao(mes);
+  // Equipe e plantao gravados por ID do RH (e os antigos, por nome): a Agenda
+  // mostra o nome e conta pessoas pela chave, uma por pessoa.
+  const [{ data: fichas, error: erroFichas }, { data: cfgPCP, error: erroCfg }] = await Promise.all([
+    sb.from("registros").select("id, registro->>nome, registro->>apelido, registro->>cpf, registro->>dataDesligamento").eq("colecao", "colaboradores").eq("apagado", false),
+    sb.from("pcp_config_global").select("config").eq("id", true).maybeSingle(),
+  ]);
+  if (erroFichas) throw new Error(erroFichas.message);
+  if (erroCfg) throw new Error(erroCfg.message);
+  const gente = pessoasDaAgenda(fichas ?? [], (cfgPCP?.config as any)?.vinculosRH);
+  const porPessoa = (lista: string[]) => {
+    const vistas = new Map<string, string>();
+    for (const n of lista) { const k = gente.chave(n); if (!vistas.has(k)) vistas.set(k, gente.rotulo(n)); }
+    return { equipe: [...vistas.values()], equipeChaves: [...vistas.keys()] };
+  };
   return {
-    os: doMes.map(projetarOS),
+    os: doMes.map(projetarOS).map((o) => ({ ...o, ...porPessoa(o.equipe) })),
     eventos,
-    plantoes,
+    plantoes: plantoes.map((p: any) => ({ ...p, quem: gente.rotulo(p.quem) })),
     hoje: hojeSP(),
     consultadoEm: new Date().toISOString(),
   };

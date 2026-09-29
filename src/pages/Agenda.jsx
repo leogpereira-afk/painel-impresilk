@@ -229,7 +229,8 @@ export default function Agenda() {
      somando-a um dia so de retiradas exibia "0 pessoas escaladas" em ambar,
      como se faltasse escalar alguem. */
   const saidas = osDoDia.filter((o) => !o.interno);
-  const pessoasNoDia = new Set(saidas.flatMap((o) => o.equipe)).size;
+  // Pessoas, não textos: a O.S. antiga (nome) e a nova (ID) da mesma pessoa contam uma vez.
+  const pessoasNoDia = new Set(saidas.flatMap((o) => o.equipeChaves || o.equipe)).size;
   const veiculosNoDia = new Set(saidas.map((o) => o.veiculo).filter(Boolean)).size;
 
   return (

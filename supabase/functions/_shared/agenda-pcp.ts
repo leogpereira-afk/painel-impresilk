@@ -215,6 +215,67 @@ export interface OSAgenda {
 
 const texto = (v: unknown, max = 200) => String(v ?? "").trim().slice(0, max);
 
+/* A EQUIPE DO PCP GRAVA O ID DO RH (6 primeiros digitos do CPF) desde
+   29/09/2026 -- ordem do dono: "vamos usar o ID em todo o sistema e padrao
+   pra nao ter erro". A O.S. antiga guarda o nome. Quem so ve a Agenda recebe
+   o NOME e conta PESSOAS: a mesma regua do PCP (operacao.js,
+   resolverPessoas) -- vinculo salvo, depois casamento unico entre todas as
+   fichas, nunca em quem saiu -- e o rotulo e o menor comeco de nome que so
+   aquela ficha tem. ID repetido em duas fichas nao vira ninguem, e o CPF nao
+   sai desta porta. Aceita a linha com o registro dentro ou achatada. */
+type Ficha = { id: string; nome: string; apelido: string; desligado: boolean };
+const normP = (s: unknown) => String(s ?? "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\s+/g, " ").trim().toLowerCase();
+const ehId = (v: unknown) => /^\d{6}$/.test(String(v ?? "").trim());
+export function pessoasDaAgenda(linhas: any[], vinculos: unknown) {
+  const conta = new Map<string, number>(), brutas: Ficha[] = [];
+  for (const l of linhas || []) {
+    const g = l?.registro ?? l;
+    const d = String(g?.cpf ?? "").replace(/\D/g, "");
+    const nome = String(g?.nome ?? "").trim();
+    if (d.length !== 11 || !nome) continue;
+    const id = d.slice(0, 6);
+    conta.set(id, (conta.get(id) ?? 0) + 1);
+    brutas.push({ id, nome, apelido: String(g?.apelido ?? "").trim(), desligado: !!String(g?.dataDesligamento ?? "").trim() });
+  }
+  const fichas = brutas.filter((f) => conta.get(f.id) === 1);
+  const porId = new Map(fichas.map((f) => [f.id, f] as const));
+  const um = (a: Ficha[]) => (a.length === 1 && !a[0].desligado ? a[0] : null);
+  const auto = (texto: string) => {
+    const ap = normP(texto), tokens = ap.split(" ");
+    const porApelido = fichas.filter((p) => normP(p.apelido) === ap); if (porApelido.length) return um(porApelido);
+    const porNome = fichas.filter((p) => normP(p.nome) === ap); if (porNome.length) return um(porNome);
+    return um(fichas.filter((p) => { const n = normP(p.nome).split(" "); return tokens.every((t, i) => n[i] === t); }));
+  };
+  const salvos = new Map<string, string>();
+  for (const v of Array.isArray(vinculos) ? vinculos : []) {
+    const o: any = v && typeof v === "object" ? v : {};
+    const ap = normP(o.apelido || o.nomePCP);
+    const idV = String(o.id ?? "").replace(/\D/g, "");
+    const id = o.semFicha === true ? "" : (idV.length === 6 ? idV : "");
+    if (!ap || (!id && o.semFicha !== true)) continue;
+    salvos.set(ap, salvos.has(ap) && salvos.get(ap) !== id ? "" : id);
+  }
+  const idDe = (entrada: string) => {
+    const s = String(entrada ?? "").trim();
+    if (!s) return "";
+    if (ehId(s)) return s;
+    const ap = normP(s);
+    return salvos.has(ap) ? salvos.get(ap) || "" : (auto(s)?.id || "");
+  };
+  const curto = (p: Ficha) => {
+    const palavras = p.nome.split(/\s+/).filter(Boolean), alvo = palavras.map(normP);
+    for (let k = 1; k <= palavras.length; k++) {
+      const pre = alvo.slice(0, k).join(" ");
+      if (!brutas.some((q) => q.id !== p.id && normP(q.nome).split(" ").slice(0, k).join(" ") === pre)) return palavras.slice(0, k).join(" ");
+    }
+    return palavras.join(" ");
+  };
+  return {
+    chave: (x: string) => { const id = idDe(x); return id || `nome:${normP(x)}`; },
+    rotulo: (x: string) => { const id = idDe(x); const p = id ? porId.get(id) : undefined; return p ? curto(p) : (ehId(x) ? `ID ${String(x).trim()}` : x); },
+  };
+}
+
 export function projetarOS(o: OS): OSAgenda {
   const i = o?.instalacao || {};
   const st = status(o);
