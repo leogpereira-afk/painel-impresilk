@@ -25,7 +25,24 @@ on:
       - 'supabase/functions/**'
       - 'scripts/publicar-functions.sh'
       - '.github/workflows/functions.yml'
-  workflow_dispatch: {}
+  # Disparo manual pode escolher o ramo do PCP e publicar functions do RH. Serve
+  # para publicar o SERVIDOR antes da tela (o push na main do PCP ja publica a
+  # tela pelo Pages): primeiro o ramo com o servidor novo, depois a main.
+  # Nasceu em 29/09/2026, quando o token local de publicar passou a dar 401.
+  workflow_dispatch:
+    inputs:
+      pcp_ref:
+        description: 'Ramo do PCP cujas functions publicar'
+        required: false
+        default: 'main'
+      rh_ref:
+        description: 'Ramo do RH (so com rh_funcoes)'
+        required: false
+        default: 'main'
+      rh_funcoes:
+        description: 'Functions do RH a publicar, separadas por espaco (vazio = nenhuma)'
+        required: false
+        default: ''
 
 # Duas publicações ao mesmo tempo mandariam versões diferentes da mesma
 # function; a última a chegar venceria, e não necessariamente é a mais nova.
@@ -86,6 +103,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: leogpereira-afk/impresilk
+          ref: ${{ github.event.inputs.pcp_ref || 'main' }}
 
       - name: O secret existe?
         env:
@@ -102,3 +120,27 @@ jobs:
         run: |
           chmod +x scripts/publicar-functions.sh
           ./scripts/publicar-functions.sh
+
+  # RH: SO sob comando (disparo manual com a lista de functions). Nunca no push:
+  # republicar todas as functions do RH a cada mudanca do painel publicaria o
+  # que estiver na main do RH sem ninguem ter conferido.
+  publicar-rh:
+    runs-on: ubuntu-latest
+    needs: publicar
+    if: always() && github.event_name == 'workflow_dispatch' && github.event.inputs.rh_funcoes != ''
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: leogpereira-afk/impresilkrh
+          ref: ${{ github.event.inputs.rh_ref || 'main' }}
+
+      - name: Publicar as functions pedidas do RH
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          FUNCOES: ${{ github.event.inputs.rh_funcoes }}
+        run: |
+          if [ -z "$SUPABASE_ACCESS_TOKEN" ]; then echo "::error::Falta o secret SUPABASE_ACCESS_TOKEN."; exit 1; fi
+          # Nome de function e so letra minuscula, numero e hifen: nada mais passa para o shell.
+          if ! printf '%s' "$FUNCOES" | grep -Eq '^[a-z0-9-]+( [a-z0-9-]+)*$'; then echo "::error::Lista de functions invalida: $FUNCOES"; exit 1; fi
+          chmod +x scripts/publicar-functions.sh
+          ./scripts/publicar-functions.sh $FUNCOES
