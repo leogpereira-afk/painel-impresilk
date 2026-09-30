@@ -40,7 +40,7 @@
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { verificarJwt, crachaRevogado } from "../_shared/cripto.ts";
-import { diasCasa, encerradaERP, projetarOS, hojeSP, pessoasDaAgenda } from "../_shared/agenda-pcp.ts";
+import { canceladaPCP, diasCasa, encerradaERP, projetarOS, hojeSP, pessoasDaAgenda } from "../_shared/agenda-pcp.ts";
 
 import { celebracoesRH } from "../_shared/calendario-celebracoes.mjs";
 
@@ -155,7 +155,8 @@ async function producao(mes: string) {
      pelo ERP, dentro as que tocam o mes por diasCasa. Se as duas divergirem,
      o calendario do Painel mostra um dia que o PCP nao mostra -- e quem olha
      os dois perde a confianca nos dois. */
-  const doMes = todas.filter((o) => !encerradaERP(o) && diasCasa(o).some((d) => d.startsWith(mes)));
+  // E fora as canceladas a mao no PCP (v141), como o calendario do PCP faz.
+  const doMes = todas.filter((o) => !encerradaERP(o) && !canceladaPCP(o) && diasCasa(o).some((d) => d.startsWith(mes)));
   const { eventos, plantoes } = await agendaDaProducao(mes);
   // Equipe e plantao gravados por ID do RH (e os antigos, por nome): a Agenda
   // mostra o nome e conta pessoas pela chave, uma por pessoa.

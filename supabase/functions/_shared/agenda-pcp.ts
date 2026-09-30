@@ -15,6 +15,7 @@
 // ORIGEM DE CADA FUNCAO (para conferir quando o PCP mudar):
 //   dia, somarDias, interno, equipe, duracao, prazo, agendaCompleta, status,
 //   diasAgenda, encerradaERP .... instalacao/operacao.js
+//   canceladaPCP ............... instalacao/operacao.js, `cancelamentoDe` (a parte manual)
 //   diasCasa ................... instalacao/casa.js:29-34
 //   ordemHora, rotuloHora ...... instalacao/app.js, funcoes `ordemHora` e `rotuloHora`
 //   rotuloStatus ............... instalacao/app.js, `STATUS_LABEL`, `STATUS_LABEL_INT`
@@ -117,6 +118,17 @@ export function diasAgenda(o: OS): string[] {
 export function encerradaERP(o: OS): boolean {
   if (!o?.finalizadaEm) return false;
   return !!(o.baixaAutoERP?.em === o.finalizadaEm || /^Mubisys\b/i.test(o.finalizadoPor || ""));
+}
+
+/* A O.S. CANCELADA A MAO NO PCP (v141): a marca que o servidor gravou,
+   {ativo:true, motivo, por, porId, em}. O desfeito ({ativo:false}) e a marca
+   sem motivo nao valem -- a mesma regra do `cancelamentoDe` do PCP. A
+   cancelada pelo ERP ja sai pela `encerradaERP` (ela e finalizada pela baixa).
+   Sem isto, a O.S. que o PCP cancelou sumia da programacao do dia la e
+   continuava ocupando o dia no calendario daqui. */
+export function canceladaPCP(o: OS): boolean {
+  const c = o?.cancelamento;
+  return !!(c && typeof c === "object" && c.ativo === true && String(c.motivo ?? "").trim());
 }
 
 /* A regra da CASA (instalacao/casa.js:29-34): o dia que a producao ja tem na
