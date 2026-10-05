@@ -18,6 +18,8 @@ async function chamar(action, dados = {}) {
 }
 
 export const listarAtivos = () => chamar("listar").then((r) => r.itens || []);
+// Consulta restrita do Patrimônio: não abre os documentos nem concede edição.
+export const listarEquipamentosPatrimonio = () => chamar("listarPatrimonio").then((r) => r.itens || []);
 export const salvarAtivo = (item) => chamar("salvar", { item }).then((r) => r.item);
 export const removerAtivo = (id, bemId) => chamar("remover", { id, bemId });
 export const salvarEquipamento = (item, patrimonio, bemId) => chamar("salvar",{item,patrimonio,bemId}).then(r=>r.item);

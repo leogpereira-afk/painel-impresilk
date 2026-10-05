@@ -1,6 +1,6 @@
 import HistoricoBem from "../components/patrimonio/HistoricoBem.jsx";
 import {useCallback, useEffect, useMemo, useRef, useState} from 'react';
-import {Plus, Search, Printer, Building2, Boxes, Wallet, AlertTriangle, Camera, LayoutGrid, List, ArrowUpRight, Pencil, Trash2, RefreshCw, Tag, ChevronLeft, ChevronRight, X, Phone, Smartphone, Archive, Wrench, BedDouble} from 'lucide-react';
+import {Plus, Search, Printer, Building2, Boxes, Wallet, AlertTriangle, Camera, LayoutGrid, List, ArrowUpRight, Pencil, Trash2, RefreshCw, Tag, ChevronLeft, ChevronRight, X, Phone, Smartphone, Archive, Wrench, BedDouble, Car, Cog} from 'lucide-react';
 import {lerBens, lerSetores, salvarBem, removerBem, salvarSetor, removerSetor, semearSetores} from '../services/patrimonio.js';
 import {resumoFotos, listarFotos} from '../services/fotos.js';
 import {calcPatrimonio, SETORES_PADRAO, SITUACOES, idadeEmAnos} from '../lib/calc/patrimonio.js';
@@ -12,12 +12,15 @@ import FotosPatrimonio from '../components/FotosPatrimonio.jsx';
 import {FormBem, FormSetor} from '../components/patrimonio/Formularios.jsx';
 import ControlesPatrimonio, {AtualizacaoPatrimonio} from '../components/patrimonio/Controles.jsx';
 import VinculosSetor from '../components/patrimonio/VinculosSetor.jsx';
+import EquipamentosPatrimonio from '../components/patrimonio/Equipamentos.jsx';
+import {useAbaNavegavel} from '../hooks/useAbaNavegavel.js';
 import {CONTROLES} from '../lib/calc/controles-patrimonio.js';
 import './patrimonio.css';
 
 const VAZIO = {id:'', codigo:'', setorSigla:'', nomeGenerico:'', descricaoTecnica:'', nf:'', dataAquisicao:'', valor:'', situacao:'uso', observacao:'', responsavel:'', motivoSemNota:''};
 const SETOR_VAZIO = {id:'', numero:'', sigla:'', nome:'', area:''};
 const POR_PAGINA = 12;
+const ABAS = [['inventario','Inventário',Boxes],['ramais','Ramais',Phone],['armarios','Armários',Archive],['ferramentas','Caixas de ferramentas',Wrench],['camas','Camas',BedDouble],['celulares','Celulares',Smartphone],['carros','Carros',Car],['maquinas','Máquinas',Cog],['setores','Setores',Building2],['pendencias','Pendências',AlertTriangle]];
 const rotuloSituacao = b => (SITUACOES[b.situacao] || SITUACOES.uso).rotulo;
 const nomeSetor = (b, setores) => setores.find(s => s.sigla === b.setorSigla)?.nome || 'Setor a definir';
 
@@ -63,7 +66,8 @@ function Impressao({tipo,bens,setores,contexto,aoVoltar}) {
 export default function Patrimonio() {
   const [bens,setBens]=useState(null), [setoresMapa,setSetoresMapa]=useState(null), [erro,setErro]=useState(null);
   const [atualizando,setAtualizando]=useState(false), [msg,setMsg]=useState(null), [salvando,setSalvando]=useState(false);
-  const [filtros,setFiltros]=useState(FILTROS_INICIAIS), [aba,setAba]=useState('inventario'), [modo,setModo]=useState('cards');
+  const [filtros,setFiltros]=useState(FILTROS_INICIAIS), [modo,setModo]=useState('cards');
+  const [aba,setAba]=useAbaNavegavel('inventario',ABAS.map(([id])=>id));
   const [pagina,setPagina]=useState(1), [selecionados,setSelecionados]=useState([]), [janela,setJanela]=useState(null), [impressao,setImpressao]=useState(null);
   const [fotos,setFotos]=useState(null), [erroFotos,setErroFotos]=useState(''), [revisaoFotos,setRevisaoFotos]=useState(0);
   const [fotoOcupada,setFotoOcupada]=useState(false);
@@ -162,9 +166,10 @@ export default function Patrimonio() {
     {msg&&!janela&&<p className={`pat-notice ${msg.erro?'is-error':''}`} role={msg.erro?'alert':'status'}>{msg.texto}</p>}
     {erroFotos&&<div className="pat-notice is-error" role="alert">Não foi possível conferir as fotos. A consulta dos bens continua disponível. <button onClick={carregarFotos} className="btn-ghost">Tentar novamente</button></div>}
     {!vm.setores.length&&<div className="pat-empty"><Building2 size={30}/><h2>Organize os primeiros setores</h2><p>O setor identifica a localização e gera a etiqueta de cada bem.</p><div className="pat-actions"><button className="btn-primary" disabled={salvando} onClick={semear}>Usar os setores da Impresilk</button><button className="btn-outline" onClick={()=>abrirSetor()}>Criar setor</button></div></div>}
-    <nav className="pat-tabs" aria-label="Visões do patrimônio">{[['inventario','Inventário',Boxes],['ramais','Ramais',Phone],['armarios','Armários',Archive],['ferramentas','Caixas de ferramentas',Wrench],['camas','Camas',BedDouble],['celulares','Celulares',Smartphone],['setores','Setores',Building2],['pendencias','Pendências',AlertTriangle]].map(([id,nome,Icone])=><button key={id} aria-current={aba===id?'page':undefined} onClick={()=>{setAba(id);setMsg(null);}}><Icone size={16} aria-hidden="true"/>{nome}{id==='pendencias'&&<span>{pendentes.length}</span>}</button>)}</nav>
+    <nav className="pat-tabs" aria-label="Visões do patrimônio">{ABAS.map(([id,nome,Icone])=><button key={id} aria-current={aba===id?'page':undefined} onClick={()=>{setAba(id);setMsg(null);}}><Icone size={16} aria-hidden="true"/>{nome}{id==='pendencias'&&<span>{pendentes.length}</span>}</button>)}</nav>
 
     {CONTROLES[aba]&&<ControlesPatrimonio key={aba} tipo={aba}/>}
+    {['carros','maquinas'].includes(aba)&&<EquipamentosPatrimonio key={aba} tipo={aba==='carros'?'veiculo':'maquina'} bens={vm.bens} setores={vm.setores} aoVerBem={verDetalhe}/>}
     {aba==='inventario'&&<>
       <div className="pat-toolbar">
         <div className="pat-search"><Search size={19}/><input className="input" aria-label="Buscar bens" placeholder="Etiqueta, equipamento, série, nota ou responsável…" value={filtros.busca} onChange={e=>filtrar({busca:e.target.value})}/>{filtros.busca&&<button onClick={()=>filtrar({busca:''})} aria-label="Limpar busca"><X size={17}/></button>}</div>

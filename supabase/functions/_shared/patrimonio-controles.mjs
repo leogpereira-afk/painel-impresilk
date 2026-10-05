@@ -1,4 +1,5 @@
 // Validação e autoria de cadastros numerados. A identidade vem da sessão.
+import { aplicarOperacaoCaixa } from './patrimonio-caixas.mjs';
 export const TIPOS_CONTROLE = ['ramais', 'armarios', 'ferramentas', 'camas', 'celulares'];
 export function prepararControle(campos, anterior, sessao, agora) {
   const falhar = (mensagem, status=422) => { throw Object.assign(new Error(mensagem), {status}); };
@@ -14,9 +15,14 @@ export function prepararControle(campos, anterior, sessao, agora) {
   if(tipo==='ramais' && !/\d/.test(telefone)) falhar('Informe o telefone do ramal.');
   const modelo=tipo==='celulares'?texto('modelo',120):'';
   if(tipo==='celulares'&&!modelo)falhar('Informe o modelo do celular.');
+  if(tipo!=='ferramentas' && campos.operacaoCaixa!=null)falhar('Esta operação é exclusiva das caixas de ferramentas.');
+  const caixa=tipo==='ferramentas'?aplicarOperacaoCaixa(anterior,campos.operacaoCaixa,sessao,agora):{};
+  // Duas gravações no mesmo milissegundo também precisam de versões diferentes.
+  const anteriorMs=Date.parse(anterior?.atualizadoEm),agoraMs=Date.parse(agora);
+  const atualizadoEm=Number.isFinite(anteriorMs)&&anteriorMs>=agoraMs?new Date(anteriorMs+1).toISOString():agora;
   return {tipo,numero,numeroChave:numero.replace(/\D/g,'').replace(/^0+(?=\d)/,''),modelo,telefone,pessoa:texto('pessoa',120),observacao:texto('observacao',1000),
     criadoEm:anterior?.criadoEm || agora,criadoPor:anterior?.criadoPor || String(sessao.sub),
-    atualizadoEm:agora,atualizadoPor:String(sessao.sub),atualizadoPorNome:String(sessao.nome || sessao.sub)};
+    atualizadoEm,atualizadoPor:String(sessao.sub),atualizadoPorNome:String(sessao.nome || sessao.sub),...caixa};
 }
 export function carimbarPatrimonio(registro, anterior, sessao, agora) {
  return {...registro,criadoEm:anterior?.criadoEm || (anterior ? null : agora),criadoPor:anterior?.criadoPor || (anterior ? null : String(sessao.sub)),

@@ -55,6 +55,32 @@ const ESPEC_PERMITIDA: Record<string, string[]> = {
 };
 const ESPEC_MAX = 120; // caracteres por campo: e ficha, nao observacao
 
+// Patrimônio consulta o MESMO cadastro de Manutenções, mas sua permissão não
+// concede os documentos, anexos, valores ou operações de edição dos ativos.
+// Esta projeção é uma lista fechada: campos novos no cadastro não vazam aqui.
+function equipamentoParaPatrimonio(id: unknown, registro: any) {
+  if (!registro || !["veiculo", "maquina"].includes(registro.tipo)) return null;
+  const texto = (valor: unknown, max = 180) =>
+    typeof valor === "string" || (typeof valor === "number" && Number.isFinite(valor))
+      ? String(valor).trim().slice(0, max) : "";
+  const ativoId = texto(id);
+  if (!ativoId) return null;
+  const ficha = registro.especificacao && typeof registro.especificacao === "object"
+    && !Array.isArray(registro.especificacao) ? registro.especificacao : {};
+  const campos = registro.tipo === "veiculo"
+    ? ["placa", "marcaModelo", "ano"] : ["fabricante", "modelo", "numeroSerie", "ano", "setor"];
+  return {
+    id: ativoId,
+    tipo: registro.tipo,
+    nome: texto(registro.nome),
+    responsavel: texto(registro.responsavel),
+    bemId: texto(registro.bemId),
+    especificacao: Object.fromEntries(campos.map(campo => [campo, texto(ficha[campo], ESPEC_MAX)])),
+    atualizadoEm: texto(registro.atualizadoEm, 40),
+    atualizadoPor: texto(registro.atualizadoPor),
+  };
+}
+
 // Igual ao resto do `limpo`: chave ausente MANTEM o que ja estava gravado,
 // string vazia limpa. Se o corpo nao traz `especificacao` nenhuma (formulario
 // antigo, outra tela), a ficha inteira fica intacta.
@@ -182,6 +208,26 @@ Deno.serve(async (req: Request) => {
 
   try {
     switch (corpo.action) {
+      case "listarPatrimonio": {
+        if (sessao.master !== true && !perms.includes("*") && !perms.includes("patrimonio")) {
+          return resposta({ erro: "Voce nao tem acesso ao Patrimônio." }, 403);
+        }
+        const itens = [];
+        const PASSO = 1000;
+        for (let de = 0; ; de += PASSO) {
+          const { data, error } = await sb.from("painel_registros").select("id,registro")
+            .eq("colecao", "ativo").in("registro->>tipo", ["veiculo", "maquina"])
+            .order("id").range(de, de + PASSO - 1);
+          if (error) throw new Error(error.message);
+          for (const linha of data ?? []) {
+            const item = equipamentoParaPatrimonio(linha.id, linha.registro);
+            if (item) itens.push(item);
+          }
+          if ((data ?? []).length < PASSO) break;
+        }
+        return resposta({ ok: true, itens });
+      }
+
       case "listar": {
         // Listar não apaga arquivos. Itens retirados permanecem na lixeira.
         const itens: any[] = [];

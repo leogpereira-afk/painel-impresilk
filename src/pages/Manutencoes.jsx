@@ -1,4 +1,5 @@
 import { useAbaNavegavel } from "../hooks/useAbaNavegavel.js";
+import {useSearchParams} from 'react-router-dom';
 // Manutenções: o que a empresa gasta para as coisas continuarem funcionando --
 // os carros, as máquinas e o prédio (câmeras, ar condicionado, elétrica,
 // hidráulica, portões).
@@ -775,6 +776,8 @@ function LinhaItem({ item, aberto, aoAbrir, aoLancar, aoEditarItem, aoApagarItem
 // ---------------------------------------------------------------- página
 
 export default function Manutencoes() {
+  const [parametros,setParametros]=useSearchParams();
+  const itemSelecionado=parametros.get('item')||'';
   const [itens, setItens] = useState(null);
   const [mapa, setMapa] = useState(null);
   const [erro, setErro] = useState(null);
@@ -792,6 +795,7 @@ export default function Manutencoes() {
   const [mesAberto, setMesAberto] = useState(null);
   const [erp, setErp] = useState(null);
   const [aberto, setAberto] = useState(null);
+  useEffect(()=>{setAberto(itemSelecionado||null);setFamilia('tudo');setRecorte(null);setBusca('');},[itemSelecionado]);
   const [formLanc, setFormLanc] = useState(null);
   const [formItem, setFormItem] = useState(null);
   // Setores do Patrimônio: o item cadastrado aqui nasce lá também, e "onde
@@ -856,6 +860,7 @@ export default function Manutencoes() {
   const visiveis = useMemo(() => {
     const q = semAcento(busca.trim());
     return vm.lista
+      .filter((i) => !itemSelecionado || i.id === itemSelecionado)
       .filter((i) => familia === "tudo" || i.familia === familia)
       .filter((i) =>
         !q
@@ -873,7 +878,7 @@ export default function Manutencoes() {
         const d = peso[a.sit.nivel] - peso[b.sit.nivel];
         return d !== 0 ? d : b.doze - a.doze;
       });
-  }, [vm, familia, busca, recorte]);
+  }, [vm, familia, busca, recorte, itemSelecionado]);
 
   // Gasto por ano e por mês. Sai de `vm.lancamentos` (a lista crua) e não da
   // `lista` por item, para que lançamento de item retirado continue contado --
@@ -1286,6 +1291,7 @@ export default function Manutencoes() {
             />
           }
         />
+        {itemSelecionado&&<div className="sem-impressao mb-3 flex flex-wrap items-center gap-2 rounded-lg bg-brand-50 px-3 py-2 text-sm text-brand-700" role="status"><span>{vm.lista.some(i=>i.id===itemSelecionado)?'Cadastro aberto a partir do Patrimônio. É o mesmo equipamento e o mesmo histórico.':'Este equipamento não está disponível nesta consulta.'}</span><button className="btn-ghost !py-1 !px-2 text-xs" onClick={()=>setParametros(p=>{const n=new URLSearchParams(p);n.delete('item');return n;})}><X size={13}/>Ver todos os equipamentos</button></div>}
 
         {/* O recorte veio de um cartão lá em cima; sem esta faixa a lista fica
             curta "sem motivo" -- e a saída tem de estar do lado do resultado. */}

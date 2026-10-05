@@ -5,11 +5,21 @@ const configs = {
     A ex4 tem o tipo da chave errado de propósito, para a prévia mostrar o aviso. */
  bancos:{ex1:{grupo:'Impresilk',banco:'BTG 208',titular:'Impresilk',doc:'11.222.333/0001-81',agencia:'0050',conta:'000000-1',pix:'123e4567-e12b-12d1-a456-426655440000',pixTipo:'Aleatoria',ordem:0},ex2:{grupo:'Impresilk',banco:'Sicoob Credinor',titular:'Impresilk',doc:'11.222.333/0001-81',agencia:'0000',conta:'00.000-0',pix:'11.222.333/0001-81',pixTipo:'CNPJ',codigoBanco:'756',ordem:1},ex3:{grupo:'Impresilk',banco:'BB',titular:'Impresilk',doc:'11.222.333/0001-81',agencia:'0000-0',conta:'00000-0',pix:'',pixTipo:'Conta e agencia',ordem:2},ex4:{grupo:'Universo',banco:'Sicoob Credinosso',titular:'Universo',doc:'11.444.777/0001-61',agencia:'0000',conta:'00.000-0',pix:'123e4567-e12b-12d1-a456-426655440001',pixTipo:'CNPJ',ordem:3}},
  marketing:{ex1:{nome:'Biblioteca da marca (exemplo)',url:'https://example.com'},acao1:{tipo:'acao',nome:'Apresentação de fachadas (exemplo)',objetivo:'Gerar oportunidades de sinalização para lojas',publico:'Comércio local',canal:'Portfólio e redes sociais',responsavel:'Ana Exemplo',prazo:'2026-09-15',status:'Produção',investimento:500,orcamentos:[],url:''}},
- patrimonio:{ex1:{nomeGenerico:'Impressora',descricaoTecnica:'Equipamento de demonstração',setorSigla:'PRO',codigo:'PRO-001',valor:10000,situacao:'uso',dataAquisicao:'2026-01-10'}},
+ patrimonio:{ex1:{nomeGenerico:'Impressora',descricaoTecnica:'Equipamento de demonstração',origemAtivoId:'maq-demo',setorSigla:'PRO',codigo:'PRO-001',valor:10000,situacao:'uso',dataAquisicao:'2026-01-10'}},
  setores:{ex1:{sigla:'PRO',nome:'Produção',area:'Operações'}},
  patrimonio_controles:Object.fromEntries(['ramais','armarios','ferramentas','camas','celulares'].map((tipo,i)=>['controle-'+tipo,{tipo,numero:tipo==='celulares'?'(38) 99999-0000':String(i+1).padStart(2,'0'),modelo:tipo==='celulares'?'Samsung Galaxy A15':'',telefone:'(38) 3000-0000',pessoa:'Ana Exemplo',observacao:'Cadastro de demonstração',atualizadoEm:'2026-10-05T12:00:00Z',atualizadoPorNome:'Conta de demonstração'}])),
  manutencoes:{},permutas:{},campanhas:{},grupos_clientes:{},
 };
+// Acervo fictício: permite revisar entrega parcial e avaliação mensal sem gravar no servidor.
+Object.assign(configs.patrimonio_controles['controle-ferramentas'], {
+ acervo:[{id:'item-alicate',nome:'Alicate universal',quantidade:3,estado:'bom',observacao:'Isolação íntegra'},{id:'item-chave',nome:'Chave de fenda',quantidade:2,estado:'desgaste',observacao:'Conferir cabo'}],
+ movimentacoes:[{id:'entrega-demo',tipo:'entrega',itemId:'item-alicate',itemNome:'Alicate universal',quantidade:1,pessoa:'Bruno Exemplo',data:'2026-10-01',estado:'bom',observacao:'Instalação externa',criadoEm:'2026-10-01T12:00:00Z',criadoPorNome:'Conta de demonstração'}],
+ avaliacoes:[{id:'avaliacao-demo',data:'2026-10-01',proximaData:'2026-11-01',observacao:'Conferência mensal de demonstração',criadoEm:'2026-10-01T15:00:00Z',criadoPorNome:'Ana Exemplo',itens:[{itemId:'item-alicate',itemNome:'Alicate universal',quantidadeConferida:2,quantidadeEsperada:2,estado:'bom',observacao:''},{itemId:'item-chave',itemNome:'Chave de fenda',quantidadeConferida:1,quantidadeEsperada:2,estado:'desgaste',observacao:'Uma chave não encontrada'}]}]
+});
+const equipamentosDemo=[
+ {id:'car-demo',tipo:'veiculo',nome:'Utilitário de demonstração',categoria:'Utilitário',identificacao:'VEI-01',responsavel:'Ana Exemplo',especificacao:{placa:'EXE1A23',marcaModelo:'Utilitário exemplo',ano:'2024',motorista:'Ana Exemplo'},atualizadoEm:'2026-10-05T12:00:00Z',atualizadoPor:'Conta de demonstração'},
+ {id:'maq-demo',tipo:'maquina',nome:'Impressora de demonstração',categoria:'Impressão',responsavel:'Bruno Exemplo',setorSigla:'PRO',especificacao:{fabricante:'Fabricante exemplo',modelo:'Impressora UV',numeroSerie:'DEMO-001',setor:'Produção'},atualizadoEm:'2026-10-05T12:00:00Z',atualizadoPor:'Conta de demonstração'}
+];
 export async function respostaPreview(url,opcoes={}){
  const u=new URL(url,location.origin), corpo=opcoes.body ? JSON.parse(opcoes.body) : {};
  const endpoint=u.pathname.split('/').pop();
@@ -22,9 +32,10 @@ export async function respostaPreview(url,opcoes={}){
      const {GLOSSARIO}=await import('../data/glossario.js');
      dados={valor:Object.fromEntries(GLOSSARIO.map((t,i)=>[`demo-${i}`,{...t,ordem:i}]))};
    }else dados={valor:structuredClone(configs[corpo.chave] || {})};
- }else if(endpoint==='painel-ativos' && ['listar','lixeira'].includes(corpo.action)) dados={itens:corpo.action==='lixeira'?[]:[
+ }else if(endpoint==='painel-ativos' && corpo.action==='listarPatrimonio') dados={itens:structuredClone(equipamentosDemo)};
+ else if(endpoint==='painel-ativos' && ['listar','lixeira'].includes(corpo.action)) dados={itens:corpo.action==='lixeira'?[]:[
   {id:'doc-demo',tipo:'documento',nome:'Certidão de demonstração',categoria:'Certidão',validade:'2026-09-20',responsavel:'Ana Exemplo'},
-  {id:'maq-demo',tipo:'maquina',nome:'Impressora de demonstração',categoria:'Impressão',validade:'2026-09-18',responsavel:'Bruno Exemplo',setorSigla:'PRO'},
+  ...equipamentosDemo,
   {id:'lic-demo',tipo:'licitacao',nome:'Sinalização de demonstração',identificacao:'Órgão de exemplo',edital:'Exemplo 01/2026',validade:'2026-09-15',hora:'10:00',status:'avaliar',valor:15000},
   {id:'mkt-demo',tipo:'marketing',nome:'Manual da marca (exemplo)',categoria:'Manual',observacao:'Exemplo para conferir a organização dos materiais',temArquivo:false}
  ]};

@@ -43,7 +43,7 @@
 .pat-control-form .pat-control-fields small { font-size:11px; color:var(--pat-muted,#69758a); }
 .pat-control-form .pat-control-fields textarea { resize:vertical; min-height:74px; }
 .pat-control-form .pat-control-wide { position:relative; }
-.pat-control-form .pat-control-wide>small { position:absolute; top:0; right:0; }
+.pat-control-form label.pat-control-wide>small { position:absolute; top:0; right:0; }
 .pat-control-form .pat-form-footer { margin-top:20px; }
 .dark .pat-control-icon { background:#243752; }
 .dark .pat-control-summary button[aria-pressed=true] { border-color:#496693; background:#263a59; }
