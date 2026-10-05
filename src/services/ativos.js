@@ -13,13 +13,15 @@ async function chamar(action, dados = {}) {
     body: JSON.stringify({ action, ...dados }),
   });
   const corpo = await resp.json().catch(() => null);
-  if (!resp.ok) throw new Error(corpo?.erro || mensagemDoStatus(resp.status));
+  if (!resp.ok) throw Object.assign(new Error(corpo?.erro || mensagemDoStatus(resp.status)), { status: resp.status });
   return corpo;
 }
 
 export const listarAtivos = () => chamar("listar").then((r) => r.itens || []);
 // Consulta restrita do Patrimônio: não abre os documentos nem concede edição.
 export const listarEquipamentosPatrimonio = () => chamar("listarPatrimonio").then((r) => r.itens || []);
+// Cadastro de estrutura limitado aos campos físicos do mesmo item predial.
+export const salvarEstrutura = (item, versao = null) => chamar("salvarEstrutura", { item, versao }).then(r => r.item);
 export const salvarAtivo = (item) => chamar("salvar", { item }).then((r) => r.item);
 export const removerAtivo = (id, bemId) => chamar("remover", { id, bemId });
 export const salvarEquipamento = (item, patrimonio, bemId) => chamar("salvar",{item,patrimonio,bemId}).then(r=>r.item);

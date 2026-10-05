@@ -13,6 +13,7 @@ import {FormBem, FormSetor} from '../components/patrimonio/Formularios.jsx';
 import ControlesPatrimonio, {AtualizacaoPatrimonio} from '../components/patrimonio/Controles.jsx';
 import VinculosSetor from '../components/patrimonio/VinculosSetor.jsx';
 import EquipamentosPatrimonio from '../components/patrimonio/Equipamentos.jsx';
+import EstruturaPatrimonio from '../components/patrimonio/Estrutura.jsx';
 import {useAbaNavegavel} from '../hooks/useAbaNavegavel.js';
 import {CONTROLES} from '../lib/calc/controles-patrimonio.js';
 import './patrimonio.css';
@@ -20,7 +21,7 @@ import './patrimonio.css';
 const VAZIO = {id:'', codigo:'', setorSigla:'', nomeGenerico:'', descricaoTecnica:'', nf:'', dataAquisicao:'', valor:'', situacao:'uso', observacao:'', responsavel:'', motivoSemNota:''};
 const SETOR_VAZIO = {id:'', numero:'', sigla:'', nome:'', area:''};
 const POR_PAGINA = 12;
-const ABAS = [['inventario','Inventário',Boxes],['ramais','Ramais',Phone],['armarios','Armários',Archive],['ferramentas','Caixas de ferramentas',Wrench],['camas','Camas',BedDouble],['celulares','Celulares',Smartphone],['carros','Carros',Car],['maquinas','Máquinas',Cog],['setores','Setores',Building2],['pendencias','Pendências',AlertTriangle]];
+const ABAS = [['inventario','Inventário',Boxes],['estrutura','Estrutura',Building2],['ramais','Ramais',Phone],['armarios','Armários',Archive],['ferramentas','Caixas de ferramentas',Wrench],['camas','Camas',BedDouble],['celulares','Celulares',Smartphone],['carros','Carros',Car],['maquinas','Máquinas',Cog],['setores','Setores',Building2],['pendencias','Pendências',AlertTriangle]];
 const rotuloSituacao = b => (SITUACOES[b.situacao] || SITUACOES.uso).rotulo;
 const nomeSetor = (b, setores) => setores.find(s => s.sigla === b.setorSigla)?.nome || 'Setor a definir';
 
@@ -169,6 +170,7 @@ export default function Patrimonio() {
     <nav className="pat-tabs" aria-label="Visões do patrimônio">{ABAS.map(([id,nome,Icone])=><button key={id} aria-current={aba===id?'page':undefined} onClick={()=>{setAba(id);setMsg(null);}}><Icone size={16} aria-hidden="true"/>{nome}{id==='pendencias'&&<span>{pendentes.length}</span>}</button>)}</nav>
 
     {CONTROLES[aba]&&<ControlesPatrimonio key={aba} tipo={aba}/>}
+    {aba==='estrutura'&&<EstruturaPatrimonio bens={vm.bens} setores={vm.setores} aoVerBem={verDetalhe}/>}
     {['carros','maquinas'].includes(aba)&&<EquipamentosPatrimonio key={aba} tipo={aba==='carros'?'veiculo':'maquina'} bens={vm.bens} setores={vm.setores} aoVerBem={verDetalhe}/>}
     {aba==='inventario'&&<>
       <div className="pat-toolbar">

@@ -1,4 +1,5 @@
-// Respostas fictícias e bloqueio de escritas, carregados apenas na compilação review.
+// Respostas fictícias, carregadas apenas na compilação review. Estrutura pode
+// ser criada/editada SOMENTE nesta memória; recarregar restaura os exemplos.
 const configs = {
  compromissos:{ex1:{titulo:'Conferir prioridades da semana',tipo:'visita',data:'2026-09-08',hora:'09:00',dono:'demo',donoNome:'Conta de demonstração',feito:false},ex2:{titulo:'Revisar proposta com o cliente exemplo',tipo:'outro',data:'2026-09-03',dono:'demo',donoNome:'Conta de demonstração',feito:false}},
  /* Contas FICTÍCIAS (CNPJ e chaves de teste, de ninguém): a tela só mostra titular Impresilk ou Universo.
@@ -20,6 +21,35 @@ const equipamentosDemo=[
  {id:'car-demo',tipo:'veiculo',nome:'Utilitário de demonstração',categoria:'Utilitário',identificacao:'VEI-01',responsavel:'Ana Exemplo',especificacao:{placa:'EXE1A23',marcaModelo:'Utilitário exemplo',ano:'2024',motorista:'Ana Exemplo'},atualizadoEm:'2026-10-05T12:00:00Z',atualizadoPor:'Conta de demonstração'},
  {id:'maq-demo',tipo:'maquina',nome:'Impressora de demonstração',categoria:'Impressão',responsavel:'Bruno Exemplo',setorSigla:'PRO',especificacao:{fabricante:'Fabricante exemplo',modelo:'Impressora UV',numeroSerie:'DEMO-001',setor:'Produção'},atualizadoEm:'2026-10-05T12:00:00Z',atualizadoPor:'Conta de demonstração'}
 ];
+const estruturasDemo = [
+ {id:'predial-ac-demo',nome:'Ar-condicionado da recepção · exemplo',categoria:'Ar-condicionado',identificacao:'AC-DEMO-01',responsavel:'Ana Exemplo',especificacao:{local:'Recepção de demonstração',marcaModelo:'Fabricante exemplo · 12.000 BTU',quantidade:'1',instalacao:'2025-04-10'}},
+ {id:'predial-fan-demo',nome:'Ventiladores da produção · exemplo',categoria:'Ventilador',identificacao:'VT-DEMO-01',responsavel:'Bruno Exemplo',especificacao:{local:'Produção de demonstração',marcaModelo:'Ventilador de parede exemplo',quantidade:'3',instalacao:'2025-06-15'}},
+ {id:'predial-agua-demo',nome:'Caixa d’água principal · exemplo',categoria:'Caixa-d’água',identificacao:'CX-DEMO-01',responsavel:'Ana Exemplo',especificacao:{local:'Cobertura de demonstração',marcaModelo:'Reservatório exemplo · 1.000 L',quantidade:'1',instalacao:'2024-02-20'}},
+ {id:'predial-portao-demo',nome:'Portão de acesso · exemplo',categoria:'Portão',identificacao:'PT-DEMO-01',responsavel:'Bruno Exemplo',especificacao:{local:'Entrada de demonstração',marcaModelo:'Portão deslizante exemplo',quantidade:'1',instalacao:'2024-03-12'}},
+].map(item=>({...item,tipo:'predial',bemId:'',observacao:'Dados inteiramente fictícios para revisão local.',atualizadoEm:'2026-10-05T12:00:00Z',atualizadoPor:'Conta de demonstração'}));
+const erroPreview = (erro,status=400) => new Response(JSON.stringify({erro}),{status,headers:{'Content-Type':'application/json'}});
+function salvarEstruturaPreview(corpo){
+ const item=corpo.item;
+ if(!item || typeof item!=='object' || Array.isArray(item))return erroPreview('Informe a estrutura.');
+ if(item.tipo && item.tipo!=='predial')return erroPreview('Tipo inválido para Estrutura.');
+ const limpar=(valor,max=180)=>String(valor??'').trim().slice(0,max);
+ const nome=limpar(item.nome),categoria=limpar(item.categoria),local=limpar(item.especificacao?.local,120);
+ if(!nome || !categoria || !local)return erroPreview('Informe nome, categoria e local.');
+ const quantidade=limpar(item.especificacao?.quantidade,120);
+ if(!/^\d+$/.test(quantidade) || !Number.isInteger(Number(quantidade)) || Number(quantidade)<1 || Number(quantidade)>1000000)return erroPreview('Informe uma quantidade inteira entre 1 e 1.000.000.',422);
+ const instalacao=limpar(item.especificacao?.instalacao,120);
+ if(instalacao && (!/^\d{4}-\d{2}-\d{2}$/.test(instalacao) || instalacao.startsWith('0000') || !Number.isFinite(Date.parse(instalacao+'T00:00:00Z')) || new Date(instalacao+'T00:00:00Z').toISOString().slice(0,10)!==instalacao))return erroPreview('Informe uma data de instalação válida.',422);
+ if(!item.id && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(item.cadastroId||''))return erroPreview('Identificador de cadastro inválido.');
+ const id=limpar(item.id || item.cadastroId);
+ const indice=estruturasDemo.findIndex(estrutura=>estrutura.id===id),anterior=estruturasDemo[indice];
+ if(item.id && !anterior)return erroPreview('Estrutura não encontrada.',404);
+ if(!item.id && anterior)return {item:structuredClone(anterior)};
+ if(anterior && corpo.versao!==anterior.atualizadoEm)return erroPreview('Este cadastro mudou. Atualize a lista e confira antes de salvar.',409);
+ const atualizadoEm=new Date(Math.max(Date.now(),Date.parse(anterior?.atualizadoEm||'')+1||0)).toISOString();
+ const salvo={id,tipo:'predial',nome,categoria,identificacao:limpar(item.identificacao),responsavel:limpar(item.responsavel),observacao:limpar(item.observacao,2000),bemId:anterior?.bemId||'',especificacao:Object.fromEntries(['local','marcaModelo','quantidade','instalacao'].map(campo=>[campo,campo==='quantidade' && quantidade?String(Number(quantidade)):limpar(item.especificacao?.[campo],120)])),atualizadoEm,atualizadoPor:'Conta de demonstração'};
+ if(indice>=0)estruturasDemo[indice]=salvo;else estruturasDemo.push(salvo);
+ return {item:structuredClone(salvo)};
+}
 export async function respostaPreview(url,opcoes={}){
  const u=new URL(url,location.origin), corpo=opcoes.body ? JSON.parse(opcoes.body) : {};
  const endpoint=u.pathname.split('/').pop();
@@ -32,10 +62,14 @@ export async function respostaPreview(url,opcoes={}){
      const {GLOSSARIO}=await import('../data/glossario.js');
      dados={valor:Object.fromEntries(GLOSSARIO.map((t,i)=>[`demo-${i}`,{...t,ordem:i}]))};
    }else dados={valor:structuredClone(configs[corpo.chave] || {})};
- }else if(endpoint==='painel-ativos' && corpo.action==='listarPatrimonio') dados={itens:structuredClone(equipamentosDemo)};
+ }else if(endpoint==='painel-ativos' && corpo.action==='listarPatrimonio') dados={itens:structuredClone([...equipamentosDemo,...estruturasDemo])};
+ else if(endpoint==='painel-ativos' && corpo.action==='salvarEstrutura'){
+   dados=salvarEstruturaPreview(corpo);
+   if(dados instanceof Response)return dados;
+ }
  else if(endpoint==='painel-ativos' && ['listar','lixeira'].includes(corpo.action)) dados={itens:corpo.action==='lixeira'?[]:[
   {id:'doc-demo',tipo:'documento',nome:'Certidão de demonstração',categoria:'Certidão',validade:'2026-09-20',responsavel:'Ana Exemplo'},
-  ...equipamentosDemo,
+  ...structuredClone(equipamentosDemo),...structuredClone(estruturasDemo),
   {id:'lic-demo',tipo:'licitacao',nome:'Sinalização de demonstração',identificacao:'Órgão de exemplo',edital:'Exemplo 01/2026',validade:'2026-09-15',hora:'10:00',status:'avaliar',valor:15000},
   {id:'mkt-demo',tipo:'marketing',nome:'Manual da marca (exemplo)',categoria:'Manual',observacao:'Exemplo para conferir a organização dos materiais',temArquivo:false}
  ]};

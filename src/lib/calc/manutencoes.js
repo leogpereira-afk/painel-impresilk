@@ -14,6 +14,7 @@
 // Por isso tudo aqui gira em torno de SOMA POR ITEM e PRÓXIMA DATA.
 
 import { diasEntre } from "../format.js";
+import { CATEGORIAS_PREDIAL_COMPARTILHADAS } from "./estrutura-patrimonio.js";
 
 // As três famílias de coisa que recebem manutenção. Todas moram na MESMA
 // coleção de ativos que a tela "Documentos e ativos" usa -- cadastrar por aqui
@@ -26,22 +27,7 @@ export const FAMILIAS = {
 
 // Sugestões de categoria por família -- e o campo aceita texto livre, porque
 // nenhuma lista cobre o que aparece numa oficina de comunicação visual.
-export const CATEGORIAS_PREDIAL = [
-  "Câmeras / CFTV",
-  "Ar condicionado",
-  "Elétrica",
-  "Hidráulica",
-  "Portão / automatizador",
-  "Alarme",
-  "Rede e internet",
-  "Combate a incêndio",
-  "Estrutura e telhado",
-  "Pintura",
-  "Compressor",
-  "Exaustão",
-  "Iluminação",
-  "Móvel / bancada",
-];
+export const CATEGORIAS_PREDIAL = CATEGORIAS_PREDIAL_COMPARTILHADAS;
 
 // Estas categorias descrevem O QUE O ITEM É, não o serviço que ele recebeu --
 // o serviço tem campo próprio no lançamento (TIPOS_SERVICO + "O que foi feito").

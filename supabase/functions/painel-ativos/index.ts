@@ -56,10 +56,11 @@ const ESPEC_PERMITIDA: Record<string, string[]> = {
 const ESPEC_MAX = 120; // caracteres por campo: e ficha, nao observacao
 
 // Patrimônio consulta o MESMO cadastro de Manutenções, mas sua permissão não
-// concede os documentos, anexos, valores ou operações de edição dos ativos.
+// concede os documentos, anexos, valores ou a edição geral dos ativos.
+// Estrutura tem uma ação própria que só edita a ficha predial permitida.
 // Esta projeção é uma lista fechada: campos novos no cadastro não vazam aqui.
 function equipamentoParaPatrimonio(id: unknown, registro: any) {
-  if (!registro || !["veiculo", "maquina"].includes(registro.tipo)) return null;
+  if (!registro || !["veiculo", "maquina", "predial"].includes(registro.tipo)) return null;
   const texto = (valor: unknown, max = 180) =>
     typeof valor === "string" || (typeof valor === "number" && Number.isFinite(valor))
       ? String(valor).trim().slice(0, max) : "";
@@ -68,16 +69,68 @@ function equipamentoParaPatrimonio(id: unknown, registro: any) {
   const ficha = registro.especificacao && typeof registro.especificacao === "object"
     && !Array.isArray(registro.especificacao) ? registro.especificacao : {};
   const campos = registro.tipo === "veiculo"
-    ? ["placa", "marcaModelo", "ano"] : ["fabricante", "modelo", "numeroSerie", "ano", "setor"];
+    ? ["placa", "marcaModelo", "ano"] : registro.tipo === "maquina"
+      ? ["fabricante", "modelo", "numeroSerie", "ano", "setor"] : ESPEC_PERMITIDA.predial;
   return {
     id: ativoId,
     tipo: registro.tipo,
     nome: texto(registro.nome),
+    ...(registro.tipo === "predial" ? {
+      categoria: texto(registro.categoria, 120),
+      identificacao: texto(registro.identificacao, 120),
+      observacao: texto(registro.observacao, 2000),
+    } : {}),
     responsavel: texto(registro.responsavel),
     bemId: texto(registro.bemId),
     especificacao: Object.fromEntries(campos.map(campo => [campo, texto(ficha[campo], ESPEC_MAX)])),
     atualizadoEm: texto(registro.atualizadoEm, 40),
     atualizadoPor: texto(registro.atualizadoPor),
+  };
+}
+
+// A projeção do Patrimônio nunca volta a ser um registro inteiro de ativos.
+// Somente estes campos são editáveis; documentos, valores e vínculos ficam
+// como estão na base compartilhada de Manutenções.
+function camposEstrutura(item: any, anterior: any) {
+  const texto = (valor: unknown, nome: string, max: number, obrigatorio = false) => {
+    if (valor == null) valor = "";
+    if (typeof valor !== "string") throw new Error("Informe um texto válido em " + nome + ".");
+    const limpo = valor.trim();
+    if (limpo.length > max) throw new Error(nome + ": use até " + max + " caracteres.");
+    if (obrigatorio && !limpo) throw new Error("Informe " + nome + ".");
+    return limpo;
+  };
+  if (item.especificacao !== undefined && (!item.especificacao ||
+      typeof item.especificacao !== "object" || Array.isArray(item.especificacao))) {
+    throw new Error("Ficha da estrutura inválida.");
+  }
+  const antes = anterior.especificacao && typeof anterior.especificacao === "object"
+    && !Array.isArray(anterior.especificacao) ? anterior.especificacao : {};
+  const ficha = { ...antes, ...(item.especificacao || {}) };
+  const quantidade = typeof ficha.quantidade === "number" ? ficha.quantidade :
+    typeof ficha.quantidade === "string" && /^\d+$/.test(ficha.quantidade.trim()) ? Number(ficha.quantidade) : NaN;
+  if (!Number.isSafeInteger(quantidade) || quantidade < 1 || quantidade > 1000000) {
+    throw new Error("Informe uma quantidade inteira de 1 a 1.000.000.");
+  }
+  const instalacao = texto(ficha.instalacao, "a data de instalação", 10);
+  if (instalacao && (!/^\d{4}-\d{2}-\d{2}$/.test(instalacao) || instalacao.startsWith("0000") ||
+      !Number.isFinite(Date.parse(instalacao + "T00:00:00Z")) ||
+      new Date(instalacao + "T00:00:00Z").toISOString().slice(0, 10) !== instalacao)) {
+    throw new Error("Informe uma data de instalação válida.");
+  }
+  const campo = (chave: string) => item[chave] === undefined ? anterior[chave] : item[chave];
+  return {
+    nome: texto(campo("nome"), "o nome", 180, true),
+    categoria: texto(campo("categoria"), "a categoria", 120, true),
+    identificacao: texto(campo("identificacao"), "a identificação", 120),
+    responsavel: texto(campo("responsavel"), "o responsável", 180),
+    observacao: texto(campo("observacao"), "a observação", 2000),
+    especificacao: {
+      ...antes,
+      local: texto(ficha.local, "o local", ESPEC_MAX, true),
+      marcaModelo: texto(ficha.marcaModelo, "a marca e o modelo", ESPEC_MAX),
+      quantidade: String(quantidade), instalacao,
+    },
   };
 }
 
@@ -216,7 +269,7 @@ Deno.serve(async (req: Request) => {
         const PASSO = 1000;
         for (let de = 0; ; de += PASSO) {
           const { data, error } = await sb.from("painel_registros").select("id,registro")
-            .eq("colecao", "ativo").in("registro->>tipo", ["veiculo", "maquina"])
+            .eq("colecao", "ativo").in("registro->>tipo", ["veiculo", "maquina", "predial"])
             .order("id").range(de, de + PASSO - 1);
           if (error) throw new Error(error.message);
           for (const linha of data ?? []) {
@@ -226,6 +279,61 @@ Deno.serve(async (req: Request) => {
           if ((data ?? []).length < PASSO) break;
         }
         return resposta({ ok: true, itens });
+      }
+
+      case "salvarEstrutura": {
+        if (sessao.master !== true && !perms.includes("*") && !perms.includes("patrimonio")) {
+          return resposta({ erro: "Voce nao tem acesso ao Patrimônio." }, 403);
+        }
+        const it = corpo.item;
+        if (!it || typeof it !== "object" || Array.isArray(it)) return resposta({ erro: "Item inválido." }, 400);
+        if (it.tipo !== undefined && it.tipo !== "predial") return resposta({ erro: "Estrutura cadastra somente itens prediais." }, 400);
+        if (it.id !== undefined && it.cadastroId !== undefined) return resposta({ erro: "Informe somente o identificador da edição ou do novo cadastro." }, 400);
+        const edicao = it.id !== undefined;
+        const id = edicao ? it.id : it.cadastroId;
+        const valido = typeof id === "string" && (edicao ? /^[a-zA-Z0-9_-]{1,180}$/.test(id) :
+          /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id));
+        if (!valido) return resposta({ erro: "Identificador inválido. Reabra o cadastro." }, 400);
+        const { data: ant, error: falhaLeitura } = await sb.from("painel_registros").select("registro")
+          .eq("colecao", "ativo").eq("id", id).maybeSingle();
+        if (falhaLeitura) throw new Error(falhaLeitura.message);
+        const anterior = ant?.registro;
+        if (anterior && anterior.tipo !== "predial") return resposta({ erro: "Este item não pertence à Estrutura." }, 403);
+        if (edicao && !anterior) return resposta({ erro: "Este item foi retirado. Atualize a lista antes de continuar." }, 409);
+        // Resposta perdida e duplo clique repetem a identidade, jamais a edição.
+        if (!edicao && anterior) return resposta({ ok: true, item: equipamentoParaPatrimonio(id, anterior) });
+        if (edicao && (typeof corpo.versao !== "string" || corpo.versao !== (anterior.atualizadoEm || ""))) {
+          return resposta({ erro: "Este registro mudou durante a edição. Recarregue antes de salvar." }, 409);
+        }
+        if (!edicao) {
+          const { data: retirado, error } = await sb.from("painel_registros").select("id")
+            .eq("colecao", "ativo_lixeira").eq("id", id).maybeSingle();
+          if (error) throw new Error(error.message);
+          if (retirado) return resposta({ erro: "Este cadastro foi retirado. Reabra a tela para cadastrar outro item." }, 409);
+        }
+        let campos;
+        try { campos = camposEstrutura(it, anterior || {}); }
+        catch (e) { return resposta({ erro: (e as Error).message }, 422); }
+        // Versão sempre muda, mesmo em duas gravações no mesmo milissegundo.
+        const agora = new Date(Math.max(Date.now(), (Date.parse(anterior?.atualizadoEm || "") || 0) + 1)).toISOString();
+        const novo = { ...(anterior || {}), ...campos, id, tipo: "predial",
+          atualizadoEm: agora, atualizadoPor: quem, criadoEm: anterior?.criadoEm || agora };
+        const { data, error } = await sb.rpc("painel_registro_gravar", {
+          p_colecao: "ativo", p_id: id, p_registro: novo, p_anterior: anterior || null,
+        });
+        if (error) {
+          // Dois envios do mesmo cadastro podem chegar antes da primeira gravação.
+          if (!edicao && error.code === "40001") {
+            const { data: existente, error: falha } = await sb.from("painel_registros").select("registro")
+              .eq("colecao", "ativo").eq("id", id).maybeSingle();
+            if (falha) throw new Error(falha.message);
+            if (existente?.registro?.tipo === "predial") return resposta({ ok: true, item: equipamentoParaPatrimonio(id, existente.registro) });
+          }
+          throw Object.assign(new Error(error.message), { code: error.code });
+        }
+        const item = equipamentoParaPatrimonio(id, data);
+        if (!item) throw new Error("A gravação não retornou o item confirmado.");
+        return resposta({ ok: true, item });
       }
 
       case "listar": {
