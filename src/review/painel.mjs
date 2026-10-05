@@ -7,6 +7,7 @@ const configs = {
  marketing:{ex1:{nome:'Biblioteca da marca (exemplo)',url:'https://example.com'},acao1:{tipo:'acao',nome:'Apresentação de fachadas (exemplo)',objetivo:'Gerar oportunidades de sinalização para lojas',publico:'Comércio local',canal:'Portfólio e redes sociais',responsavel:'Ana Exemplo',prazo:'2026-09-15',status:'Produção',investimento:500,orcamentos:[],url:''}},
  patrimonio:{ex1:{nomeGenerico:'Impressora',descricaoTecnica:'Equipamento de demonstração',setorSigla:'PRO',codigo:'PRO-001',valor:10000,situacao:'uso',dataAquisicao:'2026-01-10'}},
  setores:{ex1:{sigla:'PRO',nome:'Produção',area:'Operações'}},
+ patrimonio_controles:Object.fromEntries(['ramais','armarios','ferramentas','camas','celulares'].map((tipo,i)=>['controle-'+tipo,{tipo,numero:tipo==='celulares'?'(38) 99999-0000':String(i+1).padStart(2,'0'),modelo:tipo==='celulares'?'Samsung Galaxy A15':'',telefone:'(38) 3000-0000',pessoa:'Ana Exemplo',observacao:'Cadastro de demonstração',atualizadoEm:'2026-10-05T12:00:00Z',atualizadoPorNome:'Conta de demonstração'}])),
  manutencoes:{},permutas:{},campanhas:{},grupos_clientes:{},
 };
 export async function respostaPreview(url,opcoes={}){

@@ -1,0 +1,80 @@
+/* Controles do patrimônio: leitura rápida, filtros úteis e ações no mesmo lugar. */
+.pat-controles-polished { gap:14px; }
+.pat-controles-polished .pat-list-heading { gap:16px; }
+.pat-control-title { display:flex; align-items:center; gap:12px; min-width:0; }
+.pat-control-icon { display:grid; place-items:center; width:48px; height:48px; flex-shrink:0; border-radius:14px; background:#eaf0fb; color:var(--pat-blue,#284a93); }
+.pat-control-title h2 { margin:0; }
+.pat-control-title p { line-height:1.5; }
+.pat-controles-polished .pat-actions button { min-height:40px; }
+.pat-control-tools { display:flex; align-items:center; flex-wrap:wrap; gap:12px; padding:12px; border:1px solid var(--pat-line); border-radius:16px; background:var(--pat-surface); }
+.pat-control-summary { display:flex; flex-wrap:wrap; gap:6px; }
+.pat-control-summary button { display:flex; align-items:center; justify-content:center; gap:8px; min-height:42px; padding:8px 11px; border:1px solid transparent; border-radius:10px; color:var(--pat-muted); font-size:12px; font-weight:600; }
+.pat-control-summary button strong { display:grid; place-items:center; min-width:24px; height:24px; padding:0 6px; background:var(--pat-soft); border-radius:7px; font-size:12px; font-variant-numeric:tabular-nums; }
+.pat-control-summary button:hover { background:var(--pat-soft); }
+.pat-control-summary button[aria-pressed=true] { border-color:#c1d1ee; background:#eef3fd; color:var(--pat-blue); }
+.pat-control-summary button[aria-pressed=true] strong { background:var(--pat-blue); color:#fff; }
+.pat-controles-polished .pat-control-search { flex:1; min-width:220px; max-width:none; margin:0; }
+.pat-controles-polished .pat-control-search .input { width:100%; min-height:42px; padding:10px 36px; font-size:13px; border-radius:10px; }
+.pat-controles-polished .pat-control-search>svg { left:11px; top:12px; }
+.pat-controles-polished .pat-control-search>button { right:3px; top:2px; padding:10px; }
+.pat-control-result { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px; padding:0 2px; color:var(--pat-muted); font-size:12px; }
+.pat-control-result button { color:var(--pat-blue); font-weight:650; text-decoration:underline; text-underline-offset:3px; }
+.pat-control-feedback { display:flex; gap:6px; align-items:center; font-size:12px; color:#256447; padding:8px 12px; background:#edf8f1; border-radius:9px; }
+.pat-controles-polished .pat-controles-table th { padding:11px 14px; }
+.pat-controles-polished .pat-controles-table td { vertical-align:middle; padding:13px 14px; line-height:1.45; }
+.pat-controles-polished .pat-controles-table td:first-child { min-width:90px; }
+.pat-controles-polished .pat-controles-table tr:hover td { background:color-mix(in srgb,var(--pat-soft) 55%,transparent); }
+.pat-controles-polished .pat-controles-table td:last-child { width:128px; }
+.pat-controles-polished .pat-controles-table td:last-child .pat-actions { gap:4px; flex-wrap:nowrap; }
+.pat-controles-polished .pat-controles-table td:last-child button { padding:8px; font-size:12px; }
+.pat-controles-polished .pat-control-number { font-size:16px; font-weight:750; font-variant-numeric:tabular-nums; }
+.pat-control-person { display:flex; align-items:center; gap:7px; font-weight:600; }
+.pat-control-person>svg { color:var(--pat-muted); flex-shrink:0; }
+.pat-control-available { display:inline-flex; padding:3px 8px; border:1px solid #cee6d8; background:#edf8f1; color:#276346; font-size:11px; border-radius:6px; }
+.pat-control-note { display:block; margin-bottom:5px; }
+.pat-controles-polished .pat-updated { margin:0; font-size:10px; line-height:1.6; }
+.pat-controles-polished .pat-control-remove { color:var(--pat-muted); }
+.pat-controles-polished .pat-control-remove:hover { color:#a73333; background:#fff0ef; }
+.pat-controles-polished .pat-pagination { font-size:12px; }
+.pat-controles-polished .pat-empty { padding:30px 20px; gap:10px; }
+.pat-control-form .pat-control-form-help { font-size:13px; line-height:1.6; color:var(--pat-muted,#69758a); }
+.pat-control-form .pat-control-fields { gap:16px; margin:20px 0; }
+.pat-control-form .pat-control-fields .label { font-size:13px; }
+.pat-control-form .pat-control-fields small { font-size:11px; color:var(--pat-muted,#69758a); }
+.pat-control-form .pat-control-fields textarea { resize:vertical; min-height:74px; }
+.pat-control-form .pat-control-wide { position:relative; }
+.pat-control-form .pat-control-wide>small { position:absolute; top:0; right:0; }
+.pat-control-form .pat-form-footer { margin-top:20px; }
+.dark .pat-control-icon { background:#243752; }
+.dark .pat-control-summary button[aria-pressed=true] { border-color:#496693; background:#263a59; }
+.dark .pat-control-summary button[aria-pressed=true] strong { color:#172033; }
+.dark .pat-control-available,.dark .pat-control-feedback { color:#abe0bf; border-color:#37634a; background:#1e382d; }
+.dark .pat-controles-polished .pat-control-remove:hover { color:#f3b6b0; background:#492d32; }
+@media screen and (max-width:900px) {
+ .pat-control-tools { align-items:stretch; }
+ .pat-control-summary { flex:1; }
+ .pat-control-summary button { flex:1; }
+ .pat-controles-polished .pat-control-search { flex-basis:100%; }
+}
+@media screen and (max-width:600px) {
+ .pat-control-icon { width:40px; height:40px; border-radius:11px; }
+ .pat-control-title { align-items:flex-start; gap:10px; }
+ .pat-controles-polished .pat-list-heading h2 { font-size:19px; }
+ .pat-controles-polished .pat-list-heading .pat-actions { justify-content:flex-end; gap:6px; }
+ .pat-controles-polished .pat-list-heading .pat-actions button { font-size:12px; padding:9px 11px; }
+ .pat-controles-polished .pat-list-heading .pat-control-refresh { margin-right:auto; }
+ .pat-control-tools { padding:8px; gap:8px; }
+ .pat-control-summary { flex-basis:100%; gap:4px; }
+ .pat-control-summary button { gap:5px; padding:7px; font-size:11px; }
+ .pat-control-summary button>svg { display:none; }
+ .pat-control-summary button strong { min-width:20px; height:22px; padding:0 4px; font-size:11px; }
+ .pat-controles-polished .pat-controles-table tr { padding:14px; margin:0 0 10px; }
+ .pat-controles-polished .pat-controles-table td { padding:0; }
+ .pat-controles-polished .pat-controles-table td:first-child { min-width:0; }
+ .pat-controles-polished .pat-controles-table td:last-child { width:auto; border-top:1px solid var(--pat-line); padding-top:8px; }
+ .pat-controles-polished .pat-controles-table td:last-child .pat-actions { justify-content:flex-end; }
+ .pat-controles-polished .pat-control-number { font-size:15px; white-space:normal; }
+ .pat-controles-polished .pat-updated { font-size:10px; }
+ .pat-control-form .pat-control-fields { grid-template-columns:minmax(0,1fr); }
+}
+.pat-controles-table td:last-child .pat-actions{flex-wrap:nowrap;min-width:112px}.pat-controles-table td:last-child button{white-space:nowrap;flex-shrink:0}

@@ -1,6 +1,7 @@
 // Código real da função, autenticação e banco simulados. Nenhuma rede.
 import {readFile} from 'node:fs/promises';
-import {transform} from 'esbuild';
+import {build} from 'esbuild';
+import {fileURLToPath} from 'node:url';
 import assert from 'node:assert/strict';
 let handler,calls=[],falha=false,fotoProtegida=false;
 const query=new Proxy({}, {get(_,k){if(k==='then')return (ok,no)=>Promise.resolve({data:fotoProtegida?[{id:"foto"}]:[],error:null}).then(ok,no);return ()=>query;}});
@@ -9,7 +10,8 @@ globalThis.Deno={env:{get:()=> 'teste'},serve:fn=>{handler=fn;}};
 let source=await readFile(new URL('../supabase/functions/painel-config/index.ts',import.meta.url),'utf8');
 source=source.replace(/import \{ createClient \} from [^;]+;/,'const createClient=()=>globalThis.__cobBanco;');
 source=source.replace(/import \{ verificarJwt, crachaRevogado \} from [^;]+;/,`const verificarJwt=async token=>token==='direcao'?{master:true,sub:'direcao',nome:'Direção'}:token==='cobrador'?{sub:'cobrador',perms:['contas-atrasadas']}:token==='vendedor'?{sub:'vendedor',perms:['orcamentos']}:null; const crachaRevogado=async()=>false;`);
-const {code}=await transform(source,{loader:'ts',format:'esm',target:'es2022'});await import('data:text/javascript;base64,'+Buffer.from(code).toString('base64'));
+const bundle=await build({stdin:{contents:source,loader:'ts',resolveDir:fileURLToPath(new URL('../supabase/functions/painel-config/',import.meta.url))},bundle:true,format:'esm',platform:'neutral',target:'es2022',write:false});
+await import('data:text/javascript;base64,'+Buffer.from(bundle.outputFiles[0].text).toString('base64'));
 const req=(token,patch={cliente:'Exemplo',prioridade:'alta'})=>new Request('https://teste.invalid',{method:'POST',headers:token?{authorization:`Bearer ${token}`}:{},body:JSON.stringify({action:'merge',chave:'cobrancas',patch:{EXEMPLO:patch}})});
 assert.equal((await handler(req())).status,401);assert.equal((await handler(req('vendedor'))).status,403);assert.equal(calls.length,0);
 assert.equal((await handler(req('cobrador'))).status,200);assert.deepEqual(calls.pop(),{name:'cobranca_priorizar',args:{p_id:'EXEMPLO',p_cliente:'Exemplo',p_prioridade:'alta',p_quem:'cobrador'}});

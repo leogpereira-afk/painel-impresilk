@@ -44,3 +44,8 @@ export const semearSetores = (lista) =>
     chave: "setores",
     patch: Object.fromEntries(lista.map((s) => [`set-${s.sigla.toLowerCase()}`, s])),
   }).then((r) => r.valor || {});
+
+// Cada item é salvo separadamente, com proteção contra edição desatualizada.
+export const lerControles = () => chamar("get", {chave:"patrimonio_controles"}).then(r=>r.valor || {});
+export const salvarControle = (id,dados,versaoAnterior=null) => chamar("merge", {chave:"patrimonio_controles",patch:{[id]:{...dados,versaoAnterior}}}).then(r=>r.valor || {});
+export const removerControle = id => chamar("removerId", {chave:"patrimonio_controles",id});

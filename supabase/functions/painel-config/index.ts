@@ -21,6 +21,8 @@
 // em producao). O porteiro continua obrigatorio.
 // ============================================================================
 
+import { prepararControle, carimbarPatrimonio } from "../_shared/patrimonio-controles.mjs";
+
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { verificarJwt, crachaRevogado } from "../_shared/cripto.ts";
 
@@ -37,7 +39,7 @@ const sb = createClient(SUPABASE_URL, SERVICE_KEY, { auth: { persistSession: fal
 // "assinaturas" sao as contas dos SISTEMAS (Supabase, GitHub, Claude...): dia
 // do vencimento, valor e o mes que ja foi pago. Mesmo mecanismo, um registro
 // por servico.
-const OVERLAYS = new Set(["ov_rec", "ov_orc", "marketing", "bancos", "glossario", "compromissos", "manutencoes", "patrimonio", "setores", "assinaturas", "permutas", "cobrancas", "campanhas", "grupos_clientes", "planilhas"]);
+const OVERLAYS = new Set(["ov_rec", "ov_orc", "marketing", "bancos", "glossario", "compromissos", "manutencoes", "patrimonio", "patrimonio_controles", "setores", "assinaturas", "permutas", "cobrancas", "campanhas", "grupos_clientes", "planilhas"]);
 /* A CONCESSAO DE SETOR FICA DE FORA DE `OVERLAYS`, e isso e a tranca, nao um
    esquecimento. Chave fora dali morre sozinha nos tres verbos genericos:
    `get` responde "chave invalida", `merge` e `removerId` respondem "chave nao
@@ -222,6 +224,7 @@ Deno.serve(async (req: Request) => {
     manutencoes: "manutencoes",
     // Duas chaves, um modulo so: os setores existem para o patrimonio.
     patrimonio: "patrimonio",
+    patrimonio_controles: "patrimonio",
     setores: "patrimonio",
     permutas: "permutas",
     campanhas: "campanhas",
@@ -562,6 +565,18 @@ Deno.serve(async (req: Request) => {
             // mesmo tempo com a mesma sequencia gerariam duas etiquetas iguais
             // e o inventario passaria a mentir. Gerado uma vez, nunca muda --
             // nem quando o bem troca de setor (o adesivo ja esta colado).
+            // A consulta dá uma mensagem imediata; o trigger do banco fecha
+            // a corrida entre esta leitura, o vínculo e a exclusão do setor.
+            if (chave === "patrimonio" && Object.hasOwn(campos ?? {}, "setorSigla") &&
+                (campos as any).setorSigla !== (data?.registro as any)?.setorSigla) {
+              const siglaDestino = String((campos as any).setorSigla ?? "");
+              if (siglaDestino) {
+                const {data:destinos,error:erroDestino}=await sb.from("painel_registros").select("id")
+                  .eq("colecao","setores").eq("registro->>sigla",siglaDestino).limit(1);
+                if(erroDestino) throw Object.assign(new Error(erroDestino.message),{code:erroDestino.code});
+                if(!destinos?.length) return resposta({erro:"O setor selecionado não existe mais. Atualize a lista e escolha outro setor."},409);
+              }
+            }
             if (chave === "patrimonio" && !(campos as any)?.codigo) {
               const jaTem = (data?.registro as any)?.codigo;
               if (jaTem) {
@@ -607,7 +622,13 @@ Deno.serve(async (req: Request) => {
               (camposLimpos as any).pagos = atualPagos;
               delete (camposLimpos as any).pagosPatch;
             }
-            const fundido: any = { ...(data?.registro ?? {}), ...camposLimpos };
+            let fundido: any = { ...(data?.registro ?? {}), ...camposLimpos };
+            if (chave === "patrimonio_controles") {
+              try { fundido = prepararControle(campos, data?.registro ?? null, sessao, new Date().toISOString()); }
+              catch (e) { return resposta({erro:(e as Error).message}, (e as any).status || 422); }
+            } else if (chave === "patrimonio" || chave === "setores") {
+              fundido = carimbarPatrimonio(fundido, data?.registro ?? null, sessao, new Date().toISOString());
+            }
             if (POR_DONO.has(chave)) {
               const donoAtual = (data?.registro as any)?.dono ?? null;
               const eu = String(sessao?.sub ?? "");
@@ -681,6 +702,7 @@ Deno.serve(async (req: Request) => {
                 ({ error } = await gravar());
               }
             }
+            if (error && chave === "patrimonio_controles" && error.code === "23505") return resposta({erro:"Este número já está cadastrado nesta aba. Escolha outro número ou edite o cadastro existente."},409);
             if (error) throw Object.assign(new Error(error.message), { code: error.code });
           }
           // Devolve o mapa inteiro, como o original fazia (o cliente atualiza o
@@ -952,6 +974,15 @@ Deno.serve(async (req: Request) => {
         if (barrado) return barrado;
         const barradoPlanilha = barraEscritaDePlanilha(chave);
         if (barradoPlanilha) return barradoPlanilha;
+        if (chave === "setores") {
+          const {data:setor,error:erroSetor}=await sb.from("painel_registros").select("registro").eq("colecao","setores").eq("id",id).maybeSingle();
+          if(erroSetor) throw new Error(erroSetor.message);
+          if(setor) {
+            const {data:bens,error:erroBens}=await sb.from("painel_registros").select("id").eq("colecao","patrimonio").eq("registro->>setorSigla",(setor.registro as any).sigla).limit(1);
+            if(erroBens) throw new Error(erroBens.message);
+            if(bens?.length) return resposta({erro:"Transfira os bens vinculados antes de remover este setor."},409);
+          }
+        }
         if (chave === "patrimonio") {
           const { data: fotos, error } = await sb.from("painel_registros").select("id").eq("colecao", "patrimonio_foto").eq("registro->>bemId", id).limit(1);
           if (error) throw Object.assign(new Error(error.message), { code: error.code });
@@ -976,6 +1007,7 @@ Deno.serve(async (req: Request) => {
     }
   } catch (e) {
     console.error("[painel-config] erro:", e);
+    if ((e as any)?.code === "23503") return resposta({ erro: "O vínculo com o setor mudou. Atualize a lista; escolha um setor existente e transfira seus bens antes de removê-lo." }, 409);
     if ((e as any)?.code === "40001") return resposta({ erro: "Outra pessoa alterou este registro. Recarregue antes de salvar." }, 409);
     return resposta({ erro: "Não foi possível salvar ou carregar os dados. Tente novamente." }, 500);
   }

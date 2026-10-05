@@ -169,7 +169,7 @@ export function FormSetor({ inicial, salvando, aoSalvar, aoFechar }) {
             <input id="s-nome" className="input" placeholder="ex: Produção" value={f.nome} onChange={trocar("nome")} required />
           </div>
           <div>
-            <label className="label" htmlFor="s-area">Área (opcional)</label>
+            <label className="label" htmlFor="s-numero">Número (opcional)</label><input id="s-numero" className="input" inputMode="numeric" pattern="[0-9]{0,12}" maxLength={12} value={f.numero || ''} onChange={trocar("numero")}/></div><div><label className="label" htmlFor="s-area">Área (opcional)</label>
             <input id="s-area" className="input" placeholder="ex: Operações" value={f.area} onChange={trocar("area")} />
           </div>
         </div>
