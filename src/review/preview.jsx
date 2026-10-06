@@ -9,7 +9,7 @@ import './preview.css';
 function Preview(){
  const location=useLocation(),navigate=useNavigate();
  if(location.pathname==='/entrada')return <Login aoEntrar={()=>navigate('/acessos')}/>;
- return <><aside className="review-preview-banner" role="note"><strong>SIMULAÇÃO — dados fictícios / sem envio.</strong> Alterações em Estrutura ficam apenas nesta aba e são descartadas ao recarregar.</aside><AppProvider><App/></AppProvider></>;
+ return <><aside className="review-preview-banner" role="note"><strong>SIMULAÇÃO — dados fictícios / sem envio.</strong> Alterações nesta demonstração ficam apenas nesta aba e são descartadas ao recarregar.</aside><AppProvider><App/></AppProvider></>;
 }
 if(import.meta.env.MODE==='review')createRoot(document.getElementById('root')).render(<HashRouter><Preview/></HashRouter>);
 else document.getElementById('root').textContent='Prévia disponível apenas no modo local de revisão.';

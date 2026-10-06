@@ -37,6 +37,7 @@ const Permutas = lazy(() => import("./pages/Permutas.jsx"));
 const Campanhas = lazy(() => import("./pages/Campanhas.jsx"));
 const Patrimonio = lazy(() => import("./pages/Patrimonio.jsx"));
 const Agenda = lazy(() => import("./pages/Agenda.jsx"));
+const Reunioes = lazy(() => import("./pages/Reunioes.jsx"));
 const CalendarioEmpresa = lazy(() => import("./pages/CalendarioEmpresa.jsx"));
 
 /* PREFETCH EM OCIOSIDADE: depois que a tela atual assentou, os chunks das
@@ -226,6 +227,7 @@ export default function App() {
             </Restrito>
           }
         />
+        <Route path="/reunioes" element={<Restrito modulo="reunioes" sessao={sessao}><CalendarioAbas sessao={sessao}/><Reunioes sessao={sessao}/></Restrito>} />
         <Route path="/gestao" element={<Navigate to="/" replace />} />
         <Route
           path="/manutencoes"

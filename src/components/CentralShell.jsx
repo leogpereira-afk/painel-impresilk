@@ -21,13 +21,13 @@ export default function CentralShell({children,sessao,aoSair,controles}) {
   const naCentral = ['/acessos','/minha-conta','/backups','/configuracoes'].includes(location.pathname);
   // `documentos` agora e um modulo como os outros (src/lib/modulos.js): sai
   // do acrescimo a mao, que o punha no menu de TODA sessao, e entra no filtro.
-  const modulos = MODULOS.filter(m=>!['configuracoes','agenda','calendario-empresa','compromissos'].includes(m.id) && podeAbrir(m.id,sessao));
+  const modulos = MODULOS.filter(m=>!['configuracoes','agenda','calendario-empresa','compromissos','reunioes'].includes(m.id) && podeAbrir(m.id,sessao));
   const gruposAcesso = [
     {nome:'IMPRESILK', links:SISTEMAS.filter(s=>s.id!=='painel' && !s.pessoal && s.url)},
     {nome:'CENTRAL DO LÉO', links:SISTEMAS.filter(s=>s.id==='central')},
   ].filter((g,i)=>i===0 || ehDirecao(sessao) || review);
-  const noCalendario=['/agenda','/calendario-empresa'].includes(location.pathname);
-  const calendarioDestino=podeAbrir('calendario-empresa',sessao)?'/calendario-empresa':'/agenda';
+  const noCalendario=['/agenda','/calendario-empresa','/reunioes'].includes(location.pathname);
+  const calendarioDestino=podeAbrir('calendario-empresa',sessao)?'/calendario-empresa':podeAbrir('agenda',sessao)?'/agenda':'/reunioes';
   const titulo = noCalendario ? 'Calendário' : naCentral ? 'Sistemas e configurações' : MODULOS.find(m=>`/${m.id}`===location.pathname)?.nome || 'Início';
   useEffect(()=>setMenu(false),[location.pathname,location.search]);
   useEffect(()=>{
@@ -61,7 +61,7 @@ export default function CentralShell({children,sessao,aoSair,controles}) {
         <summary>PAINEL DE GESTÃO <ChevronRight size={15} aria-hidden="true"/></summary>
       <nav aria-label="Navegação principal">
         <NavLink end to="/" className={({isActive})=>isActive?'selected':''}><span className="review-link-emoji" aria-hidden="true">🏠</span>Início</NavLink>
-        {(podeAbrir('calendario-empresa',sessao)||podeAbrir('agenda',sessao))&&<Link to={calendarioDestino} className={noCalendario?'selected':''} aria-current={noCalendario?'page':undefined}><span className="review-link-emoji" aria-hidden="true">📅</span>Calendário</Link>}
+        {(podeAbrir('calendario-empresa',sessao)||podeAbrir('agenda',sessao)||podeAbrir('reunioes',sessao))&&<Link to={calendarioDestino} className={noCalendario?'selected':''} aria-current={noCalendario?'page':undefined}><span className="review-link-emoji" aria-hidden="true">📅</span>Calendário</Link>}
         {podeAbrir('compromissos',sessao)&&<NavLink to="/compromissos" className={({isActive})=>isActive?'selected':''}><span className="review-link-emoji" aria-hidden="true">📅</span>Compromissos</NavLink>}
       </nav>
       </details>

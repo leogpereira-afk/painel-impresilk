@@ -1,3 +1,4 @@
+import {respostaReunioes} from './reunioes.mjs';
 // Respostas fictícias, carregadas apenas na compilação review. Estrutura pode
 // ser criada/editada SOMENTE nesta memória; recarregar restaura os exemplos.
 const configs = {
@@ -53,6 +54,7 @@ function salvarEstruturaPreview(corpo){
 export async function respostaPreview(url,opcoes={}){
  const u=new URL(url,location.origin), corpo=opcoes.body ? JSON.parse(opcoes.body) : {};
  const endpoint=u.pathname.split('/').pop();
+ if(endpoint==='painel-reunioes')return respostaReunioes(corpo);
  let dados;
  if(endpoint==='painel-config' && corpo.action==='lixeiraRegistros') dados={itens:[]};
  else if(endpoint==='painel-fotos' && corpo.action==='resumo') dados={porBem:{}};
