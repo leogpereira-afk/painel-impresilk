@@ -6,6 +6,8 @@ async function chamar(action,dados={}){
  const b=await r.json().catch(()=>null);if(!r.ok||!b?.ok)throw new Error(b?.erro||mensagemDoStatus(r.status));return b;
 }
 export const listarReunioes=()=>chamar('listar').then(r=>r.itens);
+export const listarPessoasReunioes=()=>chamar('pessoas').then(r=>r.pessoas);
+export const lerAgendaReunioes=mes=>chamar('agenda',{mes}).then(r=>r.eventos);
 export const salvarReuniao=item=>chamar('salvar',{item}).then(r=>r.item);
 export const registrarReuniao=(r,texto)=>chamar('registro',{id:r.id,versao:r.versao,texto}).then(x=>x.item);
 export const abrirArquivoReuniao=(id,arquivoId)=>chamar('arquivo',{id,arquivoId}).then(r=>r.url);

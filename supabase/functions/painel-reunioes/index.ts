@@ -1,10 +1,26 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.0';
 import { verificarJwt, crachaRevogado } from '../_shared/cripto.ts';
-import { COLECAO_REUNIOES, ErroReuniao, idValido, podeEditarReuniao, prepararReuniao, carimbarReuniao, novoRegistro, validarArquivoReuniao } from '../_shared/reunioes.mjs';
+import { COLECAO_REUNIOES, ErroReuniao, idValido, podeEditarReuniao, prepararReuniao, carimbarReuniao, novoRegistro, validarArquivoReuniao, pessoasParaReunioes, agendaReunioes } from '../_shared/reunioes.mjs';
 const sb=createClient(Deno.env.get('SUPABASE_URL')!,Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,{auth:{persistSession:false}});
 const JWT_SECRET=Deno.env.get('PAINEL_JWT_SECRET')||'',BUCKET='painel-arquivos';
 const cors={'Access-Control-Allow-Origin':'*','Access-Control-Allow-Headers':'authorization, apikey, content-type, x-client-info','Access-Control-Allow-Methods':'POST, OPTIONS'};
 const json=(x:any,status=200)=>new Response(JSON.stringify(x),{status,headers:{...cors,'Content-Type':'application/json','Cache-Control':'no-store'}});
+async function lerRH(colecao:string,colunas:string){
+ const itens:any[]=[];
+ for(let pag=0;pag<100;pag++){
+  const {data,error}=await sb.from('registros').select(colunas).eq('colecao',colecao).eq('apagado',false).order('id').range(pag*500,pag*500+499);
+  if(error)throw error;itens.push(...(data||[]));if((data||[]).length<500)return itens;
+ }
+ throw new Error('Limite de leitura do RH atingido.');
+}
+async function pessoasRH(){
+ const [pessoas,status,areas,cargos]=await Promise.all([
+  lerRH('colaboradores','id,nome:registro->>nome,areaId:registro->>areaId,cargoId:registro->>cargoId,statusId:registro->>statusId,dataDesligamento:registro->>dataDesligamento,ehDirecao:registro->>ehDirecao'),
+  lerRH('status','id,contaComoAtivo:registro->>contaComoAtivo'),
+  lerRH('areas','id,nome:registro->>nome'),lerRH('cargos','id,nome:registro->>nome'),
+ ]);
+ return pessoasParaReunioes(pessoas,status,areas,cargos);
+}
 async function obter(id:string){
  if(!idValido(id))throw new ErroReuniao('Encontro inválido.');
  const {data,error}=await sb.from('painel_registros').select('registro').eq('colecao',COLECAO_REUNIOES).eq('id',id).maybeSingle();
@@ -27,19 +43,22 @@ Deno.serve(async(req:Request)=>{
   const raw=await req.text();if(raw.length>7500000)return json({erro:'Conteúdo grande demais.'},413);
   let b:any;try{b=JSON.parse(raw);}catch{return json({erro:'Pedido inválido.'},400);}
   if(!b||typeof b!=='object'||Array.isArray(b))return json({erro:'Pedido inválido.'},400);
-  if(b.action==='listar'){
+  if(b.action==='pessoas')return json({ok:true,pessoas:await pessoasRH()});
+  if(b.action==='agenda'&&!/^\d{4}-(0[1-9]|1[0-2])$/.test(b.mes||''))return json({erro:'Informe um mês válido.'},422);
+  if(b.action==='listar'||b.action==='agenda'){
    const itens:any[]=[];
    for(let pag=0;pag<100;pag++){
     const {data,error}=await sb.from('painel_registros').select('id,registro').eq('colecao',COLECAO_REUNIOES).order('id').range(pag*500,pag*500+499);
     if(error)throw error;
     for(const row of data||[])itens.push({...row.registro,id:row.id,podeEditar:podeEditarReuniao(row.registro,s)});
-    if((data||[]).length<500)return json({ok:true,itens});
+    if((data||[]).length<500)return json(b.action==='agenda'?{ok:true,eventos:agendaReunioes(itens,b.mes)}:{ok:true,itens});
    }
    throw new Error('Limite de consulta atingido.');
   }
   const id=b.item?.id||b.id,antes=await obter(id);
   if(b.action==='salvar'){
-   const novo=prepararReuniao(b.item,antes,s);const item=await gravar(carimbarReuniao(novo,s,antes?'Editou o encontro':'Criou o encontro'),antes);
+   const vinculadas=Array.isArray(b.item?.participantes)&&b.item.participantes.some((p:any)=>p?.rhId);
+   const novo=prepararReuniao(b.item,antes,s,new Date().toISOString(),vinculadas?await pessoasRH():[]);const item=await gravar(carimbarReuniao(novo,s,antes?'Editou o encontro':'Criou o encontro'),antes);
    return json({ok:true,item:{...item,podeEditar:true}});
   }
   if(!antes)return json({erro:'Encontro não encontrado.'},404);

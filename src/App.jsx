@@ -226,7 +226,7 @@ export default function App() {
           path="/calendario-empresa"
           element={
             <Restrito modulo="calendario-empresa" sessao={sessao}>
-              <><CalendarioAbas sessao={sessao}/><CalendarioEmpresa /></>
+              <><CalendarioAbas sessao={sessao}/><CalendarioEmpresa sessao={sessao}/></>
             </Restrito>
           }
         />

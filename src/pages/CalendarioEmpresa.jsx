@@ -8,6 +8,9 @@ import {
   PageTitle, Card, Empty, CarregandoModulo, ErroModulo, AvisoAtualizacao,
 } from "../components/ui.jsx";
 import { lerEmpresa } from "../services/agenda.js";
+import {lerAgendaReunioes} from '../services/reunioes.js';
+import {podeAbrir} from '../lib/sessao.js';
+import {Link} from 'react-router-dom';
 
 const DOW = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
 const MESES = ["janeiro", "fevereiro", "março", "abril", "maio", "junho",
@@ -35,29 +38,34 @@ const porExtenso = (iso) => {
   return Number.isFinite(+d) ? `${DOW[d.getUTCDay()]} ${curto}` : curto;
 };
 
-export default function CalendarioEmpresa() {
+export default function CalendarioEmpresa({sessao}) {
   const [mes, setMes] = useMesCalendario(mesAtual);
   const [foco, setFoco] = useState("");
   const [dados, setDados] = useState(null);
   const [erro, setErro] = useState("");
   const [atualizando, setAtualizando] = useState(false);
+  const [encontros,setEncontros]=useState([]),[erroReunioes,setErroReunioes]=useState('');
+  const temReunioes=podeAbrir('reunioes',sessao);
   const pedido = useRef(0);
 
   const recarregar = useCallback(async () => {
     const meu = ++pedido.current;
     setAtualizando(true);
     try {
-      const r = await lerEmpresa(mes);
+      const [empresa,reunioes]=await Promise.allSettled([lerEmpresa(mes),temReunioes?lerAgendaReunioes(mes):Promise.resolve([])]);
       // Resposta fora de ordem não pinta a tela (ver Agenda.jsx).
       if (meu !== pedido.current) return;
-      setDados(r);
+      if(empresa.status==='rejected')throw empresa.reason;
+      setDados(empresa.value);
+      setEncontros(reunioes.status==='fulfilled'?reunioes.value:[]);
+      setErroReunioes(reunioes.status==='rejected'?'Não foi possível carregar as reuniões. Atualize para tentar novamente.':'');
       setErro("");
     } catch (e) {
       if (meu === pedido.current) setErro(e.message || "Não foi possível ler o calendário.");
     } finally {
       if (meu === pedido.current) setAtualizando(false);
     }
-  }, [mes]);
+  }, [mes,temReunioes]);
 
   useEffect(() => {
     void recarregar();
@@ -66,8 +74,8 @@ export default function CalendarioEmpresa() {
 
   const hoje = dados?.hoje || "";
   const eventos = useMemo(
-    () => [...(dados?.eventos ?? [])].sort((a, b) => a.data.localeCompare(b.data) || a.titulo.localeCompare(b.titulo, "pt-BR")),
-    [dados],
+    () => [...(dados?.eventos ?? []),...(temReunioes?encontros:[])].filter(e=>e.data.startsWith(mes)).sort((a, b) => a.data.localeCompare(b.data) || (a.hora||'').localeCompare(b.hora||'') || a.titulo.localeCompare(b.titulo, "pt-BR")),
+    [dados,encontros,temReunioes,mes],
   );
 
   /* A legenda É o filtro, como no RH: clicar num tipo mostra só ele. Os tipos
@@ -105,9 +113,10 @@ export default function CalendarioEmpresa() {
   return (
     <div className="space-y-6">
       <AvisoAtualizacao erro={erro} aoTentar={recarregar} />
+      <AvisoAtualizacao erro={erroReunioes} aoTentar={recarregar} />
       <PageTitle
         titulo="Calendário da empresa"
-        descricao="Aniversários, tempo de empresa, feriados, reuniões e eventos do RH."
+        descricao="Eventos do RH e reuniões organizadas por setor, em um só calendário."
         acao={
           <button type="button" className="btn-outline" disabled={atualizando} onClick={recarregar}>
             <RefreshCw size={16} className={atualizando ? "animate-spin" : ""} />
@@ -118,7 +127,7 @@ export default function CalendarioEmpresa() {
 
       <details className="page-help text-sm text-slate-600">
         <summary className="cursor-pointer"><Eye size={14} className="inline mr-2" />Dados do RH · como funciona</summary>
-        <p className="mt-2">Aniversários e tempo de empresa vêm dos cadastros; eventos são registrados no RH.</p>
+        <p className="mt-2">Aniversários e eventos vêm do RH. Encontros salvos em Reuniões aparecem automaticamente para quem tem acesso ao módulo; cancelamentos saem desta agenda. Abra o encontro para conferir os participantes e a ata.</p>
       </details>
 
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -182,7 +191,7 @@ export default function CalendarioEmpresa() {
                     {lista.slice(0, 3).map((e) => (
                       <span key={e.id} title={`${e.tipo}: ${e.titulo}`} className="flex items-center gap-1 truncate text-[11px] text-slate-600">
                         <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: e.cor }} />
-                        <span className="truncate">{e.titulo}</span>
+                        {e.reuniaoId?<Link className="truncate underline" to={'/reunioes?encontro='+encodeURIComponent(e.reuniaoId)+'&mes='+mes}>{e.titulo}</Link>:<span className="truncate">{e.titulo}</span>}
                       </span>
                     ))}
                     {lista.length > 3 && <span className="text-[11px] text-slate-400">+{lista.length - 3} mais</span>}
@@ -204,7 +213,7 @@ export default function CalendarioEmpresa() {
             <Empty className="mt-4">
               {foco
                 ? `Nenhum evento do tipo "${foco}" neste mês.`
-                : "Nenhum evento lançado neste mês. Quem lança é o RH."}
+                : "Nenhum evento ou reunião lançado neste mês."}
             </Empty>
           ) : (
             <ul className="mt-3">
@@ -214,7 +223,7 @@ export default function CalendarioEmpresa() {
                     {e.data.slice(8, 10)}
                   </span>
                   <div className="min-w-0">
-                    <p className="font-medium text-slate-800">{e.titulo}</p>
+                    <p className="font-medium text-slate-800">{e.reuniaoId?<Link className="underline" to={'/reunioes?encontro='+encodeURIComponent(e.reuniaoId)+'&mes='+mes}>{e.titulo}</Link>:e.titulo}</p>
                     <p className="text-sm text-slate-500">
                       {porExtenso(e.data)} · {e.tipo}
                       {e.hora ? ` · ${e.hora}` : ""}
@@ -228,7 +237,7 @@ export default function CalendarioEmpresa() {
           )}
           <p className="mt-4 flex items-center gap-1.5 text-xs text-slate-400">
             <CalendarDays size={13} aria-hidden="true" />
-            Fonte: RH · eventos e cadastros.
+            Fonte: RH e Reuniões · cada registro é atualizado na sua origem.
           </p>
         </Card>
       </div>
