@@ -86,3 +86,33 @@
 @media(max-width:640px){.com-lookup-form{flex-direction:column;align-items:stretch}.com-lookup-result{flex-wrap:wrap;gap:10px}.com-lookup-result>div:first-child{flex-basis:100%}.com-lookup-owner{max-width:100%;flex:1}.com-lookup-pagination{justify-content:space-between;gap:6px}.com-lookup-icon{display:none}}
 
 .dark .com-lookup-owner strong{color:#c8baff}.dark .com-lookup-icon{background:#393153;color:#dfd6ff}.dark .com-lookup-result{border-color:var(--com-line)}
+
+/* Minhas vendas: os pedidos vêm antes dos gráficos, com o sinal visível na linha. */
+.com-vendas .com-kpis{grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-bottom:10px}
+.com-vendas .com-kpi{padding:9px 12px;border-top-width:2px}
+.com-vendas .com-kpi strong{font-size:21px;margin:3px 0 0}
+.com-vendas .com-card{padding:12px 14px;margin-bottom:10px}
+.com-vendas .com-section-head{margin-bottom:6px}
+.com-vendas-comparison .com-section-head select{width:min(100%,300px)}
+.com-vendas-comparison>p{margin:3px 0;font-size:12px}
+.com-vendas-comparison .com-comparison{margin:4px 0;gap:10px}
+.com-vendas-comparison .com-comparison b{font-size:20px}
+.com-vendas .com-split{align-items:start;gap:10px}
+.com-vendas .com-line{height:110px}
+.com-vendas .com-orders .com-muted{margin:2px 0 10px}
+.com-vendas .com-table td{padding:8px 10px}
+.com-signal{display:inline-block;padding:3px 7px;border-radius:6px;background:#f0f2f5;color:#596879;white-space:nowrap;font-size:11px;font-weight:650}
+.com-signal.is-paid{background:#e5f4ed;color:#176044}
+.dark .com-signal{background:#344455;color:#d2dfec}
+.dark .com-signal.is-paid{background:#174737;color:#b4efd2}
+@media(max-width:640px){.com-vendas .com-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.com-vendas .com-kpi:first-child{grid-column:1/-1}.com-vendas .com-kpi strong{font-size:18px}.com-vendas-comparison .com-section-head select{width:100%}}
+@media screen and (max-width:600px){
+ .com-order-list{overflow:visible}
+ .com-order-list .com-table{display:block;min-width:0}
+ .com-order-list thead{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)}
+ .com-order-list tbody{display:grid;gap:8px}
+ .com-order-list tr{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px;padding:10px;border:1px solid var(--com-line);border-radius:9px}
+ .com-order-list td{display:block;max-width:none;padding:0!important;border:0;font-size:11px;overflow-wrap:anywhere}
+ .com-order-list td:nth-child(2){grid-column:span 2}
+ .com-order-list td::before{content:attr(data-label);display:block;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.3px;color:var(--com-muted);margin-bottom:2px}
+}

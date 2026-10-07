@@ -18,7 +18,7 @@ export function ordemComercialParaTabela(o) {
     id: o.id, numero: o.numero, cliente: o.cliente, clienteChave: chaveCliente(o.cliente),
     cnpj: o.cnpj, data: o.data.slice(0, 10), valor: centavos(o.valor), bruto: centavos(o.valorBruto),
     desconto: centavos(o.desconto), vendedor: o.vendedor,
-    comercial: { clienteId: o.clienteId, tipo: o.tipo, valorConfirmado: o.valorConfirmado, cancelada: false },
+    comercial: { clienteId: o.clienteId, tipo: o.tipo, valorConfirmado: o.valorConfirmado, cancelada: false, sinalPago: o.sinalPago },
   };
 }
 

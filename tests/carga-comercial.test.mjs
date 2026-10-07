@@ -26,11 +26,11 @@ test('janela exige datas reais e não consulta futuro nem recurso desconhecido',
   for (const dados of [{ desde: '2020-02-30', ate: '2020-03-01' }, { desde: '2020-01-01', ate: '2026-10-08' }, { desde: '2021-01-01', ate: '2020-01-01' }, { desde: '2020-01-01', ate: '2020-12-31', recurso: 'pagar' }]) assert.throws(() => validarCargaComercial(dados, '2026-10-07'));
 });
 test('O.S. usa consulta paginada inclusiva e escreve apenas tabela sem itens, cache recente ou financeiro', async () => {
-  const t = ambiente();
+  const t = ambiente({ 'ordem-servico': [venda('v1', { valor_sinal: '25.00' })] });
   await executarCargaComercial({ desde: '2020-01-01', ate: '2020-12-31', recurso: 'ordens' }, t.deps);
   assert.deepEqual(t.leituras, [{ caminho: 'ordem-servico', query: { status: 'TODOS', filtrodata: 'CADASTRO', datainicial: '2020-01-01', datafinal: '2021-01-01' }, pagina: 100 }]);
   const o = t.tabelas.get('v1'); assert.equal(o.valor, 90); assert.equal(o.bruto, 100); assert.equal(o.desconto, 10); assert.equal(o.itens, undefined);
-  assert.deepEqual(o.comercial, { tipo: 'Normal', clienteId: 'c1', valorConfirmado: true, cancelada: false });
+  assert.deepEqual(o.comercial, { tipo: 'Normal', clienteId: 'c1', valorConfirmado: true, cancelada: false, sinalPago: 25 });
   assert.equal(t.gravacoes.some((x) => ['ordens', 'status', 'historico_status', 'recebiveis', 'pagar'].includes(x.chave)), false);
   const st = t.valores.comercial_carga_status; assert.equal(st.tentativa.estado, 'concluida'); assert.equal(st.janelas.ordens.length, 1); assert.equal(st.janelas.ordens[0].ate, '2020-12-31'); assert.equal(st.janelas.orcamentos.length, 0); assert.equal(st.completo, undefined);
 });
