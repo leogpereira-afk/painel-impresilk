@@ -46,6 +46,7 @@ test('direção abre o calendário existente no mês selecionado e a agenda de c
  const html=await renderizar({...sessao([]),master:true}),links=atalhos(html);
  assert.deepEqual(calendario(links),[{href:'/calendario-empresa?mes=2026-09',texto:'Calendário'}]);
  assert.ok(links.some(l=>l.href==='/compromissos'&&l.texto==='Compromissos'));
+ assert.ok(links.some(l=>l.href==='/contas-atrasadas'&&l.texto==='Pagamentos atrasados'));
  assert.match(html,/Dicas de produtos/);
  assert.match(html,/Novo orçamento/);
 });
@@ -69,6 +70,11 @@ test('calendário usa Reuniões como alternativa quando é a única agenda autor
 test('Compromissos é independente de Calendário e não recebe o ID do vendedor como dono',async()=>{
  const links=atalhos(await renderizar(sessao(['orcamentos','compromissos']),'/comercial?de=2026-10-01&ate=2026-10-31&vendedor=102'));
  assert.deepEqual(links,[{href:'/compromissos',texto:'Compromissos'}]);
+});
+
+test('Pagamentos atrasados reutiliza a cobrança existente somente com permissão',async()=>{
+ const links=atalhos(await renderizar(sessao(['orcamentos','contas-atrasadas']),'/comercial?vendedor=102'));
+ assert.deepEqual(links,[{href:'/contas-atrasadas',texto:'Pagamentos atrasados'}]);
 });
 
 test('acesso total escolhe um único calendário e respeita o mês dos filtros também na rota antiga',async()=>{

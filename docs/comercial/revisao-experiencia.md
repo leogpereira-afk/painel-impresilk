@@ -4,7 +4,7 @@
 
 | Antes | Ajuste | Benefício para a vendedora |
 |---|---|---|
-| Agendas acessíveis apenas pelo menu lateral | Atalhos Calendário e Compromissos no topo, em todas as seis abas | Menos passos para organizar a rotina |
+| Agendas acessíveis apenas pelo menu lateral | Atalhos Calendário, Compromissos e Pagamentos atrasados no topo, em todas as seis abas | Menos passos para organizar a rotina |
 | Voltar da agenda perdia o contexto visual do Comercial | Voltar ao Comercial preserva aba, período, vendedora e equipe | Retoma o recorte anterior |
 | Indicadores com a mesma aparência | Vendas em verde, propostas em violeta, hoje em azul e atrasos em laranja quando existentes | Identifica rapidamente resultado e pendência, com texto e número acompanhando a cor |
 | Meta e ticket ocupavam uma linha antes das prioridades | Prioridades ao lado da meta no computador; ticket dentro do resumo | Próximo atendimento aparece mais cedo |
@@ -24,7 +24,7 @@ Calendário abre o primeiro módulo autorizado entre Empresa, Produção e Reuni
 
 ## Verificação
 
-- Suíte completa: 701 testes aprovados, nenhuma falha e 11 testes pulados pelas condições já previstas no projeto.
+- Suíte completa: 702 testes aprovados, nenhuma falha e 11 testes pulados pelas condições já previstas no projeto.
 - Testes de renderização: direção, acesso total, vendedora somente Comercial, Produção, Reuniões e Compromissos; mês e guardas das duas rotas preservados.
 - Navegador: atalhos existentes, retorno ao Comercial, busca de dicas, seleção de vendedora, filtros de prioridades, fechamento pelo teclado, tema escuro e tela de 390 px.
 - Compilações de produção e prévia; análise estática sem erros (dois avisos anteriores nos calendários).

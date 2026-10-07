@@ -1,6 +1,6 @@
 import {useEffect,useId,useMemo,useRef,useState} from 'react';
 import {Link,useSearchParams} from 'react-router-dom';
-import {Plus,RefreshCw,ArrowUpRight,Target,Search,Check,Settings,ChevronRight,X,CalendarDays,CalendarCheck,Lightbulb,TrendingUp,FileText,Clock,AlertCircle,SlidersHorizontal} from 'lucide-react';
+import {Plus,RefreshCw,ArrowUpRight,Target,Search,Check,Settings,ChevronRight,X,CalendarDays,CalendarCheck,Lightbulb,TrendingUp,FileText,Clock,AlertCircle,SlidersHorizontal,WalletCards} from 'lucide-react';
 import {BotaoPDF} from '../components/ui.jsx';
 import {chamarComercial} from '../services/comercial.js';
 import {ymdLocal} from '../lib/format.js';
@@ -100,6 +100,7 @@ export default function Comercial({sessao}){
  <nav className="com-shortcuts sem-impressao" aria-label="Atalhos da rotina comercial">
  {calendario&&<Link className="com-shortcut com-shortcut-calendar" state={retornoComercial} to={`/${calendario}?mes=${filtro.de.slice(0,7)}`}><CalendarDays size={18} aria-hidden="true"/><span>Calendário</span><ChevronRight size={14} aria-hidden="true"/></Link>}
  {podeAbrir('compromissos',sessao)&&<Link className="com-shortcut com-shortcut-appointments" state={retornoComercial} to="/compromissos"><CalendarCheck size={18} aria-hidden="true"/><span>Compromissos</span><ChevronRight size={14} aria-hidden="true"/></Link>}
+ {podeAbrir('contas-atrasadas',sessao)&&<Link className="com-shortcut com-shortcut-payments" state={retornoComercial} to="/contas-atrasadas"><WalletCards size={18} aria-hidden="true"/><span>Pagamentos atrasados</span><ChevronRight size={14} aria-hidden="true"/></Link>}
  <button className="com-shortcut com-shortcut-tips" onClick={()=>setModal({tipo:'dicas'})}><Lightbulb size={18} aria-hidden="true"/><span>Dicas de produtos</span><ChevronRight size={14} aria-hidden="true"/></button>
  </nav>
  <nav className="com-tabs sem-impressao" aria-label="Área Comercial">{ABAS.map(([id,nome])=><button key={id} aria-current={aba===id?'page':undefined} onClick={()=>alterar({aba:id})}>{nome}</button>)}</nav>
