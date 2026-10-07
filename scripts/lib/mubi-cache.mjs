@@ -205,7 +205,10 @@ export function normOrcamento(o, i) {
     vendedorId: vendedor,
     vendedorNome: vendedor,
     valor,
+    valorConfirmado: o.valor_total != null && String(o.valor_total).trim() !== '' || (Array.isArray(o.itens) && o.itens.some(it => it.valor_final != null || it.sub_total != null)),
     situacao,
+    statusErp: String(o.status || ""),
+    dataCadastro: String(o.data_cadastro || ""),
     dataEnvio: String(o.data_cadastro || ""),
     dataFechamento: o.data_aprovacao || o.data_cancelamento || null,
     trabalho: String(o.nome_trabalho || ""),
@@ -316,6 +319,7 @@ export function normOS(os, i, categoriaPorNome) {
      * proprio `bruto` gravado denuncia a diferenca contra o PDF.
      */
     valorBruto: num(os.valor_total),
+    valorConfirmado: os.valor_total != null && String(os.valor_total).trim() !== '',
     desconto: num(os.valor_desconto),
     // Adiantamento confirmado na própria O.S. (Sinal pago na tela do ERP).
     // Ausência não é zero: só uma nova consulta pode afirmar o sinal.

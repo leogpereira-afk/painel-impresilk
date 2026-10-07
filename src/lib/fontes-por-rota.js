@@ -2,6 +2,7 @@
 export const FONTES_POR_ROTA = Object.freeze({
   '/contas-atrasadas': ['recebiveis', 'ordens'],
   '/orcamentos': ['orcamentos'],
+  '/orcamentos/mesa': ['orcamentos'],
   '/marketing': ['orcamentos'],
 });
 const SEM_FONTES = Object.freeze([]);

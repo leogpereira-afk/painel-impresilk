@@ -1,3 +1,5 @@
+import {escopoLegado, contextoComercial} from '../_shared/comercial-contexto.ts';
+import {pertence,gestorComercial} from '../_shared/comercial.mjs';
 import {vigiarCache} from "../_shared/vigia-cache.ts";
 import { numerosDeOSComercial } from "../_shared/vinculo-financeiro-os.mjs";
 // ============================================================================
@@ -462,7 +464,8 @@ Deno.serve(async (req: Request) => {
         const [orc, status] = await Promise.all([lerCacheComData("orcamentos"), lerCache("status")]);
         talvezAquecer(status);
         if (!orc.valor) return json(PRECISA_AQUECER, 503);
-        return json({ itens: orc.valor, atualizadoEm: orc.em ?? status?.em ?? null });
+        const escopo=await escopoLegado(sb,g.sessao);
+        return json({ itens: orc.valor.filter((o:any)=>pertence(o,escopo)), atualizadoEm: orc.em ?? status?.em ?? null });
       }
 
       /* Os vendedores REAIS do ERP, para a tela de Configuracoes oferecer a
@@ -624,13 +627,18 @@ Deno.serve(async (req: Request) => {
         const { data, error } = await sb.from("painel_cache").select("valor, atualizado_em").eq("chave", "crm_funil").maybeSingle();
         if (error) return json({ erro: "Não foi possível ler o CRM." }, 503);
         if (!data?.valor?.completo) return json({ erro: "A primeira carga do CRM ainda não foi concluída." }, 503);
-        return json({ grupos: data.valor.grupos, cards: data.valor.cards, escopo: "ATIVO", atualizadoEm: data.atualizado_em });
+        const escopo=await escopoLegado(sb,g.sessao);
+        return json({ grupos: data.valor.grupos, cards: data.valor.cards.filter((c:any)=>pertence(c,escopo,"responsavel")), escopo: "ATIVO", atualizadoEm: data.atualizado_em });
       }
       case "cliente360": {
         const g = await exigirSessao(req, "orcamentos");
         if (g.resposta) return g.resposta;
         const id = String(url.searchParams.get("id") ?? "");
         if (!/^[1-9]\d{0,15}$/.test(id)) return json({ erro: "Cliente inválido." }, 400);
+        if(!gestorComercial(g.sessao)) {
+          const ctx=await contextoComercial(sb,g.sessao);
+          if(!ctx.clientes.some((c:any)=>String(c.id)===id))return json({erro:"Cliente fora da sua carteira."},403);
+        }
         const { data, error } = await sb.rpc("painel_crm_cliente", { p_id: id });
         if (error) return json({ erro: "Não foi possível ler o cadastro." }, 503);
         if (!data?.completo) return json({ erro: "A primeira carga dos clientes ainda não foi concluída." }, 503);
@@ -764,6 +772,7 @@ Deno.serve(async (req: Request) => {
         return json({ erro: `Modulo desconhecido: ${modulo || "(vazio)"}` }, 400);
     }
   } catch (e) {
+    if ((e as any)?.status===403)return json({erro:(e as any).message,codigo:(e as any).codigo||null},403);
     console.error("[painel-dados] erro:", e);
     return json({ erro: "Erro interno." }, 500);
   }

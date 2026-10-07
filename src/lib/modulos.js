@@ -18,7 +18,7 @@ export const MODULOS = [
   { id: "reunioes", nome: "Reuniões e treinamentos", sub: "agenda, participantes, atas e arquivos compartilhados da empresa" },
   { id: "calendario-empresa", nome: "Calendário da empresa", sub: "eventos do RH, aniversários e tempo de empresa, somente consulta" },
   { id: "contas-atrasadas", nome: "Contas Atrasadas", sub: "quem deve e a cobrança" },
-  { id: "orcamentos", nome: "Orçamentos", sub: "funil e conversão do time" },
+  { id: "orcamentos", nome: "Comercial", sub: "resultados, carteira e próximos atendimentos" },
   { id: "bancos", nome: "Bancos e Pix", sub: "contas, CNPJs e chaves de todas as empresas" },
   { id: "marketing", nome: "Marketing", sub: "logomarcas, materiais e atalhos do Drive" },
   { id: "licitacoes", nome: "Licitações", sub: "editais, prazos e sessões" },

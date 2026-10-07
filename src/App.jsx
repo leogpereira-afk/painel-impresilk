@@ -21,6 +21,7 @@ import Login from "./pages/Login.jsx";
    Login e Home ficam estaticos de proposito: sao a primeira coisa que todo
    mundo ve, e adiar o que ja vai ser pedido so acrescenta uma ida a rede. */
 const ContasAtrasadas = lazy(() => import("./pages/ContasAtrasadas.jsx"));
+const Comercial = lazy(() => import("./pages/Comercial.jsx"));
 const Orcamentos = lazy(() => import("./pages/Orcamentos.jsx"));
 const Configuracoes = lazy(() => import("./pages/Configuracoes.jsx"));
 const Acessos = lazy(() => import("./pages/Acessos.jsx"));
@@ -56,7 +57,7 @@ const CalendarioEmpresa = lazy(() => import("./pages/CalendarioEmpresa.jsx"));
    glossário) alcança todo mundo. */
 const ROTAS_PREFETCH = [
   { m: "contas-atrasadas", imp: () => import("./pages/ContasAtrasadas.jsx") },
-  { m: "orcamentos", imp: () => import("./pages/Orcamentos.jsx") },
+  { m: "orcamentos", imp: () => import("./pages/Comercial.jsx") },
   { m: "compromissos", imp: () => import("./pages/Compromissos.jsx") },
   { m: "agenda", imp: () => import("./pages/Agenda.jsx") },
   { m: "calendario-empresa", imp: () => import("./pages/CalendarioEmpresa.jsx") },
@@ -158,8 +159,10 @@ export default function App() {
             </Restrito>
           }
         />
+        <Route path="/comercial" element={<Restrito modulo="orcamentos" sessao={sessao}><Comercial /></Restrito>} />
+        <Route path="/orcamentos" element={<Restrito modulo="orcamentos" sessao={sessao}><Comercial /></Restrito>} />
         <Route
-          path="/orcamentos"
+          path="/orcamentos/mesa"
           element={
             <Restrito modulo="orcamentos" sessao={sessao}>
               <Orcamentos />

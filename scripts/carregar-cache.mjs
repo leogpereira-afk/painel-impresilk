@@ -167,6 +167,7 @@ async function gravarOrdensTabela(ordens) {
         bruto: Math.round(Number(o.valorBruto) * 100) / 100,
         desconto: Math.round((Number(o.desconto) || 0) * 100) / 100,
         vendedor: String(o.vendedor ?? ""),
+        comercial: {tipo:o.tipo || "",clienteId:o.clienteId || "",cancelada:o.cancelada===true,valorConfirmado:o.valorConfirmado},
         /* OS ITENS VAO JUNTO. E o que responde "o que a gente vende nesse tipo
            de evento" na tela de Campanhas -- placa, lona, adesivo. Sem eles a
            campanha so sabe QUANTO vendeu, nunca O QUE.

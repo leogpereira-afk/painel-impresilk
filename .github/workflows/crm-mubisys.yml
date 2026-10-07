@@ -8,6 +8,7 @@ on:
     paths:
       - scripts/carregar-crm.mjs
       - scripts/lib/crm-mubi.mjs
+      - scripts/lib/comercial-catalogo.mjs
 permissions:
   contents: read
 concurrency:

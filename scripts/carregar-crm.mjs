@@ -1,9 +1,10 @@
+import {carregarCatalogoComercial} from './lib/comercial-catalogo.mjs';
 import {mubiGetTudo,mubiConfigurado} from './lib/mubi.js';
 import {carregarClientes,carregarFunil} from './lib/crm-mubi.mjs';
 if(!mubiConfigurado()||!process.env.PAINEL_TOKEN)throw new Error('Integração não configurada');
 const url='https://heveemylixartyijxewh.supabase.co/functions/v1/painel-cache';
 let falhas=0;
-for(const [chave,carregar] of [['crm_clientes',carregarClientes],['crm_funil',carregarFunil]]){
+for(const [chave,carregar] of [['comercial_catalogo',carregarCatalogoComercial],['crm_clientes',carregarClientes],['crm_funil',carregarFunil]]){
  if(chave==='crm_clientes'&&process.env.CRM_SOMENTE_FUNIL==='true')continue;
  /* QUAL DAS DUAS PONTAS? O `try` cobre as duas: ler o ERP e gravar o cache. Sem
     dizer qual delas caiu, "ECONNREFUSED" nao distingue "o Mubisys recusou" de

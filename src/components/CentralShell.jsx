@@ -28,7 +28,7 @@ export default function CentralShell({children,sessao,aoSair,controles}) {
   ].filter((g,i)=>i===0 || ehDirecao(sessao) || review);
   const noCalendario=['/agenda','/calendario-empresa','/reunioes'].includes(location.pathname);
   const calendarioDestino=podeAbrir('calendario-empresa',sessao)?'/calendario-empresa':podeAbrir('agenda',sessao)?'/agenda':'/reunioes';
-  const titulo = noCalendario ? 'Calendário' : naCentral ? 'Sistemas e configurações' : MODULOS.find(m=>`/${m.id}`===location.pathname)?.nome || 'Início';
+  const titulo = (location.pathname.startsWith('/orcamentos') || location.pathname==='/comercial') ? 'Comercial' : noCalendario ? 'Calendário' : naCentral ? 'Sistemas e configurações' : MODULOS.find(m=>`/${m.id}`===location.pathname)?.nome || 'Início';
   useEffect(()=>setMenu(false),[location.pathname,location.search]);
   useEffect(()=>{
     if(!menu)return;
@@ -67,7 +67,7 @@ export default function CentralShell({children,sessao,aoSair,controles}) {
       </details>
       <div className="review-sidebar-scroll">
         <details key={`modulos-${location.pathname}`} open><summary>MÓDULOS DO PAINEL <ChevronRight size={15}/></summary>
-          <nav aria-label="Módulos do painel">{modulos.map(m=>{return <NavLink key={m.id} to={`/${m.id}`} className={({isActive})=>isActive?'selected':''}><span className="review-link-emoji" aria-hidden="true">{EMOJIS_MODULOS[m.id]||"📁"}</span><span>{m.nome}</span></NavLink>;})}</nav>
+          <nav aria-label="Módulos do painel">{modulos.map(m=>{return <NavLink key={m.id} to={m.id==='orcamentos'?'/comercial':`/${m.id}`} className={({isActive})=>(isActive || (m.id==='orcamentos'&&location.pathname.startsWith('/orcamentos')))?'selected':''}><span className="review-link-emoji" aria-hidden="true">{EMOJIS_MODULOS[m.id]||"📁"}</span><span>{m.nome}</span></NavLink>;})}</nav>
         </details>
         {gruposAcesso.map(g=><details key={`${g.nome}-${location.pathname}`} open><summary>{g.nome}<ChevronRight size={15}/></summary><nav aria-label={`Acessos ${g.nome}`}>{g.links.map(s=>{return <a key={s.id} href={s.url} target="_blank" rel="noopener noreferrer"><span className="review-link-emoji" aria-hidden="true">{EMOJIS_SISTEMAS[s.id]||"💻"}</span><span>{s.nomeCompleto || s.nome}</span><ArrowUpRight size={15} aria-hidden="true"/></a>;})}</nav></details>)}
       </div>

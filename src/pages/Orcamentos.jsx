@@ -28,7 +28,7 @@ import FunilMubisys from "../components/FunilMubisys.jsx";
 import {getCrm} from "../services/crm.js";
 import { AceleradorVendas } from "../components/InteligenciaComercial.jsx";
 import { ETAPAS_CRM } from "../lib/calc/inteligencia.js";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import {
   MessageCircle,
   Mail,
@@ -622,6 +622,7 @@ function BarraDesfazer({ desfazer, aoDesfazer }) {
 // ---------------------------------------------------------------- página
 
 export default function Orcamentos() {
+  const [comParams]=useSearchParams();
   const {
     config, dados, overridesOrcamentos, setOverridesOrcamento,
     pronto, erro, recarregar, frescorDe, fontesNegadas, fontesQueFalharam,
@@ -639,7 +640,7 @@ export default function Orcamentos() {
   }, [revisaoCrm]);
   function abrirCliente(o) { setCliente360(o); requestAnimationFrame(() => document.getElementById("cliente360-area")?.scrollIntoView({behavior:"smooth",block:"start"})); }
 
-  const [vendedorEscopo, setVendedorEscopo] = useState(meuVendedor || "");
+  const [vendedorEscopo, setVendedorEscopo] = useState(meuVendedor || canonVend(comParams.get("vendedoraNome") || ""));
   const [etapaFiltro, setEtapaFiltro] = useState("");
   const [recorte, setRecorte] = useState("mesa");
   const [ordem, setOrdem] = useState("valor");
@@ -721,9 +722,9 @@ export default function Orcamentos() {
   const vm = useMemo(
     () =>
       dados
-        ? calcOrcamentos(dados.orcamentos, overridesOrcamentos, config, { vendedor: vendedorEscopo, hoje })
+        ? calcOrcamentos(dados.orcamentos.filter(o=>(!comParams.get("de")||String(o.dataCadastro||o.dataEnvio||"").slice(0,10)>=comParams.get("de"))&&(!comParams.get("ate")||String(o.dataCadastro||o.dataEnvio||"").slice(0,10)<=comParams.get("ate"))), overridesOrcamentos, config, { vendedor: vendedorEscopo, hoje })
         : null,
-    [dados, overridesOrcamentos, config, vendedorEscopo, hoje]
+    [dados, overridesOrcamentos, config, vendedorEscopo, hoje, comParams]
   );
 
   const vmPeriodo = useMemo(() => {
@@ -980,6 +981,7 @@ export default function Orcamentos() {
   return (
     <div className={`space-y-5 ${desfazer ? "pb-20" : ""}`}>
       <AvisoDadoParado atualizadoEm={atualizadoEm} />
+      <Link className="sem-impressao inline-flex text-sm font-semibold text-brand-700 underline" to={`/comercial?${new URLSearchParams({...Object.fromEntries(comParams),aba:'orcamentos'}).toString()}`}>Voltar ao Comercial</Link>
 
       <PageTitle
         titulo="Orçamentos"

@@ -1,3 +1,5 @@
+import {contextoComercial} from '../_shared/comercial-contexto.ts';
+import {gestorComercial} from '../_shared/comercial.mjs';
 // ============================================================================
 // painel-config — configuracoes e marcacoes manuais (substitui config.js)
 //
@@ -366,6 +368,18 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
+    let orcPermitidos:Set<string>|null=null;
+    if(corpo.chave==='ov_orc' && sessao && !gestorComercial(sessao)) {
+      const negado=barraChave('ov_orc',corpo.action==='get'?'ler':'gravar');if(negado)return negado;
+      const ctx=await contextoComercial(sb,sessao);
+      orcPermitidos=new Set(ctx.orcamentos.map((o:any)=>String(o.id)));
+      const ids=corpo.action==='merge'?Object.keys(corpo.patch||{}):corpo.id?[String(corpo.id)]:[];
+      if(ids.some(id=>!orcPermitidos!.has(id)))return resposta({erro:'Orçamento fora do seu acesso.'},403);
+    }
+    const overlaySeguro=async(chave:string)=>{
+      const valor=await lerOverlay(chave,donoDaVez(chave),await crivoDe(chave));
+      return chave==='ov_orc'&&orcPermitidos?Object.fromEntries(Object.entries(valor||{}).filter(([id])=>orcPermitidos!.has(id))):valor;
+    };
     switch (corpo.action) {
       case "ping":
         return resposta({ ok: true });
@@ -413,7 +427,8 @@ Deno.serve(async (req: Request) => {
           const barrado = barraChave(chave, "ler");
           if (barrado) return barrado;
           if (!sessao) return resposta({ erro: "Entre no sistema.", semSessao: true }, 401);
-          return resposta({ ok: true, chave, valor: await lerOverlay(chave, donoDaVez(chave), await crivoDe(chave)) });
+          const valor=await lerOverlay(chave,donoDaVez(chave),await crivoDe(chave));
+          return resposta({ok:true,chave,valor:chave==='ov_orc'&&orcPermitidos?Object.fromEntries(Object.entries(valor||{}).filter(([id])=>orcPermitidos!.has(id))):valor});
         }
         return resposta({ erro: "chave invalida" }, 400);
       }
@@ -488,7 +503,7 @@ Deno.serve(async (req: Request) => {
             });
             if (error) throw Object.assign(new Error(error.message), { code: error.code });
           }
-          return resposta({ ok: true, valor: await lerOverlay(chave, donoDaVez(chave), await crivoDe(chave)) });
+          return resposta({ ok: true, valor: await overlaySeguro(chave) });
         }
 
         /* PERMUTA E CAMPANHA: a mesma maquina (`troca_mexer`), porque e o
@@ -546,7 +561,7 @@ Deno.serve(async (req: Request) => {
               await sb.storage.from(BUCKET).remove(paraApagar).catch(() => {});
             }
           }
-          return resposta({ ok: true, valor: await lerOverlay(chave, donoDaVez(chave), await crivoDe(chave)) });
+          return resposta({ ok: true, valor: await overlaySeguro(chave) });
         }
 
         if (OVERLAYS.has(chave)) {
@@ -708,7 +723,7 @@ Deno.serve(async (req: Request) => {
           // Devolve o mapa inteiro, como o original fazia (o cliente atualiza o
           // estado local com ele). Depois de encaminhar, o item some da lista de
           // quem passou -- e por isso que o cliente adota esta resposta.
-          return resposta({ ok: true, valor: await lerOverlay(chave, donoDaVez(chave), await crivoDe(chave)) });
+          return resposta({ ok: true, valor: await overlaySeguro(chave) });
         }
         return resposta({ erro: "chave nao gravavel" }, 403);
       }
@@ -772,7 +787,7 @@ Deno.serve(async (req: Request) => {
           p_colecao: chave, p_id: id, p_registro: registro, p_anterior: data.registro,
         });
         if (error) throw Object.assign(new Error(error.message), { code: error.code });
-        return resposta({ ok: true, valor: await lerOverlay(chave, donoDaVez(chave), await crivoDe(chave)) });
+        return resposta({ ok: true, valor: await overlaySeguro(chave) });
       }
 
       /* ANEXAR A NOTA DE UM LANCAMENTO DE CREDITO.
@@ -1006,6 +1021,7 @@ Deno.serve(async (req: Request) => {
         return resposta({ erro: "acao desconhecida" }, 400);
     }
   } catch (e) {
+    if ((e as any)?.status===403)return resposta({erro:(e as any).message,codigo:(e as any).codigo||null},403);
     console.error("[painel-config] erro:", e);
     if ((e as any)?.code === "23503") return resposta({ erro: "O vínculo com o setor mudou. Atualize a lista; escolha um setor existente e transfira seus bens antes de removê-lo." }, 409);
     if ((e as any)?.code === "40001") return resposta({ erro: "Outra pessoa alterou este registro. Recarregue antes de salvar." }, 409);
