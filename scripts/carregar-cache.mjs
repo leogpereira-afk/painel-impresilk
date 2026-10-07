@@ -26,12 +26,13 @@
 import {
   etapaRapidos, etapaCompleta, etapaRealizado, calcDso, normOrcamento, normOS, chaveProduto,
   SEM_CATEGORIA, FORA_CATALOGO, normRecebivel, CORTE_ATRASADOS,
-  etapaHistoricoOS, fatiasPorAno, anosDoHistorico, conferirAbatimentos,
+  etapaHistoricoOS, fatiasPorAno, anosDoHistorico, conferirAbatimentos, janelaConsultada,
 } from "./lib/mubi-cache.mjs";
 import { mubiGetTudo, mubiConfigurado, hojeMais } from "./lib/mubi.js";
 /* A faxina do mapa de pagos APAGA registro de dinheiro recebido: a decisao
    mora em lib/calc, com teste de entrada sintetica, nunca solta aqui. */
 import { ordensParaTabela, completaConfirmada } from "./lib/atualizacao-ordens.mjs";
+import { confirmarCoberturaRegular } from "./lib/cobertura-comercial.mjs";
 import { faxinarPagos } from "../src/lib/calc/financeiroOS.js";
 
 const FN = process.env.PAINEL_CACHE_URL
@@ -85,18 +86,19 @@ async function lerComExistencia(chave) {
 async function gravar(chave, valor, recusados) {
   if (valor === null || valor === undefined) {
     console.log(`   ${chave}: manteve o anterior (fonte falhou)`);
-    return;
+    return false;
   }
   const r = await chamar({ chave, valor });
   // O servidor recusa lista vazia por cima de lista cheia (404 do ERP e afins).
   // Recusa e FALHA DE FONTE, nao sucesso -- registra para o status nao sair
   // verde dizendo que gravou.
-  if (r.recusouVazio) {
+  if (r.recusouVazio || r.pulou) {
     console.warn(`   ${chave}: RECUSADO -- ${r.pulou}`);
     recusados?.push(`vazio-recusado:${chave}`);
-    return;
+    return false;
   }
   console.log(`   ${chave}: ${r.itens ?? "ok"}`);
+  return true;
 }
 
 /* AS O.S. TAMBEM VAO PARA A TABELA `painel_ordens`.
@@ -178,6 +180,7 @@ async function gravarOrdensTabela(ordens) {
       };
     });
     const r = await chamar({ action: "ordens", linhas });
+    if (r.gravadas !== linhas.length) throw new Error('Gravação parcial de painel_ordens.');
     total += r.gravadas ?? 0;
   }
   return total;
@@ -194,6 +197,7 @@ async function janelaDe7Dias() {
      "sucesso". O painel era cego para o proprio dia desde sempre; so aparecia
      para quem procurasse a O.S. de hoje. */
   const janela = { status: "TODOS", datainicial: hojeMais(-7), datafinal: hojeMais(1) };
+  const janelasConsultadas = {};
 
   const [orc, os] = await Promise.all([
     lerComExistencia("orcamentos"), lerComExistencia("ordens"),
@@ -238,6 +242,7 @@ async function janelaDe7Dias() {
     janelaErp.orc[filtro] = brutos.length;
     brutos.map(normOrcamento).forEach((o) => mapaOrc.set(o.id, o));
   }
+  janelasConsultadas.orcamentos = janelaConsultada(janela);
 
   /* O CATALOGO PODE CAIR SEM LEVAR O RESTO JUNTO.
      Em 06/08/2026 o endpoint `produto` do Mubisys passou a responder 500. Como
@@ -275,7 +280,7 @@ async function janelaDe7Dias() {
       // Sem catalogo e sem base anterior, mexer nas O.S. so estragaria. Os
       // orcamentos seguem: nunca dependeram do catalogo.
       console.warn("sem base para classificar: O.S. mantidas como estao");
-      return { orcamentos: [...mapaOrc.values()], ordens: null, falhas: ["catalogo-indisponivel"] };
+      return { orcamentos: [...mapaOrc.values()], ordens: null, falhas: ["catalogo-indisponivel"], janelasConsultadas };
     }
     console.warn(`classificando por ${categoriaPorNome.size} produtos ja conhecidos`);
   }
@@ -317,8 +322,9 @@ async function janelaDe7Dias() {
     }
   } catch (e) {
     console.warn("ordens de servico falharam:", e?.message || e);
-    return { orcamentos: [...mapaOrc.values()], ordens: null, falhas: ["ordens"], janelaErp };
+    return { orcamentos: [...mapaOrc.values()], ordens: null, falhas: ["ordens"], janelaErp, janelasConsultadas };
   }
+  janelasConsultadas.ordens = janelaConsultada(janela);
 
   // `falhas` sobe junto: sem isso a rodada terminava em "sucesso" limpo, e nada
   // na tela nem no log dizia que o painel estava rodando com a classificacao
@@ -428,6 +434,7 @@ async function janelaDe7Dias() {
     ordensAtualizadas: [...mapaOS.values()].filter(o => atualizadasNestaCorrida.has(String(o.id))),
     osCanceladas: [...osCanceladas],
     janelaErp,
+    janelasConsultadas,
     recebidos,
     ...(falhas.length ? { falhas } : {}),
   };
@@ -657,8 +664,9 @@ async function main() {
   await gravar("recebiveis", rapidos.recebiveis, recusados);
   await gravar("pagar", rapidos.pagar, recusados);
   await gravar("bancos", rapidos.bancos, recusados);
-  await gravar("orcamentos", pesados.orcamentos, recusados);
-  await gravar("ordens", pesados.ordens, recusados);
+  const orcamentosGravados = await gravar("orcamentos", pesados.orcamentos, recusados);
+  const ordensGravadas = await gravar("ordens", pesados.ordens, recusados);
+  let ordensTabelaConfirmada = false;
   /* Só o incremental monta o mapa de títulos pagos; a completa nem tenta — e
      gravar(null) aqui registraria "fonte falhou" sobre uma fonte não tentada,
      sujando o log de toda madrugada. */
@@ -682,12 +690,29 @@ async function main() {
         }
         console.log(`   painel_ordens: ${canc.length} cancelada(s) removida(s)`);
       }
+      // A completa também lê cancelamentos: marca apenas linhas existentes,
+      // sem excluir registros ou alterar os valores financeiros já gravados.
+      const canceladasComerciais = pesados.osCanceladasComerciais || [];
+      for (let i = 0; i < canceladasComerciais.length; i += 500) {
+        await chamar({ action: 'ordensComercialCanceladas', ids: canceladasComerciais.slice(i, i + 500) });
+      }
+      ordensTabelaConfirmada = n === ordensParaTabela(pesados, modoReal).length;
     } catch (e) {
       // Falhar aqui NAO derruba a carga: o cache ja gravou, e as outras telas
       // dependem dele. A permuta fica com a busca um pouco atrasada.
       console.warn("   painel_ordens falhou:", e?.message || e);
       recusados.push("painel_ordens");
     }
+  }
+
+  try {
+    await confirmarCoberturaRegular(pesados, {
+      orcamentos: orcamentosGravados,
+      ordens: ordensGravadas && ordensTabelaConfirmada,
+    }, chamar);
+  } catch (e) {
+    console.warn('   cobertura comercial não confirmada:', e?.message || e);
+    recusados.push('comercial_carga_status');
   }
 
   // DSO: sem recebiveis novos, mantem o anterior em vez de calcular sobre lista

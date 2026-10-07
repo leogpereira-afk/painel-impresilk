@@ -23,3 +23,27 @@ test("status ausente, vazio ou não reconhecido fica a conferir, sem inventar um
     assert.equal(o.statusErp, String(status ?? ""));
   }
 });
+
+for (const [status, situacao] of [
+  ["Entregue", "ganho"],
+  ["Em produção", "ganho"],
+  ["Concluída", "ganho"],
+  ["Ordem de serviço", "ganho"],
+  ["Pausada", "ganho"],
+  ["Em aberto", "aberto"],
+  ["Reprovado", "perdido"],
+  ["Cancelada", "perdido"],
+]) {
+  test(`orçamento reconhece o estado real do Mubisys: ${status}`, () => {
+    const o = normOrcamento({ id: 42, status, valor_total: 100, valor_desconto: 10 }, 0);
+    assert.equal(o.situacao, situacao);
+    assert.equal(o.statusErp, status, "preserva o estado original, inclusive após conversão em O.S.");
+    assert.equal(o.valor, 90, "continua descontando o desconto do cabeçalho");
+  });
+}
+
+test("rótulos parecidos com os estados convertidos não viram ganhos automaticamente", () => {
+  for (const status of ["Não entregue", "Parcialmente entregue", "Em produção externa", "Concluída parcialmente", "Pausada para revisão", "Ordem de serviço cancelada"]) {
+    assert.equal(normOrcamento({ id: 42, status }, 0).situacao, "conferir", status);
+  }
+});

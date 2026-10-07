@@ -174,11 +174,16 @@ function melhorContato(lista) {
 }
 
 // Um estado novo do ERP precisa de conferência, nunca de aprovação presumida.
-// As variantes de perda preservam os estados já tratados pelo normalizador.
+// Após a conversão em O.S., o ERP também retorna estes estados operacionais.
+// Lista conferida com O.S. de mesmo ID/cliente na carga real de 07/10/2026.
 const SITUACAO_ORCAMENTO = new Map([
   ["ABERTO", "aberto"], ["EM ABERTO", "aberto"],
   ["APROVADO", "ganho"],
+  ["ENTREGUE", "ganho"], ["EM PRODUÇÃO", "ganho"],
+  ["CONCLUÍDA", "ganho"], ["ORDEM DE SERVIÇO", "ganho"],
+  ["PAUSADA", "ganho"],
   ["CANCELADO", "perdido"], ["REPROVADO", "perdido"],
+  ["CANCELADA", "perdido"],
   ["RECUSADO", "perdido"], ["PERDIDO", "perdido"],
 ]);
 
@@ -777,6 +782,8 @@ export async function etapaCompleta(ordensAnteriores = [], orcamentosAnteriores 
   // exclui o dia de hoje inteiro (ver diaSeguinte, acima).
   const base = { status: "TODOS", filtrodata: "CADASTRO", datafinal: hojeMais(1) };
   const janela = { ...base, datainicial: desdeOrc };
+  const janelasConsultadas = {};
+  let osCanceladasComerciais = [];
 
   // Orçamentos não dependem do catálogo. Cada ramo termina antes de devolver
   // o resultado, inclusive quando o outro falha; não deixa consultas órfãs.
@@ -793,6 +800,7 @@ export async function etapaCompleta(ordensAnteriores = [], orcamentosAnteriores 
         const data = String(o.dataCadastro || o.dataEnvio || '').slice(0, 10);
         return !/^\d{4}-\d{2}-\d{2}$/.test(data) || data < desdeOrc || data >= base.datafinal;
       });
+      janelasConsultadas.orcamentos = janelaConsultada(janela);
       return [...new Map([...foraDaJanela, ...novos].map((o) => [String(o.id), o])).values()];
     } catch (e) {
       console.warn("carga completa: orçamentos indisponíveis:", e?.message || e);
@@ -819,12 +827,15 @@ export async function etapaCompleta(ordensAnteriores = [], orcamentosAnteriores 
     }
     try {
       const brutas = await mubiGetTudo("ordem-servico", { ...base, datainicial: desdeOS });
-      return brutas.map((os, i) => {
+      const normalizadas = brutas.map((os, i) => {
         const ordem = normOS(os, i, categoriaPorNome);
         // Sem catálogo, desconhecido não significa fora do catálogo.
         if (!catalogoOk) for (const item of ordem.itens) if (item.categoria === FORA_CATALOGO) item.categoria = "";
         return ordem;
-      }).filter((o) => !o.cancelada);
+      });
+      osCanceladasComerciais = normalizadas.filter((o) => o.cancelada).map((o) => String(o.id));
+      janelasConsultadas.ordens = janelaConsultada({ ...base, datainicial: desdeOS });
+      return normalizadas.filter((o) => !o.cancelada);
     } catch (e) {
       console.warn("carga completa: ordens indisponíveis:", e?.message || e);
       falhas.push("ordens");
@@ -832,5 +843,11 @@ export async function etapaCompleta(ordensAnteriores = [], orcamentosAnteriores 
     }
   };
   const [orcamentos, ordens] = await Promise.all([carregarOrcamentos(), carregarOrdens()]);
-  return { orcamentos, ordens, falhas };
+  return { orcamentos, ordens, falhas, janelasConsultadas, osCanceladasComerciais };
+}
+
+// O ERP usa limite final exclusivo. O comprovante descreve a consulta feita,
+// não a amplitude do cache mesclado nem o horário da gravação desse cache.
+export function janelaConsultada({ datainicial, datafinal }) {
+  return { desde: datainicial, ate: new Date(Date.parse(`${datafinal}T12:00:00Z`) - 864e5).toISOString().slice(0, 10) };
 }

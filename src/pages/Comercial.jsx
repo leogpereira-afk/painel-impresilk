@@ -12,7 +12,7 @@ const brl=c=>c==null?'Não disponível':(c/100).toLocaleString('pt-BR',{style:'c
 const valor=v=>v==null?null:Math.round(v*100);
 const data=d=>d?d.slice(0,10).split('-').reverse().join('/'):'Não informado';
 const hora=d=>/^\d{4}-\d{2}-\d{2}$/.test(d||'')?data(d):d?new Date(d).toLocaleString('pt-BR',{timeZone:'America/Sao_Paulo'}):'Não disponível';
-const status=o=>o.situacaoLocal?`Encerrado como ${o.situacaoLocal==='ganho'?'ganho':'perdido'} no Painel`:({aberto:'Em aberto',ganho:'Aprovado',perdido:'Perdido / cancelado',conferir:'A conferir no Mubisys'}[o.situacao]||o.statusErp||'A conferir');
+const status=o=>o.situacaoLocal?`Encerrado como ${o.situacaoLocal==='ganho'?'ganho':'perdido'} no Painel`:({aberto:'Em aberto',ganho:o.statusErp&&o.statusErp.trim().toUpperCase()!=='APROVADO'?`Convertido em O.S. · ${o.statusErp}`:'Aprovado',perdido:'Perdido / cancelado',conferir:'A conferir no Mubisys'}[o.situacao]||o.statusErp||'A conferir');
 function Dialogo({titulo,children,fechar}){
  const tituloId=useId(),ref=useRef();useEffect(()=>{const anterior=document.activeElement;ref.current.showModal();return ()=>anterior?.focus();},[]);
  return <dialog ref={ref} aria-labelledby={tituloId} className="com-dialog" onCancel={e=>{e.preventDefault();fechar();}}><header><h2 id={tituloId}>{titulo}</h2><button aria-label="Fechar" className="btn-ghost" onClick={fechar}><X size={20}/></button></header><div className="com-dialog-body">{children}</div></dialog>;
