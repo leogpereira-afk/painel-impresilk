@@ -3,6 +3,7 @@ import {verificarJwt,crachaRevogado} from '../_shared/cripto.ts';
 import {consultarClientes} from '../_shared/consulta-clientes.mjs';
 import {contextoComercial} from '../_shared/comercial-contexto.ts';
 import {mesclarOrdensComerciais,janelasHistoricas} from '../_shared/carteira-historica.mjs';
+import {financeiroDasOS} from '../_shared/financeiro-os.ts';
 import {pertence,validarPeriodo,validarAcao,gestorComercial,dataISO,apurarComercial,validarMeta,metaDoPeriodo} from '../_shared/comercial.mjs';
 const sb=createClient(Deno.env.get('SUPABASE_URL')!,Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,{auth:{persistSession:false}});
 const secret=Deno.env.get('PAINEL_JWT_SECRET')||'';
@@ -80,6 +81,24 @@ Deno.serve(async(req:Request)=>{
   const meta=metaDoPeriodo(metas,escopo,catalogo,periodo);
   const bases={ordens,orcamentos,clientes,acoes,meta,config:configPublica,cobertura,coberturaHistorica,coberturaOrcamentos};
   const relatorio=apurarComercial(bases,filtro,hoje);
-  return json({base:bases,relatorio,metas,escopo:{...escopo,nomes:undefined},catalogo:{produtos:catalogo.produtos||[],vendedores:escopo.vendedores},config:escopo.gestor?config:{diasSemResposta:config.diasSemResposta,diasVencimento:config.diasVencimento,diasReativacao:config.diasReativacao,calendario:config.calendario},fontes:Object.fromEntries(Object.entries(fontes).map(([k,v]:any)=>[k,{atualizadoEm:v.atualizado_em}])),ordensEm:atualizado,avisos:[...(fontes.status?.valor?.fontesQueFalharam?.length?['A sincronização teve falhas. Confira os horários das fontes; os últimos dados válidos foram preservados.']:[]),'Metas cadastradas pela direção no Painel, por vendedora e mês. Realizado por O.S. normal, líquida, na data de cadastro. Não são metas importadas do Mubisys.','Devoluções sem vínculo não são abatidas automaticamente.','Histórico sem tipo da O.S. requer nova leitura do ERP; não compõe o realizado verificável.','A cobertura dos orçamentos é informada pelas janelas de sincronização. Datas de envio, versões e conversão em pedido não foram confirmadas pela integração.'],atualizadoEm:fontes.orcamentos.atualizado_em});
+  // Só as O.S. visíveis à vendedora podem solicitar títulos. Número repetido
+  // na tabela é ambíguo: não atribuímos o mesmo pagamento a duas linhas.
+  const candidatos=[...new Set(relatorio.vendas.map((o:any)=>String(o.numero||'')))].filter((n:string)=>/^\d{1,12}$/.test(n)).slice(0,600);
+  let financeiro:any={abertos:[],pagos:[],permutaDaOS:{},consultadas:[],temPagos:false,desdeDados:null};
+  if(candidatos.length){
+   try{
+    const mesmos=await todas(()=>sb.from('painel_ordens').select('id,numero,vendedor,comercial').in('numero',candidatos).order('id'));
+    const contagens=new Map<string,number>();for(const o of mesmos)contagens.set(String(o.numero),(contagens.get(String(o.numero))||0)+1);
+    const vendasPorNumero=new Map<string,any[]>();for(const o of relatorio.vendas){const n=String(o.numero);vendasPorNumero.set(n,[...(vendasPorNumero.get(n)||[]),o]);}
+    const seguros=candidatos.filter((n:string)=>contagens.get(n)===1&&vendasPorNumero.get(n)?.length===1&&mesmos.some((o:any)=>String(o.numero)===n&&String(o.id)===String(vendasPorNumero.get(n)[0].id)));
+    if(seguros.length){
+     const ids=relatorio.vendas.filter((o:any)=>seguros.includes(String(o.numero))).map((o:any)=>String(o.id));
+     const lerCacheComData=async(chave:string)=>{const {data,error}=await sb.from('painel_cache').select('valor,atualizado_em').eq('chave',chave).maybeSingle();if(error)throw error;return {valor:data?.valor??null,em:data?.atualizado_em??null};};
+     const f=await financeiroDasOS(new Set(seguros),ids,{sb,lerCacheComData});
+     financeiro={...f,consultadas:seguros};
+    }
+   }catch{ /* A tela comercial continua disponível; dinheiro sem fonte fica sem confirmação. */ }
+  }
+  return json({base:bases,relatorio,financeiro,metas,escopo:{...escopo,nomes:undefined},catalogo:{produtos:catalogo.produtos||[],vendedores:escopo.vendedores},config:escopo.gestor?config:{diasSemResposta:config.diasSemResposta,diasVencimento:config.diasVencimento,diasReativacao:config.diasReativacao,calendario:config.calendario},fontes:Object.fromEntries(Object.entries(fontes).map(([k,v]:any)=>[k,{atualizadoEm:v.atualizado_em}])),ordensEm:atualizado,avisos:[...(fontes.status?.valor?.fontesQueFalharam?.length?['A sincronização teve falhas. Confira os horários das fontes; os últimos dados válidos foram preservados.']:[]),'Metas cadastradas pela direção no Painel, por vendedora e mês. Realizado por O.S. normal, líquida, na data de cadastro. Não são metas importadas do Mubisys.','Devoluções sem vínculo não são abatidas automaticamente.','Histórico sem tipo da O.S. requer nova leitura do ERP; não compõe o realizado verificável.','A cobertura dos orçamentos é informada pelas janelas de sincronização. Datas de envio, versões e conversão em pedido não foram confirmadas pela integração.'],atualizadoEm:fontes.orcamentos.atualizado_em});
  }catch(e){return json({erro:e?.status?e.message:'A consulta comercial não foi concluída. Tente atualizar.',codigo:e?.codigo||null},e?.status||503);}
 });
