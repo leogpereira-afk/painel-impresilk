@@ -93,3 +93,28 @@ test('cobertura comercial por recurso não infere janeiro pelo horário do cache
  const r=await t.call({filtro:{de:'2026-10-01',ate:'2026-10-07'}});assert.equal(r.base.cobertura.desde,'2025-01-01');assert.equal(r.base.cobertura.janelas.length,2);assert.equal(r.base.coberturaOrcamentos.desde,'2026-08-01');
  const lacuna=await t.call({filtro:{de:'2024-06-01',ate:'2024-06-30'}});assert.equal(lacuna.base.cobertura.desde,null);assert.equal(lacuna.base.coberturaOrcamentos.desde,null);assert.equal(lacuna.relatorio.completo,false);assert.equal(lacuna.relatorio.orcamentosCompletos,false);
 });
+
+test('consulta cadastral encontra cliente de outra carteira, mas não libera contatos, valores ou ações',async()=>{
+ const t=setup(),c=t.cache.find(c=>c.chave==='crm_clientes').valor.clientes.c2;
+ Object.assign(c,{razaoSocial:'Comércio Estação',documento:'12345678000190',telefone:'privado',email:'privado@example.com',nota:'segredo',valor:999,historico:['segredo']});
+ let r=await t.call({action:'consultarClientes',busca:'comercio estacao'});assert.equal(r.status,200);assert.equal(r.total,1);assert.equal(r.clientes[0].responsavel,'Bia Costa');
+ assert.deepEqual(Object.keys(r.clientes[0]).sort(),['documento','id','nome','razaoSocial','responsavel','status']);assert.equal(JSON.stringify(r).includes('segredo'),false);assert.equal(JSON.stringify(r).includes('privado'),false);
+ r=await t.call({action:'consultarClientes',busca:'12.345.678/0001-90'});assert.equal(r.total,1);
+ assert.equal((await t.call({action:'consultarClientes',busca:'12345678000190'})).total,1);
+ assert.equal((await t.call()).base.clientes.some(c=>c.id==='c2'),false);
+ assert.equal((await t.call({action:'salvarAcao',acao:{id:'forjada',clienteId:'c2',vendedorId:'1',descricao:'x',data:hoje}})).status,403);assert.equal(t.writes,0);
+});
+test('consulta global exige sessão, módulo, vínculo e fonte completa; não mascara erro como vazio',async()=>{
+ const t=setup(),b={action:'consultarClientes',busca:'Loja'};
+ assert.equal((await t.call(b,false)).status,401);t.session({sub:'x',perms:['agenda']});assert.equal((await t.call(b)).status,403);
+ t.session({sub:'x',perms:['orcamentos']});assert.equal((await t.call(b)).codigo,'VINCULO_PENDENTE');t.session({sub:'ana',perms:['orcamentos']});
+ t.cache.find(c=>c.chave==='crm_clientes').valor.completo=false;assert.equal((await t.call(b)).status,503);
+});
+test('consulta paginada é independente do período e não repete registros; entradas inválidas são rejeitadas',async()=>{
+ const t=setup(),cs=t.cache.find(c=>c.chave==='crm_clientes').valor.clientes;
+ for(let i=0;i<43;i++)cs['extra'+i]={id:'extra'+i,nome:'Cadastro '+String(i).padStart(2,'0'),responsavel:'Bia Costa'};
+ const a=await t.call({action:'consultarClientes',busca:'cadastro',filtro:{de:'2020-01-01',ate:'2020-01-31'}}),b=await t.call({action:'consultarClientes',busca:'cadastro',pagina:2}),c=await t.call({action:'consultarClientes',busca:'cadastro',pagina:3});
+ assert.equal(a.total,43);assert.equal(a.clientes.length,20);assert.equal(c.clientes.length,3);assert.equal(new Set([...a.clientes,...b.clientes,...c.clientes].map(c=>c.id)).size,43);
+ for(const args of [{busca:''},{busca:'..'},{busca:'12'},{busca:{}},{busca:'x'.repeat(161)},{busca:'cadastro',pagina:-1},{busca:'cadastro',pagina:1.5},{busca:'cadastro',pagina:99}])assert.equal((await t.call({action:'consultarClientes',...args})).status,400);
+ assert.equal((await t.call({action:'consultarClientes',busca:'Inexistente'})).total,0);
+});

@@ -1,5 +1,6 @@
 import {createClient} from 'https://esm.sh/@supabase/supabase-js@2.45.0';
 import {verificarJwt,crachaRevogado} from '../_shared/cripto.ts';
+import {consultarClientes} from '../_shared/consulta-clientes.mjs';
 import {contextoComercial} from '../_shared/comercial-contexto.ts';
 import {mesclarOrdensComerciais,janelasHistoricas} from '../_shared/carteira-historica.mjs';
 import {pertence,validarPeriodo,validarAcao,gestorComercial,dataISO,apurarComercial,validarMeta,metaDoPeriodo} from '../_shared/comercial.mjs';
@@ -17,8 +18,9 @@ Deno.serve(async(req:Request)=>{
  if(!sessao.master && !(sessao.perms||[]).includes('*') && !(sessao.perms||[]).includes('orcamentos'))return json({erro:'Seu acesso não inclui o Comercial.'},403);
  try{
   const b=await req.json();if(!b||typeof b!=='object')return json({erro:'Solicitação inválida.'},400);const filtro=b.filtro||{},hoje=hojeLocal(),periodo=validarPeriodo(filtro,hoje);
-  const ctx=await contextoComercial(sb,sessao,filtro,{hoje,historico:!['salvarMeta','configurar'].includes(b.action)});const {escopo,catalogo,config,orcamentos,clientes,fontes,coberturaHistorica}=ctx;
+  const ctx=await contextoComercial(sb,sessao,filtro,{hoje,historico:!['salvarMeta','configurar','consultarClientes'].includes(b.action)});const {escopo,catalogo,config,orcamentos,clientes,fontes,coberturaHistorica}=ctx;
   if(!catalogo.completo)return json({erro:'O catálogo de vendedores e produtos ainda não foi sincronizado. A direção pode conferir a integração.'},503);
+  if(b.action==='consultarClientes')return json(consultarClientes(fontes.crm_clientes,{busca:b.busca,pagina:b.pagina}));
   if(b.action==='salvarMeta'){
    if(!gestorComercial(sessao))return json({erro:'Somente a direção pode cadastrar metas.'},403);
    const meta=validarMeta(b.meta,catalogo,String(sessao.nome||sessao.sub),new Date().toISOString());

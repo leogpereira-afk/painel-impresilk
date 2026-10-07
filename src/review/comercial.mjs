@@ -1,9 +1,10 @@
+import {consultarClientes} from '../../supabase/functions/_shared/consulta-clientes.mjs';
 import {apurarCarteiraHistorica} from '../../supabase/functions/_shared/carteira-historica.mjs';
 import {apurarComercial,resolverEscopo,pertence,validarAcao,validarMeta,metaDoPeriodo} from '../../supabase/functions/_shared/comercial.mjs';
 const hoje=new Date().toLocaleDateString('en-CA',{timeZone:'America/Sao_Paulo'}),mes=hoje.slice(0,7),ano=Number(hoje.slice(0,4));
 const vendedores=[{id:'101',nome:'Ana Exemplo'},{id:'102',nome:'Beatriz Exemplo'}];
 const produtos=[{id:'p1',nome:'Fachada em ACM',categoria:'Fachadas',descricao:'Acabamento para fachadas comerciais',unidade:'m²'},{id:'p2',nome:'Adesivo impresso',categoria:'Adesivos',descricao:'Comunicação visual interna e externa',unidade:'m²'},{id:'p3',nome:'Placa de sinalização',categoria:'Sinalização',descricao:'Identificação de ambientes',unidade:'un'}];
-const clientes=[{id:'c1',nome:'Café Horizonte · exemplo',responsavel:'Ana Exemplo',telefone:'Contato de demonstração',email:'contato@example.com',contatos:[]},{id:'c2',nome:'Clínica Aurora · exemplo',responsavel:'Ana Exemplo',contatos:[]},{id:'c3',nome:'Loja Estação · exemplo',responsavel:'Beatriz Exemplo',contatos:[]}];
+const clientes=[{id:'c1',nome:'Café Horizonte · exemplo',responsavel:'Ana Exemplo',telefone:'Contato de demonstração',email:'contato@example.com',contatos:[]},{id:'c2',nome:'Clínica Aurora · exemplo',responsavel:'Ana Exemplo',contatos:[]},{id:'c3',nome:'Loja Estação · exemplo',razaoSocial:'Estação Comércio · demonstração',documento:'00000000000000',responsavel:'Beatriz Exemplo',contatos:[]}];
 const ordens=Array.from({length:15},(_,i)=>{const d=new Date(`${hoje}T12:00:00Z`);d.setUTCDate(d.getUTCDate()-i*6);const p=produtos[i%3];return {id:'os'+i,numero:String(9100+i),clienteId:clientes[i%3].id,cliente:clientes[i%3].nome,vendedor:clientes[i%3].responsavel,tipo:'Normal',data:d.toISOString().slice(0,10),valor:1800+i*355.53,valorBruto:1900+i*355.53,desconto:100,itens:[{produto:p.nome,produtoId:p.id,categoria:p.categoria,unidade:p.unidade,quantidade:10+i,valorTotal:1900+i*355.53}]};});
 const orcamentos=Array.from({length:6},(_,i)=>({id:'orc'+i,numero:String(7200+i),clienteId:clientes[i%3].id,cliente:clientes[i%3].nome,vendedorNome:clientes[i%3].responsavel,vendedorId:clientes[i%3].responsavel,situacao:i===5?'ganho':'aberto',dataCadastro:mes+'-01',dataEnvio:mes+'-01',valor:5800+i*1350,valorBruto:5900+i*1350,desconto:100,validade:10,trabalho:produtos[i%3].nome}));
 clientes.push({id:'c-antigo',nome:'Ateliê Raízes · exemplo',responsavel:'Beatriz Exemplo',documento:'Cadastro de demonstração',contatos:[]});
@@ -16,6 +17,7 @@ const acoes=[{id:'a1',clienteId:'c1',cliente:clientes[0].nome,orcamentoId:'orc0'
 acoes.push({id:'acao-antiga',clienteId:'c-antigo',cliente:'Ateliê Raízes · exemplo',orcamentoId:'orc-antiga',vendedorId:'101',data:mesAnterior,descricao:'Retomar orçamento do mês anterior',status:'pendente',versao:1,atualizadoEm:mesAnterior+'T12:00:00Z',atualizadoPor:'Ana Exemplo'});
 const metas=[];
 export function respostaComercial(b){try{
+ if(b.action==='consultarClientes')return Response.json(consultarClientes({valor:{completo:true,clientes:Object.fromEntries(clientes.map(c=>[c.id,c]))},atualizado_em:new Date().toISOString()},b));
  const escopo=resolverEscopo({sub:'demo',master:true}, {vendedores},config,b.filtro);
  const os=ordens.filter(o=>pertence(o,escopo)),orcs=orcamentos.filter(o=>pertence(o,escopo));
  const carteira=apurarCarteiraHistorica({ordens,clientes,orcamentos:orcs,escopo,catalogo:{vendedores},fontes:{historico_status:{valor:{ok:true,desde:'2020-01-01',ate:hoje}}},hoje}),cs=carteira.clientes;

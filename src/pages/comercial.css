@@ -58,3 +58,31 @@
 .com-quote-summary{display:flex;flex-wrap:wrap;gap:8px 24px;padding:14px 0;border-bottom:1px solid var(--com-line);color:#526579;font-size:12px}.com-quote-summary b{display:block;font-size:19px;color:var(--com-ink)}.com-source-note{margin-top:14px;font-size:11px;line-height:1.6}
 .dark .com-quote-summary{color:#b7c9da}.dark .com-client-summary{background:#24384a;color:#d9e5ef}.dark .com-coverage{background:#3e3520;color:#f4d890}
 @media print{.com-coverage{color:#111;background:#fff}.com-show-more{display:none}.com-quote-summary{color:#111}}
+
+/* Consulta global separada da carteira e dos históricos autorizados. */
+.com-customer-lookup{border-top:3px solid #6551dd;background:linear-gradient(110deg,#f6f4ff,#fff 65%)}
+.com-lookup-heading{display:flex;gap:12px;align-items:flex-start}
+.com-lookup-icon{display:grid;place-items:center;flex:none;width:44px;height:44px;background:#e8e2ff;color:#5140b6;border-radius:12px}
+.com-lookup-heading h2{margin:0;font-size:1.2rem}
+.com-lookup-heading p:not(.com-eyebrow){margin:6px 0 0;color:var(--com-muted,#586174);font-size:.9rem}
+.com-lookup-form{display:flex;align-items:end;gap:12px;margin-top:16px}
+.com-lookup-form>label{flex:1;min-width:0;font-weight:600;font-size:.86rem}
+.com-lookup-input{display:flex;align-items:center;gap:10px;margin-top:6px;padding:0 12px;border:1px solid #b8bbd0;border-radius:10px;background:var(--surface,#fff)}
+.com-lookup-input:focus-within{outline:2px solid #6551dd;outline-offset:2px}
+.com-lookup-input input{flex:1;min-width:0;border:0!important;box-shadow:none!important;outline:none!important;background:transparent!important;padding:12px 0!important;width:100%}
+.com-lookup-form>.btn-primary{min-height:44px;white-space:nowrap}
+.com-lookup-help{font-size:.8rem;margin:8px 0 0}
+.com-lookup-summary{display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;margin:16px 0 8px;font-size:.87rem}
+.com-lookup-summary small{color:var(--com-muted,#586174)}
+.com-lookup-result{display:flex;align-items:center;gap:18px;padding:14px 0;border-top:1px solid #dfe2ec}
+.com-lookup-result>div:first-child{flex:1;min-width:0;overflow-wrap:anywhere}
+.com-lookup-result h3{margin:0;font-size:1rem}
+.com-lookup-result p{margin:4px 0 0;font-size:.86rem}
+.com-lookup-document span,.com-lookup-owner span,.com-lookup-owner small{font-size:.78rem;color:var(--com-muted,#586174)}
+.com-lookup-owner{display:flex;flex-direction:column;gap:3px;max-width:35%;overflow-wrap:anywhere}
+.com-lookup-owner strong{font-size:.87rem;color:#5140b6}
+.com-lookup-basic{color:var(--com-muted,#586174);font-size:.78rem}
+.com-lookup-pagination{display:flex;justify-content:flex-end;align-items:center;gap:12px;margin-top:12px;font-size:.86rem}
+@media(max-width:640px){.com-lookup-form{flex-direction:column;align-items:stretch}.com-lookup-result{flex-wrap:wrap;gap:10px}.com-lookup-result>div:first-child{flex-basis:100%}.com-lookup-owner{max-width:100%;flex:1}.com-lookup-pagination{justify-content:space-between;gap:6px}.com-lookup-icon{display:none}}
+
+.dark .com-lookup-owner strong{color:#c8baff}.dark .com-lookup-icon{background:#393153;color:#dfd6ff}.dark .com-lookup-result{border-color:var(--com-line)}
