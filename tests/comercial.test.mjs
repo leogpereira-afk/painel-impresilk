@@ -61,3 +61,26 @@ test('carga não transforma ausência de valor da origem em venda zero confirmad
  const r=apurarComercial(base({ordens:[{...sem,data:hoje},{...zero,data:hoje}]}),periodo,hoje);assert.equal(r.pedidos,1);assert.equal(r.incompletas,1);
  assert.equal(normOrcamento({id:1,status:'ABERTO',data_cadastro:hoje},0).valorConfirmado,false);
 });
+
+
+test('virada do mês preserva pendências antigas sem misturar vendas e propostas do período',()=>{
+ const antiga={id:'p-antiga',clienteId:'c',cliente:'Cliente',valor:850,situacao:'aberto',dataCadastro:'2026-09-10',validade:5};
+ const r=apurarComercial(base({orcamentos:[antiga,{...antiga,id:'p-futura',dataCadastro:'2026-12-01'},{...antiga,id:'p-incerta',situacao:'conferir'}],acoes:[{id:'retorno',clienteId:'c',status:'pendente',data:'2026-09-30'},{id:'feito',clienteId:'c',status:'concluida',data:'2026-09-29'}]}),periodo,hoje);
+ assert.equal(r.propostas.length,0);assert.equal(r.valorAberto,0);
+ assert.equal(r.abertasOperacionais.length,1);assert.equal(r.valorAbertoOperacional,85000);
+ assert.deepEqual(r.atrasadas.map(a=>a.id),['retorno']);
+ assert.ok(r.prioridades.some(a=>a.orcamentoId==='p-antiga'));
+ assert.ok(!r.prioridades.some(a=>a.orcamentoId==='p-incerta'||a.orcamentoId==='p-futura'));
+ assert.equal(r.valor,9000);
+});
+test('resumo da carteira preserva compra antiga mesmo sem pedidos no período carregado',()=>{
+ const r=apurarComercial(base({ordens:[],clientes:[{id:'c',nome:'Cliente antigo',naCarteira:false,temCompraHistorica:true,primeiraCompraHistorica:'2022-04-10',ultimaCompraHistorica:'2024-08-22',valorHistorico:420000,pedidosHistoricos:3}]}),periodo,hoje);
+ const c=r.clientes[0];assert.equal(c.ultimaCompra,'2024-08-22');assert.equal(c.primeiraCompra,'2022-04-10');assert.equal(c.valorHistorico,420000);assert.equal(c.centavos,0);assert.equal(c.perfil,'Sem compra recente');
+});
+
+test('cobertura por janelas não atravessa anos ainda não lidos',()=>{
+ const c={desde:'2020-01-01',ate:hoje,janelas:[{desde:'2020-01-01',ate:'2020-12-31'},{desde:'2026-01-01',ate:hoje}]};
+ const r=apurarComercial(base({cobertura:c,coberturaOrcamentos:c}),{de:'2024-01-01',ate:'2024-12-31'},hoje);
+ assert.equal(r.completo,false);assert.equal(r.orcamentosCompletos,false);assert.equal(r.valorAberto,null);
+ assert.equal(apurarComercial(base({cobertura:c}),periodo,hoje).completo,true);
+});

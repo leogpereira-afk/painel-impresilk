@@ -52,3 +52,9 @@
 @media(prefers-reduced-motion:reduce){.com-kpi{transition:none}}
 @media print{.com-workspace{display:block}.com-workspace-side{display:block}.com-priority-item.is-collapsed{display:block}.com-priority-item{break-inside:avoid}.com-context{color:#111}.com-kpi{background:#fff!important;color:#111!important}.com-goal{background:#fff}.com-rhythm .com-link{display:none}}
 .com-workspace-side .com-dicas-convite{flex-wrap:wrap}.com-workspace-side .com-dicas-convite>div{flex-basis:170px}.com-workspace-side .com-dicas-convite button{width:100%;margin-left:0}
+
+.com-client-summary{background:#f1f5fb;border:1px solid #dce4ef;border-radius:10px;padding:12px 15px;margin:16px 0}.com-client-summary h3{margin:0 0 8px}.com-client-summary p{margin:6px 0;font-size:13px}
+.com-coverage{display:flex;align-items:flex-start;gap:8px;background:#fff7e5;color:#765417;border-radius:8px;padding:10px 12px;font-size:12px;margin-top:12px}.com-coverage svg{flex-shrink:0;margin-top:2px}
+.com-quote-summary{display:flex;flex-wrap:wrap;gap:8px 24px;padding:14px 0;border-bottom:1px solid var(--com-line);color:#526579;font-size:12px}.com-quote-summary b{display:block;font-size:19px;color:var(--com-ink)}.com-source-note{margin-top:14px;font-size:11px;line-height:1.6}
+.dark .com-quote-summary{color:#b7c9da}.dark .com-client-summary{background:#24384a;color:#d9e5ef}.dark .com-coverage{background:#3e3520;color:#f4d890}
+@media print{.com-coverage{color:#111;background:#fff}.com-show-more{display:none}.com-quote-summary{color:#111}}

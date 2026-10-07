@@ -19,7 +19,7 @@ import { useAbaNavegavel } from "../hooks/useAbaNavegavel.js";
 //   · cor só marca estado e a ação primária. O resto é cinza.
 //
 // Três abas: Na mesa (o trabalho) · Agenda (o que foi prometido) · Histórico
-// (ganhos e perdidos). O Placar do mês é acordeão no rodapé, e é o ÚNICO lugar
+// (ganhos, perdidos e status a conferir). O Placar do mês é acordeão no rodapé, e é o ÚNICO lugar
 // com seletor de período — na mesa, um filtro de relatório não manda.
 
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -290,6 +290,7 @@ function Ficha({ o }) {
     o.contatoNome && `contato ${o.contatoNome}`,
     o.celular && o.celular.replace(/^55(\d{2})(\d{4,5})(\d{4})$/, "($1) $2-$3"),
     o.email,
+    o.situacao === "conferir" && `status no ERP: ${o.statusErp || "não informado"}`,
     o.temValidade
       ? o.diasParaVencer < 0
         ? `vale ${o.validade} dias — venceu há ${Math.abs(o.diasParaVencer)}`
@@ -480,6 +481,7 @@ function Honestidade({ x, c, minimo, corte }) {
     c.abertosSemValidade > 0 && `${numero(c.abertosSemValidade)} abertos sem validade preenchida — esses nunca aparecem como vencidos`,
     c.filaSemMargem > 0 && `${numero(c.filaSemMargem)} com margem zerada no ERP`,
     c.ganhosSemFechamento > 0 && `${numero(c.ganhosSemFechamento)} marcados como ganhos sem data de aprovação`,
+    c.statusAConferir > 0 && `${numero(c.statusAConferir)} com status do ERP a conferir — fora dos ganhos, perdas e conversão`,
   ].filter(Boolean);
   if (!linhas.length) return null;
   return (
@@ -1265,12 +1267,12 @@ export default function Orcamentos() {
               atualizadoEm={atualizadoEm}
               linhas={[
                 `Emitido em ${dataLonga(hoje)} · ${numero(historico.length)} orçamentos · ${moeda(historico.reduce((s, o) => s + o.valor, 0))}`,
-                `${situacaoHist === "ganho" ? "Ganhos" : "Perdidos"} · vendedor: ${vendedorEscopo || "todos"}${motivoHist ? ` · motivo ${motivoHist.nome}` : ""}`,
+                `${situacaoHist === "ganho" ? "Ganhos" : situacaoHist === "perdido" ? "Perdidos" : "A conferir"} · vendedor: ${vendedorEscopo || "todos"}${motivoHist ? ` · motivo ${motivoHist.nome}` : ""}`,
               ]}
             />
             <SectionTitle
               titulo="Histórico"
-              sub="O que já foi decidido — para achar um orçamento e ver o que aconteceu com ele."
+              sub="Decisões e status a conferir — para achar um orçamento e ver o que aconteceu com ele."
               acao={<BotaoPDF titulo="Imprime o histórico com o recorte atual" />}
             />
             <div className="sem-impressao mb-3 flex flex-wrap items-center gap-2">
@@ -1278,6 +1280,7 @@ export default function Orcamentos() {
                 opcoes={[
                   { valor: "ganho", rotulo: `Ganhos (${numero(vm.kpis.ganhosQtd)})` },
                   { valor: "perdido", rotulo: `Perdidos (${numero(vm.kpis.perdidosQtd)})` },
+                  { valor: "conferir", rotulo: `A conferir (${numero(vm.kpis.conferirQtd)})` },
                 ]}
                 valor={situacaoHist}
                 onChange={(v) => {

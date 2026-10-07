@@ -371,7 +371,7 @@ Deno.serve(async (req: Request) => {
     let orcPermitidos:Set<string>|null=null;
     if(corpo.chave==='ov_orc' && sessao && !gestorComercial(sessao)) {
       const negado=barraChave('ov_orc',corpo.action==='get'?'ler':'gravar');if(negado)return negado;
-      const ctx=await contextoComercial(sb,sessao);
+      const ctx=await contextoComercial(sb,sessao,{}, {historico:false});
       orcPermitidos=new Set(ctx.orcamentos.map((o:any)=>String(o.id)));
       const ids=corpo.action==='merge'?Object.keys(corpo.patch||{}):corpo.id?[String(corpo.id)]:[];
       if(ids.some(id=>!orcPermitidos!.has(id)))return resposta({erro:'Orçamento fora do seu acesso.'},403);

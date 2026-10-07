@@ -96,3 +96,41 @@ test("o cartão 'Atrasados' e a lista que ele abre saem do MESMO lugar", () => {
   );
   assert.ok(vm.atrasados.some((o) => o.recall), "inclusive a compra futura com promessa furada");
 });
+
+test("status a conferir não vira aberto, fechamento ou participante da conversão", () => {
+  const vm = calc([
+    orc(1, { situacao: "ganho", dataFechamento: HOJE }),
+    orc(2, { situacao: "perdido", dataFechamento: HOJE }),
+    orc(3, { situacao: "conferir", statusErp: "PENDENTE", dataFechamento: HOJE, validade: 1 }),
+    orc(4, { situacao: "outro", dataFechamento: HOJE }),
+  ], { 3: { proximoToque: "2026-08-01", chamadoEm: "2026-08-01" }, 4: { proximoToque: "2026-09-01" } });
+  assert.equal(vm.kpis.conversao, 50);
+  assert.equal(vm.porVendedor[0].conversao, 50);
+  assert.equal(vm.kpis.ganhosQtd, 1);
+  assert.equal(vm.kpis.perdidosQtd, 1);
+  assert.equal(vm.kpis.conferirQtd, 2);
+  assert.equal(vm.cobertura.statusAConferir, 2);
+  assert.equal(vm.mesa.length, 0);
+  assert.equal(vm.agenda.length, 0);
+  assert.equal(vm.atrasados.length, 0);
+  assert.deepEqual(vm.fechados.map(o => o.id), [1, 2]);
+  for (const item of vm.lista.filter(o => [3, 4].includes(o.id))) {
+    assert.equal(item.situacao, "conferir");
+    assert.equal(item.estado.rotulo, "A conferir");
+    assert.equal(item.balde, null);
+    assert.equal(item.fechadoEm, "");
+  }
+  assert.equal(vm.lista.find(o => o.id === 3).statusErp, "PENDENTE");
+});
+
+test("conferência tem selo próprio e preserva uma baixa manual explícita", () => {
+  assert.deepEqual(estadoDe({ situacao: "conferir", recall: true, toqueAtrasado: true }),
+    { chave: "conferir", rotulo: "A conferir", tom: "warn" });
+  const vm = calc([orc(1, { situacao: "conferir", statusErp: "PENDENTE" })],
+    { 1: { situacao: "ganho", dataBaixa: HOJE } });
+  assert.equal(vm.kpis.ganhosQtd, 1);
+  assert.equal(vm.kpis.conferirQtd, 0);
+  assert.equal(vm.lista[0].situacaoErp, "conferir");
+  assert.equal(vm.lista[0].statusErp, "PENDENTE");
+  assert.equal(vm.lista[0].baixaManual, true);
+});

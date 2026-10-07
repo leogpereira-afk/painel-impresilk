@@ -95,32 +95,37 @@ export function apurarComercial(base,filtro,hoje) {
  const periodo=validarPeriodo(filtro,hoje), fimReal=periodo.ate<hoje?periodo.ate:hoje;
  const noPeriodo=(d,p=periodo)=>dia(d)>=p.de&&dia(d)<=p.ate;
  const cobertura=base.cobertura || {};
- const coberto=p=>!!cobertura.desde&&!!cobertura.ate&&cobertura.desde<=p.de&&cobertura.ate>=(p.ate>hoje?hoje:p.ate);
+ const coberturaContem=(c,p)=>Array.isArray(c.janelas)?c.janelas.some(j=>j.desde<=p.de&&j.ate>=(p.ate>hoje?hoje:p.ate)):!!c.desde&&!!c.ate&&c.desde<=p.de&&c.ate>=(p.ate>hoje?hoje:p.ate);
+ const coberto=p=>coberturaContem(cobertura,p);
  const ordens=unicos(base.ordens||[]).map(o=>({...o,centavos:o.valorConfirmado===false?null:dinheiro(o.valor)}));
  const elegivel=o=>!o.cancelada && normal(o.tipo)==='normal' && o.centavos!==null;
  const vendas=ordens.filter(o=>noPeriodo(o.data,{de:periodo.de,ate:fimReal})&&elegivel(o));
  const incompletas=ordens.filter(o=>noPeriodo(o.data,{de:periodo.de,ate:fimReal}) && (!o.tipo||o.centavos===null));
  const valor=vendas.reduce((s,o)=>s+o.centavos,0), completo=coberto(periodo)&&!incompletas.length;
- const propostas=agruparRevisoes(base.orcamentos||[]).filter(o=>noPeriodo(o.dataCadastro||o.dataEnvio)).map(o=>{const aa=(base.acoes||[]).filter(a=>String(a.orcamentoId)===String(o.id)).sort((a,b)=>String(b.atualizadoEm).localeCompare(String(a.atualizadoEm)));return {...o,valor:o.valorConfirmado===false?null:o.valor,ultimaAcao:aa[0]||null,proximaAcao:aa.filter(a=>a.status!=='concluida').sort((a,b)=>a.data.localeCompare(b.data))[0]||null};});
+ const propostasDisponiveis=agruparRevisoes(base.orcamentos||[]).map(o=>{const aa=(base.acoes||[]).filter(a=>String(a.orcamentoId)===String(o.id)).sort((a,b)=>String(b.atualizadoEm).localeCompare(String(a.atualizadoEm)));return {...o,valor:o.valorConfirmado===false?null:o.valor,ultimaAcao:aa[0]||null,proximaAcao:aa.filter(a=>a.status!=='concluida').sort((a,b)=>a.data.localeCompare(b.data))[0]||null};});
+ const propostas=propostasDisponiveis.filter(o=>noPeriodo(o.dataCadastro||o.dataEnvio));
+ // A rotina permanece aberta até a conclusão, mesmo após a virada do mês.
+ const abertasOperacionais=propostasDisponiveis.filter(o=>o.situacao==='aberto'&&(!dataISO(dia(o.dataCadastro||o.dataEnvio))||dia(o.dataCadastro||o.dataEnvio)<=hoje));
+ const valorAbertoOperacional=abertasOperacionais.some(o=>dinheiro(o.valor)===null)?null:abertasOperacionais.reduce((s,o)=>s+dinheiro(o.valor),0);
  const coberturaOrc=base.coberturaOrcamentos||{};
- const orcamentosCompletos=!!coberturaOrc.desde&&coberturaOrc.desde<=periodo.de&&!!coberturaOrc.ate&&coberturaOrc.ate>=fimReal;
+ const orcamentosCompletos=coberturaContem(coberturaOrc,periodo);
  const abertas=propostas.filter(o=>o.situacao==='aberto');
  const acoes=(base.acoes||[]).filter(a=>noPeriodo(a.data));
- const hojeA=acoes.filter(a=>a.status!=='concluida'&&a.data===hoje), atrasadas=acoes.filter(a=>a.status!=='concluida'&&a.data<hoje);
+ const hojeA=(base.acoes||[]).filter(a=>a.status!=='concluida'&&a.data===hoje), atrasadas=(base.acoes||[]).filter(a=>a.status!=='concluida'&&dataISO(a.data)&&a.data<hoje).sort((a,b)=>a.data.localeCompare(b.data));
  const porCliente=new Map();
- for(const c of base.clientes||[])porCliente.set(String(c.id),{...c,vendas:[],orcamentos:[],acoes:[],centavos:0,ultimaCompra:null,primeiraCompra:null,produtos:[]});
+ for(const c of base.clientes||[])porCliente.set(String(c.id),{...c,vendas:[],orcamentos:[],acoes:[],centavos:0,ultimaCompra:c.ultimaCompraHistorica||null,primeiraCompra:c.primeiraCompraHistorica||null,produtos:[]});
  for(const o of ordens.filter(o=>elegivel(o)&&dia(o.data)<=hoje)){
   const c=porCliente.get(String(o.clienteId));if(!c)continue;
   const data=dia(o.data);if(!c.ultimaCompra||data>c.ultimaCompra)c.ultimaCompra=data;if(!c.primeiraCompra||data<c.primeiraCompra)c.primeiraCompra=data;
   if(noPeriodo(data)){c.vendas.push(o);c.centavos+=o.centavos;}
  }
- for(const o of propostas){const c=porCliente.get(String(o.clienteId));if(c)c.orcamentos.push(o);}
+ for(const o of propostasDisponiveis){const c=porCliente.get(String(o.clienteId));if(c)c.orcamentos.push(o);}
  for(const a of base.acoes||[]){const c=porCliente.get(String(a.clienteId));if(c)c.acoes.push(a);}
  for(const c of porCliente.values()){
   c.produtos=[...new Set(c.vendas.flatMap(o=>(o.itens||[]).map(i=>i.produto)))];
   c.acoes.sort((a,b)=>String(b.atualizadoEm).localeCompare(String(a.atualizadoEm)));
   c.proximoContato=c.acoes.filter(a=>a.status!=='concluida').sort((a,b)=>a.data.localeCompare(b.data))[0]?.data||null;
-  c.perfil=c.ultimaCompra && c.ultimaCompra<somarDias(hoje,-Number(base.config?.diasReativacao??90))?'Sem compra recente':c.primeiraCompra&&c.primeiraCompra<periodo.de&&c.vendas.length?'Recorrente':c.vendas.length?'Primeira compra no histórico disponível':'Sem compra no recorte';
+  c.perfil=c.ultimaCompra && c.ultimaCompra<somarDias(hoje,-Number(base.config?.diasReativacao??90))?'Sem compra recente':c.primeiraCompra&&c.primeiraCompra<periodo.de&&c.vendas.length?'Recorrente':c.vendas.length?'Primeira compra no histórico disponível':c.temCompraHistorica?'Cliente do histórico':'Sem compra identificada';
  }
  const produtos=new Map();
  for(const o of vendas){
@@ -144,14 +149,14 @@ export function apurarComercial(base,filtro,hoje) {
  const acumulado=[];let soma=0;for(let d=periodo.de;d<=fimReal;d=somarDias(d,1)){soma+=vendas.filter(v=>dia(v.data)===d).reduce((s,o)=>s+o.centavos,0);acumulado.push({data:d,centavos:soma});}
  const limite=Number(base.config?.diasSemResposta ?? 7),validade=Number(base.config?.diasVencimento ?? 3);
  const prioridades=[...hojeA,...atrasadas].map(a=>({...a,tipo:a.data<hoje?'Retorno atrasado':'Retorno de hoje'}));
- for(const o of abertas){
+ for(const o of abertasOperacionais){
   const tarefas=(base.acoes||[]).filter(a=>String(a.orcamentoId)===String(o.id)).sort((a,b)=>String(b.atualizadoEm).localeCompare(String(a.atualizadoEm)));
   const ultima=tarefas[0], venc=o.validadeData || (o.validade>0 && dataISO(dia(o.dataCadastro||o.dataEnvio))?somarDias(dia(o.dataCadastro||o.dataEnvio),o.validade):null);
   const parada=[ultima?.atualizadoEm,o.acompanhamento?.ultimoContato,o.dataAtualizacao,o.dataCadastro||o.dataEnvio].map(dia).filter(dataISO).sort().at(-1);let tipo='';
   if(ultima?.pendencias)tipo='Negociação com pendência';else if(venc && venc<=somarDias(hoje,validade))tipo=venc<hoje?'Validade vencida':'Próxima do vencimento';else if(parada && parada<=somarDias(hoje,-limite))tipo='Proposta sem resposta';
   if(tipo&&!prioridades.some(a=>String(a.orcamentoId)===String(o.id)))prioridades.push({id:'orc-'+o.id,orcamentoId:o.id,clienteId:o.clienteId,cliente:o.cliente,vendedorNome:o.vendedorNome,valor:o.valor,descricao:ultima?.pendencias||'Conferir interesse e combinar o próximo passo',tipo,data:ultima?.data||'',ultimaInteracao:ultima?.atualizadoEm||null});
  }
- return {periodo,hoje,criterio:'O.S. normal, valor líquido, data de cadastro',completo,incompletas:incompletas.length,vendas,valor,pedidos:vendas.length,ticket:vendas.length?Math.round(valor/vendas.length):null,propostas,abertas,orcamentosCompletos,valorAberto:!orcamentosCompletos||abertas.some(o=>dinheiro(o.valor)===null)?null:abertas.reduce((s,o)=>s+dinheiro(o.valor),0),acoes,hojeA,atrasadas,prioridades,clientes:[...porCliente.values()],categorias:[...categorias.values()].sort((a,b)=>b.centavos-a.centavos),produtos:[...produtos.values()].sort((a,b)=>b.centavos-a.centavos),meses:[...meses.values()].sort((a,b)=>a.mes.localeCompare(b.mes)),acumulado,comparativo,meta:progressoMeta(base.meta,valor,periodo,hoje,base.config?.calendario)};
+ return {periodo,hoje,criterio:'O.S. normal, valor líquido, data de cadastro',completo,incompletas:incompletas.length,vendas,valor,pedidos:vendas.length,ticket:vendas.length?Math.round(valor/vendas.length):null,propostas,propostasDisponiveis,abertasOperacionais,valorAbertoOperacional,abertas,orcamentosCompletos,valorAberto:!orcamentosCompletos||abertas.some(o=>dinheiro(o.valor)===null)?null:abertas.reduce((s,o)=>s+dinheiro(o.valor),0),acoes,hojeA,atrasadas,prioridades,clientes:[...porCliente.values()],categorias:[...categorias.values()].sort((a,b)=>b.centavos-a.centavos),produtos:[...produtos.values()].sort((a,b)=>b.centavos-a.centavos),meses:[...meses.values()].sort((a,b)=>a.mes.localeCompare(b.mes)),acumulado,comparativo,meta:progressoMeta(base.meta,valor,periodo,hoje,base.config?.calendario)};
 }
 export function validarAcao(b,escopo,base,autor,agora) {
  if(!b || !/^[\w-]{1,80}$/.test(b.id||''))throw Object.assign(new Error('Identificador inválido.'),{status:400});

@@ -1,0 +1,49 @@
+name: Atualizar histórico Comercial
+
+on:
+  workflow_dispatch:
+    inputs:
+      desde:
+        description: "Início da janela, AAAA-MM-DD (preferir um ano por execução)"
+        type: string
+        required: true
+      ate:
+        description: "Fim inclusivo da janela, AAAA-MM-DD, até hoje"
+        type: string
+        required: true
+      recurso:
+        description: "Fonte comercial a atualizar"
+        type: choice
+        options: [ordens, orcamentos, ambos]
+        default: ordens
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cache-mubisys
+  cancel-in-progress: false
+
+jobs:
+  carregar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - name: Verificar carga e proteção das fatias
+        run: node --test tests/carga-comercial.test.mjs tests/cache-comercial-canceladas.test.mjs
+      - name: Atualizar somente Comercial
+        env:
+          PAINEL_TOKEN: ${{ secrets.PAINEL_TOKEN }}
+          MUBI_BASE_URL: ${{ secrets.MUBI_BASE_URL }}
+          MUBI_PUBLIC_KEY: ${{ secrets.MUBI_PUBLIC_KEY }}
+          MUBI_TOKEN: ${{ secrets.MUBI_TOKEN }}
+          COMERCIAL_DESDE: ${{ inputs.desde }}
+          COMERCIAL_ATE: ${{ inputs.ate }}
+          COMERCIAL_RECURSO: ${{ inputs.recurso }}
+        run: node scripts/carregar-comercial.mjs

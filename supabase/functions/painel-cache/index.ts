@@ -47,7 +47,7 @@ const CHAVES = new Set([
      repositorio consegue abrir. Duas corridas se perderam assim: "exit code
      1" e nada mais. Agora a propria carga escreve aqui o que aconteceu, ano a
      ano, e o motivo fica onde qualquer um que possa ler o banco alcanca. */
-  "historico_status", "crm_clientes", "crm_funil", "comercial_catalogo",
+  "historico_status", "crm_clientes", "crm_funil", "comercial_catalogo", "comercial_carga_status",
 ]);
 
 // Chaves em que uma lista VAZIA quase nunca e a verdade -- e quando e, quem
@@ -152,6 +152,29 @@ Deno.serve(async (req: Request) => {
     }
     return json({ ok: true, gravadas: limpas.length, comItens: comItens.length });
   }
+  /* A atualização comercial não exclui O.S. Ela marca o cancelamento só em
+     registros existentes, preservando cabeçalho, itens e demais metadados.
+     A carga normal continua responsável pelo ciclo do cache operacional. */
+  if (body && body.action === "ordensComercialCanceladas") {
+    const ids = [...new Set((Array.isArray(body.ids) ? body.ids : []).map(String).filter(Boolean))];
+    if (ids.length > 500) return json({ erro: "lote grande demais (max 500)" }, 413);
+    if (!ids.length) return json({ ok: true, marcadas: 0 });
+    const { data, error } = await sb.from("painel_ordens").select("id,comercial").in("id", ids);
+    if (error) return json({ erro: error.message }, 500);
+    // UPDATE por ID não modifica cabeçalho/itens e não recria uma cancelada
+    // mesmo se a carga normal a remover entre a leitura e a atualização.
+    const linhas = data || [];
+    let marcadas = 0;
+    for (let i = 0; i < linhas.length; i += 20) {
+      const respostas = await Promise.all(linhas.slice(i, i + 20).map((o: any) => sb.from("painel_ordens")
+        .update({ comercial: { ...(o.comercial || {}), cancelada: true }, atualizado_em: new Date().toISOString() }).eq("id", o.id).select("id")));
+      const falha = respostas.find((r: any) => r.error);
+      if (falha) return json({ erro: falha.error.message }, 500);
+      marcadas += respostas.reduce((n: number, r: any) => n + (r.data || []).length, 0);
+    }
+    return json({ ok: true, marcadas });
+  }
+
   /* De quando puxar o historico de O.S.: a MAIS ANTIGA que alguma permuta
      pediu. A data mora dentro de cada permuta, porque cada troca tem o seu
      periodo -- e e ela que manda aqui tambem. Dois lugares para a mesma

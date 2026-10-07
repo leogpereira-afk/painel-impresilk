@@ -173,14 +173,19 @@ function melhorContato(lista) {
   };
 }
 
+// Um estado novo do ERP precisa de conferência, nunca de aprovação presumida.
+// As variantes de perda preservam os estados já tratados pelo normalizador.
+const SITUACAO_ORCAMENTO = new Map([
+  ["ABERTO", "aberto"], ["EM ABERTO", "aberto"],
+  ["APROVADO", "ganho"],
+  ["CANCELADO", "perdido"], ["REPROVADO", "perdido"],
+  ["RECUSADO", "perdido"], ["PERDIDO", "perdido"],
+]);
+
 export function normOrcamento(o, i) {
-  const s = String(o.status || "").toLowerCase();
-  const situacao =
-    s.includes("cancel") || s.includes("reprov") || s.includes("recus") || s.includes("perd")
-      ? "perdido"
-      : s.includes("aberto")
-        ? "aberto"
-        : "ganho";
+  const statusErp = String(o.status ?? "");
+  const s = statusErp.trim().replace(/\s+/g, " ").toUpperCase();
+  const situacao = SITUACAO_ORCAMENTO.get(s) || "conferir";
   /* O VALOR DO ORCAMENTO E O FINAL: total menos desconto -- a mesma regra da
      O.S., pelo mesmo motivo. `valor_total` e o BRUTO. Conferido contra o ERP em
      19/08/2026: 38 de 200 orcamentos de 2026 tem desconto no cabecalho,
@@ -207,7 +212,7 @@ export function normOrcamento(o, i) {
     valor,
     valorConfirmado: o.valor_total != null && String(o.valor_total).trim() !== '' || (Array.isArray(o.itens) && o.itens.some(it => it.valor_final != null || it.sub_total != null)),
     situacao,
-    statusErp: String(o.status || ""),
+    statusErp,
     dataCadastro: String(o.data_cadastro || ""),
     dataEnvio: String(o.data_cadastro || ""),
     dataFechamento: o.data_aprovacao || o.data_cancelamento || null,
@@ -753,7 +758,7 @@ export function fatiasPorAno(desde, ate) {
   return fatias;
 }
 
-export async function etapaCompleta(ordensAnteriores = []) {
+export async function etapaCompleta(ordensAnteriores = [], orcamentosAnteriores = []) {
   /* DUAS REGUAS PARA A MESMA TELA, agora uma so.
      A tela trata como cobranca ATIVA tudo que vence a partir de CORTE_ATRASADOS
      (2025-01-01). O cache buscava O.S. so a partir de 1o de janeiro do ano
@@ -763,9 +768,9 @@ export async function etapaCompleta(ordensAnteriores = []) {
      ano novo (quase nenhuma), e o backlog de dezembro ficava sem vendedor para
      sempre, porque nenhuma carga futura volta a buscar aquele periodo.
 
-     As O.S. seguem a mesma regua da tela. Os ORCAMENTOS continuam no ano
-     corrente: a tela de Orcamentos e do ano, e puxar dois anos de orcamento
-     multiplicaria por ~2 a parte mais lenta da carga sem ninguem usar. */
+     As O.S. seguem a mesma regua da tela. A consulta de ORCAMENTOS continua
+     no ano corrente, preservando os períodos anteriores já importados pela
+     carga comercial. Esta consulta não reconfirma a cobertura desses anos. */
   const desdeOS = CORTE_ATRASADOS;
   const desdeOrc = `${new Date().getFullYear()}-01-01`;
   // hojeMais(1): o ERP corta a datafinal na meia-noite -- terminar "hoje"
@@ -778,7 +783,17 @@ export async function etapaCompleta(ordensAnteriores = []) {
   const falhas = [];
   const carregarOrcamentos = async () => {
     try {
-      return (await mubiGetTudo("orcamento", janela)).map(normOrcamento);
+      if (orcamentosAnteriores != null && !Array.isArray(orcamentosAnteriores)) throw new Error('base anterior de orçamentos inválida');
+      const anteriores = orcamentosAnteriores || [];
+      const novos = (await mubiGetTudo("orcamento", janela)).map(normOrcamento);
+      // Não deixar o histórico antigo tornar uma resposta vazia aparentemente
+      // válida e apagar silenciosamente os documentos do ano corrente.
+      if (!novos.length && anteriores.length) throw new Error('orçamentos vazios sobre base preenchida; cópia anterior preservada');
+      const foraDaJanela = anteriores.filter((o) => {
+        const data = String(o.dataCadastro || o.dataEnvio || '').slice(0, 10);
+        return !/^\d{4}-\d{2}-\d{2}$/.test(data) || data < desdeOrc || data >= base.datafinal;
+      });
+      return [...new Map([...foraDaJanela, ...novos].map((o) => [String(o.id), o])).values()];
     } catch (e) {
       console.warn("carga completa: orçamentos indisponíveis:", e?.message || e);
       falhas.push("orcamentos");

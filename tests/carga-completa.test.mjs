@@ -16,7 +16,7 @@ const respostas = {
   ],
 };
 
-async function carregar(t, alteracoes={}, anteriores=[]) {
+async function carregar(t, alteracoes={}, anteriores=[], orcamentosAnteriores=[]) {
   t.mock.method(globalThis,'fetch',async url => {
     const recurso=new URL(url).pathname.split('/').at(-1);
     assert.ok(recurso in respostas, 'Somente as fontes fictícias previstas');
@@ -24,7 +24,7 @@ async function carregar(t, alteracoes={}, anteriores=[]) {
     if(typeof dados==='number') return new Response('{}',{status:dados});
     return Response.json({data:dados,pagination:{current_page:1,last_page:1}});
   });
-  return etapaCompleta(anteriores);
+  return etapaCompleta(anteriores,orcamentosAnteriores);
 }
 
 test('catálogo 500 não descarta orçamento recebido nem inventa classificação',async t=>{
@@ -79,4 +79,29 @@ test('duas fontes indisponíveis devolvem ausência, nunca listas vazias',async 
   assert.equal(r.ordens[0].valor,200);
   assert.equal(r.ordens[0].itens[0].categoria,'Sinalização');
   assert.equal(anteriores[0].valor,900);
+});
+
+test('carga completa preserva orçamentos históricos fora da janela e substitui somente o ano consultado',async t=>{
+  const ano=new Date().getFullYear();
+  const antigo={id:'historico',dataCadastro:`${ano-2}-06-01`,situacao:'aberto',valor:150};
+  const anterior={id:'atual',dataCadastro:`${ano}-01-02`,situacao:'aberto',valor:900};
+  const ausente={id:'removido-no-erp',dataCadastro:`${ano}-01-03`,situacao:'aberto',valor:50};
+  const semData={id:'a-conferir',situacao:'conferir',valor:80};
+  const r=await carregar(t,{orcamento:[{id:'atual',data_cadastro:`${ano}-01-02`,status:'APROVADO',valor_total:200}]},[],[antigo,anterior,ausente,semData]);
+  assert.deepEqual(r.orcamentos.map(o=>o.id).sort(),['a-conferir','atual','historico']);
+  assert.deepEqual(r.orcamentos.find(o=>o.id==='historico'),antigo);
+  assert.equal(r.orcamentos.find(o=>o.id==='atual').valor,200);
+  assert.equal(r.orcamentos.find(o=>o.id==='atual').situacao,'ganho');
+  assert.equal(anterior.valor,900);
+});
+
+test('resposta vazia da completa não usa o histórico preservado para esconder a perda do ano corrente',async t=>{
+  const ano=new Date().getFullYear();
+  const r=await carregar(t,{orcamento:[]},[],[
+    {id:'historico',dataCadastro:`${ano-1}-06-01`,valor:150},
+    {id:'atual',dataCadastro:`${ano}-01-02`,valor:900},
+  ]);
+  assert.equal(r.orcamentos,null);
+  assert.ok(r.falhas.includes('orcamentos'));
+  assert.ok(r.ordens.length>0);
 });

@@ -85,6 +85,9 @@ const dia = (iso) => {
    dois, é sinal de que falta uma coluna -- não de que cabe mais um selo.
    Primeira regra que casar vence, e a ordem é a da urgência. */
 export function estadoDe(o) {
+  if (!["aberto", "ganho", "perdido"].includes(o.situacao)) {
+    return { chave: "conferir", rotulo: "A conferir", tom: "warn" };
+  }
   if (o.situacao === "ganho") return { chave: "ganho", rotulo: "Ganho", tom: "ok" };
   /* A URGENCIA ATRAVESSA A COMPRA FUTURA. O selo neutro "Compra futura"
      engolia a promessa VENCIDA: quando a data passava, o item saia da Agenda e
@@ -158,7 +161,8 @@ export function calcOrcamentos(orcamentos, overrides, config, opcoes = {}) {
       // Baixa manual: a direcao registra o desfecho de um orcamento que o ERP
       // deixou "em aberto" para sempre. O override sobrepoe o Mubisys.
       const baixaManual = ov.situacao === "ganho" || ov.situacao === "perdido";
-      const situacao = baixaManual ? ov.situacao : o.situacao;
+      const situacao = baixaManual ? ov.situacao
+        : ["aberto", "ganho", "perdido"].includes(o.situacao) ? o.situacao : "conferir";
 
       // O motivo padrao e o que o VENDEDOR ja escreveu no ERP -- ele preenche
       // em praticamente 100% dos casos. A marcacao da direcao sobrepoe.
@@ -215,7 +219,7 @@ export function calcOrcamentos(orcamentos, overrides, config, opcoes = {}) {
         fechadoEm:
           baixaManual && ov.dataBaixa
             ? ov.dataBaixa
-            : o.situacao !== "aberto"
+            : ["ganho", "perdido"].includes(o.situacao)
               ? diaSeguro(o.dataFechamento)
               : "",
       };
@@ -267,6 +271,7 @@ export function calcOrcamentos(orcamentos, overrides, config, opcoes = {}) {
   const ganhos = doEscopo.filter((o) => o.situacao === "ganho");
   const perdidos = doEscopo.filter((o) => o.situacao === "perdido");
   const abertos = doEscopo.filter((o) => o.situacao === "aberto");
+  const conferir = doEscopo.filter((o) => o.situacao === "conferir");
   const fechadosQtd = ganhos.length + perdidos.length;
   const conversao = fechadosQtd ? Math.round((ganhos.length / fechadosQtd) * 100) : 0;
 
@@ -398,10 +403,9 @@ export function calcOrcamentos(orcamentos, overrides, config, opcoes = {}) {
     abertosSemValidade: abertos.filter((o) => !o.temValidade).length,
     perdidosSemMotivo: perdidos.filter((o) => !o.motivoPerdaNome).length,
     filaSemMargem: naFila.filter((o) => o.semMargem).length,
-    // O normalizador do cache manda para "ganho" todo status que ele nao
-    // conhece (scripts/lib/mubi-cache.mjs). Ganho sem data de
-    // aprovacao e o sintoma disso -- se este numero crescer, a conversao esta
-    // inflada e o normalizador precisa de conserto.
+    // A situação desconhecida aparece como pendência e fica fora da conversão.
+    statusAConferir: conferir.length,
+    // Aprovação sem data continua sendo uma lacuna, mesmo com estado conhecido.
     ganhosSemFechamento: ganhos.filter((o) => !o.fechadoEm).length,
     semPassoQtd: semPasso.length,
     semPassoValor: soma(semPasso, "valor"),
@@ -519,6 +523,7 @@ export function calcOrcamentos(orcamentos, overrides, config, opcoes = {}) {
       ganhosValor: soma(ganhos, "valor"),
       ganhosQtd: ganhos.length,
       perdidosQtd: perdidos.length,
+      conferirQtd: conferir.length,
       totalQtd: doEscopo.length,
       margemEmRisco: soma(abertos, "margem"),
       margemGanha: soma(ganhos, "margem"),

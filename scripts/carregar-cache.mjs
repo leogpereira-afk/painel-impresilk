@@ -637,7 +637,10 @@ async function main() {
     console.warn("bloco rapido falhou inteiro:", e?.message || e);
   }
   try {
-    pesados = modoReal === "completo" ? await etapaCompleta(await ler("ordens")) : await janelaDe7Dias();
+    if (modoReal === "completo") {
+      const [ordensAnteriores, orcamentosAnteriores] = await Promise.all([ler("ordens"), ler("orcamentos")]);
+      pesados = await etapaCompleta(ordensAnteriores, orcamentosAnteriores);
+    } else pesados = await janelaDe7Dias();
   } catch (e) {
     console.warn("bloco pesado falhou inteiro:", e?.message || e);
   }

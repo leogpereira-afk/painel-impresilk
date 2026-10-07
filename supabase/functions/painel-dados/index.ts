@@ -635,14 +635,20 @@ Deno.serve(async (req: Request) => {
         if (g.resposta) return g.resposta;
         const id = String(url.searchParams.get("id") ?? "");
         if (!/^[1-9]\d{0,15}$/.test(id)) return json({ erro: "Cliente inválido." }, 400);
+        let clienteAutorizado:any=null;
         if(!gestorComercial(g.sessao)) {
           const ctx=await contextoComercial(sb,g.sessao);
-          if(!ctx.clientes.some((c:any)=>String(c.id)===id))return json({erro:"Cliente fora da sua carteira."},403);
+          clienteAutorizado=ctx.clientes.find((c:any)=>String(c.id)===id);
+          if(!clienteAutorizado)return json({erro:"Cliente fora da sua carteira."},403);
         }
         const { data, error } = await sb.rpc("painel_crm_cliente", { p_id: id });
         if (error) return json({ erro: "Não foi possível ler o cadastro." }, 503);
         if (!data?.completo) return json({ erro: "A primeira carga dos clientes ainda não foi concluída." }, 503);
-        return json({ cliente: data.cliente ?? null, atualizadoEm: data.atualizadoEm });
+        if(!data.cliente&&!clienteAutorizado&&gestorComercial(g.sessao)) {
+          const ctx=await contextoComercial(sb,g.sessao);
+          clienteAutorizado=ctx.clientes.find((c:any)=>String(c.id)===id);
+        }
+        return json({ cliente: data.cliente ?? (clienteAutorizado?.cadastroCompleto===false?clienteAutorizado:null), atualizadoEm: data.atualizadoEm });
       }
 
       case "clienteDetalhe": {
@@ -773,6 +779,7 @@ Deno.serve(async (req: Request) => {
     }
   } catch (e) {
     if ((e as any)?.status===403)return json({erro:(e as any).message,codigo:(e as any).codigo||null},403);
+    if ((e as any)?.status===503)return json({erro:(e as any).message},503);
     console.error("[painel-dados] erro:", e);
     return json({ erro: "Erro interno." }, 500);
   }

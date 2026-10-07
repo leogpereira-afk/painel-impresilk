@@ -10,8 +10,19 @@ await assert.rejects(()=>carregarClientes(async()=>[]));await assert.rejects(()=
 const busca=async(p,q)=>p==='usuario'?[{id:1,nome:'Responsável'}]:p==='funil-vendas-grupo'?[{id:2,nome:'Funil'}]:p.startsWith('funil-vendas-fase')?[{id:3,nome:'Fase',sequencia:1}]:q.fase_id===3?[{id:4,titulo:'Card',cliente:{id:1,nome:'Cliente'},grupo:{id:2,nome:'Funil'},fase:{id:3,nome:'Fase'},responsavel:1,valor:0}]:[];
 const funil=await carregarFunil(busca);assert.equal(funil.cards.length,1);assert.equal(funil.cards[0].clienteId,'1');assert.equal(funil.cards[0].valor,0);assert.equal(funil.cards[0].responsavel,'Responsável');
 await assert.rejects(()=>carregarFunil(async(p,q)=>{if(p==='funil-vendas-card')throw new Error('falhou uma fase');return busca(p,q);}));
-let handler,revogado=false,falhaBanco=false;const rows={comercial_catalogo:{valor:{completo:true,vendedores:[{id:'1',nome:'Responsável'}]}},orcamentos:{valor:[]},crm_clientes:{valor:{versao:1,completo:true,clientes:{'1':{...c,responsavel:'Responsável'}}},atualizado_em:'2026-09-05'},crm_funil:{valor:funil,atualizado_em:'2026-09-05'}};
-function from(tabela){let chave,multi=false;const q=new Proxy({}, {get(_,k){if(k==='then')return(ok,no)=>Promise.resolve({data:tabela==='painel_registros'?null:multi?Object.entries(rows).map(([chave,r])=>({chave,...r})):rows[chave]||null,error:falhaBanco?{message:'erro'}:null}).then(ok,no);return(...args)=>{if(k==='eq'&&args[0]==='chave')chave=args[1];if(k==='in')multi=true;return q;};}});return q;}
+let handler,revogado=false,falhaBanco=false,falhaHistorico=false;const rows={comercial_catalogo:{valor:{completo:true,vendedores:[{id:'1',nome:'Responsável'},{id:'2',nome:'Outra vendedora'}]}},orcamentos:{valor:[]},crm_clientes:{valor:{versao:1,completo:true,clientes:{'1':{...c,responsavel:'Responsável'}}},atualizado_em:'2026-09-05'},crm_funil:{valor:funil,atualizado_em:'2026-09-05'}};
+const ordens=[{id:'historica-propria',cliente:'Cliente histórico sem cadastro',data:'2024-03-10',valor:100,vendedor:'Responsável',comercial:{tipo:'Normal',clienteId:'3'}},{id:'historica-alheia',cliente:'Cliente alheio',data:'2024-03-10',valor:999,vendedor:'Outra vendedora',comercial:{tipo:'Normal',clienteId:'4'}}];
+function from(tabela){
+ assert.ok(['painel_cache','painel_registros','painel_ordens'].includes(tabela),`Tabela não modelada na verificação: ${tabela}`);
+ let chave,chaves=null,inicio=0,fim=999;
+ const q=new Proxy({}, {get(_,k){
+  if(k==='then')return(ok,no)=>{
+   const data=tabela==='painel_ordens'?ordens.slice(inicio,fim+1):tabela==='painel_registros'?null:chaves?Object.entries(rows).filter(([chave])=>chaves.includes(chave)).map(([chave,r])=>({chave,...r})):rows[chave]||null;
+   return Promise.resolve({data,error:falhaBanco||(tabela==='painel_ordens'&&falhaHistorico)?{message:'erro'}:null}).then(ok,no);
+  };
+  return(...args)=>{if(k==='eq'&&args[0]==='chave')chave=args[1];if(k==='in')chaves=args[1];if(k==='range')[inicio,fim]=args;return q;};
+ }});return q;
+}
 globalThis.__crmDb={from,rpc:async(_,{p_id})=>({data:rows.crm_clientes?{completo:rows.crm_clientes.valor.completo,cliente:rows.crm_clientes.valor.clientes[p_id]||null,atualizadoEm:rows.crm_clientes.atualizado_em}:null,error:falhaBanco?{message:'erro'}:null})};globalThis.__crmRevogado=()=>revogado;
 globalThis.Deno={env:{get:k=>k==='PAINEL_GH_ACTIONS_TOKEN'?'':'teste'},serve:fn=>handler=fn};
 let src=await readFile('supabase/functions/painel-dados/index.ts','utf8');src=src.replace(/import \{ createClient \} from [^;]+;/,'const createClient=()=>globalThis.__crmDb;').replace(/import \{ verificarJwt, crachaRevogado \} from [^;]+;/,`const verificarJwt=async t=>t==='vendas'?{sub:'vendas',vend:'Responsável',perms:['orcamentos']}:t==='outro'?{perms:['patrimonio']}:null;const crachaRevogado=async()=>globalThis.__crmRevogado();`);
@@ -21,8 +32,11 @@ for(const mod of ['crm','cliente360']){assert.equal((await req(mod)).status,401)
 assert.equal((await req('cliente360','vendas','__proto__')).status,400);
 const ficha=await(await req('cliente360','vendas')).json();assert.equal(ficha.cliente.id,'1');assert.equal(ficha.clientes,undefined);assert.equal(ficha.recebiveis,undefined);
 assert.equal((await req('cliente360','vendas','2')).status,403);
+const historico=await(await req('cliente360','vendas','3')).json();assert.equal(historico.cliente.id,'3');assert.equal(historico.cliente.cadastroCompleto,false);assert.equal(historico.cliente.telefone,undefined);assert.equal(historico.cliente.valorHistorico,10000);
+assert.equal((await req('cliente360','vendas','4')).status,403);
+falhaHistorico=true;const indisponivel=await req('cliente360','vendas');assert.equal(indisponivel.status,503);assert.equal((await indisponivel.json()).cliente,undefined);falhaHistorico=false;
 falhaBanco=true;assert.equal((await req('crm','vendas')).status,503);falhaBanco=false;delete rows.crm_funil;assert.equal((await req('crm','vendas')).status,503);
-console.log('CRM: normalização, privacidade, carga completa, vínculos, login, permissões, revogação e falhas conferidos.');
+console.log('CRM: normalização, privacidade, carga completa, vínculos, carteira histórica, login, permissões, revogação e falhas conferidos.');
 // Ingestão: o token é o mesmo já usado pela carga; sem ele não há leitura nem escrita.
 src=await readFile('supabase/functions/painel-cache/index.ts','utf8');src=src.replace(/import \{ createClient \} from [^;]+;/,'const createClient=()=>globalThis.__crmDb;');
 await import('data:text/javascript;base64,'+Buffer.from(await empacotar(src,'supabase/functions/painel-cache')).toString('base64'));
