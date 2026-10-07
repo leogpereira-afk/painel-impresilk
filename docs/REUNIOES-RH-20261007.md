@@ -1,6 +1,6 @@
 # Reuniões vinculadas ao RH — 07/10/2026
 
-Implementação preparada na branch `codex/reunioes-rh-20261007`, a partir de `c74dd9c`. Publicação pendente de autorização do Léo.
+Implementação preparada na branch `codex/reunioes-rh-20261007`, a partir de `c74dd9c`, e integrada às mudanças de `8c64504`. Publicação autorizada pelo Léo em 07/10/2026. Código integrado na main em `f03232f`.
 
 ## Comportamento
 
@@ -30,6 +30,8 @@ Implementação preparada na branch `codex/reunioes-rh-20261007`, a partir de `c
 
 ## Publicação
 
-Não houve gravação em produção nem publicação nesta etapa. Os testes do servidor usam dados simulados; a leitura do RH real será conferida após a implantação autorizada.
+Após autorização, a função `painel-reunioes` foi publicada como versão 2 (ACTIVE). Os três arquivos recuperados do servidor correspondem integralmente aos arquivos locais: `painel-reunioes/index.ts`, `_shared/reunioes.mjs` e `_shared/cripto.ts`. A autenticação personalizada existente foi preservada.
 
-Publicar primeiro a função `painel-reunioes`, incluindo seu módulo compartilhado, e depois o frontend. Não há migração de banco. Antes da publicação, comparar novamente com a main para preservar alterações concorrentes. Conferir no ambiente real o diretório mínimo e o calendário sem criar reunião de teste com pessoas reais.
+Verificação após integração com a main: 774 testes, 763 aprovados, 11 ignorados pela suíte, nenhuma falha; build com `BASE_PATH=/painel-impresilk/` aprovado. Não houve migração nem gravação de reunião em produção.
+
+O commit de implementação usou `[skip ci]` para evitar republicação de funções alheias. Este registro dispara somente o fluxo Pages, após a função v2 ter sido conferida. Conferir no ambiente real o diretório mínimo e o calendário sem criar reunião de teste com pessoas reais; registrar resultado e execução do Pages na evidência externa da publicação.
