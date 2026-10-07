@@ -107,3 +107,6 @@ html.dark .review-sidebar summary:focus-visible{outline-color:#9ba1f6}
 .review-settings:hover,.review-settings.selected{background:var(--bg);color:var(--text)}
 @media(max-width:1100px){.review-settings span{display:none}}
 @media(max-width:600px){.review-account{gap:6px;padding-left:6px}.review-account .review-user{max-width:52%}.review-settings{flex-shrink:0}}
+
+/* Volta ao Comercial preservando o recorte usado antes de abrir a agenda. */
+.com-return{display:inline-flex;align-items:center;gap:7px;min-height:42px;margin:0 0 10px;padding:6px 10px;border:1px solid var(--hairline);border-radius:8px;color:var(--text);background:var(--surface);font-size:13px;font-weight:600}

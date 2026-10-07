@@ -1,0 +1,50 @@
+.com-dicas,.com-dicas-convite{--dicas-ink:#24384e;--dicas-muted:#5c6979;--dicas-line:#dde4ec;--dicas-purple:#5140bb;--dicas-surface:#fff;color:var(--dicas-ink);font-size:13px;line-height:1.5;min-width:0}
+.com-dicas p,.com-dicas h3,.com-dicas h4{margin:0}
+.com-dicas-intro{display:flex;align-items:center;gap:12px;padding:13px 15px;border:1px solid #eddfb3;background:#fff9e9;border-radius:12px;margin-bottom:16px}
+.com-dicas-intro strong,.com-dicas-convite strong{font-size:15px;font-weight:700;line-height:1.3;display:block}
+.com-dicas-intro p,.com-dicas-convite p{margin:3px 0 0;color:var(--dicas-muted);font-size:12px}
+.com-dicas-lampada{display:grid;place-items:center;background:#ffe7a5;color:#865413;border-radius:12px;flex:0 0 40px;height:40px}
+.com-dicas-label{display:block;font-size:12px;font-weight:650;margin-bottom:5px}
+.com-dicas-busca>span:last-child{display:flex;align-items:center;gap:8px;border:1px solid #cdd6e1;border-radius:9px;padding:0 10px;background:var(--dicas-surface);color:var(--dicas-muted)}
+.com-dicas-busca input{background:transparent;min-width:0;flex:1;width:100%;padding:10px 0;border:0;color:var(--dicas-ink);font:inherit;outline:none;box-shadow:none}
+.com-dicas-busca>span:focus-within{outline:3px solid #9684ed;outline-offset:2px}
+.com-dicas-busca button{min-height:32px;min-width:32px;display:grid;place-items:center;border-radius:6px}
+.com-dicas-categorias{display:flex;flex-wrap:wrap;gap:7px;margin:12px 0 9px}
+.com-dicas-categorias button{display:inline-flex;align-items:center;gap:5px;border:1px solid var(--dicas-line);background:var(--dicas-surface);color:var(--dicas-muted);border-radius:8px;padding:7px 9px;font:inherit;font-size:12px;font-weight:600;min-height:36px;cursor:pointer}
+.com-dicas-categorias button[aria-pressed=true]{background:#eeebff;border-color:#b9abee;color:#4b389e;box-shadow:inset 0 -2px #7255c7}
+.com-dicas .com-dicas-contagem{font-size:11px;color:var(--dicas-muted);margin:0 0 10px}
+.com-dicas-lista{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;align-items:start}
+.com-dicas-guia{border:1px solid var(--dicas-line);border-radius:12px;background:var(--dicas-surface);padding:16px;min-width:0;overflow-wrap:anywhere}
+.com-dicas-guia:only-child{grid-column:1/-1}
+.com-dicas-guia>header{display:flex;gap:10px;align-items:flex-start;margin-bottom:12px}
+.com-dicas-icone{display:grid;place-items:center;flex:0 0 36px;height:36px;background:#eeebff;color:var(--dicas-purple);border-radius:10px}
+.com-dicas .com-dicas-guia h3{margin:0 0 4px;font-size:15px;line-height:1.3;font-weight:750}
+.com-dicas-guia>header p{font-size:12px;color:var(--dicas-muted)}
+.com-dicas-aplicacao{font-size:12px;padding-bottom:12px;border-bottom:1px solid var(--dicas-line)}
+.com-dicas-aplicacao b,.com-dicas-cuidado b{display:block;font-size:11px;margin-bottom:3px;font-weight:750}
+.com-dicas .com-dicas-guia h4{display:flex;gap:6px;align-items:center;font-weight:700;font-size:12px;margin:12px 0 8px}
+.com-dicas-guia ul{padding:0;margin:0;list-style:none;display:grid;gap:8px}
+.com-dicas-guia li{display:flex;gap:7px;align-items:flex-start;font-size:12px}
+.com-dicas-guia li svg{flex:none;margin-top:2px;color:#357d71}
+.com-dicas-cuidado{background:#f5f6fa;border-radius:8px;padding:10px 11px;margin-top:13px;font-size:11px;color:var(--dicas-muted)}
+.com-dicas-cuidado b{color:var(--dicas-ink)}
+.com-dicas-guia details{margin-top:11px;font-size:12px}
+.com-dicas-guia summary{font-weight:650;color:var(--dicas-purple);cursor:pointer;padding:4px 0}
+.com-dicas-guia blockquote{margin:8px 0 0;padding:10px 12px;border-left:3px solid #9684ed;background:#f7f5ff;border-radius:0 6px 6px 0;color:var(--dicas-ink)}
+.com-dicas .com-dicas-rodape{font-size:11px;color:var(--dicas-muted);margin:16px 0 0;border-top:1px solid var(--dicas-line);padding-top:12px}
+.com-dicas-vazio{display:flex;align-items:center;text-align:center;flex-direction:column;gap:8px;padding:28px 16px;background:#f5f6fa;border-radius:10px;color:var(--dicas-muted)}
+.com-dicas-vazio button{border:1px solid var(--dicas-line);padding:8px 12px;border-radius:8px;font-size:12px;color:var(--dicas-purple);background:var(--dicas-surface);cursor:pointer}
+.com-dicas-convite{display:flex;align-items:center;gap:12px;padding:13px 16px;border:1px solid #e9dcad;border-radius:12px;background:linear-gradient(110deg,#fff9e8,#fffdf8);margin:0 0 16px}
+.com-dicas-convite>div{flex:1;min-width:0}
+.com-dicas-convite button{display:inline-flex;align-items:center;justify-content:center;gap:7px;flex:none;min-height:36px;border:1px solid #dfc985;background:#fff;color:#724c16;border-radius:8px;padding:8px 11px;font-size:12px;font-weight:700;cursor:pointer}
+.com-dicas button:hover,.com-dicas-convite button:hover{filter:brightness(.97)}
+.com-dicas :focus-visible,.com-dicas-convite :focus-visible{outline:3px solid #9684ed;outline-offset:3px}
+.dark .com-dicas,.dark .com-dicas-convite{--dicas-ink:#e4eaf5;--dicas-muted:#bdc8d7;--dicas-line:#425064;--dicas-purple:#c5b5ff;--dicas-surface:#1e2b3d}
+.dark .com-dicas-intro,.dark .com-dicas-convite{background:#342f24;border-color:#71613b}
+.dark .com-dicas-lampada{background:#60491e;color:#ffe3a0}
+.dark .com-dicas-icone,.dark .com-dicas-categorias button[aria-pressed=true]{background:#3c335a;color:#dccfff;border-color:#9079c1}
+.dark .com-dicas-cuidado,.dark .com-dicas-vazio{background:#273548}
+.dark .com-dicas-guia blockquote{background:#302d45}
+.dark .com-dicas-convite button{background:#473923;border-color:#8f7646;color:#ffe3a0}
+@media(max-width:680px){.com-dicas-lista{grid-template-columns:minmax(0,1fr)}.com-dicas-guia{padding:13px}.com-dicas-intro{padding:11px}.com-dicas-convite{flex-wrap:wrap;padding:12px}.com-dicas-convite button{margin-left:52px}.com-dicas-categorias button{min-height:44px}.com-dicas-busca input{font-size:16px}.com-dicas-convite strong,.com-dicas-intro strong{font-size:14px}}
+@media print{.com-dicas-guia{break-inside:avoid}.com-dicas-categorias,.com-dicas-busca{display:none}.com-dicas-lista{display:block}.com-dicas-guia{margin-bottom:12px}.com-dicas-guia details{display:none}}

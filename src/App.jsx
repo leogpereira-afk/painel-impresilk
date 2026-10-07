@@ -159,8 +159,8 @@ export default function App() {
             </Restrito>
           }
         />
-        <Route path="/comercial" element={<Restrito modulo="orcamentos" sessao={sessao}><Comercial /></Restrito>} />
-        <Route path="/orcamentos" element={<Restrito modulo="orcamentos" sessao={sessao}><Comercial /></Restrito>} />
+        <Route path="/comercial" element={<Restrito modulo="orcamentos" sessao={sessao}><Comercial sessao={sessao} /></Restrito>} />
+        <Route path="/orcamentos" element={<Restrito modulo="orcamentos" sessao={sessao}><Comercial sessao={sessao} /></Restrito>} />
         <Route
           path="/orcamentos/mesa"
           element={

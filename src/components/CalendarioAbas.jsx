@@ -3,14 +3,14 @@ import { CalendarDays, Factory, UsersRound } from 'lucide-react';
 import { podeAbrir } from '../lib/sessao.js';
 
 export default function CalendarioAbas({sessao}) {
-  const {search} = useLocation();
+  const {search,state} = useLocation();
   return <nav aria-label="Calendário" className="flex flex-wrap gap-2 mb-3">
     {[
       ['calendario-empresa','Empresa',CalendarDays],
       ['agenda','Produção',Factory],
       ['reunioes','Reuniões',UsersRound],
     ].filter(([id])=>podeAbrir(id,sessao)).map(([id,nome,Icone])=>
-      <NavLink key={id} to={`/${id}${search}`} className={({isActive})=>isActive?'btn-primary':'btn-outline'}>
+      <NavLink key={id} state={state?.origemComercial?state:undefined} to={`/${id}${search}`} className={({isActive})=>isActive?'btn-primary':'btn-outline'}>
         <Icone size={18} aria-hidden="true"/>{nome}
       </NavLink>)}
   </nav>;
