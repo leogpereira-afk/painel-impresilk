@@ -35,3 +35,11 @@ Implementação de 08/10/2026. Escopo restrito à consultoria do convite.
 - Commit local 3297462. A revisão automática rejeitou o push para main por exigir aprovação explícita para publicar a nova versão de níveis de acesso.
 - painel-processos v4 havia sido publicado seletivamente antes do bloqueio. Foi restaurado imediatamente para v5 com conteúdo idêntico à v3 anterior, confirmado pela leitura dos quatro arquivos.
 - Nenhum convite/pessoa/ficha real foi criado; frontend permanece na versão anterior. A implementação local está preservada e verificada, aguardando autorização explícita para publicar.
+
+## Publicação autorizada e concluída
+- Após autorização explícita do usuário ("sim"), publicado painel-processos v6 ACTIVE; os quatro arquivos retornados pelo servidor conferem integralmente com a implementação local.
+- Interface publicada no commit bea60d6935781bf87412eae35d90e938e14831db. GitHub Actions 37815012194 concluído com sucesso.
+- Verificação fresca: 830 testes aprovados, 11 ignorados, zero falhas.
+- HTML público referencia index-D1BIndII.js; os sete assets de entrada e consultorias conferem byte a byte com dist.
+- Chrome autenticado: consultoria existente abriu com Trabalho e os três níveis no seletor de acesso; nenhum erro de console. Nenhum convite real emitido nem registro alterado no teste.
+- Cadastro em andamento em outra aba preservado.
