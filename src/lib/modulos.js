@@ -15,6 +15,7 @@ export const MODULOS = [
   { id: "gestao", aposentado: true, nome: "Gestão", sub: "identidade, plano do ano, táticas e atas: a tela de direção" },
   { id: "compromissos", nome: "Compromissos", sub: "a agenda de cada um: cada pessoa vê só a dela" },
   { id: "agenda", nome: "Agenda da produção", sub: "as O.S de cada dia, os plantões e a grade de saída, só para ver, sem o valor" },
+  { id: "demandas", nome: "Demandas e consultorias", sub: "processos, etapas, pessoas do RH e colaboração restrita aos envolvidos" },
   { id: "reunioes", nome: "Reuniões e treinamentos", sub: "agenda, participantes, atas e arquivos compartilhados da empresa" },
   { id: "calendario-empresa", nome: "Calendário da empresa", sub: "eventos do RH, aniversários e tempo de empresa, somente consulta" },
   { id: "contas-atrasadas", nome: "Contas Atrasadas", sub: "quem deve e a cobrança" },

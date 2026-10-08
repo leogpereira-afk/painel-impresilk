@@ -1,0 +1,36 @@
+import {prepararProcesso,carimbarProcesso,registrarProcesso,atualizarEtapa,agendaProcessos,projetarInterno,projetarConvidado,validarArquivoProcesso,validarConvite} from '../../supabase/functions/_shared/processos.mjs';
+import {pessoasReuniaoDemo as pessoas} from './reunioes.mjs';
+const s={sub:'demo',nome:'Conta de demonstração',master:true,rhId:'rh-ana'},itens=new Map(),arquivos=new Map(),tokens=new Map();
+const hoje=new Intl.DateTimeFormat('en-CA',{timeZone:'America/Sao_Paulo'}).format(new Date());
+for(const tipo of ['demanda','consultoria']){
+ const b={id:tipo+'-demo',tipo,titulo:tipo==='demanda'?'Melhorar a conferência antes da saída':'Organização financeira · exemplo',empresa:tipo==='consultoria'?'Consultoria Exemplo':'',especialidade:'Gestão',objetivo:'Exemplo fictício para testar pessoas, etapas e calendário.',analise:'Análise interna, não compartilhada no portal.',solucao:'Definir as ações e acompanhar com a equipe.',setor:tipo==='demanda'?'producao':'financeiro',prioridade:'normal',situacao:'analise',prazo:hoje,responsavelRhId:'rh-ana',envolvidos:[{rhId:'rh-ana'},{rhId:'rh-bruno'}],etapas:[{id:'levantamento',titulo:'Levantar as necessidades',descricao:'Reunir informações e documentos.',responsavelRhId:'rh-ana',prazo:hoje,situacao:'pendente',dependeDe:[],nota:''}],versaoAnterior:null};
+ itens.set(b.id,carimbarProcesso(prepararProcesso(b,null,s,pessoas),s,'Criou o processo'));
+}
+const conviteDemo={id:'convite-demo',nome:'Consultor de demonstração',processoId:'consultoria-demo',expiraEm:new Date(Date.now()+86400000).toISOString()};
+tokens.set('consultoria-demo.'+'a'.repeat(64),conviteDemo);
+export function respostaProcessos(b,token=''){
+ try{
+ const c=token?tokens.get(token):null;if(token&&!validarConvite(c))throw new Error('Convite inválido ou encerrado.');
+ const r=itens.get(c?.processoId||b.id||b.item?.id),ator=c?{sub:'convite:'+c.id,nome:c.nome,externo:true}:s;
+ const proj=x=>c?projetarConvidado(x,c):projetarInterno(x,s);
+ let dados;
+ if(!c&&b.action==='pessoas')dados={pessoas};
+ else if(!c&&b.action==='listar')dados={itens:[...itens.values()].map(proj)};
+ else if(!c&&b.action==='agenda')dados={eventos:agendaProcessos([...itens.values()],b.mes)};
+ else if(!c&&b.action==='salvar'){const n=carimbarProcesso(prepararProcesso(b.item,r,s,pessoas),s,'Atualizou a ficha');itens.set(n.id,n);dados={item:proj(n)};}
+ else if(!r)throw new Error('Processo não encontrado.');
+ else if(b.action==='obter')dados={item:proj(r)};
+ else if(b.action==='arquivo'){const url=arquivos.get(b.arquivoId);if(!url)throw new Error('Arquivo de demonstração sem conteúdo.');dados={url};}
+ else{
+ if(b.versao!==r.versao)throw new Error('A ficha mudou. Atualize antes de continuar.');let n,convite;
+ if(b.action==='registro')n=registrarProcesso(r,b,ator);
+ else if(b.action==='etapa')n=atualizarEtapa(r,b,ator);
+ else if(b.action==='anexar'){const bytes=Uint8Array.from(atob(b.base64),x=>x.charCodeAt(0)),a=validarArquivoProcesso(b.nome,b.mime,bytes.length),id=crypto.randomUUID();arquivos.set(id,URL.createObjectURL(new Blob([bytes],{type:a.mime})));n={...r,anexos:[...r.anexos,{...a,id,compartilhado:!!c,em:new Date().toISOString(),nomeAutor:ator.nome}]};}
+ else if(!c&&b.action==='compartilhar')n={...r,anexos:r.anexos.map(a=>a.id===b.arquivoId?{...a,compartilhado:b.compartilhado}:a)};
+ else if(!c&&b.action==='convidar'){const convidado={id:crypto.randomUUID(),nome:r.envolvidos.find(p=>p.rhId===b.rhId)?.nome||b.nome,rhId:b.rhId||null,expiraEm:new Date(Date.now()+Number(b.dias)*86400000).toISOString()};convite=r.id+'.'+crypto.randomUUID().replaceAll('-','').repeat(2);tokens.set(convite,{...convidado,processoId:r.id});n={...r,convites:[...r.convites,convidado]};}
+ else if(!c&&b.action==='revogar'){for(const v of tokens.values())if(v.id===b.conviteId)v.revogadoEm=new Date().toISOString();n={...r,convites:r.convites.map(x=>x.id===b.conviteId?{...x,revogadoEm:new Date().toISOString()}:x)};}
+ else throw new Error('Ação não permitida.');n=carimbarProcesso(n,ator,'Atualizou '+b.action);itens.set(n.id,n);dados={item:proj(n),...(convite?{convite}:{})};
+ }
+ return new Response(JSON.stringify({ok:true,...dados}),{headers:{'Content-Type':'application/json'}});
+ }catch(e){return new Response(JSON.stringify({erro:e.message}),{status:e.status||422});}
+}

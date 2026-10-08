@@ -8,6 +8,7 @@ import {
   PageTitle, Card, Empty, CarregandoModulo, ErroModulo, AvisoAtualizacao,
 } from "../components/ui.jsx";
 import { lerEmpresa } from "../services/agenda.js";
+import {lerAgendaProcessos} from '../services/processos.js';
 import {lerAgendaReunioes} from '../services/reunioes.js';
 import {podeAbrir} from '../lib/sessao.js';
 import {Link} from 'react-router-dom';
@@ -38,6 +39,8 @@ const porExtenso = (iso) => {
   return Number.isFinite(+d) ? `${DOW[d.getUTCDay()]} ${curto}` : curto;
 };
 
+const destinoEvento=(e,mes)=>e.processoId?`/${e.tipoProcesso==='consultoria'?'consultorias':'demandas'}?processo=${encodeURIComponent(e.processoId)}&mes=${mes}`:e.reuniaoId?'/reunioes?encontro='+encodeURIComponent(e.reuniaoId)+'&mes='+mes:null;
+
 export default function CalendarioEmpresa({sessao}) {
   const [mes, setMes] = useMesCalendario(mesAtual);
   const [foco, setFoco] = useState("");
@@ -45,6 +48,8 @@ export default function CalendarioEmpresa({sessao}) {
   const [erro, setErro] = useState("");
   const [atualizando, setAtualizando] = useState(false);
   const [encontros,setEncontros]=useState([]),[erroReunioes,setErroReunioes]=useState('');
+  const [processos,setProcessos]=useState([]),[erroProcessos,setErroProcessos]=useState('');
+  const temProcessos=podeAbrir('demandas',sessao);
   const temReunioes=podeAbrir('reunioes',sessao);
   const pedido = useRef(0);
 
@@ -52,11 +57,13 @@ export default function CalendarioEmpresa({sessao}) {
     const meu = ++pedido.current;
     setAtualizando(true);
     try {
-      const [empresa,reunioes]=await Promise.allSettled([lerEmpresa(mes),temReunioes?lerAgendaReunioes(mes):Promise.resolve([])]);
+      const [empresa,reunioes,trabalhos]=await Promise.allSettled([lerEmpresa(mes),temReunioes?lerAgendaReunioes(mes):Promise.resolve([]),temProcessos?lerAgendaProcessos(mes):Promise.resolve([])]);
       // Resposta fora de ordem não pinta a tela (ver Agenda.jsx).
       if (meu !== pedido.current) return;
       if(empresa.status==='rejected')throw empresa.reason;
       setDados(empresa.value);
+      setProcessos(trabalhos.status==='fulfilled'?trabalhos.value:[]);
+      setErroProcessos(trabalhos.status==='rejected'?'Não foi possível carregar demandas e consultorias. Atualize para tentar novamente.':'');
       setEncontros(reunioes.status==='fulfilled'?reunioes.value:[]);
       setErroReunioes(reunioes.status==='rejected'?'Não foi possível carregar as reuniões. Atualize para tentar novamente.':'');
       setErro("");
@@ -65,7 +72,7 @@ export default function CalendarioEmpresa({sessao}) {
     } finally {
       if (meu === pedido.current) setAtualizando(false);
     }
-  }, [mes,temReunioes]);
+  }, [mes,temReunioes,temProcessos]);
 
   useEffect(() => {
     void recarregar();
@@ -74,8 +81,8 @@ export default function CalendarioEmpresa({sessao}) {
 
   const hoje = dados?.hoje || "";
   const eventos = useMemo(
-    () => [...(dados?.eventos ?? []),...(temReunioes?encontros:[])].filter(e=>e.data.startsWith(mes)).sort((a, b) => a.data.localeCompare(b.data) || (a.hora||'').localeCompare(b.hora||'') || a.titulo.localeCompare(b.titulo, "pt-BR")),
-    [dados,encontros,temReunioes,mes],
+    () => [...(dados?.eventos ?? []),...(temReunioes?encontros:[]),...(temProcessos?processos:[])].filter(e=>e.data.startsWith(mes)).sort((a, b) => a.data.localeCompare(b.data) || (a.hora||'').localeCompare(b.hora||'') || a.titulo.localeCompare(b.titulo, "pt-BR")),
+    [dados,encontros,temReunioes,mes,processos,temProcessos],
   );
 
   /* A legenda É o filtro, como no RH: clicar num tipo mostra só ele. Os tipos
@@ -114,9 +121,10 @@ export default function CalendarioEmpresa({sessao}) {
     <div className="space-y-6">
       <AvisoAtualizacao erro={erro} aoTentar={recarregar} />
       <AvisoAtualizacao erro={erroReunioes} aoTentar={recarregar} />
+      <AvisoAtualizacao erro={erroProcessos} aoTentar={recarregar} />
       <PageTitle
         titulo="Calendário da empresa"
-        descricao="Eventos do RH e reuniões organizadas por setor, em um só calendário."
+        descricao="Eventos, reuniões e prazos de demandas e consultorias em um só calendário."
         acao={
           <button type="button" className="btn-outline" disabled={atualizando} onClick={recarregar}>
             <RefreshCw size={16} className={atualizando ? "animate-spin" : ""} />
@@ -127,7 +135,7 @@ export default function CalendarioEmpresa({sessao}) {
 
       <details className="page-help text-sm text-slate-600">
         <summary className="cursor-pointer"><Eye size={14} className="inline mr-2" />Dados do RH · como funciona</summary>
-        <p className="mt-2">Aniversários e eventos vêm do RH. Encontros salvos em Reuniões aparecem automaticamente para quem tem acesso ao módulo; cancelamentos saem desta agenda. Abra o encontro para conferir os participantes e a ata.</p>
+        <p className="mt-2">Aniversários e eventos vêm do RH. Encontros salvos em Reuniões aparecem automaticamente para quem tem acesso ao módulo; cancelamentos saem desta agenda. Abra o encontro para conferir os participantes e a ata. Prazos de demandas e consultorias aparecem apenas para os envolvidos e gestores com acesso ao módulo; são atualizados pela própria ficha.</p>
       </details>
 
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -191,7 +199,7 @@ export default function CalendarioEmpresa({sessao}) {
                     {lista.slice(0, 3).map((e) => (
                       <span key={e.id} title={`${e.tipo}: ${e.titulo}`} className="flex items-center gap-1 truncate text-[11px] text-slate-600">
                         <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: e.cor }} />
-                        {e.reuniaoId?<Link className="truncate underline" to={'/reunioes?encontro='+encodeURIComponent(e.reuniaoId)+'&mes='+mes}>{e.titulo}</Link>:<span className="truncate">{e.titulo}</span>}
+                        {destinoEvento(e,mes)?<Link className="truncate underline" to={destinoEvento(e,mes)}>{e.titulo}</Link>:<span className="truncate">{e.titulo}</span>}
                       </span>
                     ))}
                     {lista.length > 3 && <span className="text-[11px] text-slate-400">+{lista.length - 3} mais</span>}
@@ -223,7 +231,7 @@ export default function CalendarioEmpresa({sessao}) {
                     {e.data.slice(8, 10)}
                   </span>
                   <div className="min-w-0">
-                    <p className="font-medium text-slate-800">{e.reuniaoId?<Link className="underline" to={'/reunioes?encontro='+encodeURIComponent(e.reuniaoId)+'&mes='+mes}>{e.titulo}</Link>:e.titulo}</p>
+                    <p className="font-medium text-slate-800">{destinoEvento(e,mes)?<Link className="underline" to={destinoEvento(e,mes)}>{e.titulo}</Link>:e.titulo}</p>
                     <p className="text-sm text-slate-500">
                       {porExtenso(e.data)} · {e.tipo}
                       {e.hora ? ` · ${e.hora}` : ""}
@@ -237,7 +245,7 @@ export default function CalendarioEmpresa({sessao}) {
           )}
           <p className="mt-4 flex items-center gap-1.5 text-xs text-slate-400">
             <CalendarDays size={13} aria-hidden="true" />
-            Fonte: RH e Reuniões · cada registro é atualizado na sua origem.
+            Fonte: RH, Reuniões, Demandas e Consultorias · cada registro é atualizado na sua origem.
           </p>
         </Card>
       </div>

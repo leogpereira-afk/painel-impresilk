@@ -7,7 +7,7 @@ import CalendarioAbas from './components/CalendarioAbas.jsx';
 // navegador esta sempre sob controle de quem usa.
 
 import { useEffect, useState, lazy, Suspense } from "react";
-import { Routes, Route, Navigate } from "react-router-dom";
+import { Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { Lock } from "lucide-react";
 import Layout from "./components/Layout.jsx";
 import Home from "./pages/Home.jsx";
@@ -38,6 +38,8 @@ const Permutas = lazy(() => import("./pages/Permutas.jsx"));
 const Campanhas = lazy(() => import("./pages/Campanhas.jsx"));
 const Patrimonio = lazy(() => import("./pages/Patrimonio.jsx"));
 const Agenda = lazy(() => import("./pages/Agenda.jsx"));
+const Processos = lazy(() => import("./pages/Processos.jsx"));
+const ColaborarProcesso = lazy(() => import("./pages/ColaborarProcesso.jsx"));
 const Reunioes = lazy(() => import("./pages/Reunioes.jsx"));
 const CalendarioEmpresa = lazy(() => import("./pages/CalendarioEmpresa.jsx"));
 
@@ -113,6 +115,8 @@ function Restrito({ modulo, sessao, children }) {
 }
 
 export default function App() {
+  const location=useLocation();
+  const colaboracao=location.pathname==='/colaborar';
   const [sessao, setSessao] = useState(() => getSessao());
 
   // Mantem a tela em sincronia com o logout (inclusive o automatico, disparado
@@ -120,7 +124,9 @@ export default function App() {
   useEffect(() => aoMudarSessao(() => setSessao(getSessao())), []);
 
   // Com sessão na mão, as outras telas descem em segundo plano (ver ROTAS_PREFETCH).
-  useEffect(() => { if (sessao) prefetchRotas(); }, [sessao]);
+  useEffect(() => { if (sessao && !colaboracao) prefetchRotas(); }, [sessao,colaboracao]);
+
+  if (colaboracao) return <Suspense fallback={<p className="p-6">Abrindo consultoria…</p>}><ColaborarProcesso/></Suspense>;
 
   if (!sessao) return <Login aoEntrar={() => setSessao(getSessao())} />;
 
@@ -230,6 +236,8 @@ export default function App() {
             </Restrito>
           }
         />
+        <Route path="/demandas" element={<Restrito modulo="demandas" sessao={sessao}><CalendarioAbas sessao={sessao}/><Processos key="demanda" tipo="demanda"/></Restrito>} />
+        <Route path="/consultorias" element={<Restrito modulo="demandas" sessao={sessao}><CalendarioAbas sessao={sessao}/><Processos key="consultoria" tipo="consultoria"/></Restrito>} />
         <Route path="/reunioes" element={<Restrito modulo="reunioes" sessao={sessao}><CalendarioAbas sessao={sessao}/><Reunioes sessao={sessao}/></Restrito>} />
         <Route path="/gestao" element={<Navigate to="/" replace />} />
         <Route

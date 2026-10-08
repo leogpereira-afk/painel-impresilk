@@ -27,6 +27,7 @@ test('Navegação reúne as duas rotas sem retirar suas permissões',()=>{
  assert.ok(lateral.includes('>Calendário</Link>'));
  assert.ok(!lateral.includes('to="/acessos"'));
  assert.ok(topo.includes('aria-label="Sistemas e configurações"'));
- assert.ok(abas.includes('podeAbrir(id,sessao)'));assert.ok(abas.includes('${search}'));
+ assert.ok(abas.includes("podeAbrir(id==='consultorias'?'demandas':id,sessao)"));
+ for(const rota of ['demandas','consultorias'])assert.ok(app.includes(`path="/${rota}" element={<Restrito modulo="demandas"`));assert.ok(abas.includes('${search}'));
  for(const modulo of ['agenda','calendario-empresa'])assert.ok(app.includes(`<Restrito modulo="${modulo}"`));
 });
