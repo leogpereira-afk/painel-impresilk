@@ -30,3 +30,8 @@ Implementação de 08/10/2026. Escopo restrito à consultoria do convite.
 - 15 verificadores aprovados; build de produção e lint sem erros (dois avisos antigos de hooks fora do escopo).
 - Chrome com dados fictícios: administrador cadastrou consultora, emitiu convite de leitura, salvou plano e revogou o convite. Leitor sem botões para cadastrar/editar etapa ou enviar arquivo.
 - Publicação seletiva somente de painel-processos, seguida do frontend; não usar o workflow genérico de functions, que republica também PCP.
+
+## Publicação pendente
+- Commit local 3297462. A revisão automática rejeitou o push para main por exigir aprovação explícita para publicar a nova versão de níveis de acesso.
+- painel-processos v4 havia sido publicado seletivamente antes do bloqueio. Foi restaurado imediatamente para v5 com conteúdo idêntico à v3 anterior, confirmado pela leitura dos quatro arquivos.
+- Nenhum convite/pessoa/ficha real foi criado; frontend permanece na versão anterior. A implementação local está preservada e verificada, aguardando autorização explícita para publicar.
