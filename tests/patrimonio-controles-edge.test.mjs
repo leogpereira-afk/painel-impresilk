@@ -127,3 +127,13 @@ test('handler recusa datas anteriores ao histórico sem tentar gravar e permite 
  r=await salvar(a,'cx1',{...base,versaoAnterior:caixa.atualizadoEm,operacaoCaixa:{...movimento,tipo:'devolucao',data:'2026-01-03'}});
  assert.equal(r.status,200);assert.equal(tentativas,1);assert.equal(r.body.valor.cx1.movimentacoes.length,2);
 });
+
+test('handler salva e edita ramal sem telefone, preservando o cadastro',async()=>{
+ const a=ambiente(),campos={tipo:'ramais',numero:'205',pessoa:'Recepção',versaoAnterior:null};
+ let r=await salvar(a,'ram1',campos);assert.equal(r.status,200);assert.equal(r.body.valor.ram1.telefone,'');
+ let antes=r.body.valor.ram1;
+ r=await salvar(a,'ram1',{...campos,telefone:'(38) 3000-1234',versaoAnterior:antes.atualizadoEm});assert.equal(r.status,200);
+ antes=r.body.valor.ram1;
+ r=await salvar(a,'ram1',{...campos,telefone:'',versaoAnterior:antes.atualizadoEm});assert.equal(r.status,200);
+ assert.equal(r.body.valor.ram1.telefone,'');assert.equal(r.body.valor.ram1.numero,'205');assert.equal(r.body.valor.ram1.pessoa,'Recepção');assert.equal(a.linhas.length,1);
+});

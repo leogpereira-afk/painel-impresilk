@@ -25,7 +25,7 @@ test('edição atrasada e alteração de tipo são recusadas',()=>{
 });
 test('número e telefone inválidos são recusados sem restringir cadastros ainda disponíveis',()=>{
  for(const numero of ['', 'abc','1.5','-1','1234567890123'])assert.throws(()=>prepararControle({...base,numero},null,sessao,agora),/número/);
- assert.throws(()=>prepararControle({...base,tipo:'ramais',telefone:''},null,sessao,agora),/telefone/);
+ for(const telefone of ['abc','---','1'.repeat(41)])assert.throws(()=>prepararControle({...base,tipo:'ramais',telefone},null,sessao,agora),/telefone/);
  const r=prepararControle({...base,tipo:'ramais',telefone:'(38) 3000-1234',pessoa:''},null,sessao,agora);assert.equal(r.telefone,'(38) 3000-1234');
 });
 test('carimbo preserva campos existentes e não inventa data de criação antiga',()=>{
@@ -60,3 +60,13 @@ test('filtro de responsável combina com busca e preserva todos os resultados pa
  assert.equal(listarControles(mapa,'armarios','joao','atribuidos').length,10);
  assert.equal(listarControles(mapa,'armarios','joao','disponiveis').length,0);
 });
+
+ test('ramal permite telefone omitido, vazio e espaços, inclusive ao remover telefone existente',()=>{
+ for(const telefone of [undefined,null,'','   ']){
+  const criado=prepararControle({...base,tipo:'ramais',telefone},null,sessao,agora);
+  assert.equal(criado.telefone,'');assert.equal(criado.numero,'001');
+ }
+ const antes=prepararControle({...base,tipo:'ramais',telefone:'(38) 3000-1234'},null,sessao,agora);
+ const depois=prepararControle({...base,tipo:'ramais',telefone:'',versaoAnterior:antes.atualizadoEm},antes,sessao,'2026-10-08T18:00:00.000Z');
+ assert.equal(depois.telefone,'');assert.equal(depois.pessoa,antes.pessoa);assert.equal(depois.criadoEm,antes.criadoEm);
+ });

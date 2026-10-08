@@ -11,8 +11,8 @@ export function prepararControle(campos, anterior, sessao, agora) {
   if (tipo==='celulares' ? (!/^[+\d() .-]{1,40}$/.test(numero) || !/\d/.test(numero)) : !/^\d{1,12}$/.test(numero)) falhar(tipo==='celulares'?'Informe o número do telefone.':'Informe um número de até 12 dígitos.');
   const texto = (campo,max) => { const v=String(campos[campo]??'').trim();if(v.length>max) falhar('O campo '+campo+' ultrapassa '+max+' caracteres.');return v; };
   const telefone = tipo==='ramais' ? texto('telefone',40) : '';
-  if(tipo==='ramais' && !/^[+\d() .-]{1,40}$/.test(telefone)) falhar('Informe o telefone do ramal.');
-  if(tipo==='ramais' && !/\d/.test(telefone)) falhar('Informe o telefone do ramal.');
+  if(tipo==='ramais' && telefone && !/^[+\d() .-]{1,40}$/.test(telefone)) falhar('Informe um telefone válido ou deixe o campo em branco.');
+  if(tipo==='ramais' && telefone && !/\d/.test(telefone)) falhar('Informe um telefone válido ou deixe o campo em branco.');
   const modelo=tipo==='celulares'?texto('modelo',120):'';
   if(tipo==='celulares'&&!modelo)falhar('Informe o modelo do celular.');
   if(tipo!=='ferramentas' && campos.operacaoCaixa!=null)falhar('Esta operação é exclusiva das caixas de ferramentas.');
