@@ -16,7 +16,11 @@ import {
   Trash2,
   Pencil,
   AlertTriangle,
-  ChevronDown,
+  Search,
+  MoreHorizontal,
+  CalendarClock,
+  ArrowRight,
+  Clock3,
   Users,
   Ruler,
   Truck,
@@ -42,10 +46,12 @@ import {
 } from "../services/compromissos.js";
 import { pdfDaConversa, textoDaConversa, nomeDoArquivo } from "../lib/pdfConversa.js";
 import './compromissos-modal.css';
+import './compromissos.css';
+import { montarAgenda, numeroWhatsApp } from '../lib/calc/agendaCompromissos.js';
 import {AgendaMubisys} from '../components/AcoesMubisys.jsx';
 import { getSessao } from "../lib/sessao.js";
-import { dataCurta, diasEntre, ymdLocal } from "../lib/format.js";
-import { Card, PageTitle, SectionTitle, StatCard, Empty, CarregandoModulo, ErroModulo, AvisoAtualizacao } from "../components/ui.jsx";
+import { dataCurta, diaLocalISO, diasEntre, ymdLocal } from "../lib/format.js";
+import { CarregandoModulo, ErroModulo, AvisoAtualizacao } from "../components/ui.jsx";
 
 // Cada tipo tem icone proprio: numa lista de 20 linhas, o icone diz o que e
 // antes de a pessoa ler o titulo.
@@ -72,23 +78,15 @@ const VAZIO = {
   feito: false,
 };
 
-// A frase que a pessoa le antes do numero. Prazo em palavras vale mais que data.
-function prazo(dias) {
-  if (dias === null) return { texto: "sem data", chip: "chip", peso: 5000, grupo: "Sem data marcada" };
-  if (dias < 0) {
-    const d = -dias;
-    return { texto: `atrasado ${d} ${d === 1 ? "dia" : "dias"}`, chip: "chip-bad", peso: -1000 + dias, grupo: "Atrasados" };
-  }
-  if (dias === 0) return { texto: "HOJE", chip: "chip-bad", peso: 0, grupo: "Hoje" };
-  if (dias === 1) return { texto: "amanha", chip: "chip-warn", peso: 1, grupo: "Amanha" };
-  if (dias <= 7) return { texto: `em ${dias} dias`, chip: "chip-warn", peso: dias, grupo: "Proximos 7 dias" };
-  // Sim, `em N dias` tambem aqui: a condicao que existia antes (dataCurta(null))
-  // e sempre falsa, entao tudo marcado para daqui a mais de uma semana aparecia
-  // com uma etiqueta cinza VAZIA do lado da data.
-  return { texto: `em ${dias} dias`, chip: "chip", peso: dias, grupo: "Mais para frente" };
-}
-
-const ORDEM_GRUPOS = ["Atrasados", "Hoje", "Amanha", "Proximos 7 dias", "Mais para frente", "Sem data marcada"];
+const PRIORIDADES = [
+  { id: 'abertos', campo: 'emAberto', nome: 'Em aberto', apoio: 'Toda a agenda', icone: CircleDot, tom: 'marca' },
+  { id: 'atrasados', campo: 'atrasados', nome: 'Atrasados', apoio: 'Prioridade de ação', icone: AlertTriangle, tom: 'atrasado' },
+  { id: 'hoje', campo: 'hoje', nome: 'Hoje', apoio: 'Programação do dia', icone: CalendarCheck, tom: 'hoje' },
+  { id: 'proximos', campo: 'proximos', nome: 'Próximos 7 dias', apoio: 'A partir de amanhã', icone: CalendarClock, tom: 'futuro' },
+  { id: 'semData', campo: 'semData', nome: 'Sem data', apoio: 'Falta programar', icone: Clock3, tom: 'neutro' },
+  { id: 'feitos', campo: 'concluidos', nome: 'Resolvidos', apoio: 'Histórico completo', icone: Check, tom: 'resolvido' },
+];
+const iniciais = nome => String(nome || '?').trim().split(/\s+/).filter(Boolean).slice(0, 2).map(n => n[0]).join('').toUpperCase();
 
   // Eventos seguidos da MESMA pessoa viram um bloco so, com o nome uma vez no
   // topo -- e o que faz o histórico parecer conversa e nao log de sistema.
@@ -275,7 +273,7 @@ function proximaSegunda() {
   return ymdLocal(d);
 }
 
-function FormularioModal({titulo,salvando,aoFechar,children}) {
+function FormularioModal({titulo,descricao="Só o título é obrigatório. Você pode definir a data depois.",salvando,aoFechar,children}) {
   const dialogo = useRef(null);
   useEffect(() => {
     const anterior = document.activeElement;
@@ -283,7 +281,7 @@ function FormularioModal({titulo,salvando,aoFechar,children}) {
     const overflow = document.body.style.overflow;
     el.showModal();
     document.body.style.overflow = "hidden";
-    el.querySelector("#c-titulo")?.focus();
+    el.querySelector("input, select, textarea")?.focus();
     return () => {
       el.close();
       document.body.style.overflow = overflow;
@@ -291,262 +289,77 @@ function FormularioModal({titulo,salvando,aoFechar,children}) {
     };
   }, []);
   return <dialog ref={dialogo} className="compromisso-modal" aria-labelledby="compromisso-modal-titulo" onCancel={e => { e.preventDefault(); if (!salvando) aoFechar(); }}>
-    <header className="compromisso-modal-cabecalho"><div><h2 id="compromisso-modal-titulo">{titulo}</h2><p>Só o título é obrigatório. Sem data, ele entra em &apos;A resolver&apos;.</p></div><button type="button" className="btn-ghost" aria-label="Fechar formulário de compromisso" disabled={salvando} onClick={aoFechar}><X size={22}/></button></header>
+    <header className="compromisso-modal-cabecalho"><div><h2 id="compromisso-modal-titulo">{titulo}</h2><p>{descricao}</p></div><button type="button" className="btn-ghost" aria-label="Fechar formulário de compromisso" disabled={salvando} onClick={aoFechar}><X size={22}/></button></header>
     {children}
   </dialog>;
 }
 
-function Linha({ c, sessao, ehDirecao, dePessoa, equipe, encaminhando, setEncaminhando,
-                 remarcando, setRemarcando,
-                 conversaAberta, setConversaAberta, enviando, acoes }) {
-  const donoDe = (x) => x.dono ?? sessao?.usuario ?? "";
-    const Icone = c.t.icone;
+function MenuAcoes({ c, equipe, ocupado, acoes }) {
+  const [aberto, setAberto] = useState(false);
+  const menu = useRef(null);
+  const botao = useRef(null);
+  useEffect(() => {
+    if (!aberto) return;
+    const fechar = e => { if (!menu.current?.contains(e.target)) setAberto(false); };
+    const teclado = e => { if (e.key === 'Escape') { setAberto(false); botao.current?.focus(); } };
+    document.addEventListener('pointerdown', fechar);
+    document.addEventListener('keydown', teclado);
+    return () => { document.removeEventListener('pointerdown', fechar); document.removeEventListener('keydown', teclado); };
+  }, [aberto]);
+  const executar = fn => { setAberto(false); fn(); };
+  return <div className="cp-menu" ref={menu}>
+    <button type="button" ref={botao} className="cp-icon-button" aria-label={`Mais ações: ${c.titulo}`} aria-expanded={aberto} disabled={ocupado} onClick={() => setAberto(v => !v)}><MoreHorizontal size={19}/></button>
+    {aberto && <div className="cp-menu-lista">
+      <button type="button" onClick={() => executar(() => acoes.abrirForm(c))}><Pencil size={16}/>Editar compromisso</button>
+      {equipe.length > 1 && <button type="button" onClick={() => executar(() => acoes.prepararEncaminhamento(c))}><Forward size={16}/>Encaminhar</button>}
+      {c.telefone && <><a href={`tel:${String(c.telefone).replace(/[^+\d]/g, '')}`}><Phone size={16}/>Ligar para o cliente</a><a href={`https://wa.me/${numeroWhatsApp(c.telefone)}`} target="_blank" rel="noopener noreferrer"><MessageCircle size={16}/>WhatsApp do cliente</a></>}
+      <button type="button" className="cp-acao-excluir" onClick={() => executar(() => acoes.remover(c))}><Trash2 size={16}/>Excluir compromisso</button>
+    </div>}
+  </div>;
+}
 
-    // O último evento da conversa, resumido para caber numa linha.
-    const hist = Array.isArray(c.historico) ? c.historico : [];
-    const ult = hist[hist.length - 1];
-    const diasSemNovidade = ult?.em ? diasEntre(String(ult.em).slice(0, 10), ymdLocal(new Date())) : null;
-    const ultimaNovidade = ult
-      ? {
-          quem: ult.quemNome || ult.quem || "alguém",
-          quando:
-            diasSemNovidade == null ? "" : diasSemNovidade <= 0 ? "hoje" : `há ${diasSemNovidade}d`,
-          texto: String(ult.texto || "").trim().slice(0, 90),
-        }
-      : null;
-    /* O aviso de parado só vale onde ele quer dizer alguma coisa: um
-       compromisso marcado para daqui a duas semanas está parado por desenho.
-       Em Atrasados e Sem data, parado é problema. */
-    // Só dígitos: o campo aceita "(38) 99999-0000" e o link precisa de número.
-    const telDigitos = String(c.telefone || "").replace(/\D/g, "");
-    const paradoHa =
-      !c.feito &&
-      (c.pz.grupo === "Atrasados" || c.pz.grupo === "Sem data marcada") &&
-      diasSemNovidade != null &&
-      diasSemNovidade >= 3
-        ? diasSemNovidade
-        : null;
-    const quantos = Array.isArray(c.historico)
-      ? c.historico.filter((e) => e.tipo === "recado" || e.tipo === "passou").length
-      : 0;
-    const aberta = conversaAberta === c.id;
-    return (
-      <div>
-      <div
-        className={`flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl border p-3 transition-colors ${
-          c.feito ? "opacity-60" : ""
-        }`}
-        style={{ borderColor: "var(--hairline)" }}
-      >
-        <button
-          type="button"
-          onClick={() => acoes.alternarFeito(c)}
-          title={c.feito ? "Reabrir" : "Marcar como feito"}
-          className={`grid h-8 w-8 shrink-0 place-items-center rounded-lg border transition-colors ${
-            c.feito
-              ? "border-ok-600 bg-ok-600 text-white"
-              : "text-slate-400 hover:border-ok-600 hover:text-ok-700"
-          }`}
-          style={c.feito ? undefined : { borderColor: "var(--hairline)" }}
-        >
-          {c.feito ? <Check size={15} strokeWidth={3} /> : <Check size={15} />}
-        </button>
-
-        <Icone size={17} strokeWidth={2.2} className={`shrink-0 ${c.t.cor}`} title={c.t.rotulo} />
-
-        <span className="min-w-0 flex-1 basis-48">
-          <span
-            className={`block truncate font-display text-sm font-medium text-slate-900 ${
-              c.feito ? "line-through" : ""
-            }`}
-          >
-            {c.titulo}
-          </span>
-          {c.crmOperacao&&<span className="block text-xs font-semibold text-brand-700">Criado no Mubisys · conclusão e remarcação somente no painel</span>}
-          {c.cobrancaOrigem&&<span className="block text-xs font-semibold text-brand-700">Acompanhamento de cobrança · conferir recebimento no ERP</span>}
-          <span className="block truncate text-xs text-slate-500">
-            {[
-              c.t.rotulo,
-              c.cliente,
-              ehDirecao && !dePessoa ? c.donoNome : null,
-              c.encaminhadoPor && c.encaminhadoPor !== c.donoNome
-                ? `veio de ${c.encaminhadoPor}`
-                : null,
-              c.obs,
-            ]
-              .filter(Boolean)
-              .join(" · ")}
-          </span>
-
-          {/* ANDANDO OU PARADO — a pergunta que a linha não respondia.
-              Para saber se um atrasado está esperando o cliente ou se ninguém
-              tocou nele, era preciso abrir a conversa de cada um: a linha só
-              mostrava a QUANTIDADE de recados, que não distingue "falei ontem"
-              de "cinco recados em março". O último evento já veio no mesmo
-              carregamento; era só mostrar. */}
-          {ultimaNovidade && (
-            <span className="block truncate text-xs text-slate-400">
-              <span className="font-medium text-slate-500">{ultimaNovidade.quem}</span>
-              {ultimaNovidade.quando ? `, ${ultimaNovidade.quando}` : ""}
-              {ultimaNovidade.texto ? `: ${ultimaNovidade.texto}` : ""}
-            </span>
-          )}
-          {paradoHa != null && (
-            <span className="chip-warn mt-1 inline-block">sem novidade há {paradoHa} dias</span>
-          )}
-        </span>
-
-        <span className="shrink-0 text-right">
-          {remarcando === c.id ? (
-            /* Seletor no LUGAR da etiqueta — o mesmo gesto do encaminhar logo
-               ao lado: escolher já remarca, sem formulário e sem perder o
-               lugar na lista. */
-            <select
-              autoFocus
-              className="input h-8 w-36 py-0 text-xs"
-              defaultValue=""
-              onChange={(e) => {
-                const v = e.target.value;
-                if (!v) return;
-                setRemarcando(null);
-                if (v === "escolher") return acoes.abrirForm(c);
-                acoes.remarcar(c, v);
-              }}
-              onBlur={() => setRemarcando(null)}
-            >
-              <option value="" disabled>Remarcar para...</option>
-              <option value={maisDias(0)}>Hoje</option>
-              <option value={maisDias(1)}>Amanhã</option>
-              <option value={proximaSegunda()}>Segunda</option>
-              <option value={maisDias(7)}>Daqui a 7 dias</option>
-              <option value="escolher">Escolher data...</option>
-            </select>
-          ) : (
-            <>
-              {!c.feito && (
-                <button
-                  type="button"
-                  onClick={() => setRemarcando(c.id)}
-                  title="Remarcar"
-                  className={`${c.pz.chip} whitespace-nowrap transition-opacity hover:opacity-75`}
-                >
-                  {c.pz.texto}
-                </button>
-              )}
-              <span className="mt-0.5 block text-xs tabular-nums text-slate-500">
-                {c.data ? `${dataCurta(c.data)}${c.hora ? ` as ${c.hora}` : ""}` : "sem data"}
-              </span>
-            </>
-          )}
-        </span>
-
-        <span className="flex shrink-0 items-center gap-0.5">
-          {/* Ligar e WhatsApp direto da linha: é onde o compromisso vira ação.
-              Só aparecem quando há telefone -- botão que não liga para lugar
-              nenhum é pior do que a falta dele. */}
-          {telDigitos && (
-            <>
-              <a
-                href={`tel:${telDigitos}`}
-                title={`Ligar para ${c.cliente || "o cliente"}`}
-                className="grid h-8 w-8 place-items-center rounded-lg text-slate-400 transition-colors hover:bg-slate-100 hover:text-brand"
-              >
-                <Phone size={15} strokeWidth={2.2} />
-              </a>
-              <a
-                href={`https://wa.me/55${telDigitos}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                title="Abrir no WhatsApp"
-                className="grid h-8 w-8 place-items-center rounded-lg text-slate-400 transition-colors hover:bg-ok-50 hover:text-ok-700"
-              >
-                <MessageCircle size={15} strokeWidth={2.2} />
-              </a>
-            </>
-          )}
-          {/* A conversa e o coracao da coisa: e onde fica o que ja foi feito e
-              o que falta. Botao com rotulo (nao so icone) e com o numero de
-              recados, para dar vontade de abrir. */}
-          <button
-            type="button"
-            onClick={() => setConversaAberta(aberta ? null : c.id)}
-            aria-expanded={aberta}
-            className={`mr-1 inline-flex h-8 items-center gap-1.5 rounded-lg px-2.5 font-display text-xs font-semibold transition-colors ${
-              aberta ? "bg-brand text-white" : "text-slate-600 hover:bg-slate-100 hover:text-brand"
-            }`}
-            title="Abrir a conversa deste compromisso"
-          >
-            <MessageCircle size={14} strokeWidth={2.4} />
-            Conversa
-            {quantos > 0 && (
-              <span className={`rounded-full px-1.5 text-[11px] ${aberta ? "bg-white/25" : "bg-slate-200 text-slate-700"}`}>
-                {quantos}
-              </span>
-            )}
-          </button>
-          {encaminhando === c.id ? (
-            // Seletor no lugar do botao: escolher ja encaminha. E o gesto mais
-            // curto para "isso aqui e da fulana".
-            <select
-              autoFocus
-              className="input h-8 w-40 py-0 text-xs"
-              defaultValue=""
-              onChange={(e) => acoes.encaminhar(c, e.target.value)}
-              onBlur={() => setEncaminhando(null)}
-            >
-              <option value="" disabled>
-                Passar para...
-              </option>
-              {equipe
-                .filter((p) => p.usuario !== donoDe(c))
-                .map((p) => (
-                  <option key={p.usuario} value={p.usuario}>
-                    {p.nome}
-                  </option>
-                ))}
-            </select>
-          ) : (
-            equipe.length > 1 && (
-              <button
-                type="button"
-                onClick={() => setEncaminhando(c.id)}
-                className="grid h-8 w-8 place-items-center rounded-lg text-slate-500 hover:bg-slate-100 hover:text-brand"
-                title="Encaminhar para outra pessoa"
-              >
-                <Forward size={14} />
-              </button>
-            )
-          )}
-          <button
-            type="button"
-            onClick={() => acoes.abrirForm(c)}
-            className="grid h-8 w-8 place-items-center rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-900"
-            title="Editar"
-          >
-            <Pencil size={14} />
-          </button>
-          <button
-            type="button"
-            onClick={() => acoes.remover(c)}
-            className="grid h-8 w-8 place-items-center rounded-lg text-slate-500 hover:bg-bad-50 hover:text-bad-700"
-            title="Apagar"
-          >
-            <Trash2 size={14} />
-          </button>
-        </span>
+function Linha({ c, sessao, equipe, ocupado, bloqueado, remarcando, setRemarcando,
+                 conversaAberta, setConversaAberta, enviando, acoes, hojeISO }) {
+  const tipo = TIPOS[c.tipo] || TIPOS.outro, Icone = tipo.icone;
+  const hist = Array.isArray(c.historico) ? c.historico : [];
+  const ult = hist[hist.length - 1];
+  const diasSemNovidade = ult?.em ? diasEntre(diaLocalISO(ult.em), hojeISO) : null;
+  const parado = !c.feito && (c.dias === null || c.dias < 0) && diasSemNovidade >= 3;
+  const quantos = hist.filter(e => e.tipo === 'recado' || e.tipo === 'passou').length;
+  const aberta = conversaAberta === c.id;
+  return <article className={`cp-item cp-item--${c.feito ? 'resolvido' : c.pz.tom}`} aria-label={c.titulo} aria-busy={ocupado || enviando}>
+    <div className="cp-item-linha">
+      <span className={`cp-tipo-icon cp-tipo--${c.tipo}`} title={tipo.rotulo}><Icone size={20}/></span>
+      <div className="cp-item-conteudo">
+        <div className="cp-item-meta"><span>{tipo.rotulo}</span>{c.cliente && <><span aria-hidden="true">·</span><span>{c.cliente}</span></>}</div>
+        <h3><button type="button" onClick={() => setConversaAberta(aberta ? null : c.id)} aria-expanded={aberta}>{c.titulo}</button></h3>
+        <div className="cp-item-contexto"><span className="cp-responsavel"><span aria-hidden="true">{iniciais(c.donoNome || sessao?.nome)}</span>{c.donoNome || sessao?.nome || 'Responsável não informado'}</span>
+          {parado && <span className="cp-sem-retorno"><Clock3 size={12}/>Sem atualização há {diasSemNovidade} dias</span>}
+          {c.crmOperacao && <span className="cp-origem">Mubisys</span>}{c.cobrancaOrigem && <span className="cp-origem">Cobrança</span>}
+        </div>
+        {ult && <p className="cp-ultima" title={ult.texto || ''}>{ult.quemNome || ult.quem}{diasSemNovidade !== null ? ` · ${diasSemNovidade <= 0 ? 'hoje' : `há ${diasSemNovidade}d`}` : ''}{ult.texto ? `: ${ult.texto}` : ''}</p>}
       </div>
-      {aberta && (
-        <Conversa
-          c={c}
-          sessao={sessao}
-          enviando={enviando}
-          aoEnviar={acoes.enviarRecado}
-          aoBaixar={acoes.baixarAnexo}
-          aoWhatsApp={acoes.mandarWhatsApp}
-        />
-      )}
+      <div className="cp-item-prazo"><span className={`cp-situacao cp-situacao--${c.feito ? 'resolvido' : c.pz.tom}`}>{c.feito ? 'Resolvido' : c.pz.texto}</span>
+        <span>{c.data && c.dias !== null ? `${dataCurta(c.data)}${c.hora ? ` às ${c.hora}` : ' · sem horário'}` : 'Definir programação'}</span>
+      </div>
+      <div className="cp-item-acoes">
+        <button type="button" className={`cp-acao ${aberta ? 'cp-acao--ativa' : ''}`} onClick={() => setConversaAberta(aberta ? null : c.id)} aria-expanded={aberta}><MessageCircle size={16}/>Conversa{quantos > 0 && <span className="cp-contador">{quantos}</span>}</button>
+        {!c.feito && <button type="button" className="cp-icon-button" aria-label={`Reagendar: ${c.titulo}`} title="Reagendar" disabled={bloqueado} onClick={() => setRemarcando(remarcando === c.id ? null : c.id)} aria-expanded={remarcando === c.id}><CalendarClock size={18}/></button>}
+        <button type="button" className={`cp-acao ${c.feito ? '' : 'cp-acao--concluir'}`} disabled={bloqueado} onClick={() => acoes.alternarFeito(c)}><Check size={16}/>{ocupado ? 'Salvando…' : c.feito ? 'Reabrir' : 'Concluir'}</button>
+        <MenuAcoes c={c} equipe={equipe} ocupado={bloqueado} acoes={acoes}/>
+      </div>
     </div>
-  );
+    {remarcando === c.id && <div className="cp-reagendar"><span><CalendarClock size={16}/>Reagendar para</span>
+      {[['Hoje',maisDias(0)],['Amanhã',maisDias(1)],['Segunda',proximaSegunda()],['Daqui a 7 dias',maisDias(7)]].map(([nome,data]) => <button type="button" key={nome} disabled={bloqueado} onClick={() => acoes.remarcar(c,data)}>{nome}</button>)}
+      <button type="button" disabled={bloqueado} onClick={() => { setRemarcando(null); acoes.abrirForm(c); }}>Escolher data e horário</button>
+      <button type="button" className="cp-icon-button" aria-label="Fechar reagendamento" onClick={() => setRemarcando(null)}><X size={16}/></button>
+    </div>}
+    {aberta && <div className="cp-detalhe">
+      {(c.obs || c.encaminhadoPor || c.crmOperacao || c.cobrancaOrigem) && <div className="cp-notas">{c.obs && <p><strong>Observação:</strong> {c.obs}</p>}{c.encaminhadoPor && <p>Encaminhado por {c.encaminhadoPor}</p>}{c.crmOperacao && <p>Origem: Mubisys. Conclusão e reagendamento são controlados nesta agenda.</p>}{c.cobrancaOrigem && <p>Acompanhamento de cobrança. Confirme o recebimento no ERP.</p>}</div>}
+      <Conversa c={c} sessao={sessao} enviando={enviando} aoEnviar={acoes.enviarRecado} aoBaixar={acoes.baixarAnexo} aoWhatsApp={acoes.mandarWhatsApp}/>
+      <span className="cp-registro-id">Identificação do registro: {c.id}</span>
+    </div>}
+  </article>;
 }
 
 export default function Compromissos() {
@@ -567,15 +380,16 @@ export default function Compromissos() {
   const [form, setForm] = useState(null);
   const [salvando, setSalvando] = useState(false);
   const [dePessoa, setDePessoa] = useState(null); // filtro da direcao
-  const [verFeitos, setVerFeitos] = useState(false);
+  const [busca, setBusca] = useState('');
+  const [tipoFiltro, setTipoFiltro] = useState('');
+  const [transferencia, setTransferencia] = useState(null);
+  const [agendaComercialAberta, setAgendaComercialAberta] = useState(false);
+  const [ocupado, setOcupado] = useState(null);
+  const mutacao = useRef(false);
   const [equipe, setEquipe] = useState([]);
-  const [encaminhando, setEncaminhando] = useState(null); // id da linha aberta
   const [remarcando, setRemarcando] = useState(null);     // id da linha remarcando
-  /* OS CARTÕES VIRAM RECORTE. Eles mostravam o número e não levavam a lugar
-     nenhum: para ver os atrasados era rolar até o grupo. Clicar num cartão
-     filtra a lista; clicar de novo volta ao normal. É o mesmo gesto que Contas
-     Atrasadas, Produtos e Fluxo de Caixa já fazem. */
-  const [recorte, setRecorte] = useState(null); // "atrasados" | "hoje" | "semData" | "feitos" | null
+  // Os indicadores filtram a lista. Em aberto reúne todos os itens pendentes.
+  const [recorte, setRecorte] = useState("abertos");
   const [conversaAberta, setConversaAberta] = useState(null); // id da conversa expandida
   const [enviando, setEnviando] = useState(null); // id do recado em envio
   // Item sem dono so acontece em registro antigo (anterior ao carimbo do
@@ -628,78 +442,9 @@ export default function Compromissos() {
     };
   }, [recarregar]);
 
-  const vm = useMemo(() => {
-    if (!mapa) return { grupos: [], feitos: [], hoje: 0, atrasados: 0, semData: 0, pessoas: [] };
-    const todos = Object.entries(mapa)
-      .map(([id, c]) => {
-        const dias = c.data ? diasEntre(hojeISO, c.data) : null;
-        return { ...c, id, dias, pz: prazo(dias), t: TIPOS[c.tipo] || TIPOS.outro };
-      })
-      .filter((c) => !dePessoa || c.dono === dePessoa);
-
-    /* O DIA SAI NA ORDEM DO RELÓGIO.
-       A hora era cadastrada, aparecia na linha e não ordenava nada: dentro de
-       "Hoje" todo item tem peso 0, o sort empatava e a ordem que sobrava era a
-       de chegada. Quem abre a tela de manhã lê de cima para baixo e a lista
-       mandava ele para a reunião das 15h antes da visita das 8h.
-       Sem hora vai para o fim do dia ("99:99"), que é onde ela cabe: é o que
-       não tem hora marcada. */
-    const horaDe = (c) => String(c.hora || "99:99");
-    const abertos = todos
-      .filter((c) => !c.feito)
-      .sort(
-        (a, b) =>
-          a.pz.peso - b.pz.peso ||
-          horaDe(a).localeCompare(horaDe(b)) ||
-          String(a.criadoEm || "").localeCompare(String(b.criadoEm || ""))
-      );
-    const feitos = todos
-      .filter((c) => c.feito)
-      .sort((a, b) => String(b.feitoEm || "").localeCompare(String(a.feitoEm || "")));
-
-    const grupos = [];
-    abertos.forEach((c) => {
-      let g = grupos.find((x) => x.nome === c.pz.grupo);
-      if (!g) {
-        g = { nome: c.pz.grupo, itens: [] };
-        grupos.push(g);
-      }
-      g.itens.push(c);
-    });
-    grupos.sort((a, b) => ORDEM_GRUPOS.indexOf(a.nome) - ORDEM_GRUPOS.indexOf(b.nome));
-
-    // Contagem por pessoa: o chip da direcao mostra quantos cada uma tem EM
-    // ABERTO -- e o numero que responde "quem esta afogada?".
-    const pessoas = [...new Set(Object.values(mapa).map((c) => c.dono).filter(Boolean))].map((d) => {
-      const doDono = Object.values(mapa).filter((c) => c.dono === d);
-      /* O CHIP CONTAVA VOLUME, NÃO PROBLEMA.
-         "12 em aberto" não responde "quem está afogada?": pode ser doze visitas
-         agendadas para o mês, tudo sob controle. Quem responde é o ATRASADO.
-         Agora o chip mostra os dois — atrasados em vermelho, total ao lado — e
-         a lista vem ordenada por atrasado primeiro. */
-      const abertos = doDono.filter((c) => !c.feito);
-      const atrasados = abertos.filter(
-        (c) => c.data && diasEntre(ymdLocal(new Date()), c.data) < 0
-      ).length;
-      return {
-        dono: d,
-        nome: doDono.find((c) => c.donoNome)?.donoNome || d,
-        emAberto: abertos.length,
-        atrasados,
-      };
-    }).sort((a, b) => b.atrasados - a.atrasados || b.emAberto - a.emAberto);
-
-    return {
-      grupos,
-      feitos,
-      emAberto: abertos.length,
-      concluidos: feitos.length,
-      hoje: abertos.filter((c) => c.dias === 0).length,
-      atrasados: abertos.filter((c) => c.dias !== null && c.dias < 0).length,
-      semData: abertos.filter((c) => c.dias === null).length,
-      pessoas,
-    };
-  }, [mapa, hojeISO, dePessoa]);
+  const vm = useMemo(() => montarAgenda(mapa, {
+    hoje: hojeISO, pessoa: dePessoa, usuario: sessao?.usuario, busca, tipo: tipoFiltro, recorte,
+  }), [mapa, hojeISO, dePessoa, sessao?.usuario, busca, tipoFiltro, recorte]);
 
   // Tem texto digitado que ainda nao foi salvo? Comparar com o item de origem
   // (ou com o formulario vazio) e o unico jeito de saber -- e sem isso um
@@ -714,6 +459,7 @@ export default function Compromissos() {
   };
 
   const abrirForm = (c) => {
+    if (mutacao.current) return;
     if (formSujo() && !window.confirm("Você tem um compromisso pela metade. Descartar o que escreveu?")) return;
     setAviso(null);
     setForm(c ? { ...VAZIO, ...c } : { ...VAZIO, cadastroId:crypto.randomUUID() });
@@ -729,8 +475,10 @@ export default function Compromissos() {
   const salvar = useCallback(
     async (e) => {
       e.preventDefault();
+      if (mutacao.current) return;
       setAviso(null);
       if (!form.titulo.trim()) return setAviso({ tom: "erro", texto: "Escreva o que precisa ser feito." });
+      mutacao.current = true;
       setSalvando(true);
       try {
         // Id com o usuario e um sufixo aleatorio: `cp-<milissegundo>` sozinho e
@@ -763,59 +511,51 @@ export default function Compromissos() {
         // A direcao filtrando por uma pessoa e cadastrando um compromisso
         // proprio: sem isto o item nascia e sumia da tela no mesmo instante.
         if (novo && dePessoa && mapaNovo?.[id]?.dono !== dePessoa) setDePessoa(null);
+        if (novo) { setRecorte('abertos'); setBusca(''); setTipoFiltro(''); }
         setForm(null);
         setAviso({ tom: "ok", texto: "Compromisso salvo." });
       } catch (err) {
         setAviso({ tom: "erro", texto: err.message });
       } finally {
+        mutacao.current = false;
         setSalvando(false);
       }
     },
     [form, dePessoa, setMapa]
   );
 
-  const alternarFeito = async (c) => {
+  const executarMutacao = async (c, trabalho, mensagem) => {
+    if (mutacao.current) return false;
+    mutacao.current = true;
+    setOcupado(c.id);
     setAviso(null);
-    const feito = !c.feito;
-    const patch = { feito, feitoEm: feito ? new Date().toISOString() : "" };
-    setMapa((m) => ({ ...(m || {}), [c.id]: { ...m[c.id], ...patch } })); // otimista
     try {
-      await salvarCompromisso(c.id, patch);
+      setMapa(await trabalho());
+      setAviso({ tom: 'ok', texto: mensagem });
+      return true;
     } catch (err) {
-      setMapa((m) => ({ ...(m || {}), [c.id]: { ...m[c.id], feito: c.feito, feitoEm: c.feitoEm || "" } }));
-      setAviso({ tom: "erro", texto: err.message });
-    }
+      setAviso({ tom: 'erro', texto: err.message });
+      return false;
+    } finally { mutacao.current = false; setOcupado(null); }
   };
-
-  const encaminhar = async (c, paraUsuario) => {
-    setEncaminhando(null);
-    if (!paraUsuario || paraUsuario === donoDe(c)) return;
-    const nome = equipe.find((p) => p.usuario === paraUsuario)?.nome || paraUsuario;
-    // Passar adiante e definitivo para quem passou: o item sai da lista dela.
-    // O recado e opcional, mas e o que faz a colega entender o que ja foi
-    // feito -- por isso a pergunta ja vem junto com a confirmacao.
-    const recado = window.prompt(
-      `Passar "${c.titulo}" para ${nome}. Ele sai da sua lista e leva a conversa junto.\n\nQuer deixar um recado? (pode deixar em branco)`,
-      ""
-    );
-    if (recado === null) return; // cancelou
-    setAviso(null);
-    try {
-      const mapaNovo = await encaminharCompromisso(c.id, paraUsuario, recado.trim());
-      // A resposta ja vem no escopo de quem pediu: se voce nao e a direcao, o
-      // item encaminhado simplesmente sai da sua lista.
-      setMapa(mapaNovo);
-      setAviso({ tom: "ok", texto: `"${c.titulo}" foi para ${nome}.` });
-    } catch (err) {
-      setAviso({ tom: "erro", texto: err.message });
-    }
+  const alternarFeito = c => executarMutacao(c,
+    () => salvarCompromisso(c.id, { feito: !c.feito, feitoEm: !c.feito ? new Date().toISOString() : '' }),
+    c.feito ? 'Compromisso reaberto. Confira em Em aberto.' : 'Compromisso concluído. Ele está no histórico de Resolvidos.');
+  const prepararEncaminhamento = c => { setAviso(null); setTransferencia({ c, usuario: '', recado: '' }); };
+  const encaminhar = async e => {
+    e.preventDefault();
+    const { c, usuario, recado } = transferencia;
+    if (!usuario || usuario === donoDe(c)) return;
+    const nome = equipe.find(p => p.usuario === usuario)?.nome || usuario;
+    const ok = await executarMutacao(c, () => encaminharCompromisso(c.id, usuario, recado.trim()), `Compromisso encaminhado para ${nome}.`);
+    if (ok) setTransferencia(null);
   };
 
   // ---- conversa ----------------------------------------------------------
   // Devolve true quando gravou -- e o sinal para o Compositor limpar o campo.
   // Limpar sem confirmacao apagaria o que a pessoa escreveu quando a rede cai.
   const enviarRecado = async (c, texto, file) => {
-    if (!texto && !file) return false;
+    if ((!texto && !file) || mutacao.current) return false;
     if (file && file.size > 3 * 1024 * 1024) {
       setAviso({
         tom: "erro",
@@ -823,6 +563,7 @@ export default function Compromissos() {
       });
       return false;
     }
+    mutacao.current = true;
     setEnviando(c.id);
     setAviso(null);
     try {
@@ -835,6 +576,7 @@ export default function Compromissos() {
       setAviso({ tom: "erro", texto: err.message });
       return false;
     } finally {
+      mutacao.current = false;
       setEnviando(null);
     }
   };
@@ -853,7 +595,7 @@ export default function Compromissos() {
   // computador isso nao existe: baixa o PDF e abre o WhatsApp com o texto, e a
   // pessoa anexa o arquivo que acabou de cair na pasta de downloads.
   const mandarWhatsApp = async (c) => {
-    const dados = { ...c, tipoRotulo: c.t?.rotulo };
+    const dados = { ...c, tipoRotulo: (TIPOS[c.tipo] || TIPOS.outro).rotulo };
     try {
       const blob = pdfDaConversa(dados);
       const arquivo = new File([blob], nomeDoArquivo(dados), { type: "application/pdf" });
@@ -882,7 +624,9 @@ export default function Compromissos() {
   };
 
   const remover = async (c) => {
+    if (mutacao.current) return;
     if (!window.confirm(`Apagar "${c.titulo}"?`)) return;
+    mutacao.current = true; setOcupado(c.id);
     setAviso(null);
     try {
       await removerCompromisso(c.id);
@@ -892,170 +636,57 @@ export default function Compromissos() {
         return novo;
       });
       if (form?.id === c.id) setForm(null);
+      setAviso({ tom: "ok", texto: "Compromisso excluído." });
     } catch (err) {
       setAviso({ tom: "erro", texto: err.message });
-    }
+    } finally { mutacao.current = false; setOcupado(null); }
   };
 
-  // Um objeto so com o que a Linha chama de volta. useMemo nao e otimizacao
-  // aqui: sem ele, o objeto muda a cada render e as linhas remontam junto.
-  /* REMARCAR EM UM TOQUE.
-     Adiar é o gesto mais repetido da manhã: o que ficou de ontem vira hoje ou
-     amanhã. Só existia pelo lápis, que abre o formulário no topo e rola a
-     página até ele — e depois a pessoa tem de procurar onde estava na lista.
-     Enquanto adiar custa isso, ninguém adia, e a agenda de verdade continua no
-     papel. Grava só a data, otimista, com volta se o servidor recusar. */
   const remarcar = async (c, novaData) => {
-    setAviso(null);
-    const antes = c.data || "";
-    setMapa((m) => ({ ...(m || {}), [c.id]: { ...m[c.id], data: novaData } }));
-    try {
-      await salvarCompromisso(c.id, { data: novaData });
-    } catch (err) {
-      setMapa((m) => ({ ...(m || {}), [c.id]: { ...m[c.id], data: antes } }));
-      setAviso({ tom: "erro", texto: err.message });
-    }
+    const ok = await executarMutacao(c, () => salvarCompromisso(c.id, { data: novaData }), `Compromisso reagendado para ${dataCurta(novaData)}.`);
+    if (ok) setRemarcando(null);
   };
-
-  /* Grupos que aparecem depois do recorte dos cartões.
-     Três casos, escritos separados de propósito — a versão em uma linha só
-     misturava os operadores e escondia qual era qual:
-       sem recorte  → tudo
-       "feitos"     → nenhum grupo de abertos (só a seção de resolvidos)
-       um grupo     → só ele */
-  const gruposNaTela = !recorte
-    ? vm?.grupos || []
-    : recorte === "feitos"
-      ? []
-      : (vm?.grupos || []).filter((g) => g.nome === recorte);
-
-  const acoes = useMemo(
-    () => ({ alternarFeito, abrirForm, remover, encaminhar, enviarRecado, baixarAnexo, mandarWhatsApp, remarcar }),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [mapa, form, equipe, dePessoa, sessao]
-  );
+  const acoes = { alternarFeito, abrirForm, remover, prepararEncaminhamento, enviarRecado, baixarAnexo, mandarWhatsApp, remarcar };
+  const limparFiltros = () => { setBusca(''); setTipoFiltro(''); setDePessoa(null); setRecorte('abertos'); };
+  const temFiltros = !!(busca || tipoFiltro || dePessoa || recorte !== 'abertos');
+  const prioridade = PRIORIDADES.find(p => p.id === recorte);
 
   if (erro && mapa === null) return <ErroModulo mensagem={erro} aoTentar={recarregar}/>;
   if (mapa === null) return <CarregandoModulo />;
 
 
   return (
-    <div className="space-y-6">
+    <div className="cp-page">
       <AvisoAtualizacao erro={erro} aoTentar={recarregar}/>
-      <PageTitle
-        acao={<button type="button" className="btn-outline" disabled={atualizando} onClick={recarregar}><RefreshCw size={16} className={atualizando ? "animate-spin" : ""}/>{atualizando ? "Atualizando…" : "Atualizar agenda"}</button>}
-        titulo="Compromissos"
-        descricao={
-          ehDirecao
-            ? "A agenda da equipe: visitas, medições, retornos e o que ficou para resolver."
-            : "Suas visitas, medições, retornos e o que você tem para resolver. A direção também pode acompanhar sua agenda."
-        }
-      />
-
-      <AgendaMubisys aoConcluir={recarregar}/>
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <StatCard
-          rotulo="Em aberto"
-          valor={String(vm.emAberto)}
-          sub={vm.semData ? `${vm.semData} sem data marcada` : "tudo com data"}
-          tom={vm.emAberto ? "neutral" : "ok"}
-          icone={CircleDot}
-          ativo={recorte === null}
-          onClick={() => setRecorte(null)}
-        />
-        <StatCard
-          rotulo="Atrasados"
-          valor={String(vm.atrasados)}
-          sub={vm.atrasados ? "passaram da data" : "nada atrasado"}
-          tom={vm.atrasados ? "bad" : "ok"}
-          icone={AlertTriangle}
-          ativo={recorte === "Atrasados"}
-          onClick={() => setRecorte((r) => (r === "Atrasados" ? null : "Atrasados"))}
-        />
-        <StatCard
-          rotulo="Hoje"
-          valor={String(vm.hoje)}
-          sub={vm.hoje ? "marcados para hoje" : "sem compromisso hoje"}
-          tom={vm.hoje ? "warn" : "neutral"}
-          icone={CalendarCheck}
-          ativo={recorte === "Hoje"}
-          onClick={() => setRecorte((r) => (r === "Hoje" ? null : "Hoje"))}
-        />
-        <StatCard
-          rotulo="Resolvidos"
-          valor={String(vm.concluidos)}
-          sub="já concluidos"
-          tom={vm.concluidos ? "ok" : "neutral"}
-          icone={Check}
-          ativo={recorte === "feitos"}
-          /* O CARTÃO ABRE O QUE PROMETE. Clicando nele, a lista de abertos
-             esvaziava e a tela dizia "Nada em aberto" -- falso e inútil --
-             enquanto os concluídos seguiam escondidos numa seção recolhida
-             logo abaixo, que o cartão não tocava. */
-          onClick={() => {
-            const ligando = recorte !== "feitos";
-            setRecorte(ligando ? "feitos" : null);
-            if (ligando) setVerFeitos(true);
-          }}
-        />
-      </div>
-
-      <div className="flex flex-wrap items-center gap-2">
-        <button type="button" className="btn-primary" onClick={() => abrirForm(null)}>
-          <Plus size={15} strokeWidth={2.4} />
-          Novo compromisso
-        </button>
-
-        {ehDirecao && vm.pessoas.length > 1 && (
-          <>
-            <button
-              type="button"
-              onClick={() => setDePessoa(null)}
-              className={`rounded-full px-3 py-1 font-display text-xs font-semibold transition-colors ${
-                dePessoa === null ? "bg-brand text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-              }`}
-            >
-              Equipe toda
-            </button>
-            {vm.pessoas.map((p) => (
-              <button
-                key={p.dono}
-                type="button"
-                onClick={() => setDePessoa(dePessoa === p.dono ? null : p.dono)}
-                className={`rounded-full px-3 py-1 font-display text-xs font-semibold transition-colors ${
-                  dePessoa === p.dono ? "bg-brand text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-                }`}
-              >
-                {p.nome}
-                {/* Atrasados primeiro, em vermelho: é o número que responde
-                    "quem está afogada?". O total em aberto fica ao lado, em
-                    cinza — ele conta volume, não problema. */}
-                {p.atrasados > 0 && (
-                  <span className={`ml-1.5 ${dePessoa === p.dono ? "text-white" : "text-bad-700"}`}>
-                    {p.atrasados}
-                  </span>
-                )}
-                {p.emAberto > 0 && (
-                  <span className="ml-1 opacity-60">
-                    {p.atrasados > 0 ? "/" : ""}{p.emAberto}
-                  </span>
-                )}
-              </button>
-            ))}
-          </>
-        )}
-      </div>
-
-      {aviso && (
-        <p
-          className={`rounded-lg px-3 py-2 text-sm ${
-            aviso.tom === "ok" ? "bg-ok-50 text-ok-700" : "bg-bad-50 text-bad-700"
-          }`}
-        >
-          {aviso.texto}
-        </p>
-      )}
-
+      <header className="cp-cabecalho">
+        <div><p className="cp-eyebrow">OPERAÇÃO · {ehDirecao ? 'AGENDA DA EQUIPE' : 'MINHA AGENDA'}</p><h1>Compromissos</h1><p>Clareza sobre o que fazer, com quem e até quando.</p></div>
+        <div className="cp-cabecalho-acoes"><button type="button" className="cp-atualizar" disabled={atualizando} onClick={recarregar}><RefreshCw size={17} className={atualizando ? 'animate-spin' : ''}/>{atualizando ? 'Atualizando…' : 'Atualizar'}</button><button type="button" className="cp-agenda-comercial" aria-expanded={agendaComercialAberta} aria-controls="cp-agenda-comercial" onClick={() => setAgendaComercialAberta(v => !v)}><CalendarCheck size={17}/>Agenda comercial</button><button type="button" className="btn-primary" onClick={() => abrirForm(null)}><Plus size={18}/>Novo compromisso</button></div>
+      </header>
+      <div id="cp-agenda-comercial" className="cp-integracao" hidden={!agendaComercialAberta}><AgendaMubisys aberto={agendaComercialAberta} aoConcluir={recarregar}/></div>
+      <section className="cp-prioridades" aria-label="Filtrar compromissos por prioridade">
+        {PRIORIDADES.map(p => { const Icone = p.icone; return <button type="button" key={p.id} className={`cp-prioridade cp-prioridade--${p.tom} ${recorte === p.id ? 'selecionada' : ''}`} aria-pressed={recorte === p.id} onClick={() => setRecorte(p.id)}>
+          <span className="cp-prioridade-topo"><span>{p.nome}</span><Icone size={17}/></span><strong>{vm[p.campo]}</strong><span className="cp-prioridade-apoio">{p.apoio}<ArrowRight size={14}/></span>
+        </button>; })}
+      </section>
+      <section className="cp-filtros" aria-label="Busca e responsáveis">
+        <div className="cp-filtros-principal"><label className="cp-busca"><Search size={18}/><input aria-label="Buscar compromisso" placeholder="Buscar compromisso, cliente ou responsável…" value={busca} onChange={e => setBusca(e.target.value)}/>{busca && <button type="button" aria-label="Limpar busca" onClick={() => setBusca('')}><X size={16}/></button>}</label>
+          <label className="cp-tipo-filtro"><span>Tipo</span><select value={tipoFiltro} onChange={e => setTipoFiltro(e.target.value)} aria-label="Tipo de compromisso"><option value="">Todos os tipos</option>{Object.entries(TIPOS).map(([id,t]) => <option value={id} key={id}>{t.rotulo}</option>)}</select></label>
+          {temFiltros && <button type="button" className="cp-limpar" onClick={limparFiltros}>Limpar filtros</button>}
+        </div>
+        {ehDirecao && vm.pessoas.length > 1 && <div className="cp-equipe"><span className="cp-equipe-label">Responsável<small>Em aberto por pessoa</small></span><div className="cp-pessoas" aria-label="Filtrar por responsável">
+          <button type="button" className={`cp-pessoa ${!dePessoa ? 'selecionada' : ''}`} aria-pressed={!dePessoa} onClick={() => setDePessoa(null)}><Users size={17}/>Equipe toda</button>
+          {vm.pessoas.map(p => <button type="button" key={p.dono} className={`cp-pessoa ${dePessoa === p.dono ? 'selecionada' : ''}`} aria-pressed={dePessoa === p.dono} onClick={() => setDePessoa(dePessoa === p.dono ? null : p.dono)} title={`${p.nome}: ${p.emAberto} em aberto, ${p.atrasados} atrasados`}><span className="cp-avatar">{iniciais(p.nome)}</span><span>{p.nome}</span><span className="cp-contador">{p.emAberto}</span>{p.atrasados > 0 && <span className="cp-pessoa-atraso" aria-label={`${p.atrasados} atrasados`}><AlertTriangle size={12}/>{p.atrasados}</span>}</button>)}
+        </div></div>}
+      </section>
+      {aviso && <div role={aviso.tom === 'erro' ? 'alert' : 'status'} className={`cp-aviso cp-aviso--${aviso.tom}`}><span>{aviso.texto}</span>{aviso.tom === 'ok' && <button type="button" aria-label="Fechar mensagem" onClick={() => setAviso(null)}><X size={16}/></button>}</div>}
+      <div className="cp-lista-cabecalho"><div><h2>{prioridade.nome}{dePessoa ? ` · ${vm.pessoas.find(p => p.dono === dePessoa)?.nome || dePessoa}` : ''}</h2><span>{vm.exibidos} {vm.exibidos === 1 ? 'compromisso' : 'compromissos'}{busca || tipoFiltro ? ' neste filtro' : ''}</span></div><span className="cp-ordem"><Clock3 size={14}/>{recorte === 'feitos' ? 'Últimas conclusões primeiro' : 'Prioridade e horário'}</span></div>
+      {transferencia && <FormularioModal titulo="Encaminhar compromisso" descricao="O histórico e os anexos seguem com o compromisso para o novo responsável." salvando={!!ocupado} aoFechar={() => !ocupado && setTransferencia(null)}>
+        <form className="compromisso-modal-form space-y-4" onSubmit={encaminhar}><p className="cp-encaminhar-titulo">{transferencia.c.titulo}</p>{aviso?.tom === 'erro' && <p role="alert" className="text-bad-700">{aviso.texto}</p>}
+          <label className="label" htmlFor="cp-destino">Novo responsável</label><select id="cp-destino" className="input" required value={transferencia.usuario} onChange={e => setTransferencia(t => ({...t, usuario:e.target.value}))}><option value="">Selecione uma pessoa</option>{equipe.filter(p => p.usuario !== donoDe(transferencia.c)).map(p => <option key={p.usuario} value={p.usuario}>{p.nome}</option>)}</select>
+          <label className="label" htmlFor="cp-recado">O que a pessoa precisa saber? (opcional)</label><textarea id="cp-recado" className="input" rows={3} value={transferencia.recado} onChange={e => setTransferencia(t => ({...t, recado:e.target.value}))}/>
+          <div className="cp-modal-acoes"><button type="button" className="btn-outline" disabled={!!ocupado} onClick={() => setTransferencia(null)}>Cancelar</button><button type="submit" className="btn-primary" disabled={!!ocupado || !transferencia.usuario}>{ocupado ? 'Encaminhando…' : 'Encaminhar compromisso'}</button></div>
+        </form>
+      </FormularioModal>}
       {form && (
         <FormularioModal titulo={form.id ? "Editar compromisso" : "Novo compromisso"} salvando={salvando} aoFechar={fecharForm}>
           {aviso?.tom === "erro" && <p role="alert" className="mx-6 mb-4 rounded-lg bg-bad-50 p-3 text-sm text-bad-700">{aviso.texto}</p>}
@@ -1137,16 +768,17 @@ export default function Compromissos() {
               </div>
               <div>
                 <label className="label" htmlFor="c-obs">Observação</label>
-                <input
+                <textarea
+                  rows={3}
                   id="c-obs"
                   className="input"
-                  placeholder="endereço, o que levar..."
+                  placeholder="Endereço, materiais e o que precisa ser preparado…"
                   value={form.obs}
                   onChange={(e) => setForm((f) => ({ ...f, obs: e.target.value }))}
                 />
               </div>
             </div>
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="cp-modal-acoes">
               <button className="btn-primary" disabled={salvando}>
                 {salvando ? "Salvando..." : form.id ? "Salvar alterações" : "Cadastrar"}
               </button>
@@ -1158,93 +790,11 @@ export default function Compromissos() {
         </FormularioModal>
       )}
 
-      {/* O recorte escolhido no cartão vale aqui: "feitos" esconde os abertos,
-          um grupo mostra só ele. Sem recorte, a tela é a de sempre. */}
-      {gruposNaTela.length === 0 ? (
-        <Card>
-          <Empty>
-            {recorte === "feitos" ? (
-              <>Os concluídos estão na seção “Concluídos”, logo abaixo.</>
-            ) : (
-              <>
-                Nada em aberto{dePessoa ? " para esta pessoa" : ""}. Use &quot;Novo compromisso&quot; para
-                anotar uma visita, uma medição ou algo a resolver.
-              </>
-            )}
-          </Empty>
-        </Card>
-      ) : (
-        gruposNaTela.map((g) => (
-          <Card key={g.nome}>
-            <SectionTitle
-              titulo={g.nome}
-              sub={`${g.itens.length} ${g.itens.length === 1 ? "compromisso" : "compromissos"}`}
-            />
-            <div className="space-y-2">
-              {g.itens.map((c) => (
-                <Linha
-                  key={c.id}
-                  c={c}
-                  sessao={sessao}
-                  ehDirecao={ehDirecao}
-                  dePessoa={dePessoa}
-                  equipe={equipe}
-                  encaminhando={encaminhando}
-                  setEncaminhando={setEncaminhando}
-                  remarcando={remarcando}
-                  setRemarcando={setRemarcando}
-                  conversaAberta={conversaAberta}
-                  setConversaAberta={setConversaAberta}
-                  enviando={enviando === c.id}
-                  acoes={acoes}
-                />
-              ))}
-            </div>
-          </Card>
-        ))
-      )}
-
-      {vm.feitos.length > 0 && recorte !== "Atrasados" && recorte !== "Hoje" && (
-        <Card className="p-0">
-          <button
-            type="button"
-            onClick={() => setVerFeitos((v) => !v)}
-            aria-expanded={verFeitos}
-            className="flex w-full items-center gap-2.5 px-5 py-4 text-left"
-          >
-            <ChevronDown
-              size={16}
-              className={`shrink-0 text-slate-400 transition-transform ${verFeitos ? "" : "-rotate-90"}`}
-            />
-            <span className="min-w-0 flex-1 font-display text-base font-semibold text-slate-900">
-              Concluidos
-            </span>
-            <span className="chip-ok">{vm.feitos.length}</span>
-          </button>
-          {verFeitos && (
-            <div className="space-y-2 px-5 pb-5">
-              {vm.feitos.map((c) => (
-                <Linha
-                  key={c.id}
-                  c={c}
-                  sessao={sessao}
-                  ehDirecao={ehDirecao}
-                  dePessoa={dePessoa}
-                  equipe={equipe}
-                  encaminhando={encaminhando}
-                  setEncaminhando={setEncaminhando}
-                  remarcando={remarcando}
-                  setRemarcando={setRemarcando}
-                  conversaAberta={conversaAberta}
-                  setConversaAberta={setConversaAberta}
-                  enviando={enviando === c.id}
-                  acoes={acoes}
-                />
-              ))}
-            </div>
-          )}
-        </Card>
-      )}
+      {vm.grupos.length === 0 ? <div className="cp-vazio"><CalendarCheck size={30}/><h3>{vm.total === 0 ? 'Sua agenda começa aqui' : recorte === 'atrasados' ? 'Nenhum compromisso atrasado neste filtro' : 'Nenhum compromisso neste filtro'}</h3><p>{vm.total === 0 ? 'Registre uma visita, medição, retorno ou algo que precisa resolver.' : 'Escolha outra prioridade ou ajuste a busca para encontrar o que precisa.'}</p><button type="button" className="btn-outline" onClick={vm.total === 0 ? () => abrirForm(null) : limparFiltros}>{vm.total === 0 ? 'Criar compromisso' : 'Ver todos em aberto'}</button></div> :
+        <div className="cp-grupos">{vm.grupos.map(g => <section className="cp-grupo" key={g.nome} aria-label={g.nome}>
+          {recorte === 'abertos' && <header className="cp-grupo-cabecalho"><h3>{g.nome}</h3><span>{g.itens.length}</span></header>}
+          <div className="cp-lista">{g.itens.map(c => <Linha key={c.id} c={c} sessao={sessao} equipe={equipe} ocupado={ocupado === c.id} bloqueado={!!ocupado || !!enviando || salvando} remarcando={remarcando} setRemarcando={setRemarcando} conversaAberta={conversaAberta} setConversaAberta={setConversaAberta} enviando={enviando === c.id} acoes={acoes} hojeISO={hojeISO}/>)}</div>
+        </section>)}</div>}
     </div>
   );
 }
