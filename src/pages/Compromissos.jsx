@@ -383,6 +383,7 @@ export default function Compromissos() {
   const [busca, setBusca] = useState('');
   const [tipoFiltro, setTipoFiltro] = useState('');
   const [transferencia, setTransferencia] = useState(null);
+  const [agendaComercialAberta, setAgendaComercialAberta] = useState(false);
   const [ocupado, setOcupado] = useState(null);
   const mutacao = useRef(false);
   const [equipe, setEquipe] = useState([]);
@@ -659,8 +660,9 @@ export default function Compromissos() {
       <AvisoAtualizacao erro={erro} aoTentar={recarregar}/>
       <header className="cp-cabecalho">
         <div><p className="cp-eyebrow">OPERAÇÃO · {ehDirecao ? 'AGENDA DA EQUIPE' : 'MINHA AGENDA'}</p><h1>Compromissos</h1><p>Clareza sobre o que fazer, com quem e até quando.</p></div>
-        <div className="cp-cabecalho-acoes"><button type="button" className="cp-atualizar" disabled={atualizando} onClick={recarregar}><RefreshCw size={17} className={atualizando ? 'animate-spin' : ''}/>{atualizando ? 'Atualizando…' : 'Atualizar'}</button><button type="button" className="btn-primary" onClick={() => abrirForm(null)}><Plus size={18}/>Novo compromisso</button></div>
+        <div className="cp-cabecalho-acoes"><button type="button" className="cp-atualizar" disabled={atualizando} onClick={recarregar}><RefreshCw size={17} className={atualizando ? 'animate-spin' : ''}/>{atualizando ? 'Atualizando…' : 'Atualizar'}</button><button type="button" className="cp-agenda-comercial" aria-expanded={agendaComercialAberta} aria-controls="cp-agenda-comercial" onClick={() => setAgendaComercialAberta(v => !v)}><CalendarCheck size={17}/>Agenda comercial</button><button type="button" className="btn-primary" onClick={() => abrirForm(null)}><Plus size={18}/>Novo compromisso</button></div>
       </header>
+      <div id="cp-agenda-comercial" className="cp-integracao" hidden={!agendaComercialAberta}><AgendaMubisys aberto={agendaComercialAberta} aoConcluir={recarregar}/></div>
       <section className="cp-prioridades" aria-label="Filtrar compromissos por prioridade">
         {PRIORIDADES.map(p => { const Icone = p.icone; return <button type="button" key={p.id} className={`cp-prioridade cp-prioridade--${p.tom} ${recorte === p.id ? 'selecionada' : ''}`} aria-pressed={recorte === p.id} onClick={() => setRecorte(p.id)}>
           <span className="cp-prioridade-topo"><span>{p.nome}</span><Icone size={17}/></span><strong>{vm[p.campo]}</strong><span className="cp-prioridade-apoio">{p.apoio}<ArrowRight size={14}/></span>
@@ -676,7 +678,6 @@ export default function Compromissos() {
           {vm.pessoas.map(p => <button type="button" key={p.dono} className={`cp-pessoa ${dePessoa === p.dono ? 'selecionada' : ''}`} aria-pressed={dePessoa === p.dono} onClick={() => setDePessoa(dePessoa === p.dono ? null : p.dono)} title={`${p.nome}: ${p.emAberto} em aberto, ${p.atrasados} atrasados`}><span className="cp-avatar">{iniciais(p.nome)}</span><span>{p.nome}</span><span className="cp-contador">{p.emAberto}</span>{p.atrasados > 0 && <span className="cp-pessoa-atraso" aria-label={`${p.atrasados} atrasados`}><AlertTriangle size={12}/>{p.atrasados}</span>}</button>)}
         </div></div>}
       </section>
-      <div className="cp-integracao"><AgendaMubisys aoConcluir={recarregar}/></div>
       {aviso && <div role={aviso.tom === 'erro' ? 'alert' : 'status'} className={`cp-aviso cp-aviso--${aviso.tom}`}><span>{aviso.texto}</span>{aviso.tom === 'ok' && <button type="button" aria-label="Fechar mensagem" onClick={() => setAviso(null)}><X size={16}/></button>}</div>}
       <div className="cp-lista-cabecalho"><div><h2>{prioridade.nome}{dePessoa ? ` · ${vm.pessoas.find(p => p.dono === dePessoa)?.nome || dePessoa}` : ''}</h2><span>{vm.exibidos} {vm.exibidos === 1 ? 'compromisso' : 'compromissos'}{busca || tipoFiltro ? ' neste filtro' : ''}</span></div><span className="cp-ordem"><Clock3 size={14}/>{recorte === 'feitos' ? 'Últimas conclusões primeiro' : 'Prioridade e horário'}</span></div>
       {transferencia && <FormularioModal titulo="Encaminhar compromisso" descricao="O histórico e os anexos seguem com o compromisso para o novo responsável." salvando={!!ocupado} aoFechar={() => !ocupado && setTransferencia(null)}>
