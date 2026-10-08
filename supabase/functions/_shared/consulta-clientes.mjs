@@ -1,10 +1,13 @@
 // Consulta cadastral global: projeção explícita, sem histórico ou contatos.
 export const normalizarBuscaCliente=v=>String(v??'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim().replace(/\s+/g,' ');
+export const normalizarDocumento=v=>String(v??'').toUpperCase().replace(/[\s./-]/g,'');
 export function clienteCorresponde(c,busca){
  const q=normalizarBuscaCliente(busca);
  if(!q)return true;
  const documento=/^[\d\s./-]+$/.test(q)?q.replace(/\D/g,''):'';
- if(documento)return String(c.documento||'').replace(/\D/g,'').includes(documento);
+ if(documento)return normalizarDocumento(c.documento).includes(documento);
+ const alfa=normalizarDocumento(q);
+ if(/^[A-Z0-9]{3,14}$/.test(alfa)&&normalizarDocumento(c.documento).includes(alfa))return true;
  const nome=normalizarBuscaCliente(`${c.nome||''} ${c.razaoSocial||''}`);
  return q.split(' ').every(p=>nome.includes(p));
 }

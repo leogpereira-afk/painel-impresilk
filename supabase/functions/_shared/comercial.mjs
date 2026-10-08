@@ -1,3 +1,4 @@
+import {contextoDaAcao} from './relacionamento-comercial.mjs';
 // Regra única: usada no servidor, na prévia e nos testes. Sem efeitos colaterais.
 export const normal = v => String(v ?? '').trim().normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/\s+/g,' ');
 export const gestorComercial = s => s?.master === true || (s?.perms || []).includes('*');
@@ -106,6 +107,7 @@ export function apurarComercial(base,filtro,hoje) {
  const propostas=propostasDisponiveis.filter(o=>noPeriodo(o.dataCadastro||o.dataEnvio));
  // A rotina permanece aberta até a conclusão, mesmo após a virada do mês.
  const abertasOperacionais=propostasDisponiveis.filter(o=>o.situacao==='aberto'&&(!dataISO(dia(o.dataCadastro||o.dataEnvio))||dia(o.dataCadastro||o.dataEnvio)<=hoje));
+ const semProximaAcao=abertasOperacionais.filter(o=>!o.proximaAcao&&!dataISO(o.acompanhamento?.proximoToque));
  const valorAbertoOperacional=abertasOperacionais.some(o=>dinheiro(o.valor)===null)?null:abertasOperacionais.reduce((s,o)=>s+dinheiro(o.valor),0);
  const coberturaOrc=base.coberturaOrcamentos||{};
  const orcamentosCompletos=coberturaContem(coberturaOrc,periodo);
@@ -154,21 +156,21 @@ export function apurarComercial(base,filtro,hoje) {
   const ultima=tarefas[0], venc=o.validadeData || (o.validade>0 && dataISO(dia(o.dataCadastro||o.dataEnvio))?somarDias(dia(o.dataCadastro||o.dataEnvio),o.validade):null);
   const parada=[ultima?.atualizadoEm,o.acompanhamento?.ultimoContato,o.dataAtualizacao,o.dataCadastro||o.dataEnvio].map(dia).filter(dataISO).sort().at(-1);let tipo='';
   if(ultima?.pendencias)tipo='Negociação com pendência';else if(venc && venc<=somarDias(hoje,validade))tipo=venc<hoje?'Validade vencida':'Próxima do vencimento';else if(parada && parada<=somarDias(hoje,-limite))tipo='Proposta sem resposta';
-  if(tipo&&!prioridades.some(a=>String(a.orcamentoId)===String(o.id)))prioridades.push({id:'orc-'+o.id,orcamentoId:o.id,clienteId:o.clienteId,cliente:o.cliente,vendedorNome:o.vendedorNome,valor:o.valor,descricao:ultima?.pendencias||'Conferir interesse e combinar o próximo passo',tipo,data:ultima?.data||'',ultimaInteracao:ultima?.atualizadoEm||null});
+  if(!tipo&&semProximaAcao.some(x=>x.id===o.id))tipo='Sem próxima ação';
+  const futura=o.proximaAcao?.data>hoje||o.acompanhamento?.proximoToque>hoje;
+  if(tipo&&!futura&&!prioridades.some(a=>String(a.orcamentoId)===String(o.id)))prioridades.push({id:'orc-'+o.id,orcamentoId:o.id,clienteId:o.clienteId,cliente:o.cliente,vendedorNome:o.vendedorNome,valor:o.valor,descricao:ultima?.pendencias||'Conferir interesse e combinar o próximo passo',tipo,data:'',ultimaInteracao:ultima?.atualizadoEm||null});
  }
- return {periodo,hoje,criterio:'O.S. normal, valor líquido, data de cadastro',completo,incompletas:incompletas.length,vendas,valor,pedidos:vendas.length,ticket:vendas.length?Math.round(valor/vendas.length):null,propostas,propostasDisponiveis,abertasOperacionais,valorAbertoOperacional,abertas,orcamentosCompletos,valorAberto:!orcamentosCompletos||abertas.some(o=>dinheiro(o.valor)===null)?null:abertas.reduce((s,o)=>s+dinheiro(o.valor),0),acoes,hojeA,atrasadas,prioridades,clientes:[...porCliente.values()],categorias:[...categorias.values()].sort((a,b)=>b.centavos-a.centavos),produtos:[...produtos.values()].sort((a,b)=>b.centavos-a.centavos),meses:[...meses.values()].sort((a,b)=>a.mes.localeCompare(b.mes)),acumulado,comparativo,meta:progressoMeta(base.meta,valor,periodo,hoje,base.config?.calendario)};
+ return {periodo,hoje,criterio:'O.S. normal, valor líquido, data de cadastro',completo,incompletas:incompletas.length,vendas,valor,pedidos:vendas.length,ticket:vendas.length?Math.round(valor/vendas.length):null,propostas,propostasDisponiveis,abertasOperacionais,semProximaAcao,valorAbertoOperacional,abertas,orcamentosCompletos,valorAberto:!orcamentosCompletos||abertas.some(o=>dinheiro(o.valor)===null)?null:abertas.reduce((s,o)=>s+dinheiro(o.valor),0),acoes,hojeA,atrasadas,prioridades,clientes:[...porCliente.values()],categorias:[...categorias.values()].sort((a,b)=>b.centavos-a.centavos),produtos:[...produtos.values()].sort((a,b)=>b.centavos-a.centavos),meses:[...meses.values()].sort((a,b)=>a.mes.localeCompare(b.mes)),acumulado,comparativo,meta:progressoMeta(base.meta,valor,periodo,hoje,base.config?.calendario)};
 }
 export function validarAcao(b,escopo,base,autor,agora) {
  if(!b || !/^[\w-]{1,80}$/.test(b.id||''))throw Object.assign(new Error('Identificador inválido.'),{status:400});
  const vendedorId=String(b.vendedorId||escopo.vendedorId||'');
  if(!escopo.gestor&&!escopo.ids.includes(vendedorId))throw Object.assign(new Error('Responsável fora do seu acesso.'),{status:403});
  if(!(base.vendedores||[]).some(v=>String(v.id)===vendedorId))throw Object.assign(new Error('Escolha uma vendedora do Mubisys.'),{status:400});
- const orcamentoId=String(b.orcamentoId||''),clienteId=String(b.clienteId||'');
- const o=orcamentoId?(base.orcamentos||[]).find(o=>String(o.id)===orcamentoId):null;
- const c=(base.clientes||[]).find(c=>String(c.id)===clienteId);
- if(!c || (orcamentoId&&(!o||String(o.clienteId)!==clienteId)))throw Object.assign(new Error('Cliente ou orçamento fora do seu acesso.'),{status:403});
+ const orcamentoId=String(b.orcamentoId||'');
+ const {c,o,...contexto}=contextoDaAcao(b,base);
  if(!dataISO(b.data)||typeof b.descricao!=='string'||!b.descricao.trim()||b.descricao.length>500)throw Object.assign(new Error('Informe a próxima ação e uma data válida.'),{status:400});
  if(!['pendente','concluida'].includes(b.status||'pendente'))throw Object.assign(new Error('Situação inválida.'),{status:400});
  if(b.decisao && !dataISO(b.decisao))throw Object.assign(new Error('Previsão de decisão inválida.'),{status:400});
- return {id:b.id,vendedorId,orcamentoId,clienteId,cliente:c.nome,valor:o?.valor??null,descricao:b.descricao.trim(),data:b.data,status:b.status||'pendente',nota:String(b.nota||'').slice(0,3000),pendencias:String(b.pendencias||'').slice(0,1000),decisao:b.decisao||null,atualizadoPor:autor,atualizadoEm:agora};
+ return {...contexto,id:b.id,vendedorId,orcamentoId,cliente:c.nome,valor:o?.valor??null,descricao:b.descricao.trim(),data:b.data,status:b.status||'pendente',nota:String(b.nota||'').slice(0,3000),pendencias:String(b.pendencias||'').slice(0,1000),decisao:b.decisao||null,atualizadoPor:autor,atualizadoEm:agora};
 }

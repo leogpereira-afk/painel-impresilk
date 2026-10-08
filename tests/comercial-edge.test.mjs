@@ -125,3 +125,45 @@ test('consulta paginada é independente do período e não repete registros; ent
  for(const args of [{busca:''},{busca:'..'},{busca:'12'},{busca:{}},{busca:'x'.repeat(161)},{busca:'cadastro',pagina:-1},{busca:'cadastro',pagina:1.5},{busca:'cadastro',pagina:99}])assert.equal((await t.call({action:'consultarClientes',...args})).status,400);
  assert.equal((await t.call({action:'consultarClientes',busca:'Inexistente'})).total,0);
 });
+
+test('contexto de relacionamento expõe só cadastro básico e ações próprias de outro cliente',async()=>{
+ const t=setup();Object.assign(t.cache.find(c=>c.chave==='crm_clientes').valor.clientes.c2,{telefone:'privado',email:'privado@example.com',documento:'11222333000181'});
+ const r=await t.call({action:'contextoRelacionamento',clienteId:'c2'});
+ assert.equal(r.status,200);assert.equal(r.cliente.nome,'Loja B');assert.equal(r.autorizado,false);
+ assert.deepEqual(r.orcamentos,[]);assert.deepEqual(r.vendas,[]);assert.deepEqual(r.acoes,[]);
+ assert.equal(JSON.stringify(r).includes('privado'),false);assert.equal(JSON.stringify(r).includes('Segredo da Bia'),false);
+ const a={id:'conquistar',tipoAcao:'prospeccao',clienteId:'c2',objetivo:'Apresentar soluções',descricao:'Agendar visita',data:hoje};
+ let s=await t.call({action:'salvarAcao',acao:a});assert.equal(s.status,200);assert.equal(s.acao.vendedorId,'1');assert.equal(s.acao.responsavelCarteira,'Bia Costa');
+ assert.equal((await t.call({action:'contextoRelacionamento',clienteId:'c2'})).acoes.length,1);
+ assert.equal((await t.call()).base.clientes.some(c=>c.id==='c2'),false);
+ for(const acao of [{...a,id:'outra',orcamentoId:'p2'},{...a,id:'outra',ordemId:'2'},{...a,id:'b'}])assert.equal((await t.call({action:'salvarAcao',acao})).status,403);
+ assert.equal(t.writes,1);
+});
+test('pós-venda consulta e vincula O.S. antiga sem liberar pedidos alheios do mesmo cliente',async()=>{
+ const t=setup();t.ordens.push({id:'antiga',numero:'50',cliente:'Loja A',data:'2023-04-01',valor:100,vendedor:'Ana Silva',comercial:{tipo:'Normal',clienteId:'c1'}},{id:'alheia',numero:'51',cliente:'Loja A',data:'2023-04-02',valor:999,vendedor:'Bia Costa',comercial:{tipo:'Normal',clienteId:'c1'}});
+ const r=await t.call({action:'contextoRelacionamento',clienteId:'c1'});assert.equal(r.status,200);assert.ok(r.vendas.some(o=>o.id==='antiga'));assert.equal(r.vendas.some(o=>o.id==='alheia'),false);assert.equal(r.vendas[0].valor,undefined);
+ const a={id:'pos',clienteId:'c1',tipoAcao:'pos_venda',ordemId:'antiga',objetivo:'Conferir instalação',descricao:'Consultar satisfação',data:hoje,briefing:{medidas:'3 x 2 m'}};
+ let s=await t.call({action:'salvarAcao',acao:a});assert.equal(s.status,200);assert.equal(s.acao.ordemNumero,'50');
+ assert.equal((await t.call({action:'salvarAcao',acao:{...a,status:'concluida'},versao:1})).status,400);
+ s=await t.call({action:'salvarAcao',acao:{id:a.id,clienteId:'c1',descricao:'Registrar retorno',status:'concluida',resultado:'Cliente satisfeito'},versao:1});
+ assert.equal(s.status,200);assert.equal(s.acao.ordemId,'antiga');assert.equal(s.acao.briefing.medidas,'3 x 2 m');assert.equal(s.acao.status,'concluida');assert.equal(s.acao.versao,2);
+ assert.equal((await t.call({action:'salvarAcao',acao:{...a,resultado:'Outro retorno'},versao:1})).status,409);
+ assert.equal((await t.call({action:'salvarAcao',acao:{...a,id:'novo',ordemId:'alheia'}})).status,403);
+});
+test('prospecto local salva e reaparece sem alterar cadastro ERP; CNPJ inválido e duplicado são rejeitados',async()=>{
+ const t=setup(),a={id:'prospecto-acao',tipoAcao:'prospeccao',prospecto:{id:'novo',nome:'Empresa em prospecção',documento:'04.252.011/0001-10'},objetivo:'Conquistar conta',descricao:'Entender a demanda',data:hoje};
+ const r=await t.call({action:'salvarAcao',acao:a});assert.equal(r.status,200);assert.equal(r.acao.clienteId,'prospecto:novo');assert.equal((await t.call()).base.acoes[0].prospecto.documento,'04252011000110');
+ assert.equal(Object.keys(t.cache.find(c=>c.chave==='crm_clientes').valor.clientes).length,2);
+ assert.equal((await t.call({action:'salvarAcao',acao:{...a,id:'erro',prospecto:{...a.prospecto,documento:'123'}}})).status,400);
+ const c=t.cache.find(c=>c.chave==='crm_clientes');c.valor.clientes.c1.documento='04252011000110';
+ assert.equal((await t.call({action:'salvarAcao',acao:{...a,id:'duplicado'}})).status,409);
+ c.valor.completo=false;assert.equal((await t.call({action:'contextoRelacionamento',clienteId:'c2'})).status,503);
+ assert.equal((await t.call({action:'salvarAcao',acao:{...a,id:'incompleto'}})).status,503);
+});
+
+test('prospecto pode ser vinculado ao cadastro ERP mantendo a identidade e versão da ação',async()=>{
+ const t=setup(),a={id:'prospecto-vinculo',tipoAcao:'prospeccao',prospecto:{id:'local',nome:'Empresa nova',documento:''},objetivo:'Conquistar conta',descricao:'Apresentar proposta',data:hoje};
+ const r=await t.call({action:'salvarAcao',acao:a});assert.equal(r.status,200);
+ const s=await t.call({action:'salvarAcao',acao:{...r.acao,prospecto:null,clienteId:'c1'},versao:1});
+ assert.equal(s.status,200);assert.equal(s.acao.id,a.id);assert.equal(s.acao.versao,2);assert.equal(s.acao.clienteId,'c1');assert.equal(s.acao.prospecto,null);assert.equal(t.acoes.filter(x=>x.id===a.id).length,1);
+});

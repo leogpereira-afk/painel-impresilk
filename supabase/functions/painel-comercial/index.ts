@@ -1,6 +1,7 @@
 import {createClient} from 'https://esm.sh/@supabase/supabase-js@2.45.0';
 import {verificarJwt,crachaRevogado} from '../_shared/cripto.ts';
 import {consultarClientes} from '../_shared/consulta-clientes.mjs';
+import {clienteBasico} from '../_shared/relacionamento-comercial.mjs';
 import {contextoComercial} from '../_shared/comercial-contexto.ts';
 import {mesclarOrdensComerciais,janelasHistoricas} from '../_shared/carteira-historica.mjs';
 import {financeiroDasOS} from '../_shared/financeiro-os.ts';
@@ -19,7 +20,7 @@ Deno.serve(async(req:Request)=>{
  if(!sessao.master && !(sessao.perms||[]).includes('*') && !(sessao.perms||[]).includes('orcamentos'))return json({erro:'Seu acesso não inclui o Comercial.'},403);
  try{
   const b=await req.json();if(!b||typeof b!=='object')return json({erro:'Solicitação inválida.'},400);const filtro=b.filtro||{},hoje=hojeLocal(),periodo=validarPeriodo(filtro,hoje);
-  const ctx=await contextoComercial(sb,sessao,filtro,{hoje,historico:!['salvarMeta','configurar','consultarClientes'].includes(b.action)});const {escopo,catalogo,config,orcamentos,clientes,fontes,coberturaHistorica}=ctx;
+  const ctx=await contextoComercial(sb,sessao,filtro,{hoje,clienteId:b.clienteId||b.acao?.clienteId,historico:!['salvarMeta','configurar','consultarClientes'].includes(b.action)});const {escopo,catalogo,config,orcamentos,clientes,fontes,coberturaHistorica}=ctx;
   if(!catalogo.completo)return json({erro:'O catálogo de vendedores e produtos ainda não foi sincronizado. A direção pode conferir a integração.'},503);
   if(b.action==='consultarClientes')return json(consultarClientes(fontes.crm_clientes,{busca:b.busca,pagina:b.pagina}));
   if(b.action==='salvarMeta'){
@@ -41,10 +42,17 @@ Deno.serve(async(req:Request)=>{
    const {error}=await sb.rpc('painel_registro_gravar',{p_colecao:'comercial_config',p_id:'regras',p_registro:registro,p_anterior:b.anterior||null});if(error)return json({erro:'As regras mudaram. Atualize e confira antes de salvar.'},409);return json({ok:true,config:registro});
   }
   const carregarAcoes=()=>todas(()=>{let q=sb.from('painel_registros').select('id,registro').eq('colecao','comercial_acoes').order('id');if(escopo.ids!==null)q=q.in('registro->>vendedorId',escopo.ids);return q;});
+  if(b.action==='contextoRelacionamento'){
+   if(!fontes.crm_clientes?.valor?.completo)return json({erro:'O cadastro de clientes ainda não foi sincronizado por completo.'},503);
+   const c=Object.values(fontes.crm_clientes.valor.clientes||{}).find((c:any)=>String(c.id)===String(b.clienteId))||clientes.find((c:any)=>String(c.id)===String(b.clienteId));
+   if(!c)return json({erro:'Cliente não localizado. Consulte novamente.'},404);
+   const vendas=(ctx.vendasCliente||[]).sort((a:any,b:any)=>String(b.data).localeCompare(String(a.data)));
+   return json({cliente:clienteBasico(c),autorizado:clientes.some((x:any)=>String(x.id)===String(b.clienteId)),orcamentos:orcamentos.filter((o:any)=>String(o.clienteId)===String(b.clienteId)).map((o:any)=>({id:o.id,numero:o.numero,trabalho:o.trabalho,situacao:o.situacao,clienteId:o.clienteId})),vendas:vendas.map((o:any)=>({id:o.id,numero:o.numero,data:o.data,clienteId:o.clienteId,trabalho:(o.itens||[]).map((i:any)=>i.produto).filter(Boolean).slice(0,3).join(' · ')})),acoes:(await carregarAcoes()).map((a:any)=>a.registro).filter((a:any)=>String(a.clienteId)===String(b.clienteId)),coberturaHistorica});
+  }
   if(b.action==='salvarAcao'){
-   const a=validarAcao(b.acao,escopo,{vendedores:catalogo.vendedores,orcamentos,clientes},String(sessao.nome||sessao.sub),new Date().toISOString());
-   const {data:anterior,error:er}=await sb.from('painel_registros').select('registro').eq('colecao','comercial_acoes').eq('id',a.id).maybeSingle();
+   const {data:anterior,error:er}=await sb.from('painel_registros').select('registro').eq('colecao','comercial_acoes').eq('id',String(b.acao?.id||'')).maybeSingle();
    if(er)throw er;if(anterior && !escopo.gestor&&!escopo.ids.includes(anterior.registro.vendedorId))return json({erro:'Esta ação pertence a outra vendedora.'},403);
+   const a=validarAcao({...anterior?.registro,...b.acao},escopo,{vendedores:catalogo.vendedores,orcamentos,clientes,vendasCliente:ctx.vendasCliente||[],clientesConsulta:Object.values(fontes.crm_clientes?.valor?.clientes||{}).map(clienteBasico),cadastroCompleto:fontes.crm_clientes?.valor?.completo===true},String(sessao.nome||sessao.sub),new Date().toISOString());
    const {data,error}=await sb.rpc('painel_comercial_salvar_acao',{p_id:a.id,p_vendedor:a.vendedorId,p_registro:a,p_versao:b.versao??null,p_autor:String(sessao.sub),p_autorizados:escopo.gestor?null:escopo.ids});
    if(error)return json({erro:'A atividade mudou em outro acesso. Atualize antes de salvar.'},409);return json({acao:data});
   }

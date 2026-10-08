@@ -52,10 +52,10 @@ const GUIAS = [
 
 const normalizar = texto => texto.normalize('NFD').replace(/\p{Diacritic}/gu, '').toLocaleLowerCase('pt-BR').trim();
 
-export default function ComercialDicas({compacto = false, onAbrir}) {
+export default function ComercialDicas({compacto = false, onAbrir, enxuto = false, buscaInicial = '', onAcao}) {
   const buscaId = useId();
   const [busca, setBusca] = useState('');
-  const [categoria, setCategoria] = useState('todas');
+  const [categoria, setCategoria] = useState(()=>GUIAS.find(g=>g.termos.split(' ').some(t=>normalizar(buscaInicial||'').includes(t)))?.id||'todas');
   const guias = useMemo(() => {
     const palavras = normalizar(busca).split(/\s+/).filter(Boolean);
     return GUIAS.filter(guia => {
@@ -70,7 +70,7 @@ export default function ComercialDicas({compacto = false, onAbrir}) {
     {onAbrir && <button type="button" onClick={onAbrir}>Dicas de produtos <ArrowRight size={16} aria-hidden="true"/></button>}
   </aside>;
 
-  return <section className="com-dicas" aria-label="Guia de atendimento por produto">
+  return <section className={`com-dicas ${enxuto?'com-dicas-enxuto':''}`} aria-label="Guia de atendimento por produto">
     <div className="com-dicas-intro"><span className="com-dicas-lampada" aria-hidden="true"><Lightbulb size={22}/></span><div><strong>Mais segurança na próxima conversa.</strong><p>Escolha uma solução e veja o que perguntar antes de orçar.</p></div></div>
     <label className="com-dicas-busca" htmlFor={buscaId}><span className="com-dicas-label">Buscar dica</span><span><Search size={17} aria-hidden="true"/><input id={buscaId} type="search" placeholder="Ex.: fachada, medida, arte…" value={busca} onChange={e => setBusca(e.target.value)}/>{busca && <button type="button" aria-label="Limpar busca de dicas" onClick={() => setBusca('')}><X size={16} aria-hidden="true"/></button>}</span></label>
     <div className="com-dicas-categorias" role="group" aria-label="Filtrar dicas por solução">
@@ -79,11 +79,12 @@ export default function ComercialDicas({compacto = false, onAbrir}) {
     <p className="com-dicas-contagem" aria-live="polite">{guias.length === 1 ? '1 guia para consultar' : `${guias.length} guias para consultar`}</p>
     <div className="com-dicas-lista">{guias.map(({id, nome, icone: Icone, resumo, aplicacao, perguntas, cuidado, frase}) => <article className="com-dicas-guia" key={id} aria-labelledby={`${buscaId}-${id}`}>
       <header><span className="com-dicas-icone" aria-hidden="true"><Icone size={21}/></span><div><h3 id={`${buscaId}-${id}`}>{nome}</h3><p>{resumo}</p></div></header>
-      <p className="com-dicas-aplicacao"><b>Onde usar</b>{aplicacao}</p>
+      <details className="com-solution-content" open={!enxuto||undefined}><summary>Ver roteiro e cuidados</summary><p className="com-dicas-aplicacao"><b>Onde usar</b>{aplicacao}</p>
       <h4><MessageCircle size={15} aria-hidden="true"/>Pergunte ao cliente</h4>
       <ul>{perguntas.map(pergunta => <li key={pergunta}><CheckCircle2 size={14} aria-hidden="true"/><span>{pergunta}</span></li>)}</ul>
       <div className="com-dicas-cuidado"><b>Antes de confirmar</b><p>{cuidado}</p></div>
       <details><summary>Uma forma de começar a conversa</summary><blockquote>{frase}</blockquote></details>
+      {onAcao&&<button type="button" className="btn-outline" onClick={()=>onAcao(nome)}>Planejar abordagem com esta solução</button>}</details>
     </article>)}</div>
     {!guias.length && <div className="com-dicas-vazio"><Search size={22} aria-hidden="true"/><strong>Nenhuma dica com esse filtro.</strong><p>Tente o nome da solução ou uma palavra como “arte” ou “medidas”.</p><button type="button" onClick={() => {setBusca(''); setCategoria('todas');}}>Mostrar todas as dicas</button></div>}
     <p className="com-dicas-rodape">Guia de apoio ao atendimento. Especificações, disponibilidade, preço e prazo devem ser conferidos no cadastro do produto, na ficha do material e com a equipe responsável.</p>

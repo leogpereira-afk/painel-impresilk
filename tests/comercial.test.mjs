@@ -37,7 +37,8 @@ test('pedidos com cadastro futuro não entram na carteira nem divergem do total 
 test('contato recente impede alerta indevido de proposta sem resposta',()=>{
  const o={id:'p',clienteId:'c',valor:10,situacao:'aberto',dataCadastro:'2026-10-01',acompanhamento:{ultimoContato:'2026-10-06T12:00:00Z'}};
  const r=apurarComercial(base({config:{diasSemResposta:3},orcamentos:[o]}),periodo,hoje);
- assert.equal(r.prioridades.length,0);
+ assert.equal(r.prioridades.some(a=>a.tipo==='Proposta sem resposta'),false);
+ assert.deepEqual(r.prioridades.map(a=>a.tipo),['Sem próxima ação']);
 });
 
 test('metas manuais têm vínculo oficial, centavos e autoria; não aceitam valor ausente',async()=>{

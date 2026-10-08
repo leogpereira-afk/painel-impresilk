@@ -6,8 +6,7 @@ async function ler(modulo,params={},signal){
 }
 export async function getCrm(signal){
  if(import.meta.env.MODE==='review'){
-  const {getOrcamentos}=await import('./demo/dados.js');const cliente=getOrcamentos().find(o=>o.situacao==='aberto');
-  return {atualizadoEm:new Date().toISOString(),escopo:'ATIVO',grupos:[{id:'1',nome:'Comercial · demonstração',fases:[{id:'1',nome:'Primeiro contato'},{id:'2',nome:'Negociação'},{id:'3',nome:'Visita técnica'}]}],cards:[{id:'1',clienteId:cliente.clienteId,cliente:cliente.cliente,titulo:'Fachada e comunicação visual',grupoId:'1',faseId:'2',fase:'Negociação',responsavel:'Equipe · demonstração',valor:12500,origem:'Indicação',status:'EM_ABERTO'}]};
+  const {funilComercialDemo}=await import('../review/comercial.mjs');return funilComercialDemo();
  }
  return ler('crm',{},signal);
 }
