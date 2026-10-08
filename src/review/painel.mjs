@@ -1,9 +1,9 @@
+import {respostaAgenda,pessoasAgenda} from './compromissos.mjs';
 import {respostaComercial} from './comercial.mjs';
 import {respostaReunioes} from './reunioes.mjs';
 // Respostas fictícias, carregadas apenas na compilação review. Estrutura pode
 // ser criada/editada SOMENTE nesta memória; recarregar restaura os exemplos.
 const configs = {
- compromissos:{ex1:{titulo:'Conferir prioridades da semana',tipo:'visita',data:'2026-09-08',hora:'09:00',dono:'demo',donoNome:'Conta de demonstração',feito:false},ex2:{titulo:'Revisar proposta com o cliente exemplo',tipo:'outro',data:'2026-09-03',dono:'demo',donoNome:'Conta de demonstração',feito:false}},
  /* Contas FICTÍCIAS (CNPJ e chaves de teste, de ninguém): a tela só mostra titular Impresilk ou Universo.
     A ex4 tem o tipo da chave errado de propósito, para a prévia mostrar o aviso. */
  bancos:{ex1:{grupo:'Impresilk',banco:'BTG 208',titular:'Impresilk',doc:'11.222.333/0001-81',agencia:'0050',conta:'000000-1',pix:'123e4567-e12b-12d1-a456-426655440000',pixTipo:'Aleatoria',ordem:0},ex2:{grupo:'Impresilk',banco:'Sicoob Credinor',titular:'Impresilk',doc:'11.222.333/0001-81',agencia:'0000',conta:'00.000-0',pix:'11.222.333/0001-81',pixTipo:'CNPJ',codigoBanco:'756',ordem:1},ex3:{grupo:'Impresilk',banco:'BB',titular:'Impresilk',doc:'11.222.333/0001-81',agencia:'0000-0',conta:'00000-0',pix:'',pixTipo:'Conta e agencia',ordem:2},ex4:{grupo:'Universo',banco:'Sicoob Credinosso',titular:'Universo',doc:'11.444.777/0001-61',agencia:'0000',conta:'00.000-0',pix:'123e4567-e12b-12d1-a456-426655440001',pixTipo:'CNPJ',ordem:3}},
@@ -58,6 +58,7 @@ export async function respostaPreview(url,opcoes={}){
  if(endpoint==='painel-comercial')return respostaComercial(corpo);
  if(endpoint==='painel-reunioes')return respostaReunioes(corpo);
  let dados;
+ if(endpoint==='painel-config' && corpo.chave==='compromissos'){const agenda=respostaAgenda(corpo);return new Response(JSON.stringify({ok:!agenda.erro,...agenda}),{status:agenda.erro?409:200,headers:{'Content-Type':'application/json'}});}
  if(endpoint==='painel-config' && corpo.action==='lixeiraRegistros') dados={itens:[]};
  else if(endpoint==='painel-fotos' && corpo.action==='resumo') dados={porBem:{}};
  else if(endpoint==='painel-fotos' && corpo.action==='listar') dados={fotos:[]};
@@ -77,7 +78,7 @@ export async function respostaPreview(url,opcoes={}){
   {id:'lic-demo',tipo:'licitacao',nome:'Sinalização de demonstração',identificacao:'Órgão de exemplo',edital:'Exemplo 01/2026',validade:'2026-09-15',hora:'10:00',status:'avaliar',valor:15000},
   {id:'mkt-demo',tipo:'marketing',nome:'Manual da marca (exemplo)',categoria:'Manual',observacao:'Exemplo para conferir a organização dos materiais',temArquivo:false}
  ]};
- else if(endpoint==='painel-auth' && corpo.action==='listarPessoas')dados={pessoas:[{usuario:'demo',nome:'Conta de demonstração'},{usuario:'ana-exemplo',nome:'Ana Exemplo'}]};
+ else if(endpoint==='painel-auth' && corpo.action==='listarPessoas')dados={pessoas:pessoasAgenda};
  else if(endpoint==='painel-dados' && (!opcoes.method || opcoes.method==='GET')) dados={itens:[],meses:[],anos:[],linhas:[],cobertura:{desde:null,ate:null}};
  /* A AGENDA SÓ LÊ, então na prévia ela precisa RESPONDER, não cair no 409 de
     escrita lá embaixo — uma tela de consulta abrindo com "esta ação não grava
