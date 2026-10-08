@@ -1,5 +1,5 @@
 import {test} from 'node:test';import assert from 'node:assert/strict';
-import {prepararProcesso,agendaProcessos,podeLer,projetarConvidado,atualizarEtapa,validarConvite} from '../../../supabase/functions/_shared/processos.mjs';
+import {prepararProcesso,agendaProcessos,podeLer,projetarConvidado,atualizarEtapa,validarConvite,registrarProcesso} from '../../../supabase/functions/_shared/processos.mjs';
 const s={sub:'ana',nome:'Ana',rhId:'rh1'},rh=[{id:'rh1',nome:'Ana RH',area:'Financeiro',cargo:'Analista'},{id:'rh2',nome:'Bia RH',area:'Produção',cargo:'Gestora'}];
 const base=()=>({id:'d1',tipo:'consultoria',titulo:'Organização financeira',setor:'financeiro',situacao:'analise',prioridade:'alta',objetivo:'Reduzir atrasos',analise:'Análise interna',solucao:'Padronizar',prazo:'2026-10-30',responsavelRhId:'rh1',envolvidos:[{rhId:'rh1',nome:'Forjado'},{rhId:'rh2'}],empresa:'Consultoria Exemplo',especialidade:'Finanças',etapas:[{id:'e1',titulo:'Diagnóstico',responsavelRhId:'rh1',prazo:'2026-10-20',situacao:'pendente',dependeDe:[],descricao:''}]});
 const novo=()=>prepararProcesso(base(),null,s,rh);
@@ -10,3 +10,13 @@ test('portal não revela RH, análise, convites ou arquivos não compartilhados'
 test('externo propõe conclusão sem aprovar e não altera responsável ou prazo',()=>{const r=novo();const x=atualizarEtapa(r,{etapaId:'e1',situacao:'validacao',nota:'Pronto',prazo:'2099-01-01'}, {sub:'convite:c1',nome:'Consultor',externo:true});assert.equal(x.etapas[0].situacao,'validacao');assert.equal(x.etapas[0].prazo,'2026-10-20');assert.throws(()=>atualizarEtapa(r,{etapaId:'e1',situacao:'concluida'}, {externo:true}));assert.throws(()=>atualizarEtapa(r,{etapaId:'e1',situacao:'execucao'}, {sub:'bia',rhId:'rh2'}));});
 test('convites vencidos e revogados são recusados',()=>{const c={id:'c1',expiraEm:'2026-10-20T12:00:00Z'};assert.equal(validarConvite(c,'2026-10-10T12:00:00Z'),true);assert.equal(validarConvite({...c,revogadoEm:'2026-10-09'},'2026-10-10T12:00:00Z'),false);assert.equal(validarConvite(c,'2026-10-20T12:00:00Z'),false);});
 test('histórico de RH inativo permanece; versão antiga não sobrescreve',()=>{const r={...novo(),versao:'v1'};const b={...base(),versaoAnterior:'v1'};assert.equal(prepararProcesso(b,r,s,[]).envolvidos[0].nome,'Ana RH');assert.throws(()=>prepararProcesso({...b,versaoAnterior:'velha'},r,s,rh),e=>e.status===409);});
+
+test('ações mantêm legado, validam campos e preservam autoria do convite',()=>{
+ const r=novo(),ator={sub:'convite:c1',nome:'Consultor',externo:true};
+ const antigo=registrarProcesso(r,{texto:'Registro antigo'},s);assert.equal(antigo.registros[0].tipo,'atualizacao');
+ const entrada={tipo:'acao',titulo:'Mapear fluxo',dataAcao:'2026-10-08',texto:'Visitamos os setores',resultado:'Mapa entregue',proximoPasso:'Validar com a direção',etapaId:'e1',por:'admin',nome:'Diretor',compartilhado:false};
+ const x=registrarProcesso(r,entrada,ator).registros[0];assert.equal(x.nome,'Consultor');assert.equal(x.por,'convite:c1');assert.equal(x.compartilhado,true);assert.equal(x.resultado,'Mapa entregue');assert.equal(x.etapaId,'e1');
+ for(const alteracao of [{titulo:''},{dataAcao:''},{dataAcao:'2026-02-30'},{etapaId:'outra-consultoria'},{tipo:'aprovacao'},{resultado:'x'.repeat(5001)}])assert.throws(()=>registrarProcesso(r,{...entrada,...alteracao},ator));
+ assert.equal(r.registros.length,0);
+ const externo=projetarConvidado({...r,registros:[x,antigo.registros[0]]},{id:'c1',nome:'Consultor'});assert.equal(externo.registros.length,1);assert.equal(externo.registros[0].proximoPasso,'Validar com a direção');assert.ok(!JSON.stringify(externo).includes('convite:c1'));
+});
