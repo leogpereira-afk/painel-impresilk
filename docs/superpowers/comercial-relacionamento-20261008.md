@@ -1,6 +1,19 @@
 # Comercial: prospecção, pós-venda e rotina por cliente
 
-Preparado em 08/10/2026. Implementação local pronta para revisão. **Não publicada**; nenhuma ação de cliente foi gravada em produção nesta entrega.
+Publicado em 08/10/2026, após autorização expressa do usuário. **Interface e função de dados verificadas em produção**; nenhuma ação fictícia de cliente foi gravada durante a conferência.
+
+## Publicação confirmada
+
+- Código da entrega: `d6f441df4166735a19eaf49eb38d7ec35e1224ac`.
+- [Publicação da interface](https://github.com/leogpereira-afk/painel-impresilk/actions/runs/37790259011): build e implantação concluídos com sucesso.
+- [Publicação das funções](https://github.com/leogpereira-afk/painel-impresilk/actions/runs/37790258951): concluída com sucesso. A função comercial foi publicada previamente à interface e está ativa na versão 8 após o fluxo automático.
+- Os nove arquivos da função publicada correspondem integralmente aos arquivos locais testados. A consulta sem sessão retorna HTTP 401.
+- HTML, JavaScript principal, JavaScript e CSS do Comercial servidos pelo site correspondem byte a byte à compilação local.
+- Na sessão da direção, foram conferidos a nova aba, busca por nome, busca por CNPJ com pontuação, consulta do histórico e preenchimento automático de cliente, responsável e O.S. pelo atalho de pós-venda. O histórico exibiu também vendas anteriores ao mês selecionado.
+- Nenhum erro de execução foi registrado no navegador durante essa conferência. A nova aba ficou aberta para o usuário.
+- As suítes foram executadas novamente antes da publicação: 816 testes aprovados, 11 ignorados e nenhuma falha. A gravação de uma ação real e um novo login de consultora não foram executados em produção; esses fluxos seguem cobertos pela validação local descrita abaixo.
+
+[Abrir Prospecção e pós-venda no sistema](https://leogpereira-afk.github.io/painel-impresilk/comercial?aba=relacionamento).
 
 ## O que foi implementado
 
@@ -43,7 +56,7 @@ O ambiente de revisão simula as gravações e as descarta ao recarregar. A pers
 
 [Abrir prévia local](http://127.0.0.1:5197/revisao-local.html#/comercial?aba=relacionamento). Requer o servidor de prévia desta sessão em execução. Dados exibidos são fictícios.
 
-A publicação exige autorização separada, conforme as instruções do usuário. Quando autorizada:
+A autorização foi recebida e esta sequência foi concluída para a entrega acima. Para futuras publicações:
 
 1. Conferir novamente a base principal e incorporar possíveis alterações simultâneas sem sobrescrever outros trabalhos.
 2. Publicar a função `painel-comercial` com seus arquivos compartilhados antes do novo aplicativo.
