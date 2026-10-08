@@ -1,6 +1,6 @@
-# Demandas e consultorias · entrega para revisão
+# Demandas e consultorias · guia de uso
 
-Implementação local de 08/10/2026. Ainda não publicada.
+Publicado em 08/10/2026 no Calendário do Painel.
 
 ## Uso
 1. Calendário → Demandas para problemas internos; Consultorias para trabalhos com uma empresa/profissional.
@@ -35,9 +35,13 @@ Implementação local de 08/10/2026. Ainda não publicada.
 - Portal em 390 px sem transbordamento horizontal; nenhuma mensagem de erro de console observada.
 - Somente dados fictícios na prévia. Nenhuma ficha real, convite real, arquivo real ou cadastro de RH foi alterado.
 
-## Publicação pendente
-Repositórios preparados:
-- Painel: `painel-demandas-20261008`, ramo `codex/demandas-consultorias-20261008`.
-- Central: `vida-leo-demandas-20261008`, ramo `codex/demandas-permissoes-20261008`, única mudança em MODULOS_PAINEL do equipe-auth.
-
-Ordem: conferir bases remotas → publicar/validar equipe-auth com a nova permissão → painel-processos e painel-auth → interface → verificar assets e navegação pública. Não conceder permissões a pessoas nem criar convites de teste em produção automaticamente. O workflow atual de funções publica também funções do PCP: revisar o escopo ou usar publicação seletiva.
+## Publicação verificada · 08/10/2026
+- Permissão reconhecida nas três listas; nenhuma concessão automática a pessoas.
+- Servidor: equipe-auth v76, painel-auth v99 e painel-processos v1, ativos. Todos os arquivos publicados coincidem com os fontes revisados.
+- Painel: implementação 2ae71e8; publicação 6b4d397, execução GitHub Actions 37774755863 concluída com sucesso. 803 testes: 792 aprovados, 11 ignorados, nenhum erro; verificadores e build aprovados.
+- Durante a conferência, a atualização independente de Compromissos cde6a6c foi publicada. A versão final preserva o recurso; execução 37774958274 concluída com sucesso.
+- JavaScript principal, CSS, Processos, FichaProcesso, CalendarioEmpresa, portal ColaborarProcesso e serviço processos comparados byte a byte com o build local da versão final.
+- Chrome com sessão da direção: Calendário e suas cinco abas carregaram; Demandas e Consultorias consultaram o servidor; nova consultoria carregou pessoas, setores e IDs reais do RH. Formulário fechado sem salvar. A publicação simultânea substituiu os arquivos antigos e gerou erro transitório de importação em uma aba aberta; a recarga passou a usar o build final conferido.
+- Endpoint sem sessão retorna 401; GET retorna 405. Nenhuma ficha, convite, arquivo ou permissão de pessoa foi criada na produção para testar.
+- Gravação, upload, convites, revogação e reflexo dos prazos no calendário foram validados com dados fictícios e testes isolados, sem introduzir dados de teste na produção.
+- Publicação seletiva das três funções; não houve republicação automática das funções do PCP. Commit intermediário com skip ci registrou a publicação do servidor; commit seguinte executou toda a verificação do Pages antes de publicar a tela.
