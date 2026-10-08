@@ -1,7 +1,7 @@
 # Consultorias: implantação, tempo e qualidade
 
 ## Situação
-Implementação local pronta para revisão em 08/10/2026. Esta segunda atualização ainda não foi publicada. A primeira versão de Demandas e Consultorias permanece em produção.
+Publicado e verificado em 08/10/2026, após autorização explícita de Léo.
 
 ## Fluxo
 1. A equipe interna continua vinculada ao ID canônico do RH.
@@ -41,3 +41,11 @@ Implementação local pronta para revisão em 08/10/2026. Esta segunda atualiza�
 - Corrigido durante a revisão: o ID da etapa no editor sobrepunha o ID do processo no envio. O contexto da ficha agora prevalece; o mesmo fluxo foi repetido com sucesso.
 - Falha transitória do verificador de CSS ocorreu ao executá-lo simultaneamente ao build que recriava dist. Executado após o build, passou; nenhum ajuste de código foi necessário.
 - Logs antigos de atualização a quente da prévia foram observados; após recarregar, os fluxos acima foram executados sem novo erro de renderização.
+
+## Publicação confirmada
+- Implementação f195413; servidor registrado em 7311d97; frontend publicado em e0cdb08334abe8b547d30146d3b391e7c9f036aa.
+- painel-processos v3 ACTIVE; os quatro arquivos recuperados do servidor coincidem com os fontes revisados. Autenticação própria preservada. GET 405 e POST sem sessão 401.
+- GitHub Actions 37796850202 concluído com sucesso em 08/10/2026. Testes completos locais repetidos: 827 aprovados, 11 ignorados, zero falhas. Verificações do Pages aprovadas.
+- Sete arquivos públicos comparados byte a byte com o build: JavaScript/CSS principal, FichaProcesso JS/CSS, Processos, ColaborarProcesso e serviço processos. HTML principal referencia index-BUImTcu5.js.
+- Chrome, sessão real da direção: Consultorias abriu, consultou a lista sem erro e carregou index-BUImTcu5.js; console sem erros. Nenhuma ficha real ou convite foi criado. A lista estava vazia; operações de gravação continuam verificadas na prévia e nos testes isolados.
+- Somente painel-processos foi republicado no Supabase. O workflow genérico que também publica PCP não foi disparado.
