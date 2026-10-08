@@ -1,7 +1,7 @@
 import {createClient} from 'https://esm.sh/@supabase/supabase-js@2.45.0';
 import {verificarJwt,crachaRevogado} from '../_shared/cripto.ts';
 import {ErroReuniao,idValido,pessoasParaReunioes} from '../_shared/reunioes.mjs';
-import {COLECAO_PROCESSOS,avaliarEtapa,planejarEtapa,cadastrarConsultor,atualizarImplantacao,prepararProcesso,podeGerir,podeLer,agendaProcessos,carimbarProcesso,registrarProcesso,atualizarEtapa,validarConvite,projetarConvidado,projetarInterno,validarArquivoProcesso,falhar} from '../_shared/processos.mjs';
+import {COLECAO_PROCESSOS,dadosConvite,revogarAcesso,editarTrabalho,podeAdministrarConsultoria,permiteAcaoConsultoria,validarAcessoConvite,avaliarEtapa,planejarEtapa,cadastrarConsultor,atualizarImplantacao,prepararProcesso,podeGerir,podeLer,agendaProcessos,carimbarProcesso,registrarProcesso,atualizarEtapa,projetarConvidado,projetarInterno,validarArquivoProcesso,falhar} from '../_shared/processos.mjs';
 const sb=createClient(Deno.env.get('SUPABASE_URL')!,Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,{auth:{persistSession:false}});
 const SECRET=Deno.env.get('PAINEL_JWT_SECRET')||'',BUCKET='painel-arquivos';
 const cors={'Access-Control-Allow-Origin':'*','Access-Control-Allow-Headers':'authorization, apikey, content-type, x-client-info, x-convite','Access-Control-Allow-Methods':'POST, OPTIONS'};
@@ -43,9 +43,9 @@ Deno.serve(async(req:Request)=>{
   if(externo){
    if(!/^[a-zA-Z0-9_-]{1,80}\.[a-f0-9]{64}$/.test(externo))return json({erro:'Convite inválido ou encerrado.'},401);
    const [id,segredo]=externo.split('.');antes=await obter(id);const hash=await digest(segredo);convite=antes?.convites?.find((c:any)=>c.hash===hash);
-   if(!validarConvite(convite)||antes.situacao==='cancelada')return json({erro:'Convite inválido ou encerrado.'},401);
-   if(!['obter','arquivo','registro','anexar','etapa','implantacao','planejarEtapa'].includes(b.action)||b.id&&b.id!==id)return json({erro:'Este convite não permite essa ação.'},403);
-   s={sub:'convite:'+convite.id,nome:convite.nome,externo:true,consultorId:convite.consultorId||null};
+   if(!validarAcessoConvite(antes,convite)||antes.situacao==='cancelada')return json({erro:'Convite inválido ou encerrado.'},401);
+   if(!permiteAcaoConsultoria(convite,b.action)||b.id&&b.id!==id)return json({erro:'Este convite não permite essa ação.'},403);
+   s={sub:'convite:'+convite.id,nome:convite.nome,externo:true,consultorId:convite.consultorId||null,nivel:convite.nivel??'colaborador',conviteId:convite.id};
   }else{
    if(!SECRET)return json({erro:'Acesso não configurado.'},503);
    const token=(req.headers.get('authorization')||'').match(/^Bearer\s+(.+)$/i)?.[1];s=token?await verificarJwt(token,SECRET):null;
@@ -54,7 +54,7 @@ Deno.serve(async(req:Request)=>{
    s={...s,rhId:await identidadeRH(s)};
    if(b.action==='pessoas')return json({ok:true,pessoas:await pessoasRH()});
    if(['listar','agenda'].includes(b.action)){const itens=await listar(s);return json(b.action==='agenda'?{ok:true,eventos:agendaProcessos(itens,b.mes)}:{ok:true,itens:itens.map(r=>projetarInterno(r,s))});}
-   if(!['obter','salvar','registro','etapa','anexar','arquivo','compartilhar','convidar','revogar','consultor','implantacao','planejarEtapa','avaliarEtapa'].includes(b.action))return json({erro:'Ação inválida.'},400);
+   if(!['obter','salvar','registro','etapa','anexar','arquivo','compartilhar','convidar','revogar','consultor','implantacao','planejarEtapa','avaliarEtapa','trabalho'].includes(b.action))return json({erro:'Ação inválida.'},400);
    antes=await obter(b.item?.id||b.id);
    if(antes&&!podeLer(antes,s))return json({erro:'Processo não encontrado.'},404);
   }
@@ -67,7 +67,8 @@ Deno.serve(async(req:Request)=>{
    const {data,error}=await sb.storage.from(BUCKET).createSignedUrl(a.chave,300,{download:a.nome});if(error)throw error;return json({ok:true,url:data.signedUrl});
   }
   if(b.versao!==antes.versao)return json({erro:'A ficha mudou. Atualize antes de continuar.'},409);
-  if(['compartilhar','convidar','revogar','consultor'].includes(b.action)&&!podeGerir(antes,s))return json({erro:'Apenas o gestor pode administrar o compartilhamento.'},403);
+  if((b.action==='compartilhar'&&!podeGerir(antes,s))||(['convidar','revogar','consultor'].includes(b.action)&&!podeAdministrarConsultoria(antes,s)))return json({erro:'Apenas o gestor pode administrar o compartilhamento.'},403);
+  if(b.action==='trabalho'){const item=carimbarProcesso(editarTrabalho(antes,b,s),s,'Organizou o trabalho da consultoria');return json({ok:true,item:apresentar(await gravar(item,antes))});}
   if(b.action==='avaliarEtapa'){const item=carimbarProcesso(avaliarEtapa(antes,b,s),s,'Avaliou a qualidade da etapa');return json({ok:true,item:apresentar(await gravar(item,antes))});}
   if(b.action==='planejarEtapa'){const item=carimbarProcesso(planejarEtapa(antes,b,s),s,'Planejou ou atualizou datas da etapa');return json({ok:true,item:apresentar(await gravar(item,antes))});}
   if(b.action==='consultor'){const item=carimbarProcesso(cadastrarConsultor(antes,b,s),s,'Cadastrou ou atualizou consultor');return json({ok:true,item:apresentar(await gravar(item,antes))});}
@@ -75,17 +76,13 @@ Deno.serve(async(req:Request)=>{
   if(b.action==='convidar'){
    if(antes.tipo!=='consultoria'||antes.situacao==='cancelada')falhar('Convites estão disponíveis para consultorias ativas.');
    if(antes.convites.length>=100)falhar('Limite de 100 convites atingido.');
-   const rh=b.rhId?antes.envolvidos.find((p:any)=>p.rhId===b.rhId):null;if(b.rhId&&!rh)falhar('Selecione uma pessoa envolvida.');
-   const consultor=b.consultorId?(antes.consultores||[]).find((c:any)=>c.id===b.consultorId):null;if(b.consultorId&&!consultor||b.consultorId&&b.rhId)falhar('Escolha um consultor desta consultoria.');
-   const nome=rh?.nome||consultor?.nome||b.nome;if(typeof nome!=='string'||!nome.trim()||nome.length>180)falhar('Informe o nome do convidado.');
-   const dias=Number(b.dias);if(!Number.isInteger(dias)||dias<1||dias>30)falhar('Escolha de 1 a 30 dias.');
+   const acesso=dadosConvite(antes,b,s);
    const segredo=Array.from(crypto.getRandomValues(new Uint8Array(32))).map(x=>x.toString(16).padStart(2,'0')).join('');
-   const c={id:crypto.randomUUID(),nome:nome.trim(),consultorId:consultor?.id||null,rhId:rh?.rhId||null,hash:await digest(segredo),expiraEm:new Date(Date.now()+dias*86400000).toISOString(),criadoEm:new Date().toISOString(),criadoPor:s.sub};
+   const c={id:crypto.randomUUID(),...acesso,hash:await digest(segredo),criadoEm:new Date().toISOString(),criadoPor:s.sub};
    const item=await gravar(carimbarProcesso({...antes,convites:[...antes.convites,c]},s,'Criou convite para '+c.nome),antes);return json({ok:true,item:apresentar(item),convite:antes.id+'.'+segredo});
   }
   if(b.action==='revogar'){
-   if(!antes.convites.some((x:any)=>x.id===b.conviteId))falhar('Convite não encontrado.',404);
-   const item=await gravar(carimbarProcesso({...antes,convites:antes.convites.map((x:any)=>x.id===b.conviteId?{...x,revogadoEm:new Date().toISOString()}:x)},s,'Revogou convite'),antes);return json({ok:true,item:apresentar(item)});
+   const item=await gravar(carimbarProcesso(revogarAcesso(antes,b,s),s,'Revogou convite'),antes);return json({ok:true,item:apresentar(item)});
   }
   if(b.action==='compartilhar'){
    if(!antes.anexos.some((x:any)=>x.id===b.arquivoId))falhar('Arquivo não encontrado.',404);

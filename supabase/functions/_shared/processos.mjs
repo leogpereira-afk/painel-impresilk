@@ -10,6 +10,36 @@ const txt=(v,max,rotulo,obrigatorio=false)=>{if(typeof v!=='string'||v.length>ma
 const data=(v,rotulo)=>{if(v&&!dataValida(v))falhar('Confira a data de '+rotulo+'.');return v||'';};
 export const podeGerir=(r,s)=>!!s&&!s.externo&&(s.master===true||r?.criadoPor===s.sub||!!s.rhId&&r?.responsavelRhId===s.rhId);
 export const podeLer=(r,s)=>podeGerir(r,s)||!!s?.rhId&&r?.envolvidos?.some(p=>p.rhId===s.rhId);
+export const NIVEIS_CONSULTORIA={administrador:'Administrador da consultoria',colaborador:'Colaborador',leitura:'Somente leitura'};
+export const nivelConsultoria=c=>c?.nivel??'colaborador';
+export const podeAdministrarConsultoria=(r,s)=>podeGerir(r,s)||r?.tipo==='consultoria'&&s?.externo===true&&s.nivel==='administrador';
+export const podeContribuirConsultoria=s=>!s?.externo||['administrador','colaborador'].includes(nivelConsultoria(s));
+export function permiteAcaoConsultoria(c,acao){
+ const nivel=nivelConsultoria(c);if(!Object.hasOwn(NIVEIS_CONSULTORIA,nivel))return false;
+ return ['obter','arquivo'].includes(acao)||nivel!=='leitura'&&['registro','anexar','etapa','implantacao','planejarEtapa'].includes(acao)||nivel==='administrador'&&['consultor','convidar','revogar','trabalho'].includes(acao);
+}
+export function editarTrabalho(r,b,s){
+ if(!podeAdministrarConsultoria(r,s))falhar('Somente a gestão pode organizar o trabalho.',403);
+ return {...r,titulo:txt(b.titulo,180,'o título do trabalho',true),objetivo:txt(b.objetivo,10000,'o objetivo',true),especialidade:txt(b.especialidade||'',180,'a especialidade'),solucao:txt(b.solucao||'',20000,'o plano de trabalho'),prazo:data(b.prazo,'prazo geral')};
+}
+export function dadosConvite(r,b,s,agora=new Date().toISOString()){
+ if(!podeAdministrarConsultoria(r,s)||r.tipo!=='consultoria'||r.situacao==='cancelada')falhar('Você não pode criar acessos nesta consultoria.',403);
+ const nivel=b.nivel??'colaborador';if(!Object.hasOwn(NIVEIS_CONSULTORIA,nivel))falhar('Escolha um nível de acesso válido.');
+ if(s.externo&&(nivel==='administrador'||b.rhId||!b.consultorId))falhar('O administrador da consultoria só pode convidar colaboradores ou leitores cadastrados aqui.',403);
+ const consultor=b.consultorId?(r.consultores||[]).find(c=>c.id===b.consultorId):null,rh=b.rhId?r.envolvidos.find(p=>p.rhId===b.rhId):null;
+ if(b.consultorId&&!consultor||b.rhId&&!rh||b.consultorId&&b.rhId)falhar('Escolha uma pessoa desta consultoria.');
+ if(nivel==='administrador'&&!consultor)falhar('Cadastre o consultor antes de conceder administração.');
+ const dias=Number(b.dias);if(!Number.isInteger(dias)||dias<1||dias>30)falhar('Escolha de 1 a 30 dias.');
+ const pai=s.externo?r.convites.find(c=>c.id===s.conviteId):null;
+ if(s.externo&&(!validarAcessoConvite(r,pai,agora)||nivelConsultoria(pai)!=='administrador'))falhar('O acesso do administrador foi encerrado.',403);
+ const limite=Date.parse(agora)+dias*86400000,expiraEm=new Date(pai?Math.min(limite,Date.parse(pai.expiraEm)):limite).toISOString();
+ return {nome:txt(consultor?.nome||rh?.nome||b.nome,180,'o nome do convidado',true),consultorId:consultor?.id||null,rhId:rh?.rhId||null,nivel,paiId:pai?.id||null,expiraEm};
+}
+export function revogarAcesso(r,b,s){
+ const c=r.convites.find(x=>x.id===b.conviteId);if(!c)falhar('Convite não encontrado.',404);
+ if(!podeGerir(r,s)&&!(podeAdministrarConsultoria(r,s)&&c.paiId===s.conviteId))falhar('Você só pode revogar acessos que emitiu.',403);
+ return {...r,convites:r.convites.map(x=>x.id===c.id||x.paiId===c.id?{...x,revogadoEm:x.revogadoEm||new Date().toISOString()}:x)};
+}
 export function prepararProcesso(c,antes,s,pessoasRH=[],agora=new Date().toISOString()){
  if(!c||!idValido(c.id)||!['demanda','consultoria'].includes(c.tipo))falhar('Identificação do processo inválida.');
  if(antes&&(!podeGerir(antes,s)||antes.tipo!==c.tipo))falhar('Você não pode alterar esta ficha.',403);
@@ -40,7 +70,7 @@ export function validarImplantacao(b={}){
  return {situacao,como,data:dataImplantacao,resultado:txt(b.resultado||'',5000,'o resultado da implantação')};
 }
 export function cadastrarConsultor(r,b,s){
- if(r.tipo!=='consultoria'||!podeGerir(r,s))falhar('Somente o gestor pode cadastrar consultores.',403);
+ if(r.tipo!=='consultoria'||!podeAdministrarConsultoria(r,s))falhar('Somente o gestor pode cadastrar consultores.',403);
  const lista=r.consultores||[],id=b.consultorId||crypto.randomUUID();
  if(!idValido(id)||b.consultorId&&!lista.some(c=>c.id===id))falhar('Consultor não encontrado.',404);
  if(!b.consultorId&&lista.length>=50)falhar('Limite de 50 consultores atingido.');
@@ -49,6 +79,7 @@ export function cadastrarConsultor(r,b,s){
 }
 const podeAtualizarRegistro=(r,x,s)=>podeGerir(r,s)||x.por===s.sub||!!s.externo&&!!s.consultorId&&x.consultorId===s.consultorId;
 export function atualizarImplantacao(r,b,s){
+ if(!podeContribuirConsultoria(s))falhar('Este acesso é somente de leitura.',403);
  const x=r.registros.find(x=>x.id===b.registroId);if(!x||s.externo&&!x.compartilhado)falhar('Ação não encontrada.',404);
  if(x.tipo!=='acao'||!podeAtualizarRegistro(r,x,s))falhar('Você não pode atualizar a implantação desta ação.',403);
  if((x.implantacoes||[]).length>=100)falhar('Limite de atualizações desta ação atingido.');
@@ -57,6 +88,7 @@ export function atualizarImplantacao(r,b,s){
 }
 export const TIPOS_REGISTRO={acao:'Ação realizada',atualizacao:'Andamento',decisao:'Decisão',pendencia:'Pendência'};
 export function registrarProcesso(r,b,s){
+ if(!podeContribuirConsultoria(s))falhar('Este acesso é somente de leitura.',403);
  if((r.registros||[]).length>=500)falhar('Limite de registros atingido.');
  const tipo=b.tipo||'atualizacao';if(!Object.hasOwn(TIPOS_REGISTRO,tipo))falhar('Escolha o tipo de registro.');
  const etapaId=b.etapaId||'';if(etapaId&&!r.etapas.some(e=>e.id===etapaId))falhar('Etapa não encontrada.');
@@ -65,6 +97,7 @@ export function registrarProcesso(r,b,s){
  return {...r,registros:[...(r.registros||[]),{id:crypto.randomUUID(),...detalhes,...(tipo==='acao'?{implantacoes:[{...detalhes.implantacao,nome:s.nome||s.sub,em:new Date().toISOString()}]}:{}),consultorId:s.externo?s.consultorId||null:null,texto:txt(b.texto,5000,'o registro',true),em:new Date().toISOString(),por:s.sub,nome:s.nome||s.sub,compartilhado:s.externo===true||b.compartilhado===true}]};
 }
 export function atualizarEtapa(r,b,s){
+ if(!podeContribuirConsultoria(s))falhar('Este acesso é somente de leitura.',403);
  if(['cancelada','concluida'].includes(r.situacao))falhar('Reabra o processo antes de alterar etapas.');
  const e=r.etapas.find(x=>x.id===b.etapaId);if(!e)falhar('Etapa não encontrada.',404);
  if(!s.externo&&!podeGerir(r,s)&&(!s.rhId||s.rhId!==e.responsavelRhId))falhar('Somente o responsável pode atualizar esta etapa.',403);
@@ -75,6 +108,7 @@ export function atualizarEtapa(r,b,s){
  return {...r,etapas:r.etapas.map(x=>x.id===e.id?{...x,situacao:b.situacao,nota,concluidaEm:b.situacao==='concluida'?new Date().toISOString():null}:x)};
 }
 export function planejarEtapa(r,b,s){
+ if(!podeContribuirConsultoria(s))falhar('Este acesso é somente de leitura.',403);
  if(['cancelada','concluida'].includes(r.situacao))falhar('Reabra o processo antes de planejar etapas.');
  const anterior=b.etapaId?r.etapas.find(e=>e.id===b.etapaId):null;
  if(b.etapaId&&!anterior)falhar('Etapa não encontrada.',404);
@@ -113,11 +147,17 @@ export function avaliarEtapa(r,b,s){
  return {...r,etapas:r.etapas.map(e=>e.id===etapa.id?{...e,avaliacoes:[...(e.avaliacoes||[]),avaliacao]}:e)};
 }
 export const validarConvite=(c,agora=new Date().toISOString())=>!!c&&!c.revogadoEm&&Number.isFinite(Date.parse(c.expiraEm))&&Date.parse(c.expiraEm)>Date.parse(agora);
-export function projetarConvidado(r,c){
- const nome=id=>r.envolvidos.find(p=>p.rhId===id)?.nome||'Responsável';
- return {id:r.id,tipo:r.tipo,titulo:r.titulo,empresa:r.empresa,especialidade:r.especialidade,objetivo:r.objetivo,solucao:r.solucao,prazo:r.prazo,situacao:r.situacao,versao:r.versao,convidado:{id:c.id,nome:c.nome},etapas:r.etapas.map(({responsavelRhId,consultorId,...e})=>({...e,responsavel:nome(responsavelRhId)})),anexos:r.anexos.filter(a=>a.compartilhado).map(({chave,por,...a})=>a),registros:r.registros.filter(x=>x.compartilhado).map(({por,consultorId,...x})=>({...x,podeAtualizar:por==='convite:'+c.id||!!c.consultorId&&consultorId===c.consultorId}))};
+export function validarAcessoConvite(r,c,agora=new Date().toISOString()){
+ if(!validarConvite(c,agora)||!Object.hasOwn(NIVEIS_CONSULTORIA,nivelConsultoria(c)))return false;
+ if(!c.paiId)return true;
+ const pai=r?.convites?.find(x=>x.id===c.paiId);
+ return !!pai&&!pai.paiId&&nivelConsultoria(pai)==='administrador'&&validarConvite(pai,agora);
 }
-export function projetarInterno(r,s){const gerir=podeGerir(r,s);return {...r,registros:r.registros.map(x=>({...x,podeAtualizar:podeAtualizarRegistro(r,x,s)})),consultores:gerir?(r.consultores||[]):(r.consultores||[]).map(({contato,...c})=>c),convites:gerir?(r.convites||[]).map(({hash,...c})=>c):[],anexos:r.anexos.map(({chave,...a})=>a),podeGerir:gerir,meuRhId:s.rhId||''};}
+export function projetarConvidado(r,c){
+ const nome=id=>r.envolvidos.find(p=>p.rhId===id)?.nome||'Responsável',admin=nivelConsultoria(c)==='administrador',contribui=nivelConsultoria(c)!=='leitura';
+ return {id:r.id,tipo:r.tipo,titulo:r.titulo,empresa:r.empresa,especialidade:r.especialidade,objetivo:r.objetivo,solucao:r.solucao,prazo:r.prazo,situacao:r.situacao,versao:r.versao,convidado:{id:c.id,nome:c.nome,nivel:nivelConsultoria(c),expiraEm:c.expiraEm},podeAdministrarConsultoria:admin,podeContribuir:contribui,...(admin?{consultores:r.consultores||[],convites:r.convites.filter(x=>x.paiId===c.id).map(({hash,criadoPor,rhId,...x})=>x)}:{}),etapas:r.etapas.map(({responsavelRhId,consultorId,...e})=>({...e,responsavel:nome(responsavelRhId)})),anexos:r.anexos.filter(a=>a.compartilhado).map(({chave,por,...a})=>a),registros:r.registros.filter(x=>x.compartilhado).map(({por,consultorId,...x})=>({...x,podeAtualizar:contribui&&(por==='convite:'+c.id||!!c.consultorId&&consultorId===c.consultorId)}))};
+}
+export function projetarInterno(r,s){const gerir=podeGerir(r,s);return {...r,registros:r.registros.map(x=>({...x,podeAtualizar:podeAtualizarRegistro(r,x,s)})),consultores:gerir?(r.consultores||[]):(r.consultores||[]).map(({contato,...c})=>c),convites:gerir?(r.convites||[]).map(({hash,...c})=>c):[],anexos:r.anexos.map(({chave,...a})=>a),podeGerir:gerir,podeAdministrarConsultoria:gerir,podeContribuir:true,meuRhId:s.rhId||''};}
 export function agendaProcessos(itens,mes){
  if(!/^\d{4}-(0[1-9]|1[0-2])$/.test(mes||''))falhar('Informe um mês válido.');
  return itens.filter(r=>r.situacao!=='cancelada').flatMap(r=>[{id:'processo:'+r.id,processoId:r.id,tipoProcesso:r.tipo,titulo:r.titulo,data:r.prazo,concluido:r.situacao==='concluida'},...r.etapas.map(e=>({id:'etapa:'+r.id+':'+e.id,processoId:r.id,tipoProcesso:r.tipo,etapaId:e.id,titulo:e.titulo+' · '+r.titulo,data:e.prazo,concluido:e.situacao==='concluida'}))].filter(e=>e.data?.startsWith(mes)).map(e=>({...e,tipo:r.tipo==='consultoria'?'Consultoria':'Demanda',cor:r.tipo==='consultoria'?'#0f766e':'#7c3aed',descricao:e.concluido?'Concluída':'Prazo previsto',recorrenteAnual:false})));

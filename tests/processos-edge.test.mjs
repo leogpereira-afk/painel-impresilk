@@ -66,3 +66,45 @@ test('avaliação de qualidade é interna, mantém histórico e não altera conc
  const g=await t.call({action:'obter'},false,c.convite);assert.equal(g.item.etapas[0].avaliacoes.at(-1).pontuacao,9.5);
  r=(await t.call({...r.etapas[0],action:'planejarEtapa',id:r.id,versao:r.versao,etapaId:'e1',avaliacoes:[]})).item;assert.equal(r.etapas[0].avaliacoes.length,2);
 });
+
+test('administrador externo cadastra equipe e trabalho sem ganhar acesso ao RH ou à avaliação',async()=>{
+ const t=setup();let r=(await t.call({action:'salvar',item:item()})).item;
+ r=(await t.call({action:'consultor',id:r.id,versao:r.versao,nome:'Gestora externa',contato:'gestora@example.test'})).item;
+ const c=await t.call({action:'convidar',id:r.id,versao:r.versao,consultorId:r.consultores[0].id,dias:2,nivel:'administrador'}),token=c.convite;r=c.item;
+ let g=(await t.call({action:'obter'},false,token)).item;
+ assert.equal(g.podeAdministrarConsultoria,true);assert.equal(g.consultores.length,1);assert.equal(g.envolvidos,undefined);assert.equal(g.analise,undefined);assert.equal(g.convites.length,0);
+ for(const action of ['salvar','pessoas','listar','agenda','avaliarEtapa','compartilhar'])assert.equal((await t.call({action,versao:g.versao},false,token)).status,403);
+ let x=await t.call({action:'consultor',versao:g.versao,nome:'Nova pessoa',funcao:'Implantação',rhId:'rh-1',nivel:'administrador'},false,token);assert.equal(x.status,200);g=x.item;const pessoa=g.consultores.at(-1);assert.equal(pessoa.rhId,undefined);assert.equal(pessoa.nivel,undefined);
+ x=await t.call({action:'trabalho',versao:g.versao,titulo:'Plano de melhoria',objetivo:'Padronizar',especialidade:'Qualidade',solucao:'Diagnóstico e implantação',prazo:'2026-10-20',analise:'invasão',responsavelRhId:'fora',situacao:'concluida'},false,token);assert.equal(x.status,200);g=x.item;
+ assert.equal(g.titulo,'Plano de melhoria');assert.equal(t.rows.get(r.id).analise,'CONFIDENCIAL');assert.equal(t.rows.get(r.id).responsavelRhId,'rh-1');assert.equal(g.situacao,'analise');
+ assert.equal((await t.call({action:'convidar',versao:g.versao,consultorId:pessoa.id,nivel:'administrador',dias:2},false,token)).status,403);
+ assert.equal((await t.call({action:'convidar',versao:g.versao,rhId:'rh-1',nivel:'colaborador',dias:2},false,token)).status,403);
+ x=await t.call({action:'convidar',versao:g.versao,consultorId:pessoa.id,nivel:'colaborador',dias:30},false,token);assert.equal(x.status,200);g=x.item;const filho=g.convites[0];assert.equal(filho.paiId,c.item.convites[0].id);assert.equal(filho.expiraEm,c.item.convites[0].expiraEm);assert.equal(filho.hash,undefined);
+ const colaborador=x.convite;assert.equal((await t.call({action:'registro',versao:g.versao,texto:'Trabalho realizado',nivel:'administrador'},false,colaborador)).status,200);
+ for(const action of ['trabalho','consultor','convidar','revogar'])assert.equal((await t.call({action,nivel:'administrador'},false,colaborador)).status,403);
+ assert.equal((await t.call({action:'obter',id:'outra-consultoria'},false,token)).status,403);
+ r=(await t.call({action:'obter',id:r.id})).item;
+ assert.equal((await t.call({action:'revogar',versao:r.versao,conviteId:r.convites[0].id},false,token)).status,403);
+ r=(await t.call({action:'revogar',id:r.id,versao:r.versao,conviteId:r.convites[0].id})).item;
+ assert.equal((await t.call({action:'obter'},false,token)).status,401);assert.equal((await t.call({action:'obter'},false,colaborador)).status,401);assert.ok(r.convites.every(c=>c.revogadoEm));
+});
+
+test('leitura consulta só conteúdo liberado e não pode escrever nem forjar nível',async()=>{
+ const t=setup();let r=(await t.call({action:'salvar',item:item()})).item;
+ const c=await t.call({action:'convidar',id:r.id,versao:r.versao,nome:'Leitor',dias:2,nivel:'leitura'}),token=c.convite;r=c.item;
+ const g=(await t.call({action:'obter'},false,token)).item;assert.equal(g.podeContribuir,false);assert.equal(g.podeAdministrarConsultoria,false);assert.equal(g.consultores,undefined);
+ for(const action of ['registro','anexar','etapa','implantacao','planejarEtapa','trabalho','consultor','convidar','revogar','avaliarEtapa','salvar','compartilhar'])assert.equal((await t.call({action,versao:r.versao,nivel:'administrador',podeGerir:true,master:true},false,token)).status,403);
+ assert.equal(t.rows.get(r.id).versao,r.versao);
+ assert.equal((await t.call({action:'convidar',id:r.id,versao:r.versao,nome:'Inválido',dias:2,nivel:'master'})).status,422);
+});
+
+test('convite delegado depende de administrador válido, expiração e nível sem promoção de convites antigos',async()=>{
+ const t=setup();let r=(await t.call({action:'salvar',item:item()})).item;
+ r=(await t.call({action:'consultor',id:r.id,versao:r.versao,nome:'Gestora'})).item;
+ const a=await t.call({action:'convidar',id:r.id,versao:r.versao,consultorId:r.consultores[0].id,nivel:'administrador',dias:1});r=a.item;
+ const b=await t.call({action:'convidar',versao:r.versao,consultorId:r.consultores[0].id,nivel:'leitura',dias:5},false,a.convite);r=b.item;
+ const pai=t.rows.get(r.id).convites[0];pai.expiraEm='2000-01-01';assert.equal((await t.call({action:'obter'},false,b.convite)).status,401);
+ pai.expiraEm=new Date(Date.now()+86400000).toISOString();pai.nivel='colaborador';assert.equal((await t.call({action:'obter'},false,b.convite)).status,401);
+ delete pai.nivel;assert.equal((await t.call({action:'obter'},false,a.convite)).item.podeAdministrarConsultoria,false);assert.equal((await t.call({action:'consultor',nome:'Invasão'},false,a.convite)).status,403);
+ pai.nivel='nivel-desconhecido';assert.equal((await t.call({action:'obter'},false,a.convite)).status,401);
+});

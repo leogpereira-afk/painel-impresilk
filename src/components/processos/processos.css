@@ -60,3 +60,10 @@
 .processo-chip.estado-bloqueada { background:#ffe4e6; color:#9f1239; }
 .processo-chip.estado-validacao { background:#fef3c7; color:#92400e; }
 .processo-chip.estado-concluida { background:#d1fae5; color:#065f46; }
+
+.processo-niveis { display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:12px 0; }
+.processo-niveis>div { padding:10px;border:1px solid #c7d2fe;border-radius:10px;background:#eef2ff; }
+.processo-niveis p { margin-top:4px;font-size:12px;color:#475569; }
+.dark .processo-niveis>div { background:#28314f;border-color:#475569; }
+.dark .processo-niveis p { color:#cbd5e1; }
+@media(max-width:640px){.processo-niveis{grid-template-columns:1fr}}
