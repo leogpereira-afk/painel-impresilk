@@ -40,7 +40,21 @@ const VERSAO = 3; // v3: arquivos com checksum e recuperação verificada
    colecao); o resto conta as chaves. Usada no total E na lista por colecao --
    duas reguas para o mesmo numero e sempre uma soma que nao fecha. */
 const contarRegistros = (chave: string, v: unknown) =>
-  chave === "config" ? (v ? 1 : 0) : (v && typeof v === "object" ? Object.keys(v as object).length : 0);
+  chave === "config" ? (v ? 1 : 0)
+  // As tabelas do Marketing contam LINHAS, não tabelas: "3" no lugar de 40
+  // ações seria a régua mentindo de novo.
+  : chave === "tabelasMarketing" ? Object.values((v ?? {}) as Record<string, unknown[]>).reduce((n, l) => n + (Array.isArray(l) ? l.length : 0), 0)
+  : (v && typeof v === "object" ? Object.keys(v as object).length : 0);
+
+/* AS TABELAS DO CENTRO DE COMANDO DO MARKETING (painel_mkt_*, etapa a1 de
+   10/10/2026). Moram fora de painel_registros, como as gestao_*, e por isso
+   entram aqui à mão -- e o autoexame logo abaixo confere linha a linha que
+   nenhuma ficou fora (ausência de cópia parece ausência de dado). A volta é
+   a painel_mkt_restaurar, chamada de dentro da painel_restaurar_atomico.
+   A cópia sai da painel_mkt_exportar: as três tabelas lidas no MESMO
+   instante (uma por vez deixava escapar o vínculo de uma ação salva entre
+   as leituras) e sem o corte de 1000 linhas do PostgREST. */
+const TABELAS_MARKETING = ["painel_mkt_acoes", "painel_mkt_orcamento_vinculo", "painel_mkt_log"];
 
 const TABELAS_GESTAO = [
   "gestao_empresa", "gestao_identidade", "gestao_valor", "gestao_plano_ano",
@@ -169,6 +183,15 @@ async function montarBackupPainel() {
     gestao[t] = data ?? [];
   }
   painel.gestao = gestao;
+
+  const { data: mkt, error: erroMkt } = await sb.rpc("painel_mkt_exportar");
+  if (erroMkt) throw new Error(`marketing: ${erroMkt.message}`);
+  const tabelasMarketing: Record<string, unknown[]> = {};
+  for (const t of TABELAS_MARKETING) tabelasMarketing[t] = Array.isArray(mkt?.[t]) ? mkt[t] : [];
+  painel.tabelasMarketing = tabelasMarketing;
+  // Tabela painel_mkt_* que existe no banco e não está na lista acima: o
+  // autoexame reprova (ausência de cópia parece ausência de dado).
+  painel.tabelasMarketingNoBanco = Array.isArray(mkt?.tabelas) ? mkt.tabelas : null;
 
   const arquivos = await capturarArquivos(sb.storage.from("painel-arquivos"));
 
@@ -422,6 +445,13 @@ async function executarBackupHub(somente?: string) {
       return !copiadas.has(c) && !copiadas.has(`${c}s`) && !copiadas.has(`${c}sMeta`);
     });
     if(naoCopiadas.length) throw new Error('Há coleções fora da cópia.');
+    /* As tabelas do Marketing não são coleções: toda painel_mkt_* que
+       existe no banco tem de estar na lista copiada. */
+    const noBancoMkt = (bkp.painel as any).tabelasMarketingNoBanco;
+    if (!Array.isArray(noBancoMkt)) throw new Error('A cópia do Marketing não respondeu.');
+    const foraMkt = noBancoMkt.filter((t: string) => !TABELAS_MARKETING.includes(t));
+    if (foraMkt.length) throw new Error(`Tabela fora da cópia: ${foraMkt.join(", ")}.`);
+    delete (bkp.painel as any).tabelasMarketingNoBanco;
     const gh = await enviarParaGithub("painel", bkp);
     porSistema.painel = {
       em: agora, ok: gh.ok, arquivos: bkp.arquivos.length, bytesArquivos: bkp.arquivos.reduce((n,a)=>n+a.bytes,0),
@@ -664,7 +694,7 @@ Deno.serve(async (req: Request) => {
         };
         if (bk.versao >= 2) {
           for (const [nome, mapa] of Object.entries(p)) {
-            if (nome === "config" || nome === "gestao") continue;
+            if (nome === "config" || nome === "gestao" || nome === "tabelasMarketing" || nome === "tabelasMarketingNoBanco") continue;
             incluir(APELIDO_VOLTA[nome] ?? nome, mapa);
           }
         } else {
@@ -682,7 +712,8 @@ Deno.serve(async (req: Request) => {
         });
         try {
           const { data, error } = await sb.rpc("painel_restaurar_atomico", {
-            p_backup: { config: p.config ?? null, registros, contas, gestao: p.gestao ?? {} },
+            p_backup: { config: p.config ?? null, registros, contas, gestao: p.gestao ?? {},
+              marketing: p.tabelasMarketing ? { ...p.tabelasMarketing, quem: s?.sub ?? "backup" } : null },
           });
           if (error || !data?.verificado) throw new Error(error?.message || "A recuperação não foi confirmada.");
           return resposta({ ok: true, ...data, arquivos:arquivos.quantidade, arquivosIncluidos:bk.versao>=3 });

@@ -30,5 +30,25 @@ export const salvarAtalho = (id, { nome, url }) =>
 export const removerAtalho = (id) =>
   chamar("removerId", { chave: "marketing", id });
 
-export const salvarAcaoMarketing = (id, dados) =>
-  chamar('merge', {chave:'marketing',patch:{[id]:{...dados,tipo:'acao'}}}).then(r=>r.valor || {});
+// AÇÕES DO MARKETING (desde 10/10/2026): moram nas tabelas painel_mkt_* e
+// passam pela Edge Function painel-marketing, que tem a trava "um orçamento
+// numa ação só" no banco. Os atalhos acima continuam no painel-config.
+async function chamarMarketing(action, corpo = {}) {
+  const resp = await comCracha(`${API}/painel-marketing`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ action, ...corpo }),
+  });
+  const body = await resp.json().catch(() => null);
+  if (!resp.ok || !body?.ok) throw new Error(body?.erro || mensagemDoStatus(resp.status));
+  return body;
+}
+
+export const listarAcoesMarketing = () => chamarMarketing("acoes");
+// Ação nova: a tela gera o id e manda novo:true. Se a resposta se perder e a
+// pessoa tentar de novo, o servidor devolve a mesma ação em vez de criar outra.
+export const salvarAcaoMarketing = (acao, versao, novo = false) =>
+  chamarMarketing("salvarAcao", { acao, versao, novo }).then((r) => r.acao);
+export const retirarAcaoMarketing = (id, versao) => chamarMarketing("retirarAcao", { id, versao });
+export const migrarAcoesAntigasMarketing = () =>
+  chamarMarketing("migrarLegado").then((r) => r.resultado);

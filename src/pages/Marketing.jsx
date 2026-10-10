@@ -232,7 +232,7 @@ export default function Marketing() {
       />
 
       <Segmented opcoes={[{valor:"acoes",rotulo:"Ações e resultados"},{valor:"materiais",rotulo:"Materiais e Drive"}]} valor={aba} onChange={setAba}/>
-      <div hidden={aba !== "acoes"}><PlanejamentoMarketing mapa={atalhos} aoAtualizar={setAtalhos}/></div>
+      <div hidden={aba !== "acoes"}><PlanejamentoMarketing/></div>
       <div hidden={aba !== "materiais"} className="space-y-5">
       {materialForm&&<Card><SectionTitle titulo={`Organizar material · ${materialForm.nome}`}/><form className="space-y-4" onSubmit={async e=>{e.preventDefault();setGravandoMaterial(true);setAviso(null);try{const salvo=await salvarAtivo(materialForm);setItens(l=>l.map(i=>i.id===salvo.id?salvo:i));setMaterialForm(null);}catch(e){setAviso({tom:"erro",texto:e.message});}finally{setGravandoMaterial(false);}}}><div className="grid gap-4 sm:grid-cols-2">
       <label className="label">Categoria<input className="input" placeholder="Ex.: Fachadas, Apresentações, Identidade visual" value={materialForm.categoria||""} onChange={e=>setMaterialForm(f=>({...f,categoria:e.target.value}))}/></label>

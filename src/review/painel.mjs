@@ -1,13 +1,14 @@
 import {respostaAgenda,pessoasAgenda} from './compromissos.mjs';
 import {respostaComercial} from './comercial.mjs';
 import {respostaReunioes} from './reunioes.mjs';
+import {respostaMarketing} from './marketing.mjs';
 // Respostas fictícias, carregadas apenas na compilação review. Estrutura pode
 // ser criada/editada SOMENTE nesta memória; recarregar restaura os exemplos.
 const configs = {
  /* Contas FICTÍCIAS (CNPJ e chaves de teste, de ninguém): a tela só mostra titular Impresilk ou Universo.
     A ex4 tem o tipo da chave errado de propósito, para a prévia mostrar o aviso. */
  bancos:{ex1:{grupo:'Impresilk',banco:'BTG 208',titular:'Impresilk',doc:'11.222.333/0001-81',agencia:'0050',conta:'000000-1',pix:'123e4567-e12b-12d1-a456-426655440000',pixTipo:'Aleatoria',ordem:0},ex2:{grupo:'Impresilk',banco:'Sicoob Credinor',titular:'Impresilk',doc:'11.222.333/0001-81',agencia:'0000',conta:'00.000-0',pix:'11.222.333/0001-81',pixTipo:'CNPJ',codigoBanco:'756',ordem:1},ex3:{grupo:'Impresilk',banco:'BB',titular:'Impresilk',doc:'11.222.333/0001-81',agencia:'0000-0',conta:'00000-0',pix:'',pixTipo:'Conta e agencia',ordem:2},ex4:{grupo:'Universo',banco:'Sicoob Credinosso',titular:'Universo',doc:'11.444.777/0001-61',agencia:'0000',conta:'00.000-0',pix:'123e4567-e12b-12d1-a456-426655440001',pixTipo:'CNPJ',ordem:3}},
- marketing:{ex1:{nome:'Biblioteca da marca (exemplo)',url:'https://example.com'},acao1:{tipo:'acao',nome:'Apresentação de fachadas (exemplo)',objetivo:'Gerar oportunidades de sinalização para lojas',publico:'Comércio local',canal:'Portfólio e redes sociais',responsavel:'Ana Exemplo',prazo:'2026-09-15',status:'Produção',investimento:500,orcamentos:[],url:''}},
+ marketing:{ex1:{nome:'Biblioteca da marca (exemplo)',url:'https://example.com'}},
  patrimonio:{ex1:{nomeGenerico:'Impressora',descricaoTecnica:'Equipamento de demonstração',origemAtivoId:'maq-demo',setorSigla:'PRO',codigo:'PRO-001',valor:10000,situacao:'uso',dataAquisicao:'2026-01-10'}},
  setores:{ex1:{sigla:'PRO',nome:'Produção',area:'Operações'}},
  patrimonio_controles:Object.fromEntries(['ramais','armarios','ferramentas','camas','celulares'].map((tipo,i)=>['controle-'+tipo,{tipo,numero:tipo==='celulares'?'(38) 99999-0000':String(i+1).padStart(2,'0'),modelo:tipo==='celulares'?'Samsung Galaxy A15':'',telefone:'(38) 3000-0000',pessoa:'Ana Exemplo',observacao:'Cadastro de demonstração',atualizadoEm:'2026-10-05T12:00:00Z',atualizadoPorNome:'Conta de demonstração'}])),
@@ -57,6 +58,7 @@ export async function respostaPreview(url,opcoes={}){
  const endpoint=u.pathname.split('/').pop();
  if(endpoint==='painel-comercial')return respostaComercial(corpo);
  if(endpoint==='painel-reunioes')return respostaReunioes(corpo);
+ if(endpoint==='painel-marketing')return respostaMarketing(corpo);
  let dados;
  if(endpoint==='painel-config' && corpo.chave==='compromissos'){const agenda=respostaAgenda(corpo);return new Response(JSON.stringify({ok:!agenda.erro,...agenda}),{status:agenda.erro?409:200,headers:{'Content-Type':'application/json'}});}
  if(endpoint==='painel-config' && corpo.action==='lixeiraRegistros') dados={itens:[]};

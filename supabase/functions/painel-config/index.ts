@@ -567,6 +567,14 @@ Deno.serve(async (req: Request) => {
         if (OVERLAYS.has(chave)) {
           const barrado = barraChave(chave);
           if (barrado) return barrado;
+          /* AS AÇÕES DO MARKETING MUDARAM DE CASA (10/10/2026): moram nas
+             tabelas painel_mkt_* e passam pela painel-marketing, que tem a
+             trava de orçamento no banco. Uma aba aberta na versão velha
+             ainda mandaria a ação para cá, fora da trava; a resposta manda
+             recarregar. Os atalhos do Drive continuam aqui. */
+          if (chave === "marketing" && Object.values(patch).some((v: any) => v && typeof v === "object" && v.tipo === "acao")) {
+            return resposta({ erro: "As ações do Marketing mudaram de lugar. Recarregue a página para continuar." }, 409);
+          }
           const barradoPlanilha = barraEscritaDePlanilha(chave);
           if (barradoPlanilha) return barradoPlanilha;
           for (const [id, campos] of Object.entries(patch)) {
