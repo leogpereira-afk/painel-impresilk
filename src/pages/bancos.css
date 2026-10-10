@@ -1,0 +1,965 @@
+/* BANCOS E PIX: escopo próprio (.bk-page), para o acabamento desta tela não
+   mexer nos outros módulos. Mesma marca do painel (indigo, Poppins nos títulos
+   e números); o que muda é a hierarquia: num cartão de conta só UMA ação é
+   cheia (o verde do WhatsApp), a chave Pix vem num painel claro de marca e o
+   resto é quieto até o mouse ou o dedo chegar.
+
+   Alvos de toque: 44px nas ações principais, 40px nos controles. */
+
+.bk-page {
+  --bk-ink: #161a3a;
+  --bk-texto: #343a57;
+  --bk-muted: #6a7088;
+  --bk-suave: #f6f7fb;
+  --bk-fio: var(--hairline);
+  --bk-marca: #3840e8;
+  --bk-marca-forte: #2c33cf;
+  --bk-marca-suave: #f3f4ff;
+  --bk-marca-fio: #dcdffb;
+  --bk-ok: #15803d;
+  --bk-ok-forte: #116a33;
+  --bk-ok-texto: #15803d;
+  --bk-ok-suave: #ecfbf2;
+  --bk-aviso: #a5520a;
+  --bk-aviso-suave: #fff6e5;
+  --bk-aviso-fio: #fde3b4;
+  --bk-perigo: #b91c1c;
+  --bk-perigo-suave: #fef2f2;
+  --bk-sombra: 0 1px 2px rgba(24, 26, 84, 0.04), 0 10px 28px -18px rgba(24, 26, 84, 0.22);
+  --bk-mono: "SF Mono", ui-monospace, Menlo, Consolas, "Liberation Mono", monospace;
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+  min-width: 0;
+}
+.dark .bk-page {
+  --bk-ink: #eef0f8;
+  --bk-texto: #d3d9e8;
+  --bk-muted: #98a1b8;
+  --bk-suave: rgba(255, 255, 255, 0.035);
+  --bk-marca: #8f95f5;
+  --bk-marca-forte: #a7acf8;
+  --bk-marca-suave: rgba(112, 118, 240, 0.12);
+  --bk-marca-fio: rgba(112, 118, 240, 0.32);
+  --bk-ok-texto: #86efac;
+  --bk-ok-suave: rgba(34, 197, 94, 0.14);
+  --bk-aviso: #fcd34d;
+  --bk-aviso-suave: rgba(217, 119, 6, 0.16);
+  --bk-aviso-fio: rgba(217, 119, 6, 0.34);
+  --bk-perigo: #fca5a5;
+  --bk-perigo-suave: rgba(220, 38, 38, 0.16);
+  --bk-sombra: 0 1px 2px rgba(0, 0, 0, 0.3), 0 12px 30px -18px rgba(0, 0, 0, 0.6);
+}
+
+/* Sem peso de seletor (:where): a herança da fonte não pode vencer o tamanho
+   que cada peça desta tela define (com `.bk-page button` ela vencia, e chip e
+   botão quieto saíam em 16 px). */
+:where(.bk-page) :where(button, input, select, textarea) {
+  font-family: inherit;
+}
+.bk-page :is(button, a, input, select, textarea):focus-visible {
+  outline: 2px solid var(--bk-marca);
+  outline-offset: 2px;
+  border-radius: 10px;
+}
+.bk-mono {
+  font-family: var(--bk-mono);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+}
+.bk-mono::placeholder {
+  font-family: Arial, Helvetica, sans-serif;
+  letter-spacing: 0;
+}
+
+/* ── Barra: busca, empresa e Nova conta ─────────────────────────────────── */
+.bk-barra {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+.bk-busca {
+  position: relative;
+  flex: 1 1 280px;
+  max-width: 460px;
+  min-width: 0;
+}
+.bk-busca > svg {
+  position: absolute;
+  left: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--bk-muted);
+  pointer-events: none;
+}
+.bk-busca input {
+  min-height: 44px;
+  padding-left: 40px;
+  padding-right: 44px;
+  border-radius: 12px;
+}
+.bk-busca-limpar {
+  position: absolute;
+  right: 4px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 9px;
+  color: var(--bk-muted);
+}
+.bk-busca-limpar:hover {
+  background: var(--bk-suave);
+  color: var(--bk-ink);
+}
+
+.bk-empresas {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 3px;
+  border: 1px solid var(--bk-fio);
+  border-radius: 12px;
+  background: var(--surface);
+  max-width: 100%;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.bk-empresas::-webkit-scrollbar {
+  display: none;
+}
+.bk-empresa {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 36px;
+  padding: 0 12px;
+  border-radius: 9px;
+  font-family: "Poppins", system-ui, sans-serif;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--bk-texto);
+  white-space: nowrap;
+  transition: background-color 0.18s, color 0.18s;
+}
+.bk-empresa:hover:not(:disabled) {
+  background: var(--bk-suave);
+  color: var(--bk-ink);
+}
+.bk-empresa[aria-pressed="true"] {
+  background: var(--bk-marca-suave);
+  color: var(--bk-marca-forte);
+  box-shadow: inset 0 0 0 1px var(--bk-marca-fio);
+}
+.bk-empresa:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+.bk-empresa-n {
+  min-width: 20px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: var(--bk-suave);
+  color: var(--bk-muted);
+  font-size: 11px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+.bk-empresa[aria-pressed="true"] .bk-empresa-n {
+  background: var(--surface);
+  color: var(--bk-marca-forte);
+}
+.bk-nova {
+  min-height: 44px;
+  margin-left: auto;
+  border-radius: 12px;
+}
+
+/* ── Grupo (empresa) ────────────────────────────────────────────────────── */
+.bk-grupo {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+.bk-grupo-cab {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.bk-grupo-cab h2 {
+  font-family: "Poppins", system-ui, sans-serif;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--bk-ink);
+}
+.bk-grupo-cab span {
+  font-size: 12px;
+  color: var(--bk-muted);
+  font-variant-numeric: tabular-nums;
+}
+.bk-grupo-cab::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--bk-fio);
+}
+
+/* Duas colunas na largura comum do painel; a terceira só entra em tela muito
+   larga, onde os botões ainda cabem numa linha (com três colunas apertadas, o
+   rótulo da chave e o do WhatsApp quebravam). */
+.bk-grade {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 400px), 1fr));
+  gap: 14px;
+}
+
+/* ── Cartão da conta ────────────────────────────────────────────────────── */
+.bk-conta {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  padding: 18px;
+  border: 1px solid var(--bk-fio);
+  border-radius: 18px;
+  background: var(--surface);
+  box-shadow: var(--bk-sombra);
+  transition: border-color 0.2s;
+}
+.bk-conta:hover {
+  border-color: #d6d8ec;
+}
+.dark .bk-conta:hover {
+  border-color: rgba(255, 255, 255, 0.16);
+}
+.bk-conta-topo {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+.bk-conta-nome {
+  min-width: 0;
+  flex: 1;
+  padding-top: 2px;
+}
+.bk-conta-nome h3 {
+  font-family: "Poppins", system-ui, sans-serif;
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1.3;
+  letter-spacing: -0.015em;
+  color: var(--bk-ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.bk-conta-nome p {
+  margin-top: 2px;
+  font-size: 13px;
+  color: var(--bk-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.bk-conta-acoes {
+  display: flex;
+  gap: 2px;
+  margin: -4px -6px 0 0;
+}
+.bk-icone {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 11px;
+  color: var(--bk-muted);
+  transition: background-color 0.18s, color 0.18s;
+}
+.bk-icone:hover {
+  background: var(--bk-suave);
+  color: var(--bk-ink);
+}
+.bk-icone.perigo:hover {
+  background: var(--bk-perigo-suave);
+  color: var(--bk-perigo);
+}
+
+/* Número do banco: chip que copia; e os avisos de número a confirmar. */
+.bk-codigo {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-top: 12px;
+}
+.bk-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 32px;
+  max-width: 100%;
+  padding: 0 10px;
+  border: 1px solid var(--bk-fio);
+  border-radius: 9px;
+  background: var(--bk-suave);
+  color: var(--bk-texto);
+  font-size: 12px;
+  transition: border-color 0.18s, background-color 0.18s, color 0.18s;
+}
+.bk-chip strong {
+  font-family: var(--bk-mono);
+  font-weight: 600;
+  color: var(--bk-ink);
+}
+.bk-chip span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.bk-chip svg {
+  flex-shrink: 0;
+  color: var(--bk-muted);
+}
+button.bk-chip:hover {
+  border-color: var(--bk-marca-fio);
+  background: var(--bk-marca-suave);
+  color: var(--bk-marca-forte);
+}
+button.bk-chip:hover svg {
+  color: var(--bk-marca);
+}
+.bk-chip.copiado,
+.bk-chip.copiado svg {
+  color: var(--bk-ok-texto);
+}
+.bk-chip.aviso {
+  border-color: var(--bk-aviso-fio);
+  background: var(--bk-aviso-suave);
+  color: var(--bk-aviso);
+  font-weight: 600;
+}
+.bk-chip.aviso svg {
+  color: currentColor;
+}
+button.bk-chip.aviso:hover {
+  border-color: var(--bk-aviso);
+  background: var(--bk-aviso-suave);
+  color: var(--bk-aviso);
+  text-decoration: underline;
+}
+
+/* Agência, conta, documento: uma linha inteira copia. */
+.bk-dados {
+  margin-top: 14px;
+  border-top: 1px solid var(--bk-fio);
+}
+.bk-linha {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  border-bottom: 1px solid var(--fio-lista);
+}
+.bk-linha dt {
+  flex: 0 0 78px;
+  font-family: "Poppins", system-ui, sans-serif;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--bk-muted);
+}
+.bk-linha dd {
+  flex: 1;
+  min-width: 0;
+}
+.bk-copiavel {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  width: 100%;
+  min-height: 42px;
+  padding: 0 8px;
+  margin-right: -8px;
+  border-radius: 10px;
+  color: var(--bk-ink);
+  text-align: right;
+  transition: background-color 0.18s, color 0.18s;
+}
+.bk-copiavel .bk-valor {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--bk-mono);
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+}
+.bk-copiavel svg {
+  flex-shrink: 0;
+  color: #b9bdcf;
+  transition: color 0.18s;
+}
+.bk-copiavel:hover {
+  background: var(--bk-marca-suave);
+  color: var(--bk-marca-forte);
+}
+.bk-copiavel:hover svg {
+  color: var(--bk-marca);
+}
+.bk-copiavel.copiado,
+.bk-copiavel.copiado svg {
+  color: var(--bk-ok-texto);
+}
+.bk-sem-pix {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 42px;
+  font-size: 13px;
+  color: var(--bk-muted);
+}
+.bk-sem-pix dt {
+  flex: 0 0 78px;
+  font-family: "Poppins", system-ui, sans-serif;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+/* ── O painel do Pix ────────────────────────────────────────────────────── */
+.bk-pix {
+  margin-top: 14px;
+  padding: 12px;
+  border: 1px solid var(--bk-marca-fio);
+  border-radius: 14px;
+  background: var(--bk-marca-suave);
+}
+.bk-pix-cab {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.bk-pix-rotulo {
+  font-family: "Poppins", system-ui, sans-serif;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--bk-marca-forte);
+}
+.bk-pix-tipo {
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--bk-texto);
+  font-size: 11px;
+  font-weight: 500;
+  box-shadow: inset 0 0 0 1px var(--bk-marca-fio);
+}
+.bk-pix-chave {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 56px;
+  padding: 8px 8px 8px 14px;
+  border: 1px solid var(--bk-marca-fio);
+  border-radius: 12px;
+  background: var(--surface);
+  text-align: left;
+  transition: border-color 0.18s, box-shadow 0.18s;
+}
+.bk-pix-chave:hover {
+  border-color: var(--bk-marca);
+  box-shadow: 0 0 0 4px rgba(56, 64, 232, 0.08);
+}
+.bk-pix-texto {
+  min-width: 0;
+  flex: 1;
+}
+.bk-pix-valor {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--bk-mono);
+  font-size: 14.5px;
+  font-weight: 500;
+  color: var(--bk-ink);
+  font-variant-numeric: tabular-nums;
+}
+.bk-pix-dica {
+  display: block;
+  margin-top: 2px;
+  font-size: 11.5px;
+  color: var(--bk-muted);
+}
+.bk-pix-chave.copiado .bk-pix-dica {
+  color: var(--bk-ok-texto);
+  font-weight: 600;
+}
+.bk-pix-acao {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  min-height: 40px;
+  padding: 0 14px;
+  border-radius: 10px;
+  background: var(--bk-marca);
+  color: #fff;
+  font-family: "Poppins", system-ui, sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  transition: background-color 0.18s;
+}
+.dark .bk-pix-acao {
+  background: #3840e8;
+}
+.bk-pix-chave:hover .bk-pix-acao {
+  background: var(--bk-marca-forte);
+}
+.dark .bk-pix-chave:hover .bk-pix-acao {
+  background: #2c33cf;
+}
+.bk-pix-chave.copiado .bk-pix-acao {
+  background: var(--bk-ok);
+}
+.bk-pix-aviso {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin-top: 8px;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--bk-aviso);
+}
+.bk-pix-aviso svg {
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+.bk-pix-extras {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-top: 8px;
+}
+.bk-quieto {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 40px;
+  padding: 0 10px;
+  border-radius: 10px;
+  color: var(--bk-texto);
+  font-family: "Poppins", system-ui, sans-serif;
+  font-size: 12.5px;
+  font-weight: 500;
+  line-height: 1.25;
+  text-align: center;
+  min-width: 0;
+  transition: background-color 0.18s, color 0.18s;
+}
+.bk-quieto svg {
+  flex-shrink: 0;
+  color: var(--bk-marca);
+}
+.bk-quieto:hover,
+.bk-quieto[aria-expanded="true"] {
+  background: var(--surface);
+  color: var(--bk-ink);
+}
+.bk-quieto .bk-seta {
+  color: var(--bk-muted);
+  transition: transform 0.2s var(--ease-apple);
+}
+.bk-quieto[aria-expanded="true"] .bk-seta {
+  transform: rotate(180deg);
+}
+
+/* "Mandar a conta completa junto com o Pix". */
+.bk-junto {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-height: 40px;
+  margin-top: 4px;
+  padding: 0 4px;
+  border-top: 1px solid var(--bk-marca-fio);
+  font-size: 12.5px;
+  color: var(--bk-texto);
+  cursor: pointer;
+}
+.bk-junto input {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  accent-color: var(--bk-marca);
+  cursor: pointer;
+}
+
+/* Pix copia e cola, aberto dentro do painel do Pix. */
+.bk-cc {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 10px;
+  padding: 12px;
+  border: 1px solid var(--bk-fio);
+  border-radius: 12px;
+  background: var(--surface);
+}
+.bk-cc-campos {
+  display: grid;
+  grid-template-columns: 1fr 1.4fr;
+  align-items: end;
+  gap: 10px;
+}
+.bk-cc label {
+  display: block;
+  font-family: "Poppins", system-ui, sans-serif;
+  font-size: 11.5px;
+  font-weight: 500;
+  color: var(--bk-muted);
+}
+.bk-cc label .input {
+  margin-top: 5px;
+  min-height: 40px;
+}
+.bk-cc-nota {
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--bk-muted);
+}
+.bk-cc-nota.aviso {
+  color: var(--bk-aviso);
+}
+.bk-cc-nota.erro {
+  color: var(--bk-perigo);
+}
+.bk-cc textarea {
+  width: 100%;
+  resize: none;
+  padding: 10px 12px;
+  border: 1px solid var(--bk-fio);
+  border-radius: 10px;
+  background: var(--bk-suave);
+  color: var(--bk-texto);
+  font-family: var(--bk-mono);
+  font-size: 11.5px;
+  line-height: 1.5;
+  word-break: break-all;
+}
+/* Lado a lado quando os dois cabem com ícone e texto inteiros; senão um
+   embaixo do outro (com dois lados forçados, o ícone do WhatsApp sumia). */
+.bk-cc-acoes {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(196px, 1fr));
+  gap: 8px;
+}
+.bk-cc-acoes > * {
+  font-size: 13px;
+  white-space: nowrap;
+}
+.bk-cc-acoes svg {
+  flex-shrink: 0;
+}
+
+/* ── Rodapé do cartão: a ação principal ─────────────────────────────────── */
+.bk-rodape {
+  display: flex;
+  gap: 8px;
+  margin-top: auto;
+  padding-top: 16px;
+}
+.bk-whats {
+  display: inline-flex;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 0 14px;
+  border-radius: 12px;
+  background: var(--bk-ok);
+  color: #fff;
+  font-family: "Poppins", system-ui, sans-serif;
+  font-size: 14px;
+  font-weight: 600;
+  box-shadow: 0 1px 2px rgba(17, 106, 51, 0.24);
+  transition: background-color 0.18s, transform 0.18s var(--ease-apple);
+}
+/* O hover ESCURECE: clarear para o verde 600 devolvia os 3,3:1 de contraste
+   que o ok-700 existe para evitar. */
+.bk-whats:hover {
+  background: var(--bk-ok-forte);
+}
+.bk-whats:active,
+.bk-pix-chave:active,
+.bk-copiavel:active {
+  transform: scale(0.985);
+}
+.bk-tudo {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 44px;
+  height: 44px;
+  border: 1px solid var(--bk-fio);
+  border-radius: 12px;
+  color: var(--bk-muted);
+  transition: background-color 0.18s, color 0.18s, border-color 0.18s;
+}
+.bk-tudo:hover {
+  background: var(--bk-suave);
+  color: var(--bk-ink);
+}
+.bk-tudo.copiado {
+  border-color: var(--bk-ok-texto);
+  color: var(--bk-ok-texto);
+}
+
+/* ── Formulário (nova conta / editar) ───────────────────────────────────── */
+.bk-form-cab {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 18px;
+}
+.bk-form-cab h2 {
+  font-family: "Poppins", system-ui, sans-serif;
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--bk-ink);
+}
+.bk-form-cab p {
+  margin-top: 3px;
+  font-size: 13px;
+  color: var(--bk-muted);
+}
+.bk-form-blocos {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr));
+  gap: 14px;
+}
+.bk-form-bloco {
+  min-width: 0;
+  padding: 14px;
+  border: 1px solid var(--bk-fio);
+  border-radius: 14px;
+  background: var(--bk-suave);
+}
+.bk-form-bloco legend {
+  float: left;
+  width: 100%;
+  margin-bottom: 10px;
+  font-family: "Poppins", system-ui, sans-serif;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--bk-marca-forte);
+}
+.bk-form-campos {
+  clear: both;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 150px), 1fr));
+  gap: 12px;
+}
+.bk-form-campos .largo {
+  grid-column: 1 / -1;
+}
+.bk-form-campos .input {
+  min-height: 42px;
+}
+.bk-form-ajuda {
+  display: block;
+  margin-top: 5px;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--bk-muted);
+}
+.bk-form-sugestao {
+  display: inline-flex;
+  align-items: center;
+  min-height: 36px;
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--bk-marca-forte);
+  text-align: left;
+}
+.bk-form-sugestao:hover {
+  text-decoration: underline;
+}
+.bk-form-logo {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+.bk-form-rodape {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 18px;
+  padding-top: 16px;
+  border-top: 1px solid var(--bk-fio);
+}
+.bk-form-rodape .btn-primary,
+.bk-form-rodape .btn-ghost {
+  min-height: 44px;
+}
+
+/* ── Vazio e aviso ──────────────────────────────────────────────────────── */
+.bk-vazio {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 40px 20px;
+  border: 1px dashed var(--bk-fio);
+  border-radius: 18px;
+  background: var(--surface);
+  text-align: center;
+  color: var(--bk-muted);
+  font-size: 14px;
+}
+.bk-vazio svg {
+  color: var(--bk-marca);
+}
+.bk-vazio strong {
+  font-family: "Poppins", system-ui, sans-serif;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--bk-ink);
+}
+.bk-aviso {
+  position: fixed;
+  left: 16px;
+  right: 16px;
+  bottom: 16px;
+  z-index: 50;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  max-width: 520px;
+  margin: 0 auto;
+  padding: 12px 8px 12px 16px;
+  border: 1px solid;
+  border-radius: 14px;
+  font-size: 14px;
+  line-height: 1.45;
+  box-shadow: 0 18px 40px -16px rgba(24, 26, 84, 0.35);
+  animation: bk-sobe 0.28s var(--ease-apple);
+}
+.bk-aviso.ok {
+  border-color: #bbf7d0;
+  background: #f2fdf6;
+  color: #14532d;
+}
+.bk-aviso.erro {
+  border-color: #fecaca;
+  background: #fff5f5;
+  color: #7f1d1d;
+}
+.dark .bk-aviso.ok {
+  border-color: rgba(34, 197, 94, 0.3);
+  background: #10251a;
+  color: #bbf7d0;
+}
+.dark .bk-aviso.erro {
+  border-color: rgba(220, 38, 38, 0.32);
+  background: #2a1214;
+  color: #fecaca;
+}
+.bk-aviso > svg {
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+.bk-aviso span {
+  min-width: 0;
+  flex: 1;
+  padding-top: 1px;
+}
+.bk-aviso button {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 36px;
+  height: 36px;
+  margin-top: -6px;
+  border-radius: 10px;
+}
+.bk-aviso button:hover {
+  background: rgba(0, 0, 0, 0.05);
+}
+@keyframes bk-sobe {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* ── Celular ────────────────────────────────────────────────────────────── */
+@media (max-width: 640px) {
+  .bk-page {
+    gap: 18px;
+  }
+  .bk-busca {
+    flex-basis: 100%;
+    max-width: none;
+  }
+  .bk-empresas {
+    flex: 1 1 auto;
+  }
+  .bk-conta {
+    padding: 14px;
+    border-radius: 16px;
+  }
+  .bk-linha dt,
+  .bk-sem-pix dt {
+    flex-basis: 64px;
+  }
+  .bk-cc-campos {
+    grid-template-columns: 1fr;
+  }
+  .bk-pix-acao span {
+    display: none;
+  }
+  .bk-pix-acao {
+    width: 44px;
+    min-height: 44px;
+    padding: 0;
+    justify-content: center;
+  }
+}
+@media (max-width: 380px) {
+  .bk-pix-extras {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bk-page *,
+  .bk-aviso {
+    animation: none !important;
+    transition: none !important;
+  }
+}

@@ -19,6 +19,12 @@
 //   código no WhatsApp, para quem recebe copiar a mensagem inteira
 //   (lib/calc/pix.js).
 
+// 10/10/2026, pedido do Léo: "manter padrão, só melhoria de design com muita
+// qualidade". Tudo o que a tela faz ficou igual; mudou a hierarquia (ver o
+// cabeçalho de bancos.css): a escolha da empresa virou um seletor só na barra
+// da busca (antes eram cartões grandes E um cabeçalho recolhível, a mesma
+// escolha duas vezes), e no cartão da conta só o WhatsApp é botão cheio.
+
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ChevronDown,
@@ -33,15 +39,22 @@ import {
   AlertTriangle,
   QrCode,
   ImagePlus,
+  Landmark,
 } from "lucide-react";
 import { lerBancos, salvarBanco, salvarVarios, removerBanco } from "../services/bancos.js";
-import { Card, PageTitle, SectionTitle, CarregandoModulo, ErroModulo } from "../components/ui.jsx";
+import { Card, PageTitle, CarregandoModulo, ErroModulo } from "../components/ui.jsx";
+import "./bancos.css";
 
 import { bancosDaImpresilk, contaDaImpresilk } from "../lib/calc/bancos-impresilk.js";
 import { codigoDaConta, bancoPeloNome, conflitoDoCodigo, logoDaConta, logoValida, seloDoBanco } from "../lib/calc/bancosBR.js";
 import { conferirChave, pixCopiaECola, valorDoCodigo, nomeDoTipo, limiteDaMensagem } from "../lib/calc/pix.js";
 
-const ABERTOS_KEY = "painel_bancos_abertos";
+/* A EMPRESA ESCOLHIDA fica lembrada neste aparelho. "" = a primeira (o padrão
+   de antes: abrir só a primeira empresa, para a lista caber numa olhada);
+   "todas" = todas. A chave antiga (painel_bancos_abertos, um mapa de grupos
+   abertos) deixou de ser lida: o seletor escolhe uma ou todas. */
+const EMPRESA_KEY = "painel_bancos_empresa";
+const TODAS = "todas";
 
 const TIPOS_PIX = ["CNPJ", "CPF", "E-mail", "Telefone", "Aleatoria", "Conta e agencia"];
 
@@ -71,30 +84,54 @@ const VAZIO = {
    14 = CNPJ; qualquer outra coisa fica com o rótulo neutro. */
 const ehCPF = (doc) => String(doc || "").replace(/\D/g, "").length === 11;
 
-/* O NÚMERO DO BANCO NA MENSAGEM só quando foi CADASTRADO. Um código errado
-   vai para dentro de uma TED; o deduzido do nome aparece no cartão, marcado,
-   e vira dado quando alguém confirma (a tela pergunta antes de gravar). */
+/* O NÚMERO DO BANCO VAI NA MENSAGEM SEMPRE QUE É CONHECIDO. Até 10/10/2026 ia
+   só o CADASTRADO (o deduzido do nome ficava de fora, por cautela com TED), e
+   a conta completa chegava sem o número: o Léo pediu que ele vá sempre. O
+   deduzido sai da tabela dos bancos (lib/calc/bancosBR.js) e continua marcado
+   no cartão com "confirmar", para quem quiser gravar. */
 function linhaDoBanco(b) {
   const k = codigoDaConta(b);
-  if (!k || k.deduzido) return "";
+  if (!k) return "";
   return `Banco: ${k.codigo}${k.banco ? ` - ${k.banco.nome}` : ""}`;
 }
 
+// A chave como ela vai na mensagem: no formato que o app do banco aceita.
+function pixDaConta(b) {
+  if (!b.pix) return null;
+  const info = conferirChave(b.pix, b.pixTipo);
+  return { tipo: info.tipo ? nomeDoTipo(info.tipo) : b.pixTipo, chave: info.chave || String(b.pix).trim() };
+}
+
 // O texto que chega para quem pediu os dados. Negrito do WhatsApp = *asteriscos*.
-function textoWhatsApp(b) {
+// `semPix`: a conta sem a linha do Pix, para quando o Pix vai em destaque no alto.
+function textoWhatsApp(b, { semPix = false } = {}) {
   const rotuloDoc = ehCPF(b.doc) ? "CPF" : "CNPJ";
-  const pix = b.pix ? conferirChave(b.pix, b.pixTipo) : null;
+  const pix = pixDaConta(b);
   return [
     `*${b.banco} - ${b.titular}*`,
     linhaDoBanco(b),
     b.doc && `${rotuloDoc}: ${b.doc}`,
     b.agencia && `Agencia: ${b.agencia}`,
     b.conta && `Conta: ${b.conta}`,
-    pix ? `Pix (${pix.tipo ? nomeDoTipo(pix.tipo) : b.pixTipo}): ${pix.chave || b.pix}` : b.pixTipo && `Pix: ${b.pixTipo}`,
+    semPix ? "" : pix ? `Pix (${pix.tipo}): ${pix.chave}` : b.pixTipo && `Pix: ${b.pixTipo}`,
   ]
     .filter(Boolean)
     .join("\n");
 }
+
+/* PIX COM A CONTA COMPLETA (pedido do Léo, 10/10/2026): a chave em destaque no
+   alto, sozinha numa linha (no computador dá para selecionar só ela), e
+   embaixo a conta inteira com o número do banco, para quem também precisa
+   de TED ou de conferir o titular. Sem a opção, vai só a chave, como antes:
+   no celular, "Copiar" leva a mensagem inteira, e a chave sozinha cola no
+   app do banco sem sobra. */
+function textoPixComConta(b) {
+  const pix = pixDaConta(b);
+  if (!pix) return textoWhatsApp(b);
+  return `*Pix (${pix.tipo})*\n${pix.chave}\n\n${textoWhatsApp(b, { semPix: true })}`;
+}
+
+const PIX_COM_CONTA_KEY = "painel_bancos_pix_com_conta";
 
 const abrirWhats = (texto) => {
   window.open(`https://wa.me/?text=${encodeURIComponent(texto)}`, "_blank", "noopener");
@@ -122,13 +159,13 @@ async function lerLogo(file) {
   return url;
 }
 
-function SeloBanco({ conta, todas, tamanho = "h-11 w-11" }) {
+function SeloBanco({ conta, todas, tamanho = "h-12 w-12" }) {
   const logo = logoDaConta(conta, todas);
   if (logo) {
     // Branco fixo (não o bg-white do tema): no tema escuro, logo com fundo
     // transparente sumia num quadrado escuro.
     return (
-      <span className={`${tamanho} grid shrink-0 place-items-center overflow-hidden rounded-xl border p-1`} style={{ background: "#ffffff", borderColor: "var(--hairline)" }}>
+      <span className={`${tamanho} grid shrink-0 place-items-center overflow-hidden rounded-[14px] border p-1.5`} style={{ background: "#ffffff", borderColor: "var(--hairline)" }}>
         <img src={logo} alt={`Logo ${conta.banco}`} className="max-h-full max-w-full object-contain" />
       </span>
     );
@@ -138,34 +175,33 @@ function SeloBanco({ conta, todas, tamanho = "h-11 w-11" }) {
   return (
     <span
       aria-hidden="true"
-      className={`${tamanho} grid shrink-0 place-items-center rounded-xl px-0.5 text-center font-display font-bold leading-none ${pequena ? "text-[9px]" : "text-xs"}`}
-      style={{ background: s.cor, color: s.texto }}
+      className={`${tamanho} grid shrink-0 place-items-center rounded-[14px] px-0.5 text-center font-display font-bold leading-none ${pequena ? "text-[9px]" : "text-xs"}`}
+      style={{ background: s.cor, color: s.texto, boxShadow: "inset 0 0 0 1px rgba(0,0,0,0.06)" }}
     >
       {s.sigla}
     </span>
   );
 }
 
+/* UMA LINHA INTEIRA COPIA: o alvo é a largura toda, não o ícone de 13 px. O
+   tique e a cor verde dizem que copiou; a região viva diz a quem não vê. */
 function Valor({ rotulo, valor, aoCopiar, copiado }) {
   if (!valor) return null;
   return (
-    <div className="flex items-baseline justify-between gap-3 py-1">
-      <span className="shrink-0 font-display text-xs font-medium uppercase tracking-wide text-slate-400">
-        {rotulo}
-      </span>
-      <button
-        type="button"
-        onClick={aoCopiar}
-        title={`Copiar ${rotulo}`}
-        className="group flex min-w-0 items-center gap-1.5 rounded-md px-1.5 py-0.5 text-right font-mono text-sm text-slate-700 transition-colors hover:bg-brand/10 hover:text-brand"
-      >
-        <span className="min-w-0 truncate">{valor}</span>
-        {copiado ? (
-          <Check size={13} className="shrink-0 text-ok-600" />
-        ) : (
-          <Copy size={13} className="shrink-0 text-slate-300 group-hover:text-brand" />
-        )}
-      </button>
+    <div className="bk-linha">
+      <dt>{rotulo}</dt>
+      <dd>
+        <button
+          type="button"
+          onClick={aoCopiar}
+          title={`Copiar ${rotulo}`}
+          aria-label={`Copiar ${rotulo}: ${valor}`}
+          className={`bk-copiavel ${copiado ? "copiado" : ""}`}
+        >
+          <span className="bk-valor">{valor}</span>
+          {copiado ? <Check size={15} strokeWidth={2.6} /> : <Copy size={15} />}
+        </button>
+      </dd>
     </div>
   );
 }
@@ -174,7 +210,7 @@ function Valor({ rotulo, valor, aoCopiar, copiado }) {
    grande copia a chave do jeito que o app do banco aceita. O "Pix copia e
    cola" gera o código que o cliente cola no app e já sai com recebedor e,
    se preenchido, o valor. */
-function BlocoPix({ b, copiar, copiado }) {
+function BlocoPix({ b, copiar, copiado, comConta, aoMudarComConta }) {
   const [aberto, setAberto] = useState(false);
   const [valor, setValor] = useState("");
   const [mensagem, setMensagem] = useState("");
@@ -194,74 +230,89 @@ function BlocoPix({ b, copiar, copiado }) {
      inteira: com título ou instrução junto, o app do banco recusa a colagem
      (revisão de 25/09). Um link wa.me manda uma mensagem só. */
 
+  const chaveCopiada = copiado === `${b.id}-pix`;
+  const codigoCopiado = copiado === `${b.id}-codigo`;
+
   return (
-    <div className="mt-2 rounded-lg border bg-slate-50/70 p-2.5" style={{ borderColor: "var(--hairline)" }}>
-      <div className="flex items-center justify-between gap-2">
-        <span className="font-display text-xs font-semibold uppercase tracking-wide text-slate-500">
-          Pix · {info.tipo ? nomeDoTipo(info.tipo) : b.pixTipo}
-        </span>
+    <section className="bk-pix" aria-label={`Pix de ${b.banco}`}>
+      <div className="bk-pix-cab">
+        <span className="bk-pix-rotulo">Pix</span>
+        <span className="bk-pix-tipo">{info.tipo ? nomeDoTipo(info.tipo) : b.pixTipo}</span>
       </div>
       <button
         type="button"
         onClick={() => copiar(paraCopiar, `${b.id}-pix`, "Chave Pix")}
-        className="mt-1.5 flex min-h-11 w-full items-center gap-2 rounded-lg bg-brand px-3 py-2 text-left text-white transition-all hover:brightness-95"
+        className={`bk-pix-chave ${chaveCopiada ? "copiado" : ""}`}
         title="Copiar a chave Pix no formato que o app do banco aceita"
       >
-        <span className="min-w-0 flex-1">
-          <span className="block truncate font-mono text-sm">{info.legivel || b.pix}</span>
-          <span className="block text-[11px] text-white/80">
-            {copiado === `${b.id}-pix` ? "Chave copiada: cole no app do banco" : "Toque para copiar a chave"}
+        <span className="bk-pix-texto">
+          <span className="bk-pix-valor">{info.legivel || b.pix}</span>
+          <span className="bk-pix-dica">
+            {chaveCopiada ? "Chave copiada: cole no app do banco" : "Toque para copiar a chave"}
           </span>
         </span>
-        {copiado === `${b.id}-pix` ? <Check size={18} className="shrink-0" /> : <Copy size={18} className="shrink-0" />}
+        <span className="bk-pix-acao" aria-hidden="true">
+          {chaveCopiada ? <Check size={16} strokeWidth={2.6} /> : <Copy size={16} />}
+          <span>{chaveCopiada ? "Copiada" : "Copiar"}</span>
+        </span>
       </button>
       {info.aviso && (
-        <p className="mt-1.5 flex items-start gap-1.5 text-xs text-warn-700">
-          <AlertTriangle size={13} className="mt-0.5 shrink-0" />
+        <p className="bk-pix-aviso">
+          <AlertTriangle size={13} />
           {info.aviso}
         </p>
       )}
-      <div className="mt-1.5 grid grid-cols-2 gap-1.5">
+      <div className="bk-pix-extras">
         <button
           type="button"
           onClick={() => setAberto(!aberto)}
           aria-expanded={aberto}
-          className="flex min-h-10 items-center justify-center gap-1.5 rounded-lg border bg-white px-2 text-xs font-semibold text-slate-700 transition-colors hover:bg-slate-100"
-          style={{ borderColor: "var(--hairline)" }}
+          className="bk-quieto"
           title="Gerar o código que o cliente cola no app e já paga"
         >
-          <QrCode size={14} />
+          <QrCode size={15} />
           Pix copia e cola
+          <ChevronDown size={14} className="bk-seta" />
         </button>
         <button
           type="button"
-          onClick={() => abrirWhats(paraCopiar)}
-          className="flex min-h-10 items-center justify-center gap-1.5 rounded-lg border bg-white px-2 text-xs font-semibold text-slate-700 transition-colors hover:bg-slate-100"
-          style={{ borderColor: "var(--hairline)" }}
-          title="Mandar no WhatsApp uma mensagem só com a chave, para quem recebe copiar a mensagem inteira"
+          onClick={() => abrirWhats(comConta ? textoPixComConta(b) : paraCopiar)}
+          className="bk-quieto"
+          title={
+            comConta
+              ? "Mandar no WhatsApp a chave Pix em destaque e, embaixo, a conta completa com o número do banco"
+              : "Mandar no WhatsApp uma mensagem só com a chave, para quem recebe copiar a mensagem inteira"
+          }
         >
-          <MessageCircle size={14} />
-          Só a chave no Whats
+          <MessageCircle size={15} />
+          {comConta ? "Pix e conta no Whats" : "Só a chave no Whats"}
         </button>
       </div>
+      {/* A ESCOLHA DE MANDAR A CONTA JUNTO vale para todas as contas e fica
+          lembrada neste aparelho. O código copia e cola continua indo sozinho:
+          com texto junto, o app do banco recusa a colagem. */}
+      <label className="bk-junto">
+        <input type="checkbox" checked={comConta} onChange={(e) => aoMudarComConta(e.target.checked)} />
+        <span>Mandar a conta completa junto com o Pix</span>
+      </label>
 
       {aberto && (
-        <div className="mt-2 space-y-2 rounded-lg border bg-white p-2.5" style={{ borderColor: "var(--hairline)" }}>
-          <div className="grid gap-2 sm:grid-cols-2">
-            <label className="block text-xs text-slate-500">
+        <div className="bk-cc">
+          <div className="bk-cc-campos">
+            <label>
               Valor (opcional)
               <input
-                className="input mt-1"
+                className="input"
                 inputMode="decimal"
                 placeholder="ex.: 1.250,00"
                 value={valor}
                 onChange={(e) => setValor(e.target.value)}
               />
             </label>
-            <label className="block text-xs text-slate-500">
+            <label>
               Mensagem (opcional, cabem {limite} letras)
               <input
-                className="input mt-1"
+                className="input"
                 maxLength={limite || 72}
                 placeholder="ex.: Sinal O.S. 23364"
                 value={mensagem}
@@ -270,39 +321,37 @@ function BlocoPix({ b, copiar, copiado }) {
             </label>
           </div>
           {gerado?.erro ? (
-            <p className="text-xs text-bad-700">{gerado.erro}</p>
+            <p className="bk-cc-nota erro">{gerado.erro}</p>
           ) : gerado?.codigo ? (
             <>
-              <p className="text-xs text-slate-500">
+              <p className="bk-cc-nota">
                 {valorTela ? `Código com o valor de ${valorTela}.` : "Sem valor: quem paga digita o valor no app."} Quem paga abre o app do banco, escolhe Pix copia e cola e cola o código.
               </p>
               {gerado.mensagemCortada && (
-                <p className="text-xs text-warn-700">
+                <p className="bk-cc-nota aviso">
                   A mensagem não coube inteira no código. Vai assim: {gerado.mensagemNoCodigo || "(sem mensagem)"}
                 </p>
               )}
               <textarea
                 readOnly
-                rows={3}
+                rows={4}
                 value={gerado.codigo}
                 onFocus={(e) => e.target.select()}
                 aria-label="Código Pix copia e cola"
-                className="w-full resize-none rounded-lg border bg-slate-50 p-2 font-mono text-[11px] leading-snug text-slate-700"
-                style={{ borderColor: "var(--hairline)" }}
               />
-              <div className="grid grid-cols-2 gap-1.5">
+              <div className="bk-cc-acoes">
                 <button
                   type="button"
                   onClick={() => copiar(gerado.codigo, `${b.id}-codigo`, "Código Pix copia e cola")}
-                  className="btn-primary min-h-10 justify-center"
+                  className="btn-primary min-h-11 justify-center rounded-xl"
                 >
-                  {copiado === `${b.id}-codigo` ? <Check size={15} /> : <Copy size={15} />}
-                  {copiado === `${b.id}-codigo` ? "Copiado" : "Copiar código"}
+                  {codigoCopiado ? <Check size={15} /> : <Copy size={15} />}
+                  {codigoCopiado ? "Copiado" : "Copiar código"}
                 </button>
                 <button
                   type="button"
                   onClick={() => abrirWhats(gerado.codigo)}
-                  className="flex min-h-10 items-center justify-center gap-1.5 rounded-lg bg-ok-700 px-3 font-display text-sm font-semibold text-white transition-all hover:brightness-90"
+                  className="bk-whats"
                   title="Mandar no WhatsApp uma mensagem só com o código, para quem recebe copiar a mensagem inteira"
                 >
                   <MessageCircle size={15} />
@@ -313,7 +362,7 @@ function BlocoPix({ b, copiar, copiado }) {
           ) : null}
         </div>
       )}
-    </div>
+    </section>
   );
 }
 
@@ -350,11 +399,25 @@ export default function Bancos() {
     };
   }, []);
 
-  const [abertos, setAbertos] = useState(() => {
+  const [pixComConta, setPixComConta] = useState(() => {
     try {
-      return JSON.parse(localStorage.getItem(ABERTOS_KEY) || "null") || {};
+      return localStorage.getItem(PIX_COM_CONTA_KEY) === "1";
     } catch {
-      return {};
+      return false;
+    }
+  });
+  const mudarPixComConta = (sim) => {
+    setPixComConta(sim);
+    try {
+      localStorage.setItem(PIX_COM_CONTA_KEY, sim ? "1" : "0");
+    } catch {}
+  };
+
+  const [empresa, setEmpresa] = useState(() => {
+    try {
+      return localStorage.getItem(EMPRESA_KEY) || "";
+    } catch {
+      return "";
     }
   });
 
@@ -388,20 +451,37 @@ export default function Bancos() {
 
   const buscando = !!busca.trim();
 
-  const estaAberto = (nome, i) => {
-    if (buscando) return true;
-    if (nome in abertos) return !!abertos[nome];
-    return i === 0;
-  };
+  // A contagem do seletor é a da empresa inteira, não a da busca: o número ao
+  // lado do nome não pode mudar enquanto se digita sem dizer por quê.
+  const totais = useMemo(() => {
+    const t = {};
+    for (const b of todas) {
+      const nome = /^universo(?:\s|$)/i.test(String(b.titular || "").trim()) ? "Universo" : "Impresilk";
+      t[nome] = (t[nome] || 0) + 1;
+    }
+    return t;
+  }, [todas]);
+  const nomesEmpresas = useMemo(
+    () => ["Impresilk", "Universo"].filter((n) => totais[n]),
+    [totais]
+  );
 
-  const alternar = (nome, i) => {
-    // Durante a busca todos ficam abertos a forca; gravar aqui mudaria a
-    // preferencia sem efeito visivel e o grupo fecharia ao limpar a busca.
+  /* Qual empresa aparece. Durante a busca, todas (a busca procura em tudo);
+     com uma empresa só, ela. Sem escolha gravada, a primeira, como antes. */
+  const escolhida = buscando || nomesEmpresas.length <= 1
+    ? TODAS
+    : empresa === TODAS || nomesEmpresas.includes(empresa)
+      ? empresa
+      : nomesEmpresas[0];
+  const visiveis = escolhida === TODAS ? grupos : grupos.filter((g) => g.nome === escolhida);
+
+  const escolher = (nome) => {
+    // Durante a busca o seletor fica parado (todas aparecem): gravar aqui
+    // mudaria a preferência sem efeito visível.
     if (buscando) return;
-    const novo = { ...abertos, [nome]: !estaAberto(nome, i) };
-    setAbertos(novo);
+    setEmpresa(nome);
     try {
-      localStorage.setItem(ABERTOS_KEY, JSON.stringify(novo));
+      localStorage.setItem(EMPRESA_KEY, nome);
     } catch {}
   };
 
@@ -452,7 +532,7 @@ export default function Bancos() {
      fica colado no número, que é tocado para copiar. */
   const confirmarCodigo = async (b, codigo) => {
     const k = codigoDaConta(b);
-    if (!window.confirm(`Gravar ${codigo}${k?.banco ? ` (${k.banco.nome})` : ""} como número do banco de "${b.banco}"? Ele passa a sair na mensagem do WhatsApp.`)) return;
+    if (!window.confirm(`Gravar ${codigo}${k?.banco ? ` (${k.banco.nome})` : ""} como número do banco de "${b.banco}"? Ele já vai na mensagem do WhatsApp; gravado, deixa de ser dedução pelo nome.`)) return;
     setAviso(null);
     try {
       await salvarBanco(b.id, { codigoBanco: codigo });
@@ -586,36 +666,57 @@ export default function Bancos() {
   const sugestao = form ? bancoPeloNome(form.banco) : null;
   // A logo que o formulário mostra: a própria, ou a herdada de outra conta do mesmo banco.
   const logoDoForm = form ? logoDaConta(form, form.logoMexida ? [] : todas.filter((x) => x.id !== form.id)) : "";
+  const campo = (nome) => (e) => setForm((f) => ({ ...f, [nome]: e.target.value }));
 
   return (
-    <div className="space-y-6">
+    <div className="bk-page">
       <PageTitle
         titulo="Bancos e Pix"
         descricao="Contas e chaves Pix da Impresilk e da Universo. Copie a chave Pix com um toque, gere o Pix copia e cola ou mande tudo no WhatsApp."
       />
 
-      <div className="flex flex-wrap items-center gap-3">
-        <div className="relative min-w-56 flex-1 sm:max-w-md">
-          <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+      <div className="bk-barra">
+        <div className="bk-busca">
+          <Search size={17} />
           <input
-            className="input pl-9 pr-9"
-            aria-label="Buscar banco, número, titular, CNPJ, conta ou chave" placeholder="Buscar banco, número, titular, CNPJ, conta ou chave"
+            className="input"
+            aria-label="Buscar banco, número, titular, CNPJ, conta ou chave"
+            placeholder="Buscar banco, número, titular, CNPJ, conta ou chave"
             value={busca}
             onChange={(e) => setBusca(e.target.value)}
           />
           {buscando && (
-            <button
-              type="button"
-              onClick={() => setBusca("")}
-              className="absolute right-2 top-1/2 grid h-6 w-6 -translate-y-1/2 place-items-center rounded text-slate-400 hover:text-slate-700"
-              aria-label="Limpar busca"
-            >
-              <X size={14} />
+            <button type="button" onClick={() => setBusca("")} className="bk-busca-limpar" aria-label="Limpar busca">
+              <X size={16} />
             </button>
           )}
         </div>
-        <button type="button" className="btn-primary" onClick={() => abrirForm(null)}>
-          <Plus size={15} strokeWidth={2.4} />
+
+        {/* A EMPRESA É ESCOLHIDA AQUI, num lugar só. Antes eram cartões grandes
+            por empresa e, embaixo, o mesmo nome num cabeçalho recolhível: a
+            mesma escolha duas vezes, e uma faixa roxa que pesava mais que as
+            contas. */}
+        {nomesEmpresas.length > 1 && (
+          <div className="bk-empresas" role="group" aria-label="Empresa">
+            {[TODAS, ...nomesEmpresas].map((nome) => (
+              <button
+                key={nome}
+                type="button"
+                className="bk-empresa"
+                aria-pressed={escolhida === nome}
+                disabled={buscando}
+                title={buscando ? "Durante a busca aparecem todas as empresas" : undefined}
+                onClick={() => escolher(nome)}
+              >
+                {nome === TODAS ? "Todas" : nome}
+                <span className="bk-empresa-n">{nome === TODAS ? todas.length : totais[nome]}</span>
+              </button>
+            ))}
+          </div>
+        )}
+
+        <button type="button" className="btn-primary bk-nova" onClick={() => abrirForm(null)}>
+          <Plus size={16} strokeWidth={2.4} />
           Nova conta
         </button>
       </div>
@@ -624,19 +725,10 @@ export default function Bancos() {
           quem tocou em "confirmar" ou "Salvar" lá embaixo não via o erro que
           aparecia centenas de pixels acima (revisão de 25/09). */}
       {aviso && (
-        <div
-          role={aviso.tom === "ok" ? "status" : "alert"}
-          className={`fixed inset-x-4 bottom-4 z-50 mx-auto flex max-w-lg items-start gap-2 rounded-xl px-4 py-3 text-sm shadow-lg ${
-            aviso.tom === "ok" ? "bg-ok-50 text-ok-700" : "bg-bad-50 text-bad-700"
-          }`}
-        >
-          <span className="min-w-0 flex-1">{aviso.texto}</span>
-          <button
-            type="button"
-            onClick={() => setAviso(null)}
-            className="grid h-10 w-10 shrink-0 place-items-center rounded-lg hover:bg-black/5"
-            aria-label="Fechar aviso"
-          >
+        <div role={aviso.tom === "ok" ? "status" : "alert"} className={`bk-aviso ${aviso.tom === "ok" ? "ok" : "erro"}`}>
+          {aviso.tom === "ok" ? <Check size={17} strokeWidth={2.6} /> : <AlertTriangle size={17} />}
+          <span>{aviso.texto}</span>
+          <button type="button" onClick={() => setAviso(null)} aria-label="Fechar aviso">
             <X size={15} />
           </button>
         </div>
@@ -645,373 +737,280 @@ export default function Bancos() {
 
       {form && (
         <Card ref={cartaoForm}>
-          <SectionTitle
-            titulo={form.id ? "Editar conta" : "Nova conta"}
-            sub="Deixe a chave Pix em branco e escolha 'Conta e agência' quando não houver chave."
-          />
-          <form onSubmit={salvar} className="space-y-4">
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              <div>
-                <label className="label" htmlFor="b-banco">Banco</label>
-                <input
-                  id="b-banco"
-                  className="input"
-                  placeholder="ex.: Sicoob Credinor"
-                  value={form.banco}
-                  onChange={(e) => setForm((f) => ({ ...f, banco: e.target.value }))}
-                  required
-                />
-              </div>
-              <div>
-                <label className="label" htmlFor="b-codigo">Número do banco</label>
-                <input
-                  id="b-codigo"
-                  className="input"
-                  inputMode="numeric"
-                  maxLength={3}
-                  pattern="\d{3}"
-                  title="3 dígitos, ex.: 756"
-                  placeholder={sugestao ? `${sugestao.codigo} (${sugestao.sigla})` : "3 dígitos, ex.: 756"}
-                  value={form.codigoBanco}
-                  onChange={(e) => setForm((f) => ({ ...f, codigoBanco: e.target.value.replace(/\D/g, "").slice(0, 3) }))}
-                />
-                {sugestao && form.codigoBanco !== sugestao.codigo && (
-                  <button
-                    type="button"
-                    className="mt-1 inline-flex min-h-10 items-center text-left text-xs text-brand-700 hover:underline"
-                    onClick={() => setForm((f) => ({ ...f, codigoBanco: sugestao.codigo }))}
-                  >
-                    Pelo nome: {sugestao.codigo} · {sugestao.nome}. Usar este
-                  </button>
-                )}
-              </div>
-              <div>
-                <label className="label" htmlFor="b-titular">Titular</label>
-                <input
-                  id="b-titular"
-                  className="input"
-                  placeholder="ex.: Impresilk"
-                  value={form.titular}
-                  onChange={(e) => setForm((f) => ({ ...f, titular: e.target.value }))}
-                  required
-                />
-              </div>
-              <div>
-                <label className="label" htmlFor="b-doc">CNPJ ou CPF</label>
-                <input
-                  id="b-doc"
-                  className="input"
-                  placeholder="00.000.000/0000-00"
-                  value={form.doc}
-                  onChange={(e) => setForm((f) => ({ ...f, doc: e.target.value }))}
-                />
-              </div>
-              <div>
-                <label className="label" htmlFor="b-ag">Agência</label>
-                <input
-                  id="b-ag"
-                  className="input"
-                  value={form.agencia}
-                  onChange={(e) => setForm((f) => ({ ...f, agencia: e.target.value }))}
-                />
-              </div>
-              <div>
-                <label className="label" htmlFor="b-cc">Conta</label>
-                <input
-                  id="b-cc"
-                  className="input"
-                  value={form.conta}
-                  onChange={(e) => setForm((f) => ({ ...f, conta: e.target.value }))}
-                />
-              </div>
-              <div>
-                <label className="label" htmlFor="b-pixtipo">Tipo da chave Pix</label>
-                <select
-                  id="b-pixtipo"
-                  className="input"
-                  value={form.pixTipo}
-                  onChange={(e) => setForm((f) => ({ ...f, pixTipo: e.target.value }))}
-                >
-                  {TIPOS_PIX.map((t) => (
-                    <option key={t} value={t}>
-                      {t}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="sm:col-span-2">
-                <label className="label" htmlFor="b-pix">Chave Pix</label>
-                <input
-                  id="b-pix"
-                  className="input"
-                  placeholder="deixe em branco se a conta não tem chave"
-                  value={form.pix}
-                  onChange={(e) => setForm((f) => ({ ...f, pix: e.target.value }))}
-                />
-                {form.pix.trim() && conferirChave(form.pix, form.pixTipo).aviso && (
-                  <p className="mt-1 flex items-start gap-1.5 text-xs text-warn-700">
-                    <AlertTriangle size={13} className="mt-0.5 shrink-0" />
-                    {conferirChave(form.pix, form.pixTipo).aviso}
-                  </p>
-                )}
-              </div>
-              <div>
-                <label className="label" htmlFor="b-cidade">Cidade do titular</label>
-                <input
-                  id="b-cidade"
-                  className="input"
-                  placeholder={CIDADE_PADRAO}
-                  value={form.cidade}
-                  onChange={(e) => setForm((f) => ({ ...f, cidade: e.target.value }))}
-                />
-                <span className="mt-1 block text-xs text-slate-500">Vai no código Pix copia e cola. Em branco: {CIDADE_PADRAO}.</span>
-              </div>
-              <div className="sm:col-span-2">
-                <span className="label">Logo do banco</span>
-                <div className="flex flex-wrap items-center gap-3">
-                  {/* A prévia mostra o que vai ficar: mexeu na logo, vale a do
-                      formulário; senão, a própria ou a herdada do mesmo banco. */}
-                  <SeloBanco
-                    conta={{ ...form, id: form.id || "novo" }}
-                    todas={form.logoMexida ? [] : todas.filter((x) => x.id !== form.id)}
-                    tamanho="h-14 w-14"
-                  />
-                  <label className="btn-ghost min-h-10 cursor-pointer">
-                    <ImagePlus size={15} />
-                    {logoDoForm ? "Trocar imagem" : "Anexar imagem"}
+          <div className="bk-form-cab">
+            <div>
+              <h2>{form.id ? `Editar ${form._orig?.banco || "conta"}` : "Nova conta"}</h2>
+              <p>Sem chave Pix, deixe a chave em branco e escolha "Conta e agência".</p>
+            </div>
+            <button type="button" className="bk-icone" onClick={() => setForm(null)} aria-label="Fechar o formulário">
+              <X size={18} />
+            </button>
+          </div>
+          <form onSubmit={salvar}>
+            <div className="bk-form-blocos">
+              <fieldset className="bk-form-bloco">
+                <legend>Banco</legend>
+                <div className="bk-form-campos">
+                  <div className="largo">
+                    <label className="label" htmlFor="b-banco">Nome do banco</label>
+                    <input id="b-banco" className="input" placeholder="ex.: Sicoob Credinor" value={form.banco} onChange={campo("banco")} required />
+                  </div>
+                  <div>
+                    <label className="label" htmlFor="b-codigo">Número do banco</label>
                     <input
-                      type="file"
-                      accept="image/png,image/jpeg,image/webp"
-                      className="sr-only"
-                      onChange={(e) => { escolherLogo(e.target.files?.[0]); e.target.value = ""; }}
+                      id="b-codigo"
+                      className="input bk-mono"
+                      inputMode="numeric"
+                      maxLength={3}
+                      pattern="\d{3}"
+                      title="3 dígitos, ex.: 756"
+                      placeholder={sugestao ? `${sugestao.codigo} (${sugestao.sigla})` : "3 dígitos, ex.: 756"}
+                      value={form.codigoBanco}
+                      onChange={(e) => setForm((f) => ({ ...f, codigoBanco: e.target.value.replace(/\D/g, "").slice(0, 3) }))}
                     />
-                  </label>
-                  {logoDoForm && (
-                    <button type="button" className="btn-ghost min-h-10" onClick={() => setForm((f) => ({ ...f, logo: "", logoMexida: true }))}>
-                      Tirar a logo
-                    </button>
-                  )}
+                    {sugestao && form.codigoBanco !== sugestao.codigo && (
+                      <button
+                        type="button"
+                        className="bk-form-sugestao"
+                        onClick={() => setForm((f) => ({ ...f, codigoBanco: sugestao.codigo }))}
+                      >
+                        Pelo nome: {sugestao.codigo} · {sugestao.nome}. Usar este
+                      </button>
+                    )}
+                  </div>
+                  <div>
+                    <span className="label">Logo do banco</span>
+                    <div className="bk-form-logo">
+                      {/* A prévia mostra o que vai ficar: mexeu na logo, vale a do
+                          formulário; senão, a própria ou a herdada do mesmo banco. */}
+                      <SeloBanco
+                        conta={{ ...form, id: form.id || "novo" }}
+                        todas={form.logoMexida ? [] : todas.filter((x) => x.id !== form.id)}
+                        tamanho="h-11 w-11"
+                      />
+                      <label className="btn-outline min-h-11 cursor-pointer px-3">
+                        <ImagePlus size={15} />
+                        {logoDoForm ? "Trocar" : "Anexar"}
+                        <input
+                          type="file"
+                          accept="image/png,image/jpeg,image/webp"
+                          className="sr-only"
+                          onChange={(e) => { escolherLogo(e.target.files?.[0]); e.target.value = ""; }}
+                        />
+                      </label>
+                      {logoDoForm && (
+                        <button type="button" className="btn-ghost min-h-11 px-3" onClick={() => setForm((f) => ({ ...f, logo: "", logoMexida: true }))}>
+                          Tirar
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                  <span className="bk-form-ajuda largo">
+                    Logo em PNG, JPG ou WebP, reduzida para caber no selo. Ela é do banco: vale para todas as contas com o mesmo número.
+                  </span>
                 </div>
-                <span className="mt-1 block text-xs text-slate-500">
-                  PNG, JPG ou WebP, reduzida para caber no selo. A logo é do banco: vale para todas as contas com o mesmo número.
-                </span>
-              </div>
+              </fieldset>
+
+              <fieldset className="bk-form-bloco">
+                <legend>Titular e conta</legend>
+                <div className="bk-form-campos">
+                  <div>
+                    <label className="label" htmlFor="b-titular">Titular</label>
+                    <input id="b-titular" className="input" placeholder="ex.: Impresilk" value={form.titular} onChange={campo("titular")} required />
+                  </div>
+                  <div>
+                    <label className="label" htmlFor="b-doc">CNPJ ou CPF</label>
+                    <input id="b-doc" className="input bk-mono" placeholder="00.000.000/0000-00" value={form.doc} onChange={campo("doc")} />
+                  </div>
+                  <div>
+                    <label className="label" htmlFor="b-ag">Agência</label>
+                    <input id="b-ag" className="input bk-mono" value={form.agencia} onChange={campo("agencia")} />
+                  </div>
+                  <div>
+                    <label className="label" htmlFor="b-cc">Conta</label>
+                    <input id="b-cc" className="input bk-mono" value={form.conta} onChange={campo("conta")} />
+                  </div>
+                </div>
+              </fieldset>
+
+              <fieldset className="bk-form-bloco">
+                <legend>Pix</legend>
+                <div className="bk-form-campos">
+                  <div>
+                    <label className="label" htmlFor="b-pixtipo">Tipo da chave</label>
+                    <select id="b-pixtipo" className="input" value={form.pixTipo} onChange={campo("pixTipo")}>
+                      {TIPOS_PIX.map((t) => (
+                        <option key={t} value={t}>
+                          {t}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="label" htmlFor="b-cidade">Cidade do titular</label>
+                    <input id="b-cidade" className="input" placeholder={CIDADE_PADRAO} value={form.cidade} onChange={campo("cidade")} />
+                  </div>
+                  <div className="largo">
+                    <label className="label" htmlFor="b-pix">Chave Pix</label>
+                    <input
+                      id="b-pix"
+                      className="input bk-mono"
+                      placeholder="deixe em branco se a conta não tem chave"
+                      value={form.pix}
+                      onChange={campo("pix")}
+                    />
+                    {form.pix.trim() && conferirChave(form.pix, form.pixTipo).aviso && (
+                      <p className="bk-pix-aviso">
+                        <AlertTriangle size={13} />
+                        {conferirChave(form.pix, form.pixTipo).aviso}
+                      </p>
+                    )}
+                    <span className="bk-form-ajuda">A cidade vai no código Pix copia e cola. Em branco: {CIDADE_PADRAO}.</span>
+                  </div>
+                </div>
+              </fieldset>
             </div>
 
-            <div className="flex flex-wrap items-center gap-2">
-              <button className="btn-primary" disabled={salvando}>
-                {salvando ? "Salvando..." : form.id ? "Salvar alterações" : "Cadastrar conta"}
-              </button>
+            <div className="bk-form-rodape">
               <button type="button" className="btn-ghost" onClick={() => setForm(null)}>
                 Cancelar
+              </button>
+              <button className="btn-primary" disabled={salvando}>
+                {salvando ? "Salvando..." : form.id ? "Salvar alterações" : "Cadastrar conta"}
               </button>
             </div>
           </form>
         </Card>
       )}
 
-      {grupos.length === 0 && (
-        <p className="text-sm text-slate-500">
-          {buscando ? `Nada com "${busca}". Confira a grafia.` : "Nenhuma conta cadastrada ainda."}
-        </p>
-      )}
-
-      {/* AS EMPRESAS VIRAM CARTÕES.
-          Cada grupo era uma faixa da largura da tela, com o nome à esquerda e
-          um vazio enorme no meio: cinco empresas viravam cinco telas de
-          rolagem, e abrir a certa era mirar numa setinha. Em cartão, elas cabem
-          numa olhada e o clique é no cartão inteiro. */}
-      {grupos.length > 1 && (
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {grupos.map((g, i) => {
-            const aberto = estaAberto(g.nome, i);
-            return (
-              <button
-                key={`card-${g.nome}`}
-                type="button"
-                onClick={() => alternar(g.nome, i)}
-                aria-pressed={aberto}
-                className={`rounded-xl border px-4 py-3 text-left transition-all ${
-                  aberto
-                    ? "border-brand bg-brand text-white shadow-sm"
-                    : "bg-white hover:border-brand-300 hover:shadow-sm"
-                }`}
-                style={aberto ? undefined : { borderColor: "var(--hairline)" }}
-              >
-                <span className="block truncate font-display text-sm font-semibold">{g.nome}</span>
-                <span className={`block text-xs ${aberto ? "text-white/75" : "text-slate-500"}`}>
-                  {g.itens.length} {g.itens.length === 1 ? "conta" : "contas"}
-                </span>
-              </button>
-            );
-          })}
+      {visiveis.length === 0 && (
+        <div className="bk-vazio">
+          {buscando ? <Search size={26} /> : <Landmark size={26} />}
+          <strong>{buscando ? `Nada com "${busca}"` : "Nenhuma conta cadastrada ainda"}</strong>
+          <span>{buscando ? "Confira a grafia ou busque pelo número do banco." : "Toque em Nova conta para cadastrar a primeira."}</span>
         </div>
       )}
 
-      {grupos.map((g, i) => {
-        // Com UMA empresa só não existe grade de cartões (ela pede 2+): fechar
-        // o único grupo deixava a tela vazia, sem nenhum botão de volta -- e o
-        // estado ficava gravado, sobrevivendo ao recarregar.
-        const aberto = grupos.length === 1 || estaAberto(g.nome, i);
-        // Fechado não ocupa espaço: quem escolhe é o cartão lá em cima.
-        if (!aberto) return null;
-        return (
-          <Card key={g.nome} className="p-0">
-            <button
-              type="button"
-              onClick={() => alternar(g.nome, i)}
-              aria-expanded={aberto}
-              className="flex w-full items-center gap-2.5 px-5 py-4 text-left"
-            >
-              <ChevronDown
-                size={16}
-                className={`shrink-0 text-slate-400 transition-transform ${aberto ? "" : "-rotate-90"}`}
-              />
-              <span className="min-w-0 flex-1 truncate font-display text-base font-semibold text-slate-900">
-                {g.nome}
-              </span>
-              <span className="chip">
-                {g.itens.length} {g.itens.length === 1 ? "conta" : "contas"}
-              </span>
-            </button>
+      {visiveis.map((g) => (
+        <section key={g.nome} className="bk-grupo" aria-labelledby={`bk-grupo-${g.nome}`}>
+          <div className="bk-grupo-cab">
+            <h2 id={`bk-grupo-${g.nome}`}>{g.nome}</h2>
+            <span>
+              {g.itens.length} {g.itens.length === 1 ? "conta" : "contas"}
+            </span>
+          </div>
 
-            {aberto && (
-              <div className="grid grid-cols-1 gap-3 px-5 pb-5 sm:grid-cols-2 2xl:grid-cols-3">
-                {/* Duas colunas até tela muito larga: com três, o botão da chave e
-                    o do WhatsApp quebravam o rótulo em duas linhas. */}
-                {g.itens.map((b) => {
-                  const cod = codigoDaConta(b);
-                  return (
-                    <div
-                      key={b.id}
-                      className="flex min-w-0 flex-col rounded-xl border p-3.5"
-                      style={{ borderColor: "var(--hairline)" }}
-                    >
-                      <div className="flex items-start gap-2.5">
-                        <SeloBanco conta={b} todas={todas} />
-                        <span className="min-w-0 flex-1">
-                          <span className="block truncate font-display text-sm font-semibold text-slate-900">
-                            {b.banco}
-                          </span>
-                          <span className="block truncate text-xs text-slate-500">{b.titular}</span>
-                          {cod ? (
-                            <span className="mt-0.5 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs">
-                              <button
-                                type="button"
-                                onClick={() => copiar(cod.codigo, `${b.id}-cod`, "Número do banco")}
-                                className="inline-flex min-h-10 items-center rounded px-2 font-mono font-semibold text-slate-700 hover:bg-brand/10 hover:text-brand"
-                                title="Copiar o número do banco"
-                              >
-                                {cod.codigo}
-                                {copiado === `${b.id}-cod` && <Check size={11} className="ml-1 inline text-ok-600" />}
-                              </button>
-                              {cod.banco && <span className="truncate text-slate-500">{cod.banco.nome}</span>}
-                              {cod.deduzido && (
-                                <button
-                                  type="button"
-                                  onClick={() => confirmarCodigo(b, cod.codigo)}
-                                  className="inline-flex min-h-10 items-center text-left text-warn-700 hover:underline"
-                                  title="O número foi deduzido do nome. Confirme para ele entrar na mensagem do WhatsApp."
-                                >
-                                  pelo nome · confirmar
-                                </button>
-                              )}
-                            </span>
-                          ) : (
-                            <button
-                              type="button"
-                              onClick={() => abrirForm(b)}
-                              className="mt-0.5 inline-flex min-h-10 items-center text-xs text-warn-700 hover:underline"
-                            >
-                              sem número do banco · cadastrar
-                            </button>
-                          )}
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => abrirForm(b)}
-                          className="grid h-7 w-7 shrink-0 place-items-center rounded-lg text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700"
-                          title={`Editar ${b.banco}`}
-                        >
-                          <Pencil size={13} />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => remover(b)}
-                          className="grid h-7 w-7 shrink-0 place-items-center rounded-lg text-slate-500 transition-colors hover:bg-bad-50 hover:text-bad-700"
-                          title={`Remover ${b.banco}`}
-                        >
-                          <Trash2 size={13} />
-                        </button>
-                      </div>
-
-                      <div className="mt-1.5 flex-1">
-                        <Valor
-                          rotulo={ehCPF(b.doc) ? "CPF" : "CNPJ"}
-                          valor={b.doc}
-                          copiado={copiado === `${b.id}-doc`}
-                          aoCopiar={() => copiar(b.doc, `${b.id}-doc`, ehCPF(b.doc) ? "CPF" : "CNPJ")}
-                        />
-                        <Valor
-                          rotulo="Agência"
-                          valor={b.agencia}
-                          copiado={copiado === `${b.id}-ag`}
-                          aoCopiar={() => copiar(b.agencia, `${b.id}-ag`, "Agência")}
-                        />
-                        <Valor
-                          rotulo="Conta"
-                          valor={b.conta}
-                          copiado={copiado === `${b.id}-cc`}
-                          aoCopiar={() => copiar(b.conta, `${b.id}-cc`, "Conta")}
-                        />
-                        {b.pix ? (
-                          <BlocoPix b={b} copiar={copiar} copiado={copiado} />
-                        ) : (
-                          <div className="flex items-baseline justify-between gap-3 py-1">
-                            <span className="font-display text-xs font-medium uppercase tracking-wide text-slate-400">
-                              Pix
-                            </span>
-                            <span className="text-sm text-slate-400">
-                              {b.pixTipo === "Conta e agencia" ? "sem chave: por agência e conta" : b.pixTipo}
-                            </span>
-                          </div>
-                        )}
-                      </div>
-
-                      <div className="mt-3 flex items-center gap-1.5">
-                        <button
-                          type="button"
-                          onClick={() => abrirWhats(textoWhatsApp(b))}
-                          // ok-700, e o hover ESCURECE: voltar para ok-600 no hover
-                          // devolvia os 3,3:1 que este botao existe para evitar.
-                          className="flex min-h-10 flex-1 items-center justify-center gap-1.5 rounded-lg bg-ok-700 px-3 py-2 font-display text-sm font-semibold text-white transition-all hover:brightness-90"
-                          title="Abrir o WhatsApp com estes dados prontos"
-                        >
-                          <MessageCircle size={15} strokeWidth={2.4} />
-                          Mandar dados no WhatsApp
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => copiar(textoWhatsApp(b), `${b.id}-tudo`, "Dados da conta")}
-                          className="grid h-10 w-10 shrink-0 place-items-center rounded-lg border text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700"
-                          style={{ borderColor: "var(--hairline)" }}
-                          title="Copiar a conta inteira"
-                        >
-                          {copiado === `${b.id}-tudo` ? (
-                            <Check size={15} className="text-ok-600" />
-                          ) : (
-                            <Copy size={15} />
-                          )}
-                        </button>
-                      </div>
+          <div className="bk-grade">
+            {g.itens.map((b) => {
+              const cod = codigoDaConta(b);
+              const rotuloDoc = ehCPF(b.doc) ? "CPF" : "CNPJ";
+              return (
+                <article key={b.id} className="bk-conta" aria-labelledby={`bk-${b.id}`}>
+                  <div className="bk-conta-topo">
+                    <SeloBanco conta={b} todas={todas} />
+                    <div className="bk-conta-nome">
+                      <h3 id={`bk-${b.id}`} title={b.banco}>{b.banco}</h3>
+                      <p title={b.titular}>{b.titular}</p>
                     </div>
-                  );
-                })}
-              </div>
-            )}
-          </Card>
-        );
-      })}
+                    <div className="bk-conta-acoes">
+                      <button type="button" onClick={() => abrirForm(b)} className="bk-icone" title={`Editar ${b.banco}`} aria-label={`Editar ${b.banco}`}>
+                        <Pencil size={16} />
+                      </button>
+                      <button type="button" onClick={() => remover(b)} className="bk-icone perigo" title={`Remover ${b.banco}`} aria-label={`Remover ${b.banco}`}>
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="bk-codigo">
+                    {cod ? (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => copiar(cod.codigo, `${b.id}-cod`, "Número do banco")}
+                          className={`bk-chip ${copiado === `${b.id}-cod` ? "copiado" : ""}`}
+                          title="Copiar o número do banco"
+                          aria-label={`Copiar o número do banco: ${cod.codigo}`}
+                        >
+                          <strong>{cod.codigo}</strong>
+                          {cod.banco && <span>{cod.banco.nome}</span>}
+                          {copiado === `${b.id}-cod` ? <Check size={13} strokeWidth={2.6} /> : <Copy size={13} />}
+                        </button>
+                        {cod.deduzido && (
+                          <button
+                            type="button"
+                            onClick={() => confirmarCodigo(b, cod.codigo)}
+                            className="bk-chip aviso"
+                            title="O número foi deduzido do nome do banco e já vai na mensagem. Confirme para gravar."
+                          >
+                            <AlertTriangle size={13} />
+                            Pelo nome · confirmar
+                          </button>
+                        )}
+                      </>
+                    ) : (
+                      <button type="button" onClick={() => abrirForm(b)} className="bk-chip aviso">
+                        <AlertTriangle size={13} />
+                        Sem número do banco · cadastrar
+                      </button>
+                    )}
+                  </div>
+
+                  <dl className="bk-dados">
+                    <Valor
+                      rotulo={rotuloDoc}
+                      valor={b.doc}
+                      copiado={copiado === `${b.id}-doc`}
+                      aoCopiar={() => copiar(b.doc, `${b.id}-doc`, rotuloDoc)}
+                    />
+                    <Valor
+                      rotulo="Agência"
+                      valor={b.agencia}
+                      copiado={copiado === `${b.id}-ag`}
+                      aoCopiar={() => copiar(b.agencia, `${b.id}-ag`, "Agência")}
+                    />
+                    <Valor
+                      rotulo="Conta"
+                      valor={b.conta}
+                      copiado={copiado === `${b.id}-cc`}
+                      aoCopiar={() => copiar(b.conta, `${b.id}-cc`, "Conta")}
+                    />
+                    {!b.pix && (
+                      <div className="bk-sem-pix">
+                        <dt>Pix</dt>
+                        <dd>{b.pixTipo === "Conta e agencia" ? "Sem chave: por agência e conta" : b.pixTipo}</dd>
+                      </div>
+                    )}
+                  </dl>
+
+                  {b.pix && <BlocoPix b={b} copiar={copiar} copiado={copiado} comConta={pixComConta} aoMudarComConta={mudarPixComConta} />}
+
+                  <div className="bk-rodape">
+                    <button
+                      type="button"
+                      onClick={() => abrirWhats(textoWhatsApp(b))}
+                      className="bk-whats"
+                      title="Abrir o WhatsApp com estes dados prontos"
+                    >
+                      <MessageCircle size={17} strokeWidth={2.3} />
+                      Mandar dados no WhatsApp
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => copiar(textoWhatsApp(b), `${b.id}-tudo`, "Dados da conta")}
+                      className={`bk-tudo ${copiado === `${b.id}-tudo` ? "copiado" : ""}`}
+                      title="Copiar a conta inteira"
+                      aria-label="Copiar a conta inteira"
+                    >
+                      {copiado === `${b.id}-tudo` ? <Check size={17} strokeWidth={2.6} /> : <Copy size={17} />}
+                    </button>
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+        </section>
+      ))}
     </div>
   );
 }
