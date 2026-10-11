@@ -7,7 +7,7 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
-  AUTOMATICO_DESDE, decidir, importsRelativos, juntarArquivos, listarFunctions, metadados, tipoDoArquivo,
+  AUTOMATICO_DESDE, conferirVerde, decidir, importsRelativos, juntarArquivos, listarFunctions, metadados, tipoDoArquivo,
 } from "../scripts/lib/publicar-sistemas.mjs";
 
 const SCRIPT = join(dirname(fileURLToPath(import.meta.url)), "../scripts/publicar-sistemas.mjs");
@@ -174,6 +174,85 @@ test("de ponta a ponta: publica só a atrasada, com os arquivos certos, e não c
     const tudo = await rodar("--forcar");
     assert.notEqual(tudo.codigo, 0);
     assert.match(tudo.saida, /só vale com --funcao/);
+  } finally {
+    servidor.close();
+  }
+});
+
+// CI-03 da revisão de 11/10/2026: o cron e a carona publicavam o servidor do PCP
+// pela data do commit, sem olhar o Deploy de lá. Um commit que a CI do PCP
+// recusou ia ao ar em até 1 hora. Dados fictícios.
+test("Deploy verde: só publica a main que é o último Deploy verde do sistema", () => {
+  assert.equal(conferirVerde({ head: "a".repeat(40), verde: "a".repeat(40) }).ok, true);
+  const afrente = conferirVerde({ head: "b".repeat(40), verde: "a".repeat(40) });
+  assert.equal(afrente.ok, false);
+  assert.match(afrente.motivo, /à frente do último Deploy verde/);
+  assert.match(conferirVerde({ head: "b".repeat(40), verde: "" }).motivo, /nenhum Deploy verde/);
+});
+
+test("Deploy verde de ponta a ponta: main à frente espera, main verde publica, API fora do ar falha", async () => {
+  const origem = mkdtempSync(join(tmpdir(), "origem-verde-"));
+  repositorio(join(origem, "pcp"), [
+    { quando: "2026-10-10T20:00:00Z", arquivos: { "supabase/functions/pcp-sync/index.ts": "export const v = 1;\n" } },
+  ]);
+  const raiz = join(origem, "pcp");
+  const sha = () => execFileSync("git", ["-C", raiz, "rev-parse", "HEAD"], { encoding: "utf8" }).trim();
+  const verdeAntigo = sha();
+  escrever(raiz, { "supabase/functions/pcp-sync/index.ts": "export const v = 2; // a CI de lá recusou\n" });
+  execFileSync("git", ["-C", raiz, "add", "-A"]);
+  execFileSync("git", ["-C", raiz, "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "-m", "c"], {
+    env: { ...process.env, GIT_AUTHOR_DATE: "2026-10-11T10:00:00Z", GIT_COMMITTER_DATE: "2026-10-11T10:00:00Z" },
+  });
+  const registro = join(origem, "sistemas.json");
+  writeFileSync(registro, JSON.stringify([{ repo: "pcp", nome: "PCP", projeto: "pcpteste", deployVerde: "deploy.yml" }]));
+
+  let verde = verdeAntigo;
+  let githubFora = false;
+  const recebidos = [];
+  const servidor = createServer((req, res) => {
+    if (req.url.startsWith("/gh/")) {
+      assert.equal(req.url, "/gh/repos/leogpereira-afk/pcp/actions/workflows/deploy.yml/runs?branch=main&status=success&per_page=1");
+      if (githubFora) { res.writeHead(503); return res.end("{}"); }
+      res.writeHead(200, { "content-type": "application/json" });
+      return res.end(JSON.stringify({ workflow_runs: [{ head_sha: verde }] }));
+    }
+    const partes = [];
+    req.on("data", (p) => partes.push(p));
+    req.on("end", () => {
+      res.writeHead(req.method === "GET" ? 200 : 201, { "content-type": "application/json" });
+      if (req.method === "GET") return res.end(JSON.stringify([{ slug: "pcp-sync", version: 130, updated_at: Date.parse("2026-10-11T09:00:00Z"), verify_jwt: false, import_map: false }]));
+      recebidos.push(req.url);
+      res.end(JSON.stringify({ version: 131 }));
+    });
+  });
+  await new Promise((ok) => servidor.listen(0, "127.0.0.1", ok));
+  const porta = servidor.address().port;
+  const rodar = () => new Promise((ok) => {
+    const filho = spawn(process.execPath, [SCRIPT, "--origem", origem, "--registro", registro], {
+      env: { ...process.env, SUPABASE_ACCESS_TOKEN: "sbp_teste", SUPABASE_API_URL: `http://127.0.0.1:${porta}/v1`, GITHUB_API_URL: `http://127.0.0.1:${porta}/gh` },
+    });
+    let saida = "";
+    filho.stdout.on("data", (d) => { saida += d; });
+    filho.stderr.on("data", (d) => { saida += d; });
+    filho.on("close", (codigo) => ok({ codigo, saida }));
+  });
+  try {
+    const espera = await rodar();
+    assert.equal(espera.codigo, 0, espera.saida);
+    assert.match(espera.saida, /PENDENTE: a main \([0-9a-f]{7}\) está à frente do último Deploy verde/);
+    assert.equal(recebidos.length, 0, "não publica o commit que a CI recusou");
+
+    verde = sha();
+    const publica = await rodar();
+    assert.equal(publica.codigo, 0, publica.saida);
+    assert.match(publica.saida, /pcp-sync: publicada v131/);
+    assert.equal(recebidos.length, 1);
+
+    githubFora = true;
+    const falha = await rodar();
+    assert.equal(falha.codigo, 1, "sem saber o verde, não publica e não termina verde");
+    assert.match(falha.saida, /não consegui ler o último deploy\.yml verde de pcp \(HTTP 503\)/);
+    assert.equal(recebidos.length, 1);
   } finally {
     servidor.close();
   }

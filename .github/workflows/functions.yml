@@ -16,6 +16,16 @@
 # Supabase, começa com sbp_ -- https://supabase.com/dashboard/account/tokens).
 # Sem ele o job FALHA em vez de passar pulando: "publicou 0" com check verde é a
 # mesma mentira que este arquivo existe para acabar.
+#
+# O TOKEN MORA NO ENVIRONMENT `publicar-functions` (revisão de 11/10/2026,
+# CI-04): todo job daqui que o usa declara `environment: publicar-functions`.
+# O workflow_dispatch roda o arquivo do RAMO escolhido em "Use workflow from";
+# com o token como segredo do repositório, um ramo velho do Painel (sem a trava
+# abaixo) recebia o token e publicava o que quisesse. Com o segredo só no
+# environment e a política "só a main", run de outro ramo não recebe o token.
+# Passo do dono (Settings > Environments): criar "publicar-functions",
+# Deployment branches = Selected branches = main, e mover o
+# SUPABASE_ACCESS_TOKEN para lá (apagando o do repositório).
 name: Edge Functions no Supabase
 
 on:
@@ -53,6 +63,7 @@ concurrency:
 jobs:
   publicar:
     runs-on: ubuntu-latest
+    environment: publicar-functions
     steps:
       - uses: actions/checkout@v4
 
@@ -95,10 +106,45 @@ jobs:
   # entraram no git do PCP no mesmo dia -- e nenhum dos dois chegou no ar,
   # porque publicar Edge Function de la dependia de alguem lembrar de rodar o
   # script a mao. O dono abriu a tela no dia seguinte e viu tudo igual.
+  # DUAS PORTAS, AS DUAS CONFERIDAS (revisão de 11/10/2026, CI-03 e CI-05):
+  # - push aqui (carona): o MESMO publicador do cron (scripts/publicar-sistemas.mjs).
+  #   Ele só publica se a main do PCP for o commit do ÚLTIMO DEPLOY VERDE de lá
+  #   (a suíte e a vez passaram) e se ela tiver commit mais novo que a versão no
+  #   ar. Antes, todo push do Painel republicava a main do PCP às cegas: ia ao ar
+  #   o código que a CI do PCP recusou, e o servidor publicado de um ramo (para
+  #   subir antes da tela) era desfeito pela main mais velha.
+  # - disparo manual (pcp_ref): o ramo tem de conter a main, a main tem de ser o
+  #   último Deploy verde, os commits do ramo têm de estar dentro da vez, e a
+  #   suíte do PCP roda NO RAMO antes de publicar: a trava só olha ancestralidade,
+  #   e um merge resolvido "com a minha versão" contém a main e tira regra dela.
   publicar-pcp:
     runs-on: ubuntu-latest
     needs: publicar
-    if: always()
+    if: always() && github.event_name == 'push'
+    environment: publicar-functions
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Publicar o servidor do PCP (só a main do último Deploy verde, se estiver atrasado)
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          if [ -z "$SUPABASE_ACCESS_TOKEN" ]; then
+            echo "::error::Falta o secret SUPABASE_ACCESS_TOKEN. As functions do PCP NAO foram publicadas."
+            exit 1
+          fi
+          node scripts/publicar-sistemas.mjs --sistema impresilk
+
+  publicar-pcp-ramo:
+    runs-on: ubuntu-latest
+    needs: publicar
+    if: always() && github.event_name == 'workflow_dispatch'
+    environment: publicar-functions
     steps:
       - uses: actions/checkout@v4
         with:
@@ -126,6 +172,38 @@ jobs:
           fi
           echo "ok: '$REF' contem a main ($(git rev-parse --short origin/main)); $(git rev-list --count origin/main..HEAD) commit(s) a frente dela."
 
+      - name: A main do PCP e o ultimo Deploy verde?
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          verde=$(gh api "repos/leogpereira-afk/impresilk/actions/workflows/deploy.yml/runs?branch=main&status=success&per_page=1" --jq '.workflow_runs[0].head_sha // ""')
+          main=$(git rev-parse origin/main)
+          if [ "$main" != "$verde" ]; then
+            echo "::error::A main do PCP (${main:0:7}) nao e o ultimo Deploy verde (${verde:0:7}): o Deploy de la esta vermelho ou rodando. Resolva o vermelho ou espere o verde, e dispare de novo."
+            exit 1
+          fi
+          echo "ok: a main do PCP (${main:0:7}) e o ultimo Deploy verde."
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      # Os commits do ramo, a frente da main, com o conferidor da MAIN (o que ja
+      # passou num Deploy verde), nao com o do ramo.
+      - name: Os commits do ramo estao dentro da vez?
+        run: |
+          set -euo pipefail
+          if git cat-file -e origin/main:scripts/vez.cjs 2>/dev/null; then
+            git show origin/main:scripts/vez.cjs > "$RUNNER_TEMP/vez.cjs"
+            PCP_RAIZ="$GITHUB_WORKSPACE" node "$RUNNER_TEMP/vez.cjs" conferir "origin/main..HEAD"
+          else
+            echo "A main do PCP ainda nao tem scripts/vez.cjs (protocolo da vez): pulo esta conferencia."
+          fi
+
+      - name: Suite do PCP no ramo pedido
+        run: npm run verificar
+
       - name: O secret existe?
         env:
           TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
@@ -138,7 +216,9 @@ jobs:
       - name: Publicar as functions do PCP
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          REF: ${{ github.event.inputs.pcp_ref || 'main' }}
         run: |
+          echo "Publicando o servidor do PCP do commit $(git rev-parse HEAD) (ramo '$REF')."
           chmod +x scripts/publicar-functions.sh
           ./scripts/publicar-functions.sh
 
@@ -149,6 +229,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: publicar
     if: always() && github.event_name == 'workflow_dispatch' && github.event.inputs.rh_funcoes != ''
+    environment: publicar-functions
     steps:
       - uses: actions/checkout@v4
         with:
@@ -172,6 +253,20 @@ jobs:
             exit 1
           fi
           echo "ok: '$REF' contem a main do RH ($(git rev-parse --short origin/main)); $(git rev-list --count origin/main..HEAD) commit(s) a frente dela."
+
+      # A suite do RH no ramo pedido, como o verificar.yml de la (CI-05): a
+      # trava acima so olha ancestralidade.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+
+      - name: Suite do RH no ramo pedido
+        run: |
+          npm ci
+          npm run lint
+          npm run typecheck
+          npm test
 
       - name: Publicar as functions pedidas do RH
         env:

@@ -95,6 +95,20 @@ export function decidir({ noAr, ultimoCommitMs, forcar = false, desde = AUTOMATI
   return { acao: "publicar", motivo: "a main tem commit mais novo que a versão no ar" };
 }
 
+// SÓ O QUE PASSOU NA CI DE LÁ (revisão de 11/10/2026, CI-03). O PCP confere
+// a suíte e a vez de cada commit no Deploy dele. Publicar o servidor pela data
+// do commit, sem olhar esse Deploy, punha no ar em até 1 hora (cron) ou no
+// próximo push do Painel (carona) o código que a CI do PCP tinha recusado.
+// Sistema com `deployVerde` no registro só publica se a main for exatamente o
+// commit do último Deploy verde; à frente dele (vermelho ou rodando), espera.
+export function conferirVerde({ head, verde }) {
+  if (!verde) return { ok: false, motivo: "PENDENTE: nenhum Deploy verde na main; não publico o servidor" };
+  if (head !== verde) {
+    return { ok: false, motivo: `PENDENTE: a main (${head.slice(0, 7)}) está à frente do último Deploy verde (${verde.slice(0, 7)}): o Deploy de lá está vermelho ou rodando; não publico o servidor` };
+  }
+  return { ok: true };
+}
+
 // A CONFIGURAÇÃO FICA COMO ESTÁ NO AR. verify_jwt vem da versão atual: nenhum
 // sistema daqui confere crachá pelo gateway, mas se algum dia um conferir,
 // publicar por cima não pode desligar essa trava calado. O import map também

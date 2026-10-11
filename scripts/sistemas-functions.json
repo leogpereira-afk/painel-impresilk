@@ -1,5 +1,5 @@
 [
-  { "repo": "impresilk", "nome": "PCP / Instalação", "projeto": "heveemylixartyijxewh" },
+  { "repo": "impresilk", "nome": "PCP / Instalação", "projeto": "heveemylixartyijxewh", "deployVerde": "deploy.yml" },
   { "repo": "brief-medicao", "nome": "Brief de Medição", "projeto": "heveemylixartyijxewh" },
   { "repo": "impresilk-dre", "nome": "DRE Caixa", "projeto": "heveemylixartyijxewh" },
   { "repo": "impresilk-compras", "nome": "Compras", "projeto": "heveemylixartyijxewh" },

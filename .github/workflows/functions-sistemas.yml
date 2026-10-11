@@ -13,6 +13,8 @@
 # em hora (o GitHub pode atrasar em horário cheio) e sob demanda. Ele NÃO
 # republica às cegas: só sobe a function cuja main tem commit depois da versão
 # que está no ar. Os detalhes estão em scripts/publicar-sistemas.mjs.
+# O PCP só sobe a main que é o último Deploy verde de lá (revisão de 11/10/2026,
+# CI-03): commit que a CI do PCP recusou não vai ao ar pelo cron.
 #
 # Usa o mesmo secret SUPABASE_ACCESS_TOKEN do functions.yml: um token só, com
 # Edge Functions read-write nos dois projetos (impresilk e Projetos Léo).
@@ -49,6 +51,8 @@ concurrency:
 jobs:
   publicar:
     runs-on: ubuntu-latest
+    # O token mora no environment (functions.yml explica, revisão de 11/10/2026, CI-04).
+    environment: publicar-functions
     steps:
       - uses: actions/checkout@v4
 
@@ -68,6 +72,8 @@ jobs:
       - name: Publicar o que ficou para trás
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          # Ler o ultimo Deploy verde do PCP (deployVerde no registro).
+          GITHUB_TOKEN: ${{ github.token }}
           SISTEMA: ${{ inputs.sistema }}
           FUNCAO: ${{ inputs.funcao }}
           FORCAR: ${{ inputs.forcar }}

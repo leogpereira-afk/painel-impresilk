@@ -22,6 +22,9 @@
 //      senão, está em dia. Commit anterior a AUTOMATICO_DESDE aparece como
 //      PENDENTE e só sobe à mão. Function que não existe no ar não é criada, e
 //      nada é apagado. verify_jwt e import map ficam como estão no ar.
+//   4. sistema com "deployVerde" no registro (o PCP): só publica se a main for
+//      o commit do último Deploy verde de lá (scripts/lib, conferirVerde). O
+//      functions.yml usa este mesmo publicador na carona do push do Painel.
 //
 // USO (o token é o "personal access token" do Supabase, começa com sbp_):
 //   export SUPABASE_ACCESS_TOKEN=sbp_...
@@ -38,9 +41,10 @@ import { execFileSync } from "node:child_process";
 import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { decidir, juntarArquivos, listarFunctions, metadados, tipoDoArquivo } from "./lib/publicar-sistemas.mjs";
+import { conferirVerde, decidir, juntarArquivos, listarFunctions, metadados, tipoDoArquivo } from "./lib/publicar-sistemas.mjs";
 
 const API = process.env.SUPABASE_API_URL || "https://api.supabase.com/v1";
+const GITHUB_API = process.env.GITHUB_API_URL || "https://api.github.com";
 const TOKEN = process.env.SUPABASE_ACCESS_TOKEN || "";
 const DONO = "leogpereira-afk";
 
@@ -105,6 +109,18 @@ function clonar(repo) {
   return { raiz: pasta, limpar: () => rmSync(pasta, { recursive: true, force: true }) };
 }
 
+// O último Deploy verde da main do sistema, pela API do GitHub (repositórios
+// públicos; GITHUB_TOKEN, se houver, só evita o limite de consultas). Falhar
+// em ler é erro, não "publica assim mesmo".
+async function ultimoDeployVerde(repo, workflow) {
+  const headers = { Accept: "application/vnd.github+json", "User-Agent": "publicar-sistemas" };
+  if (process.env.GITHUB_TOKEN) headers.Authorization = `Bearer ${process.env.GITHUB_TOKEN}`;
+  const r = await fetch(`${GITHUB_API}/repos/${DONO}/${repo}/actions/workflows/${workflow}/runs?branch=main&status=success&per_page=1`, { headers });
+  if (!r.ok) throw new Error(`não consegui ler o último ${workflow} verde de ${repo} (HTTP ${r.status})`);
+  const corpo = await r.json().catch(() => ({}));
+  return corpo.workflow_runs?.[0]?.head_sha || "";
+}
+
 function ultimoCommitMs(raiz, arquivos) {
   const saida = execFileSync("git", ["-C", raiz, "log", "-1", "--format=%ct", "--", ...arquivos], { encoding: "utf8" }).trim();
   return saida ? Number(saida) * 1000 : NaN;
@@ -128,6 +144,12 @@ for (const sistema of SISTEMAS) {
   try {
     const noAr = await funcoesNoAr(sistema.projeto);
     clone = clonar(sistema.repo);
+    if (sistema.deployVerde) {
+      const head = execFileSync("git", ["-C", clone.raiz, "rev-parse", "HEAD"], { encoding: "utf8" }).trim();
+      const verde = conferirVerde({ head, verde: await ultimoDeployVerde(sistema.repo, sistema.deployVerde) });
+      if (!verde.ok) { conta.pendentes++; console.log(`  ${verde.motivo}`); continue; }
+      console.log(`  main ${head.slice(0, 7)} = último ${sistema.deployVerde} verde: confiro as functions dela`);
+    }
     const nomes = listarFunctions(clone.raiz).filter((n) => !FUNCAO || n === FUNCAO);
     if (!nomes.length) console.log(FUNCAO ? `  (sem a function ${FUNCAO})` : "  (sem functions em supabase/functions)");
     for (const nome of nomes) {
