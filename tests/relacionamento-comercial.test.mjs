@@ -5,7 +5,7 @@ import {resumirRelacionamento,clienteBasico,alertasComerciais} from '../supabase
 
 const hoje='2026-10-08',agora=hoje+'T12:00:00Z';
 const escopo={gestor:false,ids:['1'],vendedorId:'1'};
-const base={vendedores:[{id:'1',nome:'Ana'}],clientes:[{id:'c1',nome:'Loja A',documento:'11222333000181'}],clientesConsulta:[{id:'c2',nome:'Loja B',documento:'19131243000197',responsavel:'Outra consultora'}],orcamentos:[{id:'o1',clienteId:'c1',valor:1200}],vendasCliente:[{id:'v1',numero:'10',clienteId:'c1',data:'2023-02-01',tipo:'Normal',valor:500}],cadastroCompleto:true};
+const base={vendedores:[{id:'1',nome:'Ana'}],clientes:[{id:'c1',nome:'Loja A',documento:'11222333000181'}],clientesConsulta:[{id:'c2',nome:'Loja B',documento:'19131243000197',responsavel:'Outra consultora'}],orcamentos:[{id:'o1',clienteId:'c1',valor:1200}],vendasCliente:[{id:'v1',numero:'10',clienteId:'c1',data:'2023-02-01',tipo:'Normal',valor:500,elegivelPosVenda:true,entregaRealEm:'2023-02-10T12:00:00Z'}],cadastroCompleto:true};
 const entrada={id:'acao-1',vendedorId:'1',clienteId:'c1',descricao:'Confirmar resultado da instalação',data:hoje,status:'pendente'};
 const validar=b=>validarAcao({...entrada,...b},escopo,base,'Ana',agora);
 
@@ -40,7 +40,7 @@ test('concluir ação de relacionamento requer resultado e briefing aceita somen
  assert.throws(()=>validar({tipoAcao:'invalido'}),/tipo/i);
 });
 test('ações antigas continuam válidas e projeção cadastral não vaza dados privados',()=>{
- assert.equal(validar({status:'concluida'}).tipoAcao,'acompanhamento');
+ assert.equal(validar({status:'concluida',resultado:'Acompanhamento encerrado após revisão'}).tipoAcao,'acompanhamento');
  const c=clienteBasico({id:'1',nome:'Cliente',telefone:'segredo',historico:['privado'],documento:'123',responsavel:'Ana'});
  assert.equal(JSON.stringify(c).includes('segredo'),false);assert.equal(JSON.stringify(c).includes('privado'),false);
 });
@@ -49,7 +49,7 @@ test('fila mostra sem próxima ação, respeita retornos futuros e inclui relaci
  const r=apurarComercial(b,{de:'2026-10-01',ate:'2026-10-31'},hoje);
  assert.equal(r.semProximaAcao.length,1);assert.equal(r.semProximaAcao[0].id,'o1');
  assert.ok(r.prioridades.some(a=>a.tipo==='Sem próxima ação'&&a.orcamentoId==='o1'));
- assert.ok(r.atrasadas.some(a=>a.id==='rel'));assert.equal(r.prioridades.some(a=>a.orcamentoId==='o2'),false);
+ assert.ok(r.atrasadas.some(a=>a.id==='rel'));const futura=r.prioridades.find(a=>a.orcamentoId==='o2');assert.ok(futura);assert.equal(futura.motivos.some(m=>m.codigo==='sem_resposta'),false);assert.ok(futura.motivos.some(m=>m.codigo==='retorno_programado'));
 });
 test('filtros de relacionamento encontram CNPJ formatado e preservam conclusões',()=>{
  const a=validar({tipoAcao:'prospeccao',objetivo:'Visita'}),concluida={...a,id:'2',status:'concluida'};

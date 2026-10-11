@@ -1,5 +1,5 @@
 import {respostaAgenda,pessoasAgenda} from './compromissos.mjs';
-import {respostaComercial} from './comercial.mjs';
+import {respostaComercial,agendaComercialDemo} from './comercial.mjs';
 import {respostaReunioes} from './reunioes.mjs';
 import {respostaMarketing} from './marketing.mjs';
 import {respostaDocumentos,agendaDocumentosDemo} from './documentos.mjs';
@@ -134,7 +134,7 @@ export async function respostaPreview(url,opcoes={}){
   const documentos=await respostaDocumentos(corpo,sessao,[...equipamentosDemo,...estruturasDemo]);
   if(documentos)return documentos;
  }
- if(endpoint==='painel-comercial')return respostaComercial(corpo);
+ if(endpoint==='painel-comercial')return respostaComercial(corpo,{...ss,sub:ss?.usuario||'demo',perms:ss?.permissoes||[]});
  if(endpoint==='painel-reunioes')return respostaReunioes(corpo);
  if(endpoint==='painel-marketing')return respostaMarketing(corpo);
  let dados;
@@ -221,7 +221,8 @@ export async function respostaPreview(url,opcoes={}){
  else if(endpoint==='painel-agenda'){
    const mes=/^\d{4}-(0[1-9]|1[0-2])$/.test(corpo.mes||'') ? corpo.mes : '2026-09';
    const d=n=>`${mes}-${String(n).padStart(2,'0')}`;
-   if(corpo.action==='producao') dados={hoje:d(14),consultadoEm:new Date().toISOString(),
+   if(corpo.action==='comercial')dados=agendaComercialDemo(corpo.mes||'',{...ss,sub:ss?.usuario||'demo',perms:ss?.permissoes||[]});
+   else if(corpo.action==='producao') dados={hoje:d(14),consultadoEm:new Date().toISOString(),
      os:[
       {id:'os-demo-1',numero:'23096',cliente:'Cliente de demonstração',servico:'Placa de obra',endereco:'Rua de exemplo, 100',data:d(14),rotuloHora:'07:30',ordemHora:'07:30',duracaoDias:1,equipe:['Ana Exemplo','Bruno Exemplo'],veiculo:'Utilitário de exemplo',dias:[d(14)],status:'confirmada',rotuloStatus:'Confirmada',interno:false,finalizada:false},
       {id:'os-demo-2',numero:'23131',cliente:'Outro cliente de exemplo',servico:'Fachada em ACM',endereco:'Avenida de exemplo, 2000',data:d(16),rotuloHora:'Manhã',ordemHora:'08:00',duracaoDias:2,equipe:['Ana Exemplo'],veiculo:'',dias:[d(16),d(17)],status:'agendada',rotuloStatus:'Agendada',interno:false,finalizada:false},

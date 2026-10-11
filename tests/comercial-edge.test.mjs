@@ -32,7 +32,7 @@ test('financeiro por pedido respeita a carteira e não atribui título a número
 });
 test('manipular filtros de outra vendedora ou equipe é bloqueado',async()=>{const t=setup();assert.equal((await t.call({filtro:{...filtro,vendedor:'2'}})).status,403);assert.equal((await t.call({filtro:{...filtro,equipe:'x'}})).status,403);});
 test('gestor consolida e filtra; carteira segue o filtro',async()=>{const t=setup();t.session({sub:'gestor',master:true});assert.equal((await t.call()).relatorio.valor,30000);const r=await t.call({filtro:{...filtro,vendedor:'2'}});assert.equal(r.relatorio.valor,20000);assert.equal(r.base.clientes.length,1);assert.equal(r.base.clientes[0].id,'c2');});
-test('ciclo de ação persistida: criar, concluir, reagendar e conflito preserva versão',async()=>{const t=setup(),acao={id:'a',clienteId:'c1',orcamentoId:'p1',vendedorId:'1',descricao:'Confirmar medidas',data:hoje};let r=await t.call({action:'salvarAcao',acao});assert.equal(r.status,200);assert.equal(r.acao.versao,1);assert.equal((await t.call()).relatorio.hojeA.length,1);r=await t.call({action:'salvarAcao',acao:{...acao,status:'concluida'},versao:1});assert.equal(r.status,200);assert.equal((await t.call()).relatorio.hojeA.length,0);r=await t.call({action:'salvarAcao',acao,versao:1});assert.equal(r.status,409);assert.equal(t.acoes.find(x=>x.id==='a').registro.status,'concluida');});
+test('ciclo de ação persistida: criar, concluir, reagendar e conflito preserva versão',async()=>{const t=setup(),acao={id:'a',clienteId:'c1',orcamentoId:'p1',vendedorId:'1',descricao:'Confirmar medidas',data:hoje};let r=await t.call({action:'salvarAcao',acao});assert.equal(r.status,200);assert.equal(r.acao.versao,1);assert.equal((await t.call()).relatorio.hojeA.length,1);r=await t.call({action:'salvarAcao',acao:{...acao,status:'concluida',resultado:'Medidas confirmadas'},versao:1});assert.equal(r.status,200);assert.equal((await t.call()).relatorio.hojeA.length,0);r=await t.call({action:'salvarAcao',acao,versao:1});assert.equal(r.status,409);assert.equal(t.acoes.find(x=>x.id==='a').registro.status,'concluida');});
 test('não permite sobrescrever ação alheia nem atribuir a outra pessoa nem vínculo de cliente forjado',async()=>{const t=setup(),a={id:'a',clienteId:'c1',orcamentoId:'p1',vendedorId:'1',descricao:'x',data:hoje};for(const acao of [{...a,id:'b'},{...a,vendedorId:'2'},{...a,clienteId:'c2'},{...a,orcamentoId:'p2'}])assert.equal((await t.call({action:'salvarAcao',acao})).status,403);assert.equal(t.writes,0);assert.equal((await t.call({action:'configurar',config:{}})).status,403);});
 test('paginação não perde vendas depois de 500 registros; falha não vira zero',async()=>{const t=setup();t.ordens.splice(0,t.ordens.length,...Array.from({length:1001},(_,i)=>({id:String(i),data:hoje,valor:1,vendedor:'Ana Silva',comercial:{tipo:'Normal',clienteId:'c1'}})));const r=await t.call();assert.equal(r.status,200);assert.equal(r.relatorio.pedidos,1001);assert.equal(r.relatorio.valor,100100);t.fail();assert.equal((await t.call()).status,503);});
 test('cache recente enriquece tipo e cliente sem duplicar a O.S. histórica',async()=>{const t=setup();t.ordens[0].comercial=null;t.cache.find(c=>c.chave==='ordens').valor=[{id:'1',data:hoje,valor:100,tipo:'Normal',clienteId:'c1',vendedor:'Ana Silva'}];const r=await t.call();assert.equal(r.relatorio.pedidos,1);assert.equal(r.relatorio.incompletas,0);assert.equal(r.relatorio.clientes[0].centavos,10000);});
@@ -140,10 +140,10 @@ test('contexto de relacionamento expõe só cadastro básico e ações próprias
  assert.equal(t.writes,1);
 });
 test('pós-venda consulta e vincula O.S. antiga sem liberar pedidos alheios do mesmo cliente',async()=>{
- const t=setup();t.ordens.push({id:'antiga',numero:'50',cliente:'Loja A',data:'2023-04-01',valor:100,vendedor:'Ana Silva',comercial:{tipo:'Normal',clienteId:'c1'}},{id:'alheia',numero:'51',cliente:'Loja A',data:'2023-04-02',valor:999,vendedor:'Bia Costa',comercial:{tipo:'Normal',clienteId:'c1'}});
- const r=await t.call({action:'contextoRelacionamento',clienteId:'c1'});assert.equal(r.status,200);assert.ok(r.vendas.some(o=>o.id==='antiga'));assert.equal(r.vendas.some(o=>o.id==='alheia'),false);assert.equal(r.vendas[0].valor,undefined);
+ const t=setup();t.db.pcp_registros=[{id:'pcp-ficticio',colecao:'os',apagado:false,numero:'50','registro->>numero':'50',finalizadaEm:'2023-04-10T12:00:00Z',finalizadoPor:'Equipe fictícia'}];t.ordens.push({id:'antiga',numero:'50',cliente:'Loja A',data:'2023-04-01',valor:100,vendedor:'Ana Silva',comercial:{tipo:'Normal',clienteId:'c1'}},{id:'alheia',numero:'51',cliente:'Loja A',data:'2023-04-02',valor:999,vendedor:'Bia Costa',comercial:{tipo:'Normal',clienteId:'c1'}});
+ const r=await t.call({action:'contextoRelacionamento',clienteId:'c1'});assert.equal(r.status,200);assert.ok(r.vendas.some(o=>o.id==='antiga'));assert.equal(r.vendas.some(o=>o.id==='alheia'),false);assert.equal(r.vendas.find(o=>o.id==='antiga').valor,100);
  const a={id:'pos',clienteId:'c1',tipoAcao:'pos_venda',ordemId:'antiga',objetivo:'Conferir instalação',descricao:'Consultar satisfação',data:hoje,briefing:{medidas:'3 x 2 m'}};
- let s=await t.call({action:'salvarAcao',acao:a});assert.equal(s.status,200);assert.equal(s.acao.ordemNumero,'50');
+ let s=await t.call({action:'salvarAcao',acao:a});assert.equal(s.status,200,JSON.stringify({resposta:s,vendas:r.vendas}));assert.equal(s.acao.ordemNumero,'50');
  assert.equal((await t.call({action:'salvarAcao',acao:{...a,status:'concluida'},versao:1})).status,400);
  s=await t.call({action:'salvarAcao',acao:{id:a.id,clienteId:'c1',descricao:'Registrar retorno',status:'concluida',resultado:'Cliente satisfeito'},versao:1});
  assert.equal(s.status,200);assert.equal(s.acao.ordemId,'antiga');assert.equal(s.acao.briefing.medidas,'3 x 2 m');assert.equal(s.acao.status,'concluida');assert.equal(s.acao.versao,2);
@@ -166,4 +166,15 @@ test('prospecto pode ser vinculado ao cadastro ERP mantendo a identidade e vers�
  const r=await t.call({action:'salvarAcao',acao:a});assert.equal(r.status,200);
  const s=await t.call({action:'salvarAcao',acao:{...r.acao,prospecto:null,clienteId:'c1'},versao:1});
  assert.equal(s.status,200);assert.equal(s.acao.id,a.id);assert.equal(s.acao.versao,2);assert.equal(s.acao.clienteId,'c1');assert.equal(s.acao.prospecto,null);assert.equal(t.acoes.filter(x=>x.id===a.id).length,1);
+});
+
+
+test('confirmar contato e reagendar mantêm o mesmo ID, carimbo e histórico sob conflito de versão',async()=>{
+ const t=setup(),a={id:'contato-ficticio',clienteId:'c1',orcamentoId:'p1',vendedorId:'1',descricao:'Retomar a proposta',data:hoje,confirmarContato:true,resultadoContato:'avaliando',canal:'ligacao'};
+ let r=await t.call({action:'salvarAcao',acao:a});assert.equal(r.status,200);assert.equal(r.acao.versao,1);assert.equal(r.acao.contatos.length,1);assert.equal(r.acao.contatoPor,'Ana');assert.equal(r.acao.confirmarContato,undefined);
+ const em=r.acao.contatoEm;
+ r=await t.call({action:'salvarAcao',acao:{id:a.id,data:hoje,descricao:'Reagendar proposta',confirmarContato:false,contatoEm:'forjado',contatos:[{em:'forjado'}]},versao:1});
+ assert.equal(r.status,200);assert.equal(r.acao.id,a.id);assert.equal(r.acao.versao,2);assert.equal(r.acao.contatoEm,em);assert.equal(r.acao.contatos.length,1);
+ r=await t.call({action:'salvarAcao',acao:{...a,resultadoContato:'aprovou'},versao:1});assert.equal(r.status,409);assert.equal(t.acoes.find(x=>x.id===a.id).registro.contatos.length,1);
+ r=await t.call({action:'salvarAcao',acao:{id:a.id,status:'concluida',resultado:'Ação encerrada pela conclusão da obra',confirmarContato:false},versao:2});assert.equal(r.status,200);assert.equal(r.acao.contatos.length,1);assert.equal(r.acao.contatoEm,em);
 });

@@ -4,7 +4,9 @@ import {consultarClientes} from '../_shared/consulta-clientes.mjs';
 import {clienteBasico} from '../_shared/relacionamento-comercial.mjs';
 import {contextoComercial} from '../_shared/comercial-contexto.ts';
 import {mesclarOrdensComerciais,janelasHistoricas} from '../_shared/carteira-historica.mjs';
-import {financeiroDasOS} from '../_shared/financeiro-os.ts';
+import {consultarFinanceiroComercial,detalharVendasCliente,paginarVendasCliente,projetarVendaCliente,timelineContatosCliente,pedidosPosVendaPendentes} from '../_shared/comercial-consultas.ts';
+import {consultarOperacoesComerciais,enriquecerVendasOperacao} from '../_shared/comercial-operacao.ts';
+import {validarFichasProdutos} from '../_shared/fichas-produtos.mjs';
 import {pertence,validarPeriodo,validarAcao,gestorComercial,dataISO,apurarComercial,validarMeta,metaDoPeriodo} from '../_shared/comercial.mjs';
 const sb=createClient(Deno.env.get('SUPABASE_URL')!,Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,{auth:{persistSession:false}});
 const secret=Deno.env.get('PAINEL_JWT_SECRET')||'';
@@ -20,7 +22,9 @@ Deno.serve(async(req:Request)=>{
  if(!sessao.master && !(sessao.perms||[]).includes('*') && !(sessao.perms||[]).includes('orcamentos'))return json({erro:'Seu acesso não inclui o Comercial.'},403);
  try{
   const b=await req.json();if(!b||typeof b!=='object')return json({erro:'Solicitação inválida.'},400);const filtro=b.filtro||{},hoje=hojeLocal(),periodo=validarPeriodo(filtro,hoje);
-  const ctx=await contextoComercial(sb,sessao,filtro,{hoje,clienteId:b.clienteId||b.acao?.clienteId,historico:!['salvarMeta','configurar','consultarClientes'].includes(b.action)});const {escopo,catalogo,config,orcamentos,clientes,fontes,coberturaHistorica}=ctx;
+  let anteriorAcao:any=null;
+  if(b.action==='salvarAcao'){const {data,error}=await sb.from('painel_registros').select('registro').eq('colecao','comercial_acoes').eq('id',String(b.acao?.id||'')).maybeSingle();if(error)throw error;anteriorAcao=data;}
+  const ctx=await contextoComercial(sb,sessao,filtro,{hoje,clienteId:b.clienteId||b.acao?.clienteId||anteriorAcao?.registro?.clienteId,pedidoId:b.ordemId,posVenda:b.action==='consultarPosVenda',detalharCliente:b.action==='contextoRelacionamento',operacaoCliente:['contextoRelacionamento','salvarAcao'].includes(b.action),historico:!['salvarMeta','configurar','consultarClientes'].includes(b.action)});const {escopo,catalogo,config,orcamentos,clientes,fontes,coberturaHistorica}=ctx;
   if(!catalogo.completo)return json({erro:'O catálogo de vendedores e produtos ainda não foi sincronizado. A direção pode conferir a integração.'},503);
   if(b.action==='consultarClientes')return json(consultarClientes(fontes.crm_clientes,{busca:b.busca,pagina:b.pagina}));
   if(b.action==='salvarMeta'){
@@ -38,21 +42,46 @@ Deno.serve(async(req:Request)=>{
    if(Object.values(c.vinculos||{}).some(id=>!ids.has(String(id))))return json({erro:'Vínculo de vendedor inválido.'},400);
    if(!Array.isArray(c.equipes||[])||(c.equipes||[]).some((e:any)=>!e.id||!e.nome||!Array.isArray(e.vendedores)||e.vendedores.some((id:string)=>!ids.has(id))))return json({erro:'Equipe inválida.'},400);
    if(c.calendario?.configurado && (!Array.isArray(c.calendario.diasSemana)||!c.calendario.diasSemana.every((n:number)=>Number.isInteger(n)&&n>=0&&n<=6)||!Array.isArray(c.calendario.feriados)||!c.calendario.feriados.every(dataISO)||Object.entries(c.calendario.excecoes||{}).some(([d,v])=>!dataISO(d)||typeof v!=='boolean')))return json({erro:'Calendário inválido.'},400);
-   const registro={diasSemResposta:c.diasSemResposta,diasVencimento:c.diasVencimento,diasReativacao:c.diasReativacao,vinculos:c.vinculos||{},equipes:c.equipes||[],calendario:c.calendario||null,atualizadoEm:new Date().toISOString(),atualizadoPor:sessao.sub};
+   for(const campo of ['participantesMetas','excluidosMetas'])if(Object.hasOwn(c,campo)&&!(campo==='participantesMetas'&&c[campo]===null)&&(!Array.isArray(c[campo])||c[campo].some((id:any)=>typeof id!=='string'||!ids.has(id))||new Set(c[campo]).size!==c[campo].length))return json({erro:'Participantes e exclusões das metas devem usar IDs únicos do catálogo.'},400);
+   const agora=new Date().toISOString();
+   let fichasProdutos=config.fichasProdutos||{};
+   if(Object.hasOwn(c,'fichasProdutos'))try{fichasProdutos=validarFichasProdutos(c.fichasProdutos,catalogo.produtos||[],String(sessao.nome||sessao.sub),agora,config.fichasProdutos||{});}catch(e){return json({erro:e.message||'Fichas de produtos inválidas.'},400);}
+   const registro={diasSemResposta:c.diasSemResposta,diasVencimento:c.diasVencimento,diasReativacao:c.diasReativacao,vinculos:c.vinculos||{},equipes:c.equipes||[],calendario:c.calendario||null,participantesMetas:Object.hasOwn(c,'participantesMetas')?c.participantesMetas:config.participantesMetas??null,excluidosMetas:Object.hasOwn(c,'excluidosMetas')?c.excluidosMetas:config.excluidosMetas||[],fichasProdutos,atualizadoEm:agora,atualizadoPor:sessao.sub};
    const {error}=await sb.rpc('painel_registro_gravar',{p_colecao:'comercial_config',p_id:'regras',p_registro:registro,p_anterior:b.anterior||null});if(error)return json({erro:'As regras mudaram. Atualize e confira antes de salvar.'},409);return json({ok:true,config:registro});
   }
   const carregarAcoes=()=>todas(()=>{let q=sb.from('painel_registros').select('id,registro').eq('colecao','comercial_acoes').order('id');if(escopo.ids!==null)q=q.in('registro->>vendedorId',escopo.ids);return q;});
+  if(b.action==='consultarPosVenda'){
+   const consultadoEm=new Date().toISOString(),candidatos=ctx.vendasHistoricasAutorizadas||[];
+   const pagina=paginarVendasCliente(candidatos,b.pagina??1,b.tamanho??20),ids=new Set(pagina.vendas.map((o:any)=>o.id)),daPagina=candidatos.filter((o:any)=>ids.has(String(o.id)));
+   const detalhadas=await detalharVendasCliente(sb,daPagina,fontes.ordens?.valor||[],escopo,null,hoje);
+   const operacoes=await consultarOperacoesComerciais(sb,detalhadas,consultadoEm),vendas=enriquecerVendasOperacao(detalhadas,operacoes),acoes=(await carregarAcoes()).map((a:any)=>a.registro);
+   const resultado=pedidosPosVendaPendentes(vendas,acoes),indisponiveis=vendas.filter((o:any)=>o.operacao?.estado==='indisponivel').length,semVinculo=vendas.filter((o:any)=>o.operacao?.estado==='sem_vinculo').length;
+   return json({...resultado,paginacao:{...pagina.paginacao,criterio:'Candidatos comerciais autorizados, independentemente do mês das vendas.'},cobertura:{totalCandidatos:pagina.paginacao.total,candidatosNaPagina:daPagina.length,verificadosNaPagina:detalhadas.length,elegiveisNaPagina:resultado.elegiveisNaPagina,pendentesNaPagina:resultado.pendentesNaPagina,operacaoIndisponivel:indisponiveis,semVinculo,completa:!indisponiveis&&!semVinculo&&detalhadas.length===daPagina.length,criterio:'Entrega efetiva comprovada no PCP; pós-venda concluído exige contato confirmado. A paginação conta candidatos, não um total definitivo de pós-vendas.'},coberturaHistorica,fontes:{vendas:{fonte:'Histórico comercial do Painel',atualizadoEm:coberturaHistorica?.atualizadoEm||null},operacao:{fonte:'PCP',consultadoEm}},consultadoEm});
+  }
   if(b.action==='contextoRelacionamento'){
    if(!fontes.crm_clientes?.valor?.completo)return json({erro:'O cadastro de clientes ainda não foi sincronizado por completo.'},503);
    const c=Object.values(fontes.crm_clientes.valor.clientes||{}).find((c:any)=>String(c.id)===String(b.clienteId))||clientes.find((c:any)=>String(c.id)===String(b.clienteId));
    if(!c)return json({erro:'Cliente não localizado. Consulte novamente.'},404);
-   const vendas=(ctx.vendasCliente||[]).sort((a:any,b:any)=>String(b.data).localeCompare(String(a.data)));
-   return json({cliente:clienteBasico(c),autorizado:clientes.some((x:any)=>String(x.id)===String(b.clienteId)),orcamentos:orcamentos.filter((o:any)=>String(o.clienteId)===String(b.clienteId)).map((o:any)=>({id:o.id,numero:o.numero,trabalho:o.trabalho,situacao:o.situacao,clienteId:o.clienteId})),vendas:vendas.map((o:any)=>({id:o.id,numero:o.numero,data:o.data,clienteId:o.clienteId,trabalho:(o.itens||[]).map((i:any)=>i.produto).filter(Boolean).slice(0,3).join(' · ')})),acoes:(await carregarAcoes()).map((a:any)=>a.registro).filter((a:any)=>String(a.clienteId)===String(b.clienteId)),coberturaHistorica});
+   const consultadoEm=new Date().toISOString(),autorizado=clientes.some((x:any)=>String(x.id)===String(b.clienteId));
+   const {vendas,paginacao}=paginarVendasCliente(ctx.vendasCliente||[],b.pagina??1,b.tamanho??20);
+   const acoes=(await carregarAcoes()).map((a:any)=>a.registro).filter((a:any)=>String(a.clienteId)===String(b.clienteId));
+   return json({cliente:{...clienteBasico(c),...(autorizado?{telefone:String((c as any).telefone||''),celular:String((c as any).celular||''),email:String((c as any).email||'')}: {})},autorizado,orcamentos:orcamentos.filter((o:any)=>String(o.clienteId)===String(b.clienteId)).map((o:any)=>({id:o.id,numero:o.numero,trabalho:o.trabalho,situacao:o.situacao,clienteId:o.clienteId,valor:o.valorConfirmado===false?null:o.valor??null})),vendas,vendasCliente:vendas,paginacao,acoes,timelineContatos:timelineContatosCliente(acoes),coberturaHistorica,fontes:{clientes:{fonte:'Mubisys sincronizado',atualizadoEm:fontes.crm_clientes.atualizado_em||null},vendas:{fonte:'Histórico comercial do Painel',atualizadoEm:coberturaHistorica?.atualizadoEm||null},operacao:{fonte:'PCP',consultadoEm}},consultadoEm});
+  }
+  if(b.action==='consultarPedido'){
+   if(typeof b.ordemId!=='string'||!b.ordemId.trim()||b.ordemId.length>100)return json({erro:'Identificador de pedido inválido.'},400);
+   const autorizada=(ctx.ordensAutorizadas||[]).find((o:any)=>String(o.id)===b.ordemId);
+   if(!autorizada)return json({erro:'Pedido fora do seu acesso ou não localizado.'},403);
+   const consultadoEm=new Date().toISOString();
+   const detalhadas=await detalharVendasCliente(sb,[autorizada],fontes.ordens?.valor||[],escopo,String(autorizada.clienteId),hoje);
+   if(!detalhadas.length)return json({erro:'Este pedido não possui identificação comercial verificável.'},422);
+   const operacoes=await consultarOperacoesComerciais(sb,detalhadas,consultadoEm),pedido=enriquecerVendasOperacao(detalhadas,operacoes)[0];
+   return json({pedido:projetarVendaCliente(pedido),operacao:operacoes.get(b.ordemId),financeiro:await consultarFinanceiroComercial(sb,[pedido],consultadoEm),fontes:{comercial:{fonte:'Histórico comercial do Painel',atualizadoEm:pedido.atualizado_em||null},operacao:{fonte:'PCP',consultadoEm}},consultadoEm});
   }
   if(b.action==='salvarAcao'){
-   const {data:anterior,error:er}=await sb.from('painel_registros').select('registro').eq('colecao','comercial_acoes').eq('id',String(b.acao?.id||'')).maybeSingle();
-   if(er)throw er;if(anterior && !escopo.gestor&&!escopo.ids.includes(anterior.registro.vendedorId))return json({erro:'Esta ação pertence a outra vendedora.'},403);
-   const a=validarAcao({...anterior?.registro,...b.acao},escopo,{vendedores:catalogo.vendedores,orcamentos,clientes,vendasCliente:ctx.vendasCliente||[],clientesConsulta:Object.values(fontes.crm_clientes?.valor?.clientes||{}).map(clienteBasico),cadastroCompleto:fontes.crm_clientes?.valor?.completo===true},String(sessao.nome||sessao.sub),new Date().toISOString());
+   const anterior=anteriorAcao;if(anterior && !escopo.gestor&&!escopo.ids.includes(anterior.registro.vendedorId))return json({erro:'Esta ação pertence a outra vendedora.'},403);
+   const entrada={...anterior?.registro,...b.acao,...(b.acao?.confirmarContato===true?{resultado:b.acao.resultado??'',resultadoContato:b.acao.resultadoContato??null,nota:b.acao.nota??'',motivoPerda:b.acao.motivoPerda??'',observacaoPerda:b.acao.observacaoPerda??''}: {})};
+   const a=validarAcao(entrada,escopo,{acaoAnterior:anterior?.registro||{},vendedores:catalogo.vendedores,orcamentos,clientes,vendasCliente:ctx.vendasCliente||[],clientesConsulta:Object.values(fontes.crm_clientes?.valor?.clientes||{}).map(clienteBasico),cadastroCompleto:fontes.crm_clientes?.valor?.completo===true},String(sessao.nome||sessao.sub),new Date().toISOString());
+   if(anterior?.registro?.compromissoId)a.compromissoId=anterior.registro.compromissoId;
    const {data,error}=await sb.rpc('painel_comercial_salvar_acao',{p_id:a.id,p_vendedor:a.vendedorId,p_registro:a,p_versao:b.versao??null,p_autor:String(sessao.sub),p_autorizados:escopo.gestor?null:escopo.ids});
    if(error)return json({erro:'A atividade mudou em outro acesso. Atualize antes de salvar.'},409);return json({acao:data});
   }
@@ -69,8 +98,8 @@ Deno.serve(async(req:Request)=>{
   const marcacoes=await todas(()=>sb.from('painel_registros').select('id,registro').eq('colecao','ov_orc').order('id'));
   const permitidos=new Map(orcamentos.map((o:any)=>[String(o.id),o]));
   for(const m of marcacoes){const o:any=permitidos.get(String(m.id)),v=m.registro||{};if(!o)continue;
-   Object.assign(o,{situacaoErp:o.situacao,situacaoLocal:['ganho','perdido'].includes(v.situacao)?v.situacao:null,situacao:['ganho','perdido'].includes(v.situacao)?v.situacao:o.situacao,acompanhamento:{nota:v.nota||'',ultimoContato:v.chamadoEm||null,proximoToque:v.proximoToque||null,motivoPerdaId:v.motivoPerdaId||null}});
-   if(dataISO(v.proximoToque)&&!['ganho','perdido'].includes(v.situacao)&&o.situacao==='aberto')acoes.push({id:'mesa-'+m.id,origem:'mesa',clienteId:o.clienteId,cliente:o.cliente,orcamentoId:o.id,valor:o.valor,descricao:v.nota||'Retorno combinado na mesa de orçamentos',nota:v.nota||'',data:v.proximoToque,status:'pendente',atualizadoEm:v.chamadoEm||null,vendedorNome:o.vendedorNome});
+   Object.assign(o,{situacaoErp:o.situacao,situacaoLocal:['ganho','perdido'].includes(v.situacao)?v.situacao:null,situacao:['ganho','perdido'].includes(v.situacao)?v.situacao:o.situacao,acompanhamento:{nota:v.nota||'',ultimoContato:v.contatoEm||null,contatoEm:v.contatoEm||null,contatoConfirmado:!!v.contatoEm,origemContatoLegado:v.chamadoEm?'abertura_canal_legada':null,proximoToque:v.proximoToque||null,motivoPerdaId:v.motivoPerdaId||null}});
+   if(dataISO(v.proximoToque)&&!['ganho','perdido'].includes(v.situacao)&&o.situacao==='aberto')acoes.push({id:'mesa-'+m.id,origem:'mesa',compromissoId:v.compromissoId||null,vendedorId:o.vendedorErpId||o.vendedorId||null,clienteId:o.clienteId,cliente:o.cliente,orcamentoId:o.id,valor:o.valor,descricao:v.nota||'Retorno combinado na mesa de orçamentos',nota:v.nota||'',data:v.proximoToque,status:'pendente',atualizadoEm:v.atualizadoEm||null,contatoEm:v.contatoEm||null,vendedorNome:o.vendedorNome});
   }
   const atualizado=ordensBrutas.map((o:any)=>o.atualizado_em).sort().at(-1)||null;
   const status=fontes.historico_status?.valor || {};
@@ -84,29 +113,12 @@ Deno.serve(async(req:Request)=>{
   };
   const cobertura=porJanelas('ordens',{desde:historicoOk?status.desde:(plena?'2025-01-01':null),ate:plena&&recenteEm?recenteEm:(historicoOk?status.ate:null)});
   const coberturaOrcamentos=porJanelas('orcamentos',{desde:fontes.orcamentos.atualizado_em?.slice(0,4)+'-01-01',ate:fontes.orcamentos.atualizado_em?.slice(0,10)});
-  const configPublica=escopo.gestor?config:{diasSemResposta:config.diasSemResposta,diasVencimento:config.diasVencimento,diasReativacao:config.diasReativacao,calendario:config.calendario};
+  const configPublica=escopo.gestor?config:{diasSemResposta:config.diasSemResposta,diasVencimento:config.diasVencimento,diasReativacao:config.diasReativacao,calendario:config.calendario,fichasProdutos:config.fichasProdutos||{}};
   const metas=(await todas(()=>{let q=sb.from('painel_registros').select('id,registro').eq('colecao','comercial_metas').order('id');if(escopo.ids!==null)q=q.in('registro->>vendedorId',escopo.ids);return q;})).map((r:any)=>r.registro);
-  const meta=metaDoPeriodo(metas,escopo,catalogo,periodo);
+  const meta=metaDoPeriodo(metas,escopo,catalogo,periodo,config);
   const bases={ordens,orcamentos,clientes,acoes,meta,config:configPublica,cobertura,coberturaHistorica,coberturaOrcamentos};
   const relatorio=apurarComercial(bases,filtro,hoje);
-  // Só as O.S. visíveis à vendedora podem solicitar títulos. Número repetido
-  // na tabela é ambíguo: não atribuímos o mesmo pagamento a duas linhas.
-  const candidatos=[...new Set(relatorio.vendas.map((o:any)=>String(o.numero||'')))].filter((n:string)=>/^\d{1,12}$/.test(n)).slice(0,600);
-  let financeiro:any={abertos:[],pagos:[],permutaDaOS:{},consultadas:[],temPagos:false,desdeDados:null};
-  if(candidatos.length){
-   try{
-    const mesmos=await todas(()=>sb.from('painel_ordens').select('id,numero,vendedor,comercial').in('numero',candidatos).order('id'));
-    const contagens=new Map<string,number>();for(const o of mesmos)contagens.set(String(o.numero),(contagens.get(String(o.numero))||0)+1);
-    const vendasPorNumero=new Map<string,any[]>();for(const o of relatorio.vendas){const n=String(o.numero);vendasPorNumero.set(n,[...(vendasPorNumero.get(n)||[]),o]);}
-    const seguros=candidatos.filter((n:string)=>contagens.get(n)===1&&vendasPorNumero.get(n)?.length===1&&mesmos.some((o:any)=>String(o.numero)===n&&String(o.id)===String(vendasPorNumero.get(n)[0].id)));
-    if(seguros.length){
-     const ids=relatorio.vendas.filter((o:any)=>seguros.includes(String(o.numero))).map((o:any)=>String(o.id));
-     const lerCacheComData=async(chave:string)=>{const {data,error}=await sb.from('painel_cache').select('valor,atualizado_em').eq('chave',chave).maybeSingle();if(error)throw error;return {valor:data?.valor??null,em:data?.atualizado_em??null};};
-     const f=await financeiroDasOS(new Set(seguros),ids,{sb,lerCacheComData});
-     financeiro={...f,consultadas:seguros};
-    }
-   }catch{ /* A tela comercial continua disponível; dinheiro sem fonte fica sem confirmação. */ }
-  }
-  return json({base:bases,relatorio,financeiro,metas,escopo:{...escopo,nomes:undefined},catalogo:{produtos:catalogo.produtos||[],vendedores:escopo.vendedores},config:escopo.gestor?config:{diasSemResposta:config.diasSemResposta,diasVencimento:config.diasVencimento,diasReativacao:config.diasReativacao,calendario:config.calendario},fontes:Object.fromEntries(Object.entries(fontes).map(([k,v]:any)=>[k,{atualizadoEm:v.atualizado_em}])),ordensEm:atualizado,avisos:[...(fontes.status?.valor?.fontesQueFalharam?.length?['A sincronização teve falhas. Confira os horários das fontes; os últimos dados válidos foram preservados.']:[]),'Metas cadastradas pela direção no Painel, por vendedora e mês. Realizado por O.S. normal, líquida, na data de cadastro. Não são metas importadas do Mubisys.','Devoluções sem vínculo não são abatidas automaticamente.','Histórico sem tipo da O.S. requer nova leitura do ERP; não compõe o realizado verificável.','A cobertura dos orçamentos é informada pelas janelas de sincronização. Datas de envio, versões e conversão em pedido não foram confirmadas pela integração.'],atualizadoEm:fontes.orcamentos.atualizado_em});
+  const financeiro=await consultarFinanceiroComercial(sb,relatorio.vendas);
+  return json({base:bases,relatorio,financeiro,metas,escopo:{...escopo,nomes:undefined},catalogo:{produtos:catalogo.produtos||[],vendedores:escopo.vendedores},config:escopo.gestor?config:{diasSemResposta:config.diasSemResposta,diasVencimento:config.diasVencimento,diasReativacao:config.diasReativacao,calendario:config.calendario,fichasProdutos:config.fichasProdutos||{}},fontes:Object.fromEntries(Object.entries(fontes).map(([k,v]:any)=>[k,{atualizadoEm:v.atualizado_em}])),ordensEm:atualizado,avisos:[...(fontes.status?.valor?.fontesQueFalharam?.length?['A sincronização teve falhas. Confira os horários das fontes; os últimos dados válidos foram preservados.']:[]),'Metas cadastradas pela direção no Painel, por vendedora e mês. Realizado por O.S. normal, líquida, na data de cadastro. Não são metas importadas do Mubisys.','Devoluções sem vínculo não são abatidas automaticamente.','Histórico sem tipo da O.S. requer nova leitura do ERP; não compõe o realizado verificável.','A cobertura dos orçamentos é informada pelas janelas de sincronização. Datas de envio, versões e conversão em pedido não foram confirmadas pela integração.'],atualizadoEm:fontes.orcamentos.atualizado_em});
  }catch(e){return json({erro:e?.status?e.message:'A consulta comercial não foi concluída. Tente atualizar.',codigo:e?.codigo||null},e?.status||503);}
 });

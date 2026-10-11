@@ -1,5 +1,7 @@
 import {resolverEscopo,pertence,gestorComercial,dataISO} from './comercial.mjs';
 import {lerHistoricoComercial,mesclarOrdensComerciais,apurarCarteiraHistorica} from './carteira-historica.mjs';
+import {detalharVendasCliente} from './comercial-consultas.ts';
+import {consultarOperacoesComerciais,enriquecerVendasOperacao} from './comercial-operacao.ts';
 export async function contextoComercial(sb:any,sessao:any,filtro:any={},opcoes:any={}) {
  const {data,error}=await sb.from('painel_cache').select('chave,valor,atualizado_em').in('chave',['comercial_catalogo','comercial_carga_status','orcamentos','crm_clientes','status','historico_status','ordens']);
  if(error)throw Object.assign(new Error('Não foi possível consultar as fontes comerciais.'),{status:503});
@@ -16,8 +18,11 @@ export async function contextoComercial(sb:any,sessao:any,filtro:any={},opcoes:a
  const ordens=mesclarOrdensComerciais(historico,fontes.ordens?.valor||[],fontes.ordens?.atualizado_em);
  const hoje=opcoes.hoje||new Intl.DateTimeFormat('en-CA',{timeZone:'America/Sao_Paulo',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
  const carteira=apurarCarteiraHistorica({ordens,clientes:Object.values(fontes.crm_clientes?.valor?.clientes||{}),orcamentos,escopo,catalogo,fontes,hoje});
- const vendasCliente=opcoes.clienteId?ordens.filter((o:any)=>String(o.clienteId)===String(opcoes.clienteId)&&pertence(o,escopo)&&String(o.tipo||'').toLowerCase()==='normal'&&!o.cancelada&&dataISO(String(o.data||'').slice(0,10))&&String(o.data).slice(0,10)<=hoje):[];
- return {fontes,config,catalogo,escopo,orcamentos,...carteira,vendasCliente};
+ let vendasCliente=opcoes.clienteId?ordens.filter((o:any)=>String(o.clienteId)===String(opcoes.clienteId)&&pertence(o,escopo)&&String(o.tipo||'').toLowerCase()==='normal'&&!o.cancelada&&dataISO(String(o.data||'').slice(0,10))&&String(o.data).slice(0,10)<=hoje):[];
+ if((opcoes.detalharCliente||opcoes.operacaoCliente)&&vendasCliente.length)vendasCliente=await detalharVendasCliente(sb,vendasCliente,fontes.ordens?.valor||[],escopo,String(opcoes.clienteId),hoje);
+ if(opcoes.operacaoCliente&&vendasCliente.length)vendasCliente=enriquecerVendasOperacao(vendasCliente,await consultarOperacoesComerciais(sb,vendasCliente));
+ const vendasHistoricasAutorizadas=opcoes.posVenda?ordens.filter((o:any)=>pertence(o,escopo)&&o.clienteId&&String(o.tipo||'').toLowerCase()==='normal'&&!o.cancelada&&dataISO(String(o.data||'').slice(0,10))&&String(o.data).slice(0,10)<=hoje):[];
+ return {fontes,config,catalogo,escopo,orcamentos,...carteira,vendasCliente,vendasHistoricasAutorizadas,ordensAutorizadas:opcoes.pedidoId?ordens.filter((o:any)=>String(o.id)===String(opcoes.pedidoId)&&pertence(o,escopo)):[]};
 }
 export async function escopoLegado(sb:any,sessao:any) {
  if(gestorComercial(sessao))return {ids:null,nomes:[],gestor:true};

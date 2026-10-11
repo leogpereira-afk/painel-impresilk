@@ -95,3 +95,12 @@ Agente: codex. Pedido de Léo em 11/10/2026: colocar um atalho para o Brief no t
 Verificação local do atalho: 9/9 testes de navegação aprovados, compilação de produção e lint de Comercial.jsx aprovados, diff sem erros de whitespace. Chrome confirmou o botão no topo, abertura do Brief em outra aba e preservação do Comercial. Tela de 390 px conferida sem transbordamento horizontal e sem erros JavaScript. Nenhum commit, publicação ou alteração de dados executado.
 
 Pré-publicação aprovada: suíte de auditoria com 1.080 testes aprovados e zero falhas (84 casos condicionais de banco sem execução), 621 testes de cálculo/acesso aprovados, build com BASE_PATH oficial e lint sem erros (um aviso anterior em Agenda). Os verificadores do Pages passaram, inclusive as 22 permissões contra a versão atual de vida-leo. Publicar apenas o atalho aprovado e confirmar a versão oficial antes da entrega.
+
+
+## Evolução completa do Comercial · 11/10/2026
+
+Agente: codex. Atalho Brief publicado e conferido no commit bc2c564. Léo autorizou “Fazer as outras coisas”: implementar localmente as três etapas do pedido Comercial e do desenho já apresentado. Clone isolado /tmp, ramo codex/comercial-evolucao-20261011. Plano em docs/superpowers/plans/2026-10-11-comercial-evolucao.md. Preservar os demais trabalhos. Sem alteração de registros reais, ERP, acessos ou mensagens. Publicação desta reforma exige aprovação específica após a revisão concreta.
+
+Verificação local desta reforma: 1.142 testes de auditoria aprovados, 84 casos condicionais de banco não executados; 620 testes de cálculo aprovados. Build e verificadores oficiais aprovados; lint sem erros, com um aviso anterior em Agenda. Chrome desktop/celular e revisão independente F1–F14 conferidos. Troca de sessão/permissões remonta o módulo para descartar consultas e formulários antigos. Metas/calendário/fichas sem fonte oficial permanecem explícitos. Estado: código e revisão local preparados, sem commit, merge, push, implantação ou mudança de registros reais. Entrega em docs/comercial-evolucao.md; publicar servidor antes da tela somente após aprovação específica do dono.
+
+Publicação desta reforma autorizada por Léo em 11/10/2026: “subir”, após a entrega da revisão local. Integrar a main atual com Compromissos RH; publicar e comparar funções antes da tela, sem migração ou alteração de registros reais.

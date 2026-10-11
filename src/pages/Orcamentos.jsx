@@ -43,6 +43,7 @@ import {
 import { useApp } from "../config/store.jsx";
 import { getSessao, vendedorDaSessao } from "../lib/sessao.js";
 import { calcOrcamentos, canonVend, somaDias } from "../lib/calc/orcamentos.js";
+import { numeroWhatsApp } from "../lib/calc/agendaCompromissos.js";
 import { salvarCompromisso, removerCompromisso } from "../services/compromissos.js";
 import { moeda, numero, pct, dataCurta, dataLonga, diasEntre, ymdLocal } from "../lib/format.js";
 import { Selo, Avatar, Dinheiro as DinheiroBase, FaixaNumeros as FaixaBase, LinhaLista } from "../components/lista.jsx";
@@ -98,7 +99,7 @@ function linkWhats(o) {
   if (!o.celular) return null;
   const ola = primeiroNome(o.contatoNome) ? `Olá, ${primeiroNome(o.contatoNome)}! ` : "Olá! ";
   const texto = `${ola}Aqui é da Impresilk, sobre o orçamento ${o.numero || ""}. Posso te ajudar a seguir com ele?`;
-  return `https://wa.me/${o.celular}?text=${encodeURIComponent(texto)}`;
+  return `https://wa.me/${numeroWhatsApp(o.celular)}?text=${encodeURIComponent(texto)}`;
 }
 
 // ---------------------------------------------------------------- componentes
@@ -361,8 +362,7 @@ function LinhaOrcamento({ o, aberto, painel, mostrarVendedor, motivos, hoje, sal
               href={wa}
               target="_blank"
               rel="noopener noreferrer"
-              title="Chamar no WhatsApp"
-              onClick={() => acoes.chamar(o)}
+              title="Preparar mensagem no WhatsApp; confirme o contato depois"
             >
               <MessageCircle size={15} strokeWidth={2.4} />
               <span className="xl:hidden">WhatsApp</span>
@@ -372,7 +372,6 @@ function LinhaOrcamento({ o, aberto, painel, mostrarVendedor, motivos, hoje, sal
               className="btn-outline min-h-[44px] justify-center xl:min-h-[40px] xl:!px-2.5"
               href={`mailto:${o.email}`}
               title="Mandar e-mail"
-              onClick={() => acoes.chamar(o)}
             >
               <Mail size={15} strokeWidth={2.4} />
               <span className="xl:hidden">E-mail</span>
@@ -408,6 +407,7 @@ function LinhaOrcamento({ o, aberto, painel, mostrarVendedor, motivos, hoje, sal
       </div>
 
       <button className="chip-btn sem-impressao mt-2 mr-2" onClick={() => acoes.cliente360(o)}>Cliente 360</button>
+      <Link className="chip-btn sem-impressao mt-2 mr-2" to={`/comercial?orcamento=${encodeURIComponent(o.id)}&contato=1`}>Registrar contato</Link>
       {o.qtdDoCliente > 1 && (
         <button className="chip-btn sem-impressao mt-2" onClick={() => acoes.verCliente(o)}>
           +{o.qtdDoCliente - 1} do mesmo cliente
@@ -457,7 +457,6 @@ function LinhaAgenda({ o, salvando, acoes }) {
             href={linkWhats(o)}
             target="_blank"
             rel="noopener noreferrer"
-            onClick={() => acoes.chamar(o)}
           >
             <MessageCircle size={14} strokeWidth={2.4} /> WhatsApp
           </a>
@@ -868,12 +867,6 @@ export default function Orcamentos() {
       setLimite(30);
     },
 
-    /* CHAMAR GRAVA ANTES DE SAIR. O WhatsApp joga a aba do painel para o fundo
-       (no iPhone o navegador pode até descarregá-la), então "eu chamei" tem de
-       virar fato no servidor no mesmo gesto — com keepalive no serviço. O
-       orçamento NÃO some da lista: ele passa a exibir "Chamado dd/mm". */
-    chamar: (o) => gravar([o.id], { chamadoEm: hoje }, `Chamada registrada — ${o.cliente}`, { some: false }),
-
     agendar: async (o, data, nota) => {
       if (!data) return;
       const dias = diasEntre(hoje, data);
@@ -883,7 +876,7 @@ export default function Orcamentos() {
         `cp-${getSessao()?.usuario || "eu"}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
       const gravado = await gravar(
         [o.id],
-        { proximoToque: data, compromissoId: id, chamadoEm: null, nota: nota || null },
+        { proximoToque: data, compromissoId: id, nota: nota || null },
         `${o.cliente}: retorno em ${dataCurta(data)}`,
         // `recorte` é estado da aba mesa: lido do Histórico, desbotava a
         // linha errada. O desbote só faz sentido na mesa mesmo.

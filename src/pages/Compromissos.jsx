@@ -49,7 +49,10 @@ import './compromissos-modal.css';
 import './compromissos.css';
 import { montarAgenda, numeroWhatsApp } from '../lib/calc/agendaCompromissos.js';
 import {AgendaMubisys} from '../components/AcoesMubisys.jsx';
-import { getSessao } from "../lib/sessao.js";
+import { getSessao,podeAbrir } from "../lib/sessao.js";
+import {Link} from 'react-router-dom';
+import {lerAgendaComercial} from '../services/agenda.js';
+import {combinarCompromissosComerciais} from '../../supabase/functions/_shared/comercial-agenda.mjs';
 import { dataCurta, diaLocalISO, diasEntre, ymdLocal } from "../lib/format.js";
 import { CarregandoModulo, ErroModulo, AvisoAtualizacao } from "../components/ui.jsx";
 
@@ -327,6 +330,10 @@ function Linha({ c, sessao, equipe, ocupado, bloqueado, remarcando, setRemarcand
   const parado = !c.feito && (c.dias === null || c.dias < 0) && diasSemNovidade >= 3;
   const quantos = hist.filter(e => e.tipo === 'recado' || e.tipo === 'passou').length;
   const aberta = conversaAberta === c.id;
+  if(c.projecaoComercial)return <article className={`cp-item cp-item--${c.feito?'resolvido':c.pz.tom}`} aria-label={c.titulo}>
+    <div className="cp-item-linha"><span className="cp-tipo-icon"><Phone size={20}/></span><div className="cp-item-conteudo"><div className="cp-item-meta"><span>Comercial</span>{c.cliente&&<span>{c.cliente}</span>}</div><h3><Link to={c.href}>{c.titulo}</Link></h3><div className="cp-item-contexto"><span className="cp-responsavel">{c.vendedorNome||'Responsável comercial'}</span><span className="cp-origem">Ação original</span></div>{c.conflitoComercial&&<p role="status" className="text-warn-700">{c.conflitoComercial}</p>}</div><div className="cp-item-prazo"><span className={`cp-situacao cp-situacao--${c.feito?'resolvido':c.pz.tom}`}>{c.feito?'Resolvido':c.pz.texto}</span><span>{dataCurta(c.data)}</span></div><div className="cp-item-acoes"><Link className="cp-acao" to={c.href}><ArrowRight size={16}/>Abrir no Comercial</Link></div></div>
+    <p className="cp-registro-id">Ação {c.acaoId} · contato, conclusão e reagendamento na origem.</p>
+  </article>;
   return <article className={`cp-item cp-item--${c.feito ? 'resolvido' : c.pz.tom}`} aria-label={c.titulo} aria-busy={ocupado || enviando}>
     <div className="cp-item-linha">
       <span className={`cp-tipo-icon cp-tipo--${c.tipo}`} title={tipo.rotulo}><Icone size={20}/></span>
@@ -338,6 +345,7 @@ function Linha({ c, sessao, equipe, ocupado, bloqueado, remarcando, setRemarcand
           {c.crmOperacao && <span className="cp-origem">Mubisys</span>}{c.cobrancaOrigem && <span className="cp-origem">Cobrança</span>}
         </div>
         {ult && <p className="cp-ultima" title={ult.texto || ''}>{ult.quemNome || ult.quem}{diasSemNovidade !== null ? ` · ${diasSemNovidade <= 0 ? 'hoje' : `há ${diasSemNovidade}d`}` : ''}{ult.texto ? `: ${ult.texto}` : ''}</p>}
+        {c.conflitoComercial&&<p role="status" className="text-warn-700">{c.conflitoComercial}</p>}
       </div>
       <div className="cp-item-prazo"><span className={`cp-situacao cp-situacao--${c.feito ? 'resolvido' : c.pz.tom}`}>{c.feito ? 'Resolvido' : c.pz.texto}</span>
         <span>{c.data && c.dias !== null ? `${dataCurta(c.data)}${c.hora ? ` às ${c.hora}` : ' · sem horário'}` : 'Definir programação'}</span>
@@ -365,6 +373,8 @@ function Linha({ c, sessao, equipe, ocupado, bloqueado, remarcando, setRemarcand
 export default function Compromissos() {
   const sessao = getSessao();
   const ehDirecao = !!sessao?.master;
+  const temComercial=podeAbrir('orcamentos',sessao);
+  const chaveComercial=JSON.stringify([sessao?.usuario,sessao?.master,sessao?.permissoes||[]]);
 
   const [mapa, setMapaLido] = useState(null);
   const pedidoLeitura = useRef(0);
@@ -376,6 +386,8 @@ export default function Compromissos() {
     setMapaLido(valor);
   }, []);
   const [erro, setErro] = useState(null);
+  const [comercial,setComercial]=useState({chave:'',eventos:[],vinculosLegados:[]});
+  const [erroComercial,setErroComercial]=useState('');
   const [aviso, setAviso] = useState(null);
   const [form, setForm] = useState(null);
   const [salvando, setSalvando] = useState(false);
@@ -408,16 +420,19 @@ export default function Compromissos() {
     setAtualizando(true);
     setHojeISO(ymdLocal(new Date()));
     try {
-      const m = await lerCompromissos();
+      const [compromissos,atividades]=await Promise.allSettled([lerCompromissos(),temComercial?lerAgendaComercial():Promise.resolve({eventos:[],vinculosLegados:[]})]);
       if (pedido !== pedidoLeitura.current) return;
-      setMapaLido(m);
+      if(atividades.status==='fulfilled')setComercial({chave:chaveComercial,...atividades.value});
+      setErroComercial(atividades.status==='rejected'?'Não foi possível atualizar as atividades comerciais. A última consulta válida permanece visível.':'');
+      if(compromissos.status==='rejected')throw compromissos.reason;
+      setMapaLido(compromissos.value);
       setErro(null);
     } catch(e) {
       if (pedido === pedidoLeitura.current) setErro(e.message);
     } finally {
       if (pedido === pedidoLeitura.current) setAtualizando(false);
     }
-  }, []);
+  }, [temComercial,chaveComercial]);
 
   useEffect(() => {
     const controle = pedidoLeitura;
@@ -442,9 +457,10 @@ export default function Compromissos() {
     };
   }, [recarregar]);
 
-  const vm = useMemo(() => montarAgenda(mapa, {
+  const mapaComercial=useMemo(()=>temComercial&&comercial.chave===chaveComercial?combinarCompromissosComerciais(mapa,comercial.eventos,comercial.vinculosLegados).mapa:mapa,[mapa,temComercial,comercial,chaveComercial]);
+  const vm = useMemo(() => montarAgenda(mapaComercial, {
     hoje: hojeISO, pessoa: dePessoa, usuario: sessao?.usuario, busca, tipo: tipoFiltro, recorte,
-  }), [mapa, hojeISO, dePessoa, sessao?.usuario, busca, tipoFiltro, recorte]);
+  }), [mapaComercial, hojeISO, dePessoa, sessao?.usuario, busca, tipoFiltro, recorte]);
 
   // Tem texto digitado que ainda nao foi salvo? Comparar com o item de origem
   // (ou com o formulario vazio) e o unico jeito de saber -- e sem isso um
@@ -658,6 +674,7 @@ export default function Compromissos() {
   return (
     <div className="cp-page">
       <AvisoAtualizacao erro={erro} aoTentar={recarregar}/>
+      <AvisoAtualizacao erro={erroComercial} aoTentar={recarregar}/>
       <header className="cp-cabecalho">
         <div><p className="cp-eyebrow">OPERAÇÃO · {ehDirecao ? 'AGENDA DA EQUIPE' : 'MINHA AGENDA'}</p><h1>Compromissos</h1><p>Clareza sobre o que fazer, com quem e até quando.</p></div>
         <div className="cp-cabecalho-acoes"><button type="button" className="cp-atualizar" disabled={atualizando} onClick={recarregar}><RefreshCw size={17} className={atualizando ? 'animate-spin' : ''}/>{atualizando ? 'Atualizando…' : 'Atualizar'}</button><button type="button" className="cp-agenda-comercial" aria-expanded={agendaComercialAberta} aria-controls="cp-agenda-comercial" onClick={() => setAgendaComercialAberta(v => !v)}><CalendarCheck size={17}/>Agenda comercial</button><button type="button" className="btn-primary" onClick={() => abrirForm(null)}><Plus size={18}/>Novo compromisso</button></div>

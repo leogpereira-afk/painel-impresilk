@@ -45,6 +45,9 @@ import { canceladaPCP, diasCasa, encerradaERP, projetarOS, hojeSP, pessoasDaAgen
 import { celebracoesRH } from "../_shared/calendario-celebracoes.mjs";
 import { vencimentosIncendio, CATEGORIAS_INCENDIO } from "../_shared/patrimonio-incendio.mjs";
 import { documentoAgendaPermitido, incendioAgendaPermitido, bemLegadoAgendaPermitido, vencimentosDocumentos, TIPOS_DOCUMENTOS_AGENDA } from "../_shared/documentos-agenda.mjs";
+import {contextoComercial} from '../_shared/comercial-contexto.ts';
+import {projetarAcoesComerciais,vinculosMesaComercial} from '../_shared/comercial-agenda.mjs';
+import {lerTodasComerciais} from '../_shared/comercial-consultas.ts';
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -120,6 +123,15 @@ async function lerColecao(tabela: string, colecao: string): Promise<any[]> {
 }
 
 const texto = (v: unknown, max = 200) => String(v ?? "").trim().slice(0, max);
+
+async function agendaComercial(mes:string,sessao:any) {
+ const ctx=await contextoComercial(sb,sessao,{}, {historico:false});
+ if(!ctx.catalogo.completo)throw new Error('Catálogo comercial indisponível.');
+ const acoes=await lerTodasComerciais(()=>{let q=sb.from('painel_registros').select('id,registro').eq('colecao','comercial_acoes').order('id');if(ctx.escopo.ids!==null)q=q.in('registro->>vendedorId',ctx.escopo.ids);return q;});
+ const eventos=projetarAcoesComerciais(acoes.map((r:any)=>({...r.registro,id:r.id})),ctx.escopo,mes);
+ const marcacoes=await lerTodasComerciais(()=>sb.from('painel_registros').select('id,registro').eq('colecao','ov_orc').order('id'));
+ return {eventos,vinculosLegados:vinculosMesaComercial(marcacoes,ctx.orcamentos),escopo:{gestor:ctx.escopo.gestor,vendedores:ctx.escopo.vendedores},hoje:hojeSP(),fonte:'Comercial do Painel',consultadoEm:new Date().toISOString()};
+}
 
 // Somente vencimentos operacionais. Compra, NF, arquivo e pessoas não são lidos.
 async function agendaPatrimonio(mes:string, sessao:any) {
@@ -335,10 +347,17 @@ Deno.serve(async (req) => {
   }
   const acao = String(corpo?.action ?? "");
   const mes = String(corpo?.mes ?? "");
-  if (!MES.test(mes)) return json({ erro: "Informe o mes no formato AAAA-MM." }, 400);
+  if (!(acao==='comercial'&&!mes)&&!MES.test(mes)) return json({ erro: "Informe o mes no formato AAAA-MM." }, 400);
 
   try {
     switch (acao) {
+      case 'comercial': {
+        const origem=await exigirSessao(req,'orcamentos');
+        if(origem.resposta)return origem.resposta;
+        const destino=await exigirSessao(req,['calendario-empresa','compromissos']);
+        if(destino.resposta)return destino.resposta;
+        return json(await agendaComercial(mes,origem.sessao));
+      }
       case "producao": {
         const g = await exigirSessao(req, "agenda");
         if (g.resposta) return g.resposta;

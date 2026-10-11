@@ -11,5 +11,9 @@ function Preview(){
  if(location.pathname==='/entrada')return <Login aoEntrar={()=>navigate('/acessos')}/>;
  return <><aside className="review-preview-banner" role="note"><strong>SIMULAÇÃO — dados fictícios / sem envio.</strong> Alterações nesta demonstração ficam apenas nesta aba e são descartadas ao recarregar.</aside><AppProvider><App/></AppProvider></>;
 }
-if(import.meta.env.MODE==='review')createRoot(document.getElementById('root')).render(<HashRouter><Preview/></HashRouter>);
+if(import.meta.env.MODE==='review'){
+ const root=import.meta.hot?.data.root||createRoot(document.getElementById('root'));
+ if(import.meta.hot)import.meta.hot.dispose(data=>{data.root=root;});
+ root.render(<HashRouter><Preview/></HashRouter>);
+}
 else document.getElementById('root').textContent='Prévia disponível apenas no modo local de revisão.';

@@ -44,3 +44,9 @@ export const lerAgendaDocumentos = mes => chamar('documentos', mes).then(r => {
   if (!Array.isArray(r?.eventos)) throw new Error('Resposta inválida ao consultar os vencimentos de documentos.');
   return r.eventos;
 });
+
+/** Projeções das ações originais: calendário por mês ou agenda completa. */
+export const lerAgendaComercial = mes => chamar('comercial', mes).then(r => {
+  if (!Array.isArray(r?.eventos) || !Array.isArray(r?.vinculosLegados)) throw new Error('Resposta inválida ao consultar as atividades comerciais.');
+  return {eventos:r.eventos,vinculosLegados:r.vinculosLegados,escopo:r.escopo||null,consultadoEm:r.consultadoEm||null};
+});
