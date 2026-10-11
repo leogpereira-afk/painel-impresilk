@@ -86,3 +86,12 @@ Verificacao: 1014 testes de auditoria aprovados (83 condicionais de banco sem ex
 Publicacao dentro da evolucao autorizada do Patrimonio: painel-config 120 ativo e com todos os arquivos conferidos antes da liberacao da tela. Nenhuma migracao, concessao de acesso ou alteracao de cadastros reais. A vez permanece Codex.
 
 Conferencia oficial concluida: codigo bde1a7d; Pages 38164888473 e Functions 38164888478 com sucesso. painel-config 121 ativo e identico ao codigo validado apos o workflow. Pagina inicial e arquivos oficiais de Patrimonio/Manutencoes idênticos ao build local. Nao houve gravacao de teste em producao; os testes de handlers usam autenticacao/banco sinteticos.
+
+
+## Ajuste pontual · Atalho do Brief no Comercial
+
+Agente: codex. Pedido de Léo em 11/10/2026: colocar um atalho para o Brief no topo do painel Comercial. Ramo `codex/comercial-brief-20261011`, clone isolado em `/tmp`. Escopo: reutilizar nome, ícone e endereço direto do cadastro central de sistemas e abrir o Brief em outra aba. Sem alteração de credenciais, permissões, servidor ou dados. Implementação e revisão local autorizadas; Léo aprovou a publicação deste atalho em 11/10/2026 com “Aprovado”, após a prévia. Publicação em execução. Preservar os demais trabalhos registrados neste arquivo.
+
+Verificação local do atalho: 9/9 testes de navegação aprovados, compilação de produção e lint de Comercial.jsx aprovados, diff sem erros de whitespace. Chrome confirmou o botão no topo, abertura do Brief em outra aba e preservação do Comercial. Tela de 390 px conferida sem transbordamento horizontal e sem erros JavaScript. Nenhum commit, publicação ou alteração de dados executado.
+
+Pré-publicação aprovada: suíte de auditoria com 1.080 testes aprovados e zero falhas (84 casos condicionais de banco sem execução), 621 testes de cálculo/acesso aprovados, build com BASE_PATH oficial e lint sem erros (um aviso anterior em Agenda). Os verificadores do Pages passaram, inclusive as 22 permissões contra a versão atual de vida-leo. Publicar apenas o atalho aprovado e confirmar a versão oficial antes da entrega.

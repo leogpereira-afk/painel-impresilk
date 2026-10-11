@@ -5,6 +5,8 @@ import {BotaoPDF} from '../components/ui.jsx';
 import {chamarComercial} from '../services/comercial.js';
 import {ymdLocal} from '../lib/format.js';
 import {podeAbrir} from '../lib/sessao.js';
+import {doSistema,ENDERECO_DIRETO,nomeCompletoSis} from '../lib/sistemas.js';
+import {iconeDoSistema} from '../components/iconesDosSistemas.js';
 import ConsultaClientes from '../components/ConsultaClientes.jsx';
 import {clienteCorresponde} from '../../supabase/functions/_shared/consulta-clientes.mjs';
 import {resumoFinanceiroComercial} from '../lib/calc/financeiroComercial.js';
@@ -17,6 +19,7 @@ import {BRIEFING_CAMPOS} from '../../supabase/functions/_shared/relacionamento-c
 import './comercial.css';
 import '../components/comercial/comercial-relacionamento.css';
 const ABAS=[['painel','Meu painel'],['orcamentos','Orçamentos'],['relacionamento','Prospecção e pós-venda'],['vendas','Minhas vendas'],['clientes','Meus clientes'],['produtos','Produtos e soluções'],['metas','Minhas metas']];
+const IconeBrief=iconeDoSistema(doSistema('brief'));
 const brl=c=>c==null?'Não disponível':(c/100).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
 const valor=v=>v==null?null:Math.round(v*100);
 const colunasPedidos=['O.S.','Cliente','Sinal pago','Recebido','Saldo','Líquido','Cadastro','Vendedora histórica','Relacionamento'];
@@ -101,6 +104,7 @@ export default function Comercial({sessao}){
  {calendario&&<Link className="com-shortcut com-shortcut-calendar" state={retornoComercial} to={`/${calendario}?mes=${filtro.de.slice(0,7)}`}><CalendarDays size={18} aria-hidden="true"/><span>Calendário</span><ChevronRight size={14} aria-hidden="true"/></Link>}
  {podeAbrir('compromissos',sessao)&&<Link className="com-shortcut com-shortcut-appointments" state={retornoComercial} to="/compromissos"><CalendarCheck size={18} aria-hidden="true"/><span>Compromissos</span><ChevronRight size={14} aria-hidden="true"/></Link>}
  {podeAbrir('contas-atrasadas',sessao)&&<Link className="com-shortcut com-shortcut-payments" state={retornoComercial} to="/contas-atrasadas"><WalletCards size={18} aria-hidden="true"/><span>Pagamentos atrasados</span><ChevronRight size={14} aria-hidden="true"/></Link>}
+ <a className="com-shortcut com-shortcut-brief" href={ENDERECO_DIRETO.brief} target="_blank" rel="noopener noreferrer" aria-label={`${nomeCompletoSis('brief')} (abre em outra aba)`}><IconeBrief size={18} aria-hidden="true"/><span>{nomeCompletoSis('brief')}</span><ArrowUpRight size={14} aria-hidden="true"/></a>
  <button className="com-shortcut com-shortcut-tips" onClick={()=>setModal({tipo:'dicas'})}><Lightbulb size={18} aria-hidden="true"/><span>Dicas de produtos</span><ChevronRight size={14} aria-hidden="true"/></button>
  </nav>
  <nav className="com-tabs sem-impressao" aria-label="Área Comercial">{ABAS.map(([id,nome])=><button key={id} aria-current={aba===id?'page':undefined} onClick={()=>alterar({aba:id})}>{nome}</button>)}</nav>

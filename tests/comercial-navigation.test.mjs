@@ -1,4 +1,5 @@
 import {test} from 'node:test';
+import {ENDERECO_DIRETO,nomeCompletoSis} from '../src/lib/sistemas.js';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {createRequire} from 'node:module';
@@ -40,10 +41,11 @@ const atalhos=html=>{
  return [...nav.matchAll(/<a\b[^>]*href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/g)]
   .map(([,href,conteudo])=>({href:href.replace(/&amp;/g,'&'),texto:conteudo.replace(/<[^>]+>/g,'').trim()}));
 };
+const atalhosInternos=html=>atalhos(html).filter(l=>l.href.startsWith('/'));
 const calendario=links=>links.filter(l=>l.texto==='Calendário');
 
 test('direção abre o calendário existente no mês selecionado e a agenda de compromissos',async()=>{
- const html=await renderizar({...sessao([]),master:true}),links=atalhos(html);
+ const html=await renderizar({...sessao([]),master:true}),links=atalhosInternos(html);
  assert.deepEqual(calendario(links),[{href:'/calendario-empresa?mes=2026-09',texto:'Calendário'}]);
  assert.ok(links.some(l=>l.href==='/compromissos'&&l.texto==='Compromissos'));
  assert.ok(links.some(l=>l.href==='/contas-atrasadas'&&l.texto==='Pagamentos atrasados'));
@@ -53,32 +55,32 @@ test('direção abre o calendário existente no mês selecionado e a agenda de c
 
 test('vendedora com apenas Comercial não recebe atalhos para módulos sem acesso',async()=>{
  const html=await renderizar(sessao(['orcamentos']));
- assert.deepEqual(atalhos(html),[]);
+ assert.deepEqual(atalhosInternos(html),[]);
  assert.match(html,/Dicas de produtos/,'orientações de produtos continuam acessíveis dentro do Comercial');
 });
 
 test('calendário encaminha para Produção quando esse é o módulo autorizado',async()=>{
- const links=atalhos(await renderizar(sessao(['orcamentos','agenda'])));
+ const links=atalhosInternos(await renderizar(sessao(['orcamentos','agenda'])));
  assert.deepEqual(links,[{href:'/agenda?mes=2026-09',texto:'Calendário'}]);
 });
 
 test('calendário usa Reuniões como alternativa quando é a única agenda autorizada',async()=>{
- const links=atalhos(await renderizar(sessao(['orcamentos','reunioes'])));
+ const links=atalhosInternos(await renderizar(sessao(['orcamentos','reunioes'])));
  assert.deepEqual(links,[{href:'/reunioes?mes=2026-09',texto:'Calendário'}]);
 });
 
 test('Compromissos é independente de Calendário e não recebe o ID do vendedor como dono',async()=>{
- const links=atalhos(await renderizar(sessao(['orcamentos','compromissos']),'/comercial?de=2026-10-01&ate=2026-10-31&vendedor=102'));
+ const links=atalhosInternos(await renderizar(sessao(['orcamentos','compromissos']),'/comercial?de=2026-10-01&ate=2026-10-31&vendedor=102'));
  assert.deepEqual(links,[{href:'/compromissos',texto:'Compromissos'}]);
 });
 
 test('Pagamentos atrasados reutiliza a cobrança existente somente com permissão',async()=>{
- const links=atalhos(await renderizar(sessao(['orcamentos','contas-atrasadas']),'/comercial?vendedor=102'));
+ const links=atalhosInternos(await renderizar(sessao(['orcamentos','contas-atrasadas']),'/comercial?vendedor=102'));
  assert.deepEqual(links,[{href:'/contas-atrasadas',texto:'Pagamentos atrasados'}]);
 });
 
 test('acesso total escolhe um único calendário e respeita o mês dos filtros também na rota antiga',async()=>{
- const links=atalhos(await renderizar(sessao(['*']),'/orcamentos?de=2026-08-15&ate=2026-09-20'));
+ const links=atalhosInternos(await renderizar(sessao(['*']),'/orcamentos?de=2026-08-15&ate=2026-09-20'));
  assert.deepEqual(calendario(links),[{href:'/calendario-empresa?mes=2026-08',texto:'Calendário'}]);
  assert.equal(links.filter(l=>l.texto==='Compromissos').length,1);
 });
@@ -90,5 +92,20 @@ test('as duas entradas do Comercial fornecem a sessão usada nos atalhos e prese
   assert.ok(linha,`rota ${rota} existente`);
   assert.match(linha,/<Comercial\s+sessao=\{sessao\}/,`${rota} deve fornecer a sessão vigente`);
   assert.match(linha,/<Restrito\s+modulo="orcamentos"\s+sessao=\{sessao\}/,`${rota} deve preservar a permissão da área`);
+ }
+});
+
+// O atalho repete o acesso externo já presente na lateral; a autenticação
+// e as permissões do Brief continuam sendo verificadas pelo próprio sistema.
+test('Brief no topo reutiliza nome e endereço direto do cadastro, em todas as abas',async()=>{
+ for(const aba of ['painel','orcamentos','relacionamento','vendas','clientes','produtos','metas']){
+  const html=await renderizar(sessao(['orcamentos']),`/comercial?aba=${aba}`);
+  const links=atalhos(html).filter(l=>l.texto===nomeCompletoSis('brief'));
+  assert.deepEqual(links,[{href:ENDERECO_DIRETO.brief,texto:nomeCompletoSis('brief')}],aba);
+  const link=html.match(/<a\b[^>]*class="com-shortcut com-shortcut-brief"[^>]*>/)?.[0];
+  assert.ok(link,'atalho externo existente');
+  assert.match(link,/target="_blank"/);
+  assert.match(link,/rel="noopener noreferrer"/);
+  assert.match(link,/aria-label="Brief de Medição \(abre em outra aba\)"/);
  }
 });
