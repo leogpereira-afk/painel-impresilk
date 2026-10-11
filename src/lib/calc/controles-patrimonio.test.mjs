@@ -34,12 +34,13 @@ test('carimbo preserva campos existentes e não inventa data de criação antiga
  assert.equal(textoAtualizacao({}),'Sem registro de atualização');assert.match(textoAtualizacao(r),/05\/10\/2026.*Ana Exemplo/);
 });
 
-test('celulares exigem modelo, preservam número formatado e buscam pelo aparelho',()=>{
+test('linhas celulares independem do aparelho, preservam número formatado e buscam pelo modelo informado',()=>{
  const campos={...base,tipo:'celulares',numero:'(38) 99999-0000',modelo:'Samsung Galaxy A15',pessoa:'Maria'};
  const r=prepararControle(campos,null,sessao,agora);
  assert.equal(r.numero,'(38) 99999-0000');assert.equal(r.numeroChave,'38999990000');assert.equal(r.modelo,'Samsung Galaxy A15');
  assert.equal(listarControles({cel:r},'celulares','galaxy maria').length,1);
- assert.throws(()=>prepararControle({...campos,modelo:''},null,sessao,agora),/modelo/);
+ const semAparelho=prepararControle({...campos,modelo:''},null,sessao,agora);
+ assert.equal(semAparelho.modelo,'');assert.equal(semAparelho.numero,r.numero);assert.equal(semAparelho.pessoa,r.pessoa);
  assert.throws(()=>prepararControle({...campos,numero:'letras'},null,sessao,agora),/número/);
  const equivalente=prepararControle({...campos,numero:'38 99999 0000'},null,sessao,agora);
  assert.equal(equivalente.numeroChave,r.numeroChave);

@@ -1,3 +1,5 @@
+import * as patrimonioAcesso from '../supabase/functions/_shared/patrimonio-acesso.mjs';
+import {previaReclassificacao} from '../supabase/functions/_shared/patrimonio-migracao.mjs';
 // O papel dentro do Marketing também vale na painel-ativos (logomarca, papel
 // timbrado e os outros materiais). Handler real; sessão, banco e o papel são
 // dados fictícios. O cálculo do papel em si é testado em marketing-edge.
@@ -33,7 +35,7 @@ function ambiente({ papel = 'marketing', sessao = { sub: 'pessoa', perms: ['mark
     storage: { from() { return { async upload(id) { gravacoes.push({ upload: id }); return { error: null }; } }; } },
   };
   vm.runInNewContext(codigo, {
-    Deno: { env: { get: () => 'teste' }, serve: (fn) => { handler = fn; } },
+    ...patrimonioAcesso,previaReclassificacao, Deno: { env: { get: () => 'teste' }, serve: (fn) => { handler = fn; } },
     createClient: () => sb, verificarJwt: async () => sessao, crachaRevogado: async () => false,
     papelNoMarketing: async (_sb, s) => { perguntasDePapel.push(s); return papel; }, papelGrava,
     Response, Request, console: { error() {} }, crypto, atob, btoa, Uint8Array,

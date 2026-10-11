@@ -1,7 +1,12 @@
+import Telefonia from '../components/patrimonio/Telefonia.jsx';
+import SegurancaPatrimonio from '../components/patrimonio/Seguranca.jsx';
+import Incendio from '../components/patrimonio/Incendio.jsx';
 import {PessoasRHProvider,usePessoasRH,comNomeRH} from '../components/patrimonio/PessoasRH.jsx';
+import {podeAbrir} from '../lib/sessao.js';
+import {abasPatrimonio,abaPatrimonioAtual,secaoEstruturaInicial} from '../lib/calc/navegacao-patrimonio.js';
 import HistoricoBem from "../components/patrimonio/HistoricoBem.jsx";
 import {useCallback, useEffect, useMemo, useRef, useState} from 'react';
-import {Plus, Search, Printer, Building2, Boxes, Wallet, AlertTriangle, Camera, LayoutGrid, List, ArrowUpRight, Pencil, Trash2, RefreshCw, Tag, ChevronLeft, ChevronRight, X, Phone, Smartphone, Archive, Wrench, BedDouble, Car, Cog} from 'lucide-react';
+import {Plus, Search, Printer, Building2, Boxes, Wallet, AlertTriangle, Camera, LayoutGrid, List, ArrowUpRight, Pencil, Trash2, RefreshCw, Tag, ChevronLeft, ChevronRight, X, Phone, Archive, Wrench, BedDouble, Car, Cog, Shield, FireExtinguisher} from 'lucide-react';
 import {lerBens, lerSetores, salvarBem, removerBem, salvarSetor, removerSetor, semearSetores} from '../services/patrimonio.js';
 import {resumoFotos, listarFotos} from '../services/fotos.js';
 import {calcPatrimonio, SETORES_PADRAO, SITUACOES, idadeEmAnos} from '../lib/calc/patrimonio.js';
@@ -22,7 +27,7 @@ import './patrimonio.css';
 const VAZIO = {id:'', codigo:'', setorSigla:'', nomeGenerico:'', descricaoTecnica:'', nf:'', dataAquisicao:'', valor:'', situacao:'uso', observacao:'', responsavel:'', motivoSemNota:''};
 const SETOR_VAZIO = {id:'', numero:'', sigla:'', nome:'', area:''};
 const POR_PAGINA = 12;
-const ABAS = [['inventario','Inventário',Boxes],['estrutura','Estrutura',Building2],['ramais','Ramais',Phone],['armarios','Armários',Archive],['ferramentas','Caixas de ferramentas',Wrench],['camas','Camas',BedDouble],['celulares','Celulares',Smartphone],['carros','Carros',Car],['maquinas','Máquinas',Cog],['setores','Setores',Building2],['pendencias','Pendências',AlertTriangle]];
+const ABAS = [['estrutura','Estrutura',Building2],['telefonia','Celulares e Ramais',Phone],['seguranca','Segurança',Shield],['incendio','Prevenção contra incêndio',FireExtinguisher],['armarios','Armários',Archive],['ferramentas','Caixas de ferramentas',Wrench],['camas','Camas',BedDouble],['carros','Carros',Car],['maquinas','Máquinas',Cog],['setores','Setores',Building2],['inventario','Inventário',Boxes]];
 const rotuloSituacao = b => (SITUACOES[b.situacao] || SITUACOES.uso).rotulo;
 const nomeSetor = (b, setores) => setores.find(s => s.sigla === b.setorSigla)?.nome || 'Setor a definir';
 
@@ -68,19 +73,25 @@ function Impressao({tipo,bens,setores,contexto,aoVoltar}) {
 export default function Patrimonio(){return <PessoasRHProvider><PatrimonioConteudo/></PessoasRHProvider>;}
 function PatrimonioConteudo() {
   const {pessoas}=usePessoasRH();
+  const veInventario=podeAbrir('inventario-valores');
+  const permitidas=abasPatrimonio(podeAbrir);
+  const abasVisiveis=ABAS.filter(([id])=>permitidas.includes(id));
   const [bens,setBens]=useState(null), [setoresMapa,setSetoresMapa]=useState(null), [erro,setErro]=useState(null);
   const [atualizando,setAtualizando]=useState(false), [msg,setMsg]=useState(null), [salvando,setSalvando]=useState(false);
   const [filtros,setFiltros]=useState(FILTROS_INICIAIS), [modo,setModo]=useState('cards');
-  const [aba,setAba]=useAbaNavegavel('inventario',ABAS.map(([id])=>id));
+  const legadas=[...(permitidas.includes('telefonia')?['ramais','celulares']:[]),...(permitidas.includes('estrutura')?['computadores']:[])];
+  const [abaEscolhida,setAba]=useAbaNavegavel(permitidas[0]||'',veInventario?[...permitidas,...legadas,'pendencias']:[...permitidas,...legadas]);
+  const aba=abaPatrimonioAtual(abaEscolhida);
   const [pagina,setPagina]=useState(1), [selecionados,setSelecionados]=useState([]), [janela,setJanela]=useState(null), [impressao,setImpressao]=useState(null);
   const [fotos,setFotos]=useState(null), [erroFotos,setErroFotos]=useState(''), [revisaoFotos,setRevisaoFotos]=useState(0);
   const [fotoOcupada,setFotoOcupada]=useState(false);
   const pedido=useRef(0), idNovo=useRef(null);
   const hoje=ymdLocal(new Date());
   const carregarFotos=useCallback(async()=>{
+    if(!veInventario)return;
     try {const resultado=await resumoFotos();setFotos(resultado);setErroFotos('');setRevisaoFotos(n=>n+1);}
     catch(e){setFotos(null);setErroFotos(e.message);}
-  },[]);
+  },[veInventario]);
   const carregar=useCallback(async()=>{
     const atual=++pedido.current;setAtualizando(true);
     try {const [b,s]=await Promise.all([lerBens(),lerSetores()]);if(atual!==pedido.current)return;setBens(b);setSetoresMapa(s);setErro(null);}
@@ -95,14 +106,14 @@ function PatrimonioConteudo() {
   const nestaPagina=visiveis.slice((atual-1)*POR_PAGINA,atual*POR_PAGINA);
   const selecionadosVisiveis=visiveis.filter(b=>selecionados.includes(b.id));
   const mudouFiltro=Object.keys(FILTROS_INICIAIS).some(k=>k!=='ordem'&&filtros[k]!==FILTROS_INICIAIS[k]);
-  const detalhe=janela?.tipo==='detalhe'?vm.bens.find(b=>b.id===janela.bem.id):null;
+  const detalhe=veInventario&&janela?.tipo==='detalhe'?vm.bens.find(b=>b.id===janela.bem.id):null;
   const filtrar=(patch)=>{setFiltros(f=>({...f,...patch}));setPagina(1);setSelecionados([]);};
   const recortar=(patch)=>{setFiltros({...FILTROS_INICIAIS,...patch});setPagina(1);setSelecionados([]);setAba('inventario');};
   const selecionar=id=>setSelecionados(ids=>ids.includes(id)?ids.filter(x=>x!==id):[...ids,id]);
-  const abrirBem=(b=null)=>{setMsg(null);idNovo.current=b?.id||`pat-${crypto.randomUUID()}`;setJanela({tipo:'bem',bem:b?{...VAZIO,...b,valor:paraCampo(b.valor)}:{...VAZIO,setorSigla:vm.setores.some(s=>s.sigla===filtros.setor)?filtros.setor:'',dataAquisicao:''}});};
+  const abrirBem=(b=null)=>{setMsg(null);idNovo.current=b?.id||crypto.randomUUID();setJanela({tipo:'bem',bem:b?{...VAZIO,...b,valor:paraCampo(b.valor)}:{...VAZIO,setorSigla:vm.setores.some(s=>s.sigla===filtros.setor)?filtros.setor:'',dataAquisicao:''}});};
   const abrirSetor=(s=null)=>{setMsg(null);setJanela({tipo:'setor',setor:s?{...SETOR_VAZIO,...s}:SETOR_VAZIO});};
   const fechar=()=>{if(!salvando&&!fotoOcupada){setJanela(null);setMsg(null);}};
-  const verDetalhe=b=>{setMsg(null);setJanela({tipo:'detalhe',bem:b});};
+  const verDetalhe=b=>{if(!veInventario)return;setMsg(null);setJanela({tipo:'detalhe',bem:b});};
 
   async function gravarBem(f) {
     if(!f.setorSigla||!f.nomeGenerico.trim())return setMsg({erro:true,texto:'Informe o tipo do bem e o setor.'});
@@ -169,12 +180,16 @@ function PatrimonioConteudo() {
     </div>}
     {msg&&!janela&&<p className={`pat-notice ${msg.erro?'is-error':''}`} role={msg.erro?'alert':'status'}>{msg.texto}</p>}
     {erroFotos&&<div className="pat-notice is-error" role="alert">Não foi possível conferir as fotos. A consulta dos bens continua disponível. <button onClick={carregarFotos} className="btn-ghost">Tentar novamente</button></div>}
-    {!vm.setores.length&&<div className="pat-empty"><Building2 size={30}/><h2>Organize os primeiros setores</h2><p>O setor identifica a localização e gera a etiqueta de cada bem.</p><div className="pat-actions"><button className="btn-primary" disabled={salvando} onClick={semear}>Usar os setores da Impresilk</button><button className="btn-outline" onClick={()=>abrirSetor()}>Criar setor</button></div></div>}
-    <nav className="pat-tabs" aria-label="Visões do patrimônio">{ABAS.map(([id,nome,Icone])=><button key={id} aria-current={aba===id?'page':undefined} onClick={()=>{setAba(id);setMsg(null);}}><Icone size={16} aria-hidden="true"/>{nome}{id==='pendencias'&&<span>{pendentes.length}</span>}</button>)}</nav>
+    {podeAbrir('patrimonio')&&!vm.setores.length&&<div className="pat-empty"><Building2 size={30}/><h2>Organize os primeiros setores</h2><p>O setor identifica a localização e gera a etiqueta de cada bem.</p><div className="pat-actions"><button className="btn-primary" disabled={salvando} onClick={semear}>Usar os setores da Impresilk</button><button className="btn-outline" onClick={()=>abrirSetor()}>Criar setor</button></div></div>}
+    <nav className="pat-tabs" aria-label="Visões do patrimônio">{abasVisiveis.map(([id,nome,Icone])=><button key={id} aria-current={(aba===id||(id==='inventario'&&aba==='pendencias'))?'page':undefined} onClick={()=>{setAba(id);setMsg(null);}}><Icone size={16} aria-hidden="true"/>{nome}{id==='pendencias'&&<span>{pendentes.length}</span>}</button>)}</nav>
 
+    {veInventario&&['inventario','pendencias'].includes(aba)&&<nav className="pat-tabs" aria-label="Visões do inventário"><button aria-current={aba==='inventario'?'page':undefined} onClick={()=>setAba('inventario')}>Bens</button><button aria-current={aba==='pendencias'?'page':undefined} onClick={()=>setAba('pendencias')}>Pendências · {pendentes.length}</button></nav>}
+    {aba==='telefonia'&&<Telefonia bens={vm.bens} setores={vm.setores} secaoInicial={abaEscolhida==='celulares'?'celulares':abaEscolhida==='ramais'?'ramais':'relacao'}/>}
+    {aba==='seguranca'&&<SegurancaPatrimonio bens={vm.bens} setores={vm.setores} aoVerBem={veInventario?verDetalhe:undefined}/>}
+    {aba==='incendio'&&<Incendio bens={vm.bens} setores={vm.setores}/>}
     {CONTROLES[aba]&&<ControlesPatrimonio key={aba} tipo={aba}/>}
-    {aba==='estrutura'&&<EstruturaPatrimonio bens={vm.bens} setores={vm.setores} aoVerBem={verDetalhe}/>}
-    {['carros','maquinas'].includes(aba)&&<EquipamentosPatrimonio key={aba} tipo={aba==='carros'?'veiculo':'maquina'} bens={vm.bens} setores={vm.setores} aoVerBem={verDetalhe}/>}
+    {aba==='estrutura'&&<EstruturaPatrimonio bens={vm.bens} setores={vm.setores} aoVerBem={veInventario?verDetalhe:undefined} secaoInicial={secaoEstruturaInicial(abaEscolhida)}/>}
+    {['carros','maquinas'].includes(aba)&&<EquipamentosPatrimonio key={aba} tipo={aba==='carros'?'veiculo':'maquina'} bens={vm.bens} setores={vm.setores} aoVerBem={veInventario?verDetalhe:undefined}/>}
     {aba==='inventario'&&<>
       <div className="pat-toolbar">
         <div className="pat-search"><Search size={19}/><input className="input" aria-label="Buscar bens" placeholder="Etiqueta, equipamento, série, nota ou responsável…" value={filtros.busca} onChange={e=>filtrar({busca:e.target.value})}/>{filtros.busca&&<button onClick={()=>filtrar({busca:''})} aria-label="Limpar busca"><X size={17}/></button>}</div>
@@ -195,7 +210,7 @@ function PatrimonioConteudo() {
       </article>)}</div>:<div className="pat-table-wrap"><table className="pat-table"><thead><tr><th>Seleção</th><th>Bem / etiqueta</th><th>Setor</th><th>Situação</th><th>Valor de aquisição</th><th>Ficha</th></tr></thead><tbody>{nestaPagina.map(b=><tr key={b.id}><td><input type="checkbox" aria-label={`Selecionar ${b.codigo||b.nomeGenerico}`} checked={selecionados.includes(b.id)} onChange={()=>selecionar(b.id)}/></td><td><div className="pat-table-bem"><button className="pat-thumb-btn" onClick={()=>verDetalhe(b)} aria-label={`Abrir fotos e ficha de ${b.codigo||b.nomeGenerico}`}><CapaBem bem={b} quantidade={fotos===null?undefined:(fotos[b.id]||0)} revisao={revisaoFotos} pequena/></button><div><button className="pat-table-name" onClick={()=>verDetalhe(b)}>{b.nomeGenerico}</button><small>{b.codigo||'Sem etiqueta'} · {b.descricaoTecnica||'Sem descrição'}</small><AtualizacaoPatrimonio registro={b}/></div></div></td><td>{nomeSetor(b,vm.setores)}</td><td><Situacao bem={b}/></td><td>{b.valor>0?moedaCheia(b.valor):'A informar'}</td><td><button className="btn-ghost" aria-label={`Ver ficha de ${b.codigo||b.nomeGenerico}`} onClick={()=>verDetalhe(b)}><ArrowUpRight size={18}/></button></td></tr>)}</tbody></table></div>}
       {!!visiveis.length&&<div className="pat-pagination"><span>{(atual-1)*POR_PAGINA+1}–{Math.min(atual*POR_PAGINA,visiveis.length)} de {visiveis.length} bens</span><div><button className="btn-outline" disabled={atual===1} aria-label="Página anterior" onClick={()=>setPagina(atual-1)}><ChevronLeft size={18}/></button><span>{atual} / {paginas}</span><button className="btn-outline" disabled={atual===paginas} aria-label="Próxima página" onClick={()=>setPagina(atual+1)}><ChevronRight size={18}/></button></div></div>}
     </>}
-    {aba==='setores'&&<><div className="pat-list-heading"><div><h2>Setores e seus bens</h2><p>Cadastre os setores e vincule os bens que ficam em cada local.</p></div><div className="pat-actions"><button className="btn-outline" disabled={!vm.setores.length} onClick={()=>setImpressao({tipo:'setores'})}><Printer size={17}/>Relatório / PDF</button><button className="btn-primary" onClick={()=>abrirSetor()}><Plus size={17}/>Novo setor</button></div></div><div className="pat-sector-grid">{vm.porSetor.map(s=><article className="pat-sector" key={s.id}><div className="pat-sector-top"><span className="pat-sector-code">{s.sigla}</span><div className="pat-actions"><button className="btn-ghost" onClick={()=>abrirSetor(s)} aria-label={`Editar setor ${s.nome}`}><Pencil size={16}/></button><button className="btn-ghost" disabled={salvando} onClick={()=>apagarSetor(s)} aria-label={`Remover setor ${s.nome}`}><Trash2 size={16}/></button></div></div><h3>{s.numero?`${s.numero} · `:''}{s.nome}</h3><AtualizacaoPatrimonio registro={s}/><p>{s.area||'Área não informada'}</p><div className="pat-sector-value"><strong>{moedaCheia(s.valor)}</strong><span>{s.quantos} {s.quantos===1?"bem ativo":"bens ativos"}</span></div><div className="pat-actions"><button className="btn-outline" onClick={()=>{setMsg(null);setJanela({tipo:'vinculos',setor:s});}}>Vincular bens</button><button className="btn-ghost" onClick={()=>setImpressao({tipo:'inventario',bens:vm.bens.filter(b=>b.setorSigla===s.sigla),contexto:`Setor ${s.nome} · Inclui baixados`})}><Printer size={16}/>PDF do setor</button></div><button className="pat-sector-open" onClick={()=>recortar({setor:s.sigla})}>Ver bens do setor <ArrowUpRight size={17}/></button></article>)}</div>{vm.semSetor.length>0&&<div className="pat-notice"><span>{vm.semSetor.length} {vm.semSetor.length===1?'bem precisa':'bens precisam'} de um setor válido.</span><button className="btn-ghost" onClick={()=>recortar({setor:'__sem_setor'})}>Ver e corrigir</button></div>}</>}
+    {aba==='setores'&&<><div className="pat-list-heading"><div><h2>Setores e seus bens</h2><p>Cadastre os setores e vincule os bens que ficam em cada local.</p></div><div className="pat-actions"><button className="btn-outline" disabled={!vm.setores.length} onClick={()=>setImpressao({tipo:'setores'})}><Printer size={17}/>Relatório / PDF</button><button className="btn-primary" onClick={()=>abrirSetor()}><Plus size={17}/>Novo setor</button></div></div><div className="pat-sector-grid">{vm.porSetor.map(s=><article className="pat-sector" key={s.id}><div className="pat-sector-top"><span className="pat-sector-code">{s.sigla}</span><div className="pat-actions"><button className="btn-ghost" onClick={()=>abrirSetor(s)} aria-label={`Editar setor ${s.nome}`}><Pencil size={16}/></button><button className="btn-ghost" disabled={salvando} onClick={()=>apagarSetor(s)} aria-label={`Remover setor ${s.nome}`}><Trash2 size={16}/></button></div></div><h3>{s.numero?`${s.numero} · `:''}{s.nome}</h3><AtualizacaoPatrimonio registro={s}/><p>{s.area||'Área não informada'}</p><div className="pat-sector-value">{veInventario&&<strong>{moedaCheia(s.valor)}</strong>}<span>{s.quantos} {s.quantos===1?"bem ativo":"bens ativos"}</span></div>{veInventario&&<><div className="pat-actions"><button className="btn-outline" onClick={()=>{setMsg(null);setJanela({tipo:'vinculos',setor:s});}}>Vincular bens</button><button className="btn-ghost" onClick={()=>setImpressao({tipo:'inventario',bens:vm.bens.filter(b=>b.setorSigla===s.sigla),contexto:`Setor ${s.nome} · Inclui baixados`})}><Printer size={16}/>PDF do setor</button></div><button className="pat-sector-open" onClick={()=>recortar({setor:s.sigla})}>Ver bens do setor <ArrowUpRight size={17}/></button></>}</article>)}</div>{veInventario&&vm.semSetor.length>0&&<div className="pat-notice"><span>{vm.semSetor.length} {vm.semSetor.length===1?'bem precisa':'bens precisam'} de um setor válido.</span><button className="btn-ghost" onClick={()=>recortar({setor:'__sem_setor'})}>Ver e corrigir</button></div>}</>}
     {aba==='pendencias'&&<><div className="pat-list-heading"><div><h2>Complete o inventário</h2><p>Primeiro etiqueta, setor e responsável; depois documentação, valor e foto. Pendência de cadastro não significa defeito.</p></div><button className="btn-outline" onClick={()=>recortar({pendencia:'todas',ordem:'valor'})}>Ver no inventário</button></div><div className="pat-pending-shortcuts"><button className="btn-outline" disabled={fotos===null} onClick={()=>recortar({pendencia:'foto'})}><Camera size={17}/>Sem foto</button><button className="btn-outline" onClick={()=>recortar({pendencia:'valor'})}><Wallet size={17}/>Sem valor de aquisição</button></div>{!pendentes.length?<div className="pat-empty"><h3>{fotos===null?'Cadastro conferido; fotos ainda não verificadas':'Cadastros completos'}</h3><p>{fotos===null?'Tente atualizar a conferência das fotos.':'Os bens ativos têm etiqueta, setor, responsável, documentação, valor e foto.'}</p></div>:<div className="pat-pending-list">{ordenarPendencias(pendentes,vm.setores,fotos).map(b=><article key={b.id}><div><span className="pat-eyebrow">{b.codigo||'Sem etiqueta'} · {nomeSetor(b,vm.setores)}</span><h3>{b.nomeGenerico}</h3><div className="pat-missing">{pendenciasBem(b,vm.setores,fotos).map(p=><span key={p.id}>{p.nome}{["etiqueta","setor","responsavel"].includes(p.id)?" · essencial":p.id==="foto"?" · identificação visual":""}</span>)}</div></div><div><strong>{b.valor>0?moedaCheia(b.valor):'Valor a informar'}</strong><button className="btn-outline" onClick={()=>verDetalhe(b)}>Completar ficha</button></div></article>)}</div>}</>}
     {janela&&<JanelaFormulario titulo={janela.tipo==='bem'?(janela.bem.id?'Editar bem':'Novo bem'):janela.tipo==='setor'?(janela.setor.id?'Editar setor':'Novo setor'):janela.tipo==='vinculos'?`Bens do setor · ${janela.setor.nome}`:(detalhe?.nomeGenerico||'Ficha do bem')} ocupado={salvando||fotoOcupada} aoFechar={fechar}>
       {msg&&<p className={`pat-notice ${msg.erro?'is-error':''}`} role={msg.erro?'alert':'status'}>{msg.texto}</p>}

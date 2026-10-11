@@ -102,6 +102,7 @@ export default function Configuracoes() {
     { id: "financeiro", titulo: "Financeiro e fluxo de caixa", sub: "Reserva mínima e saldo inicial.", ve: geral },
     { id: "cobranca", titulo: "Contas atrasadas e cobrança", sub: "Metas, motivos, régua e faixas de atraso.", ve: geral },
     { id: "orcamentos", titulo: "Orçamentos e vendas", sub: "Limites, vendedores e motivos de perda.", ve: geral },
+    { id: "patrimonio", titulo: "Patrimônio", sub: "Alerta de custo de manutenção dos equipamentos.", ve: geral },
     { id: "permutas", titulo: "Permutas", sub: "Período de cada permuta.", ve: podeAbrir("permutas", sessao) },
     { id: "marketing", titulo: "Marketing", sub: "Conexões, atalhos do Drive, canais e papéis.", ve: podeAbrir("marketing", sessao) },
     { id: "campanhas", titulo: "Campanhas", sub: "Metas e períodos dos eventos.", ve: podeAbrir("campanhas", sessao) },
@@ -491,6 +492,18 @@ export default function Configuracoes() {
             </>)}
           </fieldset>
         )}
+
+        {bloco("patrimonio", <>
+          <Sub titulo="Limite de manutenção" sub="O aviso compara o custo acumulado de manutenção com o valor pago pelo bem vinculado.">
+            <fieldset disabled={!marcacoesProntas} className="min-w-0 border-0 p-0">
+            <Campo rotulo="Alertar quando a manutenção atingir (%)" dica="Deixe vazio para manter o alerta pendente. O aviso requer acesso a Manutenções e ao valor do Inventário.">
+              <input className="input tnum" type="number" min="0.01" max="10000" step="0.01" inputMode="decimal"
+                value={p.patrimonioLimiteManutencaoPercentual ?? ""}
+                onChange={(e) => {const raw=e.target.value;if(raw==="")return setParam("patrimonioLimiteManutencaoPercentual",null);const n=Number(raw);if(Number.isFinite(n)&&n>0&&n<=10000)setParam("patrimonioLimiteManutencaoPercentual",n);}} />
+            </Campo>
+            </fieldset>
+          </Sub>
+        </>)}
 
         {bloco("permutas", <>
           <Sub titulo="Período de cada permuta" sub="Defina o intervalo de busca de O.S. de cada parceria."><ConfiguracaoPermutas /></Sub>

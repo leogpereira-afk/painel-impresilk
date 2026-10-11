@@ -4,6 +4,11 @@ import {respostaReunioes} from './reunioes.mjs';
 import {respostaMarketing} from './marketing.mjs';
 import {validarVinculoPessoa,prepararPessoasControle} from '../../supabase/functions/_shared/patrimonio-pessoas.mjs';
 import {prepararControle} from '../../supabase/functions/_shared/patrimonio-controles.mjs';
+import {prepararFisico,prepararConferencia} from '../../supabase/functions/_shared/patrimonio-fisico.mjs';
+import {vencimentosIncendio} from '../../supabase/functions/_shared/patrimonio-incendio.mjs';
+import {inventarioPermitido,ativoPermitido,temPermissao} from '../../supabase/functions/_shared/patrimonio-acesso.mjs';
+import {getSessao} from '../lib/sessao.js';
+import {prepararInfra,infraPermitida} from '../../supabase/functions/_shared/patrimonio-infra.mjs';
 const pessoasPatrimonioDemo=[
  {id:'rh-demo-ana-1',nome:'Ana Exemplo',disponivel:true},
  {id:'rh-demo-ana-2',nome:'Ana Exemplo',disponivel:true},
@@ -23,7 +28,11 @@ const configs = {
  patrimonio:{ex1:{nomeGenerico:'Impressora',descricaoTecnica:'Equipamento de demonstração',origemAtivoId:'maq-demo',setorSigla:'PRO',codigo:'PRO-001',valor:10000,situacao:'uso',dataAquisicao:'2026-01-10',responsavelId:'rh-demo-bruno',responsavel:'Bruno Exemplo'}},
  setores:{ex1:{sigla:'PRO',nome:'Produção',area:'Operações'}},
  patrimonio_controles:Object.fromEntries(['ramais','armarios','ferramentas','camas','celulares'].map((tipo,i)=>['controle-'+tipo,{tipo,numero:tipo==='celulares'?'(38) 99999-0000':String(i+1).padStart(2,'0'),modelo:tipo==='celulares'?'Samsung Galaxy A15':'',telefone:'(38) 3000-0000',pessoa:'Ana Exemplo',observacao:'Cadastro de demonstração',atualizadoEm:'2026-10-05T12:00:00Z',atualizadoPorNome:'Conta de demonstração'}])),
- manutencoes:{},permutas:{},campanhas:{},grupos_clientes:{},
+ manutencoes:{
+  'servico-car-demo':{ativoId:'car-demo',data:'2026-10-01',valor:120,tipo:'preventiva',descricao:'Revisão de demonstração',proxima:'2026-11-01'},
+  'servico-maq-demo':{ativoId:'maq-demo',data:'2026-10-02',valor:350,tipo:'corretiva',descricao:'Ajuste de demonstração',proxima:'2026-10-05'},
+  'servico-removido-demo':{ativoId:'retirado-demo',data:'2026-10-03',valor:80,tipo:'corretiva',descricao:'Serviço histórico de demonstração'},
+ },permutas:{},campanhas:{},grupos_clientes:{},
 };
 // Acervo fictício: permite revisar entrega parcial e avaliação mensal sem gravar no servidor.
 Object.assign(configs.patrimonio_controles['controle-ferramentas'], {
@@ -35,6 +44,56 @@ const equipamentosDemo=[
  {id:'car-demo',tipo:'veiculo',nome:'Utilitário de demonstração',categoria:'Utilitário',identificacao:'VEI-01',responsavel:'Ana Exemplo',responsavelId:'rh-demo-ana-1',especificacao:{placa:'EXE1A23',marcaModelo:'Utilitário exemplo',ano:'2024',motorista:'Ana Exemplo',motoristaId:'rh-demo-ana-1'},atualizadoEm:'2026-10-05T12:00:00Z',atualizadoPor:'Conta de demonstração'},
  {id:'maq-demo',tipo:'maquina',nome:'Impressora de demonstração',categoria:'Impressão',responsavel:'Bruno Exemplo',responsavelId:'rh-demo-bruno',setorSigla:'PRO',especificacao:{fabricante:'Fabricante exemplo',modelo:'Impressora UV',numeroSerie:'DEMO-001',setor:'Produção'},atualizadoEm:'2026-10-05T12:00:00Z',atualizadoPor:'Conta de demonstração'}
 ];
+equipamentosDemo.push(
+ {id:'telefonia-demo-1',tipo:'informatica',categoria:'Telefone',nome:'Telefone de demonstração A',especificacao:{marcaModelo:'Modelo A de exemplo',numeroSerie:'DEMO-TEL-01'},atualizadoEm:'2026-10-01T12:00:00Z'},
+ {id:'telefonia-demo-2',tipo:'informatica',categoria:'Telefone',nome:'Telefone de demonstração B',especificacao:{marcaModelo:'Modelo B de exemplo'},atualizadoEm:'2026-10-01T12:00:00Z'},
+ {id:'central-demo',tipo:'informatica',categoria:'Central telefônica',nome:'Central de demonstração',especificacao:{marcaModelo:'PABX exemplo',local:'Sala técnica de exemplo'},atualizadoEm:'2026-10-01T12:00:00Z'}
+);
+Object.assign(configs.patrimonio_controles['controle-ramais'],{setorId:'ex1',local:'Bancada de exemplo',aparelhoId:'telefonia-demo-1',pessoaId:'rh-demo-ana-1'});
+const extrasDemo=[
+ {id:'pc-demo',tipo:'informatica',categoria:'Computador',nome:'Computador da produção · exemplo',responsavelId:'rh-demo-bruno',bemId:'bem-pc-demo',especificacao:{marcaModelo:'Computador de exemplo',numeroSerie:'PC-DEMO-01',setorId:'ex1',situacao:'uso',processador:'Processador exemplo',memoria:'16 GB',armazenamento:'512 GB'}},
+ {id:'celular-demo',tipo:'informatica',categoria:'Celular',nome:'Celular de demonstração A',bemId:'bem-celular-demo',especificacao:{marcaModelo:'Modelo celular exemplo',imei:'000000000000001',situacao:'uso'}},
+ {id:'celular-demo-2',tipo:'informatica',categoria:'Celular',nome:'Celular de demonstração B',especificacao:{marcaModelo:'Outro modelo exemplo',situacao:'reserva'}},
+ {id:'dvr-demo',tipo:'seguranca',categoria:'DVR/NVR',nome:'Gravador de exemplo',especificacao:{marcaModelo:'NVR exemplo',canaisTotais:'8',diasGravacao:'15',local:'Sala técnica',situacao:'uso'}},
+ {id:'camera-demo',tipo:'seguranca',categoria:'Câmera',nome:'Câmera da entrada · exemplo',especificacao:{numero:'01',posicao:'Entrada de exemplo',local:'Recepção',setorId:'ex1',ambiente:'interna',gravadorId:'dvr-demo',canal:'1',situacao:'uso'}},
+ {id:'facial-demo',tipo:'seguranca',categoria:'Acesso facial',nome:'Acesso da recepção · exemplo',especificacao:{local:'Recepção',libera:'Porta de entrada',situacao:'uso',autorizados:[{id:'794f9907-29a1-4ff8-a4d0-086fc4d89112',pessoaId:'rh-demo-inativo',liberadoEm:'2026-10-01',bloqueadoEm:''}]}},
+ {id:'chave-demo',tipo:'seguranca',categoria:'Chave',nome:'Chave da sala · exemplo',especificacao:{local:'Sala técnica',situacao:'uso',copias:[{id:'794f9907-29a1-4ff8-a4d0-086fc4d89113',numero:'01',tipo:'chave',pessoaId:'rh-demo-ana-1',entrega:'2026-10-01',devolucao:''}]}},
+ {id:'alarme-demo',tipo:'seguranca',categoria:'Alarme',nome:'Central de alarme · exemplo',especificacao:{local:'Recepção',situacao:'uso'}},
+ {id:'portao-demo',tipo:'seguranca',categoria:'Portão',nome:'Motor do portão · exemplo',especificacao:{local:'Entrada',automatizador:'Motor de exemplo',situacao:'uso'}},
+ {id:'ponto-demo',tipo:'seguranca',categoria:'Relógio de ponto',nome:'Relógio de ponto · exemplo',especificacao:{local:'Recepção',numeroSerie:'DEMO-PONTO-01',situacao:'uso'}},
+ {id:'extintor-demo',tipo:'predial',categoria:'Extintor',nome:'Extintor da produção · exemplo',validade:'2026-10-25',especificacao:{numero:'01',tipoExtintor:'Pó ABC de exemplo',capacidade:'4 kg',local:'Parede da entrada',setorId:'ex1',situacao:'uso'}},
+ {id:'avcb-demo',tipo:'predial',categoria:'AVCB',nome:'AVCB · documento de exemplo',identificacao:'EXEMPLO-01',validade:'2027-10-11',especificacao:{local:'Prédio de demonstração',situacao:'uso'}},
+ {id:'luz-demo',tipo:'predial',categoria:'Iluminação de emergência',nome:'Luminária de emergência · exemplo',validade:'2026-10-24',especificacao:{numero:'01',local:'Saída de exemplo',testeAutonomiaMinutos:'60',situacao:'uso'}},
+ {id:'placa-demo',tipo:'predial',categoria:'Sinalização de segurança',nome:'Placa da saída · exemplo',validade:'2026-11-01',especificacao:{numero:'01',local:'Saída de exemplo',tipoSinalizacao:'Saída',situacao:'uso'}},
+].map(i=>({...i,atualizadoEm:'2026-10-05T12:00:00Z',atualizadoPor:'Conta de demonstração'}));
+equipamentosDemo.push(...extrasDemo);
+configs.patrimonio['bem-pc-demo']={codigo:'PRO-002',origemAtivoId:'pc-demo',nomeGenerico:'Computador exemplo',valor:5000,nf:'NF-FICTICIA-PC',dataAquisicao:'2025-01-01',situacao:'uso',setorSigla:'PRO'};
+configs.patrimonio['bem-celular-demo']={codigo:'PRO-003',origemAtivoId:'celular-demo',nomeGenerico:'Celular exemplo',valor:1000,nf:'NF-FICTICIA-CEL',situacao:'uso',setorSigla:'PRO'};
+Object.assign(configs.patrimonio_controles['controle-celulares'],{operadora:'Operadora exemplo',pessoaId:'rh-demo-ana-1',aparelhoId:'celular-demo'});
+configs.patrimonio_seguranca_checklists={};
+// Infraestrutura fictícia: nomes, contatos, contratos e valores só existem
+// nesta memória da prévia. Não são uma cópia de registros da empresa.
+const infraDemoIds={tecnico:'12212212-1221-4221-8221-122122122121',comercial:'12212212-1221-4221-8221-122122122122',internet:'12212212-1221-4221-8221-122122122123',plano:'12212212-1221-4221-8221-122122122124',energia:'12212212-1221-4221-8221-122122122125',solar:'12212212-1221-4221-8221-122122122126',servidor:'12212212-1221-4221-8221-122122122127',transformador:'12212212-1221-4221-8221-122122122128'};
+const versaoInfra='2026-10-05T12:00:00Z';
+configs.patrimonio_infra={
+ [infraDemoIds.tecnico]:{tipo:'contato',nome:'Técnico de demonstração',telefone:'(38) 3000-0000',whatsapp:'(38) 99999-0000',email:'tecnico@example.com',endereco:'Endereço fictício da revisão',atualizadoEm:versaoInfra},
+ [infraDemoIds.comercial]:{tipo:'contato',nome:'Contato comercial de demonstração',telefone:'(38) 3000-0001',whatsapp:'(38) 99999-0001',email:'comercial@example.com',endereco:'Endereço fictício do plano',atualizadoEm:versaoInfra},
+ [infraDemoIds.internet]:{tipo:'internet',operadora:'Operadora de demonstração',plano:'Link empresarial de exemplo',download:'600 Mbps',upload:'300 Mbps',valorMensal:299.90,inicioVigencia:'2026-01-01',fimVigencia:'2027-01-01',endereco:'Prédio de demonstração',tecnicoId:infraDemoIds.tecnico,atualizadoEm:versaoInfra},
+ [infraDemoIds.plano]:{tipo:'plano-corporativo',operadora:'Operadora de demonstração',nome:'Plano corporativo de exemplo',valorMensal:199.99,quantidadeLinhas:3,franquia:'20 GB por linha · exemplo',inicioVigencia:'2026-01-01',fimVigencia:'2027-01-01',contatoId:infraDemoIds.comercial,atualizadoEm:versaoInfra},
+};
+Object.assign(configs.patrimonio_controles['controle-celulares'],{setorId:'ex1',status:'ativo',planoId:infraDemoIds.plano});
+Object.assign(configs.patrimonio_controles['controle-ramais'],{status:'ativo'});
+configs.patrimonio_controles['12212212-1221-4221-8221-122122122129']={tipo:'celulares',numero:'(38) 99999-0002',modelo:'',pessoaId:'',aparelhoId:'',setorId:'',status:'disponivel',planoId:infraDemoIds.plano,atualizadoEm:versaoInfra};
+equipamentosDemo.push(
+ {id:infraDemoIds.energia,tipo:'predial',categoria:'Padrão de energia',nome:'Entrada de energia · exemplo',especificacao:{local:'Entrada técnica',endereco:'Endereço fictício',unidadeConsumidora:'UC-DEMO-01',tensao:'220/380 V',potencia:'75 kW',tecnicoId:infraDemoIds.tecnico,situacao:'uso'},atualizadoEm:versaoInfra},
+ {id:infraDemoIds.solar,tipo:'predial',categoria:'Usina fotovoltaica',nome:'Usina solar · exemplo',especificacao:{local:'Cobertura de demonstração',potenciaInstalada:'25 kWp',placas:'50 módulos · exemplo',inversores:'2 inversores · exemplo',unidadesConsumidoras:[infraDemoIds.energia],tecnicoId:infraDemoIds.tecnico,situacao:'uso'},atualizadoEm:versaoInfra},
+ {id:infraDemoIds.transformador,tipo:'predial',categoria:'Transformador',nome:'Transformador · exemplo',identificacao:'TR-DEMO-01',especificacao:{local:'Área técnica',kva:'112.5',tecnicoId:infraDemoIds.tecnico,situacao:'uso'},atualizadoEm:versaoInfra},
+ {id:infraDemoIds.servidor,tipo:'informatica',categoria:'Servidor',nome:'Servidor de demonstração',responsavelId:'rh-demo-bruno',especificacao:{local:'Sala técnica',setorId:'ex1',fabricante:'Fabricante de exemplo',modelo:'Servidor de exemplo',processador:'Processador de demonstração',memoria:'64 GB',armazenamento:'2 TB',rede:'Rede local de exemplo',enderecoIP:'192.0.2.10',backup:'Cópia diária de demonstração, sem credenciais',tecnicoId:infraDemoIds.tecnico,situacao:'uso'},atualizadoEm:versaoInfra}
+);
+const contratosInfraDemo=new Map();
+configs.manutencoes['pc-servico-demo']={ativoId:'pc-demo',data:'2026-10-01',valor:350,descricao:'Manutenção exemplo do computador',fornecedor:'Prestador de exemplo'};
+configs.manutencoes['camera-servico-demo']={ativoId:'camera-demo',data:'2026-10-01',valor:75,descricao:'Conferência do enquadramento · exemplo',fornecedor:'Prestador de exemplo'};
+configs.manutencoes['telefone-servico-demo']={ativoId:'telefonia-demo-1',data:'2026-10-01',valor:65,descricao:'Troca do cabo de exemplo',fornecedor:'Prestador de demonstração'};
 const estruturasDemo = [
  {id:'predial-ac-demo',nome:'Ar-condicionado da recepção · exemplo',categoria:'Ar-condicionado',identificacao:'AC-DEMO-01',responsavel:'Ana Exemplo',especificacao:{local:'Recepção de demonstração',marcaModelo:'Fabricante exemplo · 12.000 BTU',quantidade:'1',instalacao:'2025-04-10'}},
  {id:'predial-fan-demo',nome:'Ventiladores da produção · exemplo',categoria:'Ventilador',identificacao:'VT-DEMO-01',responsavel:'Bruno Exemplo',especificacao:{local:'Produção de demonstração',marcaModelo:'Ventilador de parede exemplo',quantidade:'3',instalacao:'2025-06-15'}},
@@ -69,16 +128,42 @@ function salvarEstruturaPreview(corpo){
 export async function respostaPreview(url,opcoes={}){
  const u=new URL(url,location.origin), corpo=opcoes.body ? JSON.parse(opcoes.body) : {};
  const endpoint=u.pathname.split('/').pop();
+ const ss=getSessao(),sessao={sub:'demo',nome:'Conta de demonstração',master:ss?.master,perms:ss?.permissoes||[]};
  if(endpoint==='painel-comercial')return respostaComercial(corpo);
  if(endpoint==='painel-reunioes')return respostaReunioes(corpo);
  if(endpoint==='painel-marketing')return respostaMarketing(corpo);
  let dados;
  if(endpoint==='painel-config' && corpo.chave==='compromissos'){const agenda=respostaAgenda(corpo);return new Response(JSON.stringify({ok:!agenda.erro,...agenda}),{status:agenda.erro?409:200,headers:{'Content-Type':'application/json'}});}
  if(endpoint==='painel-config' && corpo.action==='pessoasPatrimonio')dados={pessoas:structuredClone(pessoasPatrimonioDemo)};
+ else if(endpoint==='painel-config' && corpo.action==='patrimonioParametros')dados={limiteManutencaoPercentual:null};
+ else if(endpoint==='painel-config'&&corpo.action==='lerInfra'){
+  if(!temPermissao(sessao,'patrimonio'))return erroPreview('Sem acesso à infraestrutura.',403);
+  const podeValores=temPermissao(sessao,'inventario-valores');dados={itens:Object.fromEntries(Object.entries(configs.patrimonio_infra).map(([id,r])=>[id,infraPermitida(r,podeValores)])),podeValores};
+ }
+ else if(endpoint==='painel-config'&&corpo.action==='salvarInfra'){
+  if(!temPermissao(sessao,'patrimonio'))return erroPreview('Sem acesso à infraestrutura.',403);
+  const anterior=configs.patrimonio_infra[corpo.id];
+  if(corpo.versaoAnterior!==(anterior?.atualizadoEm??null))return erroPreview('Cadastro alterado. Atualize.',409);
+  if(corpo.dados.tipo==='plano-corporativo'&&Object.entries(configs.patrimonio_infra).some(([id,r])=>id!==corpo.id&&r.tipo==='plano-corporativo'))return erroPreview('Já existe um plano corporativo.',409);
+  if(Object.hasOwn(corpo.dados,'valorMensal')&&!temPermissao(sessao,'inventario-valores'))return erroPreview('Valor exige Inventário e valores.',403);
+  try{const registro=prepararInfra(corpo.dados,anterior,{tecnicoId:configs.patrimonio_infra[corpo.dados.tecnicoId||anterior?.tecnicoId]?.tipo==='contato',contatoId:configs.patrimonio_infra[corpo.dados.contatoId||anterior?.contatoId]?.tipo==='contato'},sessao,new Date().toISOString());configs.patrimonio_infra[corpo.id]=registro;dados={item:{id:corpo.id,...infraPermitida(registro,temPermissao(sessao,'inventario-valores'))}};}catch(e){return erroPreview(e.message,e.status||422);}
+ }
+ else if(endpoint==='painel-config'&&['guardarContratoInfra','lerContratoInfra'].includes(corpo.action)){
+  if(!temPermissao(sessao,'patrimonio')||!temPermissao(sessao,'inventario-valores'))return erroPreview('Contrato exige Inventário e valores.',403);
+  const item=configs.patrimonio_infra[corpo.id];if(!item||!['internet','plano-corporativo'].includes(item.tipo))return erroPreview('Contrato não encontrado.',404);
+  if(corpo.action==='guardarContratoInfra'){
+   if(corpo.versaoAnterior!==item.atualizadoEm||item.contrato)return erroPreview('Cadastro alterado ou contrato já anexado.',409);
+   contratosInfraDemo.set(corpo.id,{base64:corpo.base64,mime:corpo.mime,nome:corpo.nome});item.contrato={nome:corpo.nome,mime:corpo.mime};item.atualizadoEm=new Date().toISOString();dados={contrato:structuredClone(item.contrato)};
+  }else {const contrato=contratosInfraDemo.get(corpo.id);if(!contrato)return erroPreview('Contrato não encontrado.',404);dados=structuredClone(contrato);}
+ }
+ else if(endpoint==='painel-config' && corpo.action==='lerConferencias')dados={itens:structuredClone(configs.patrimonio_seguranca_checklists)};
+ else if(endpoint==='painel-config' && corpo.action==='salvarConferencia'){
+  try{const item=prepararConferencia(corpo.dados,configs.patrimonio_seguranca_checklists[corpo.id],equipamentosDemo.filter(i=>i.tipo==='seguranca'&&i.categoria==='Câmera'&&i.especificacao?.situacao!=='baixado').map(i=>i.id),sessao,new Date().toISOString());configs.patrimonio_seguranca_checklists[corpo.id]=item;dados={item};}catch(e){return erroPreview(e.message,e.status||422);}
+ }
  else if(endpoint==='painel-config' && corpo.action==='merge' && corpo.chave==='patrimonio_controles'){
    try{
      const proximo=structuredClone(configs.patrimonio_controles);
-     for(const [id,campos] of Object.entries(corpo.patch||{}))proximo[id]=prepararControle(prepararPessoasControle(campos,proximo[id],pessoasPatrimonioDemo),proximo[id],{sub:'demo',nome:'Conta de demonstração'},new Date().toISOString());
+     for(const [id,campos] of Object.entries(corpo.patch||{}))proximo[id]=prepararControle(prepararPessoasControle(campos,proximo[id],pessoasPatrimonioDemo),proximo[id],{sub:'demo',nome:'Conta de demonstração'},new Date().toISOString(),{setor:configs.setores[campos.setorId],aparelho:equipamentosDemo.find(a=>a.id===campos.aparelhoId),plano:configs.patrimonio_infra[campos.planoId]?.tipo==='plano-corporativo',ocupado:Object.entries(proximo).some(([rid,r])=>rid!==id&&campos.aparelhoId&&r.aparelhoId===campos.aparelhoId)});
      configs.patrimonio_controles=proximo;dados={valor:structuredClone(proximo)};
    }catch(e){return erroPreview(e.message,e.status||422);}
  }
@@ -89,12 +174,33 @@ export async function respostaPreview(url,opcoes={}){
    if(corpo.chave==='glossario'){
      const {GLOSSARIO}=await import('../data/glossario.js');
      dados={valor:Object.fromEntries(GLOSSARIO.map((t,i)=>[`demo-${i}`,{...t,ordem:i}]))};
-   }else dados={valor:structuredClone(configs[corpo.chave] || {})};
- }else if(endpoint==='painel-ativos' && corpo.action==='listarPatrimonio') dados={itens:structuredClone([...equipamentosDemo,...estruturasDemo])};
+   }else {let valor=structuredClone(configs[corpo.chave]||{});if(corpo.chave==='patrimonio')valor=inventarioPermitido(valor,sessao);if(corpo.chave==='manutencoes'&&!temPermissao(sessao,'seguranca'))valor=Object.fromEntries(Object.entries(valor).filter(([,r])=>!equipamentosDemo.some(i=>i.tipo==='seguranca'&&i.id===r.ativoId)));dados={valor};}
+ }else if(endpoint==='painel-ativos' && corpo.action==='listarPatrimonio') dados={itens:structuredClone([...equipamentosDemo,...estruturasDemo].filter(i=>i.tipo==='seguranca'?temPermissao(sessao,'seguranca'):temPermissao(sessao,'patrimonio')||temPermissao(sessao,'inventario-valores')).map(i=>ativoPermitido(i,sessao)))};
+ else if(endpoint==='painel-ativos' && corpo.action==='salvarFisico'){
+  try{
+   const it=corpo.item,id=it.id||it.cadastroId,indice=equipamentosDemo.findIndex(a=>a.id===id),ant=equipamentosDemo[indice];
+   if(it.id&&(!ant||corpo.versao!==ant.atualizadoEm))return erroPreview('Este cadastro mudou. Atualize.',409);
+   const fisico=prepararFisico(it,ant,{inventario:temPermissao(sessao,'inventario-valores'),bem:configs.patrimonio[it.bemId],setor:configs.setores[it.especificacao?.setorId],setorId:it.especificacao?.setorId,gravador:equipamentosDemo.find(a=>a.id===it.especificacao?.gravadorId),gravadorId:it.especificacao?.gravadorId,pessoas:pessoasPatrimonioDemo,tecnico:configs.patrimonio_infra[it.especificacao?.tecnicoId]?.tipo==='contato',unidadesConsumidoras:equipamentosDemo.filter(a=>a.categoria==='Padrão de energia'&&it.especificacao?.unidadesConsumidoras?.includes(a.id)).map(a=>a.id)});
+   const responsavel=validarVinculoPessoa(it,ant,pessoasPatrimonioDemo,'responsavel');
+   const item={...ant,...fisico,...responsavel,id,bemId:it.bemId??ant?.bemId??'',atualizadoEm:new Date().toISOString(),atualizadoPor:sessao.nome};
+   if(indice>=0)equipamentosDemo[indice]=item;else equipamentosDemo.push(item);dados={item:structuredClone(item)};
+  }catch(e){return erroPreview(e.message,e.status||422);}
+ }
+ else if(endpoint==='painel-ativos'&&corpo.action==='guardarArquivoIncendio'){
+  const i=equipamentosDemo.find(a=>a.id===corpo.id);if(!i)return erroPreview('Item não encontrado.',404);i.arquivoIncendio={nome:corpo.nome,mime:corpo.mime};dados={arquivoIncendio:i.arquivoIncendio};
+ }
  else if(endpoint==='painel-ativos' && corpo.action==='salvarEstrutura'){
    dados=salvarEstruturaPreview(corpo);
    if(dados instanceof Response)return dados;
  }
+ else if(endpoint==='painel-ativos' && corpo.action==='salvarTelefonia'){
+  const i=corpo.item,id=i.id||i.cadastroId,anterior=equipamentosDemo.find(a=>a.id===id);
+  if(i.id && corpo.versao!==(anterior?.atualizadoEm||''))return erroPreview('Ficha alterada. Atualize.',409);
+  const item={...anterior,...i,id,tipo:'informatica',atualizadoEm:new Date().toISOString()};
+  const ix=equipamentosDemo.findIndex(a=>a.id===id);if(ix>=0)equipamentosDemo[ix]=item;else equipamentosDemo.push(item);
+  dados={item};
+ }
+ else if(endpoint==='painel-config' && corpo.action==='removerId' && corpo.chave==='patrimonio_controles'){delete configs.patrimonio_controles[corpo.id];dados={};}
  else if(endpoint==='painel-ativos' && ['listar','lixeira'].includes(corpo.action)) dados={itens:corpo.action==='lixeira'?[]:[
   {id:'doc-demo',tipo:'documento',nome:'Certidão de demonstração',categoria:'Certidão',validade:'2026-09-20',responsavel:'Ana Exemplo'},
   ...structuredClone(equipamentosDemo),...structuredClone(estruturasDemo),
@@ -118,6 +224,7 @@ export async function respostaPreview(url,opcoes={}){
      ],
      eventos:[{id:'ev-demo',titulo:'Manutenção da impressora (exemplo)',data:d(16)}],
      plantoes:[{id:'pl-demo',data:d(14),tipo:'diarista',quem:'Bruno Exemplo',titulo:'Plantão de exemplo',inicio:'08:00',fim:'17:00'}]};
+   else if(corpo.action==='patrimonio')dados={eventos:vencimentosIncendio(equipamentosDemo,mes)};
    else if(corpo.action==='empresa') dados={hoje:d(14),consultadoEm:new Date().toISOString(),
      eventos:[
       {id:'ev-1',titulo:'Feriado de demonstração',data:d(7),tipo:'Feriado',cor:'#dc2626',hora:'',descricao:'',recorrenteAnual:true},

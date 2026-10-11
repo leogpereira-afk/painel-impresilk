@@ -1,3 +1,5 @@
+import * as patrimonioAcesso from '../supabase/functions/_shared/patrimonio-acesso.mjs';
+import {previaReclassificacao} from '../supabase/functions/_shared/patrimonio-migracao.mjs';
 import {validarVinculoPessoa,prepararPessoasControle} from '../supabase/functions/_shared/patrimonio-pessoas.mjs';
 const equipeTeste=[{id:'rh-ana',nome:'Ana',disponivel:true},{id:'rh-bruno',nome:'Bruno',disponivel:true},{id:'rh-maria',nome:'Maria',disponivel:true}];
 import {test} from 'node:test';
@@ -8,7 +10,7 @@ import vm from 'node:vm';
 import {prepararControle,carimbarPatrimonio} from '../supabase/functions/_shared/patrimonio-controles.mjs';
 
 // Exercita o handler real; apenas autenticação e transporte ao banco são simulados.
-function ambiente(sessao={sub:'ana',nome:'Ana Exemplo',perms:['patrimonio']},falhaRH=false) {
+function ambiente(sessao={sub:'ana',nome:'Ana Exemplo',perms:['patrimonio','inventario-valores']},falhaRH=false) {
  const linhas=[],lixeira=[];let handler;let erroRpc=null,antesGravar=null;
  const sb={from(tabela){
   assert.equal(tabela,'painel_registros');const filtros=[];let inicio=0,fim=Infinity;
@@ -26,7 +28,7 @@ function ambiente(sessao={sub:'ana',nome:'Ana Exemplo',perms:['patrimonio']},fal
   const r={colecao:p.p_colecao,id:p.p_id,registro:structuredClone(p.p_registro)};if(i>=0)linhas[i]=r;else linhas.push(r);return{error:null};
  }};
  const fonte=readFileSync(new URL('../supabase/functions/painel-config/index.ts',import.meta.url),'utf8').replace(/^import .*;\s*$/gm,'');
- vm.runInNewContext(transformSync(fonte,{loader:'ts',format:'esm',target:'es2022'}).code,{Deno:{env:{get:k=>k==='PAINEL_JWT_SECRET'?'teste':undefined},serve:f=>{handler=f;}},createClient:()=>sb,verificarJwt:async()=>sessao,crachaRevogado:async()=>false,prepararControle,carimbarPatrimonio,validarVinculoPessoa,prepararPessoasControle,lerPessoasPatrimonio:async()=>{if(falhaRH)throw Object.assign(new Error('Não foi possível consultar os colaboradores do RH.'),{status:503});return equipeTeste;},Response,Request,console});
+ vm.runInNewContext(transformSync(fonte,{loader:'ts',format:'esm',target:'es2022'}).code,{...patrimonioAcesso,previaReclassificacao,Deno:{env:{get:k=>k==='PAINEL_JWT_SECRET'?'teste':undefined},serve:f=>{handler=f;}},createClient:()=>sb,verificarJwt:async()=>sessao,crachaRevogado:async()=>false,prepararControle,carimbarPatrimonio,validarVinculoPessoa,prepararPessoasControle,lerPessoasPatrimonio:async()=>{if(falhaRH)throw Object.assign(new Error('Não foi possível consultar os colaboradores do RH.'),{status:503});return equipeTeste;},Response,Request,console});
  return {linhas,lixeira,falharRpc:erro=>{erroRpc=erro;},antesGravar:acao=>{antesGravar=acao;},async chamar(corpo){const resp=await handler(new Request('http://local',{method:'POST',headers:{authorization:'Bearer teste','Content-Type':'application/json'},body:JSON.stringify(corpo)}));return{status:resp.status,body:await resp.json()};}};
 }
 const novo={tipo:'celulares',numero:'(38) 99999-0000',modelo:'Galaxy A15',pessoaId:'rh-ana',pessoa:'Ana',versaoAnterior:null};
@@ -35,6 +37,7 @@ test('handler cria, edita, lista e retira um celular com autoria da sessão',asy
  const a=ambiente();let r=await salvar(a,'cel1',{...novo,atualizadoPorNome:'Falso'});assert.equal(r.status,200);
  const criado=r.body.valor.cel1;assert.equal(criado.atualizadoPorNome,'Ana Exemplo');assert.equal(criado.modelo,'Galaxy A15');
  r=await salvar(a,'cel1',{...novo,pessoaId:'rh-bruno',pessoa:'Bruno',versaoAnterior:criado.atualizadoEm});assert.equal(r.status,200);assert.equal(r.body.valor.cel1.pessoa,'Bruno');
+ assert.equal(r.body.valor.cel1.historicoAparelhos.length,2);assert.equal(r.body.valor.cel1.historicoAparelhos.at(-1).anteriorPessoaId,'rh-ana');assert.equal(r.body.valor.cel1.historicoAparelhos.at(-1).pessoaId,'rh-bruno');
  r=await a.chamar({action:'get',chave:'patrimonio_controles'});assert.equal(Object.keys(r.body.valor).length,1);
  r=await a.chamar({action:'removerId',chave:'patrimonio_controles',id:'cel1'});assert.equal(r.status,200);assert.equal(a.linhas.length,0);assert.equal(a.lixeira.length,1);
 });
@@ -69,7 +72,7 @@ test('conflito de vínculo no banco volta como 409, inclusive após validação 
  const a=ambiente();a.linhas.push({colecao:'setores',id:'s1',registro:{sigla:'ADM',nome:'Administrativo'}},{colecao:'patrimonio',id:'b1',registro:{codigo:'PRO-001',setorSigla:'ANTIGO'}});
  a.falharRpc({code:'23503',message:'setor removido durante o vínculo'});
  const r=await a.chamar({action:'merge',chave:'patrimonio',patch:{b1:{setorSigla:'ADM'}}});
- assert.equal(r.status,409);assert.match(r.body.erro,/vínculo com o setor/);assert.equal(a.linhas[1].registro.setorSigla,'ANTIGO');
+ assert.equal(r.status,409);assert.match(r.body.erro,/vínculos/);assert.match(r.body.erro,/Troque ou desvincule/);assert.match(r.body.erro,/setores/);assert.equal(a.linhas[1].registro.setorSigla,'ANTIGO');
 });
 
 test('handler mantém acervo, entrega e avaliação da caixa ao trocar responsável e rejeita autoria forjada',async()=>{
@@ -167,4 +170,17 @@ test('RH indisponível interrompe catálogo e gravações sem tratar falha como 
  a.linhas.push(structuredClone(anterior));
  const corpos=[{action:'pessoasPatrimonio'},{action:'merge',chave:'patrimonio_controles',patch:{r1:{tipo:'ramais',numero:'99',pessoaId:'rh-ana',versaoAnterior:null}}},{action:'merge',chave:'patrimonio',patch:{b1:{nomeGenerico:'Bem fictício',responsavelId:'rh-ana'}}}];
  for(const corpo of corpos){const r=await a.chamar(corpo);assert.equal(r.status,503);assert.match(r.body.erro,/RH/);assert.deepEqual(a.linhas,[anterior]);}
+});
+
+test('ramal vincula setor e telefone por ID, guarda troca e não aceita histórico do cliente',async()=>{
+ const a=ambiente();a.linhas.push({colecao:'setores',id:'set-pro',registro:{nome:'Produção'}},...['a','b'].map(id=>({colecao:'ativo',id,registro:{tipo:'informatica',categoria:'Telefone',nome:'Mesmo nome'}})));
+ const base={tipo:'ramais',numero:'201',telefone:'',pessoaId:'rh-ana',setorId:'set-pro',aparelhoId:'a',versaoAnterior:null};
+ let r=await salvar(a,'ram1',base);assert.equal(r.status,200);const v=r.body.valor.ram1;
+ assert.equal(v.setorId,'set-pro');assert.equal(v.aparelhoId,'a');assert.equal(v.historicoAparelhos.length,1);
+ r=await salvar(a,'ram1',{...base,aparelhoId:'b',historicoAparelhos:[],versaoAnterior:v.atualizadoEm});assert.equal(r.status,200);
+ assert.equal(r.body.valor.ram1.historicoAparelhos.length,2);assert.equal(r.body.valor.ram1.historicoAparelhos[1].anteriorId,'a');assert.equal(r.body.valor.ram1.historicoAparelhos[1].por,'ana');
+ r=await salvar(a,'ram2',{...base,numero:'202',aparelhoId:'b'});assert.equal(r.status,409);
+ for(const patch of [{setorId:'Produção'},{aparelhoId:'Mesmo nome'}]){r=await salvar(a,'ram3',{...base,numero:'203',...patch});assert.equal(r.status,409);}
+ const atual=a.linhas.find(r=>r.id==='ram1').registro;
+ r=await salvar(a,'ram1',{...base,aparelhoId:'b',versaoAnterior:atual.atualizadoEm});assert.equal(r.status,200);assert.equal(r.body.valor.ram1.historicoAparelhos.length,2);
 });

@@ -1,0 +1,7 @@
+.pat-manutencoes .stat-card{padding:12px;border-radius:12px}
+.pat-manutencoes .stat-card .kpi-value{font-size:24px;line-height:1.2}
+.pat-manutencoes .stat-card>p{font-size:12px}
+.pat-manutencoes-contexto{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;padding:10px 12px;border:1px solid #d9e2ef;border-radius:12px;background:#f5f8fc;font-size:13px;color:#334b70}
+.dark .pat-manutencoes-contexto{background:#1e293b;border-color:#475569;color:#dbeafe}
+.pat-manutencoes summary:focus-visible{outline:3px solid #819de0;outline-offset:3px;border-radius:4px}
+@media(max-width:640px){.pat-manutencoes-contexto{align-items:flex-start}.pat-manutencoes .stat-card .kpi-value{font-size:21px}}

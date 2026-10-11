@@ -7,7 +7,7 @@ import { ChevronLeft, ChevronRight, RefreshCw, Eye, CalendarDays } from "lucide-
 import {
   PageTitle, Card, Empty, CarregandoModulo, ErroModulo, AvisoAtualizacao,
 } from "../components/ui.jsx";
-import { lerEmpresa } from "../services/agenda.js";
+import { lerEmpresa,lerAgendaPatrimonio } from "../services/agenda.js";
 import {lerAgendaProcessos} from '../services/processos.js';
 import {lerAgendaReunioes} from '../services/reunioes.js';
 import {podeAbrir} from '../lib/sessao.js';
@@ -39,7 +39,7 @@ const porExtenso = (iso) => {
   return Number.isFinite(+d) ? `${DOW[d.getUTCDay()]} ${curto}` : curto;
 };
 
-const destinoEvento=(e,mes)=>e.processoId?`/${e.tipoProcesso==='consultoria'?'consultorias':'demandas'}?processo=${encodeURIComponent(e.processoId)}&mes=${mes}`:e.reuniaoId?'/reunioes?encontro='+encodeURIComponent(e.reuniaoId)+'&mes='+mes:null;
+const destinoEvento=(e,mes)=>e.origem==='patrimonio'&&e.ativoId?`/patrimonio?aba=incendio&item=${encodeURIComponent(e.ativoId)}`:e.processoId?`/${e.tipoProcesso==='consultoria'?'consultorias':'demandas'}?processo=${encodeURIComponent(e.processoId)}&mes=${mes}`:e.reuniaoId?'/reunioes?encontro='+encodeURIComponent(e.reuniaoId)+'&mes='+mes:null;
 
 export default function CalendarioEmpresa({sessao}) {
   const [mes, setMes] = useMesCalendario(mesAtual);
@@ -49,6 +49,8 @@ export default function CalendarioEmpresa({sessao}) {
   const [atualizando, setAtualizando] = useState(false);
   const [encontros,setEncontros]=useState([]),[erroReunioes,setErroReunioes]=useState('');
   const [processos,setProcessos]=useState([]),[erroProcessos,setErroProcessos]=useState('');
+  const [patrimonio,setPatrimonio]=useState([]),[erroPatrimonio,setErroPatrimonio]=useState('');
+  const temPatrimonio=podeAbrir('patrimonio',sessao)||podeAbrir('inventario-valores',sessao);
   const temProcessos=podeAbrir('demandas',sessao);
   const temReunioes=podeAbrir('reunioes',sessao);
   const pedido = useRef(0);
@@ -57,13 +59,15 @@ export default function CalendarioEmpresa({sessao}) {
     const meu = ++pedido.current;
     setAtualizando(true);
     try {
-      const [empresa,reunioes,trabalhos]=await Promise.allSettled([lerEmpresa(mes),temReunioes?lerAgendaReunioes(mes):Promise.resolve([]),temProcessos?lerAgendaProcessos(mes):Promise.resolve([])]);
+      const [empresa,reunioes,trabalhos,bens]=await Promise.allSettled([lerEmpresa(mes),temReunioes?lerAgendaReunioes(mes):Promise.resolve([]),temProcessos?lerAgendaProcessos(mes):Promise.resolve([]),temPatrimonio?lerAgendaPatrimonio(mes):Promise.resolve([])]);
       // Resposta fora de ordem não pinta a tela (ver Agenda.jsx).
       if (meu !== pedido.current) return;
       if(empresa.status==='rejected')throw empresa.reason;
       setDados(empresa.value);
       setProcessos(trabalhos.status==='fulfilled'?trabalhos.value:[]);
       setErroProcessos(trabalhos.status==='rejected'?'Não foi possível carregar demandas e consultorias. Atualize para tentar novamente.':'');
+      setPatrimonio(bens.status==='fulfilled'?bens.value:[]);
+      setErroPatrimonio(bens.status==='rejected'?'Não foi possível carregar os prazos de prevenção contra incêndio. Atualize para tentar novamente.':'');
       setEncontros(reunioes.status==='fulfilled'?reunioes.value:[]);
       setErroReunioes(reunioes.status==='rejected'?'Não foi possível carregar as reuniões. Atualize para tentar novamente.':'');
       setErro("");
@@ -72,7 +76,7 @@ export default function CalendarioEmpresa({sessao}) {
     } finally {
       if (meu === pedido.current) setAtualizando(false);
     }
-  }, [mes,temReunioes,temProcessos]);
+  }, [mes,temReunioes,temProcessos,temPatrimonio]);
 
   useEffect(() => {
     void recarregar();
@@ -81,8 +85,8 @@ export default function CalendarioEmpresa({sessao}) {
 
   const hoje = dados?.hoje || "";
   const eventos = useMemo(
-    () => [...(dados?.eventos ?? []),...(temReunioes?encontros:[]),...(temProcessos?processos:[])].filter(e=>e.data.startsWith(mes)).sort((a, b) => a.data.localeCompare(b.data) || (a.hora||'').localeCompare(b.hora||'') || a.titulo.localeCompare(b.titulo, "pt-BR")),
-    [dados,encontros,temReunioes,mes,processos,temProcessos],
+    () => [...(dados?.eventos ?? []),...(temReunioes?encontros:[]),...(temProcessos?processos:[]),...(temPatrimonio?patrimonio:[])].filter(e=>e.data.startsWith(mes)).sort((a, b) => a.data.localeCompare(b.data) || (a.hora||'').localeCompare(b.hora||'') || a.titulo.localeCompare(b.titulo, "pt-BR")),
+    [dados,encontros,temReunioes,mes,processos,temProcessos,temPatrimonio,patrimonio],
   );
 
   /* A legenda É o filtro, como no RH: clicar num tipo mostra só ele. Os tipos
@@ -122,9 +126,10 @@ export default function CalendarioEmpresa({sessao}) {
       <AvisoAtualizacao erro={erro} aoTentar={recarregar} />
       <AvisoAtualizacao erro={erroReunioes} aoTentar={recarregar} />
       <AvisoAtualizacao erro={erroProcessos} aoTentar={recarregar} />
+      <AvisoAtualizacao erro={erroPatrimonio} aoTentar={recarregar} />
       <PageTitle
         titulo="Calendário da empresa"
-        descricao="Eventos, reuniões e prazos de demandas e consultorias em um só calendário."
+        descricao="Eventos, reuniões, demandas, consultorias e prazos do patrimônio em um só calendário."
         acao={
           <button type="button" className="btn-outline" disabled={atualizando} onClick={recarregar}>
             <RefreshCw size={16} className={atualizando ? "animate-spin" : ""} />

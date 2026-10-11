@@ -1,6 +1,9 @@
 import PessoaRH,{PessoasRHProvider,usePessoasRH,comNomeRH} from '../components/patrimonio/PessoasRH.jsx';
 import { useAbaNavegavel } from "../hooks/useAbaNavegavel.js";
-import {useSearchParams} from 'react-router-dom';
+import {Link,useSearchParams} from 'react-router-dom';
+import {podeAbrir} from '../lib/sessao.js';
+import {recortarManutencoes,ROTA_MANUTENCOES} from '../lib/calc/navegacao-patrimonio.js';
+import '../components/patrimonio/manutencoes.css';
 // Manutenções: o que a empresa gasta para as coisas continuarem funcionando --
 // os carros, as máquinas e o prédio (câmeras, ar condicionado, elétrica,
 // hidráulica, portões).
@@ -37,7 +40,7 @@ import {
   CalendarClock,
   Coins,
 } from "lucide-react";
-import { listarAtivos, salvarEquipamento, removerAtivo } from "../services/ativos.js";
+import { listarAtivos, salvarEquipamento, salvarAtivo, removerAtivo } from "../services/ativos.js";
 // O item cadastrado aqui também é patrimônio: mesma coisa, duas perguntas
 // ("quanto me custa para manter" e "quanto vale, e onde está").
 import { lerSetores } from "../services/patrimonio.js";
@@ -67,7 +70,7 @@ import {
   Segmented,
 } from "../components/ui.jsx";
 
-const ICONE_FAMILIA = { veiculo: Car, maquina: Cog, predial: Building2 };
+const ICONE_FAMILIA = { veiculo: Car, maquina: Cog, predial: Building2, informatica:Cog, seguranca:Building2 };
 
 // As fatias da barra do mês, na ordem do cabeçalho da coluna. "removido" entra
 // porque o dinheiro dele conta no total: deixá-lo fora faria a barra não fechar
@@ -76,6 +79,8 @@ const FATIAS = [
   { id: "veiculo", rotulo: "Veículos", cor: "bg-brand" },
   { id: "maquina", rotulo: "Máquinas", cor: "bg-brand-400" },
   { id: "predial", rotulo: "Prédio", cor: "bg-brand-200" },
+  {id:"informatica",rotulo:"Informática e telefonia",cor:"bg-blue-500"},
+  {id:"seguranca",rotulo:"Segurança",cor:"bg-amber-500"},
   { id: "removido", rotulo: "Itens retirados", cor: "bg-slate-300" },
 ];
 
@@ -93,6 +98,7 @@ const LANCAMENTO_VAZIO = {
   valor: "",
   tipo: "preventiva",
   descricao: "",
+  defeito: "",
   fornecedor: "",
   pedido: "",
   medidor: "",
@@ -200,7 +206,7 @@ function FormLancamento({ inicial, itens, salvando, aoSalvar, aoFechar }) {
             <label className="label" htmlFor="m-item">No que foi feito</label>
             <select id="m-item" className="input" value={f.ativoId} onChange={trocarItem} required>
               <option value="">escolha o carro, a máquina ou o item do prédio</option>
-              {Object.entries(FAMILIAS).map(([fam, meta]) => {
+              {Object.entries(FAMILIAS).filter(([id])=>id!=='seguranca'||podeAbrir('seguranca')).map(([fam, meta]) => {
                 const doGrupo = itens.filter((i) => i.tipo === fam);
                 if (!doGrupo.length) return null;
                 return (
@@ -248,6 +254,7 @@ function FormLancamento({ inicial, itens, salvando, aoSalvar, aoFechar }) {
             </select>
           </div>
 
+          <div className="sm:col-span-2"><label className="label" htmlFor="m-defeito">Defeito / motivo (opcional)</label><input id="m-defeito" className="input" maxLength={500} value={f.defeito||''} onChange={trocar('defeito')} placeholder="Ex.: telefone sem áudio"/></div>
           <div className="sm:col-span-2">
             <label className="label" htmlFor="m-descricao">O que foi feito</label>
             <input
@@ -326,7 +333,9 @@ function FormLancamento({ inicial, itens, salvando, aoSalvar, aoFechar }) {
 const AJUDA_TIPO = {
   veiculo: "Carro, moto, van ou caminhão da empresa.",
   maquina: "Impressora, router, laser, DTF, compressor — o que produz.",
-  predial: "Câmera, ar condicionado, quadro elétrico, bomba, portão.",
+  predial: "Ar condicionado, quadro elétrico, bomba e instalações do prédio.",
+  informatica:"Computadores, rede, telefones e celulares.",
+  seguranca:"Câmeras, alarmes, portões e controle de acesso. Nunca cadastre senhas ou biometria.",
 };
 const EXEMPLO_NOME = {
   veiculo: "ex: Strada da instalação",
@@ -375,7 +384,7 @@ function FormItem({ inicial, salvando, aoSalvar, aoFechar, setores }) {
           <div>
             <span className="label">O que é</span>
             <div className="grid gap-2 sm:grid-cols-3">
-              {Object.entries(FAMILIAS).map(([id, m]) => {
+              {Object.entries(FAMILIAS).filter(([id])=>id!=='seguranca'||podeAbrir('seguranca')).map(([id, m]) => {
                 const Icone = ICONE_FAMILIA[id] || Wrench;
                 const marcado = f.tipo === id;
                 return (
@@ -448,7 +457,7 @@ function FormItem({ inicial, salvando, aoSalvar, aoFechar, setores }) {
             </datalist>
           </div>
           <div>
-            {['veiculo','maquina','predial'].includes(f.tipo)?<PessoaRH valor={f.responsavelId||''} nome={f.responsavel||''} aoMudar={(responsavelId,responsavel)=>setF(v=>({...v,responsavelId,responsavel}))}/>:<><label className="label" htmlFor="i-responsavel">Responsável</label><input className="input" id="i-responsavel" value={f.responsavel} onChange={trocar('responsavel')}/></>}
+            {['veiculo','maquina','predial','informatica','seguranca'].includes(f.tipo)?<PessoaRH valor={f.responsavelId||''} nome={f.responsavel||''} aoMudar={(responsavelId,responsavel)=>setF(v=>({...v,responsavelId,responsavel}))}/>:<><label className="label" htmlFor="i-responsavel">Responsável</label><input className="input" id="i-responsavel" value={f.responsavel} onChange={trocar('responsavel')}/></>}
           </div>
         </div>
 
@@ -566,7 +575,7 @@ function FormItem({ inicial, salvando, aoSalvar, aoFechar, setores }) {
               o valor do seguro nunca fechar com a lista de manutenção.
               Preenchido aqui, o item nasce nas duas telas. A etiqueta é gerada
               pelo servidor na primeira gravação. */}
-          <div className="sm:col-span-2 mt-1 border-t pt-3" style={{ borderColor: "var(--hairline)" }}>
+          {podeAbrir('inventario-valores') && <><div className="sm:col-span-2 mt-1 border-t pt-3" style={{ borderColor: "var(--hairline)" }}>
             <p className="label">Ficha de patrimônio <span className="font-normal text-slate-400">— aparece também em Patrimônio</span></p>
           </div>
           <div>
@@ -592,7 +601,7 @@ function FormItem({ inicial, salvando, aoSalvar, aoFechar, setores }) {
             <label className="label" htmlFor="i-valor">Valor pago (R$)</label>
             <input id="i-valor" className="input" inputMode="decimal" placeholder="ex: 78.500,00"
               value={f.valor || ""} onChange={trocar("valor")} />
-          </div>
+          </div></>}
         </div>
 
         {novo && f.tipo === "veiculo" && (
@@ -778,7 +787,8 @@ function ManutencoesConteudo() {
   const [mapa, setMapa] = useState(null);
   const [erro, setErro] = useState(null);
   const [msg, setMsg] = useState(null);
-  const [familia, setFamilia] = useState("tudo");
+  const familiaInicial = FAMILIAS[parametros.get("familia")] ? parametros.get("familia") : "tudo";
+  const [familia, setFamilia] = useState(familiaInicial);
   /* OS CARTÕES VIRAM RECORTE. "Atrasadas: 4" era um número que não virava
      lista -- para achar as 4 era rolar a tabela conferindo etiqueta por
      etiqueta. Clicar filtra, clicar de novo volta. */
@@ -791,7 +801,7 @@ function ManutencoesConteudo() {
   const [mesAberto, setMesAberto] = useState(null);
   const [erp, setErp] = useState(null);
   const [aberto, setAberto] = useState(null);
-  useEffect(()=>{setAberto(itemSelecionado||null);setFamilia('tudo');setRecorte(null);setBusca('');},[itemSelecionado]);
+  useEffect(()=>{setAberto(itemSelecionado||null);setFamilia(itemSelecionado?'tudo':familiaInicial);setRecorte(null);setBusca('');setFormLanc(null);setFormItem(null);},[itemSelecionado,familiaInicial]);
   const [formLanc, setFormLanc] = useState(null);
   const [formItem, setFormItem] = useState(null);
   // Setores do Patrimônio: o item cadastrado aqui nasce lá também, e "onde
@@ -799,6 +809,13 @@ function ManutencoesConteudo() {
   const [setores, setSetores] = useState([]);
   const [salvando, setSalvando] = useState(false);
   const topoForm = useRef(null);
+  const novoTipo = parametros.get('novo');
+  useEffect(() => {
+    if (!FAMILIAS[novoTipo] || (novoTipo==='seguranca'&&!podeAbrir('seguranca'))) return;
+    setFormLanc(null);
+    setFormItem({...ITEM_VAZIO,cadastroId:crypto.randomUUID(),tipo:novoTipo,categoria:parametros.get('categoria')||'',especificacao:{}});
+    setParametros(p => {const n=new URLSearchParams(p);n.delete('novo');n.delete('categoria');return n;}, {replace:true});
+  }, [novoTipo,setParametros,parametros]);
 
   // "Hoje" em estado é refeito ao voltar para a aba: numa tela de prazo, o dia
   // congelado faz "atrasada" continuar dizendo "em 1 dia" no dia seguinte.
@@ -848,9 +865,20 @@ function ManutencoesConteudo() {
     };
   }, []);
 
+  const lancarSelecionado = parametros.get('lancar')==='1';
+  useEffect(()=>{
+    if(!lancarSelecionado || !itemSelecionado || !itens) return;
+    if(itens.some(i=>i.id===itemSelecionado)) {
+      setFormItem(null);
+      setFormLanc({...LANCAMENTO_VAZIO,cadastroId:crypto.randomUUID(),ativoId:itemSelecionado,data:hojeISO});
+    }
+    setParametros(p=>{const n=new URLSearchParams(p);n.delete('lancar');n.delete('categoria');return n;},{replace:true});
+  },[lancarSelecionado,itemSelecionado,itens,hojeISO,setParametros]);
+
+  const escopo = useMemo(() => recortarManutencoes(itens || [], mapa || {}, itemSelecionado), [itens,mapa,itemSelecionado]);
   const vm = useMemo(
-    () => calcManutencoes((itens || []).map(i=>['veiculo','maquina','predial'].includes(i.tipo)?{...comNomeRH(i,pessoas),especificacao:i.tipo==='veiculo'?comNomeRH(i.especificacao||{},pessoas,'motorista'):i.especificacao}:i), mapa || {}, hojeISO),
-    [itens, mapa, hojeISO,pessoas]
+    () => calcManutencoes(escopo.itens.map(i=>['veiculo','maquina','predial','informatica','seguranca'].includes(i.tipo)?{...comNomeRH(i,pessoas),especificacao:i.tipo==='veiculo'?comNomeRH(i.especificacao||{},pessoas,'motorista'):i.especificacao}:i), escopo.mapa, hojeISO),
+    [escopo, hojeISO,pessoas]
   );
 
   const visiveis = useMemo(() => {
@@ -891,9 +919,9 @@ function ManutencoesConteudo() {
   // conferência do ERP -- justamente o caso em que ela é mais útil.
   const anosTela = useMemo(() => {
     const s = new Set(hist.anos.map((a) => a.ano));
-    Object.keys(erp?.anos || {}).forEach((a) => s.add(String(a)));
+    Object.keys(!itemSelecionado ? erp?.anos || {} : {}).forEach((a) => s.add(String(a)));
     return [...s].sort((a, b) => b.localeCompare(a));
-  }, [hist, erp]);
+  }, [hist, erp,itemSelecionado]);
 
   // Ano na tela: o escolhido, senão o mais recente que tenha alguma coisa. Se o
   // ano escolhido some (apagaram o último lançamento dele), cai no primeiro.
@@ -909,7 +937,7 @@ function ManutencoesConteudo() {
 
   // Contas do ERP com "manutenção" no centro de custo, no ano que está na tela.
   const erpDoAno = useMemo(() => {
-    const cats = anoTela ? erp?.anos?.[anoTela]?.saidasPorCategoria : null;
+    const cats = anoTela && !itemSelecionado ? erp?.anos?.[anoTela]?.saidasPorCategoria : null;
     if (!cats) return null;
     const linhas = Object.entries(cats)
       .filter(([nome]) => ehCentroDeManutencao(nome))
@@ -926,7 +954,7 @@ function ManutencoesConteudo() {
       // que pode haver manutenção lançada com outro nome.
       quantosCentros: Object.keys(cats).length,
     };
-  }, [erp, anoTela]);
+  }, [erp, anoTela,itemSelecionado]);
 
   const rolarAoForm = () =>
     setTimeout(() => topoForm.current?.scrollIntoView({ behavior: "smooth", block: "center" }), 60);
@@ -981,6 +1009,7 @@ function ManutencoesConteudo() {
         valor: paraNumero(f.valor),
         tipo: f.tipo,
         descricao: f.descricao.trim(),
+        defeito: String(f.defeito||'').trim().slice(0,500),
         fornecedor: f.fornecedor.trim(),
         pedido: f.pedido.trim(),
         medidor: paraNumero(f.medidor),
@@ -1034,7 +1063,8 @@ function ManutencoesConteudo() {
         if(f.dataAquisicao) doBem.dataAquisicao=f.dataAquisicao;
         if(paraNumero(f.valor)>0) doBem.valor=paraNumero(f.valor);
       }
-      const salvo=await salvarEquipamento({
+      const salvarFicha=podeAbrir('inventario-valores')?salvarEquipamento:salvarAtivo;
+      const salvo=await salvarFicha({
         id:f.id || undefined,cadastroId:f.cadastroId,tipo:f.tipo,nome:f.nome,categoria:f.categoria,responsavel:f.responsavel,responsavelId:f.responsavelId||'',
         identificacao:identificacaoDe(f),observacao:f.observacao,especificacao:f.especificacao || {},
         unidadeMedidor:UNIDADE_PADRAO[f.tipo] || '',medidorAtual:paraNumero(f.medidorAtual),medidorProximo:paraNumero(f.medidorProximo),
@@ -1080,7 +1110,7 @@ function ManutencoesConteudo() {
        inventário para sempre, contando valor que a empresa não tem mais (é o
        número que vai para o seguro). Baixar, e não apagar, é o certo: a
        etiqueta está colada e o histórico do bem continua valendo. */
-    const idBem = item.bemId || `pat-${item.id}`;
+    const idBem = podeAbrir('inventario-valores') ? item.bemId : undefined;
     linhas.push("\nA ficha dele no Patrimônio será marcada como BAIXADA (não some do inventário).");
     if (!window.confirm(linhas.join("\n"))) return;
     setMsg(null);
@@ -1107,28 +1137,37 @@ function ManutencoesConteudo() {
   if (itens === null || mapa === null) return <CarregandoModulo />;
 
   const k = vm.kpis;
+  const selecionado = (itens || []).find(i=>i.id===itemSelecionado);
+  const abaOrigem = selecionado?.tipo === 'veiculo' ? 'carros' : selecionado?.tipo === 'maquina' ? 'maquinas' : 'estrutura';
 
   return (
-    <div className="space-y-8">
+    <div className="pat-manutencoes space-y-4">
       <AvisoAtualizacao erro={erro} aoTentar={carregar}/>
       <PageTitle
-        titulo="Manutenções"
-        descricao="Acompanhe manutenções, próximos vencimentos e custos de veículos, máquinas e instalações."
+        titulo={selecionado ? selecionado.nome : "Manutenções do patrimônio"}
+        descricao={itemSelecionado ? "Serviços, custos e próxima manutenção deste equipamento." : "Cuide dos bens: serviços, próximos prazos e custos em um só lugar."}
         acao={
           <div className="flex flex-wrap gap-2">
-            <button className="btn-primary" onClick={() => abrirLancamento()}>
+            <button className="btn-primary" disabled={!!itemSelecionado && !selecionado} onClick={() => abrirLancamento(itemSelecionado)}>
               <Plus size={16} strokeWidth={2.4} />
               Nova manutenção
             </button>
-            <button className="btn-ghost" onClick={() => abrirItem()}>
-              <Wrench size={16} strokeWidth={2.2} />
-              Novo item
+            <button className="btn-ghost" disabled={!!itemSelecionado && !selecionado} onClick={() => abrirItem(selecionado || null, familia === 'tudo' ? 'predial' : familia)}>
+              <Pencil size={16} strokeWidth={2.2} />
+              {selecionado ? 'Editar equipamento' : 'Cadastrar equipamento'}
             </button>
           </div>
         }
       />
 
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+      {itemSelecionado && <div className="pat-manutencoes-contexto" role="status">
+        <span>{selecionado ? 'Indicadores e histórico exclusivos deste equipamento.' : 'Equipamento não encontrado. O histórico existente continua preservado.'}</span>
+        <div className="flex flex-wrap gap-2">
+          {podeAbrir('patrimonio') && <Link className="btn-outline" to={`/patrimonio?aba=${abaOrigem}`}>Voltar aos bens</Link>}
+          <Link className="btn-ghost" to={ROTA_MANUTENCOES}>Ver todas as manutenções</Link>
+        </div>
+      </div>}
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         {/* Os dois de dinheiro levam ao histórico (onde o gasto se abre mês a
             mês); os dois de contagem recortam a lista aqui embaixo. */}
         <StatCard
@@ -1227,8 +1266,8 @@ function ManutencoesConteudo() {
         )}
       </div>
 
-      {vm.ranking.length > 0 && (
-        <Card>
+      {!itemSelecionado && vm.ranking.length > 0 && (
+        <details className="card p-3"><summary className="cursor-pointer font-semibold text-sm">Custos por equipamento · últimos 12 meses</summary><div className="mt-3">
           <SectionTitle
             titulo="Quem mais consumiu nos últimos 12 meses"
             sub="A conta que decide trocar um veículo ou renegociar um contrato de assistência."
@@ -1254,7 +1293,7 @@ function ManutencoesConteudo() {
               );
             })}
           </div>
-        </Card>
+        </div></details>
       )}
 
       {/* Duas perguntas, duas abas: "o que eu tenho e quanto cada coisa já
@@ -1263,7 +1302,7 @@ function ManutencoesConteudo() {
       <div className="sem-impressao">
         <Segmented
           opcoes={[
-            { valor: "itens", rotulo: "Itens" },
+            { valor: "itens", rotulo: "Equipamentos e prazos" },
             { valor: "historico", rotulo: "Histórico por mês" },
           ]}
           valor={aba}
@@ -1274,20 +1313,19 @@ function ManutencoesConteudo() {
       {aba === "itens" ? (
       <Card>
         <SectionTitle
-          titulo="Itens e histórico"
+          titulo={itemSelecionado ? "Ficha e serviços" : "Equipamentos e próximos serviços"}
           sub="Atrasados primeiro. Toque na seta para ver todos os serviços e quanto custaram."
-          acao={
+          acao={!itemSelecionado &&
             <Segmented
               opcoes={[
                 { valor: "tudo", rotulo: "Tudo" },
-                ...Object.entries(FAMILIAS).map(([id, f]) => ({ valor: id, rotulo: f.rotulo })),
+                ...Object.entries(FAMILIAS).filter(([id])=>id!=='seguranca'||podeAbrir('seguranca')).map(([id, f]) => ({ valor: id, rotulo: f.rotulo })),
               ]}
               valor={familia}
               onChange={setFamilia}
             />
           }
         />
-        {itemSelecionado&&<div className="sem-impressao mb-3 flex flex-wrap items-center gap-2 rounded-lg bg-brand-50 px-3 py-2 text-sm text-brand-700" role="status"><span>{vm.lista.some(i=>i.id===itemSelecionado)?'Cadastro aberto a partir do Patrimônio. É o mesmo equipamento e o mesmo histórico.':'Este equipamento não está disponível nesta consulta.'}</span><button className="btn-ghost !py-1 !px-2 text-xs" onClick={()=>setParametros(p=>{const n=new URLSearchParams(p);n.delete('item');return n;})}><X size={13}/>Ver todos os equipamentos</button></div>}
 
         {/* O recorte veio de um cartão lá em cima; sem esta faixa a lista fica
             curta "sem motivo" -- e a saída tem de estar do lado do resultado. */}
@@ -1303,7 +1341,7 @@ function ManutencoesConteudo() {
           </div>
         )}
 
-        <div className="sem-impressao mb-4 relative max-w-sm">
+        {!itemSelecionado && <div className="sem-impressao mb-4 relative max-w-sm">
           <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
           <input
             className="input pl-9"
@@ -1311,7 +1349,7 @@ function ManutencoesConteudo() {
             onChange={(e) => setBusca(e.target.value)}
             placeholder="Buscar por nome, placa, categoria ou responsável"
           />
-        </div>
+        </div>}
 
         {visiveis.length === 0 ? (
           <Empty>
@@ -1322,8 +1360,8 @@ function ManutencoesConteudo() {
               : familia !== "tudo"
                 ? `Nenhum item em ${FAMILIAS[familia].rotulo.toLowerCase()}${
                     vm.lista.length ? " — mas há itens nas outras abas." : "."
-                  } Use "Cadastrar item".`
-                : "Nenhum item cadastrado ainda. Use 'Cadastrar item' — vale para carro, máquina e prédio."}
+                  } Use "Cadastrar equipamento".`
+                : "Nenhum item cadastrado ainda. Use 'Cadastrar equipamento' — vale para carro, máquina e prédio."}
           </Empty>
         ) : (
           <div className="space-y-2">

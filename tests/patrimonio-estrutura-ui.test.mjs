@@ -1,20 +1,21 @@
+import {caminhoManutencao} from '../src/lib/calc/navegacao-patrimonio.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { transformSync } from 'esbuild';
 import vm from 'node:vm';
-import { CATEGORIAS_ESTRUTURA, prepararEstrutura, filtrarEstrutura } from '../src/lib/calc/estrutura-patrimonio.js';
+import { CATEGORIAS_ESTRUTURA, prepararEstrutura, filtrarEstrutura, GRUPOS_ESTRUTURA, filtrarGrupoEstrutura, historicoEstrutura } from '../src/lib/calc/estrutura-patrimonio.js';
 
 // Renderiza os elementos e executa os callbacks reais do componente. Apenas
 // os hooks e a rede são simulados; cada render preserva closures como o React.
-const fonte = readFileSync(new URL('../src/components/patrimonio/Estrutura.jsx', import.meta.url), 'utf8')
-  .replace(/^import .*;\s*$/gm, '').replace('export default function EstruturaPatrimonio', 'function EstruturaPatrimonio');
-const codigo = transformSync(fonte + '\nglobalThis.Componente = EstruturaPatrimonio;', { loader: 'jsx', jsxFactory: 'h', jsxFragment: 'Fragment', target: 'es2022' }).code;
+const fonte = readFileSync(new URL('../src/components/patrimonio/EstruturaLegada.jsx', import.meta.url), 'utf8')
+  .replace(/^import .*;\s*$/gm, '').replace('export default function EstruturaLegada', 'function EstruturaLegada');
+const codigo = transformSync(fonte + '\nglobalThis.Componente = EstruturaLegada;', { loader: 'jsx', jsxFactory: 'h', jsxFragment: 'Fragment', target: 'es2022' }).code;
 const clone = valor => structuredClone(valor);
 const item = (id, nome = 'Ar ' + id) => ({ id, tipo: 'predial', nome, categoria: 'Ar-condicionado', identificacao: '', responsavel: '', observacao: '', especificacao: { local: 'Recepção', marcaModelo: '', quantidade: '1', instalacao: '' }, atualizadoEm: '2026-10-05T10:00:00.000Z' });
 const evento = { preventDefault() {} };
 const pendente = () => { let resolver; const promise = new Promise(resolve => { resolver = resolve; }); return { promise, resolver }; };
-function ambiente({ listar = async () => [item('A'), item('B')], salvar = async dado => ({ ...dado, tipo: 'predial', id: dado.id || dado.cadastroId, atualizadoEm: '2026-10-05T11:00:00.000Z' }) } = {}) {
+function ambiente({ permissao = true, ler = async () => ({}), listar = async () => [item('A'), item('B')], salvar = async dado => ({ ...dado, tipo: 'predial', id: dado.id || dado.cadastroId, atualizadoEm: '2026-10-05T11:00:00.000Z' }) } = {}) {
   const estados = [], efeitos = []; let indice = 0, montado = false, arvore;
   const ctx = vm.createContext({
     h: (type, props, ...children) => ({ type, props: { ...props, children } }), Fragment: 'Fragment',
@@ -22,10 +23,10 @@ function ambiente({ listar = async () => [item('A'), item('B')], salvar = async 
     useRef(inicial) { const n = indice++; return estados[n] ||= { current: inicial }; },
     useCallback: fn => fn, useMemo: fn => fn(), useEffect: fn => { if (!montado) efeitos.push(fn); },
     ...Object.fromEntries(['Link', 'Building2', 'Plus', 'Pencil', 'Printer', 'Search', 'X', 'RefreshCw', 'ChevronLeft', 'ChevronRight', 'MapPin', 'UserRound', 'Wrench', 'Link2', 'Check', 'JanelaFormulario'].map(n => [n, n])),
-    CATEGORIAS_ESTRUTURA, prepararEstrutura, filtrarEstrutura,
+    CATEGORIAS_ESTRUTURA, prepararEstrutura, filtrarEstrutura, GRUPOS_ESTRUTURA, filtrarGrupoEstrutura, historicoEstrutura, caminhoManutencao,
     usePessoasRH:()=>({pessoas:[]}),comNomeRH:registro=>registro,PessoaRH:'PessoaRH',
     listarEquipamentosPatrimonio: () => listar(), salvarEstrutura: (dado, versao) => salvar(clone(dado), versao),
-    podeAbrir: () => true, textoAtualizacao: x => x.atualizadoEm || '', dataLonga: x => x,
+    lerManutencoes: () => ler(), podeAbrir: () => permissao, textoAtualizacao: x => x.atualizadoEm || '', dataLonga: x => x,
     crypto: { randomUUID: () => '671f0a1d-0fbe-4b90-9ad8-3cbd81e8a7e0' }, window: { confirm: () => true }, console,
   });
   vm.runInContext(codigo, ctx);
@@ -118,4 +119,18 @@ test('listagem iniciada antes do salvamento não regride o item confirmado', asy
   await a.iniciar(); const recarga = a.clicar('Atualizar estrutura'); a.clicar('Editar Ar A'); a.preencher('nome', 'Nome confirmado'); await a.salvar();
   espera.resolver([item('A', 'Nome antigo')]); await recarga; a.render();
   assert.match(a.texto(), /Nome confirmado/); assert.doesNotMatch(a.texto(), /Nome antigo/);
+});
+
+test('sem permissão não consulta ledger nem revela custos ou lançamento', async () => {
+ let chamadas = 0;const a = ambiente({permissao:false,ler:async () => {chamadas++;return {};}});
+ await a.iniciar();assert.equal(chamadas,0);assert.doesNotMatch(a.texto(),/Serviços neste mês|Histórico de serviços|Lançar serviço|R\$/);
+});
+test('falha no ledger mostra indisponibilidade sem zero falso', async () => {
+ const a=ambiente({ler:async()=>{throw new Error('Falha sintética');}});await a.iniciar();
+ assert.match(a.texto(),/Histórico indisponível: Falha sintética/);assert.doesNotMatch(a.texto(),/R\$|Nenhum serviço registrado/);
+});
+test('histórico e link contextual correspondem ao ID do item', async () => {
+ const a=ambiente({ler:async()=>({um:{ativoId:'A',data:'2026-10-01',descricao:'Serviço sintético',fornecedor:'Fornecedor sintético',valor:42}})});
+ await a.iniciar();assert.match(a.texto(),/Serviço sintético/);assert.match(a.texto(),/Quem fez: Fornecedor sintético/);
+ const links=a.todos(a.render()).filter(n=>n.type==='Link');assert.equal(links[0].props.to,caminhoManutencao({item:'A',familia:'predial',categoria:'Ar-condicionado',lancar:true}));
 });

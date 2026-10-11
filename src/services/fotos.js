@@ -4,9 +4,9 @@ async function chamar(action,bemId,campos={}){
  const r=await comCracha(`${API}/painel-fotos`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action,bemId,...campos})});
  const b=await r.json().catch(()=>null);if(!r.ok)throw new Error(b?.erro||mensagemDoStatus(r.status));return b;
 }
-export const listarFotos=bemId=>chamar('listar',bemId).then(b=>b.fotos||[]);
-export const adicionarFoto=(bemId,base64,nome)=>chamar('adicionar',bemId,{base64,nome});
-export const removerFoto=(bemId,id)=>chamar('remover',bemId,{id});
+export const listarFotos=(bemId,escopo='inventario')=>chamar('listar',bemId,{escopo}).then(b=>b.fotos||[]);
+export const adicionarFoto=(bemId,base64,nome,escopo='inventario')=>chamar('adicionar',bemId,{base64,nome,escopo});
+export const removerFoto=(bemId,id,escopo='inventario')=>chamar('remover',bemId,{id,escopo});
 export async function prepararFoto(file){
  if(!/^image\/(jpeg|png|webp)$/i.test(file.type))throw new Error('Escolha uma foto JPG, PNG ou WebP.');
  if(file.size>20*1024*1024)throw new Error('Escolha uma foto de até 20 MB.');

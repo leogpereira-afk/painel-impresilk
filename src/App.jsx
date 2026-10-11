@@ -1,3 +1,5 @@
+import NavegacaoPatrimonio from './components/patrimonio/Navegacao.jsx';
+import {redirecionarManutencoes} from './lib/calc/navegacao-patrimonio.js';
 import CalendarioAbas from './components/CalendarioAbas.jsx';
 // Sem sessao, o painel inteiro e a tela de login -- nem o Layout monta. Assim
 // nenhuma rota "vaza" por digitar o endereco direto.
@@ -94,6 +96,11 @@ function prefetchRotas() {
 import { getSessao, aoMudarSessao, podeAbrir, ehDirecao, podeConfigurar } from "./lib/sessao.js";
 import { Card } from "./components/ui.jsx";
 
+function ManutencoesAntigas() {
+  const {search} = useLocation();
+  return <Navigate to={redirecionarManutencoes(search)} replace />;
+}
+
 function SemAcesso() {
   return (
     <Card className="mx-auto max-w-md p-8 text-center">
@@ -112,7 +119,7 @@ function SemAcesso() {
 
 // Rota que so abre se o modulo estiver liberado para a sessao.
 function Restrito({ modulo, sessao, children }) {
-  return podeAbrir(modulo, sessao) ? children : <SemAcesso />;
+  return (Array.isArray(modulo) ? modulo.some(m=>podeAbrir(m,sessao)) : podeAbrir(modulo, sessao)) ? children : <SemAcesso />;
 }
 
 export default function App() {
@@ -248,13 +255,15 @@ export default function App() {
         <Route path="/reunioes" element={<Restrito modulo="reunioes" sessao={sessao}><CalendarioAbas sessao={sessao}/><Reunioes sessao={sessao}/></Restrito>} />
         <Route path="/gestao" element={<Navigate to="/" replace />} />
         <Route
-          path="/manutencoes"
+          path="/patrimonio/manutencoes"
           element={
             <Restrito modulo="manutencoes" sessao={sessao}>
-              <Manutencoes />
+              <><NavegacaoPatrimonio sessao={sessao}/><Manutencoes /></>
             </Restrito>
           }
         />
+        <Route
+          path="/manutencoes" element={<Restrito modulo="manutencoes" sessao={sessao}><ManutencoesAntigas/></Restrito>} />
         <Route
           path="/permutas"
           element={
@@ -274,8 +283,8 @@ export default function App() {
         <Route
           path="/patrimonio"
           element={
-            <Restrito modulo="patrimonio" sessao={sessao}>
-              <Patrimonio />
+            <Restrito modulo={["patrimonio","inventario-valores","seguranca"]} sessao={sessao}>
+              <><NavegacaoPatrimonio sessao={sessao}/><Patrimonio /></>
             </Restrito>
           }
         />

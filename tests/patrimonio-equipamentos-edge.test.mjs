@@ -1,3 +1,5 @@
+import * as patrimonioAcesso from '../supabase/functions/_shared/patrimonio-acesso.mjs';
+import {previaReclassificacao} from '../supabase/functions/_shared/patrimonio-migracao.mjs';
 import {validarVinculoPessoa} from '../supabase/functions/_shared/patrimonio-pessoas.mjs';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -34,7 +36,7 @@ function ambiente({ sessao = { sub: 'pessoa', perms: ['patrimonio'] }, linhas = 
     storage: { from() { throw new Error('Consulta não pode acessar anexos'); } },
   };
   vm.runInNewContext(codigo, {
-    Deno: { env: { get: () => 'teste' }, serve: fn => { handler = fn; } },
+    ...patrimonioAcesso,previaReclassificacao, Deno: { env: { get: () => 'teste' }, serve: fn => { handler = fn; } },
     createClient: () => sb,validarVinculoPessoa,lerPessoasPatrimonio:async()=>[{id:'rh-manutencao',nome:'Manutenção',disponivel:true}], verificarJwt: async () => sessao, crachaRevogado: async () => revogada,
     Response, Request, console: { error() {} },
   });

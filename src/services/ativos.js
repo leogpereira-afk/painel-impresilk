@@ -62,3 +62,5 @@ export function abrirBase64(base64, mime, nome) {
   // Espera o navegador consumir antes de soltar a memoria.
   setTimeout(() => URL.revokeObjectURL(url), 30000);
 }
+
+export const salvarTelefonia = (item, versao = null) => chamar('salvarTelefonia', {item, versao}).then(r=>r.item);

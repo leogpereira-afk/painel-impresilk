@@ -36,3 +36,5 @@ export const lerEmpresa = (mes) =>
     hoje: r?.hoje || "",
     consultadoEm: r?.consultadoEm || "",
   }));
+
+export const lerAgendaPatrimonio=mes=>chamar('patrimonio',mes).then(r=>Array.isArray(r?.eventos)?r.eventos:[]);

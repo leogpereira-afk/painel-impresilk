@@ -24,8 +24,10 @@ export const MODULOS = [
   { id: "marketing", nome: "Marketing", sub: "logomarcas, materiais e atalhos do Drive" },
   { id: "licitacoes", nome: "Licitações", sub: "editais, prazos e sessões" },
   { id: "glossario", nome: "Glossário", sub: "os termos de comunicação visual explicados" },
-  { id: "manutencoes", nome: "Manutenções", sub: "carros, máquinas e prédio: gasto e histórico" },
-  { id: "patrimonio", nome: "Patrimônio", sub: "o que a empresa tem, por setor, com etiqueta e valor" },
+  { id: "manutencoes", nome: "Patrimônio · Manutenções", sub: "serviços, prazos e custos dos bens; permissão de manutenção" },
+  { id: "patrimonio", nome: "Patrimônio", sub: "bens, equipamentos, estrutura e acesso às manutenções autorizadas" },
+  { id: "inventario-valores", nome: "Inventário e valores", sub: "inventário, pendências, notas fiscais e valores de aquisição" },
+  { id: "seguranca", nome: "Segurança", sub: "equipamentos de segurança e controle de acessos físicos" },
   { id: "documentos", nome: "Documentos e ativos", sub: "certidões, contrato social, apólices e a ficha dos carros e máquinas, com aviso de vencimento" },
   { id: "permutas", nome: "Permutas", sub: "o que o parceiro nos deu, as O.S. que ele já gastou e o saldo" },
   { id: "campanhas", nome: "Campanhas", sub: "cada evento e quem comprou, e o padrão de venda da casa inteira, mês a mês desde 2020" },
@@ -36,7 +38,7 @@ export const MODULOS = [
 // Módulos que mostram DINHEIRO. Não muda nada no servidor; serve para a tela
 // avisar a direção do peso do que está marcando.
 export const COM_DINHEIRO = new Set([
-  "contas-atrasadas", "orcamentos", "bancos",
+  "contas-atrasadas", "orcamentos", "bancos", "inventario-valores", "manutencoes",
   // Permuta mostra o crédito do parceiro, o valor de cada O.S. que ele gastou
   // e o saldo. Sem o aviso de R$, quem concede o módulo não vê que está
   // abrindo dinheiro — e o aviso existe justamente para isso.

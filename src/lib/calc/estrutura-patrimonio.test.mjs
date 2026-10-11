@@ -12,7 +12,7 @@ test('Estrutura sugere as categorias físicas e Manutenção preserva todas as c
   for (const categoria of legadas) assert(CATEGORIAS_PREDIAL.includes(categoria));
   for (const lista of [CATEGORIAS_ESTRUTURA, CATEGORIAS_PREDIAL]) {
     assert.equal(new Set(lista.map(categoriaNormalizada)).size, lista.length);
-    for (const categoria of [...novas, ...legadas]) assert(lista.some(valor => categoriaNormalizada(valor) === categoriaNormalizada(categoria)));
+    for (const categoria of [...novas, ...legadas].filter(c => lista !== CATEGORIAS_ESTRUTURA || !['Câmeras / CFTV', 'Alarme', 'Rede e internet'].includes(c))) assert(lista.some(valor => categoriaNormalizada(valor) === categoriaNormalizada(categoria)));
   }
   assert.equal(CATEGORIAS_POR_FAMILIA.predial, CATEGORIAS_PREDIAL);
 });

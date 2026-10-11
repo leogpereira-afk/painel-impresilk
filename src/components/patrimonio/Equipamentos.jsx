@@ -6,6 +6,7 @@ import { listarEquipamentosPatrimonio } from '../../services/ativos.js';
 import { podeAbrir } from '../../lib/sessao.js';
 import { projetarEquipamentos, filtrarEquipamentos } from '../../lib/calc/equipamentos-patrimonio.js';
 import { textoAtualizacao } from '../../lib/calc/controles-patrimonio.js';
+import {caminhoManutencao} from '../../lib/calc/navegacao-patrimonio.js';
 import './equipamentos.css';
 
 const POR_PAGINA = 15;
@@ -15,7 +16,7 @@ const TIPOS = {
 };
 const rotuloVinculo = item => item.vinculo === 'conflito' ? 'Vínculo a conferir'
   : item.bem ? (item.codigo || 'Ficha vinculada') : 'Sem vínculo no inventário';
-const caminhoManutencao = id => `/manutencoes?aba=itens&item=${encodeURIComponent(id)}`;
+
 
 export default function EquipamentosPatrimonio({ tipo, bens = [], setores = [], aoVerBem }) {
   const meta = TIPOS[tipo], Icone = meta.icone;
@@ -66,28 +67,28 @@ export default function EquipamentosPatrimonio({ tipo, bens = [], setores = [], 
 
   return <section className="pat-equipamentos" aria-label={meta.titulo}>
     <div className="pat-list-heading">
-      <div className="pat-equip-title"><span aria-hidden="true"><Icone size={23}/></span><div><h2>{meta.titulo}</h2><p>O mesmo cadastro usado pela Manutenção.</p></div></div>
+      <div className="pat-equip-title"><span aria-hidden="true"><Icone size={23}/></span><div><h2>{meta.titulo}</h2><p>Ficha, responsável e manutenção de cada equipamento.</p></div></div>
       <div className="pat-actions">
         <button className="btn-ghost" onClick={carregar} disabled={carregando} aria-label={`Atualizar ${meta.titulo.toLowerCase()}`} title="Atualizar cadastros"><RefreshCw size={17}/></button>
         <button className="btn-outline" onClick={abrirRelatorio} disabled={!lista.length || carregando || !!erro}><Printer size={17}/>Salvar PDF</button>
-        {gerenciar && <Link className="btn-primary" to="/manutencoes?aba=itens"><ArrowUpRight size={17}/>Gerenciar em Manutenções</Link>}
+        {gerenciar && <Link className="btn-primary" to={caminhoManutencao({familia:tipo,novo:true})}><ArrowUpRight size={17}/>Cadastrar {meta.singular}</Link>}
       </div>
     </div>
-    <p className="pat-equip-shared"><Link2 size={16} aria-hidden="true"/><span><strong>Base compartilhada.</strong> As fichas são cadastradas e alteradas em Manutenções. Aqui você consulta os mesmos equipamentos e seus vínculos com o inventário.</span></p>
+    <p className="pat-equip-shared"><Link2 size={16} aria-hidden="true"/><span><strong>Um cadastro por equipamento.</strong> Abra a ficha para consultar serviços, programar a próxima manutenção ou atualizar os dados.</span></p>
     <div className="pat-equip-tools">
       <div className="pat-search"><Search size={18} aria-hidden="true"/><input className="input" aria-label={`Buscar ${meta.titulo.toLowerCase()}`} placeholder={tipo === 'veiculo' ? 'Nome, placa, modelo, setor ou responsável…' : 'Nome, série, modelo, setor ou responsável…'} value={busca} onChange={e => { setBusca(e.target.value);setPagina(1); }}/>{busca && <button type="button" aria-label="Limpar busca" onClick={() => { setBusca('');setPagina(1); }}><X size={16}/></button>}</div>
       <label>Vínculo com o inventário<select className="input" value={vinculo} onChange={e => { setVinculo(e.target.value);setPagina(1); }}><option value="todos">Todos</option><option value="vinculado">Com ficha no inventário</option><option value="sem-vinculo">Sem vínculo confirmado</option></select></label>
     </div>
     <div className="pat-equip-count" aria-live="polite"><span>{ativos === null ? 'Consultando a base compartilhada…' : `${lista.length} de ${todos.length} ${todos.length === 1 ? meta.singular : meta.titulo.toLowerCase()}`}</span>{comFiltro && <button type="button" onClick={limpar}>Limpar filtros</button>}</div>
     {erro && <p className="pat-notice is-error" role="alert">{erro}<button className="btn-ghost" onClick={carregar} disabled={carregando}>Tentar novamente</button></p>}
-    {ativos === null ? <p role="status">{carregando ? 'Carregando equipamentos…' : 'Não foi possível consultar os equipamentos.'}</p> : !lista.length ? <div className="pat-empty"><Icone size={28}/><h3>{comFiltro ? 'Nenhum equipamento encontrado' : `Nenhum ${meta.singular} cadastrado`}</h3><p>{comFiltro ? 'Tente outro nome, identificação ou filtro.' : `Os registros de ${meta.titulo.toLowerCase()} da Manutenção aparecerão aqui automaticamente.`}</p>{comFiltro && <button className="btn-outline" onClick={limpar}>Ver todos</button>}</div> : <>
+    {ativos === null ? <p role="status">{carregando ? 'Carregando equipamentos…' : 'Não foi possível consultar os equipamentos.'}</p> : !lista.length ? <div className="pat-empty"><Icone size={28}/><h3>{comFiltro ? 'Nenhum equipamento encontrado' : `Nenhum ${meta.singular} cadastrado`}</h3><p>{comFiltro ? 'Tente outro nome, identificação ou filtro.' : `Os registros de ${meta.titulo.toLowerCase()} aparecerão aqui após o cadastro.`}</p>{comFiltro && <button className="btn-outline" onClick={limpar}>Ver todos</button>}</div> : <>
       <div className="pat-table-wrap"><table className="pat-table pat-equip-table"><thead><tr><th>Equipamento</th><th>{meta.identificacao} / modelo</th><th>Setor</th><th>Responsável</th><th>Inventário</th>{gerenciar && <th>Manutenção</th>}</tr></thead>
         <tbody>{recorte.map(item => <tr key={item.id}>
           <td data-label="Equipamento"><strong className="pat-equip-name">{item.nome || 'Sem nome'}</strong><small className="pat-updated">{textoAtualizacao(item)}</small></td>
           <td data-label={`${meta.identificacao} / modelo`}><strong>{item.identificacao || 'Não informado'}</strong><small>{[item.modelo, item.ano].filter(Boolean).join(' · ') || 'Modelo não informado'}</small></td>
           <td data-label="Setor">{item.setor || 'Não informado'}</td><td data-label="Responsável">{item.responsavel || 'Não informado'}</td>
           <td data-label="Inventário">{item.bem && aoVerBem ? <button className="pat-equip-inventory" onClick={() => aoVerBem(item.bem)} aria-label={`Ver ficha de ${item.nome} no inventário`}><Link2 size={14}/>{rotuloVinculo(item)}</button> : <span className={item.vinculo === 'conflito' ? 'pat-equip-conflict' : 'pat-equip-unlinked'}>{rotuloVinculo(item)}</span>}{item.bem?.situacao === 'baixado' && <small>Baixado no inventário</small>}</td>
-          {gerenciar && <td data-label="Manutenção"><Link className="pat-equip-manage" to={caminhoManutencao(item.id)} aria-label={`Abrir ${item.nome} em Manutenções`}>Abrir ficha<ArrowUpRight size={15}/></Link></td>}
+          {gerenciar && <td data-label="Manutenção"><Link className="pat-equip-manage" to={caminhoManutencao({item:item.id})} aria-label={`Abrir ${item.nome} em Manutenções`}>Abrir ficha<ArrowUpRight size={15}/></Link></td>}
         </tr>)}</tbody>
       </table></div>
       <div className="pat-pagination"><span>{(atual - 1) * POR_PAGINA + 1}–{Math.min(atual * POR_PAGINA, lista.length)} de {lista.length}</span><div><button className="btn-outline" disabled={atual === 1} onClick={() => setPagina(atual - 1)} aria-label="Página anterior"><ChevronLeft size={17}/></button><span>{atual} / {paginas}</span><button className="btn-outline" disabled={atual === paginas} onClick={() => setPagina(atual + 1)} aria-label="Próxima página"><ChevronRight size={17}/></button></div></div>

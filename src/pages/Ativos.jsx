@@ -1,3 +1,4 @@
+import {podeAbrir} from '../lib/sessao.js';
 import { useAbaNavegavel } from "../hooks/useAbaNavegavel.js";
 import PessoaRH,{PessoasRHProvider,usePessoasRH,comNomeRH} from '../components/patrimonio/PessoasRH.jsx';
 // Documentos, veiculos e maquinas -- tres lentes do mesmo controle: coisas com
@@ -199,7 +200,12 @@ function AtivosConteudo() {
         valor: paraNumero(form.valor),
         valorSegurado: paraNumero(form.valorSegurado),
       };
-      const item = await salvarAtivo({ ...base, temArquivo: !!arquivo || !!form.temArquivo });
+      const payload={...base,temArquivo:!!arquivo||!!form.temArquivo};
+      if(['veiculo','maquina'].includes(form.tipo)&&!podeAbrir('inventario-valores')) {
+        for(const k of ['valor','nf','valorSegurado','arquivoNome','temArquivo','miniatura'])delete payload[k];
+        if(arquivo)throw new Error('Anexos de equipamentos exigem Inventário e valores.');
+      }
+      const item = await salvarAtivo(payload);
       if (arquivo) {
         try {
           const b64 = await arquivoParaBase64(arquivo);

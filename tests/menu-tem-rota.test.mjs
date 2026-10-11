@@ -19,6 +19,9 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { MODULOS } from "../src/lib/modulos.js";
 
+// Permissões internas: são chips de uma única entrada, não páginas paralelas.
+const AREAS_NO_PATRIMONIO = { "inventario-valores": "patrimonio", seguranca: "patrimonio" };
+
 test("todo módulo oferecido no menu tem rota no App", async () => {
   const app = await readFile(new URL("../src/App.jsx", import.meta.url), "utf8");
   const rotas = new Set(
@@ -26,7 +29,12 @@ test("todo módulo oferecido no menu tem rota no App", async () => {
   );
   assert.ok(rotas.size >= 10, `esperava a tabela de rotas inteira, achei ${rotas.size}`);
 
-  const semRota = MODULOS.map((m) => m.id).filter((id) => !rotas.has(id));
+  const menu = await readFile(new URL("../src/components/CentralShell.jsx", import.meta.url), "utf8");
+  for (const id of Object.keys(AREAS_NO_PATRIMONIO)) {
+    assert.match(menu, new RegExp(`MODULOS\\.filter\\(m=>!\\[[^\\]]*['"]${id}['"]`),
+      `${id} deve continuar dentro do Patrimônio, sem entrada lateral própria`);
+  }
+  const semRota = MODULOS.map((m) => m.id).filter((id) => !rotas.has(AREAS_NO_PATRIMONIO[id] || id));
   assert.deepEqual(semRota, [],
     `estes módulos aparecem no menu e o clique volta para o Início: ${semRota.join(", ")}`);
 });
@@ -43,6 +51,11 @@ test("rota de módulo é protegida por <Restrito>", async () => {
   const protegidos = new Set(
     [...app.matchAll(/<Restrito\s+modulo="([a-z-]+)"/g)].map((m) => m[1]),
   );
+  for (const grupo of app.matchAll(/<Restrito\s+modulo=\{\[([^\]]+)\]\}/g)) {
+    for (const modulo of grupo[1].matchAll(/"([a-z-]+)"/g)) protegidos.add(modulo[1]);
+  }
+  assert.match(app, /path="\/patrimonio"[\s\S]*?<Restrito\s+modulo=\{\["patrimonio","inventario-valores","seguranca"\]\}/,
+    "a entrada compartilhada deve conferir as três permissões de Patrimônio");
   /* `configuracoes` tem guarda própria (podeConfigurar, dentro da própria
      tela), e `glossario` é aberto de propósito: é vocabulário da casa, não
      dado. Exceção escrita é exceção decidida; exceção silenciosa é esquecimento. */

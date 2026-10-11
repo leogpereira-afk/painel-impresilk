@@ -26,8 +26,8 @@ const categoriasUnicas = categorias => {
   });
 };
 
-export const CATEGORIAS_ESTRUTURA = categoriasUnicas([...CATEGORIAS_NOVAS, ...CATEGORIAS_LEGADAS]);
-export const CATEGORIAS_PREDIAL_COMPARTILHADAS = categoriasUnicas([...CATEGORIAS_LEGADAS, ...CATEGORIAS_NOVAS]);
+export const CATEGORIAS_ESTRUTURA = categoriasUnicas([...CATEGORIAS_NOVAS, ...CATEGORIAS_LEGADAS].filter(c => !['Câmeras / CFTV', 'Alarme', 'Rede e internet'].includes(c)));
+export const CATEGORIAS_PREDIAL_COMPARTILHADAS = categoriasUnicas([...CATEGORIAS_LEGADAS, ...CATEGORIAS_NOVAS, 'Padrão de energia', 'Transformador', 'Usina fotovoltaica']);
 
 // Um registro por ativo predial. Nome parecido, local e modelo nunca criam
 // vínculo com o inventário; essa decisão usa o mesmo helper dos equipamentos.
@@ -68,4 +68,28 @@ export function filtrarEstrutura(itens = [], { busca = '', categoria = '', vincu
     && (vinculo === 'todos' || (vinculo === 'vinculado' ? item.vinculo === 'vinculado' : item.vinculo !== 'vinculado'))
     && termos.every(termo => normalizar([item.nome, item.identificacao, item.categoria, item.modelo, item.setor,
       item.setorSigla, item.local, item.codigo, item.responsavel, item.autoria].join(' ')).includes(termo)));
+}
+
+export const GRUPOS_ESTRUTURA = [
+  { id: 'todos', nome: 'Todos os itens' },
+  { id: 'hidraulica', nome: 'Manutenção hidráulica' },
+  { id: 'eletrica', nome: 'Manutenção elétrica' },
+];
+export function filtrarGrupoEstrutura(itens = [], grupo = 'todos') {
+  const categorias = grupo === 'hidraulica' ? ['hidraulica', 'caixa d agua'] : grupo === 'eletrica' ? ['eletrica', 'iluminacao'] : null;
+  return categorias ? itens.filter(i => categorias.includes(chaveCategoria(i.categoria))) : itens;
+}
+export function historicoEstrutura(mapa = {}, itens = [], agora = new Date()) {
+  const ids = new Set(itens.map(i => i.id));
+  const partes = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit' }).formatToParts(agora);
+  const ano = partes.find(p => p.type === 'year').value;
+  const mes = `${ano}-${partes.find(p => p.type === 'month').value}`;
+  const registros = Object.entries(mapa).filter(([, r]) => r && ids.has(r.ativoId)).map(([id, r]) => ({ ...r, id }))
+    .sort((a,b) => String(b.data).localeCompare(String(a.data)));
+  const periodo = data => /^\d{4}-\d{2}-\d{2}$/.test(data || '') ? data : (() => {
+    const d = new Date(data);if (!Number.isFinite(d.getTime())) return '';
+    return new Intl.DateTimeFormat('en-CA', { timeZone:'America/Sao_Paulo', year:'numeric', month:'2-digit', day:'2-digit' }).format(d);
+  })();
+  const soma = prefixo => registros.reduce((total,r) => total + (periodo(r.data).startsWith(prefixo) && Number.isFinite(Number(r.valor)) ? Number(r.valor) : 0), 0);
+  return { registros, mes: soma(mes), ano: soma(ano), porItem: Object.fromEntries(itens.map(i => [i.id, registros.filter(r => r.ativoId === i.id)])) };
 }

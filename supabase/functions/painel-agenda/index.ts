@@ -43,6 +43,7 @@ import { verificarJwt, crachaRevogado } from "../_shared/cripto.ts";
 import { canceladaPCP, diasCasa, encerradaERP, projetarOS, hojeSP, pessoasDaAgenda } from "../_shared/agenda-pcp.ts";
 
 import { celebracoesRH } from "../_shared/calendario-celebracoes.mjs";
+import { vencimentosIncendio, CATEGORIAS_INCENDIO } from "../_shared/patrimonio-incendio.mjs";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -118,6 +119,19 @@ async function lerColecao(tabela: string, colecao: string): Promise<any[]> {
 }
 
 const texto = (v: unknown, max = 200) => String(v ?? "").trim().slice(0, max);
+
+// Somente vencimentos operacionais. Compra, NF, arquivo e pessoas não são lidos.
+async function agendaPatrimonio(mes:string) {
+ const itens:any[]=[];
+ for(let de=0;de<50000;de+=500) {
+  const {data,error}=await sb.from('painel_registros').select('id,tipo:registro->>tipo,categoria:registro->>categoria,nome:registro->>nome,validade:registro->>validade,numero:registro->especificacao->>numero,situacao:registro->especificacao->>situacao')
+   .eq('colecao','ativo').eq('registro->>tipo','predial').in('registro->>categoria',CATEGORIAS_INCENDIO).order('id').range(de,de+499);
+  if(error)throw new Error(error.message);
+  itens.push(...(data||[]));
+  if((data||[]).length<500)return {eventos:vencimentosIncendio(itens,mes),hoje:hojeSP(),consultadoEm:new Date().toISOString()};
+ }
+ throw new Error('A agenda do patrimônio excedeu o limite de consulta.');
+}
 
 // ---------------------------------------------------------------- producao --
 /* Os EVENTOS e os PLANTOES da producao nao tem tabela: moram dentro do blob
@@ -279,6 +293,11 @@ Deno.serve(async (req) => {
         const g = await exigirSessao(req, "calendario-empresa");
         if (g.resposta) return g.resposta;
         return json(await empresa(mes));
+      }
+      case "patrimonio": {
+        const g=await exigirSessao(req,['patrimonio','inventario-valores']);
+        if(g.resposta)return g.resposta;
+        return json(await agendaPatrimonio(mes));
       }
       default:
         return json({ erro: "Acao desconhecida." }, 400);

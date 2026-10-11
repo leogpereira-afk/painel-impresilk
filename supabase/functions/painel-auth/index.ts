@@ -52,7 +52,7 @@ const MODULOS = ["gestao", "contas-atrasadas", "orcamentos", "bancos", "marketin
   // e a programacao da producao; "calendario-empresa" sao os eventos da casa.
   // A porta das duas e a function painel-agenda, que nao tem acao de escrita.
   "agenda", "calendario-empresa", "reunioes", "demandas",
-  "manutencoes", "patrimonio", "permutas", "campanhas",
+  "manutencoes", "patrimonio", "inventario-valores", "seguranca", "permutas", "campanhas",
   // 14/09/2026 -- "Documentos e ativos" vira modulo de verdade. Ate aqui a
   // tela nao tinha modulo nenhum: rota sem `Restrito`, item no menu fora do
   // filtro, e a porta de dados abria documento/veiculo/maquina/seguro para

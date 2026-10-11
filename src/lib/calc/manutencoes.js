@@ -23,6 +23,8 @@ export const FAMILIAS = {
   veiculo: { rotulo: "Veículos", singular: "Veículo" },
   maquina: { rotulo: "Máquinas", singular: "Máquina" },
   predial: { rotulo: "Prédio", singular: "Item do prédio" },
+  informatica: {rotulo:"Informática e telefonia",singular:"Informática e telefonia"},
+  seguranca: {rotulo:"Segurança",singular:"Segurança"},
 };
 
 // Sugestões de categoria por família -- e o campo aceita texto livre, porque
@@ -62,6 +64,8 @@ export const CATEGORIAS_POR_FAMILIA = {
   veiculo: CATEGORIAS_VEICULO,
   maquina: CATEGORIAS_MAQUINA,
   predial: CATEGORIAS_PREDIAL,
+  informatica: ["Computador","Notebook","Servidor","Rede","Telefone","Central telefônica","Celular"],
+  seguranca: ["Câmera","DVR/NVR","Alarme","Chave","Portão","Acesso facial","Relógio de ponto"],
 };
 
 // Os setores da casa, para dizer ONDE a máquina fica. Lista fechada de
@@ -119,6 +123,12 @@ export const ESPEC_CAMPOS = {
     { id: "ano", rotulo: "Ano", ph: "2022", curto: true },
     { id: "setor", rotulo: "Setor onde fica", opcoes: SETORES },
     { id: "potencia", rotulo: "Potência / tensão", ph: "220 V · 3 kW" },
+  ],
+  informatica: [
+    {id:"local",rotulo:"Local"}, {id:"marcaModelo",rotulo:"Marca e modelo"}, {id:"numeroSerie",rotulo:"Número de série"},
+  ],
+  seguranca: [
+    {id:"local",rotulo:"Local"}, {id:"marcaModelo",rotulo:"Marca e modelo"}, {id:"numeroSerie",rotulo:"Número de série"},
   ],
   predial: [
     { id: "local", rotulo: "Local", ph: "galpão 1, mezanino, portaria" },
@@ -320,7 +330,7 @@ export function agruparGastos(lancamentos, itens) {
       anos.set(ano, {
         ano, total: 0, quantos: 0,
         meses: new Map(),
-        porFamilia: { veiculo: 0, maquina: 0, predial: 0, removido: 0 },
+        porFamilia: { veiculo: 0, maquina: 0, predial: 0, informatica: 0, seguranca: 0, removido: 0 },
         porItem: new Map(),
       });
     }
@@ -332,7 +342,7 @@ export function agruparGastos(lancamentos, itens) {
     if (!a.meses.has(mes)) {
       a.meses.set(mes, {
         mes, rotulo: rotuloMes(mes), total: 0, quantos: 0, lancamentos: [],
-        porFamilia: { veiculo: 0, maquina: 0, predial: 0, removido: 0 },
+        porFamilia: { veiculo: 0, maquina: 0, predial: 0, informatica: 0, seguranca: 0, removido: 0 },
       });
     }
     const m = a.meses.get(mes);

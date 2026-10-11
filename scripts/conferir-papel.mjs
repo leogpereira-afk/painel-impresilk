@@ -101,6 +101,12 @@ const SEM_PAPEL = {
 /* ── MAPAS DE PERMISSÃO QUE NÃO COBREM A LISTA, DE PROPÓSITO ──────────────
    Mesma regra: o motivo fica escrito, não subentendido. */
 const MAPAS_DECLARADOS = {
+  "painel-config:LEITORES_EXTRA":
+    "é somente uma concessão adicional de leitura; barraChave exige MODULO_DA_CHAVE " +
+    "em todas as escritas e usa lista vazia para chave ausente. A resposta de " +
+    "patrimonio passa por inventarioPermitido, com lista fechada de campos. " +
+    "tests/patrimonio-permissoes.test.mjs confere resposta e recusa de escrita",
+
   "painel-config:MODULO_APAGAR":
     "não é o porteiro da chave -- é uma trava A MAIS sobre duas delas. Toda " +
     "chave de OVERLAYS já passa pelo barraChave (MODULO_DA_CHAVE, que cobre " +

@@ -1,3 +1,4 @@
+import {inventarioPermitido} from '../_shared/patrimonio-acesso.mjs';
 import {lerPessoasPatrimonio, validarVinculoPessoa, prepararPessoasControle} from '../_shared/patrimonio-pessoas.mjs';
 import {contextoComercial} from '../_shared/comercial-contexto.ts';
 import {gestorComercial} from '../_shared/comercial.mjs';
@@ -25,6 +26,8 @@ import {gestorComercial} from '../_shared/comercial.mjs';
 // ============================================================================
 
 import { prepararControle, carimbarPatrimonio } from "../_shared/patrimonio-controles.mjs";
+import { prepararConferencia } from "../_shared/patrimonio-fisico.mjs";
+import { UUID_INFRA, prepararInfra, infraPermitida } from "../_shared/patrimonio-infra.mjs";
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { verificarJwt, crachaRevogado } from "../_shared/cripto.ts";
@@ -226,7 +229,7 @@ Deno.serve(async (req: Request) => {
     compromissos: "compromissos",
     manutencoes: "manutencoes",
     // Duas chaves, um modulo so: os setores existem para o patrimonio.
-    patrimonio: "patrimonio",
+    patrimonio: "inventario-valores",
     patrimonio_controles: "patrimonio",
     setores: "patrimonio",
     permutas: "permutas",
@@ -274,7 +277,8 @@ Deno.serve(async (req: Request) => {
     // A tela de Planilhas escreve o NOME do setor ao lado de cada planilha, e
     // a de conceder mostra "FIN — Financeiro" em vez de uma sigla crua. Ler,
     // so; criar e apagar setor continua sendo do Patrimonio.
-    setores: ["manutencoes", "planilhas"],
+    setores: ["manutencoes", "planilhas", "inventario-valores", "seguranca"],
+    patrimonio: ["patrimonio", "manutencoes", "seguranca"],
   };
   /* CADASTRAR PLANILHA E DA DIRECAO -- e "direcao" aqui e `master`, nao o
      `ehDirecao` largo deste arquivo (que tambem aceita `perms.includes("*")`).
@@ -369,6 +373,24 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
+    const segurancaIds=new Set<string>();
+    if(corpo.chave==='manutencoes' && sessao && !temModulo('seguranca')) {
+      const negado=barraChave('manutencoes',corpo.action==='get'?'ler':'gravar');if(negado)return negado;
+      for(const colecao of ['ativo','ativo_lixeira']) for(let de=0;;de+=1000){
+        const {data,error}=await sb.from('painel_registros').select('id,registro').eq('colecao',colecao).eq('registro->>tipo','seguranca').order('id').range(de,de+999);
+        if(error)throw error;
+        for(const r of data||[])segurancaIds.add(r.id);
+        if((data||[]).length<1000)break;
+      }
+      if(corpo.action!=='get') {
+        const ids=corpo.action==='merge'?Object.keys(corpo.patch||{}):corpo.id?[String(corpo.id)]:[];
+        for(const id of ids){
+          const {data,error}=await sb.from('painel_registros').select('registro').eq('colecao','manutencoes').eq('id',id).maybeSingle();
+          if(error)throw error;
+          if(segurancaIds.has(data?.registro?.ativoId)||segurancaIds.has(corpo.patch?.[id]?.ativoId))return resposta({erro:'Esta manutenção exige a permissão Segurança.'},403);
+        }
+      }
+    }
     let orcPermitidos:Set<string>|null=null;
     if(corpo.chave==='ov_orc' && sessao && !gestorComercial(sessao)) {
       const negado=barraChave('ov_orc',corpo.action==='get'?'ler':'gravar');if(negado)return negado;
@@ -379,15 +401,131 @@ Deno.serve(async (req: Request) => {
     }
     const overlaySeguro=async(chave:string)=>{
       const valor=await lerOverlay(chave,donoDaVez(chave),await crivoDe(chave));
+      if(chave==='patrimonio') return inventarioPermitido(valor,sessao);
+      if(chave==='manutencoes' && !temModulo('seguranca'))return Object.fromEntries(Object.entries(valor||{}).filter(([,r]:any)=>!segurancaIds.has(r?.ativoId)));
       return chave==='ov_orc'&&orcPermitidos?Object.fromEntries(Object.entries(valor||{}).filter(([id])=>orcPermitidos!.has(id))):valor;
     };
     let equipeRH: Promise<any[]> | undefined;
     const pessoasRH=()=>equipeRH ||= lerPessoasPatrimonio(sb);
     switch (corpo.action) {
-      case 'pessoasPatrimonio':
+      case "lerInfra": {
+        if(!sessao)return resposta({erro:'Entre no sistema.',semSessao:true},401);
+        if(!temModulo('patrimonio')&&!temModulo('inventario-valores'))return resposta({erro:'Sem acesso ao Patrimônio.'},403);
+        const podeValores=temModulo('inventario-valores');
+        const mapa=await lerOverlay('patrimonio_infra',null);
+        return resposta({ok:true,podeValores,itens:Object.fromEntries(Object.entries(mapa).map(([id,r])=>[id,infraPermitida(r,podeValores)]))});
+      }
+      case "salvarInfra": {
+        if(!sessao)return resposta({erro:'Entre no sistema.',semSessao:true},401);
+        if(!temModulo('patrimonio'))return resposta({erro:'Sem acesso ao Patrimônio.'},403);
+        const id=corpo.id;
+        if(typeof id!=='string'||!UUID_INFRA.test(id))return resposta({erro:'ID inválido.'},422);
+        if(!Object.hasOwn(corpo,'versaoAnterior'))return resposta({erro:'Informe a versão do cadastro.'},422);
+        const {data:linha,error:erroLinha}=await sb.from('painel_registros').select('registro').eq('colecao','patrimonio_infra').eq('id',id).maybeSingle();
+        if(erroLinha)throw erroLinha;
+        const anterior=linha?.registro||null;
+        if(corpo.versaoAnterior!==(anterior?.atualizadoEm??null))return resposta({erro:'Este cadastro mudou. Atualize a lista antes de salvar.'},409);
+        const dados=corpo.dados;
+        if(!dados||typeof dados!=='object'||Array.isArray(dados))return resposta({erro:'Cadastro inválido.'},422);
+        if(Object.hasOwn(dados,'valorMensal')&&!temModulo('inventario-valores'))return resposta({erro:'Valor mensal exige Inventário e valores.'},403);
+        const refs:any={};
+        for(const campo of ['tecnicoId','contatoId']){
+          const ref=dados[campo]??anterior?.[campo];
+          if(!ref||ref===anterior?.[campo])continue;
+          if(typeof ref!=='string'||!UUID_INFRA.test(ref))return resposta({erro:'Selecione um contato cadastrado.'},409);
+          const {data,error}=await sb.from('painel_registros').select('registro').eq('colecao','patrimonio_infra').eq('id',ref).maybeSingle();
+          if(error)throw error;
+          refs[campo]=data?.registro?.tipo==='contato';
+        }
+        let novo;try{novo=prepararInfra(dados,anterior,refs,sessao);}catch(e){return resposta({erro:(e as Error).message},(e as any).status||422);}
+        if(!temModulo('inventario-valores')&&anterior&&Object.hasOwn(anterior,'valorMensal'))novo.valorMensal=anterior.valorMensal;
+        const {data,error}=await sb.rpc('painel_registro_gravar',{p_colecao:'patrimonio_infra',p_id:id,p_registro:novo,p_anterior:anterior});
+        if(error?.code==='23505')return resposta({erro:'Já existe um plano corporativo. Atualize a lista.'},409);
+        if(error)throw Object.assign(new Error(error.message),{code:error.code});
+        return resposta({ok:true,item:{id,...infraPermitida(data,temModulo('inventario-valores'))}});
+      }
+      case "guardarContratoInfra":
+        if(!sessao)return resposta({erro:'Entre no sistema.',semSessao:true},401);
+        // A escrita compartilha o restante da validação com a leitura.
+      case "lerContratoInfra": {
+        if(!sessao)return resposta({erro:'Entre no sistema.',semSessao:true},401);
+        if(!temModulo('inventario-valores'))return resposta({erro:'Contrato exige Inventário e valores.'},403);
+        if(corpo.action==='guardarContratoInfra'&&!temModulo('patrimonio'))return resposta({erro:'Cadastro exige Patrimônio.'},403);
+        const id=corpo.id;
+        if(typeof id!=='string'||!UUID_INFRA.test(id))return resposta({erro:'ID inválido.'},422);
+        const {data:linha,error:erroLinha}=await sb.from('painel_registros').select('registro').eq('colecao','patrimonio_infra').eq('id',id).maybeSingle();
+        if(erroLinha)throw erroLinha;
+        const atual=linha?.registro;
+        if(!atual||!['internet','plano-corporativo'].includes(atual.tipo))return resposta({erro:'Cadastro não encontrado.'},404);
+        if(corpo.action==='lerContratoInfra'){
+          const meta=atual.contrato;
+          if(!meta?.chave||!String(meta.chave).startsWith(`infra/${encodeURIComponent(id)}/`))return resposta({erro:'Contrato não encontrado.'},404);
+          const {data:arquivo,error}=await sb.storage.from(BUCKET).download(meta.chave);
+          if(error||!arquivo)return resposta({erro:'Contrato não encontrado.'},404);
+          const bytes=new Uint8Array(await arquivo.arrayBuffer());let bruto='';
+          for(let i=0;i<bytes.length;i+=0x8000)bruto+=String.fromCharCode(...bytes.subarray(i,i+0x8000));
+          return resposta({ok:true,base64:btoa(bruto),mime:meta.mime,nome:meta.nome});
+        }
+        // Primeira versão: um contrato por cadastro; substituição exige fluxo explícito de versões.
+        if(atual.contrato)return resposta({erro:'Este cadastro já possui contrato. Preserve a versão existente.'},409);
+        if(corpo.versaoAnterior!==atual.atualizadoEm)return resposta({erro:'Este cadastro mudou. Atualize a lista antes de anexar.'},409);
+        const mime=corpo.mime,nome=corpo.nome,base64=corpo.base64;
+        if(!['application/pdf','image/jpeg','image/png','image/webp'].includes(mime)||typeof nome!=='string'||!nome.trim()||nome.length>180)return resposta({erro:'Use PDF ou imagem com nome válido.'},422);
+        if(typeof base64!=='string'||!base64||base64.length>MAX_ARQUIVO||!/^[A-Za-z0-9+/]+={0,2}$/.test(base64))return resposta({erro:'Arquivo inválido ou acima de 3 MB.'},422);
+        let bytes:Uint8Array;try{bytes=Uint8Array.from(atob(base64),c=>c.charCodeAt(0));}catch{return resposta({erro:'Arquivo inválido.'},422);}
+        const assinatura=mime==='application/pdf'?bytes[0]===37&&bytes[1]===80&&bytes[2]===68&&bytes[3]===70:
+          mime==='image/jpeg'?bytes[0]===255&&bytes[1]===216&&bytes[2]===255:
+          mime==='image/png'?bytes[0]===137&&bytes[1]===80&&bytes[2]===78&&bytes[3]===71:
+          bytes[0]===82&&bytes[1]===73&&bytes[2]===70&&bytes[3]===70&&bytes[8]===87&&bytes[9]===69&&bytes[10]===66&&bytes[11]===80;
+        if(!assinatura)return resposta({erro:'O conteúdo não corresponde ao tipo de arquivo.'},422);
+        const chave=`infra/${encodeURIComponent(id)}/${crypto.randomUUID()}`;
+        const {error:up}=await sb.storage.from(BUCKET).upload(chave,bytes,{contentType:mime,upsert:false});
+        if(up)throw up;
+        const meta={chave,nome:nome.trim(),mime,criadoEm:new Date().toISOString(),criadoPor:String(sessao.sub)};
+        const novo={...atual,contrato:meta,atualizadoEm:new Date(Math.max(Date.now(),(Date.parse(atual.atualizadoEm)||0)+1)).toISOString(),atualizadoPor:String(sessao.sub)};
+        const {error}=await sb.rpc('painel_registro_gravar',{p_colecao:'patrimonio_infra',p_id:id,p_registro:novo,p_anterior:atual});
+        if(error){await sb.storage.from(BUCKET).remove([chave]);throw Object.assign(new Error(error.message),{code:error.code});}
+        return resposta({ok:true,contrato:{nome:meta.nome,mime:meta.mime,criadoEm:meta.criadoEm}});
+      }
+      case "patrimonioParametros": {
+        if (!sessao) return resposta({erro:'Entre no sistema.',semSessao:true},401);
+        if (!['patrimonio','seguranca','inventario-valores'].some(temModulo)) return resposta({erro:'Sem acesso ao Patrimônio.'},403);
+        const cfg=await lerConfig();
+        const bruto=(cfg as any)?.parametros?.patrimonioLimiteManutencaoPercentual;
+        const valor=typeof bruto==='number'&&Number.isFinite(bruto)&&bruto>=0?bruto:null;
+        return resposta({ok:true,limiteManutencaoPercentual:valor});
+      }
+      case "lerConferencias": {
+        if (!sessao) return resposta({erro:'Entre no sistema.',semSessao:true},401);
+        if (!temModulo('seguranca')) return resposta({erro:'Sem acesso a Segurança.'},403);
+        const itens=await lerOverlay('patrimonio_seguranca_checklists',null);
+        return resposta({ok:true,itens});
+      }
+      case "salvarConferencia": {
+        if (!sessao) return resposta({erro:'Entre no sistema.',semSessao:true},401);
+        if (!temModulo('seguranca')) return resposta({erro:'Sem acesso a Segurança.'},403);
+        const id=String(corpo.id||'');
+        if(!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id)) return resposta({erro:'ID inválido.'},422);
+        const {data:existente,error:erroExistente}=await sb.from('painel_registros').select('id').eq('colecao','patrimonio_seguranca_checklists').eq('id',id).maybeSingle();
+        if(erroExistente)throw erroExistente;
+        if(existente)return resposta({erro:'Conferência já existe.'},409);
+        const cameras=[];
+        for(let de=0;;de+=1000){
+          const {data,error}=await sb.from('painel_registros').select('id,registro').eq('colecao','ativo').eq('registro->>tipo','seguranca').order('id').range(de,de+999);
+          if(error)throw error;
+          for(const x of data||[])if(['Câmera','Câmeras / CFTV'].includes(x.registro?.categoria)&&x.registro?.especificacao?.situacao!=='baixado')cameras.push(x.id);
+          if((data||[]).length<1000)break;
+        }
+        let registro;try{registro=prepararConferencia(corpo.dados,null,cameras,sessao,new Date().toISOString());}catch(e){return resposta({erro:(e as Error).message},(e as any).status||422);}
+        const {error}=await sb.from('painel_registros').insert({colecao:'patrimonio_seguranca_checklists',id,registro,atualizado_em:registro.criadoEm});
+        if(error?.code==='23505')return resposta({erro:'Conferência já existe.'},409);
+        if(error)throw error;
+        return resposta({ok:true,item:{id,...registro}});
+      }
+      case "pessoasPatrimonio":
         if (!sessao) return resposta({erro:'Entre no sistema.',semSessao:true},401);
         // Documentos também edita os mesmos veículos e máquinas de Manutenções.
-        if (!temModulo('patrimonio') && !temModulo('manutencoes') && !temModulo('documentos')) return resposta({erro:'Sem acesso ao cadastro de pessoas do Patrimônio.'},403);
+        if (!temModulo('patrimonio') && !temModulo('manutencoes') && !temModulo('documentos') && !temModulo('inventario-valores') && !temModulo('seguranca')) return resposta({erro:'Sem acesso ao cadastro de pessoas do Patrimônio.'},403);
         return resposta({ok:true,pessoas:await pessoasRH()});
       case "ping":
         return resposta({ ok: true });
@@ -435,8 +573,7 @@ Deno.serve(async (req: Request) => {
           const barrado = barraChave(chave, "ler");
           if (barrado) return barrado;
           if (!sessao) return resposta({ erro: "Entre no sistema.", semSessao: true }, 401);
-          const valor=await lerOverlay(chave,donoDaVez(chave),await crivoDe(chave));
-          return resposta({ok:true,chave,valor:chave==='ov_orc'&&orcPermitidos?Object.fromEntries(Object.entries(valor||{}).filter(([id])=>orcPermitidos!.has(id))):valor});
+          return resposta({ok:true,chave,valor:await overlaySeguro(chave)});
         }
         return resposta({ erro: "chave invalida" }, 400);
       }
@@ -655,7 +792,27 @@ Deno.serve(async (req: Request) => {
             }
             let fundido: any = { ...(data?.registro ?? {}), ...camposLimpos };
             if (chave === "patrimonio_controles") {
-              try { fundido = prepararControle(prepararPessoasControle(campos,data?.registro,await pessoasRH()), data?.registro ?? null, sessao, new Date().toISOString()); }
+              try {
+                const referencias:any={};
+                if(['ramais','celulares'].includes((campos as any)?.tipo ?? (data?.registro as any)?.tipo)) {
+                  for(const [campo,colecao,destino] of [['setorId','setores','setor'],['aparelhoId','ativo','aparelho'],['planoId','patrimonio_infra','plano']]) {
+                    if(campo==='planoId'&&((campos as any)?.tipo ?? (data?.registro as any)?.tipo)!=='celulares')continue;
+                    const vinculo=(campos as any)[campo] ?? (data?.registro as any)?.[campo];
+                    if(!vinculo) continue;
+                    const {data:ref,error}=await sb.from('painel_registros').select('registro').eq('colecao',colecao).eq('id',vinculo).maybeSingle();
+                    if(error) throw Object.assign(new Error('Não foi possível conferir o vínculo. Tente novamente.'),{status:503});
+                    referencias[destino]=ref?.registro;
+                  }
+                  referencias.plano=referencias.plano?.tipo==='plano-corporativo';
+                  const aparelhoId=(campos as any).aparelhoId ?? (data?.registro as any)?.aparelhoId;
+                  if(aparelhoId) {
+                    const {data:usos,error}=await sb.from('painel_registros').select('id').eq('colecao','patrimonio_controles').eq('registro->>aparelhoId',aparelhoId);
+                    if(error) throw Object.assign(new Error('Não foi possível conferir a alocação do aparelho.'),{status:503});
+                    referencias.ocupado=(usos||[]).some((r:any)=>r.id!==id);
+                  }
+                }
+                fundido = prepararControle(prepararPessoasControle(campos,data?.registro,await pessoasRH()), data?.registro ?? null, sessao, new Date().toISOString(),referencias);
+              }
               catch (e) { return resposta({erro:(e as Error).message}, (e as any).status || 422); }
             } else if (chave === 'patrimonio') {
               Object.assign(fundido,validarVinculoPessoa(camposLimpos,data?.registro,await pessoasRH(),'responsavel'));
@@ -736,7 +893,7 @@ Deno.serve(async (req: Request) => {
                 ({ error } = await gravar());
               }
             }
-            if (error && chave === "patrimonio_controles" && error.code === "23505") return resposta({erro:"Este número já está cadastrado nesta aba. Escolha outro número ou edite o cadastro existente."},409);
+            if (error && chave === "patrimonio_controles" && error.code === "23505") return resposta({erro:"Este número ou aparelho já está vinculado nesta aba. Confira o ramal e libere o aparelho anterior antes de trocar."},409);
             if (error) throw Object.assign(new Error(error.message), { code: error.code });
           }
           // Devolve o mapa inteiro, como o original fazia (o cliente atualiza o
@@ -1042,7 +1199,7 @@ Deno.serve(async (req: Request) => {
   } catch (e) {
     if ((e as any)?.status===403)return resposta({erro:(e as any).message,codigo:(e as any).codigo||null},403);
     console.error("[painel-config] erro:", e);
-    if ((e as any)?.code === "23503") return resposta({ erro: "O vínculo com o setor mudou. Atualize a lista; escolha um setor existente e transfira seus bens antes de removê-lo." }, 409);
+    if ((e as any)?.code === "23503") return resposta({ erro: "Este cadastro possui vínculos. Troque ou desvincule os setores, aparelhos, gravadores, contatos, planos ou unidades consumidoras nas fichas relacionadas antes de remover ou alterar." }, 409);
     if ([422,503].includes((e as any)?.status)) return resposta({erro:(e as Error).message},(e as any).status);
     if ((e as any)?.code === "40001") return resposta({ erro: "Outra pessoa alterou este registro. Recarregue antes de salvar." }, 409);
     return resposta({ erro: "Não foi possível salvar ou carregar os dados. Tente novamente." }, 500);
