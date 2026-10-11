@@ -251,3 +251,33 @@ test('A2: PCP fora do ar na exportação é ok:false, e os arquivos já copiados
   assert.deepEqual(amb.contador.baixados,[],'o progresso dos arquivos ficou guardado');
   st=statusPCP(amb);assert.equal(st.ok,true,JSON.stringify(st));assert.equal(st.arquivos,3);
 });
+
+test('A2: o GitHub pede pausa (limite de gravações): a rodada para sem falha, fica "copiando" e a seguinte continua',async()=>{
+  const amb=ambiente(),f=await funcao(amb);
+  for(let i=1;i<=5;i++)amb.buckets['pcp-arquivos'].set('foto_'+i,foto(i));
+  // Depois de 2 arquivos, o GitHub responde o limite secundário (403 com retry-after).
+  const original=amb.fetchFalso;let gravados=0;
+  amb.fetchFalso=async(url,op={})=>{
+    if(String(url).includes('/contents/arquivos/')&&op.method==='PUT'&&++gravados>2)
+      return new Response(JSON.stringify({message:'You have exceeded a secondary rate limit.'}),{status:403,headers:{'retry-after':'60'}});
+    return original(url,op);
+  };
+  await rodada(f);
+  let st=statusPCP(amb);
+  assert.equal(st.ok,false);assert.equal(st.emAndamento,true,JSON.stringify(st));
+  assert.equal(st.arquivos,2);assert.match(st.erro,/pediu pausa/);
+  amb.fetchFalso=original;
+  await rodada(f);
+  st=statusPCP(amb);assert.equal(st.ok,true,JSON.stringify(st));assert.equal(st.arquivos,5);
+});
+
+test('A2: 403 do GitHub que não é limite (token sem acesso) é falha dita, não "copiando" para sempre',async()=>{
+  const amb=ambiente(),f=await funcao(amb);
+  amb.buckets['pcp-arquivos'].set('foto_1',foto(1));
+  const original=amb.fetchFalso;
+  amb.fetchFalso=async(url,op={})=>String(url).includes('/contents/arquivos/')&&op.method==='PUT'
+    ?new Response(JSON.stringify({message:'Resource not accessible by integration'}),{status:403}):original(url,op);
+  await rodada(f);
+  const st=statusPCP(amb);
+  assert.equal(st.ok,false);assert.equal(st.emAndamento,false);assert.match(st.erro,/1 arquivo não copiado/);assert.match(st.erro,/403/);
+});

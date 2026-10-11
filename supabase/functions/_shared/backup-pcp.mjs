@@ -154,7 +154,7 @@ export async function copiarArquivosIncremental({ buckets = BUCKETS_PCP, estado,
       else pendentes.push({ nome, ...a });
     }
   }
-  let copiados = 0, bytes = 0;
+  let copiados = 0, bytes = 0, pausou = false;
   for (const p of pendentes) {
     // O primeiro da rodada sempre vai: a rodada nunca termina sem andar.
     if (copiados + falhas.length > 0 && (copiados + falhas.length >= teto.arquivos || bytes >= teto.bytes || relogio() - inicio >= teto.ms)) break;
@@ -168,6 +168,9 @@ export async function copiarArquivosIncremental({ buckets = BUCKETS_PCP, estado,
       porBucket[p.nome].comCopia++;porBucket[p.nome].copiadosNaRodada++;
       copiados++;bytes += conteudo.length;
     } catch (e) {
+      // O destino pediu pausa (limite de gravações do GitHub): não é falha do
+      // arquivo; a rodada para e a seguinte continua dele.
+      if (e?.pausa === true) { pausou = true; break; }
       falhas.push({ bucket: p.nome, caminho: p.caminho, erro: String(e?.message || e).slice(0, 160) });
     }
   }
@@ -177,7 +180,7 @@ export async function copiarArquivosIncremental({ buckets = BUCKETS_PCP, estado,
   const manifesto = Object.fromEntries(buckets.map((b) => [b, Object.entries(novo.buckets[b])
     .map(([caminho, e]) => ({ caminho, tipo: e.tipo, bytes: e.bytes, sha256: e.sha256 }))
     .sort((x, y) => (x.caminho < y.caminho ? -1 : 1))]));
-  return { estado: novo, manifesto, porBucket, existem, comCopia, copiados, falhas, completo: comCopia === existem };
+  return { estado: novo, manifesto, porBucket, existem, comCopia, copiados, falhas, pausou, completo: comCopia === existem };
 }
 
 export function montarArquivoPCP({ nome, exportadoEm, exportacao, conferencia, copia }) {
@@ -208,7 +211,7 @@ export function statusPCP({ nome, em, copia, registros, gravado, erroGravacao })
   const erro = erroGravacao
     || (divergencias.length ? `A contagem não confere: ${divergencias.slice(0, 3).join("; ")}${divergencias.length > 3 ? ` (e mais ${divergencias.length - 3})` : ""}.` : "")
     || falhaArq
-    || (emAndamento ? `Cópia dos arquivos em andamento: ${copia.comCopia} de ${copia.existem}.` : "")
+    || (emAndamento ? `${copia.pausou ? "O GitHub pediu pausa nas gravações; a cópia continua na próxima rodada" : "Cópia dos arquivos em andamento"}: ${copia.comCopia} de ${copia.existem}.` : "")
     || (!registros ? "Os registros do PCP ainda não foram copiados hoje." : null);
   return {
     nome, em, ok, emAndamento, erro: ok ? null : erro,

@@ -420,15 +420,32 @@ async function copiarPorPartes(sys:any) {
    pura mora em _shared/backup-pcp.mjs. */
 const CHAVE_ARQUIVOS_PCP = "backup_arquivos_pcp";
 
+/* O LIMITE DO GITHUB NÃO É FALHA DO ARQUIVO. Ele aceita 80 gravações por
+   minuto e 500 por hora, e responde 429, ou 403 com retry-after, sem saldo ou
+   "rate limit" no texto. Isso vira pausa: a rodada para e a seguinte continua.
+   Outro 403 (token sem acesso) é falha de verdade, dita na tela. */
+async function limiteDoGithub(r: Response) {
+  if (r.status === 429) return true;
+  if (r.status !== 403) return false;
+  if (r.headers.get("retry-after") || r.headers.get("x-ratelimit-remaining") === "0") return true;
+  return /rate limit/i.test(await r.clone().text().catch(() => ""));
+}
 async function guardarArquivoPCP(bucket: string, sha256: string, bytes: Uint8Array) {
   if (!BUCKETS_PCP.includes(bucket) || !/^[a-f0-9]{64}$/.test(sha256)) throw new Error("Identificação de arquivo inválida.");
   const url = `https://api.github.com/repos/${GH_REPO}/contents/arquivos/${bucket}/${sha256}`;
   const headers = { Authorization: `Bearer ${GH_TOKEN}`, Accept: "application/vnd.github+json", "User-Agent": "impresilk-painel-backup" };
+  const pausa = () => Object.assign(new Error("O GitHub pediu pausa nas gravações."), { pausa: true });
   const existe = await buscarComRetentativa(url, { headers });
   if (existe.status === 404) {
     const enviado = await buscarComRetentativa(url, { method: "PUT", headers, body: JSON.stringify({ message: `backup de arquivo ${bucket}`, content: base64(bytes) }) });
-    if (!enviado.ok) throw new Error("falha ao guardar no repositório privado: " + enviado.status);
-  } else if (!existe.ok) throw new Error("falha ao conferir a cópia: " + existe.status);
+    if (!enviado.ok) {
+      if (await limiteDoGithub(enviado)) throw pausa();
+      throw new Error("falha ao guardar no repositório privado: " + enviado.status);
+    }
+  } else if (!existe.ok) {
+    if (await limiteDoGithub(existe)) throw pausa();
+    throw new Error("falha ao conferir a cópia: " + existe.status);
+  }
 }
 
 async function copiarPCP(sys: any) {
