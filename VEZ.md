@@ -75,4 +75,6 @@ Pedido do dono: qualquer item que receba manutencao precisa estar em Bens e cada
 
 Verificacao: 1014 testes de auditoria aprovados (83 condicionais de banco sem execucao nesta rodada), 610 testes de calculo/acesso aprovados, build e verificadores aprovados; lint sem erros, com os dois avisos anteriores. Navegador local conferiu ficha, formulario, item selecionado pelo mesmo ID e retorno ao cadastro, sem transbordamento em 319 px. A previa bloqueia gravacoes genericas: os testes de escrita usam handlers com banco/auth sinteticos, sem registros reais de teste.
 
-Publicacao dentro da evolucao autorizada do Patrimonio: painel-config 120 ativo e com todos os arquivos conferidos antes da liberacao da tela. Nenhuma migracao, concessao de acesso ou alteracao de cadastros reais. Confirmar os Actions e os arquivos oficiais da tela apos este commit. A vez permanece Codex.
+Publicacao dentro da evolucao autorizada do Patrimonio: painel-config 120 ativo e com todos os arquivos conferidos antes da liberacao da tela. Nenhuma migracao, concessao de acesso ou alteracao de cadastros reais. A vez permanece Codex.
+
+Conferencia oficial concluida: codigo bde1a7d; Pages 38164888473 e Functions 38164888478 com sucesso. painel-config 121 ativo e identico ao codigo validado apos o workflow. Pagina inicial e arquivos oficiais de Patrimonio/Manutencoes idênticos ao build local. Nao houve gravacao de teste em producao; os testes de handlers usam autenticacao/banco sinteticos.
