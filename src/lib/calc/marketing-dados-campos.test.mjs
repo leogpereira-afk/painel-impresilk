@@ -143,7 +143,7 @@ test('Google Ads: vídeo e Display de cada campanha, com o CPV em reais e o quar
   assert.equal(celulaDe(display, 0, 'Perdida por orçamento').texto, '35%');
   assert.equal(celulaDe(display, 0, 'Perdida por classificação').texto, AUSENTE);
   // Com alcance em alguma campanha, a tabela das campanhas ganha a coluna
-  // (e a campanha de Pesquisa fica com o traço, não com 0).
+  // (e a campanha de Pesquisa fica com o ponto de ausente, não com 0).
   const [campanhas] = tabelasDa(q, 'campanhas');
   const i = campanhas.linhas.findIndex((x) => x.celulas[0].texto === a.nome);
   assert.equal(celulaDe(campanhas, i, 'Pessoas alcançadas').texto, '5.400');
@@ -163,7 +163,9 @@ test('Google Ads: a configuração e o dia a dia de cada campanha, e os campos q
   const [q] = quadrosGoogleAds(l, ctx);
   const [config] = tabelasDa(q, 'config');
   const i = config.linhas.findIndex((x) => x.celulas[0].texto === c.nome);
-  assert.equal(celulaDe(config, i, 'Motivos da situação').texto, 'limitada pelo orçamento, CODIGO_NOVO_DO_GOOGLE', 'código novo aparece como veio, não some calado');
+  // Código novo não some calado (a linha diz que há outro motivo) e não
+  // aparece cru: a regra da revisão final (nunca o código da API na tela).
+  assert.equal(celulaDe(config, i, 'Motivos da situação').texto, 'limitada pelo orçamento, outro motivo', 'código novo vira "outro motivo", nunca o código cru');
   assert.equal(sem(celulaDe(config, i, 'Orçamento recomendado').texto), 'R$ 72,50');
   assert.equal(celulaDe(config, i, 'Entrega do orçamento').texto, 'padrão');
   // O dia a dia das campanhas vai na seção "Por dia", numa tabela própria.
@@ -232,7 +234,7 @@ test('Meta: o valor e o custo de cada ação aparecem no período, por campanha 
   const iLead = periodo.linhas.findIndex((x) => x.celulas[0].texto === 'leads');
   assert.match(sem(celulaDe(periodo, iLead, 'Custo por ação').texto), /^R\$ \d/);
   assert.equal(sem(celulaDe(periodo, iLead, 'Valor').texto), 'R$ 99,90');
-  // Por campanha: os números da Meta, e a ação sem valor com o traço.
+  // Por campanha: os números da Meta, e a ação sem valor com o ponto de ausente.
   const iCamp = porCampanha.linhas.findIndex((x) => x.celulas[0].texto === conta.campanhas[0].nome && x.celulas[1].texto === 'leads');
   assert.equal(sem(celulaDe(porCampanha, iCamp, 'Valor').texto), 'R$ 300,50');
   assert.equal(sem(celulaDe(porCampanha, iCamp, 'Custo por ação').texto), 'R$ 15,07');
@@ -340,7 +342,7 @@ test('o caso ruim: o valor de um atributo do Perfil que vem como objeto não vir
   assert.equal(valoresDoAtributo([{}]), null);
   const [, , , , dados] = quadrosPerfilEmpresa(ligacao(CHEIAS, 'google', 'google', 'perfil'), ctx);
   const [atributos] = tabelasDa(dados, 'atributos');
-  const w = atributos.linhas.findIndex((x) => x.celulas[0].texto === 'url whatsapp');
+  const w = atributos.linhas.findIndex((x) => x.celulas[0].texto === 'link do WhatsApp');
   assert.equal(celulaDe(atributos, w, 'Valor').texto, 'https://wa.me/5531900000000');
   assert.equal(celulaDe(atributos, w, 'Valor').link, 'https://wa.me/5531900000000');
   assert.equal(dataDoGoogle({ year: 2026, month: 10, day: 3 }), '2026-10-03');
@@ -368,7 +370,7 @@ test('GA4, Search Console e Perfil: os campos do FORMATO que não apareciam', ()
 });
 
 test('LinkedIn e Pinterest: os campos do FORMATO que não apareciam, e as métricas extras com nome de gente', () => {
-  assert.equal(textoExtras({ ampliacoes: 30, video_tempo_medio: 3200, METRICA_NOVA: 5, visitas_perfil: null }), 'ampliações 30, tempo médio de vídeo 3,2 s, METRICA_NOVA 5', 'a nova vai com o nome da API; a nula sai');
+  assert.equal(textoExtras({ ampliacoes: 30, video_tempo_medio: 3200, METRICA_NOVA: 5, visitas_perfil: null }), 'ampliações 30, tempo médio de vídeo 3,2 s, outra métrica 5', 'a nova vira "outra métrica" (nunca o nome da API); a nula sai');
   assert.equal(textoExtras(null), null);
   assert.equal(textoExtras({ visitas_perfil: 2 }, { sem: ['visitas_perfil'] }), null);
   const li = quadrosLinkedin(ligacao(CHEIAS, 'linkedin', 'linkedin'), ctx);

@@ -6,6 +6,12 @@
  * já na linha daquela fonte (?fonte=). O estado é o mesmo da linha de lá
  * (faixaDasFontes usa o situacaoDaFonte), e as duas telas nunca discordam.
  *
+ * O SELO LEVA O RÓTULO CURTO (revisão de 12/10): "Aguardando a coleta"
+ * (185 px) quebrava a faixa em duas linhas a 1280 px. O selo diz "Aguardando"
+ * (faixaDasFontes, `curto`), e o estado inteiro vai na dica (title) e no
+ * aria-label. No celular os selos vão numa grade regular (conexoes.css), com
+ * o nome em cima e o estado embaixo, e não mais soltos, um por linha.
+ *
  * DISCRETA NA FALHA: se a ação "fontes" falhar (ou a função ainda for a
  * antiga), a faixa vira uma frase pequena com "Tentar de novo", e o resto da
  * Visão geral segue de pé.
@@ -38,21 +44,21 @@ export default function FaixaFontes() {
       <h2 id="titulo-fontes-geral" className="mkt-faixa-fontes-titulo font-display font-semibold text-slate-900">
         Fontes
       </h2>
-      {/* Os selos são irmãos do título na mesma fileira que quebra: no
-          celular o título ocupa só o começo da primeira linha, e os selos
-          usam a largura toda (numa lista ao lado do título, a 375px, eram
-          cinco linhas de um selo só). */}
+      {/* Os selos são irmãos do título: do sm para cima, na mesma fileira
+          (uma linha só a 1280 px); no celular, numa grade regular abaixo
+          do título (conexoes.css). O rótulo do selo é o curto; o inteiro vai
+          na dica e no aria-label. */}
       {itens && itens.length > 0 ? (
         itens.map((i) => (
           <Link
             key={i.fonte}
             to={`/configuracoes?secao=marketing&fonte=${encodeURIComponent(i.fonte)}`}
             className="mkt-fonte-selo alvo-44"
-            title={`${i.info.texto} Abre as conexões em Configurações.`}
+            title={`${i.rotulo}: ${i.info.rotulo}. ${i.info.texto} Abre as conexões em Configurações.`}
             aria-label={`${i.rotulo}: ${i.info.rotulo}. Abrir as conexões`}
           >
-            <span className="truncate font-medium text-slate-800">{i.rotulo}</span>
-            <span className={clsx('truncate', TEXTO[i.info.tom] || TEXTO.neutral)}>{i.info.rotulo}</span>
+            <span className="mkt-fonte-selo-nome truncate font-medium text-slate-800">{i.rotulo}</span>
+            <span className={clsx('mkt-fonte-selo-estado truncate', TEXTO[i.info.tom] || TEXTO.neutral)}>{i.curto}</span>
           </Link>
         ))
       ) : itens ? (

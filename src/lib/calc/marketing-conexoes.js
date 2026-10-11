@@ -29,17 +29,21 @@
 import { MOTIVOS, PROVEDORES } from '../../../supabase/functions/_shared/mkt-oauth.mjs';
 import { dataCurta, dataLonga } from '../format.js';
 import { paraDia } from './marketing-canais.js';
+import { TRAVA_COLETA_MS } from '../../../supabase/functions/_shared/mkt-fontes/info.mjs';
 import {
   FONTES,
+  ROTULO_CURTO,
   ROTULO_FONTE,
   ROTULO_PARTE,
   acoesDaFonte,
-  estadoDeAntesDaConexao,
+  conexaoDesconhecida,
   fmtDataHora,
   infoEstado,
   motivoLegivel,
+  retratoDeAntes,
   rotuloParte,
   secretsDaFonte,
+  semConexao,
   situacaoDaFonte,
 } from './marketing-fontes.js';
 
@@ -86,6 +90,10 @@ function lerParametro(params, chave) {
  *    certo; a tela confirma uma vez, sozinha);
  *  - {fonte, nome, tipo: 'erro', motivo}: r=erro; motivo é o CÓDIGO (ou null
  *    quando o que veio não tem cara de código);
+ *  - {fonte: null, nome: null, tipo: 'erro', motivo}: r=erro SEM "conexao".
+ *    É a volta do state que não conferiu (vencido, adulterado): o servidor
+ *    não sabe de qual fonte era e não manda. Antes ela sumia sem aviso
+ *    nenhum (revisão de 12/10); agora vira o aviso genérico;
  *  - {fonte, nome, tipo: 'sem_confirmacao'}: r=ok sem nonce válido. O
  *    servidor do protocolo novo não manda isso; pode ser o servidor antigo
  *    (que já gravava a conexão na volta) ou um link montado à mão. A tela
@@ -94,12 +102,14 @@ function lerParametro(params, chave) {
 export function lerVoltaDoOAuth(params) {
   const fonte = lerParametro(params, 'conexao');
   const r = lerParametro(params, 'r');
+  const motivoDaUrl = () => {
+    const motivo = lerParametro(params, 'motivo');
+    return motivo && CODIGO.test(motivo) ? motivo : null;
+  };
+  if (fonte == null && r === 'erro') return { fonte: null, nome: null, tipo: 'erro', motivo: motivoDaUrl() };
   if (!fonte || !Object.hasOwn(PROVEDORES, fonte) || (r !== 'ok' && r !== 'erro')) return null;
   const nome = PROVEDORES[fonte].nome;
-  if (r === 'erro') {
-    const motivo = lerParametro(params, 'motivo');
-    return { fonte, nome, tipo: 'erro', motivo: motivo && CODIGO.test(motivo) ? motivo : null };
-  }
+  if (r === 'erro') return { fonte, nome, tipo: 'erro', motivo: motivoDaUrl() };
   const nonce = lerParametro(params, 'confirmar');
   return nonce && NONCE.test(nonce) ? { fonte, nome, tipo: 'confirmar', nonce } : { fonte, nome, tipo: 'sem_confirmacao' };
 }
@@ -208,9 +218,12 @@ export const confirmacaoTransitoria = (e) => !Number.isInteger(e?.status) || e.s
  *  etapa (confirmando | ok | recusada | falhou), o `motivo` (código) e a
  *  `mensagem` do erro. tom: ok, erro, aviso ou neutro. */
 export function avisoDaVolta(volta, motivos) {
-  if (!objeto(volta) || !Object.hasOwn(PROVEDORES, volta.fonte ?? '')) return null;
-  const nome = PROVEDORES[volta.fonte].nome;
+  if (!objeto(volta)) return null;
   const generico = MOTIVOS.troca_falhou;
+  // A volta sem fonte (o state não conferiu): a frase do código, sem nome.
+  if (volta.fonte == null && volta.tipo === 'erro') return { tom: 'erro', texto: `A conexão não foi feita. ${textoDoMotivo(volta.motivo, motivos) ?? generico}` };
+  if (!Object.hasOwn(PROVEDORES, volta.fonte ?? '')) return null;
+  const nome = PROVEDORES[volta.fonte].nome;
   // "A conexão ... não foi feita", e não "não conectado": numa reconexão
   // recusada, a conexão de antes continua valendo (a linha mostra).
   const naoFeita = `A conexão do ${nome} não foi feita.`;
@@ -252,8 +265,9 @@ function fmtDia(iso, hoje) {
 }
 
 // A fonte está parada inteira por um motivo de AGORA (sem os secrets, ou
-// por OAuth e sem a conexão)? Aí o estado guardado de cada parte é velho.
-const paradaInteira = (f) => f.configurado === false || (f.oauth === true && !objeto(f.conexao));
+// por OAuth e sem a conexão, sabido)? Aí o estado guardado de cada parte é
+// velho. A conexão desconhecida (o cofre não foi lido) não para nada.
+const paradaInteira = (f) => f.configurado === false || semConexao(f);
 
 /** Até este tanto de partes a linha mostra todas, cada uma com o estado; com
  *  mais (o site tem 8, o Google Ads 17), só as que pedem atenção e a conta
@@ -288,7 +302,7 @@ export function motivoDaParte(p) {
  *    (o estado delas é da situação anterior; a regra é a do fontesDoCanal). */
 export function partesDaLinha(f) {
   const vazio = { lista: [], funcionando: 0, total: 0, resumidas: false };
-  if (!objeto(f) || !objeto(f.partes) || paradaInteira(f) || estadoDeAntesDaConexao(f)) return vazio;
+  if (!objeto(f) || !objeto(f.partes) || paradaInteira(f) || retratoDeAntes(f)) return vazio;
   const ordem = Object.keys(ROTULO_PARTE[f.fonte] || {});
   const pos = (k) => (ordem.includes(k) ? ordem.indexOf(k) : ordem.length);
   const todas = Object.entries(f.partes)
@@ -337,16 +351,23 @@ export function detalheDaLinha(f, papel) {
     if (obrigatorios.length === 1) return `Precisa de ${obrigatorios[0]} nos Secrets do Supabase. Veja Como ligar.`;
     return `Precisa de ${listaHumana(obrigatorios)} nos Secrets do Supabase; falta ao menos um. Veja Como ligar.`;
   }
+  // O cofre não foi lido agora: o selo é o da última coleta, e a linha diz
+  // que a conexão não foi conferida (em vez de "falta conectar").
+  if (conexaoDesconhecida(f)) return 'Não deu para conferir a conexão agora; o estado é o da última coleta.';
   const s = situacaoDaFonte(f);
   switch (s.chave) {
     case 'falta_conectar':
       return gestao ? 'Configurado. Falta clicar em Conectar e aceitar na tela do provedor.' : 'Configurado. Falta a gestão do Marketing conectar.';
     case 'reconectar':
+      // A fonte por secret (o token da Meta, a chave do Google Ads) não tem
+      // Reconectar: quem resolve troca o secret (o aviso diz qual).
+      if (f.oauth !== true) return 'A credencial cadastrada parou de valer. Troque o secret no Supabase (veja o aviso e Como ligar).';
       return gestao ? 'A conexão parou de valer. Clique em Reconectar.' : 'A conexão parou de valer. A gestão do Marketing precisa reconectar.';
-    case 'erro': {
-      const e = texto(Array.isArray(f.ultimas) ? f.ultimas[0]?.erro : null);
-      return `A última coleta falhou${e ? `: ${e.replace(/[.\s]+$/, '')}.` : '.'} O que já estava na tela continua.`;
-    }
+    case 'erro':
+      // Frase fixa, para todos: o erro técnico do diário ("ga4 lote:
+      // servidor (HTTP 503); semanas não gravadas (banco: 40001)") não é para
+      // gente (revisão de 12/10). A gestão o tem na dica (detalheTecnico).
+      return 'A última coleta falhou. O que já estava na tela continua, e a próxima coleta tenta de novo.';
     case 'aguardando_coleta':
     case 'sem_coleta':
     case 'desconhecido':
@@ -372,13 +393,28 @@ export function opcionaisDaFonte(f) {
     .map((o) => ({ nome: o.nome, cadastrado: o.cadastrado === true }));
 }
 
+/** O texto técnico do último erro da coleta (o diário: "ga4 lote: servidor
+ *  (HTTP 503)"), SÓ para a gestão, e só quando o estado é "erro": vai na
+ *  dica da frase da linha, para quem for consertar. Os outros papéis: null. */
+export function detalheTecnicoDaLinha(f, papel) {
+  if (papel !== 'gestao' || !objeto(f) || situacaoDaFonte(f).chave !== 'erro') return null;
+  const e = texto(Array.isArray(f.ultimas) ? f.ultimas[0]?.erro : null);
+  return e ? `Detalhe técnico da última coleta: ${e}` : null;
+}
+
 /** Tudo o que a linha de uma fonte desenha em Conexões, já pronto:
  *  {fonte, rotulo, nome, oauth, situacao, conta, conectado, coleta, partes,
- *   detalhe, avisos, acoes, opcionais}. Fonte inválida devolve null. */
+ *   detalhe, detalheTecnico, avisos, acoes, opcionais}. Fonte inválida
+ *  devolve null. */
 export function linhaDaConexao(f, papel, hoje) {
   if (!objeto(f) || typeof f.fonte !== 'string' || !f.fonte) return null;
   const situacao = situacaoDaFonte(f);
   const dia = f.oauth === true && objeto(f.conexao) ? fmtDia(f.conexao.conectadoEm, hoje) : null;
+  const partes = partesDaLinha(f);
+  // O aviso que repete a frase de uma parte que a linha já mostra não vira
+  // "1 aviso" (revisão de 12/10: o Google Ads dizia o mesmo motivo duas
+  // vezes, na parte e no aviso).
+  const ditas = new Set(partes.lista.map((x) => x.motivo).filter(Boolean));
   return {
     fonte: f.fonte,
     rotulo: rotuloDaFonte(f),
@@ -386,13 +422,14 @@ export function linhaDaConexao(f, papel, hoje) {
     oauth: f.oauth === true,
     situacao,
     conta: texto(f.conta) ?? (objeto(f.conexao) ? texto(f.conexao.conta) : null),
-    conectado: dia ? `conectado em ${dia}` : null,
+    conectado: dia ? `conectado em ${dia}` : conexaoDesconhecida(f) ? 'conexão não conferida agora' : null,
     coleta: textoDaColeta(f, hoje),
-    partes: partesDaLinha(f),
+    partes,
     detalhe: detalheDaLinha(f, papel),
+    detalheTecnico: detalheTecnicoDaLinha(f, papel),
     // Avisos de antes da conexão falam da situação anterior: não vão como
     // atuais (situacaoDaFonte, avisosVelhos).
-    avisos: situacao.avisosVelhos || !Array.isArray(f.avisos) ? [] : f.avisos.map(texto).filter(Boolean),
+    avisos: situacao.avisosVelhos || !Array.isArray(f.avisos) ? [] : f.avisos.map(texto).filter((a) => a && !ditas.has(a)),
     acoes: acoesDaFonte(f, papel),
     opcionais: opcionaisDaFonte(f),
   };
@@ -416,14 +453,20 @@ export function botoesDaLinha(acoes, chaveSituacao) {
 
 /* ------------------------------------------------- a faixa da Visão geral -- */
 
-/** Um selo por fonte, na ordem do servidor: [{fonte, rotulo, info}]. O
- *  estado é o mesmo da linha de Conexões (situacaoDaFonte): a faixa e a
- *  linha nunca discordam. Sem retrato, null (a tela diz que não leu). */
+/** Um selo por fonte, na ordem do servidor: [{fonte, rotulo, info, curto}].
+ *  O estado é o mesmo da linha de Conexões (situacaoDaFonte): a faixa e a
+ *  linha nunca discordam. `curto` é o rótulo do selo (ROTULO_CURTO: com
+ *  "Aguardando a coleta" os seis não cabiam numa linha a 1280 px); o
+ *  inteiro (info.rotulo) vai na dica e no aria-label. Sem retrato, null (a
+ *  tela diz que não leu). */
 export function faixaDasFontes(retrato) {
   if (!objeto(retrato) || !Array.isArray(retrato.lista)) return null;
   return retrato.lista
     .filter((f) => objeto(f) && typeof f.fonte === 'string' && f.fonte)
-    .map((f) => ({ fonte: f.fonte, rotulo: rotuloDaFonte(f), info: situacaoDaFonte(f) }));
+    .map((f) => {
+      const info = situacaoDaFonte(f);
+      return { fonte: f.fonte, rotulo: rotuloDaFonte(f), info, curto: ROTULO_CURTO[info.chave] ?? info.rotulo };
+    });
 }
 
 /* -------------------------------------------------- as respostas dos botões -- */
@@ -464,12 +507,17 @@ export function perguntaDeDesconectar(fonte) {
 }
 
 /** O aviso depois do Desconectar: {tom, texto}. A frase do servidor
- *  (`aviso`) vai junto; revogação que o Google não confirmou é tom de aviso
- *  (a conexão saiu do Painel, mas vale tirar o acesso na Conta Google). */
+ *  (`aviso`) vai junto. Tom de atenção, e não de "deu certo", quando falta
+ *  um passo: a revogação que o Google não confirmou (vale tirar o acesso na
+ *  Conta Google) e o retrato do LinkedIn que não saiu do cache (retratoFicou:
+ *  o aviso manda desconectar de novo, e o botão continua na linha). O
+ *  servidor antigo não manda retratoFicou: fora do Google, todo aviso é um
+ *  passo que falta. */
 export function avisoDoDesconectar(fonte, r) {
   const nome = PROVEDORES[fonte]?.nome || ROTULO_FONTE[fonte] || String(fonte);
   const extra = texto(r?.aviso);
-  return { tom: r?.revogado === false ? 'aviso' : 'ok', texto: `${nome} desconectado.${extra ? ` ${extra}` : ''}` };
+  const falta = r?.revogado === false || r?.retratoFicou === true || (fonte !== 'google' && !!extra);
+  return { tom: falta ? 'aviso' : 'ok', texto: `${nome} desconectado.${extra ? ` ${extra}` : ''}` };
 }
 
 /* ---------------------------------------------------- o login e a pessoa -- */
@@ -482,6 +530,88 @@ export function semContaNoPainel(pessoas, idPessoa) {
   return pessoas.find((p) => p?.idPessoa === idPessoa)?.temContaPainel === false;
 }
 
-/** O aviso de que o login não está ligado a uma pessoa do RH: só para a
- *  gestão, e só quando o servidor disse (semIdentidade === true). */
-export const avisarSemIdentidade = (painel) => !!painel && painel.papel === 'gestao' && painel.semIdentidade === true;
+/** O aviso de que o login não está ligado a uma pessoa do RH: quando o
+ *  servidor disse (semIdentidade === true), EM QUALQUER PAPEL. O servidor só
+ *  manda true para quem não é a direção, e aí o papel é sempre o padrão
+ *  (marketing): exigir "gestao" aqui fazia o aviso nunca aparecer (revisão
+ *  de 12/10). */
+export const avisarSemIdentidade = (painel) => !!painel && painel.semIdentidade === true;
+
+/** A frase do aviso: o que a falta da ligação muda para quem lê (o filtro
+ *  Minhas e o papel dado à pessoa, que não alcança este login). */
+export const TEXTO_SEM_IDENTIDADE =
+  'Seu login não está ligado a uma pessoa do RH: o filtro Minhas não aparece, e vale o papel padrão do Marketing, e não um papel dado a você. Peça à direção para ligar o login à sua ficha.';
+
+/* ------------------------------------------ a rolagem e a volta da página -- */
+
+/** A página de Configurações rola até o grupo pedido (?secao=). Quando a
+ *  URL leva a uma LINHA de Conexões (?fonte=, o selo da faixa) ou é a volta
+ *  do Conectar (r=), quem rola é o bloco Conexões, até a linha ou até o
+ *  aviso, e a página só abre o grupo: a rolagem suave do grupo chegava
+ *  depois e desfazia a ida até a linha (revisão de 12/10). */
+export function conexoesCuidamDaRolagem(params) {
+  if (!params || typeof params.has !== 'function') return false;
+  return params.has(PARAMETRO_FOCO) || params.has('r');
+}
+
+/** O "ocupado" dos botões depois que a página volta do cache do navegador
+ *  (Voltar depois do Conectar): o Conectar e o Reconectar que levaram para o
+ *  provedor não estão mais abrindo nada, e o botão não pode ficar preso em
+ *  "Abrindo...". O resto (uma coleta em andamento) fica. */
+export function ocupadoDepoisDeVoltar(ocupado) {
+  if (!objeto(ocupado)) return {};
+  return Object.fromEntries(Object.entries(ocupado).filter(([, o]) => o !== 'conectar' && o !== 'reconectar'));
+}
+
+/* --------------------------------------- a trava de 2 minutos da coleta -- */
+
+/** As travas do "Atualizar agora" depois de um pedido: {fonte: até (ms)}.
+ *  Coleta aceita: o servidor marcou 2 minutos (TRAVA_COLETA_MS) para todo
+ *  mundo; recusa 429: o que o servidor disse que falta. O resto não trava.
+ *  Devolve um objeto novo (o de entrada não muda). */
+export function travasDepois(travas, resultados, agora) {
+  const novas = { ...(objeto(travas) ? travas : {}) };
+  for (const r of Array.isArray(resultados) ? resultados : []) {
+    if (!objeto(r) || typeof r.fonte !== 'string') continue;
+    if (r.ok === true) novas[r.fonte] = agora + TRAVA_COLETA_MS;
+    else if (r.status === 429 && Number.isFinite(r.aguardarSegundos) && r.aguardarSegundos > 0) novas[r.fonte] = agora + r.aguardarSegundos * 1000;
+  }
+  return novas;
+}
+
+/** Quantos segundos faltam na trava da fonte (0: livre). */
+export function segundosDaTrava(travas, fonte, agora) {
+  const ate = objeto(travas) && Number.isFinite(travas[fonte]) ? travas[fonte] : 0;
+  return ate > agora ? Math.ceil((ate - agora) / 1000) : 0;
+}
+
+/** O rótulo do botão travado: "Atualizar em 95 s". */
+export const rotuloDaTrava = (segundos) => `Atualizar em ${segundos} s`;
+
+/** O aviso do "Atualizar agora" de várias fontes (a sub-aba Dados): {tom,
+ *  texto}, dizendo o que atualizou, o que continua no servidor, o que
+ *  espera a trava (as `travadas`, puladas aqui, e as recusadas com 429) e o
+ *  que falhou. Só a falha é erro: o caso misto (uma fonte atualizou, outra
+ *  espera) não pinta tudo de vermelho (revisão de 12/10).
+ *  - resultados: os de atualizarFontes;
+ *  - travadas: [{fonte, segundos}] das que nem foram pedidas;
+ *  - nome(fonte): o rótulo para gente. */
+export function resumoDaAtualizacao(resultados, { travadas = [], nome = (f) => ROTULO_FONTE[f] ?? String(f) } = {}) {
+  const lista = Array.isArray(resultados) ? resultados.filter(objeto) : [];
+  const prontas = lista.filter((r) => r.ok && !r.andando).map((r) => nome(r.fonte));
+  const andando = lista.filter((r) => r.ok && r.andando).map((r) => nome(r.fonte));
+  const esperam = [
+    ...(Array.isArray(travadas) ? travadas : []).filter(objeto).map((t) => ({ fonte: t.fonte, segundos: t.segundos })),
+    ...lista.filter((r) => !r.ok && r.status === 429).map((r) => ({ fonte: r.fonte, segundos: Number.isFinite(r.aguardarSegundos) ? r.aguardarSegundos : null })),
+  ];
+  const falhas = lista.filter((r) => !r.ok && r.status !== 429);
+  const frases = [];
+  if (prontas.length) frases.push(`Dados atualizados: ${listaHumana(prontas)}.`);
+  if (andando.length) frases.push(`A coleta de ${listaHumana(andando)} continua no servidor; os números entram aqui sozinhos em instantes.`);
+  // "Nome: ..." (e não "o Site foi..."): nenhuma frase precisa de artigo.
+  for (const e of esperam) frases.push(`${nome(e.fonte)}: uma coleta por fonte a cada 2 minutos${e.segundos ? `; dá para pedir de novo em ${e.segundos} s` : ''}.`);
+  for (const f of falhas) frases.push(`${nome(f.fonte)}: ${texto(f.erro)?.replace(/[.\s]+$/, '') ?? 'não foi possível atualizar'}.`);
+  const algumBom = prontas.length + andando.length > 0;
+  const tom = falhas.length && !algumBom && !esperam.length ? 'erro' : falhas.length || esperam.length ? 'aviso' : 'ok';
+  return { tom, texto: frases.join(' ') };
+}

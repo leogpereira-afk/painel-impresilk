@@ -52,7 +52,8 @@
  *    dois vêm juntos, ou nenhum (parte ok). Códigos do quadro: falhou,
  *    sem_tempo, grande_demais, limite_segundo, sem_resposta, recusada,
  *    parada (a frase diz por que a coleta parou). Na parte "conta", quando a
- *    coleta nem passou da porta: sem_secret, json_invalido, chave_formato,
+ *    coleta nem passou da porta (a parte leva o MESMO estado da fonte, e a
+ *    frase não se repete em "avisos"): sem_secret, json_invalido, chave_formato,
  *    chave_recusada, token_recusado, token_pedido_invalido, token_sem_valor,
  *    api_desativada, projeto_sem_aprovacao, sem_contas, sem_acesso_na_conta,
  *    id_cliente_invalido, conta_desativada, sem_conta_comum, cota,
@@ -1235,7 +1236,10 @@ class Coleta {
     let r = await this.buscar(this.cliente, this.login, gaql, nome);
     if (!r.ok && reserva && classificarErro(r.resp).tipo === 'consulta' && this.restante() >= MARGEM_MS) {
       const cod = classificarErro(r.resp).codigo;
-      this.avisar(`A API recusou parte dos campos de ${rotulo}${cod ? ` (${cod})` : ''}; a coleta seguiu com menos campos.`);
+      // O nome do erro da API (UNRECOGNIZED_FIELD...) vai só para o diário: o
+      // aviso é para gente.
+      this.ctx.log?.(`google_ads: ${nome} recusou campos${cod ? ` (${cod})` : ''}; tentou a reserva`);
+      this.avisar(`A API recusou parte dos campos de ${rotulo}; a coleta seguiu com menos campos.`);
       r = await this.buscar(this.cliente, this.login, reserva, `${nome}_reserva`);
     }
     if (r.ok) {
@@ -1275,7 +1279,8 @@ class Coleta {
     }
     this.transitorios = 0;
     this.status[nome] = 'recusada';
-    this.avisar(`A API recusou a consulta de ${rotulo}${e.codigo ? ` (${e.codigo})` : ''}; esses números ficaram sem dado.`);
+    this.ctx.log?.(`google_ads: ${nome} recusada${e.codigo ? ` (${e.codigo})` : ''}`);
+    this.avisar(`A API recusou a consulta de ${rotulo}; esses números ficaram sem dado.`);
   }
   /** Registra a parte: com valor, ok e entra em "dados"; sem valor, erro e a
    *  coletora mantém a anterior. `nomes` são os blocos essenciais dela. */
@@ -1293,11 +1298,16 @@ class Coleta {
   }
 }
 
-/** Fecha a coleta que não passou da porta (sem credencial, sem acesso...). */
+/** Fecha a coleta que não passou da porta (sem credencial, sem acesso...).
+ *  A frase do motivo vai UMA vez, na parte "conta", que a linha da fonte
+ *  mostra com o estado; repetida em "avisos", a tela dizia a mesma coisa
+ *  duas vezes (uma delas no "1 aviso"). E a parte leva o estado da FONTE:
+ *  "Conta: Erro na coleta" ao lado do selo "Aguardando aprovação" se
+ *  contradizia (revisão de 12/10). O `extra` (o e-mail da conta de serviço,
+ *  que é o que o Léo precisa copiar) continua aviso. */
 function encerrar(c, estado, codigo, extra = null) {
-  c.avisar(AVISO[codigo] ?? AVISO.outro);
   if (extra) c.avisar(extra);
-  c.partes.conta = { estado: 'erro', motivo: fraseDoMotivo(codigo), codigo, coletado_em: null };
+  c.partes.conta = { estado, motivo: fraseDoMotivo(codigo), codigo, coletado_em: null };
   c.ctx.log?.(`google_ads: ${estado} (${codigo}), ${c.chamadas} chamadas`);
   return { estado, conta: null, partes: c.partes, dados: c.dados, semanas: [], publicacoes: [], avisos: c.avisos };
 }

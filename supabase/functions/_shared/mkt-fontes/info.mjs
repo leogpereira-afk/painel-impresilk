@@ -59,6 +59,16 @@ export const SECRETS_OPCIONAIS_PADRAO = Object.freeze({
 });
 
 export const ESTADOS =Object.freeze(['ok', 'parcial', 'falta_configurar', 'falta_conectar', 'reconectar', 'aguardando_aprovacao', 'erro']);
+// O estado que só a PORTA escreve (nunca o conector, nunca o cache): a
+// última coleta parou porque faltava um secret, e o secret já existe. O
+// retrato é de antes do cadastro; os números chegam na próxima coleta (ver
+// fonteParaTela). A tela já conhece este estado (infoEstado).
+export const AGUARDANDO_COLETA = 'aguardando_coleta';
+
+// Os códigos de parte que querem dizer "este secret faltava" (o FORMATO de
+// cada conector): parte com um deles foi coletada SEM o secret, por
+// definição, e fica velha quando ele é cadastrado.
+const CODIGO_DO_SECRET = Object.freeze({ sem_chave: 'GOOGLE_API_KEY', sem_token: 'META_TOKEN', sem_secret: 'GOOGLE_ADS_SA_JSON' });
 
 export const CHAVE_DIARIO = 'mkt_coleta_diario';
 // Os pedidos do botão "Atualizar agora", para a trava de 2 minutos. Quem
@@ -105,6 +115,15 @@ const objeto = (x) => !!x && typeof x === 'object' && !Array.isArray(x);
 const textoOuNulo = (v, max = 300) => (typeof v === 'string' && v.trim() ? v.trim().slice(0, max) : null);
 const dataOuNula = (v) => (typeof v === 'string' && Number.isFinite(Date.parse(v)) ? v : null);
 
+/** Os secrets que FALTAVAM quando a última coleta rodou, como a coletora
+ *  anotou no retrato (só os NOMES): {obrigatorios, opcionais}, cada um uma
+ *  lista, ou null quando o retrato não anotou (gravado antes de 12/10/2026).
+ *  Lista com nome fora da régua vale como "não anotou". */
+export function secretsQueFaltavam(valorCache) {
+  const ler = (v) => (Array.isArray(v) && v.every(nomeDeSecretValido) ? [...new Set(v)] : null);
+  return { obrigatorios: ler(valorCache?.faltavam), opcionais: ler(valorCache?.opcionaisFaltavam) };
+}
+
 /** As últimas execuções de uma fonte, da mais nova para a mais velha. */
 export function execucoesDaFonte(diario, fonte) {
   const lista = objeto(diario) && Array.isArray(diario.execucoes) ? diario.execucoes : [];
@@ -136,9 +155,11 @@ export function tirarRestrito(valor, fundo = 0) {
  *  painel-marketing). Campo a campo, nunca um espalhamento do que veio do
  *  cofre ou do cache: o que não está escrito aqui não sai.
  *
- *  - estado: o do cache, menos em dois casos em que a verdade de AGORA
+ *  - estado: o do cache, menos em três casos em que a verdade de AGORA
  *    manda: sem os secrets é "falta_configurar"; fonte por OAuth sem
- *    conexão no cofre é "falta_conectar". Nunca coletada: null.
+ *    conexão no cofre é "falta_conectar"; a coleta que parou por falta de um
+ *    secret que agora existe é "aguardando_coleta" (ver abaixo). Nunca
+ *    coletada: null.
  *  - dados: o retrato da fonte, no formato da seção FORMATO de cada
  *    conector (_shared/mkt-fontes/<fonte>.mjs).
  *  - conexao: só para Google, LinkedIn e Pinterest, e só os campos sem
@@ -153,6 +174,22 @@ export function tirarRestrito(valor, fundo = 0) {
  *    retrato. Sem "dados" também não sai "restrito", para papel nenhum.
  *  - opcionais: [{nome, cadastrado}] dos secrets opcionais (só o NOME e se
  *    existe no servidor; o valor nunca sai daqui).
+ *  - conexaoDesconhecida (12/10/2026): true quando a fonte é por OAuth e a
+ *    leitura das conexões (painel_mkt_conexao_info) falhou. Aí a conexão
+ *    vai null porque NÃO SE SABE, e não porque falta: a tela não pode
+ *    deduzir "falta conectar" (nem esconder o Atualizar agora).
+ *  - iniciadoEm (12/10/2026): quando COMEÇOU a coleta que gravou o retrato
+ *    (a coletora carimba; coletadoEm é o fim). Uma conexão feita durante a
+ *    coleta é mais nova que ela, mesmo que a coleta termine depois.
+ *  - SECRET CADASTRADO DEPOIS DA COLETA (12/10/2026): a coletora anota no
+ *    retrato os secrets que faltavam (secretsQueFaltavam). Se a coleta parou
+ *    por falta de um secret (falta_configurar) e agora ele existe, o estado
+ *    vira "aguardando_coleta" (AGUARDANDO_COLETA) e os avisos daquela coleta
+ *    saem: todos falavam da falta. Também sai o aviso que cita um secret que
+ *    faltava e agora existe, e a parte coletada sem ele (o código de falta,
+ *    ou a frase com o nome) vira "aguardando_coleta". Um falta_configurar com
+ *    os secrets todos presentes na coleta (o JSON da conta de serviço
+ *    torto, a API desligada) é verdade de agora e fica como veio.
  */
 export function fonteParaTela(fonte, { linha = null, conexaoInfo = null, infoOk = true, diario = null, env = () => null, oauth = false, secretsExtras = [], verRestrito = false, leve = false, agora = Date.now() } = {}) {
   const valor = objeto(linha?.valor) ? linha.valor : null;
@@ -162,6 +199,9 @@ export function fonteParaTela(fonte, { linha = null, conexaoInfo = null, infoOk 
   const configurado = [...obrigatorios].every((n) => !!env(n));
   // O opcional que também é obrigatório da fonte não aparece duas vezes.
   const opcionais = opcionaisDaFonte(fonte, valor).filter((n) => !obrigatorios.has(n)).map((nome) => ({ nome, cadastrado: !!env(nome) }));
+  // Os secrets que faltavam na coleta e agora existem (só os nomes).
+  const faltavam = secretsQueFaltavam(valor);
+  const chegaram = [...(faltavam.obrigatorios ?? []), ...(faltavam.opcionais ?? [])].filter((n) => !!env(n));
   const conexao = oauth && objeto(conexaoInfo)
     ? {
       conectadoEm: dataOuNula(conexaoInfo.conectado_em),
@@ -174,19 +214,45 @@ export function fonteParaTela(fonte, { linha = null, conexaoInfo = null, infoOk 
     : null;
   let estado = valor && ESTADOS.includes(valor.estado) ? valor.estado : null;
   let avisos = valor && Array.isArray(valor.avisos) ? valor.avisos.filter((a) => typeof a === 'string').slice(0, 30) : [];
+  // A coleta parou na porta por falta de secret, e ele já foi cadastrado.
+  // Retrato sem a anotação (de antes de 12/10/2026) conta como parado por
+  // falta quando a fonte tem secret obrigatório (o site não tem: o
+  // falta_configurar dele é o endereço do canal); a coleta seguinte, que
+  // anota, desfaz a dúvida.
+  const configuradoDepois = configurado && estado === 'falta_configurar'
+    && (faltavam.obrigatorios === null ? obrigatorios.size > 0 : faltavam.obrigatorios.length > 0);
   if (!configurado) { estado = 'falta_configurar'; avisos = []; }
   else if (oauth && infoOk && !conexao) { estado = 'falta_conectar'; avisos = []; }
+  else if (configuradoDepois) { estado = AGUARDANDO_COLETA; avisos = []; }
+  // O aviso que cita um secret que faltava na coleta e agora existe só
+  // podia falar da falta dele (sem o secret, nem dava para ele estar
+  // errado): sai.
+  else if (chegaram.length) avisos = avisos.filter((a) => !chegaram.some((n) => a.includes(n)));
   const partes = {};
+  // Os secrets que uma parte pode ter perdido: os dos códigos de falta e os
+  // que faltavam na coleta.
+  const candidatos = [...new Set([...Object.values(CODIGO_DO_SECRET), ...chegaram])];
   if (valor && objeto(valor.partes)) {
     for (const [nome, p] of Object.entries(valor.partes)) {
       if (!objeto(p)) continue;
+      const codigo = typeof p.codigo === 'string' && /^[a-z0-9_]{1,60}$/.test(p.codigo) ? p.codigo : null;
+      const motivo = textoOuNulo(p.motivo, 300);
+      let estadoParte = ESTADOS.includes(p.estado) ? p.estado : 'erro';
+      // A parte que a coleta pulou por falta de um secret que agora existe:
+      // a de uma coleta parada inteira na porta, a do código de falta (que
+      // quer dizer "coletada sem ele") ou a que cita pelo nome um secret que
+      // faltava naquela coleta. O motivo dela falava da falta.
+      const semOSecret = (n) => !!env(n) && (CODIGO_DO_SECRET[codigo] === n || CODIGO_DO_SECRET[motivo] === n
+        || (chegaram.includes(n) && typeof motivo === 'string' && motivo.includes(n)));
+      const velha = estadoParte === 'falta_configurar' && configurado && (configuradoDepois || candidatos.some(semOSecret));
+      if (velha) estadoParte = AGUARDANDO_COLETA;
       partes[nome] = {
-        estado: ESTADOS.includes(p.estado) ? p.estado : 'erro',
-        motivo: textoOuNulo(p.motivo, 300),
+        estado: estadoParte,
+        motivo: velha ? null : motivo,
         // O código técnico da parte (contrato, seção 4): é por ele que a
         // tela separa um caso do outro (reconectar, cota...), sem comparar
         // frase; nunca para mostrar. Só [a-z0-9_], a mesma régua da coletora.
-        codigo: typeof p.codigo === 'string' && /^[a-z0-9_]{1,60}$/.test(p.codigo) ? p.codigo : null,
+        codigo: velha ? null : codigo,
         coletadoEm: dataOuNula(p.coletado_em),
         tentadoEm: dataOuNula(p.tentado_em),
       };
@@ -209,13 +275,19 @@ export function fonteParaTela(fonte, { linha = null, conexaoInfo = null, infoOk 
     configurado,
     opcionais,
     conexao,
+    // Só nas fontes por OAuth, e só quando o cofre não pôde ser lido.
+    conexaoDesconhecida: oauth && !infoOk,
+    iniciadoEm: dataOuNula(valor?.iniciado_em),
     andando: andandoAgora(diario, fonte, agora),
     ultimas: execucoes.slice(0, 5).map((e) => ({
       inicio: dataOuNula(e.inicio),
       fim: dataOuNula(e.fim),
       estado: typeof e.estado === 'string' ? e.estado : null,
       chamadas: Number.isInteger(e.chamadas) ? e.chamadas : null,
-      erro: textoOuNulo(e.erro, 300),
+      // O erro do diário é técnico ("ga4 lote: servidor (HTTP 503)"): só a
+      // gestão recebe, para quem for consertar; a tela mostra a todos uma
+      // frase fixa (revisão de 12/10).
+      erro: verRestrito ? textoOuNulo(e.erro, 300) : null,
     })),
   };
 }

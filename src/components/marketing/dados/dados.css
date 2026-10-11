@@ -13,11 +13,16 @@
  * warn, bad) vêm das classes do Tailwind que o index.css já pareia.
  */
 
+/* --mkt-dados-vazio é a marca de "não medido" do gráfico: marca que diz
+   alguma coisa precisa de 3:1 contra o fundo (#8391a7 dá 3,2:1 no branco;
+   o branco a 40% dá 3,8:1 no cartão escuro). O texto cinza da aba usa o
+   slate-500 (#64748b, 4,8:1) e, no escuro, #929cb3 (6,3:1): o slate-400 dava
+   2,6:1 e não passava na régua de 4,5:1 do texto. */
 .mkt-dados {
   --mkt-dados-coluna: #3840e8;
   --mkt-dados-coluna-fraca: #c2c6fb;
   --mkt-dados-coluna-ativa: #1f236b;
-  --mkt-dados-vazio: #cbd5e1;
+  --mkt-dados-vazio: #8391a7;
   --mkt-dados-trilho: #eceef5;
   --mkt-dados-cheio: #7076f0;
   min-width: 0;
@@ -26,7 +31,7 @@ html.dark .mkt-dados {
   --mkt-dados-coluna: #9ba1f6;
   --mkt-dados-coluna-fraca: rgba(155, 161, 246, 0.38);
   --mkt-dados-coluna-ativa: #eef0fe;
-  --mkt-dados-vazio: rgba(255, 255, 255, 0.24);
+  --mkt-dados-vazio: rgba(255, 255, 255, 0.4);
   --mkt-dados-trilho: rgba(255, 255, 255, 0.08);
   --mkt-dados-cheio: #9ba1f6;
 }
@@ -96,12 +101,16 @@ html.dark .mkt-quadro-botao:hover {
   font-size: 13px;
 }
 /* A legenda da coleta: a fonte e a data, à vista mesmo com o quadro
-   recolhido, alinhada com o título (depois da seta). */
+   recolhido, alinhada com o título (depois da seta). Ela sobe 4px para
+   dentro da sobra de baixo do botão (o desenho fica compacto), mas não
+   pega o toque: sem o pointer-events, os 4px de cima eram da legenda e o
+   alvo do cabeçalho caía de 44 para 40px. */
 .mkt-quadro-legenda {
   margin: -4px 0 0;
   padding: 0 12px 8px 32px;
   font-size: 12px;
   line-height: 1.35;
+  pointer-events: none;
 }
 .mkt-quadro-corpo {
   padding: 0 12px 12px;
@@ -226,10 +235,10 @@ html.dark .mkt-dados-grafico-topo {
   justify-content: space-between;
   margin-top: 2px;
   font-size: 11px;
-  color: #94a3b8;
+  color: #64748b;
 }
 html.dark .mkt-dados-eixo {
-  color: #7783a0;
+  color: #929cb3;
 }
 
 /* ------------------------------------------------------------ tabela -- */
@@ -316,11 +325,16 @@ html.dark .mkt-dados-tabela tbody th {
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
 }
+/* A célula sem dado: o ponto de ausente (nunca o travessão), centrado na
+   altura da linha e com a cor de texto que passa na régua de contraste. */
 .mkt-dados-tabela .vazio {
-  color: #94a3b8;
+  color: #64748b;
 }
 html.dark .mkt-dados-tabela .vazio {
-  color: #7783a0;
+  color: #929cb3;
+}
+.mkt-dados-ausente {
+  font-weight: 700;
 }
 .mkt-dados-tabela .marca {
   text-align: center;
@@ -340,7 +354,14 @@ html.dark .mkt-dados-tabela .vazio {
   gap: 2px 12px;
   margin-top: 4px;
 }
+/* "Ver todas as N linhas": desenhado com 32px, toque de 40px (.alvo-40).
+   Com 27px de desenho, o toque passava 6,5px de cada lado e entrava na
+   tabela de cima (a coluna presa, z-index 1, ganhava o toque): o alvo caía
+   para 38px. Com 32px ele passa 4px, o vão exato até a tabela. */
 .mkt-dados-mais {
+  display: inline-flex;
+  align-items: center;
+  min-height: 32px;
   padding: 4px 6px;
   border-radius: 8px;
   font-size: 12.5px;
@@ -353,7 +374,17 @@ html.dark .mkt-dados-tabela .vazio {
 html.dark .mkt-dados-mais {
   color: #9ba1f6;
 }
+/* O link no meio dos dados (tabela, pares, lista) continua com cara de
+   texto, mas o alvo tem 24px de altura no mínimo (a régua para alvo dentro
+   de texto): 4px de folga em cima e embaixo, devolvidos pela margem
+   negativa, para a linha da tabela não crescer. E 24px de largura no
+   mínimo: a página inicial ("/") era um alvo de 4px. */
 .mkt-dados-link {
+  display: inline-block;
+  min-width: 24px;
+  max-width: 100%;
+  padding: 4px 0;
+  margin: -4px 0;
   color: #2c33cf;
   text-decoration: underline;
   text-decoration-color: rgba(44, 51, 207, 0.35);
@@ -474,11 +505,14 @@ html.dark .mkt-dados-avisos {
 
 /* A fileira das seções: um chip por tabela, que abre e fecha. Desenhado com
    30px, toque de 40px (.alvo-40): a fileira quebra a linha em vez de rolar,
-   então nada corta a faixa do toque. */
+   então nada corta a faixa do toque. O toque passa 5px em cima e 5px
+   embaixo de cada chip: o vão entre as linhas é de 10px, para a faixa da
+   linha de baixo não cobrir a de cima (com 6px, cobria 4px e o chip de
+   cima ficava com 36px de alvo). */
 .mkt-dados-chips {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: 10px 6px;
 }
 .mkt-dados-chip {
   display: inline-flex;

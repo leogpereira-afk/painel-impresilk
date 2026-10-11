@@ -1728,7 +1728,9 @@ async function coletarSite(ctx, buscar, alvo, prazo, primeira) {
   } else {
     res.paginas = { estado: inicio.erro === 'prazo' ? 'parcial' : 'erro', motivo: inicio.erro ?? 'rede' };
     if (inicio.status === 403 || inicio.status === 503 || inicio.status === 429) {
-      avisos.push(`O site respondeu ${inicio.status} ao servidor do Painel. Pode ser o firewall da hospedagem barrando o acesso de fora.`);
+      // O número do HTTP vai para o diário; o aviso é para gente.
+      try { ctx?.log?.(`site: a página inicial respondeu HTTP ${inicio.status}`); } catch { /* o diário não derruba a coleta */ }
+      avisos.push('O site recusou o acesso do servidor do Painel nesta coleta. Pode ser o firewall da hospedagem barrando o acesso de fora.');
     } else if (inicio.erro === 'certificado') {
       avisos.push('O certificado do site foi recusado na conexão segura. Confira se ele venceu.');
     } else if (inicio.erro === 'redireciona_para_fora') {
@@ -1855,11 +1857,19 @@ async function coletarGoogle(ctx, chave, medir, prazo, hoje) {
   else if (DE_CHAVE.has(motivoPsi)) partes.pagespeed = { estado: 'falta_configurar', motivo: motivoPsi };
   else partes.pagespeed = { estado: motivoPsi === 'prazo' ? 'parcial' : 'erro', motivo: motivoPsi };
   if (bons) dados.pagespeed = { url: medir.url, celular: celularPsi, computador: pcPsi };
+  // O código do Lighthouse (FAILED_DOCUMENT_REQUEST...) e o nome da
+  // categoria vão só para o diário: o aviso é para gente.
+  const anotar = (t) => { try { ctx?.log?.(t); } catch { /* o diário não derruba a coleta */ } };
   for (const [x, nome] of [[celularPsi, 'celular'], [pcPsi, 'computador']]) {
-    if (x?.erro_execucao) avisos.push(`O PageSpeed não conseguiu medir a página no ${nome} (${x.erro_execucao}); as notas desse lado ficam em branco.`);
+    if (!x?.erro_execucao) continue;
+    anotar(`site: PageSpeed no ${nome} falhou (${x.erro_execucao})`);
+    avisos.push(`O PageSpeed não conseguiu medir a página no ${nome}; as notas desse lado ficam em branco.`);
   }
   const agRecusado = [agCel, agPc].filter((x) => x.motivo && !x.pulado && !DE_CHAVE.has(x.motivo));
-  if (agRecusado.length && bons) avisos.push('O PageSpeed não devolveu a categoria de navegação por agentes (AGENTIC_BROWSING); as outras notas vieram.');
+  if (agRecusado.length && bons) {
+    anotar('site: PageSpeed sem a categoria AGENTIC_BROWSING');
+    avisos.push('O PageSpeed não devolveu a nota de navegação por agentes de IA; as outras notas vieram.');
+  }
 
   // Avisos da chave, uma vez só.
   const motivosChave = new Set([todos.motivo, psiCel.motivo, psiPc.motivo].filter((m) => DE_CHAVE.has(m)));

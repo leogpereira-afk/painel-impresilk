@@ -430,7 +430,10 @@ test('AGENTIC_BROWSING recusado: aviso e nota de agentes nula; as quatro notas p
  assert.equal(r.partes.pagespeed.estado,'ok');
  assert.equal(r.dados.pagespeed.celular.notas.desempenho,47);assert.equal(r.dados.pagespeed.celular.notas.agentes,null);
  assert.equal(r.dados.pagespeed.celular.agentes,null);
- assert.equal(r.avisos.filter(a=>/AGENTIC_BROWSING/.test(a)).length,1);
+ // Um aviso, para gente: o nome da categoria da API vai só para o diário.
+ assert.equal(r.avisos.filter(a=>/navegação por agentes/.test(a)).length,1);
+ assert.equal(r.avisos.some(a=>/AGENTIC_BROWSING/.test(a)),false);
+ assert.ok(t.log.some(l=>/AGENTIC_BROWSING/.test(l)));
 });
 
 test('PageSpeed com runtimeError: notas e laboratório nulos, nunca zero, e a parte fica parcial', async()=>{
@@ -442,7 +445,10 @@ test('PageSpeed com runtimeError: notas e laboratório nulos, nunca zero, e a pa
  const r=await coletar(t.ctx);
  assert.deepEqual([r.partes.pagespeed.estado,r.partes.pagespeed.codigo],['parcial','medicao_falhou']);
  assert.equal(r.dados.pagespeed.celular.notas.desempenho,null);assert.equal(r.dados.pagespeed.computador.notas.desempenho,81);
- assert.ok(r.avisos.some(a=>/FAILED_DOCUMENT_REQUEST/.test(a)));
+ // O código do Lighthouse vai para o diário; o aviso diz o que aconteceu.
+ assert.ok(r.avisos.includes('O PageSpeed não conseguiu medir a página no celular; as notas desse lado ficam em branco.'),r.avisos.join(' | '));
+ assert.equal(r.avisos.some(a=>/FAILED_DOCUMENT_REQUEST/.test(a)),false);
+ assert.ok(t.log.some(l=>/FAILED_DOCUMENT_REQUEST/.test(l)));
 });
 
 test('prazo curto: o PageSpeed nem começa e a parte fica parcial; o resto segue', async()=>{
@@ -470,7 +476,10 @@ test('WAF: 403 na página inicial guarda o status e um trecho curto do corpo, e 
  assert.deepEqual([r.partes.paginas.estado,r.partes.paginas.codigo],['erro','http_403']);
  assert.deepEqual([r.partes.versoes.estado,r.partes.versoes.codigo],['erro','http_403']);
  assert.equal(r.partes.wordpress.estado,'ok');assert.equal(r.partes.robots.estado,'ok');
- assert.ok(r.avisos.some(a=>/respondeu 403/.test(a)));
+ // O número do HTTP fica no código da parte e no diário; o aviso é para gente.
+ assert.ok(r.avisos.some(a=>/recusou o acesso do servidor do Painel/.test(a)),r.avisos.join(' | '));
+ assert.equal(r.avisos.some(a=>/403|HTTP/.test(a)),false);
+ assert.ok(t.log.some(l=>/HTTP 403/.test(l)));
  assert.ok(!('paginas' in r.dados)&&!('versoes' in r.dados));
  assert.equal(r.estado,'parcial');
  // Se nem a inicial abriu, as outras 14 dariam o mesmo: nenhuma é pedida.

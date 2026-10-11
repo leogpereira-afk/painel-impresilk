@@ -15,7 +15,8 @@
  *    engajamento por Pin é aproximado (o Pinterest não dá) e os seguidores
  *    somados dos Pins medidos são um piso, não o total. As métricas além das
  *    nove confirmadas (as "extras": ampliações, vídeo) aparecem com o nome
- *    de gente, e a que a tela não conhece, com o nome da API.
+ *    de gente, e a que a tela não conhece, como "outra métrica" (nunca o
+ *    nome da API).
  */
 import {
   blocoAvisos,
@@ -27,10 +28,13 @@ import {
   blocoTexto,
   col,
   colSemanaFechada,
+  conhecido,
   formatar,
   lista,
   medida,
   montarQuadro,
+  nomeDoPais,
+  notaDoFuturo,
   numero,
   objeto,
   ordenar,
@@ -39,14 +43,15 @@ import {
   rotuloPeriodo,
   secao,
   secaoTabela,
+  separarPorHoje,
   somaDisponivel,
+  somaEstrita,
   texto,
   textoDoMapa,
   traduzir,
   ultimasDuas,
 } from './marketing-dados.js';
 import { rotuloSemana } from './marketing-dados-google.js';
-import { PAISES } from './marketing-dados-meta.js';
 
 const recentesPrimeiro = (linhas, campo) => [...lista(linhas)].filter(objeto).sort((a, b) => String(b[campo] ?? '').localeCompare(String(a[campo] ?? '')));
 
@@ -59,30 +64,70 @@ const PORTE = Object.freeze({
   SIZE_501_TO_1000: '501 a 1.000 pessoas', SIZE_1001_TO_5000: '1.001 a 5.000 pessoas', SIZE_5001_TO_10000: '5.001 a 10.000 pessoas', SIZE_10001_OR_MORE: 'mais de 10.000 pessoas',
 });
 const TIPO_ORG = Object.freeze({ PRIVATELY_HELD: 'empresa privada', PUBLIC_COMPANY: 'empresa de capital aberto', SELF_EMPLOYED: 'autônomo', NON_PROFIT: 'sem fins lucrativos', GOVERNMENT_AGENCY: 'órgão público', EDUCATIONAL: 'ensino', PARTNERSHIP: 'sociedade', SELF_OWNED: 'empresa própria' });
-const VINCULO = Object.freeze({ EMPLOYEE: 'funcionários', NON_EMPLOYEE: 'não funcionários' });
-const URN = Object.freeze({ geo: 'lugar', function: 'função', industry: 'setor', seniority: 'senioridade', organization: 'organização' });
-const TIPO_POST_LI = Object.freeze({ video: 'vídeo', celebracao: 'celebração', documento: 'documento', imagens: 'várias imagens' });
-// As reações do LinkedIn com o nome da tela dele em português.
-const REACOES_LI = Object.freeze({ LIKE: 'gostei', PRAISE: 'parabéns', EMPATHY: 'amei', INTEREST: 'genial', APPRECIATION: 'apoio', ENTERTAINMENT: 'engraçado', MAYBE: 'curioso' });
+const VINCULO = Object.freeze({ EMPLOYEE: 'funcionários', NON_EMPLOYEE: 'não funcionários', MEMBER: 'membros', NON_MEMBER: 'não membros' });
+const URN = Object.freeze({ geo: 'lugar', function: 'função', industry: 'setor', seniority: 'senioridade', organization: 'organização', title: 'cargo', school: 'escola', skill: 'competência' });
+// Os tipos de post que o conector manda (linkedin.mjs, FORMATO).
+const TIPO_POST_LI = Object.freeze({
+  texto: 'texto', imagem: 'imagem', imagens: 'várias imagens', video: 'vídeo', documento: 'documento', artigo: 'artigo', enquete: 'enquete',
+  celebracao: 'celebração', carrossel: 'carrossel', compartilhamento: 'compartilhamento',
+});
+// As reações do LinkedIn com o nome da tela dele em português. CELEBRATION
+// é o "parabéns" com o nome em inglês da tela ("Celebrate"): soma com PRAISE.
+const REACOES_LI = Object.freeze({
+  LIKE: 'gostei', PRAISE: 'parabéns', CELEBRATION: 'parabéns', EMPATHY: 'amei', INTEREST: 'genial', APPRECIATION: 'apoio', ENTERTAINMENT: 'engraçado',
+  MAYBE: 'curioso',
+});
 const DIMENSOES = Object.freeze([
   ['vinculo', 'Vínculo'], ['pais', 'País'], ['regiao', 'Região'], ['funcao', 'Função'], ['setor', 'Setor'], ['senioridade', 'Senioridade'], ['porte', 'Porte da empresa'],
 ]);
+// As abas da página do LinkedIn (o nome da API das visualizações que o
+// conector não separa em campo próprio: "aboutPageViews").
+const ABAS_LI = Object.freeze({
+  all: 'Todas as páginas', overview: 'Página inicial', about: 'Sobre', people: 'Pessoas', insights: 'Insights', products: 'Produtos', jobs: 'Vagas',
+  careers: 'Carreiras', lifeAt: 'Vida na empresa', events: 'Eventos', posts: 'Posts', videos: 'Vídeos', services: 'Serviços',
+});
+
+/** O nome de gente de uma aba nas visualizações do LinkedIn
+ *  ("desktopAboutPageViews" vira "Sobre, no computador"); a aba que o mapa
+ *  não conhece vira "Outra aba", nunca o nome da API. */
+export function nomeDaAbaLinkedin(k) {
+  const m = /^(desktop|mobile)?([A-Za-z]+?)PageViews$/.exec(String(k ?? ''));
+  if (!m) return 'Outra aba';
+  const base = `${m[2].charAt(0).toLowerCase()}${m[2].slice(1)}`;
+  const nome = conhecido(ABAS_LI, base) ?? 'Outra aba';
+  return m[1] ? `${nome}, no ${m[1] === 'desktop' ? 'computador' : 'celular'}` : nome;
+}
 
 /** O código do LinkedIn sem o prefixo ("urn:li:geo:103644278" vira
- *  "lugar 103644278"); faixa de porte e vínculo viram palavra. */
+ *  "lugar 103644278": o LinkedIn não manda o nome, só o número); faixa de
+ *  porte e vínculo viram palavra. O que nenhum mapa conhece vira "outro",
+ *  nunca o código cru (EMPLOYEE ia como veio: o primeiro mapa devolvia o
+ *  código e o segundo nem era consultado). */
 export function rotuloDoCodigo(codigo, rotulo) {
+  const c = String(codigo ?? '').trim();
+  // A faixa de porte que o mapa conhece vai com o nome dele ("só o dono",
+  // e não o "1" que o conector escreve para SIZE_1).
+  if (conhecido(PORTE, c)) return conhecido(PORTE, c);
   if (texto(rotulo, 80)) return texto(rotulo, 80);
-  const c = String(codigo ?? '');
+  if (!c) return null;
   const urn = /^urn:li:([a-zA-Z]+):(.+)$/.exec(c);
-  if (urn) return `${URN[urn[1]] ?? urn[1]} ${urn[2]}`;
-  return traduzir(PORTE, c) ?? traduzir(VINCULO, c) ?? (c || null);
+  if (urn) return `${conhecido(URN, urn[1]) ?? 'item'} ${urn[2]}`;
+  return conhecido(PORTE, c) ?? conhecido(VINCULO, c) ?? 'outro';
+}
+
+/** Itens {rotulo, valor} com o mesmo rótulo (dois códigos que o mapa não
+ *  conhece viram "outro") somados num item só, do maior para o menor. */
+function juntarPorRotulo(itens) {
+  const porNome = new Map();
+  for (const i of itens) porNome.set(i.rotulo, porNome.has(i.rotulo) ? somaDisponivel([porNome.get(i.rotulo), i.valor]) : medida(i.valor));
+  return ordenar([...porNome].map(([rotulo, valor]) => ({ rotulo, valor })), 'valor');
 }
 
 /** As barras de um perfil do LinkedIn ({vinculo: [{codigo, n}], pais: ...}). */
 function perfilEmSecoes(perfil, prefixo) {
   if (!objeto(perfil)) return [blocoTexto('O LinkedIn não mandou o perfil nesta coleta.')];
   return DIMENSOES.filter(([k]) => Array.isArray(perfil[k]) && perfil[k].length).map(([k, titulo]) =>
-    blocoBarras(ordenar(perfil[k].filter(objeto).map((x) => ({ rotulo: rotuloDoCodigo(x.codigo, x.rotulo) ?? 'sem código', valor: x.n })), 'valor').slice(0, 10), { titulo: `${prefixo}: ${titulo.toLowerCase()}` })
+    blocoBarras(juntarPorRotulo(perfil[k].filter(objeto).map((x) => ({ rotulo: rotuloDoCodigo(x.codigo, x.rotulo) ?? 'sem código', valor: x.n }))).slice(0, 10), { titulo: `${prefixo}: ${titulo.toLowerCase()}` })
   );
 }
 
@@ -121,9 +166,9 @@ function corpoLinkedinSeguidores(d, hoje) {
           { rotulo: 'Página', valor: pg.nome },
           { rotulo: 'Endereço', valor: pg.url, link: pg.url },
           { rotulo: 'Site', valor: pg.site, link: pg.site },
-          { rotulo: 'Porte', valor: traduzir(PORTE, pg.porte) },
+          { rotulo: 'Porte', valor: traduzir(PORTE, pg.porte, 'outro porte') },
           { rotulo: 'Setores', valor: lista(pg.setores).map((s) => rotuloDoCodigo(s)).filter(Boolean).join(', ') || null },
-          { rotulo: 'Tipo', valor: traduzir(TIPO_ORG, pg.tipo) },
+          { rotulo: 'Tipo', valor: traduzir(TIPO_ORG, pg.tipo, 'outro tipo') },
         ]),
       ]),
     ],
@@ -146,7 +191,9 @@ function corpoLinkedinVisitas(v, hoje) {
   const botoes = objeto(ds?.cliques_botao) ? ds.cliques_botao : null;
   const linhasVistas = [
     ...VISTAS_LI.filter(([k]) => objeto(vistas[k])).map(([k, rotulo]) => ({ rotulo, ...vistas[k] })),
-    ...(objeto(vistas.outras) ? Object.entries(vistas.outras).filter(([, x]) => objeto(x)).map(([k, x]) => ({ rotulo: k, ...x })) : []),
+    // As outras abas vêm com o nome da API ("aboutPageViews"): vai o nome
+    // de gente ("Sobre").
+    ...(objeto(vistas.outras) ? Object.entries(vistas.outras).filter(([, x]) => objeto(x)).map(([k, x]) => ({ ...x, rotulo: nomeDaAbaLinkedin(k) })) : []),
   ];
   return {
     destaque: atual && medida(atual.visualizacoes) !== null ? `${formatar('int', atual.visualizacoes)} visualizações na semana` : null,
@@ -162,7 +209,11 @@ function corpoLinkedinVisitas(v, hoje) {
         ? blocoNumeros([
           numero({ id: 'ds-vis', rotulo: 'Visualizações', valor: vistas.total?.visualizacoes }),
           numero({ id: 'ds-unicas', rotulo: 'Visitantes únicos', valor: vistas.total?.unicas }),
-          numero({ id: 'ds-botao', rotulo: 'Cliques no botão', valor: botoes ? somaDisponivel([botoes.computador, botoes.celular]) : null }),
+          // Computador mais celular é o total: com uma das partes sem número,
+          // a soma parcial passaria por total (e o celular 0 com o
+          // computador null virava "0"). Soma estrita, como o conector
+          // (somaOuNulo).
+          numero({ id: 'ds-botao', rotulo: 'Cliques no botão', valor: botoes ? somaEstrita([botoes.computador, botoes.celular]) : null }),
         ], 'Desde sempre')
         : null,
       blocoGrafico(v.por_dia, { x: 'dia', y: 'visualizacoes', titulo: 'Visualizações por dia', unidade: 'visualizações', hoje }),
@@ -241,20 +292,34 @@ function corpoLinkedinConteudo(c, hoje) {
   };
 }
 
+/** Os fora do feed e os rascunhos que o conector ignorou, numa frase. Só
+ *  soma as duas partes quando as duas vieram; com uma só, diz qual. */
+function textoIgnorados(ig) {
+  const rascunhos = medida(ig?.nao_publicados), semFeed = medida(ig?.sem_feed);
+  const total = somaEstrita([rascunhos, semFeed]);
+  if (total !== null) return total > 0 ? `Ficaram de fora ${plural(total, 'post', 'posts')} (rascunho ou fora do feed).` : null;
+  if (rascunhos) return `Ficaram de fora ${plural(rascunhos, 'rascunho', 'rascunhos')}.`;
+  if (semFeed) return `Ficaram de fora ${plural(semFeed, 'post fora do feed', 'posts fora do feed')}.`;
+  return null;
+}
+
 function corpoLinkedinPosts(p, cota, hoje) {
   const itens = recentesPrimeiro(p.itens, 'publicado_em');
+  // As somas e a contagem do período só com o que já foi publicado (regra
+  // 5): o post de data que ainda não chegou fica na tabela e fora delas.
+  const { ate: publicados, depois: futuros } = separarPorHoje(itens, (x) => x.data ?? x.publicado_em, hoje);
   const ig = objeto(p.ignorados) ? p.ignorados : {};
   const comVideo = itens.filter((x) => objeto(x.video));
   const colData = col('data', 'Data', 'dia');
-  const colPost = col('tipo', 'Post', 'texto', { valor: (x) => traduzir(TIPO_POST_LI, x.tipo) ?? 'post', link: (x) => x.url });
+  const colPost = col('tipo', 'Post', 'texto', { valor: (x) => traduzir(TIPO_POST_LI, x.tipo, 'post') ?? 'post', link: (x) => x.url });
   return {
-    destaque: plural(itens.length, 'post', 'posts'),
+    destaque: plural(publicados.length, 'post', 'posts'),
     topo: [
       blocoNumeros([
-        numero({ id: 'posts', rotulo: 'Posts', valor: itens.length }),
-        numero({ id: 'impressoes', rotulo: 'Impressões (soma)', valor: somaDisponivel(itens.map((x) => x.impressoes)) }),
-        numero({ id: 'engajamento', rotulo: 'Engajamento (soma)', valor: somaDisponivel(itens.map((x) => x.engajamento)) }),
-        numero({ id: 'cliques', rotulo: 'Cliques (soma)', valor: somaDisponivel(itens.map((x) => x.cliques)) }),
+        numero({ id: 'posts', rotulo: 'Posts', valor: publicados.length }),
+        numero({ id: 'impressoes', rotulo: 'Impressões (soma)', valor: somaDisponivel(publicados.map((x) => x.impressoes)) }),
+        numero({ id: 'engajamento', rotulo: 'Engajamento (soma)', valor: somaDisponivel(publicados.map((x) => x.engajamento)) }),
+        numero({ id: 'cliques', rotulo: 'Cliques (soma)', valor: somaDisponivel(publicados.map((x) => x.cliques)) }),
       ], rotuloDia(p.desde, hoje) ? `Desde ${rotuloDia(p.desde, hoje)}` : null),
     ],
     secoes: [
@@ -271,7 +336,7 @@ function corpoLinkedinPosts(p, cota, hoje) {
         col('engajamento', 'Engajamento', 'int'),
         col('taxa', 'Taxa', 'fracao'),
         col('reacoes_total', 'Reações', 'int'),
-        col('reacoes', 'Reações por tipo', 'texto', { valor: (x) => (objeto(x.reacoes) ? textoDoMapa(x.reacoes, { rotular: (k) => traduzir(REACOES_LI, k) }) ?? 'nenhuma' : null) }),
+        col('reacoes', 'Reações por tipo', 'texto', { valor: (x) => (objeto(x.reacoes) ? textoDoMapa(x.reacoes, { rotular: (k) => conhecido(REACOES_LI, k), outros: 'outras reações' }) ?? 'nenhuma' : null) }),
         col('comentarios_total', 'Comentários, com respostas', 'int'),
         col('comentarios_principais', 'Comentários principais', 'int'),
         col('video', 'Vídeo (vis.)', 'int', { valor: (x) => x.video?.visualizacoes }),
@@ -288,7 +353,8 @@ function corpoLinkedinPosts(p, cota, hoje) {
         : null,
     ],
     notas: [
-      medida(ig.nao_publicados) || medida(ig.sem_feed) ? `Ficaram de fora ${formatar('int', somaDisponivel([ig.nao_publicados, ig.sem_feed]))} posts (rascunho ou fora do feed).` : null,
+      textoIgnorados(ig),
+      notaDoFuturo(futuros, (x) => x.data ?? x.publicado_em, hoje, { oQue: ['o post', 'os posts'], verbo: ['tem data que ainda não chegou', 'têm data que ainda não chegou'] }),
       objeto(cota) ? `Chamadas à API nesta coleta: ${formatar('int', cota.usadas)} de ${formatar('int', cota.orcamento)} (o LinkedIn dá ${formatar('int', cota.teto_dia)} por dia).` : null,
     ],
   };
@@ -332,11 +398,30 @@ export const EXTRAS_PIN = Object.freeze({
 });
 const ORDEM_TOP = Object.freeze({ ENGAGEMENT: 'engajamento', IMPRESSION: 'impressões', OUTBOUND_CLICK: 'cliques de saída', PIN_CLICK: 'cliques no Pin', SAVE: 'salvamentos', VIDEO_MRC_VIEW: 'visualizações de vídeo' });
 const TIPO_CRIATIVO = Object.freeze({ REGULAR: 'imagem', VIDEO: 'vídeo', CAROUSEL: 'carrossel', MAX_VIDEO: 'vídeo grande', SHOP_THE_PIN: 'compra no Pin', COLLECTION: 'coleção', IDEA: 'Pin de ideia', SHOWCASE: 'vitrine', QUIZ: 'quiz' });
+// As métricas da conta pelo nome da API (o aviso de métrica recusada), com
+// o nome de gente; a que não está aqui vira "outra métrica".
+const METRICAS_API_PIN = Object.freeze({
+  IMPRESSION: 'impressões', ENGAGEMENT: 'engajamento', ENGAGEMENT_RATE: 'taxa de engajamento', PIN_CLICK: 'cliques no Pin', PIN_CLICK_RATE: 'taxa de cliques no Pin',
+  OUTBOUND_CLICK: 'cliques de saída', OUTBOUND_CLICK_RATE: 'taxa de cliques de saída', SAVE: 'salvamentos', SAVE_RATE: 'taxa de salvamento',
+  CLOSEUP: 'ampliações', CLOSEUP_RATE: 'taxa de ampliação', PROFILE_VISIT: 'visitas ao perfil', USER_FOLLOW: 'seguidores ganhos', TOTAL_COMMENTS: 'comentários',
+  TOTAL_REACTIONS: 'reações', VIDEO_MRC_VIEW: 'visualizações de vídeo', VIDEO_START: 'vídeos iniciados', VIDEO_10S_VIEW: 'vídeo visto por 10 s',
+  QUARTILE_95_PERCENT_VIEW: 'vídeo visto até 95%', VIDEO_AVG_WATCH_TIME: 'tempo médio de vídeo', VIDEO_V50_WATCH_TIME: 'tempo assistido com metade na tela',
+});
+/** A situação do dia nos números do Pinterest (data_status): pronto,
+ *  estimativa, processando, e os BEFORE_ (dia antes de a conta, o Pin ou a
+ *  medição existirem). O código que a tela não conhece vira "outra
+ *  situação". */
+export function situacaoDoDia(status) {
+  if (status == null || status === '') return null;
+  const s = String(status);
+  if (/^BEFORE_/.test(s)) return 'antes da medição';
+  return traduzir({ READY: 'pronto', ESTIMATE: 'estimativa', PROCESSING: 'processando' }, s, 'outra situação');
+}
 
 /** As métricas extras do Pinterest ({nome: n}) numa linha, com o nome de
  *  gente ("ampliações 30, visitas ao perfil 12"). A que a tela não conhece
- *  aparece com o nome da API; extra sem número fica de fora (não vira 0);
- *  `sem` tira as que a tabela já mostra em coluna própria. */
+ *  vira "outra métrica", nunca o nome da API; extra sem número fica de fora
+ *  (não vira 0); `sem` tira as que a tabela já mostra em coluna própria. */
 export function textoExtras(extras, { sem = [] } = {}) {
   if (!objeto(extras)) return null;
   const l = Object.entries(extras)
@@ -344,7 +429,7 @@ export function textoExtras(extras, { sem = [] } = {}) {
     .map(([k, v]) => {
       const n = medida(v);
       if (n === null) return null;
-      const [rotulo, tipo] = EXTRAS_PIN[k] ?? [k, 'int'];
+      const [rotulo, tipo] = Object.hasOwn(EXTRAS_PIN, k) ? EXTRAS_PIN[k] : ['outra métrica', 'int'];
       return `${rotulo} ${formatar(tipo, n)}`;
     })
     .filter(Boolean);
@@ -385,13 +470,13 @@ function corpoPinterestConta(d, hoje) {
   const linhasPeriodo = [
     ...METRICAS_PIN.map(([k, rotulo, tipo]) => ({ k, rotulo, tipo, total: resumo('total')[k], organico: resumo('organico')[k], pago: resumo('pago')[k] })),
     ...chavesExtras.map((k) => {
-      const [rotulo, tipo] = EXTRAS_PIN[k] ?? [k, 'int'];
+      const [rotulo, tipo] = Object.hasOwn(EXTRAS_PIN, k) ? EXTRAS_PIN[k] : ['outra métrica', 'int'];
       return { k, rotulo: `${rotulo.charAt(0).toUpperCase()}${rotulo.slice(1)}`, tipo, total: extrasDe('total')[k], organico: extrasDe('organico')[k], pago: extrasDe('pago')[k] };
     }),
   ];
   const colsSemana = [
     col('semana', 'Semana de', 'dia'),
-    colSemanaFechada('pronta', 'ainda não pronta'),
+    colSemanaFechada('pronta', 'ainda não pronta', { hoje }),
     col('dias_com_dado', 'Dias medidos', 'int'),
     ...COLS_M,
     col('taxa_engajamento', 'Taxa de engaj.', 'fracao'),
@@ -415,7 +500,7 @@ function corpoPinterestConta(d, hoje) {
         ], `${rotuloSemana(atual.semana, anterior?.semana, hoje)}. Orgânico e pago`)
         : c ? blocoTexto('Nenhuma semana pronta ainda (o Pinterest atrasa uns 2 dias).') : null,
       total ? blocoGrafico(total.por_dia, { x: 'dia', y: 'impressoes', titulo: 'Impressões por dia', unidade: 'impressões', hoje, fraco: (x) => x.status && x.status !== 'READY' }) : null,
-      lista(c?.metricas_recusadas).length ? blocoAvisos([{ nivel: 'atencao', texto: `O Pinterest recusou nesta coleta: ${lista(c.metricas_recusadas).join(', ')}.` }]) : null,
+      lista(c?.metricas_recusadas).length ? blocoAvisos([{ nivel: 'atencao', texto: `O Pinterest recusou nesta coleta: ${[...new Set(lista(c.metricas_recusadas).map((m) => traduzir(METRICAS_API_PIN, m, 'outra métrica')).filter(Boolean))].join(', ')}.` }]) : null,
     ],
     secoes: [
       c
@@ -435,7 +520,7 @@ function corpoPinterestConta(d, hoje) {
       c && objeto(c.quebras)
         ? secao('quebras', 'Por aparelho, origem e formato', QUEBRAS_PIN.filter(([k]) => Array.isArray(c.quebras[k])).map(([k, titulo]) =>
           blocoTabela(ordenar(c.quebras[k], 'impressoes'), [
-            col('grupo', titulo, 'texto', { valor: (x) => traduzir(GRUPO_PIN, x.grupo) }),
+            col('grupo', titulo, 'texto', { valor: (x) => traduzir(GRUPO_PIN, x.grupo, 'outro grupo') }),
             ...COLS_M,
             ...COLS_TAXAS,
             col('extras', 'Outras métricas', 'texto', { valor: (x) => textoExtras(x.extras), max: 300 }),
@@ -444,14 +529,14 @@ function corpoPinterestConta(d, hoje) {
         : null,
       secaoTabela('dias', 'Por dia', total ? recentesPrimeiro(total.por_dia, 'dia') : null, [
         col('dia', 'Dia', 'dia'),
-        col('status', 'Situação', 'texto', { valor: (x) => traduzir({ READY: 'pronto', ESTIMATE: 'estimativa', PROCESSING: 'processando' }, x.status), tom: (x) => (x.status && x.status !== 'READY' ? 'warn' : null) }),
+        col('status', 'Situação', 'texto', { valor: (x) => situacaoDoDia(x.status), tom: (x) => (x.status && x.status !== 'READY' ? 'warn' : null) }),
         ...COLS_M,
       ], { hoje, limite: 14, unidade: ['dia', 'dias'], semDado: 'Não veio nesta coleta.' }),
       secao('perfil', 'Sobre o perfil', [
         blocoPares([
           { rotulo: 'Usuário', valor: pf.usuario ? `@${pf.usuario}` : null, link: pf.url },
           { rotulo: 'Nome', valor: pf.nome },
-          { rotulo: 'Tipo de conta', valor: traduzir({ BUSINESS: 'empresa', PINNER: 'pessoal' }, pf.tipo_conta) },
+          { rotulo: 'Tipo de conta', valor: traduzir({ BUSINESS: 'empresa', PINNER: 'pessoal' }, pf.tipo_conta, 'outro tipo') },
           { rotulo: 'Site', valor: pf.site, link: pf.site },
           { rotulo: 'Sobre', valor: pf.sobre },
         ]),
@@ -484,7 +569,7 @@ function corpoPinterestTop(d, hoje) {
         nota: t
           ? [
             rotuloPeriodo(t.inicio, t.fim, hoje),
-            traduzir(ORDEM_TOP, t.ordem) ? `ordenados por ${traduzir(ORDEM_TOP, t.ordem)}` : null,
+            traduzir(ORDEM_TOP, t.ordem, 'outra medida') ? `ordenados por ${traduzir(ORDEM_TOP, t.ordem, 'outra medida')}` : null,
             t.dados_ate ? `dados até ${rotuloDia(t.dados_ate, hoje) ?? 'data não informada'}` : null,
             t.tempo_real === true ? 'dados em tempo real, que ainda mudam' : null,
           ].filter(Boolean).join('; ') || null
@@ -503,7 +588,7 @@ function corpoPinterestPins(d, hoje) {
     col('data', 'Data', 'dia'),
     col('titulo', 'Pin', 'texto', { valor: (x) => x.titulo || `Pin ${String(x.id ?? '').slice(-6)}`, link: (x) => x.url, max: 120 }),
     col('midia', 'Mídia', 'texto', { valor: (x) => (x.video ? 'vídeo' : x.tipo_midia ? 'imagem' : null) }),
-    col('tipo_criativo', 'Tipo', 'texto', { valor: (x) => traduzir(TIPO_CRIATIVO, x.tipo_criativo) }),
+    col('tipo_criativo', 'Tipo', 'texto', { valor: (x) => traduzir(TIPO_CRIATIVO, x.tipo_criativo, 'outro tipo') }),
     col('pasta', 'Pasta', 'texto', { valor: (x) => (x.pasta_id == null ? null : nomeDaPasta.get(String(x.pasta_id)) ?? 'outra pasta') }),
     col('descricao', 'Descrição', 'texto', { max: 200 }),
     col('destino', 'Destino', 'texto', { link: (x) => x.destino, max: 120 }),
@@ -556,7 +641,7 @@ function corpoPinterestPins(d, hoje) {
         col('pins', 'Pins', 'int'),
         col('seguidores', 'Seguidores', 'int'),
         col('colaboradores', 'Colaboradores', 'int'),
-        col('privacidade', 'Privacidade', 'texto', { valor: (x) => traduzir({ PUBLIC: 'pública', PROTECTED: 'protegida', SECRET: 'secreta' }, x.privacidade) }),
+        col('privacidade', 'Privacidade', 'texto', { valor: (x) => traduzir({ PUBLIC: 'pública', PROTECTED: 'protegida', SECRET: 'secreta' }, x.privacidade, 'outra') }),
         col('criada_em', 'Criada', 'dia'),
         col('pins_alterados_em', 'Último Pin', 'dia'),
       ], { hoje, unidade: ['pasta', 'pastas'], semDado: 'Não veio nesta coleta.', vazio: 'Nenhuma pasta.', nota: pastas?.completo === false ? 'A lista passou do teto de páginas: o total conta todas, a tabela mostra as que vieram.' : null }),
@@ -576,14 +661,14 @@ function corpoPinterestAnalise(a, d, hoje) {
     topo: [
       blocoNumeros([
         numero({ id: 'medidos', rotulo: 'Pins medidos', valor: a.medidos, titulo: `De ${formatar('int', a.pedidos)} escolhidos.` }),
-        numero({ id: 'seguidores', rotulo: 'Seguidores ganhos (piso)', valor: somaDisponivel(seguidores.map((s) => s.ganhos)), titulo: 'Somados só dos Pins medidos: o total da conta é maior ou igual.' }),
+        numero({ id: 'seguidores', rotulo: 'Seguidores ganhos (piso)', valor: somaDisponivel(separarPorHoje(seguidores, 'semana', hoje).ate.map((s) => s.ganhos)), titulo: 'Somados só dos Pins medidos: o total da conta é maior ou igual.' }),
       ], rotuloPeriodo(a.inicio, a.fim, hoje) ? `Período ${rotuloPeriodo(a.inicio, a.fim, hoje)}` : null),
     ],
     secoes: [
       secaoTabela('itens', 'Por Pin', itens, [
         col('pin', 'Pin', 'texto', { valor: (x) => nome(x.id), link: (x) => x.url }),
         col('midia', 'Mídia', 'texto', { valor: (x) => (x.video === true ? 'vídeo' : x.video === false ? 'imagem' : null) }),
-        col('origem', 'Escolhido por', 'texto', { valor: (x) => traduzir({ recente: 'ser recente', top: 'estar no top' }, x.origem) }),
+        col('origem', 'Escolhido por', 'texto', { valor: (x) => traduzir({ recente: 'ser recente', top: 'estar no top' }, x.origem, 'outro motivo') }),
         col('impressoes', 'Impressões', 'int', { valor: (x) => x.soma?.impressoes }),
         col('cliques_pin', 'Cliques no Pin', 'int', { valor: (x) => x.soma?.cliques_pin }),
         col('cliques_saida', 'Cliques de saída', 'int', { valor: (x) => x.soma?.cliques_saida }),
@@ -604,7 +689,7 @@ function corpoPinterestAnalise(a, d, hoje) {
         ? secaoTabela('pin_semanas', 'Por Pin, semana a semana', semanasDosPins, [
           col('pin', 'Pin', 'texto', { valor: (x) => nome(x.pinId), link: (x) => x.url }),
           col('semana', 'Semana de', 'dia'),
-          colSemanaFechada('pronta', 'ainda não pronta'),
+          colSemanaFechada('pronta', 'ainda não pronta', { hoje }),
           col('impressoes', 'Impressões', 'int'),
           col('cliques_pin', 'Cliques no Pin', 'int'),
           col('cliques_saida', 'Cliques de saída', 'int'),
@@ -629,7 +714,9 @@ function publicoEmBlocos(p, titulo, hoje) {
   if (!objeto(p)) return [blocoTexto(`${titulo}: não veio nesta coleta.`)];
   // O Pinterest manda o nome em inglês (female, Brazil, Mobile): o que a
   // tela conhece pela chave vira português; o resto vai como veio.
-  const nomeDe = (mapa) => (x) => (x.chave != null && Object.hasOwn(mapa, String(x.chave)) ? mapa[String(x.chave)] : texto(x.nome, 60) ?? x.chave);
+  // O nome em inglês que o Pinterest manda é nome ("Minas Gerais"); sem
+  // nome, a chave crua não vai: vira "outro".
+  const nomeDe = (mapa) => (x) => conhecido(mapa, x.chave) ?? texto(x.nome, 60) ?? 'outro';
   const barras = (l, t, rotular = nomeDe({})) => (lista(l).length ? blocoBarras(ordenar(lista(l).filter(objeto).map((x) => ({ rotulo: rotular(x), valor: x.proporcao })), 'valor').slice(0, 10), { tipo: 'fracao', titulo: `${titulo}: ${t}` }) : null);
   const interesses = ordenar(lista(p.interesses).filter(objeto), 'proporcao');
   return [
@@ -639,16 +726,16 @@ function publicoEmBlocos(p, titulo, hoje) {
     ]),
     barras(p.idades, 'idade'),
     barras(p.generos, 'gênero', nomeDe({ female: 'feminino', male: 'masculino', unknown: 'não informado', unspecified: 'não informado' })),
-    barras(p.paises, 'país', nomeDe(PAISES)),
+    barras(p.paises, 'país', (x) => nomeDoPais(x.chave, null) ?? texto(x.nome, 60) ?? 'outro país'),
     barras(p.regioes, 'região'),
     barras(p.aparelhos, 'aparelho', nomeDe({ MOBILE: 'celular', WEB: 'navegador', TABLET: 'tablet', DESKTOP: 'computador' })),
     interesses.length
       ? blocoTabela(interesses.slice(0, 15), [
-        col('nome', 'Interesse', 'texto', { valor: (x) => texto(x.nome, 80) ?? x.chave }),
+        col('nome', 'Interesse', 'texto', { valor: (x) => texto(x.nome, 80) ?? 'interesse sem nome' }),
         col('proporcao', 'Parte do público', 'fracao', { casas: 0 }),
         col('indice', 'Afinidade', 'dec1', { titulo: () => 'Quantas vezes mais que a média do Pinterest (1 é igual à média).' }),
         col('subcategorias', 'Subcategorias', 'texto', {
-          valor: (x) => lista(x.subcategorias).filter(objeto).map((s) => `${texto(s.nome, 60) ?? s.chave} ${formatar('fracao', s.proporcao, { casas: 0 })}${medida(s.indice) !== null ? ` (afinidade ${formatar('dec1', s.indice)})` : ''}`).join(', ') || null,
+          valor: (x) => lista(x.subcategorias).filter(objeto).map((s) => `${texto(s.nome, 60) ?? 'sem nome'} ${formatar('fracao', s.proporcao, { casas: 0 })}${medida(s.indice) !== null ? ` (afinidade ${formatar('dec1', s.indice)})` : ''}`).join(', ') || null,
           max: 400,
         }),
       ], { chave: 'chave', titulo: `${titulo}: interesses`, nota: 'Afinidade: quantas vezes mais que a média do Pinterest (1 é igual à média).' })
@@ -700,8 +787,8 @@ function corpoPinterestAnuncios(c, hoje) {
     secoes: [
       secaoTabela('campanhas', 'Campanhas', Array.isArray(c.campanhas) ? ordenar(c.campanhas, 'gasto') : null, [
         col('nome', 'Campanha', 'texto', { max: 120 }),
-        col('objetivo', 'Objetivo', 'texto', { valor: (x) => traduzir({ LEADS: 'leads', AWARENESS: 'reconhecimento', CONSIDERATION: 'consideração', WEB_CONVERSION: 'conversão no site', CATALOG_SALES: 'catálogo', VIDEO_COMPLETION: 'vídeo' }, x.objetivo) }),
-        col('situacao', 'Situação', 'texto', { valor: (x) => traduzir({ ACTIVE: 'ativa', PAUSED: 'pausada', ARCHIVED: 'arquivada' }, x.situacao) }),
+        col('objetivo', 'Objetivo', 'texto', { valor: (x) => traduzir({ LEADS: 'leads', AWARENESS: 'reconhecimento', CONSIDERATION: 'consideração', WEB_CONVERSION: 'conversão no site', CATALOG_SALES: 'catálogo', VIDEO_COMPLETION: 'vídeo', VIDEO_VIEW: 'visualizações de vídeo', WEB_SESSIONS: 'visitas ao site', APP_INSTALL: 'instalações do app' }, x.objetivo, 'outro objetivo') }),
+        col('situacao', 'Situação', 'texto', { valor: (x) => traduzir({ ACTIVE: 'ativa', PAUSED: 'pausada', ARCHIVED: 'arquivada', DRAFT: 'rascunho', DELETED_DRAFT: 'rascunho apagado' }, x.situacao, 'outra situação') }),
         col('limite_diario', 'Limite por dia', 'moeda'),
         col('limite_total', 'Limite total', 'moeda'),
         col('inicio', 'Início', 'dia'),
@@ -734,9 +821,9 @@ function corpoPinterestAnuncios(c, hoje) {
       secao('conta', 'Sobre a conta', [
         blocoPares([
           { rotulo: 'Conta', valor: c.nome },
-          { rotulo: 'Moeda', valor: c.moeda },
-          { rotulo: 'País', valor: traduzir(PAISES, c.pais) },
-          { rotulo: 'Fuso', valor: c.fuso },
+          { rotulo: 'Moeda', valor: c.moeda, tipo: 'nomeMoeda' },
+          { rotulo: 'País', valor: c.pais, tipo: 'pais' },
+          { rotulo: 'Fuso', valor: c.fuso, tipo: 'fuso' },
           { rotulo: 'Dias contados no fuso', valor: c.fuso_dos_dias === 'UTC' ? 'UTC' : c.fuso_dos_dias === 'conta' ? 'da conta' : null },
         ]),
       ]),

@@ -246,6 +246,20 @@ const MAX_NUMERO = 1e9;
 
 // As 9 métricas da conta que o filtro metric_types aceita (contraprova).
 export const METRICAS_CONTA = Object.freeze(['IMPRESSION', 'ENGAGEMENT', 'ENGAGEMENT_RATE', 'PIN_CLICK', 'PIN_CLICK_RATE', 'OUTBOUND_CLICK', 'OUTBOUND_CLICK_RATE', 'SAVE', 'SAVE_RATE']);
+// As métricas da conta pelo nome que o Léo entende, para o aviso de métrica
+// recusada (revisão de 12/10). Fora daqui vira "uma das métricas", nunca o
+// nome da API.
+export const NOME_METRICA = Object.freeze({
+  IMPRESSION: 'as impressões', ENGAGEMENT: 'o engajamento', ENGAGEMENT_RATE: 'a taxa de engajamento', PIN_CLICK: 'os cliques nos Pins',
+  PIN_CLICK_RATE: 'a taxa de cliques nos Pins', OUTBOUND_CLICK: 'os cliques para o site', OUTBOUND_CLICK_RATE: 'a taxa de cliques para o site',
+  SAVE: 'os salvamentos', SAVE_RATE: 'a taxa de salvamentos',
+});
+/** A frase do aviso de métricas da conta recusadas. */
+export function avisoDeMetricasRecusadas(nomesDaApi) {
+  const l = [...new Set((nomesDaApi || []).map((m) => NOME_METRICA[m] ?? 'uma das métricas'))];
+  const nomes = l.length > 1 ? `${l.slice(0, -1).join(', ')} e ${l[l.length - 1]}` : (l[0] ?? 'uma das métricas');
+  return `O Pinterest recusou ${nomes} da conta; ${l.length === 1 ? 'esse número ficou vazio' : 'esses números ficaram vazios'}.`;
+}
 // Por Pin, metric_types é obrigatório e é UMA de duas listas (contraprova):
 // a de vídeo não tem USER_FOLLOW nem PROFILE_VISIT. Misturar não é confirmado.
 export const METRICAS_PIN = Object.freeze(['IMPRESSION', 'OUTBOUND_CLICK', 'PIN_CLICK', 'SAVE', 'SAVE_RATE', 'TOTAL_COMMENTS', 'TOTAL_REACTIONS', 'USER_FOLLOW', 'PROFILE_VISIT']);
@@ -1056,6 +1070,25 @@ const AVISO_APROVACAO = 'O Pinterest ainda não aprovou o app (Trial access pend
 const AVISO_RECONECTAR = 'O Pinterest recusou o acesso guardado. Clique em Reconectar.';
 const AVISO_COTA = 'O Pinterest avisou que o limite de chamadas acabou (no Trial são 1000 por dia para o app inteiro). O resto fica para a próxima coleta.';
 
+
+/* O NÚMERO FORA DA FAIXA, PARA GENTE (revisão de 12/10): a chave interna e
+   a data em ISO ("impressoes 2026-09-28") vão para o diário; o aviso diz
+   "as impressões da semana de 28/09". */
+const NOME_DO_NUMERO = Object.freeze({
+  seguidores: 'os seguidores', alcance: 'o alcance', impressoes: 'as impressões', engajamento: 'o engajamento',
+  cliques: 'os cliques', conversas: 'as conversas', leads: 'os leads',
+});
+export function avisoDeForaDaFaixa(itens) {
+  const lidos = (Array.isArray(itens) ? itens : []).map((x) => {
+    const [k, semana] = String(x).split(' ');
+    const d = /^\d{4}-(\d{2})-(\d{2})$/.exec(semana ?? '');
+    return `${NOME_DO_NUMERO[k] ?? 'um número'}${d ? ` da semana de ${d[2]}/${d[1]}` : ''}`;
+  });
+  const l = [...new Set(lidos)];
+  if (!l.length) return null;
+  const nomes = l.length > 1 ? `${l.slice(0, -1).join(', ')} e ${l[l.length - 1]}` : l[0];
+  return `${l.length === 1 ? 'Um número veio' : 'Alguns números vieram'} fora da faixa e ${l.length === 1 ? 'ficou' : 'ficaram'} de fora: ${nomes}.`;
+}
 export async function coletar(ctx) {
   const avisos = [];
   const avisar = (t) => { if (t && !avisos.includes(t)) avisos.push(t); };
@@ -1191,7 +1224,12 @@ export async function coletar(ctx) {
       total = { resumo, porDia: juntas, vida: null };
       rTotal = { ok: true };
     }
-    if (recusadas.length) avisar(`O Pinterest recusou ${recusadas.length === 1 ? 'a métrica' : 'as métricas'} ${recusadas.join(', ')} da conta; ${recusadas.length === 1 ? 'ela ficou' : 'elas ficaram'} sem número.`);
+    if (recusadas.length) {
+      // O nome da API (ENGAGEMENT_RATE...) vai para o diário; o aviso leva o
+      // nome para gente.
+      ctx.log?.(`pinterest: métricas da conta recusadas ${recusadas.join(', ')}`);
+      avisar(avisoDeMetricasRecusadas(recusadas));
+    }
   }
   const porDiaTotal = total ? new Map([...total.porDia].filter(([d]) => d >= inicio && d <= ontem).sort(([a], [b]) => (a < b ? -1 : 1))) : null;
   if (!rTotal.ok) avisarFalha(rTotal, 'a análise da conta');
@@ -1476,7 +1514,10 @@ export async function coletar(ctx) {
   // a soma pela metade); a semana a semana é a regra do montarSemanas.
   const leads = !leadsFalhou && rContas.ok ? leadsPorSemana : null;
   const sem = montarSemanas({ hoje, porDia: rTotal.ok ? porDiaTotal : null, seguidores: perfil?.seguidores ?? null, leadsPorSemana: leads, entregaPorSemana, periodosLeads });
-  if (sem.fora_da_faixa.length) avisar(`Número fora da faixa ficou de fora: ${sem.fora_da_faixa.join(', ')}.`);
+  if (sem.fora_da_faixa.length) {
+    ctx.log?.(`pinterest: fora da faixa ${sem.fora_da_faixa.join(', ')}`);
+    avisar(avisoDeForaDaFaixa(sem.fora_da_faixa));
+  }
   resultado.semanas = sem.linhas.map((l) => ({ canal: canal.codigo, semana: l.semana, numeros: l.numeros }));
   if (rPins.ok) {
     resultado.publicacoes = pins.map(publicacaoDoPin).filter(Boolean).map((l) => ({ canal: canal.codigo, ...l }));

@@ -2449,6 +2449,8 @@
     }
    ],
    "conexao": null,
+   "conexaoDesconhecida": false,
+   "iniciadoEm": "2026-10-11T09:05:00.040Z",
    "andando": false,
    "ultimas": [
     {
@@ -6907,6 +6909,8 @@
     "expiraEm": "2026-10-11T10:10:59.120Z",
     "refreshExpiraEm": null
    },
+   "conexaoDesconhecida": false,
+   "iniciadoEm": "2026-10-11T09:11:00.040Z",
    "andando": false,
    "ultimas": [
     {
@@ -9229,7 +9233,7 @@
     "Pixel: 1 linha das estatísticas por evento veio num formato desconhecido e ficou fora.",
     "Instagram: 1 mídia ficou sem números nesta coleta (Story com menos de 5 espectadores não tem número).",
     "Página: os Reels do Facebook ficaram fora (a Meta pede permissão de escrita para listá-los).",
-    "Página: a Meta recusou a métrica page_follows_city; ela fica sem número."
+    "Página: a Meta recusou os seguidores por cidade; esse número fica vazio."
    ],
    "coletadoEm": "2026-10-11T09:17:07.880Z",
    "ultimaBoaEm": "2026-10-11T09:17:07.880Z",
@@ -9241,6 +9245,8 @@
     }
    ],
    "conexao": null,
+   "conexaoDesconhecida": false,
+   "iniciadoEm": "2026-10-11T09:17:00.040Z",
    "andando": false,
    "ultimas": [
     {
@@ -10827,6 +10833,8 @@
     }
    ],
    "conexao": null,
+   "conexaoDesconhecida": false,
+   "iniciadoEm": "2026-10-11T09:23:00.040Z",
    "andando": false,
    "ultimas": [
     {
@@ -13148,6 +13156,8 @@
     "expiraEm": "2026-11-19T09:00:00.000Z",
     "refreshExpiraEm": "2027-08-06T09:00:00.000Z"
    },
+   "conexaoDesconhecida": false,
+   "iniciadoEm": "2026-10-11T09:29:00.040Z",
    "andando": false,
    "ultimas": [
     {
@@ -16938,6 +16948,8 @@
     "expiraEm": "2026-11-09T09:35:00.120Z",
     "refreshExpiraEm": "2027-01-01T00:00:00.000Z"
    },
+   "conexaoDesconhecida": false,
+   "iniciadoEm": "2026-10-11T09:35:00.040Z",
    "andando": false,
    "ultimas": [
     {

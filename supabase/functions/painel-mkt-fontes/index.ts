@@ -151,6 +151,15 @@ async function coletar(fonte: string, quem: string | null) {
   const linhasLog: string[] = [];
   const log = (t: any) => { if (linhasLog.length < 60) linhasLog.push(String(t ?? '').slice(0, 300)); };
   const erros: string[] = [];
+  // Os secrets que FALTAM no começo desta execução (só os NOMES, nunca o
+  // valor), anotados no retrato: é por eles que a porta da tela sabe que um
+  // retrato "falta_configurar" é de antes de o Léo cadastrar o secret
+  // (fonteParaTela), em vez de mostrar a falta até a coleta seguinte. Os do
+  // app OAuth entram junto: sem eles a coleta nem passa da porta.
+  const pApp = (PROVEDORES as any)[fonte];
+  const declarados = (lista: any) => (Array.isArray(lista) ? lista.filter(nomeDeSecretValido) : []);
+  const faltavam = [...new Set([...declarados(conector?.SECRETS), ...(pApp ? [pApp.secrets.id, pApp.secrets.segredo] : [])])].filter((n) => !Deno.env.get(n));
+  const opcionaisFaltavam = declarados(conector?.SECRETS_OPCIONAIS).filter((n: string) => !Deno.env.get(n));
 
   // 1. Uma execução por fonte de cada vez, decidido no banco num passo só
   // (anotar com exclusiva). O diário que volta dá a conta das chamadas do
@@ -373,6 +382,12 @@ async function coletar(fonte: string, quem: string | null) {
     // opcionais também (só os nomes): a porta diz quais estão cadastrados.
     retrato.secrets = Array.isArray(conector?.SECRETS) ? conector.SECRETS.filter(nomeDeSecretValido) : [];
     retrato.secretsOpcionais = Array.isArray(conector?.SECRETS_OPCIONAIS) ? conector.SECRETS_OPCIONAIS.filter(nomeDeSecretValido) : [];
+    retrato.faltavam = faltavam;
+    retrato.opcionaisFaltavam = opcionaisFaltavam;
+    // O COMEÇO desta execução (coletado_em é o fim). A tela compara a
+    // conexão com ele: um Reconectar feito com a coleta andando é mais novo
+    // que o token que ela usou, mesmo que ela grave depois.
+    retrato.iniciado_em = inicio.toISOString();
     await gravarCache(chaveDaFonte(fonte), limparSegredos(retrato, segredos()));
   } catch (e) {
     erros.push(`retrato não gravado (${descrever(e)})`);

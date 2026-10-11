@@ -507,3 +507,18 @@ test('nenhum texto novo das conexões tem travessão', () => {
     assert.equal(/[–—]/.test(texto), false, arq);
   }
 });
+
+test('o caso ruim (volta, revisão de 12/10): state bem assinado e VENCIDO volta com a fonte, para a tela dizer de qual conexão; assinatura errada continua sem fonte', async () => {
+  // O Léo demorou mais de 10 minutos na tela do provedor: a assinatura é a
+  // nossa, a fonte é confiável, e a volta diz qual conexão não foi feita.
+  const t = volta({ respostas: [{ corpo: { access_token: 'x' } }] });
+  const vencido = await assinarState({ fonte: 'pinterest', quem: 'gil', exp: Math.floor(Date.now() / 1000) - 5, n: novoNonce() }, SEGREDO);
+  await assert.rejects(conferirState(vencido, SEGREDO), (e) => e instanceof ErroOAuth && e.detalhe === 'vencido' && e.fonte === 'pinterest');
+  const r = await t.get(`code=abc&state=${vencido}`);
+  assert.equal(r.local, `${DESTINO_RETORNO}?secao=marketing&conexao=pinterest&r=erro&motivo=state_invalido`);
+  assert.equal(t.pedidos.length + t.gravados.length, 0, 'nada trocado, nada gravado');
+  // Assinado com outra chave: a fonte de dentro não é nossa, e não vai.
+  const outro = await assinarState({ fonte: 'google', quem: 'gil', n: novoNonce() }, 'chave-de-outro-lugar-qualquer');
+  await assert.rejects(conferirState(outro, SEGREDO), (e) => e instanceof ErroOAuth && e.fonte === null);
+  assert.equal((await t.get(`code=abc&state=${outro}`)).local, `${DESTINO_RETORNO}?secao=marketing&r=erro&motivo=state_invalido`);
+});

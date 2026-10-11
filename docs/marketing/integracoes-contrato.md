@@ -204,3 +204,14 @@ Sem o secret, a fonte fica no estado `falta_configurar`, e a tela mostra os pass
 - Toda afirmação sobre a API apoiada na pesquisa: o que lá estiver como `nao_confirmado` é tratado com tolerância. Campo ausente vira null, e a métrica recusada vai para `avisos` sem derrubar a coleta.
 - Nada de segredo no repositório. Os testes usam fixtures fictícias.
 - Testes começam pelo caso ruim.
+
+## Revisão final (11/10/2026): campos novos da porta e da coletora
+
+Toda a costura que vale a partir daqui:
+- `fontes` manda `conexaoDesconhecida: true` quando o cofre não pôde ser lido. A tela mantém o estado da última coleta e não deduz "falta conectar".
+- `fontes` manda `iniciadoEm` (a hora em que a coleta começou, gravada pela coletora como `iniciado_em` no retrato). A tela compara a conexão com esse início, e não com o fim.
+- `desconectar` manda `retratoFicou: true` quando não conseguiu apagar o retrato (regra de guarda do LinkedIn). A tela mantém o Desconectar enquanto a fonte tiver números (`ultimaBoaEm`).
+- A porta passa a fonte para `aguardando_coleta` quando a coleta anotou `faltavam` (secrets que faltavam) e eles já existem agora. Nesse caso, ela tira os avisos daquela coleta.
+- `ultimas[].erro` (texto técnico do diário) só vai para a gestão. A linha mostra uma frase fixa.
+- Avisos dos conectores: sempre uma frase para gente. Nome de métrica, código e HTTP ficam só no `ctx.log`.
+- Volta do OAuth com o state vencido mas assinado: vem com a fonte. Com o state adulterado, volta sem a fonte. A tela mostra o aviso nos dois casos.

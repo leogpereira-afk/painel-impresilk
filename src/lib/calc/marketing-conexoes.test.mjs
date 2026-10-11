@@ -34,6 +34,14 @@ import {
   perguntaDeDesconectar,
   semContaNoPainel,
   semParametros,
+  TEXTO_SEM_IDENTIDADE,
+  conexoesCuidamDaRolagem,
+  detalheTecnicoDaLinha,
+  ocupadoDepoisDeVoltar,
+  resumoDaAtualizacao,
+  rotuloDaTrava,
+  segundosDaTrava,
+  travasDepois,
   textoDaColeta,
   textoDaColetaAndando,
   textoDaColetaDemorada,
@@ -41,7 +49,7 @@ import {
   textoDoMotivo,
   voltaDestaAba,
 } from './marketing-conexoes.js';
-import { normalizarFontes, situacaoDaFonte } from './marketing-fontes.js';
+import { ESTADOS, estadoDoCanal, fontesDoCanal, inicioDaColeta, normalizarFontes, situacaoDaFonte } from './marketing-fontes.js';
 import { AVISO_DESCONECTAR_GOOGLE, MOTIVOS } from '../../../supabase/functions/_shared/mkt-oauth.mjs';
 
 const ler = (n) => JSON.parse(readFileSync(new URL(`../../review/${n}`, import.meta.url), 'utf8'));
@@ -280,7 +288,18 @@ test('a linha com muitas partes: só as que pedem atenção, e a conta das que f
   const conta = VARIEDADE.fontes.google_ads.partes.conta;
   assert.equal(conta.codigo, 'projeto_sem_aprovacao');
   assert.match(conta.motivo, /nível Explorer/);
-  assert.deepEqual(ads.partes.lista.map((x) => [x.rotulo, x.info.rotulo, x.motivo]), [['Conta', 'Erro na coleta', conta.motivo]]);
+  // O CASO RUIM (revisão de 12/10): a parte vinha "Erro na coleta" (vermelho)
+  // ao lado do selo "Aguardando aprovação", e a mesma frase de novo em "1
+  // aviso". Agora a parte tem o estado da fonte e a frase vai uma vez.
+  assert.deepEqual(ads.partes.lista.map((x) => [x.rotulo, x.info.rotulo, x.info.tom, x.motivo]), [['Conta', 'Aguardando aprovação', 'neutral', conta.motivo]]);
+  assert.deepEqual(ads.avisos, []);
+  // E a linha não repete como aviso a frase que uma parte já mostra (servidor
+  // antigo, que ainda mandava as duas).
+  const antigo = { ...copia(VARIEDADE.fontes.google_ads), avisos: [conta.motivo, 'Outro aviso.'] };
+  assert.deepEqual(linhaDaConexao(antigo, 'gestao', HOJE).avisos, ['Outro aviso.']);
+  // A frase do estado não diz "não há o que fazer" quando o motivo manda pedir o acesso.
+  assert.equal(/não há o que fazer/i.test(ads.situacao.texto), false, ads.situacao.texto);
+  assert.match(ads.situacao.texto, /pedido de acesso/);
   assert.match(ads.coleta, /^tentou em 11\/10 às \d{2}:\d{2}, sem dados ainda$/);
   const cheio = linhaDaConexao(CHEIAS.fontes.google_ads, 'gestao', HOJE);
   assert.deepEqual([cheio.partes.lista.length, cheio.partes.funcionando, cheio.partes.total, cheio.partes.resumidas], [0, 17, 17, true]);
@@ -361,9 +380,24 @@ test('a frase de apoio muda com o papel: quem pode clicar lê o que clicar', () 
   const morta = { ...copia(VARIEDADE.fontes.google), estado: 'reconectar' };
   assert.equal(detalheDaLinha(morta, 'gestao'), 'A conexão parou de valer. Clique em Reconectar.');
   assert.equal(detalheDaLinha(morta, 'visualizacao'), 'A conexão parou de valer. A gestão do Marketing precisa reconectar.');
-  const erro = { ...copia(VARIEDADE.fontes.meta), estado: 'erro', ultimas: [{ erro: 'A Meta não respondeu.' }] };
-  assert.equal(detalheDaLinha(erro, 'gestao'), 'A última coleta falhou: A Meta não respondeu. O que já estava na tela continua.');
-  assert.equal(detalheDaLinha({ ...erro, ultimas: [] }, 'gestao'), 'A última coleta falhou. O que já estava na tela continua.');
+  // O CASO RUIM (revisão de 12/10): o erro técnico do diário ia inteiro para
+  // a linha, para todos os papéis. Agora a frase é fixa; o técnico vai só
+  // para a gestão, na dica (detalheTecnico).
+  const tecnico = 'ga4 lote: servidor (HTTP 503); semanas não gravadas (banco: 40001)';
+  const erro = { ...copia(VARIEDADE.fontes.meta), estado: 'erro', ultimas: [{ erro: tecnico }] };
+  const FIXA = 'A última coleta falhou. O que já estava na tela continua, e a próxima coleta tenta de novo.';
+  for (const papel of ['visualizacao', 'marketing', 'gestao']) {
+    const l = linhaDaConexao(erro, papel, HOJE);
+    assert.equal(l.detalhe, FIXA, papel);
+    assert.equal(l.detalhe.includes('HTTP'), false);
+    assert.equal(l.detalheTecnico, papel === 'gestao' ? `Detalhe técnico da última coleta: ${tecnico}` : null, papel);
+  }
+  assert.equal(detalheDaLinha({ ...erro, ultimas: [] }, 'gestao'), FIXA);
+  assert.equal(linhaDaConexao({ ...erro, ultimas: [] }, 'gestao', HOJE).detalheTecnico, null);
+  assert.equal(linhaDaConexao(VARIEDADE.fontes.meta, 'gestao', HOJE).detalheTecnico, null, 'sem erro, sem detalhe técnico');
+  // Reconectar numa fonte por secret: não existe botão Reconectar; troca-se o secret.
+  const metaMorta = { ...copia(VARIEDADE.fontes.meta), estado: 'reconectar' };
+  assert.match(detalheDaLinha(metaMorta, 'gestao'), /Troque o secret/);
   assert.equal(detalheDaLinha({ ...copia(VARIEDADE.fontes.site), estado: null, coletadoEm: null, ultimaBoaEm: null }, 'gestao'), 'Esta fonte ainda não foi coletada nenhuma vez.');
   assert.equal(detalheDaLinha(null, 'gestao'), null);
 });
@@ -460,8 +494,6 @@ test('O CASO RUIM: campo que não veio (servidor antigo) não vira aviso nenhum'
   assert.equal(semContaNoPainel(pessoas, ''), false);
   assert.equal(avisarSemIdentidade({ papel: 'gestao' }), false, 'servidor antigo');
   assert.equal(avisarSemIdentidade({ papel: 'gestao', semIdentidade: false }), false);
-  assert.equal(avisarSemIdentidade({ papel: 'gestao', semIdentidade: true }), true);
-  assert.equal(avisarSemIdentidade({ papel: 'marketing', semIdentidade: true }), false, 'só a gestão');
   assert.equal(avisarSemIdentidade({ papel: 'gestao', semIdentidade: 'sim' }), false);
   assert.equal(avisarSemIdentidade(null), false);
 });
@@ -472,4 +504,187 @@ test('a lista para gente', () => {
   assert.equal(listaHumana(['A', 'B']), 'A e B');
   assert.equal(listaHumana(['A', 'B', 'C']), 'A, B e C');
   assert.equal(listaHumana(null), '');
+});
+
+/* --------------------------------------------- revisão de 12/10/2026 -- */
+
+test('O CASO RUIM (revisão de 12/10): o aviso "login sem pessoa do RH" aparece na combinação que o servidor manda (papel padrão, marketing)', () => {
+  // O servidor só manda semIdentidade true para quem não é a direção, e aí o
+  // papel é sempre o padrão (painel-marketing: papelEfetivo(s, null)). A
+  // regra antiga exigia "gestao" e nunca mostrava o aviso.
+  assert.equal(avisarSemIdentidade({ papel: 'marketing', semIdentidade: true }), true);
+  for (const papel of ['gestao', 'marketing', 'visualizacao']) assert.equal(avisarSemIdentidade({ papel, semIdentidade: true }), true, papel);
+  assert.match(TEXTO_SEM_IDENTIDADE, /filtro Minhas/);
+  assert.match(TEXTO_SEM_IDENTIDADE, /papel padrão/);
+  assert.equal(TRAVESSAO.test(TEXTO_SEM_IDENTIDADE), false);
+});
+
+test('O CASO RUIM (revisão de 12/10): a volta do state vencido ou adulterado (sem "conexao") mostra o aviso, em vez de sumir', () => {
+  // É o que a painel-mkt-oauth manda quando o state não confere: voltar(null, 'state_invalido').
+  const v = lerVoltaDoOAuth(p('secao=marketing&r=erro&motivo=state_invalido'));
+  assert.deepEqual(v, { fonte: null, nome: null, tipo: 'erro', motivo: 'state_invalido' });
+  const a = avisoDaVolta(v, VARIEDADE.motivos);
+  assert.deepEqual(a, { tom: 'erro', texto: `A conexão não foi feita. ${MOTIVOS.state_invalido}` });
+  // Motivo torto ou ausente: a frase genérica, nada da URL.
+  assert.equal(avisoDaVolta(lerVoltaDoOAuth(p('r=erro&motivo=<b>x</b>'))).texto, `A conexão não foi feita. ${MOTIVOS.troca_falhou}`);
+  assert.equal(avisoDaVolta(lerVoltaDoOAuth(p('r=erro'))).texto, `A conexão não foi feita. ${MOTIVOS.troca_falhou}`);
+  // Sem "r=erro" continua não sendo volta; fonte que não é OAuth também não.
+  for (const q of ['r=ok', 'secao=marketing', 'conexao=meta&r=erro', 'conexao=&r=erro']) assert.equal(lerVoltaDoOAuth(p(q)), null, q);
+  // Com a fonte (o servidor manda quando a assinatura confere), o aviso diz qual.
+  assert.match(avisoDaVolta(lerVoltaDoOAuth(p('conexao=pinterest&r=erro&motivo=state_invalido'))).texto, /^A conexão do Pinterest não foi feita\./);
+});
+
+test('O CASO RUIM (revisão de 12/10): com ?fonte= ou a volta (r=), quem rola é o bloco Conexões; a página só abre o grupo', () => {
+  assert.equal(conexoesCuidamDaRolagem(p('secao=marketing&fonte=google')), true);
+  assert.equal(conexoesCuidamDaRolagem(p('secao=marketing&conexao=google&r=ok&confirmar=' + NONCE)), true);
+  assert.equal(conexoesCuidamDaRolagem(p('secao=marketing&r=erro&motivo=state_invalido')), true);
+  assert.equal(conexoesCuidamDaRolagem(p('secao=marketing')), false, 'só a seção: a página rola até o grupo');
+  assert.equal(conexoesCuidamDaRolagem(p('secao=campanhas')), false);
+  assert.equal(conexoesCuidamDaRolagem(null), false);
+});
+
+test('O CASO RUIM (revisão de 12/10): o Desconectar do LinkedIn que deixou os números no cache mantém o botão e avisa em tom de atenção', () => {
+  const avisoDaPorta = 'A conexão saiu do Painel, mas os números antigos do LinkedIn não saíram da tela agora. Clique em Desconectar de novo.';
+  // O aviso não é verde: falta um passo.
+  assert.equal(avisoDoDesconectar('linkedin', { revogado: null, aviso: avisoDaPorta, retratoFicou: true }).tom, 'aviso');
+  assert.equal(avisoDoDesconectar('linkedin', { revogado: null, aviso: avisoDaPorta }).tom, 'aviso', 'servidor sem retratoFicou');
+  assert.equal(avisoDoDesconectar('linkedin', { revogado: null, aviso: null, retratoFicou: false }).tom, 'ok');
+  assert.equal(avisoDoDesconectar('google', { revogado: true, aviso: AVISO_DESCONECTAR_GOOGLE }).tom, 'ok', 'o aviso do Google é informação');
+  // A leitura seguinte: sem conexão, com o retrato (números) no cache. O
+  // Desconectar continua na linha, como o aviso manda.
+  const li = { ...copia(CHEIAS.fontes.linkedin), conexao: null, estado: 'falta_conectar' };
+  assert.ok(li.ultimaBoaEm, 'o retrato tem números');
+  const l = linhaDaConexao(li, 'gestao', HOJE);
+  assert.equal(l.acoes.desconectar, true);
+  assert.deepEqual(botoesDaLinha(l.acoes, l.situacao.chave).menu, ['desconectar']);
+  // Depois do Desconectar que apagou o retrato (a coleta de cada manhã grava
+  // um retrato sem número): o botão some.
+  const limpo = { ...li, coletadoEm: '2026-10-12T09:29:00.000Z', ultimaBoaEm: null, partes: {} };
+  assert.equal(linhaDaConexao(limpo, 'gestao', HOJE).acoes.desconectar, false);
+  // Só a gestão; e só o LinkedIn (a regra de guarda é dele).
+  assert.equal(linhaDaConexao(li, 'marketing', HOJE).acoes.desconectar, false);
+  const pin = { ...copia(CHEIAS.fontes.pinterest), conexao: null };
+  assert.equal(linhaDaConexao(pin, 'gestao', HOJE).acoes.desconectar, false);
+});
+
+test('O CASO RUIM (revisão de 12/10): cofre ilegível (conexaoDesconhecida) não vira "falta conectar" em lugar nenhum, e o Atualizar agora fica', () => {
+  const g = { ...copia(VARIEDADE.fontes.google), conexao: null, conexaoDesconhecida: true };
+  const l = linhaDaConexao(g, 'gestao', HOJE);
+  assert.equal(l.situacao.chave, 'parcial', 'o selo é o da última coleta');
+  assert.deepEqual(botoesDaLinha(l.acoes, l.situacao.chave), { visiveis: ['atualizar', 'reconectar'], menu: [], primario: null });
+  assert.equal(l.partes.total, 3, 'as partes da última coleta continuam');
+  assert.equal(l.conectado, 'conexão não conferida agora');
+  assert.match(l.detalhe, /Não deu para conferir a conexão/);
+  assert.match(l.coleta, /^coletado em /);
+  assert.equal(linhaDaConexao(g, 'marketing', HOJE).acoes.atualizar, true);
+  assert.equal(faixaDasFontes({ lista: [g] })[0].info.chave, 'parcial');
+  // A sub-aba Dados do canal site: o GA4 não diz "Falta conectar".
+  const porFonte = { site: VARIEDADE.fontes.site, google: g, google_ads: VARIEDADE.fontes.google_ads };
+  assert.equal(fontesDoCanal('site', porFonte).find((x) => x.parte === 'ga4').info.chave, 'ok');
+  assert.notEqual(estadoDoCanal('site', porFonte).chave, 'falta_conectar');
+  // Sem o sinal (cofre lido, sem conexão, e a porta manda "falta_conectar"):
+  // aí sim, falta conectar, com o Conectar.
+  const sem = { ...g, conexaoDesconhecida: false, estado: 'falta_conectar' };
+  const ls = linhaDaConexao(sem, 'gestao', HOJE);
+  assert.equal(ls.situacao.chave, 'falta_conectar');
+  assert.deepEqual(botoesDaLinha(ls.acoes, ls.situacao.chave).visiveis, ['conectar']);
+  assert.equal(ls.partes.total, 0);
+  assert.equal(fontesDoCanal('site', { ...porFonte, google: sem }).find((x) => x.parte === 'ga4').info.chave, 'falta_conectar');
+});
+
+test('O CASO RUIM (revisão de 12/10): Reconectar com uma coleta andando: a régua é o COMEÇO da coleta, não o fim', () => {
+  const comeco = '2026-10-11T13:00:20.000Z', conectado = '2026-10-11T13:01:30.000Z', fim = '2026-10-11T13:02:10.000Z';
+  const base = {
+    fonte: 'google', oauth: true, configurado: true, estado: 'parcial', coletadoEm: fim, ultimaBoaEm: fim, avisos: ['Aviso do token velho.'],
+    partes: { ga4: { estado: 'ok' }, perfil: { estado: 'falta_conectar', motivo: 'A permissão do Perfil da Empresa não foi dada no Conectar.' } },
+    conexao: { conectadoEm: conectado, conectadoPor: 'leo', conta: 'leo', escopos: ['business.manage'] },
+  };
+  // Com o carimbo do começo (iniciadoEm, a coletora nova).
+  const comCarimbo = { ...base, iniciadoEm: comeco, ultimas: [] };
+  assert.equal(inicioDaColeta(comCarimbo), comeco);
+  const l = linhaDaConexao(comCarimbo, 'gestao', HOJE);
+  assert.equal(l.situacao.chave, 'aguardando_coleta');
+  assert.match(l.situacao.texto, /^Conectado\./);
+  assert.deepEqual([l.partes.lista, l.avisos], [[], []], 'a parte e o aviso do token velho não aparecem');
+  // Sem o carimbo (retrato de antes): a execução do diário que gravou o retrato.
+  const peloDiario = { ...base, ultimas: [{ inicio: '2026-10-11T13:05:00.000Z', fim: null, estado: 'andando' }, { inicio: comeco, fim: '2026-10-11T13:02:11.000Z', estado: 'parcial' }] };
+  assert.equal(inicioDaColeta(peloDiario), comeco, 'a que anda agora não gravou o retrato');
+  assert.equal(situacaoDaFonte(peloDiario).chave, 'aguardando_coleta');
+  // A coleta que COMEÇOU depois da conexão é de agora: vale o estado dela.
+  const depois = { ...base, iniciadoEm: '2026-10-11T13:01:40.000Z' };
+  assert.equal(situacaoDaFonte(depois).chave, 'parcial');
+  // Sem diário nem carimbo: o fim, como antes.
+  assert.equal(inicioDaColeta({ ...base, ultimas: [] }), fim);
+  assert.equal(inicioDaColeta({ ...base, coletadoEm: null }), null);
+});
+
+test('O CASO RUIM (revisão de 12/10): o secret cadastrado depois da coleta (estado "aguardando_coleta" da porta) mostra "Aguardando a coleta" na linha, na faixa e na aba Dados', () => {
+  const meta = { ...copia(VARIEDADE.fontes.meta), estado: 'aguardando_coleta', avisos: [], partes: { pagina: { estado: 'aguardando_coleta', motivo: null } } };
+  const l = linhaDaConexao(meta, 'gestao', HOJE);
+  assert.equal(l.situacao.rotulo, 'Aguardando a coleta');
+  assert.match(l.situacao.texto, /^Configurado\. Os números chegam/);
+  assert.equal(l.detalhe, l.situacao.texto);
+  assert.deepEqual(l.partes.lista, []);
+  assert.deepEqual(botoesDaLinha(l.acoes, l.situacao.chave).visiveis, ['atualizar']);
+  assert.equal(faixaDasFontes({ lista: [meta] })[0].info.chave, 'aguardando_coleta');
+  assert.equal(estadoDoCanal('facebook', { meta }).chave, 'aguardando_coleta');
+  assert.ok(fontesDoCanal('facebook', { meta }).every((x) => x.info.chave === 'aguardando_coleta' && x.motivo === null));
+});
+
+test('O CASO RUIM (revisão de 12/10): a faixa usa o rótulo curto no selo (o inteiro vai na dica e no aria-label)', () => {
+  const faixa = faixaDasFontes(normalizarFontes(VARIEDADE));
+  assert.deepEqual(faixa.map((x) => [x.fonte, x.curto, x.info.rotulo]), [
+    ['site', 'Funcionando', 'Funcionando'],
+    ['google', 'Parcial', 'Parcial'],
+    ['meta', 'Funcionando', 'Funcionando'],
+    ['google_ads', 'Em aprovação', 'Aguardando aprovação'],
+    ['linkedin', 'Configurar', 'Falta configurar'],
+    ['pinterest', 'Conectar', 'Falta conectar'],
+  ]);
+  // O longo que quebrava a faixa a 1280 px.
+  const pin = copia(CHEIAS.fontes.pinterest);
+  pin.conexao = { ...pin.conexao, conectadoEm: '2026-10-11T15:00:00.000Z' };
+  pin.coletadoEm = '2026-10-10T09:35:00.000Z';
+  pin.iniciadoEm = null;
+  pin.ultimas = [];
+  const [x] = faixaDasFontes({ lista: [pin] });
+  assert.deepEqual([x.curto, x.info.rotulo], ['Aguardando', 'Aguardando a coleta']);
+  // Todo estado tem rótulo curto, e nenhum curto passa de 12 letras.
+  for (const chave of [...ESTADOS, 'aguardando_coleta', 'sem_coleta', 'desconhecido']) {
+    const c = faixaDasFontes({ lista: [{ fonte: 'site', estado: chave, configurado: true }] })[0].curto;
+    assert.ok(typeof c === 'string' && c.length <= 12, `${chave}: ${c}`);
+  }
+});
+
+test('O CASO RUIM (revisão de 12/10): voltar do provedor pelo cache do navegador solta o Conectar preso em "Abrindo..."; a coleta em andamento fica', () => {
+  assert.deepEqual(ocupadoDepoisDeVoltar({ google: 'conectar', linkedin: 'reconectar', site: 'atualizar' }), { site: 'atualizar' });
+  assert.deepEqual(ocupadoDepoisDeVoltar({}), {});
+  assert.deepEqual(ocupadoDepoisDeVoltar(null), {});
+});
+
+test('O CASO RUIM (revisão de 12/10): a trava de 2 minutos vale pela resposta do servidor; o caso misto diz o que atualizou e o que espera, sem pintar tudo de erro', () => {
+  const agora = Date.parse('2026-10-11T15:00:00.000Z');
+  const travas = travasDepois({ meta: agora - 1 }, [
+    { fonte: 'site', ok: true, andando: false },
+    { fonte: 'google', ok: false, status: 429, aguardarSegundos: 95 },
+    { fonte: 'google_ads', ok: false, status: 502, erro: 'A coleta não respondeu.' },
+  ], agora);
+  assert.equal(segundosDaTrava(travas, 'site', agora), 120);
+  assert.equal(segundosDaTrava(travas, 'google', agora), 95);
+  assert.equal(segundosDaTrava(travas, 'google_ads', agora), 0, 'falha que não é a trava não trava');
+  assert.equal(segundosDaTrava(travas, 'meta', agora), 0, 'a trava vencida solta');
+  assert.equal(segundosDaTrava(travas, 'site', agora + 119_001), 1);
+  assert.equal(rotuloDaTrava(95), 'Atualizar em 95 s');
+  // O caso misto: uma atualizou, outra 429. Nada de vermelho.
+  const misto = resumoDaAtualizacao([{ fonte: 'site', ok: true, andando: false }, { fonte: 'google', ok: false, status: 429, aguardarSegundos: 95, erro: 'Esta fonte foi atualizada há pouco.' }]);
+  assert.equal(misto.tom, 'aviso');
+  assert.equal(misto.texto, 'Dados atualizados: Site. Google: uma coleta por fonte a cada 2 minutos; dá para pedir de novo em 95 s.');
+  // A travada pulada pela tela entra do mesmo jeito.
+  assert.equal(resumoDaAtualizacao([{ fonte: 'site', ok: true, andando: true }], { travadas: [{ fonte: 'google_ads', segundos: 40 }] }).texto,
+    'A coleta de Site continua no servidor; os números entram aqui sozinhos em instantes. Google Ads: uma coleta por fonte a cada 2 minutos; dá para pedir de novo em 40 s.');
+  assert.deepEqual(resumoDaAtualizacao([{ fonte: 'meta', ok: true }]), { tom: 'ok', texto: 'Dados atualizados: Meta.' });
+  // Só falha é erro; falha com outra que deu certo é atenção.
+  assert.equal(resumoDaAtualizacao([{ fonte: 'meta', ok: false, status: 502, erro: 'A coleta não respondeu.' }]).tom, 'erro');
+  assert.equal(resumoDaAtualizacao([{ fonte: 'site', ok: true }, { fonte: 'meta', ok: false, status: 502, erro: 'A coleta não respondeu.' }]).tom, 'aviso');
+  for (const r of [misto]) assert.equal(TRAVESSAO.test(r.texto), false);
 });

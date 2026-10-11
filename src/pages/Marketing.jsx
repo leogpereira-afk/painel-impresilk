@@ -37,7 +37,7 @@ import { ymdLocal } from '../lib/format.js';
 import { lerPainelMarketing, listarPessoasMarketing, salvarAcaoMarketing, concluirPlaybook } from '../services/marketing.js';
 import { SITUACOES_ACAO } from '../../supabase/functions/_shared/marketing.mjs';
 import { MarketingCtx, useCelular, mudouNoServidor } from '../components/marketing/contexto.js';
-import { avisarSemIdentidade } from '../lib/calc/marketing-conexoes.js';
+import { TEXTO_SEM_IDENTIDADE, avisarSemIdentidade } from '../lib/calc/marketing-conexoes.js';
 import {
   ROTULO_GRUPO_CANAL,
   SITUACAO_AO_CONCLUIR,
@@ -90,6 +90,11 @@ function normalizarPainel(r) {
   };
 }
 
+// O fundo e o texto de cada tom do aviso do pé (todos com par no tema
+// escuro). "aviso" é o meio-termo (revisão de 12/10): o "Atualizar agora"
+// em que uma fonte atualizou e outra espera a trava não é erro.
+const TOM_DO_AVISO = { ok: 'bg-ok-50 text-ok-700', aviso: 'bg-warn-50 text-warn-800', erro: 'bg-bad-50 text-bad-700' };
+
 function Aviso({ aviso, onFechar }) {
   if (!aviso) return null;
   const ok = aviso.tom !== 'erro';
@@ -98,7 +103,7 @@ function Aviso({ aviso, onFechar }) {
       role={ok ? 'status' : 'alert'}
       // Preso ao pé da tela: no celular, quem mexeu lá embaixo na lista não
       // via o aviso que nascia no topo (o erro passava calado).
-      className={`sem-impressao fixed inset-x-4 bottom-4 z-30 mx-auto flex max-w-xl items-start justify-between gap-2 rounded-lg px-3 py-1 text-sm shadow-lg ${ok ? 'bg-ok-50 text-ok-700' : 'bg-bad-50 text-bad-700'}`}
+      className={`sem-impressao fixed inset-x-4 bottom-4 z-30 mx-auto flex max-w-xl items-start justify-between gap-2 rounded-lg px-3 py-1 text-sm shadow-lg ${TOM_DO_AVISO[aviso.tom] || TOM_DO_AVISO.ok}`}
     >
       <p className="min-w-0 flex-1 break-words py-2">{aviso.texto}</p>
       <button type="button" className="btn-ghost h-11 w-11 shrink-0 p-0" onClick={onFechar} aria-label="Fechar aviso">
@@ -459,13 +464,16 @@ export default function Marketing() {
         </Fileira>
 
         {painel && erro && vista !== 'materiais' && <AvisoAtualizacao erro={erro} aoTentar={carregar} />}
-        {/* Login sem pessoa do RH: só a gestão lê, numa linha discreta. Sem
+        {/* Login sem pessoa do RH, numa linha discreta, para quem o servidor
+            disse (semIdentidade), em qualquer papel: ele só diz isso de quem
+            não é a direção, e aí o papel é o padrão (marketing). Exigir a
+            gestão aqui fazia o aviso nunca aparecer (revisão de 12/10). Sem
             a ligação, o filtro "Minhas" some e o papel definido por pessoa
             não alcança este login. */}
         {avisarSemIdentidade(painel) && vista !== 'materiais' && (
           <p className="flex items-start gap-1.5 px-1 text-xs text-slate-500">
             <Info size={14} aria-hidden="true" className="mt-px shrink-0" />
-            Seu login não está ligado a uma pessoa do RH, por isso o filtro Minhas não aparece.
+            {TEXTO_SEM_IDENTIDADE}
           </p>
         )}
         <Aviso aviso={aviso} onFechar={() => setAviso(null)} />

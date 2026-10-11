@@ -1411,6 +1411,108 @@ test('o caso ruim: Desconectar o LinkedIn leva junto o retrato do cache, e os n�
   assert.equal(r.texto.includes('cache caiu'), false);
 });
 
+test('o caso ruim (revisão de 12/10): secret cadastrado depois da coleta não fica "Falta configurar" com o aviso velho até a próxima coleta', async () => {
+  // A coleta das 6h rodou SEM o META_TOKEN (o conector parou na porta); o
+  // Léo cadastrou o secret às 9h. A porta lê o retrato da manhã com o secret
+  // já existindo.
+  const parado = { estado: 'falta_configurar', partes: { pagina: { estado: 'falta_configurar', motivo: 'Falta cadastrar o secret META_TOKEN no Supabase.', codigo: 'sem_token' } }, dados: {},
+    avisos: ['Falta cadastrar o secret META_TOKEN no Supabase (o token do usuário do sistema da Meta).'] };
+  const b = banco();
+  const col = coletora({ b, env: { ...ENV, META_TOKEN: '' }, conectores: { meta: conector('meta', async (ctx) => (ctx.env('META_TOKEN') ? { estado: 'ok', partes: {}, dados: {} } : parado)) } });
+  assert.equal((await col.post({ action: 'coletar', fonte: 'meta' })).corpo.estado, 'falta_configurar');
+  const retrato = b.db.cache.get('mkt_fonte_meta');
+  // A coletora anota os NOMES do que faltava (nunca valor) e o começo da execução.
+  assert.deepEqual(retrato.faltavam, ['META_TOKEN']);
+  assert.deepEqual(retrato.opcionaisFaltavam, []);
+  assert.equal(retrato.iniciado_em, diario({ db: b.db })[0].inicio);
+  assert.ok(Date.parse(retrato.iniciado_em) <= Date.parse(retrato.coletado_em));
+  const t = porta({ b });
+  t.sessao(GIL);
+  const m = (await t.call({ action: 'fontes', leve: true })).fontes.meta;
+  assert.equal(m.configurado, true);
+  assert.equal(m.estado, 'aguardando_coleta', 'nem "Falta configurar" (o secret existe) nem "ok" (ainda não coletou)');
+  assert.deepEqual(m.avisos, [], 'o aviso da falta saiu');
+  assert.deepEqual([m.partes.pagina.estado, m.partes.pagina.motivo, m.partes.pagina.codigo], ['aguardando_coleta', null, null]);
+  assert.equal(m.iniciadoEm, retrato.iniciado_em);
+  // Sem o secret, continua "Falta configurar" (é a verdade de agora).
+  const sem = porta({ b, env: { ...ENV, META_TOKEN: '' } });
+  sem.sessao(GIL);
+  assert.equal((await sem.call({ action: 'fontes', leve: true })).fontes.meta.estado, 'falta_configurar');
+  // Falta de configuração com o secret PRESENTE na coleta (o JSON da conta
+  // de serviço torto) não é velha: fica "Falta configurar", com o aviso.
+  const torto = { estado: 'falta_configurar', partes: { conta: { estado: 'falta_configurar', motivo: 'O GOOGLE_ADS_SA_JSON não é o arquivo JSON de uma conta de serviço.', codigo: 'json_invalido' } }, dados: {}, avisos: ['Confira o arquivo.'] };
+  const colAds = coletora({ b, conectores: { google_ads: conector('google_ads', async () => torto) } });
+  await colAds.post({ action: 'coletar', fonte: 'google_ads' });
+  assert.deepEqual(b.db.cache.get('mkt_fonte_google_ads').faltavam, []);
+  const ads = (await t.call({ action: 'fontes', leve: true })).fontes.google_ads;
+  assert.deepEqual([ads.estado, ads.partes.conta.estado, ads.partes.conta.codigo, ads.avisos], ['falta_configurar', 'falta_configurar', 'json_invalido', ['Confira o arquivo.']]);
+});
+
+test('o caso ruim (revisão de 12/10): opcional cadastrado depois da coleta: a parte que ficou sem ele e o aviso da falta saem; o resto fica', async () => {
+  const b = banco({ cache: { mkt_fonte_site: {
+    estado: 'parcial', coletado_em: '2026-10-11T09:05:00.000Z', ultima_boa_em: '2026-10-11T09:05:00.000Z', faltavam: [], opcionaisFaltavam: ['GOOGLE_API_KEY'],
+    partes: { paginas: { estado: 'ok', coletado_em: '2026-10-11T09:05:00.000Z' }, pagespeed: { estado: 'falta_configurar', motivo: 'Falta cadastrar a chave GOOGLE_API_KEY nos Secrets do Supabase.', codigo: 'sem_chave' }, crux: { estado: 'falta_configurar', motivo: 'sem_chave' }, dns: { estado: 'falta_configurar', motivo: 'Outra coisa.', codigo: 'outra' } },
+    dados: {}, avisos: ['PageSpeed e CrUX ficam desligados até a chave GOOGLE_API_KEY ser cadastrada nos Secrets do Supabase.', 'Não deu para ler 1 página do site nesta coleta.'],
+  } } });
+  const t = porta({ b });
+  t.sessao(GIL);
+  const s = (await t.call({ action: 'fontes', leve: true })).fontes.site;
+  assert.equal(s.estado, 'parcial');
+  assert.deepEqual(s.avisos, ['Não deu para ler 1 página do site nesta coleta.']);
+  assert.deepEqual([s.partes.pagespeed.estado, s.partes.crux.estado], ['aguardando_coleta', 'aguardando_coleta']);
+  assert.deepEqual([s.partes.dns.estado, s.partes.dns.codigo], ['falta_configurar', 'outra'], 'parte que falta por outro motivo fica');
+  assert.equal(s.partes.paginas.estado, 'ok');
+  // Sem a chave agora, nada muda.
+  const sem = porta({ b, env: { ...ENV, GOOGLE_API_KEY: '' } });
+  sem.sessao(GIL);
+  const s2 = (await sem.call({ action: 'fontes', leve: true })).fontes.site;
+  assert.equal(s2.partes.pagespeed.estado, 'falta_configurar');
+  assert.equal(s2.avisos.length, 2);
+});
+
+test('o caso ruim (revisão de 12/10): o erro técnico do diário só vai para a gestão', async () => {
+  const cache = {
+    mkt_fonte_google: { estado: 'erro', coletado_em: '2026-10-11T09:11:00.000Z', partes: {}, dados: {} },
+    mkt_coleta_diario: { versao: 1, execucoes: [{ id: 'e1', fonte: 'google', inicio: '2026-10-11T09:10:00.000Z', fim: '2026-10-11T09:11:00.000Z', estado: 'erro', chamadas: 3, erro: 'ga4 lote: servidor (HTTP 503); semanas não gravadas (banco: 40001)' }] },
+  };
+  const t = porta({ cache, conexoes: { google: { conectado_em: '2026-10-01T12:00:00.000Z', conectado_por: 'gil', escopos: [] } } });
+  for (const [s, esperado] of [[GIL, 'ga4 lote: servidor (HTTP 503); semanas não gravadas (banco: 40001)'], [ANA, null], [BIA, null]]) {
+    t.sessao(s);
+    const r = await t.call({ action: 'fontes', leve: true });
+    assert.equal(r.fontes.google.ultimas[0].erro, esperado, s.sub);
+    assert.equal(r.fontes.google.ultimas[0].estado, 'erro', 'o estado da execução vai para todos');
+  }
+});
+
+test('o caso ruim (revisão de 12/10): cofre ilegível manda conexaoDesconhecida nas fontes por OAuth, para a tela não deduzir "falta conectar"', async () => {
+  const cache = { mkt_fonte_google: { estado: 'ok', coletado_em: '2026-10-11T09:11:00.000Z', partes: {}, dados: {} } };
+  const t = porta({ cache, infoErro: { code: 'XX000', message: 'vault caiu' } });
+  t.sessao(GIL);
+  const r = await t.call({ action: 'fontes', leve: true });
+  assert.deepEqual([r.fontes.google.conexao, r.fontes.google.conexaoDesconhecida, r.fontes.google.estado], [null, true, 'ok']);
+  assert.equal(r.fontes.linkedin.conexaoDesconhecida, true);
+  assert.equal(r.fontes.site.conexaoDesconhecida, false, 'fonte sem OAuth não tem conexão a desconhecer');
+  // Cofre lido: sem conexão é "falta conectar", e a conexão não é desconhecida.
+  const ok = porta({ cache });
+  ok.sessao(GIL);
+  const g = (await ok.call({ action: 'fontes', leve: true })).fontes.google;
+  assert.deepEqual([g.conexaoDesconhecida, g.estado], [false, 'falta_conectar']);
+});
+
+test('o caso ruim (revisão de 12/10): o Desconectar do LinkedIn que não apaga o retrato diz retratoFicou; o que apaga, não', async () => {
+  const retratoLi = { estado: 'ok', coletado_em: '2026-09-01T09:29:00.000Z', ultima_boa_em: '2026-09-01T09:29:00.000Z', partes: {}, dados: { posts: { itens: [] } } };
+  const conexoes = { linkedin: { access_token: 'AQV-FALSO-0123456789', escopos: [], conectado_por: 'gil', conectado_em: '2026-09-01T00:00:00.000Z' } };
+  const bf = banco({ cache: { mkt_fonte_linkedin: retratoLi }, conexoes, cacheErro: { code: 'XX000', message: 'cache caiu' } });
+  const tf = porta({ b: bf });
+  tf.sessao(GIL);
+  const r = await tf.call({ action: 'desconectar', fonte: 'linkedin' });
+  assert.deepEqual([r.status, r.retratoFicou], [200, true]);
+  const b = banco({ cache: { mkt_fonte_linkedin: retratoLi }, conexoes });
+  const t = porta({ b });
+  t.sessao(GIL);
+  assert.equal((await t.call({ action: 'desconectar', fonte: 'linkedin' })).retratoFicou, false);
+});
+
 // ------------------------------------------------- registro e publicação --
 
 test('o registro importa os seis conectores ESTATICAMENTE, na mesma lista de FONTES', () => {

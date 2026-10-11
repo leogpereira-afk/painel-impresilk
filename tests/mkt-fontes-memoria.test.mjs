@@ -237,3 +237,76 @@ test('a falha não apaga o que está na tela, e cada tela vê o erro da leitura 
   assert.equal(faixa.retrato.lista.length, 6);
   assert.equal(faixa.erro, 'O servidor falhou agora.');
 });
+
+/* --------------------------------------------- revisão de 12/10/2026 -- */
+
+test('O CASO RUIM (revisão de 12/10): o ler() depois do Desconectar não aproveita a leitura que saiu ANTES (a linha não fica "conectada" embaixo do aviso)', async (t) => {
+  const conectado = { conectadoEm: '2026-10-01T12:00:00.000Z', conectadoPor: 'leo', conta: 'leo', escopos: [], expiraEm: null, refreshExpiraEm: null };
+  const fonte = (conexao) => ({ fonte: 'pinterest', nome: 'Pinterest', oauth: true, estado: conexao ? 'ok' : 'falta_conectar', conta: 'x', partes: {}, avisos: [],
+    coletadoEm: '2026-10-11T09:30:00.000Z', ultimaBoaEm: '2026-10-11T09:30:00.000Z', configurado: true, opcionais: [], conexao, andando: false, ultimas: [] });
+  const servidor = { conexao: conectado };
+  const presos = [];
+  const s = globalThis.__mem = {
+    token: 'cracha-leo', pedidos: 0, segurar: false,
+    async ler() {
+      s.pedidos++;
+      // O servidor responde com o estado do instante em que RECEBEU o pedido.
+      const corpo = { ok: true, papel: 'gestao', ordem: ['pinterest'], fontes: { pinterest: fonte(servidor.conexao) }, avisos: [], motivos: {} };
+      if (s.segurar) await new Promise((r) => presos.push(r));
+      return JSON.parse(JSON.stringify(corpo));
+    },
+  };
+  const m = await novaMemoria();
+  await m.lerFontes({ leve: true });
+  // O relógio parado: as duas leituras saem no MESMO milissegundo (o que a
+  // rede rápida faz de verdade), e a que saiu antes não pode ganhar por
+  // empate quando chega por último.
+  const dateNow = Date.now;
+  const parado = dateNow();
+  Date.now = () => parado;
+  t.after(() => { Date.now = dateNow; });
+  s.segurar = true;
+  const aoAbrir = m.lerFontes({ leve: true, forcar: true }); // o ler() do abrir do Conexões, numa rede lenta
+  await esperarTudo();
+  servidor.conexao = null; // o Desconectar respondeu
+  s.segurar = false;
+  const depois = m.lerFontes({ leve: true, forcar: true }); // o ler() depois do Desconectar
+  assert.equal(s.pedidos, 3, 'a leitura de depois saiu de verdade');
+  presos.forEach((r) => r());
+  await Promise.all([aoAbrir, depois]);
+  assert.equal(m.useFontesMarketing({ leve: true }).retrato.porFonte.pinterest.conexao, null, 'a linha mostra o estado de depois');
+  // A leitura NÃO forçada continua aproveitando a que está em andamento.
+  s.segurar = true;
+  const a = m.lerFontes({ leve: true, forcar: true });
+  await esperarTudo();
+  const b = m.lerFontes({ fontes: null, leve: false });
+  s.segurar = false;
+  presos.forEach((r) => r());
+  await Promise.all([a, b]);
+  assert.equal(s.pedidos, 5, 'leve e cheia são pedidos diferentes');
+});
+
+test('O CASO RUIM (revisão de 12/10): a trava de 2 minutos mora na memória: os dois botões contam pela mesma, e ela sobrevive a sair e voltar', async () => {
+  const s = servidor({ papel: 'marketing' });
+  const m = await novaMemoria();
+  await m.lerFontes({ leve: true });
+  // Sem pedido, nada travado.
+  assert.equal(m.useTravasDeColeta()('meta'), 0);
+  const [r] = await m.atualizarFontes(['meta']);
+  assert.equal(r.ok, true);
+  // O botão do Conexões e o da sub-aba Dados (dois "componentes") veem a mesma trava.
+  const conexoes = m.useTravasDeColeta(), dados = m.useTravasDeColeta();
+  assert.ok(conexoes('meta') > 100 && conexoes('meta') <= 120, String(conexoes('meta')));
+  assert.equal(dados('meta'), conexoes('meta'));
+  assert.equal(conexoes('site'), 0, 'por fonte');
+  // "Sair e voltar": um componente novo, montado depois, ainda vê a trava.
+  assert.ok(m.useTravasDeColeta()('meta') > 100);
+  // O 429 de outra pessoa (a trava é do servidor, para todos): a tela aprende os segundos dele.
+  s.coletar = async () => { throw Object.assign(new Error('Esta fonte foi atualizada há pouco. Tente de novo em 37 segundos.'), { status: 429, aguardarSegundos: 37 }); };
+  const [r2] = await m.atualizarFontes(['site']);
+  assert.deepEqual([r2.ok, r2.status], [false, 429]);
+  assert.ok(m.useTravasDeColeta()('site') > 30 && m.useTravasDeColeta()('site') <= 37);
+  // Trocar a pessoa limpa a trava junto com o resto.
+  globalThis.__mem.mudou();
+  assert.equal(m.useTravasDeColeta()('meta'), 0);
+});

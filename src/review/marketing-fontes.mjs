@@ -60,7 +60,12 @@
  *     revogar-falhou  o Desconectar do Google volta revogado false, com o
  *                     aviso de tirar o acesso na Conta Google;
  *     sem-identidade  (o "painel", em marketing.mjs) o login não está
- *                     ligado a uma pessoa do RH: semIdentidade true.
+ *                     ligado a uma pessoa do RH: semIdentidade true. Como no
+ *                     servidor, isso só acontece com quem não é a direção, e
+ *                     aí o papel é o padrão (marketing): o cenário força o
+ *                     papel marketing na prévia inteira (revisão de 12/10;
+ *                     antes ele combinava com a direção, o que o servidor
+ *                     nunca manda, e o aviso só aparecia na prévia).
  *  Exemplo: /configuracoes?secao=marketing&papel=marketing&cenario=fontes-andando
  */
 import { FONTES, TRAVA_COLETA_MS, tirarRestrito } from '../../supabase/functions/_shared/mkt-fontes/info.mjs';
@@ -132,6 +137,9 @@ export function parametrosDaPrevia(href) {
   const ler = (k) => [...u.searchParams.getAll(k), ...doHash.getAll(k)];
   const papel = ler('papel').find((p) => PAPEIS_DA_PREVIA.includes(p)) || null;
   const cenarios = new Set(ler('cenario').flatMap((c) => c.split(',')).map((c) => c.trim()).filter((c) => CENARIOS_DA_PREVIA.includes(c)));
+  // Login sem pessoa do RH: o servidor só manda isso para quem não é a
+  // direção, e o papel é o padrão (papelEfetivo sem a linha da pessoa).
+  if (cenarios.has('sem-identidade')) return { papel: 'marketing', direcao: false, cenarios };
   return { papel: papel || 'gestao', direcao: !papel, cenarios };
 }
 
@@ -219,6 +227,8 @@ export function criarFontesDaPrevia({
     else if (t.oauth && !t.conexao) { t.estado = 'falta_conectar'; t.avisos = []; }
     else { t.estado = retrato.estado; t.avisos = [...retrato.avisos]; }
     t.andando = (andandoAte.get(fonte) ?? 0) > agora();
+    // Como a porta: o erro técnico do diário só vai para a gestão.
+    if (papel !== 'gestao' && Array.isArray(t.ultimas)) t.ultimas = t.ultimas.map((e) => ({ ...e, erro: null }));
     if (leve) {
       delete t.dados;
       return copia(t);
@@ -251,6 +261,9 @@ export function criarFontesDaPrevia({
       if (boa(item.retrato.estado)) item.tela.ultimaBoaEm = agoraIso;
     }
     item.tela.coletadoEm = iso(fim);
+    // O começo da coleta, como a coletora carimba (iniciado_em): é contra ele
+    // que a tela compara uma conexão nova.
+    item.tela.iniciadoEm = iso(inicio);
     item.tela.ultimas = [{ inicio: iso(inicio), fim: iso(fim), estado: item.retrato.estado, chamadas, erro: null }, ...(item.tela.ultimas || [])].slice(0, 5);
   }
 
@@ -335,7 +348,8 @@ export function criarFontesDaPrevia({
       guardarPedido(null);
       // Como a porta: só o Google revoga por API, e só se havia conexão.
       const revogado = PROVEDORES[fonte].urlRevogar && tinha ? !cen.has('revogar-falhou') : null;
-      return resposta(200, { ok: true, revogado, aviso: revogado === false ? FRASES.revogarFalhou : fonte === 'google' ? AVISO_DESCONECTAR_GOOGLE : null });
+      // retratoFicou: a prévia não tem o cache do LinkedIn que falha.
+      return resposta(200, { ok: true, revogado, retratoFicou: false, aviso: revogado === false ? FRASES.revogarFalhou : fonte === 'google' ? AVISO_DESCONECTAR_GOOGLE : null });
     },
     async coletarAgora(b) {
       if (!grava) return recusa(403, FRASES.soVer);

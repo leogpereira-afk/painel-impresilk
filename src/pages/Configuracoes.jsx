@@ -18,6 +18,7 @@ import { useLocation } from "react-router-dom";
 import { ConfiguracaoPermutas, ConfiguracaoMarketing, ConfiguracaoCampanhas } from "../components/ConfiguracoesModulos.jsx";
 import LixeiraRegistros from "../components/LixeiraRegistros.jsx";
 import ConexoesMarketing from "../components/marketing/ConexoesMarketing.jsx";
+import { conexoesCuidamDaRolagem } from "../lib/calc/marketing-conexoes.js";
 import { Aviso, CabecalhoDaArea, sessaoDaArea } from "../components/AreaSistemas.jsx";
 import "./configuracoes.css";
 
@@ -131,13 +132,21 @@ export default function Configuracoes() {
     });
   };
 
-  // ?secao=x abre aquele grupo e rola ate ele.
+  // ?secao=x abre aquele grupo e rola ate ele. Quando a URL leva a um ponto
+  // DENTRO do Marketing (o selo da faixa, ?fonte=, ou a volta do Conectar,
+  // r=), quem rola e o bloco Conexoes, ate a linha ou ate o aviso, depois que
+  // eles existem: a rolagem suave do grupo (requestAnimationFrame com o
+  // scroll-behavior smooth da pagina) chegava depois e desfazia a ida ate a
+  // linha, e a volta do Conectar ficava fora da tela no celular (revisao de
+  // 12/10). Aqui so o grupo abre.
   const secaoFeita = useRef("");
   useEffect(() => {
-    const secao = new URLSearchParams(local.search).get("secao");
+    const qs = new URLSearchParams(local.search);
+    const secao = qs.get("secao");
     if (!secao || secaoFeita.current === local.search) return;
     secaoFeita.current = local.search;
     setAberto(secao, true);
+    if (secao === "marketing" && conexoesCuidamDaRolagem(qs)) return;
     requestAnimationFrame(() => document.getElementById(`config-${secao}`)?.scrollIntoView({ block: "start" }));
   }, [local.search]);
 

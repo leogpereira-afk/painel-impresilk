@@ -2449,6 +2449,8 @@
     }
    ],
    "conexao": null,
+   "conexaoDesconhecida": false,
+   "iniciadoEm": "2026-10-11T09:05:00.040Z",
    "andando": false,
    "ultimas": [
     {
@@ -5731,6 +5733,8 @@
     "expiraEm": "2026-10-11T10:10:59.120Z",
     "refreshExpiraEm": null
    },
+   "conexaoDesconhecida": false,
+   "iniciadoEm": "2026-10-11T09:11:00.040Z",
    "andando": false,
    "ultimas": [
     {
@@ -8053,7 +8057,7 @@
     "Pixel: 1 linha das estatísticas por evento veio num formato desconhecido e ficou fora.",
     "Instagram: 1 mídia ficou sem números nesta coleta (Story com menos de 5 espectadores não tem número).",
     "Página: os Reels do Facebook ficaram fora (a Meta pede permissão de escrita para listá-los).",
-    "Página: a Meta recusou a métrica page_follows_city; ela fica sem número."
+    "Página: a Meta recusou os seguidores por cidade; esse número fica vazio."
    ],
    "coletadoEm": "2026-10-11T09:17:07.880Z",
    "ultimaBoaEm": "2026-10-11T09:17:07.880Z",
@@ -8065,6 +8069,8 @@
     }
    ],
    "conexao": null,
+   "conexaoDesconhecida": false,
+   "iniciadoEm": "2026-10-11T09:17:00.040Z",
    "andando": false,
    "ultimas": [
     {
@@ -8091,7 +8097,7 @@
    "conta": null,
    "partes": {
     "conta": {
-     "estado": "erro",
+     "estado": "aguardando_aprovacao",
      "motivo": "O projeto do Google Cloud ainda não tem o nível Explorer da Google Ads API. Peça em Google Ads API Overview. O nível também cai depois de 90 dias sem uso.",
      "codigo": "projeto_sem_aprovacao",
      "coletadoEm": null,
@@ -8099,9 +8105,7 @@
     }
    },
    "dados": {},
-   "avisos": [
-    "O projeto do Google Cloud ainda não tem o nível Explorer da Google Ads API. Peça em Google Ads API Overview. O nível também cai depois de 90 dias sem uso."
-   ],
+   "avisos": [],
    "coletadoEm": "2026-10-11T09:23:00.480Z",
    "ultimaBoaEm": null,
    "configurado": true,
@@ -8116,6 +8120,8 @@
     }
    ],
    "conexao": null,
+   "conexaoDesconhecida": false,
+   "iniciadoEm": "2026-10-11T09:23:00.040Z",
    "andando": false,
    "ultimas": [
     {
@@ -8148,6 +8154,8 @@
    "configurado": false,
    "opcionais": [],
    "conexao": null,
+   "conexaoDesconhecida": false,
+   "iniciadoEm": "2026-10-11T09:29:00.040Z",
    "andando": false,
    "ultimas": [
     {
@@ -8180,6 +8188,8 @@
    "configurado": true,
    "opcionais": [],
    "conexao": null,
+   "conexaoDesconhecida": false,
+   "iniciadoEm": "2026-10-11T09:35:00.040Z",
    "andando": false,
    "ultimas": [
     {

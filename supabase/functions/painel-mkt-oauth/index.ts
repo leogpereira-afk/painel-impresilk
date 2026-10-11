@@ -67,13 +67,16 @@ Deno.serve(async (req: Request) => {
   const negado = url.searchParams.get('error');
   if (!state || (!code && !negado) || (code && negado)) return recusa();
 
-  // 1. O state. Sem ele conferido não se sabe nem a fonte: volta sem ela.
+  // 1. O state. Assinatura que não confere: não se sabe nem a fonte, e a
+  // volta vai sem ela. Assinatura certa e prazo vencido (o Léo demorou mais
+  // de 10 minutos na tela do provedor): a fonte é nossa, e vai junto, para a
+  // tela dizer de qual conexão o pedido venceu.
   let fonte: string, quem: string, nonce: string;
   try {
     ({ fonte, quem, n: nonce } = await conferirState(state, JWT_SECRET, Date.now()));
   } catch (e) {
     console.error('painel-mkt-oauth: state', (e as any)?.detalhe ?? '');
-    return voltar(null, 'state_invalido');
+    return voltar((e as any)?.fonte ?? null, 'state_invalido');
   }
   // O pedido guardado no clique, consumido aqui (vale uma vez). Mesmo na
   // volta com error: um state de pedido cancelado também não pode servir de

@@ -11,6 +11,11 @@
  *    tráfego: Google Analytics, Search Console, Google Ads; depois o que o
  *    conector do site lê de fora).
  *
+ * O "ATUALIZAR AGORA" daqui conta pela MESMA trava de 2 minutos do bloco
+ * Conexões (useTravasDeColeta, na memória única): fonte travada não é pedida
+ * de novo, o botão conta enquanto todas estão travadas, e o aviso diz o que
+ * atualizou e o que espera, sem pintar tudo de erro (revisão de 12/10).
+ *
  * A ação "fontes" vem da memória única (useFontesMarketing.js), e esta
  * sub-aba pede os dados SÓ das fontes do canal aberto (fontesQueAlimentam:
  * o Facebook lê só a Meta; o Site, site, google e google_ads). Trocar de
@@ -24,10 +29,11 @@ import { Selo } from '../../lista.jsx';
 import { Skeleton } from '../../ui.jsx';
 import { useMarketing } from '../contexto.js';
 import { Bloco as Cartao } from '../Bloco.jsx';
-import { ROTULO_FONTE, acoesDaFonte, estadoDoCanal, fontesQueAlimentam, rotuloDaLigacao } from '../../../lib/calc/marketing-fontes.js';
+import { ROTULO_FONTE, acoesDaFonte, estadoDoCanal, fontesQueAlimentam, legendaDosAvisos, rotuloDaLigacao } from '../../../lib/calc/marketing-fontes.js';
+import { resumoDaAtualizacao, rotuloDaTrava } from '../../../lib/calc/marketing-conexoes.js';
 import { motivosDasLigacoes, quadroDeAvisos } from '../../../lib/calc/marketing-dados.js';
 import { chaveDaLigacao, ligacoesNaAba, quadrosDaLigacao } from '../../../lib/calc/marketing-dados-canal.js';
-import { atualizarFontes, useFontesMarketing } from './useFontesMarketing.js';
+import { atualizarFontes, useFontesMarketing, useTravasDeColeta } from './useFontesMarketing.js';
 import QuadroDados, { ListaDeQuadros } from './QuadroDados.jsx';
 import DadosSite from './DadosSite.jsx';
 import DadosGoogle from './DadosGoogle.jsx';
@@ -56,6 +62,8 @@ function emLista(nomes) {
 function BarraDosDados({ canal, ligacoes, retrato }) {
   const { papel, avisar } = useMarketing();
   const [atualizando, setAtualizando] = useState(false);
+  // A trava de 2 minutos por fonte, a mesma do bloco Conexões.
+  const restante = useTravasDeColeta();
   const vivo = useRef(true);
   useEffect(() => {
     vivo.current = true;
@@ -68,22 +76,20 @@ function BarraDosDados({ canal, ligacoes, retrato }) {
   const andando = fontes.filter((f) => retrato.porFonte[f]?.andando === true);
   // A tela só esconde o botão; quem recusa de verdade é o servidor (403).
   const atualizaveis = fontes.filter((f) => acoesDaFonte(retrato.porFonte[f], papel).atualizar);
+  // As livres da trava são pedidas; as travadas esperam (e o aviso diz).
+  // Todas travadas: o botão conta até a primeira soltar.
+  const livres = atualizaveis.filter((f) => restante(f) === 0);
+  const espera = livres.length ? 0 : Math.min(...atualizaveis.map(restante));
   const nome = (f) => ROTULO_FONTE[f] ?? f;
 
   async function atualizar() {
     setAtualizando(true);
-    const r = await atualizarFontes(atualizaveis);
+    const travadas = atualizaveis.filter((f) => !livres.includes(f)).map((f) => ({ fonte: f, segundos: restante(f) }));
+    const r = await atualizarFontes(livres);
     if (!vivo.current) return;
     setAtualizando(false);
-    const erros = r.filter((x) => !x.ok);
-    const andandoAinda = r.filter((x) => x.ok && x.andando);
-    const prontas = r.filter((x) => x.ok && !x.andando);
-    if (erros.length) {
-      avisar(erros.map((x) => `${nome(x.fonte)}: ${x.erro}`).join(' '), 'erro');
-      return;
-    }
-    if (andandoAinda.length) avisar(`A coleta de ${emLista(andandoAinda.map((x) => nome(x.fonte)))} continua no servidor. Os números entram aqui sozinhos em instantes.`);
-    else if (prontas.length) avisar(`Dados atualizados: ${emLista(prontas.map((x) => nome(x.fonte)))}.`);
+    const { tom, texto } = resumoDaAtualizacao(r, { travadas, nome });
+    if (texto) avisar(texto, tom);
   }
 
   return (
@@ -101,9 +107,15 @@ function BarraDosDados({ canal, ligacoes, retrato }) {
         )}
       </div>
       {atualizaveis.length > 0 && (
-        <button type="button" className="btn-outline alvo-40 min-h-9 shrink-0 px-3 py-1.5" onClick={atualizar} disabled={atualizando || andando.length > 0}>
+        <button
+          type="button"
+          className="btn-outline alvo-40 min-h-9 shrink-0 px-3 py-1.5"
+          onClick={atualizar}
+          disabled={atualizando || andando.length > 0 || espera > 0}
+          title="Uma coleta por fonte a cada 2 minutos."
+        >
           <RefreshCw size={15} strokeWidth={2.2} aria-hidden="true" className={atualizando ? 'animate-spin' : undefined} />
-          {atualizando ? 'Atualizando...' : 'Atualizar agora'}
+          {atualizando ? 'Atualizando...' : espera > 0 ? rotuloDaTrava(espera) : 'Atualizar agora'}
         </button>
       )}
     </div>
@@ -114,10 +126,14 @@ export default function SubDados({ canal }) {
   const { hoje } = useMarketing();
   const { retrato, erro, carregando, recarregar } = useFontesMarketing({ fontes: fontesQueAlimentam(canal.codigo) });
   const ligacoes = useMemo(() => (retrato ? ligacoesNaAba(canal.codigo, retrato.porFonte) : []), [retrato, canal.codigo]);
-  const avisos = useMemo(
-    () => (retrato ? quadroDeAvisos(ligacoes, retrato.porFonte, { avisosGerais: retrato.avisos, jaDitos: motivosDasLigacoes(ligacoes), hoje }) : null),
-    [retrato, ligacoes, hoje]
-  );
+  const avisos = useMemo(() => {
+    if (!retrato) return null;
+    const q = quadroDeAvisos(ligacoes, retrato.porFonte, { avisosGerais: retrato.avisos, jaDitos: motivosDasLigacoes(ligacoes), hoje });
+    // A legenda é a das fontes que TÊM aviso, com a coleta que trouxe dado
+    // (legendaDosAvisos): a tentativa sem dado do Google Ads carimbava como
+    // "coletado em" os avisos do Google (revisão de 12/10).
+    return q ? { ...q, legenda: legendaDosAvisos([...new Set(ligacoes.map((l) => l.fonte))], retrato.porFonte, hoje) } : null;
+  }, [retrato, ligacoes, hoje]);
 
   if (!retrato) {
     if (erro && !carregando) {

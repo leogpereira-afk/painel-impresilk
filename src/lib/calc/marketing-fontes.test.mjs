@@ -39,6 +39,7 @@ import {
   fontesQueAlimentam,
   infoEstado,
   legendaDaColeta,
+  legendaDosAvisos,
   motivoLegivel,
   normalizarFontes,
   rotuloParte,
@@ -453,4 +454,34 @@ test('a resposta "fontes" normalizada: a ordem do servidor, a fonte nova no fim,
   assert.equal(n.porFonte.meta, VARIEDADE.fontes.meta, 'o retrato de antes não mudou');
   assert.equal(trocarFonte(n, null), n);
   assert.equal(trocarFonte(null, coletada), null);
+});
+
+test('O CASO RUIM (revisão de 12/10): a legenda do quadro de avisos não usa a hora de uma tentativa sem dado de OUTRA fonte', () => {
+  const VAR = JSON.parse(readFileSync(new URL('../../review/fontes-ficticias.json', import.meta.url), 'utf8'));
+  const HOJE = '2026-10-11';
+  // O canal Site: site (sem aviso), google (com aviso, coletado 09:11) e o
+  // Google Ads, que TENTOU às 09:23 sem trazer dado.
+  const porFonte = { site: VAR.fontes.site, google: VAR.fontes.google, google_ads: { ...VAR.fontes.google_ads, avisos: [] } };
+  const legenda = legendaDosAvisos(['site', 'google', 'google_ads'], porFonte, HOJE);
+  assert.equal(legenda, legendaDaColeta({ rotulo: 'Google', coletadoEm: VAR.fontes.google.coletadoEm }, HOJE));
+  assert.equal(legenda.includes(fmtDataHora(VAR.fontes.google_ads.coletadoEm, HOJE)), false, legenda);
+  // A fonte com aviso que só tentou (sem dado): "última tentativa", nunca "coletado em".
+  const tentou = { ...VAR.fontes.google_ads, avisos: ['Um aviso do Google Ads.'] };
+  const so = legendaDosAvisos(['google_ads'], { google_ads: tentou }, HOJE);
+  assert.match(so, /^Google Ads, ainda sem coleta; última tentativa em /);
+  // As duas com aviso: o "coletado em" é o da que trouxe dado; a tentativa
+  // mais nova vem à parte.
+  const duas = legendaDosAvisos(['google', 'google_ads'], { google: VAR.fontes.google, google_ads: tentou }, HOJE);
+  assert.equal(duas, legendaDaColeta({ rotulo: 'Google, Google Ads', coletadoEm: VAR.fontes.google.coletadoEm, tentadoEm: tentou.coletadoEm }, HOJE));
+  // Sem nenhum aviso de fonte (só os gerais): as fontes do quadro, com a coleta que trouxe dado.
+  const geral = legendaDosAvisos(['site'], { site: VAR.fontes.site }, HOJE);
+  assert.equal(geral, legendaDaColeta({ rotulo: 'Site', coletadoEm: VAR.fontes.site.coletadoEm }, HOJE));
+});
+
+test('a frase do "aguardando aprovação" é coerente com o motivo que manda pedir o acesso; a do reconectar serve à fonte por secret', () => {
+  assert.equal(/não há o que fazer/i.test(infoEstado('aguardando_aprovacao').texto), false);
+  assert.match(infoEstado('aguardando_aprovacao').texto, /pedido de acesso/);
+  assert.match(infoEstado('reconectar').texto, /troca o secret/);
+  // "Aguardando a coleta" sozinho não afirma "Conectado" (a parte e o secret cadastrado também usam).
+  assert.equal(/^Conectado/.test(infoEstado('aguardando_coleta').texto), false);
 });

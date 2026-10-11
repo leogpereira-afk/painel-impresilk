@@ -798,6 +798,25 @@ const AVISO_COTA = 'O LinkedIn avisou que a cota do dia acabou (100 chamadas por
 const AVISO_VERSAO = `O LinkedIn recusou a versão ${VERSAO_API} da API. É preciso trocar a constante VERSAO_API do conector pela versão atual.`;
 const AVISO_RECONECTAR = 'O LinkedIn recusou o acesso guardado. Clique em Reconectar.';
 
+
+/* O NÚMERO FORA DA FAIXA, PARA GENTE (revisão de 12/10): a chave interna e
+   a data em ISO ("impressoes 2026-09-28") vão para o diário; o aviso diz
+   "as impressões da semana de 28/09". */
+const NOME_DO_NUMERO = Object.freeze({
+  seguidores: 'os seguidores', alcance: 'o alcance', impressoes: 'as impressões', engajamento: 'o engajamento',
+  cliques: 'os cliques', conversas: 'as conversas', leads: 'os leads',
+});
+export function avisoDeForaDaFaixa(itens) {
+  const lidos = (Array.isArray(itens) ? itens : []).map((x) => {
+    const [k, semana] = String(x).split(' ');
+    const d = /^\d{4}-(\d{2})-(\d{2})$/.exec(semana ?? '');
+    return `${NOME_DO_NUMERO[k] ?? 'um número'}${d ? ` da semana de ${d[2]}/${d[1]}` : ''}`;
+  });
+  const l = [...new Set(lidos)];
+  if (!l.length) return null;
+  const nomes = l.length > 1 ? `${l.slice(0, -1).join(', ')} e ${l[l.length - 1]}` : l[0];
+  return `${l.length === 1 ? 'Um número veio' : 'Alguns números vieram'} fora da faixa e ${l.length === 1 ? 'ficou' : 'ficaram'} de fora: ${nomes}.`;
+}
 export async function coletar(ctx) {
   const avisos = [];
   const avisar = (t) => { if (t && !avisos.includes(t)) avisos.push(t); };
@@ -1035,7 +1054,10 @@ export async function coletar(ctx) {
   // Parte parcial leva só o que veio: a coletora junta campo a campo com a
   // coleta anterior, e um campo ausente mantém o de antes (um null apagaria).
   const sem = montarSemanas({ hoje, ganhos, total, conteudo, visitas });
-  if (sem.fora_da_faixa.length) avisar(`Número fora da faixa ficou de fora: ${sem.fora_da_faixa.join(', ')}.`);
+  if (sem.fora_da_faixa.length) {
+    ctx.log?.(`linkedin: fora da faixa ${sem.fora_da_faixa.join(', ')}`);
+    avisar(avisoDeForaDaFaixa(sem.fora_da_faixa));
+  }
 
   if (rTotal.ok || rGanhos.ok) {
     const s = {};

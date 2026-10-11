@@ -48,8 +48,11 @@ function EstadoDoQuadro({ estado, temDado }) {
         {motivo && <p className="break-words">{motivo}</p>}
         {temDado && !parcial && <p>Os números abaixo são da última coleta que trouxe esta parte.</p>}
       </div>
+      {/* Atalho de navegação: alvo de 44px (a régua da casa para navegar),
+          desenhado com 32px; a caixa do estado tem 8px de respiro, e a
+          faixa de 6px de cada lado cabe nela. */}
       {!parcial && (
-        <Link to="/configuracoes?secao=marketing" className="btn-outline alvo-40 min-h-8 shrink-0 px-2.5 py-1 text-[13px]">
+        <Link to="/configuracoes?secao=marketing" className="btn-outline alvo-44 min-h-8 shrink-0 px-2.5 py-1 text-[13px]">
           <Settings size={14} aria-hidden="true" />
           Configurações, Marketing
         </Link>
@@ -117,7 +120,7 @@ export default function QuadroDados({ quadro }) {
     <section className="card mkt-quadro" aria-labelledby={`${corpo}-titulo`}>
       <div className="mkt-quadro-topo">
         <button type="button" className="mkt-quadro-botao" aria-expanded={aberto} aria-controls={corpo} onClick={alternar}>
-          <ChevronDown size={16} aria-hidden="true" className={clsx('mkt-quadro-seta shrink-0 text-slate-400 transition-transform', !aberto && '-rotate-90')} />
+          <ChevronDown size={16} aria-hidden="true" className={clsx('mkt-quadro-seta shrink-0 text-slate-500 transition-transform', !aberto && '-rotate-90')} />
           <span className="mkt-quadro-nome">
             <span id={`${corpo}-titulo`} className="mkt-quadro-titulo font-display font-semibold text-slate-900">
               {quadro.titulo}

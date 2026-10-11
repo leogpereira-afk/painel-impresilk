@@ -317,7 +317,7 @@ test('o pedido sobrevive à recarga da volta (o guardado na aba) e é confirmado
 test('Desconectar: a fonte cai para "falta conectar" e os dados de antes ficam; o Google revoga e avisa dos três juntos', async () => {
   const t = previa();
   const r = await t.pedir('desconectar', { fonte: 'google' });
-  assert.deepEqual(r, { status: 200, corpo: { ok: true, revogado: true, aviso: AVISO_DESCONECTAR_GOOGLE } });
+  assert.deepEqual(r, { status: 200, corpo: { ok: true, revogado: true, retratoFicou: false, aviso: AVISO_DESCONECTAR_GOOGLE } });
   assert.deepEqual(t.guardadas, [null], 'a volta guardada sai junto');
   const g = (await t.pedir('fontes')).corpo.fontes.google;
   assert.equal(g.estado, 'falta_conectar');
@@ -325,13 +325,13 @@ test('Desconectar: a fonte cai para "falta conectar" e os dados de antes ficam; 
   assert.deepEqual(g.avisos, []);
   assert.ok(g.dados.ga4, 'como no servidor: o retrato guardado fica, só a conexão sai');
   // Sem conexão para revogar: null, e o aviso do Google continua.
-  assert.deepEqual((await t.pedir('desconectar', { fonte: 'google' })).corpo, { ok: true, revogado: null, aviso: AVISO_DESCONECTAR_GOOGLE });
+  assert.deepEqual((await t.pedir('desconectar', { fonte: 'google' })).corpo, { ok: true, revogado: null, retratoFicou: false, aviso: AVISO_DESCONECTAR_GOOGLE });
   // LinkedIn e Pinterest não revogam por API.
   const c = previa({ cenarios: ['fontes-cheias'] });
-  assert.deepEqual((await c.pedir('desconectar', { fonte: 'pinterest' })).corpo, { ok: true, revogado: null, aviso: null });
+  assert.deepEqual((await c.pedir('desconectar', { fonte: 'pinterest' })).corpo, { ok: true, revogado: null, retratoFicou: false, aviso: null });
   // O Google que não confirma a revogação.
   const falhou = previa({ cenarios: ['revogar-falhou'] });
-  assert.deepEqual((await falhou.pedir('desconectar', { fonte: 'google' })).corpo, { ok: true, revogado: false, aviso: FRASES.revogarFalhou });
+  assert.deepEqual((await falhou.pedir('desconectar', { fonte: 'google' })).corpo, { ok: true, revogado: false, retratoFicou: false, aviso: FRASES.revogarFalhou });
   // Sem conexão, Atualizar agora só anota a tentativa: o estado não muda.
   t.relogio.t += 10_000;
   const a = await t.pedir('coletarAgora', { fonte: 'google' });
@@ -395,6 +395,14 @@ test('os parâmetros da prévia: papel e cenários, antes ou depois do #; o desc
   // ?papel=gestao é a gestão que não é direção (não traz as ações antigas).
   assert.equal(parametrosDaPrevia('http://x/?papel=gestao').direcao, false);
   assert.equal(parametrosDaPrevia('não é url').papel, 'gestao');
+  // O CASO RUIM (revisão de 12/10): o login sem pessoa do RH combinava com a
+  // direção (papel gestão), o que o servidor nunca manda; o aviso só
+  // aparecia na prévia. Agora o cenário é o do servidor: papel padrão,
+  // marketing, e nunca a direção, mesmo pedindo outro papel.
+  for (const q of ['?cenario=sem-identidade', '?papel=gestao&cenario=sem-identidade', '#/marketing?cenario=sem-identidade,fontes-cheias']) {
+    const p = parametrosDaPrevia(`http://x/${q}`);
+    assert.deepEqual([p.papel, p.direcao, p.cenarios.has('sem-identidade')], ['marketing', false, true], q);
+  }
 });
 
 /* ------------------------------------------------- os serviços da tela -- */
@@ -469,8 +477,8 @@ test('os serviços com a prévia: ler, conectar (com faltaConfigurar), desconect
   assert.ok(confirmada.conexao);
   await assert.rejects(s.confirmarConexaoMarketing('pinterest', NONCE(1)), (e) => e.status === 404 && e.motivo === 'pedido_vencido');
   await assert.rejects(s.conectarInicioMarketing('linkedin'), (e) => e.status === 422 && e.faltaConfigurar === true && /LINKEDIN_CLIENT_ID e LINKEDIN_CLIENT_SECRET/.test(e.message));
-  assert.deepEqual(await s.desconectarMarketing('google'), { revogado: true, aviso: AVISO_DESCONECTAR_GOOGLE });
-  assert.deepEqual(await s.desconectarMarketing('linkedin'), { revogado: null, aviso: null });
+  assert.deepEqual(await s.desconectarMarketing('google'), { revogado: true, aviso: AVISO_DESCONECTAR_GOOGLE, retratoFicou: false });
+  assert.deepEqual(await s.desconectarMarketing('linkedin'), { revogado: null, aviso: null, retratoFicou: false });
   const c = await s.coletarAgoraMarketing('meta');
   assert.equal(c.andando, false);
   assert.equal(c.fonte.fonte, 'meta');

@@ -298,6 +298,47 @@ const NOMES_VIDEO = {
   post_video_views: 'visualizacoes', post_video_avg_time_watched: 'tempo_medio_ms', post_video_view_time: 'tempo_total_ms',
   post_video_complete_views_organic: 'completas_organicas', post_video_complete_views_paid: 'completas_pagas',
 };
+
+/* AS MÉTRICAS PELO NOME QUE O LÉO ENTENDE, para o aviso de métrica recusada
+   (revisão de 12/10: "a Meta recusou a métrica page_follows_city" não diz
+   nada a quem lê). O nome da API vai só para o diário, pelo ctx.log. Métrica
+   fora daqui (uma que a Meta trocar de nome) vira "uma das métricas", nunca
+   o nome cru. */
+export const NOME_METRICA = Object.freeze({
+  page_media_view: 'as visualizações da Página', page_post_engagements: 'o engajamento dos posts',
+  page_total_actions: 'os cliques nos botões da Página', page_views_total: 'as visitas à Página',
+  page_daily_follows_unique: 'os novos seguidores por dia', page_daily_unfollows_unique: 'quem deixou de seguir, por dia',
+  page_follows: 'o total de seguidores', page_video_views: 'as visualizações de vídeo',
+  page_video_view_time: 'o tempo de vídeo assistido', page_actions_post_reactions_total: 'as reações',
+  page_total_media_view_unique: 'o alcance da Página', page_follows_country: 'os seguidores por país',
+  page_follows_city: 'os seguidores por cidade',
+  post_media_view: 'as visualizações por post', post_total_media_view_unique: 'o alcance por post', post_clicks: 'os cliques por post',
+  post_clicks_by_type: 'os cliques por tipo, em cada post', post_reactions_by_type_total: 'as reações por tipo, em cada post',
+  post_activity_by_action_type: 'as interações por tipo, em cada post', post_video_views: 'as visualizações de cada vídeo',
+  post_video_avg_time_watched: 'o tempo médio assistido de cada vídeo', post_video_view_time: 'o tempo total assistido de cada vídeo',
+  post_video_complete_views_organic: 'as visualizações completas sem anúncio', post_video_complete_views_paid: 'as visualizações completas pelo anúncio',
+  reach: 'o alcance', views: 'as visualizações', accounts_engaged: 'as contas que interagiram', total_interactions: 'o total de interações',
+  likes: 'as curtidas', comments: 'os comentários', shares: 'os compartilhamentos', saves: 'os salvamentos', saved: 'os salvamentos',
+  replies: 'as respostas', reposts: 'os reposts', profile_links_taps: 'os toques nos botões do perfil',
+  follows_and_unfollows: 'os seguidores ganhos e perdidos', follows: 'os novos seguidores', profile_visits: 'as visitas ao perfil',
+  profile_activity: 'as ações no perfil', total_views: 'o total de visualizações', total_likes: 'o total de curtidas',
+  total_comments: 'o total de comentários', ig_reels_avg_watch_time: 'o tempo médio assistido dos Reels',
+  ig_reels_video_view_total_time: 'o tempo total assistido dos Reels', reels_skip_rate: 'a taxa de quem pulou o Reel',
+  link_clicks: 'os cliques no link', navigation: 'a navegação nos Stories', follower_demographics: 'o perfil dos seguidores',
+  engaged_audience_demographics: 'o perfil de quem interagiu',
+});
+/** "a, b e c", sem repetir. */
+const emLista = (xs) => {
+  const l = [...new Set(xs)];
+  return l.length > 1 ? `${l.slice(0, -1).join(', ')} e ${l[l.length - 1]}` : (l[0] ?? '');
+};
+/** A frase do aviso de métricas recusadas de uma parte: os nomes legíveis,
+ *  nunca o nome da API. */
+export function avisoDeMetricasRecusadas(rotulo, nomesDaApi) {
+  const nomes = [...new Set(nomesDaApi)].map((m) => NOME_METRICA[m] ?? 'uma das métricas');
+  const uma = nomes.length === 1;
+  return `${rotulo}: a Meta recusou ${emLista(nomes)}; ${uma ? 'esse número fica' : 'esses números ficam'} vazio${uma ? '' : 's'}.`;
+}
 const NOMES_REEL = {
   blue_reels_play_count: 'reproducoes', fb_reels_total_plays: 'reproducoes_total', fb_reels_replay_count: 'repeticoes',
   post_video_avg_time_watched: 'tempo_medio_ms', post_video_view_time: 'tempo_total_ms', post_video_followers: 'seguidores_ganhos',
@@ -1118,18 +1159,21 @@ export async function coletar(ctx) {
       if (tipo === 'token') { tokenMorto = true; return; }
       if (tipo === 'permissao') {
         marcar(parte, 'falta_conectar', 'sem_permissao');
-        avisar(`${ROTULO[parte]}: sem permissão para ler ${oque} (${descreverCodigo(e.info)}). Confira no Gerenciador de Negócios se o ativo está atribuído ao usuário do sistema, com Conteúdo e Insights.`);
+        log(`meta ${parte}: sem permissão em ${oque} (${descreverCodigo(e.info)})`);
+        avisar(`${ROTULO[parte]}: sem permissão para ler ${oque}. Confira no Gerenciador de Negócios se o ativo está atribuído ao usuário do sistema, com Conteúdo e Insights.`);
         return;
       }
       if (tipo === 'limite') {
         // 4 e 17 são o limite do app e do usuário: vale para todas as partes.
         if (codigo === 4 || codigo === 17 || status === 429) freio = true;
         marcar(parte, 'erro', 'limite_de_chamadas');
-        avisar(`${ROTULO[parte]}: a Meta pediu calma (limite de chamadas, ${descreverCodigo(e.info)}); a próxima coleta tenta de novo.`);
+        log(`meta ${parte}: limite de chamadas em ${oque} (${descreverCodigo(e.info)})`);
+        avisar(`${ROTULO[parte]}: a Meta pediu calma (limite de chamadas); a próxima coleta tenta de novo.`);
         return;
       }
       marcar(parte, 'erro', 'falha_provedor');
-      avisar(`${ROTULO[parte]}: a Meta não entregou ${oque} (${descreverCodigo(e.info)}).`);
+      log(`meta ${parte}: falha em ${oque} (${descreverCodigo(e.info)})`);
+      avisar(`${ROTULO[parte]}: a Meta não entregou ${oque}.`);
       return;
     }
     marcar(parte, 'erro', 'falha_interna');
@@ -1440,7 +1484,8 @@ export async function coletar(ctx) {
           return s;
         } catch (e) {
           if (fatal(e)) throw e;
-          avisar(`Pixel: a Meta não entregou as estatísticas por ${nome} (${e instanceof ErroMeta ? descreverCodigo(e.info) : 'falha'}).`);
+          log(`meta pixel: estatísticas por ${nome} (${e instanceof ErroMeta ? descreverCodigo(e.info) : 'falha'})`);
+          avisar(`Pixel: a Meta não entregou as estatísticas por ${nome}.`);
           return null;
         }
       };
@@ -1458,7 +1503,8 @@ export async function coletar(ctx) {
         px.qualidade = lerQualidade(await cli.get('/dataset_quality', { dataset_id: id, fields: CAMPOS.qualidade }, token, 'meta:pixel:qualidade'));
       } catch (e) {
         if (fatal(e)) throw e;
-        avisar(`Pixel: a qualidade do conjunto de dados ficou fora (${e instanceof ErroMeta ? descreverCodigo(e.info) : 'falha'}); ela pede o acesso "Usar conjunto de dados de eventos".`);
+        log(`meta pixel: qualidade (${e instanceof ErroMeta ? descreverCodigo(e.info) : 'falha'})`);
+        avisar('Pixel: a qualidade do conjunto de dados ficou fora; ela pede o acesso "Usar conjunto de dados de eventos".');
       }
       pixels.push(px);
     }
@@ -1501,7 +1547,8 @@ export async function coletar(ctx) {
             if (e.info.tipo === 'permissao' && e.info.codigo >= 200 && e.info.codigo <= 299) {
               parado = true;
               marcar('pagina', 'parcial', 'sem_permissao');
-              avisar(`Página: a Meta não liberou os números por post (${descreverCodigo(e.info)}).`);
+              log(`meta pagina: números por post (${descreverCodigo(e.info)})`);
+              avisar('Página: a Meta não liberou os números por post.');
               return;
             }
             falhas++;
@@ -1534,7 +1581,8 @@ export async function coletar(ctx) {
         historias = lista(s.data).map(lerMidia).filter(Boolean).slice(0, LIMITES.stories).map((m) => ({ ...m, produto: 'STORY', navegacao: null, lido_em: null, parcial: true }));
       } catch (e) {
         if (fatal(e)) throw e;
-        avisar(`Instagram: os Stories ficaram fora (${e instanceof ErroMeta ? descreverCodigo(e.info) : 'falha'}).`);
+        log(`meta instagram: stories (${e instanceof ErroMeta ? descreverCodigo(e.info) : 'falha'})`);
+        avisar('Instagram: os Stories ficaram fora nesta coleta.');
       }
       const conta = baseDoInstagram();
       conta.midias = midias;
@@ -1559,7 +1607,8 @@ export async function coletar(ctx) {
           if (e.info.tipo === 'permissao' && e.info.codigo >= 200 && e.info.codigo <= 299) {
             parado = true;
             marcar('instagram', 'parcial', 'sem_permissao');
-            avisar(`Instagram: a Meta não liberou os números por mídia (${descreverCodigo(e.info)}). Se faltar a permissão ads_management, a decisão é do Léo (é de escrita).`);
+            log(`meta instagram: números por mídia (${descreverCodigo(e.info)})`);
+            avisar('Instagram: a Meta não liberou os números por mídia. Pode faltar a permissão de gerenciar anúncios (ads_management, no app da Meta), que também deixa mexer nos anúncios: dar ou não é decisão do Léo.');
             return;
           }
           // Story com menos de 5 espectadores dá erro 10: fica sem número.
@@ -1661,7 +1710,11 @@ export async function coletar(ctx) {
 
   for (const p of PARTES) {
     const nomes = [...new Set([...recusadas[p]].map((k) => k.split('|')[1]))];
-    if (nomes.length) avisar(`${ROTULO[p]}: a Meta recusou ${nomes.length === 1 ? 'a métrica' : 'as métricas'} ${nomes.join(', ')}; ${nomes.length === 1 ? 'ela fica' : 'elas ficam'} sem número.`);
+    if (!nomes.length) continue;
+    // O nome da API fica no diário (é por ele que se acha a métrica na
+    // documentação); o aviso leva o nome para gente.
+    log(`meta ${p}: métricas recusadas ${nomes.join(', ')}`);
+    avisar(avisoDeMetricasRecusadas(ROTULO[p], nomes));
   }
 
   let estado;

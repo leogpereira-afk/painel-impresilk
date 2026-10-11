@@ -29,7 +29,21 @@
  * linha troca na hora. Não deu tempo ({andando: true}): a linha diz
  * "coletando", a memória relê a fonte algumas vezes, cada vez mais espaçado,
  * e a cada retrato novo este bloco confere se a data da coleta mudou. A
- * trava de 2 minutos por fonte vira contagem no próprio botão.
+ * trava de 2 minutos por fonte vira contagem no próprio botão; ela mora na
+ * memória única (useTravasDeColeta), e o botão da sub-aba Dados conta pela
+ * mesma trava.
+ *
+ * A ROLAGEM (revisão de 12/10): a volta do Conectar (com ou sem erro) rola
+ * até o AVISO, depois que o grupo abriu, e põe o foco nele (o "Tentar de
+ * novo" fica à vista); o selo da faixa (?fonte=) rola até a LINHA da fonte.
+ * A página de Configurações só abre o grupo nesses casos
+ * (conexoesCuidamDaRolagem): a rolagem suave dela chegava depois e desfazia
+ * esta. E se a primeira leitura mudar a altura do que está acima, a linha é
+ * levada de novo à vista, a menos que a pessoa já tenha mexido na página.
+ *
+ * VOLTAR DO PROVEDOR PELO BOTÃO DO NAVEGADOR: a página pode voltar do cache
+ * (bfcache) com o Conectar ainda "Abrindo...". O pageshow persistido solta o
+ * botão (ocupadoDepoisDeVoltar).
  *
  * A LEITURA É A LEVE, PELA MEMÓRIA ÚNICA (dados/useFontesMarketing.js): o
  * estado das seis fontes, sem os "dados" (este bloco nunca mostra número).
@@ -48,9 +62,8 @@ import { Skeleton } from '../ui.jsx';
 import { MenuMais } from '../CardCompacto.jsx';
 import ComoLigar from './ComoLigar.jsx';
 import { ymdLocal } from '../../lib/format.js';
-import { TRAVA_COLETA_MS } from '../../../supabase/functions/_shared/mkt-fontes/info.mjs';
 import { conectarInicioMarketing, confirmarConexaoMarketing, desconectarMarketing } from '../../services/marketing.js';
-import { atualizarFontes, guardarFonte, lerFontes, useFontesMarketing } from './dados/useFontesMarketing.js';
+import { atualizarFontes, guardarFonte, lerFontes, useFontesMarketing, useTravasDeColeta } from './dados/useFontesMarketing.js';
 import {
   LIMITE_DA_RELEITURA_MS,
   PARAMETRO_FOCO,
@@ -66,8 +79,10 @@ import {
   lerNonceGuardado,
   lerVoltaDoOAuth,
   linhaDaConexao,
+  ocupadoDepoisDeVoltar,
   perguntaDeDesconectar,
   rotuloDaFonte,
+  rotuloDaTrava,
   semParametros,
   textoDaColetaAndando,
   textoDaColetaDemorada,
@@ -104,10 +119,30 @@ const TOM_AVISO = {
   neutro: 'bg-slate-100 text-slate-700',
 };
 
-function Aviso({ aviso, onFechar, children, className }) {
+/* Rola até o elemento SEM a rolagem suave da página (o pulo direto não é
+   desfeito por uma rolagem suave que ainda esteja correndo), centrado: a
+   barra de estado presa no topo de Configurações não cobre o que se quer
+   mostrar. */
+function levarAVista(el) {
+  el?.scrollIntoView({ block: 'center', behavior: 'instant' });
+}
+// O elemento está inteiro na tela (com a folga da barra presa no topo)?
+function inteiroNaTela(el) {
+  const r = el?.getBoundingClientRect?.();
+  return !!r && r.top >= 64 && r.bottom <= (window.innerHeight || document.documentElement.clientHeight);
+}
+
+function Aviso({ aviso, onFechar, children, className, refDiv = null }) {
   if (!aviso) return null;
   return (
-    <div role={aviso.tom === 'erro' ? 'alert' : 'status'} className={clsx('mkt-conexao-aviso', TOM_AVISO[aviso.tom] || TOM_AVISO.neutro, className)}>
+    <div
+      ref={refDiv}
+      // Com refDiv o aviso recebe o foco (a volta do Conectar): tabIndex -1
+      // deixa focar sem entrar na ordem do Tab.
+      tabIndex={refDiv ? -1 : undefined}
+      role={aviso.tom === 'erro' ? 'alert' : 'status'}
+      className={clsx('mkt-conexao-aviso', TOM_AVISO[aviso.tom] || TOM_AVISO.neutro, className)}
+    >
       <p className="min-w-0 flex-1 break-words">
         {aviso.texto}
         {children}
@@ -154,8 +189,31 @@ function Partes({ partes }) {
 
 const ROTULO_BOTAO = { atualizar: 'Atualizar agora', conectar: 'Conectar', reconectar: 'Reconectar' };
 
+/* "Como ligar", o botão que abre e fecha o passo a passo. Ele é desenhado
+   DUAS vezes, e cada largura mostra um (conexoes.css): no celular fica na
+   ponta da linha do nome, e no HTML vem logo depois do nome, para o Tab
+   seguir a ordem que se vê (antes, a 375 px, ele era o último do Tab sendo
+   o primeiro da linha; revisão de 12/10); do sm para cima fica na ponta
+   direita, depois dos botões, e no HTML vem depois deles. O escondido sai
+   da ordem do Tab e do leitor de tela (display: none). */
+function BotaoComoLigar({ aberto, idLigar, rotulo, onAlternar, className }) {
+  return (
+    <button
+      type="button"
+      className={clsx('mkt-conexao-ligar btn-ghost alvo-40 min-h-8 gap-1 px-2 py-1 text-[13px]', className)}
+      aria-expanded={!!aberto}
+      aria-controls={aberto ? idLigar : undefined}
+      aria-label={`Como ligar: ${rotulo}`}
+      onClick={onAlternar}
+    >
+      Como ligar
+      <ChevronDown size={14} aria-hidden="true" className={clsx('transition-transform', aberto && 'rotate-180')} />
+    </button>
+  );
+}
+
 function LinhaConexao({ linha, ocupado, coletando, restante, aviso, aberto, onBotao, onAlternar, onFecharAviso }) {
-  const { fonte, rotulo, situacao, conta, conectado, coleta, partes, detalhe, avisos, acoes, opcionais } = linha;
+  const { fonte, rotulo, situacao, conta, conectado, coleta, partes, detalhe, detalheTecnico, avisos, acoes, opcionais } = linha;
   const botoes = botoesDaLinha(acoes, situacao.chave);
   const idLigar = `como-ligar-${fonte}`;
   const idAvisos = `avisos-${fonte}`;
@@ -164,12 +222,13 @@ function LinhaConexao({ linha, ocupado, coletando, restante, aviso, aberto, onBo
 
   const rotuloDoBotao = (k) => {
     if (ocupado === k) return k === 'atualizar' ? 'Atualizando...' : 'Abrindo...';
-    if (k === 'atualizar' && restante > 0) return `Atualizar em ${restante} s`;
+    if (k === 'atualizar' && restante > 0) return rotuloDaTrava(restante);
     return ROTULO_BOTAO[k];
   };
+  const textoAvisos = avisos.length === 1 ? '1 aviso' : `${avisos.length} avisos`;
 
   return (
-    <li id={`conexao-${fonte}`} className="mkt-conexao" aria-busy={andando || undefined}>
+    <li id={`conexao-${fonte}`} tabIndex={-1} className="mkt-conexao" aria-busy={andando || undefined}>
       <div className="mkt-conexao-cabeca">
         <h4 className="font-display text-sm font-semibold text-slate-900">{rotulo}</h4>
         <Selo tom={situacao.tom} title={situacao.texto}>
@@ -182,6 +241,7 @@ function LinhaConexao({ linha, ocupado, coletando, restante, aviso, aberto, onBo
           </span>
         )}
       </div>
+      <BotaoComoLigar aberto={aberto.ligar} idLigar={idLigar} rotulo={rotulo} onAlternar={() => onAlternar('ligar')} className="mkt-conexao-ligar-celular" />
 
       {(meta.length > 0 || avisos.length > 0) && (
         <p className="mkt-conexao-meta text-xs text-slate-500">
@@ -194,8 +254,15 @@ function LinhaConexao({ linha, ocupado, coletando, restante, aviso, aberto, onBo
           {avisos.length > 0 && (
             <>
               {meta.length > 0 && ' · '}
-              <button type="button" className="mkt-conexao-alterna alvo-40" aria-expanded={!!aberto.avisos} aria-controls={aberto.avisos ? idAvisos : undefined} onClick={() => onAlternar('avisos')}>
-                {avisos.length === 1 ? '1 aviso' : `${avisos.length} avisos`}
+              <button
+                type="button"
+                className="mkt-conexao-alterna alvo-40"
+                aria-expanded={!!aberto.avisos}
+                aria-controls={aberto.avisos ? idAvisos : undefined}
+                aria-label={`${textoAvisos}: ${rotulo}`}
+                onClick={() => onAlternar('avisos')}
+              >
+                {textoAvisos}
                 <ChevronDown size={12} aria-hidden="true" className={clsx('transition-transform', aberto.avisos && 'rotate-180')} />
               </button>
             </>
@@ -204,22 +271,33 @@ function LinhaConexao({ linha, ocupado, coletando, restante, aviso, aberto, onBo
       )}
 
       <Partes partes={partes} />
-      {detalhe && <p className="mkt-conexao-detalhe text-xs text-slate-600">{detalhe}</p>}
+      {/* O detalhe técnico do último erro vai só para a gestão, na dica. */}
+      {detalhe && (
+        <p className="mkt-conexao-detalhe text-xs text-slate-600" title={detalheTecnico || undefined}>
+          {detalhe}
+        </p>
+      )}
 
       {(botoes.visiveis.length > 0 || botoes.menu.length > 0) && (
         <div className="mkt-conexao-botoes">
-          {botoes.visiveis.map((k) => (
-            <button
-              key={k}
-              type="button"
-              className={clsx(k === botoes.primario ? 'btn-primary' : 'btn-outline', 'alvo-40 min-h-8 px-2.5 py-1 text-[13px]')}
-              disabled={!!ocupado || (k === 'atualizar' && restante > 0)}
-              title={k === 'atualizar' ? 'Uma coleta por fonte a cada 2 minutos.' : undefined}
-              onClick={() => onBotao(k)}
-            >
-              {rotuloDoBotao(k)}
-            </button>
-          ))}
+          {botoes.visiveis.map((k) => {
+            const visivel = rotuloDoBotao(k);
+            return (
+              <button
+                key={k}
+                type="button"
+                className={clsx(k === botoes.primario ? 'btn-primary' : 'btn-outline', 'alvo-40 min-h-8 px-2.5 py-1 text-[13px]')}
+                disabled={!!ocupado || (k === 'atualizar' && restante > 0)}
+                title={k === 'atualizar' ? 'Uma coleta por fonte a cada 2 minutos.' : undefined}
+                // O nome da fonte vai junto (seis "Atualizar agora" iguais não
+                // dizem de qual linha são), depois do texto que se vê.
+                aria-label={`${visivel}: ${rotulo}`}
+                onClick={() => onBotao(k)}
+              >
+                {visivel}
+              </button>
+            );
+          })}
           {botoes.menu.length > 0 && (
             <MenuMais
               compacto
@@ -236,22 +314,7 @@ function LinhaConexao({ linha, ocupado, coletando, restante, aviso, aberto, onBo
         </div>
       )}
 
-      {/* "Como ligar" abre e fecha, não faz nada. No celular fica na ponta
-          da linha do nome (a linha sem botão, da fonte sem os secrets ou do
-          papel que só vê, não gasta uma linha só para ele, e os botões cabem
-          numa linha); do sm para cima, na ponta direita, depois dos botões,
-          no mesmo lugar em toda linha. Vem depois dos botões no HTML para o
-          Tab seguir a ordem do computador (conexoes.css, a grade). */}
-      <button
-        type="button"
-        className="mkt-conexao-ligar btn-ghost alvo-40 min-h-8 gap-1 px-2 py-1 text-[13px]"
-        aria-expanded={!!aberto.ligar}
-        aria-controls={aberto.ligar ? idLigar : undefined}
-        onClick={() => onAlternar('ligar')}
-      >
-        Como ligar
-        <ChevronDown size={14} aria-hidden="true" className={clsx('transition-transform', aberto.ligar && 'rotate-180')} />
-      </button>
+      <BotaoComoLigar aberto={aberto.ligar} idLigar={idLigar} rotulo={rotulo} onAlternar={() => onAlternar('ligar')} className="mkt-conexao-ligar-largo" />
 
       {aviso && <Aviso aviso={aviso} onFechar={onFecharAviso} className="mkt-conexao-largo" />}
       {aberto.avisos && avisos.length > 0 && (
@@ -278,10 +341,18 @@ export default function ConexoesMarketing() {
   const [avisos, setAvisos] = useState({});
   const [ocupado, setOcupado] = useState({});
   const [coletando, setColetando] = useState({});
-  const [travas, setTravas] = useState({});
-  const [agora, setAgora] = useState(() => Date.now());
+  // A trava de 2 minutos de cada fonte, da memória única: a mesma do botão
+  // da sub-aba Dados, e ainda contando ao voltar a esta tela.
+  const restante = useTravasDeColeta();
   const [abertos, setAbertos] = useState({});
   const [foco, setFoco] = useState(null);
+  // O aviso da volta do Conectar, para levar à vista e focar; e a linha que
+  // o selo da faixa pediu, enquanto a pessoa não mexeu na página (a primeira
+  // leitura pode mudar a altura do que está acima, e ela é levada de novo).
+  const avisoDaVoltaRef = useRef(null);
+  const voltaMostrada = useRef(null);
+  const gestosDaVolta = useRef({ mexeu: false, parar: null });
+  const linhaPedida = useRef(null);
   // Um "hoje" por render, o mesmo para todas as datas da tela.
   const hoje = ymdLocal(new Date());
 
@@ -322,16 +393,33 @@ export default function ConexoesMarketing() {
   useEffect(() => {
     vivo.current = true;
     const r = relogios.current;
+    const pedida = linhaPedida;
+    const daVolta = gestosDaVolta;
     return () => {
       vivo.current = false;
       for (const id of r) clearTimeout(id);
       r.clear();
+      // Os ouvintes de gesto (da linha pedida pela faixa e do aviso da
+      // volta) saem junto.
+      pedida.current?.parar();
+      daVolta.current.parar?.();
     };
   }, []);
 
   useEffect(() => {
     ultimo.current = retrato;
   }, [retrato]);
+
+  // VOLTAR DO PROVEDOR PELO BOTÃO DO NAVEGADOR: a página volta do cache
+  // (bfcache) do jeito que saiu, com o Conectar em "Abrindo...", e nada a
+  // soltava (o botão só soltava se a navegação falhasse).
+  useEffect(() => {
+    const voltou = (e) => {
+      if (e.persisted) setOcupado((o) => ocupadoDepoisDeVoltar(o));
+    };
+    window.addEventListener('pageshow', voltou);
+    return () => window.removeEventListener('pageshow', voltou);
+  }, []);
 
   const avisar = useCallback((fonte, tom, texto) => setAvisos((a) => ({ ...a, [fonte]: texto ? { tom, texto } : null })), []);
 
@@ -449,41 +537,80 @@ export default function ConexoesMarketing() {
       // Coleta andando quando a tela abriu: seguida calada, para a linha se
       // atualizar sozinha quando ela terminar.
       if (ativo && r) for (const f of r.lista) if (f.andando === true && !seguidas.current.has(f.fonte)) seguir(f.fonte, f.coletadoEm, false);
+      // A linha que o selo da faixa pediu: se a leitura mudou a altura do
+      // que está acima e a pessoa ainda não mexeu na página, ela volta à vista.
+      const pedida = linhaPedida.current;
+      if (ativo && pedida) {
+        linhaPedida.current = null;
+        pedida.parar();
+        const el = document.getElementById(`conexao-${pedida.fonte}`);
+        if (el && !inteiroNaTela(el)) levarAVista(el);
+      }
     })();
     return () => {
       ativo = false;
     };
   }, [aberto, ler, seguir]);
 
-  // O foco da faixa: a linha da fonte aparece na tela depois que as linhas
-  // existem (antes, a altura de cima ainda vai mudar). Chega depois da
-  // leitura das fontes, e por isso vem depois da rolagem até o grupo que a
-  // página de Configurações faz ao abrir (?secao=), e ganha dela. Pulo
-  // direto ("instant"), e não a rolagem suave da página: quem chega de outra
-  // tela quer ver a linha, e não a página correndo até ela.
+  // O FOCO DA FAIXA (?fonte=): a linha da fonte aparece na tela depois que
+  // as linhas existem e o grupo está aberto. Pulo direto, e não a rolagem
+  // suave da página: quem chega de outra tela quer ver a linha. A página de
+  // Configurações não rola até o grupo neste caso (conexoesCuidamDaRolagem),
+  // e nada desfaz a ida: a rolagem dela chegava depois e voltava ao topo do
+  // grupo (revisão de 12/10). O foco vai para a linha (sem rolar de novo),
+  // para o teclado e o leitor de tela começarem dali.
   useEffect(() => {
-    if (!foco || !retrato) return;
+    if (!foco || !retrato || !aberto) return;
+    const el = document.getElementById(`conexao-${foco}`);
+    if (!el) return;
     setFoco(null);
-    document.getElementById(`conexao-${foco}`)?.scrollIntoView({ block: 'center', behavior: 'instant' });
-  }, [foco, retrato]);
+    levarAVista(el);
+    el.focus({ preventScroll: true });
+    // Até a primeira leitura terminar, a linha é levada de novo se o que
+    // está acima mudar de altura; o primeiro gesto da pessoa (rolar, tocar,
+    // tecla) desliga isso.
+    const gestos = ['wheel', 'touchstart', 'keydown', 'pointerdown'];
+    const parar = () => {
+      if (linhaPedida.current?.fonte === foco) linhaPedida.current = null;
+      for (const g of gestos) window.removeEventListener(g, parar, true);
+    };
+    for (const g of gestos) window.addEventListener(g, parar, { capture: true, passive: true });
+    linhaPedida.current = { fonte: foco, parar };
+  }, [foco, retrato, aberto]);
 
-  // A contagem da trava no botão: um relógio por segundo, só enquanto há trava.
+  // O AVISO DA VOLTA DO CONECTAR: à vista e com o foco, depois que o grupo
+  // abriu (a página não rola até o grupo neste caso). Uma vez por volta; nas
+  // etapas seguintes (confirmado, recusado, o "Tentar de novo" à vista), só
+  // é levado de novo se saiu da tela E a pessoa ainda não mexeu na página
+  // (quem rolou para ver as linhas não é puxado de volta).
+  const chaveDaVolta = volta ? `${volta.fonte ?? ''}|${volta.tipo}|${volta.nonce ?? ''}` : null;
+  const etapaDaVolta = volta?.etapa ?? null;
   useEffect(() => {
-    const fim = Math.max(0, ...Object.values(travas));
-    if (fim <= Date.now()) return undefined;
-    const id = setInterval(() => {
-      const n = Date.now();
-      setAgora(n);
-      if (n >= fim) clearInterval(id);
-    }, 1000);
-    return () => clearInterval(id);
-  }, [travas]);
-  const travar = (fonte, segundos) => {
-    const n = Date.now();
-    setAgora(n);
-    setTravas((t) => ({ ...t, [fonte]: n + segundos * 1000 }));
-  };
-  const restante = (fonte) => (travas[fonte] > agora ? Math.ceil((travas[fonte] - agora) / 1000) : 0);
+    const el = avisoDaVoltaRef.current;
+    if (!chaveDaVolta || !aberto || !el) return;
+    if (voltaMostrada.current === chaveDaVolta) {
+      if (!gestosDaVolta.current.mexeu && !inteiroNaTela(el)) levarAVista(el);
+      return;
+    }
+    voltaMostrada.current = chaveDaVolta;
+    levarAVista(el);
+    el.focus({ preventScroll: true });
+    // O primeiro gesto da pessoa (rolar, tocar, tecla) desliga a volta à
+    // vista; os ouvintes ficam até ele, ou até a tela sair.
+    gestosDaVolta.current.parar?.();
+    const gestos = ['wheel', 'touchstart', 'keydown'];
+    const estado = { mexeu: false, parar: null };
+    const mexeu = () => {
+      estado.mexeu = true;
+      estado.parar();
+    };
+    estado.parar = () => {
+      for (const g of gestos) window.removeEventListener(g, mexeu, true);
+    };
+    for (const g of gestos) window.addEventListener(g, mexeu, { capture: true, passive: true });
+    gestosDaVolta.current = estado;
+  }, [chaveDaVolta, etapaDaVolta, aberto]);
+
   const marcar = (fonte, o) => setOcupado((x) => ({ ...x, [fonte]: o }));
 
   async function atualizar(f) {
@@ -495,13 +622,12 @@ export default function ConexoesMarketing() {
       // Nunca lança: a recusa vem no resultado.
       const [r] = await atualizarFontes([f.fonte]);
       if (!vivo.current) return;
+      // A trava (os 2 minutos do pedido aceito, ou os segundos do 429) a
+      // memória já guardou: o botão daqui e o da sub-aba Dados contam juntos.
       if (!r?.ok) {
-        if (r?.status === 429 && r.aguardarSegundos) travar(f.fonte, r.aguardarSegundos);
         avisar(f.fonte, r?.status === 429 ? 'aviso' : 'erro', r?.erro || 'Não foi possível pedir a coleta.');
         return;
       }
-      // O servidor marcou a trava de 2 minutos desta fonte: o botão já conta.
-      travar(f.fonte, TRAVA_COLETA_MS / 1000);
       if (r.andando) {
         seguir(f.fonte, f.coletadoEm, true);
         avisar(f.fonte, 'neutro', textoDaColetaAndando(rotuloDaFonte(f)));
@@ -575,7 +701,7 @@ export default function ConexoesMarketing() {
   return (
     <div ref={raiz} className="mkt-conexoes">
       {avisoVolta && (
-        <Aviso aviso={avisoVolta} onFechar={volta?.etapa === 'confirmando' ? null : () => setVolta(null)} className="mb-2">
+        <Aviso aviso={avisoVolta} refDiv={avisoDaVoltaRef} onFechar={volta?.etapa === 'confirmando' ? null : () => setVolta(null)} className="mb-2">
           {avisoVolta.tentarDeNovo && (
             <>
               {' '}

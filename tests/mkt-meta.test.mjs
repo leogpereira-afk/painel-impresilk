@@ -249,7 +249,7 @@ test('Página não atribuída: Página e Instagram falta_conectar; anúncios e P
 });
 
 test('métrica que a Meta tirou do ar: null e aviso, nunca zero; as outras do lote seguem; não é pedida de novo', async () => {
-  const { ctx, pedidos } = montar({
+  const { ctx, pedidos, logs } = montar({
     rota: (u) => {
       const p = caminho(u.href), q = u.searchParams, ms = metricasDe(u.href);
       if (p === `/${PAGE}/insights` && q.get('period') === 'day') return filtrar(fx('pagina-insights-dia'), ms, ['page_post_engagements']);
@@ -265,9 +265,17 @@ test('métrica que a Meta tirou do ar: null e aviso, nunca zero; as outras do lo
   assert.ok(pg.por_semana.every((s) => s.engajamento === null));
   const fb = r.semanas.filter((s) => s.canal === 'facebook');
   assert.ok(fb.every((s) => !('engajamento' in s.numeros)), 'número ausente não vai para o banco (nem como zero)');
-  // Uma frase por parte, com todas as recusadas (aqui junto com page_follows_city).
-  assert.ok(r.avisos.some((a) => /^Página: a Meta recusou as métricas page_post_engagements, page_follows_city; elas ficam sem número\.$/.test(a)));
-  assert.ok(r.avisos.some((a) => /Instagram: a Meta recusou a métrica views/.test(a)));
+  // O CASO RUIM (revisão de 12/10): o aviso dizia "a Meta recusou a métrica
+  // page_follows_city", o nome da API, que não diz nada a quem lê. Uma frase
+  // por parte, com todas as recusadas pelo nome para gente; o nome da API vai
+  // só para o diário.
+  assert.ok(r.avisos.includes('Página: a Meta recusou o engajamento dos posts e os seguidores por cidade; esses números ficam vazios.'), r.avisos.join(' | '));
+  assert.ok(r.avisos.includes('Instagram: a Meta recusou as visualizações; esse número fica vazio.'), r.avisos.join(' | '));
+  assert.equal(r.avisos.some((a) => /page_|_unique|\bviews\b/.test(a)), false, 'nome da API não vai para o aviso');
+  assert.ok(logs.some((l) => /page_post_engagements/.test(l) && /page_follows_city/.test(l)), logs.join(' | '));
+  assert.ok(logs.some((l) => /instagram: métricas recusadas views/.test(l)));
+  // Métrica que esta lista não conhece vira "uma das métricas", nunca o nome cru.
+  assert.equal(meta.avisoDeMetricasRecusadas('Pixel', ['metrica_nova_da_meta']), 'Pixel: a Meta recusou uma das métricas; esse número fica vazio.');
   // Instagram: o lote da 1ª semana cai, a busca da culpada acontece uma vez,
   // e as 7 semanas seguintes já não pedem "views".
   const igSemana = pedidos.filter((p) => caminho(p.url) === `/${IG}/insights` && !new URL(p.url).searchParams.get('breakdown') && new URL(p.url).searchParams.get('metric_type') === 'total_value');
@@ -297,7 +305,9 @@ test('parte que montou o retrato e depois falhou fica fora de dados (a coletora 
   assert.equal(r.publicacoes.some((s) => s.canal === 'facebook'), false);
   assert.equal(r.partes.instagram.estado, 'ok');
   assert.equal(r.estado, 'parcial');
-  assert.ok(r.avisos.some((a) => /Página: a Meta não entregou os números da Página \(HTTP 500\)/.test(a)));
+  // O código (HTTP 500) vai para o diário; o aviso é para gente.
+  assert.ok(r.avisos.includes('Página: a Meta não entregou os números da Página.'), r.avisos.join(' | '));
+  assert.equal(r.avisos.some((a) => /HTTP|código \d/.test(a)), false);
 });
 
 test('parte parcial: a chave da etapa que não rodou fica ausente, não vazia', async () => {
@@ -469,7 +479,7 @@ test('coleta completa: estado ok, conta, partes e janela de 8 semanas fechadas',
   assert.equal(r.dados.janela.publicacoes_desde, '2026-07-14');
   semTravessao(r);
   // Avisos esperados do caminho bom (nada de erro calado):
-  assert.ok(r.avisos.some((a) => /page_follows_city/.test(a)));
+  assert.ok(r.avisos.some((a) => /os seguidores por cidade/.test(a)));
   assert.ok(r.avisos.some((a) => /Reels do Facebook ficaram fora/.test(a)));
   assert.ok(r.avisos.some((a) => /Story com menos de 5 espectadores/.test(a)));
 });

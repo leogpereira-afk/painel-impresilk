@@ -249,7 +249,10 @@ test('métrica recusada pela API: pede uma por uma, a culpada vira null e aviso,
   const total = t.chamadas.filter((c) => rota(c.url) === '/v5/user_account/analytics' && !c.url.includes('content_type=ORGANIC') && !c.url.includes('content_type=PAID') && !c.url.includes('split_field'));
   assert.equal(total.length, 1 + 9, 'a lista inteira e depois uma por uma');
   assert.deepEqual(r.dados.conta.metricas_recusadas, ['ENGAGEMENT_RATE']);
-  assert.match(r.avisos.join(' '), /recusou a métrica ENGAGEMENT_RATE/);
+  // O nome da métrica para gente; o da API (ENGAGEMENT_RATE) só no diário.
+  assert.ok(r.avisos.includes('O Pinterest recusou a taxa de engajamento da conta; esse número ficou vazio.'), r.avisos.join(' | '));
+  assert.equal(/ENGAGEMENT_RATE/.test(r.avisos.join(' ')), false);
+  assert.ok(t.logs.some((l) => /ENGAGEMENT_RATE/.test(l)));
   assert.equal(r.dados.conta.total.resumo.taxa_engajamento, null);
   assert.equal(r.dados.conta.total.resumo.impressoes, 5800);
   // Depois de achada, a culpada não é pedida de novo.
@@ -262,7 +265,7 @@ test('métrica recusada pela API: pede uma por uma, a culpada vira null e aviso,
 test('pedido recusado até com IMPRESSION sozinha: nenhuma métrica leva a culpa, a parte da conta cai e o resto segue', async () => {
   const t = montar({ responder: comFalha((url) => rota(url) === '/v5/user_account/analytics', falha(400, fx('erro-400-metrica'))) }), r = await t.rodar();
   assert.equal(contar(t.chamadas, '/v5/user_account/analytics?'), 2);
-  assert.ok(!/recusou a métrica|recusou as métricas/.test(r.avisos.join(' ')));
+  assert.ok(!/da conta; (esse número ficou|esses números ficaram) vazio/.test(r.avisos.join(' ')));
   assert.equal(r.partes.conta.estado, 'erro');
   assert.equal(r.dados.conta, undefined, 'parte que falhou não aparece: a coletora mantém a anterior');
   assert.equal(r.partes.pins.estado, 'ok');
@@ -932,4 +935,12 @@ test('o arquivo: FORMATO no topo, sem travessão, sem import de npm, só GET par
   for (const linha of texto.split('\n').filter((l) => l.includes('engagement_window_days'))) assert.match(linha.trim(), /^(\*|\/\/)/, linha);
   assert.equal(P.FONTE, 'pinterest');
   assert.deepEqual(P.SECRETS, ['PINTEREST_CLIENT_ID', 'PINTEREST_CLIENT_SECRET']);
+});
+
+test('o caso ruim (revisão de 12/10): número fora da faixa e métrica recusada viram frase para gente, nunca o nome da API', () => {
+  assert.equal(P.avisoDeForaDaFaixa(['impressoes 2026-09-28', 'leads 2026-10-05']), 'Alguns números vieram fora da faixa e ficaram de fora: as impressões da semana de 28/09 e os leads da semana de 05/10.');
+  assert.equal(P.avisoDeMetricasRecusadas(['OUTBOUND_CLICK', 'SAVE_RATE']), 'O Pinterest recusou os cliques para o site e a taxa de salvamentos da conta; esses números ficaram vazios.');
+  assert.equal(P.avisoDeMetricasRecusadas(['METRICA_NOVA']), 'O Pinterest recusou uma das métricas da conta; esse número ficou vazio.');
+  // Toda métrica que a coleta pede tem nome para gente.
+  for (const m of P.METRICAS_CONTA) assert.ok(P.NOME_METRICA[m], m);
 });

@@ -92,17 +92,38 @@ export const ESTADOS_FONTE = Object.freeze({
   parcial: Object.freeze({ rotulo: 'Parcial', tom: 'warn', texto: 'Parte dos dados veio; o que faltou ficou com a coleta anterior ou sem número.' }),
   falta_configurar: Object.freeze({ rotulo: 'Falta configurar', tom: 'neutral', texto: 'Faltam os secrets desta fonte no Supabase. Veja como ligar.' }),
   falta_conectar: Object.freeze({ rotulo: 'Falta conectar', tom: 'warn', texto: 'A conta ainda não foi conectada (ou perdeu uma permissão). A gestão conecta em Configurações, Marketing.' }),
-  reconectar: Object.freeze({ rotulo: 'Reconectar', tom: 'bad', texto: 'A conexão parou de valer. A gestão precisa clicar em Reconectar.' }),
-  aguardando_aprovacao: Object.freeze({ rotulo: 'Aguardando aprovação', tom: 'neutral', texto: 'O provedor ainda não aprovou o acesso à API. Não há o que fazer até lá.' }),
+  // Vale também para as fontes por secret (o token da Meta, a chave do
+  // Google Ads), que não têm botão Reconectar: troca-se o secret.
+  reconectar: Object.freeze({ rotulo: 'Reconectar', tom: 'bad', texto: 'A conexão parou de valer. A gestão reconecta (ou troca o secret) em Configurações, Marketing.' }),
+  // "Não há o que fazer até lá" brigava com o motivo da parte, que diz onde
+  // pedir o acesso (revisão de 12/10): o pedido é do dono, uma vez; depois,
+  // é esperar o provedor.
+  aguardando_aprovacao: Object.freeze({ rotulo: 'Aguardando aprovação', tom: 'neutral', texto: 'O provedor ainda não liberou o acesso à API. Se o pedido de acesso já foi feito (veja Como ligar), é só esperar a aprovação.' }),
   erro: Object.freeze({ rotulo: 'Erro na coleta', tom: 'bad', texto: 'A última coleta falhou. O que já estava na tela continua.' }),
+});
+
+/* O RÓTULO CURTO de cada estado, para a faixa "Fontes" da Visão geral
+   (revisão de 12/10): com "Aguardando a coleta" (185 px) os seis selos não
+   cabiam numa linha a 1280 px. O rótulo inteiro vai na dica e no
+   aria-label do selo; o curto nunca fica sozinho como a única informação
+   para quem usa leitor de tela. */
+export const ROTULO_CURTO = Object.freeze({
+  ok: 'Funcionando', parcial: 'Parcial', falta_configurar: 'Configurar', falta_conectar: 'Conectar', reconectar: 'Reconectar',
+  aguardando_aprovacao: 'Em aprovação', erro: 'Erro', aguardando_coleta: 'Aguardando', sem_coleta: 'Sem coleta', desconhecido: 'Desconhecido',
 });
 
 // Os estados que não vêm do servidor e a tela precisa dizer.
 const SEM_COLETA = Object.freeze({ chave: 'sem_coleta', rotulo: 'Sem coleta ainda', tom: 'neutral', texto: 'Esta fonte ainda não foi coletada nenhuma vez.' });
+// "Aguardando a coleta" vale para três casos, com a frase de cada um (ver
+// situacaoDaFonte): conectado agora (a coleta é de antes da conexão),
+// configurado agora (a porta viu o secret cadastrado depois da coleta) e a
+// parte que ficou para a próxima coleta.
 const AGUARDANDO_COLETA = Object.freeze({
   chave: 'aguardando_coleta', rotulo: 'Aguardando a coleta', tom: 'neutral',
-  texto: 'Conectado. Os números chegam na próxima coleta (todo dia de manhã) ou em Atualizar agora.',
+  texto: 'Os números chegam na próxima coleta (todo dia de manhã) ou em Atualizar agora.',
 });
+const CONECTADO_AGORA = `Conectado. ${AGUARDANDO_COLETA.texto}`;
+const CONFIGURADO_AGORA = `Configurado. ${AGUARDANDO_COLETA.texto}`;
 const DESCONHECIDO = Object.freeze({ chave: 'desconhecido', rotulo: 'Estado desconhecido', tom: 'neutral', texto: 'O servidor mandou um estado que esta tela não conhece.' });
 
 /** O estado de uma fonte ou parte para gente: {chave, rotulo, tom, texto}.
@@ -117,29 +138,74 @@ export function infoEstado(estado) {
   return { ...DESCONHECIDO };
 }
 
+/** Quando COMEÇOU a coleta que gravou o retrato que a tela tem (ISO), ou
+ *  null quando não há retrato. É contra ela que a conexão se compara: uma
+ *  coleta que começou com o token velho e terminou depois do Reconectar
+ *  gravou o estado do token velho (revisão de 12/10; antes a régua era o
+ *  FIM, coletadoEm). Na ordem:
+ *  - iniciadoEm, o carimbo que a coletora grava no retrato;
+ *  - retrato sem o carimbo (de antes dele): a execução do diário (ultimas)
+ *    que começou antes do fim do retrato e terminou depois dele (ou ainda
+ *    não tem fim), a mais nova delas;
+ *  - sem nada disso: o próprio fim (a régua de antes). */
+export function inicioDaColeta(f) {
+  if (!objeto(f)) return null;
+  const fim = instante(f.coletadoEm);
+  if (!Number.isFinite(fim)) return null;
+  const carimbo = instante(f.iniciadoEm);
+  if (Number.isFinite(carimbo) && carimbo <= fim) return f.iniciadoEm;
+  let melhor = null;
+  for (const e of Array.isArray(f.ultimas) ? f.ultimas : []) {
+    const ini = instante(e?.inicio), fimDela = instante(e?.fim);
+    if (!Number.isFinite(ini) || ini > fim || (Number.isFinite(fimDela) && fimDela < fim)) continue;
+    if (!melhor || ini > instante(melhor)) melhor = e.inicio;
+  }
+  return melhor ?? f.coletadoEm;
+}
+
 /** A conexão é mais nova que a última coleta? Então o estado e os avisos que
- *  o servidor mandou são de ANTES dela (ver a regra 2 do topo). Sem data de
- *  coleta (nunca coletou) conta como mais nova. */
+ *  o servidor mandou são de ANTES dela (ver a regra 2 do topo). A régua é o
+ *  COMEÇO da coleta (inicioDaColeta). Sem data de coleta (nunca coletou)
+ *  conta como mais nova. */
 export function estadoDeAntesDaConexao(f) {
   if (!objeto(f) || f.oauth !== true || !objeto(f.conexao) || f.configurado === false) return false;
   const conectado = instante(f.conexao.conectadoEm);
   if (!Number.isFinite(conectado)) return false;
-  const coletado = instante(f.coletadoEm);
+  const coletado = instante(inicioDaColeta(f));
   return !Number.isFinite(coletado) || coletado < conectado;
 }
+
+/** O retrato da fonte é de ANTES de uma mudança que a coleta ainda não viu:
+ *  a conexão nova (estadoDeAntesDaConexao) ou o secret cadastrado depois
+ *  da coleta (o servidor manda o estado "aguardando_coleta"). Aí o estado de
+ *  cada parte também é velho, e a tela não o mostra como atual. */
+export const retratoDeAntes = (f) => estadoDeAntesDaConexao(f) || (objeto(f) && f.estado === AGUARDANDO_COLETA.chave);
+
+/** O servidor não conseguiu ler a conexão (o cofre falhou) e disse isso
+ *  (conexaoDesconhecida, revisão de 12/10)? Aí a conexão veio null porque
+ *  NÃO SE SABE: a tela não deduz "falta conectar", não esconde o Atualizar
+ *  agora (a coleta lê o cofre sozinha) e mostra o estado da última coleta. */
+export const conexaoDesconhecida = (f) => objeto(f) && f.oauth === true && !objeto(f.conexao) && f.conexaoDesconhecida === true;
+
+/** A fonte por OAuth está sem conexão, sabido (o cofre foi lido)? */
+export const semConexao = (f) => objeto(f) && f.oauth === true && !objeto(f.conexao) && f.conexaoDesconhecida !== true;
 
 /** A situação da fonte, para o selo da linha e da faixa:
  *  {chave, rotulo, tom, texto, andando, avisosVelhos}.
  *  - estado de antes da conexão: "Aguardando a coleta" (e avisosVelhos true:
  *    os avisos da fonte falam da situação anterior, a tela não os mostra
- *    como atuais);
+ *    como atuais), com a frase de quem acabou de conectar;
+ *  - a porta viu o secret cadastrado depois da coleta (estado
+ *    "aguardando_coleta" vindo do servidor): o mesmo selo, com a frase de
+ *    quem acabou de configurar (os avisos velhos a porta já tirou);
  *  - senão, o estado do servidor (infoEstado).
  *  `andando` vem à parte: a coleta pode estar rodando sobre qualquer estado,
  *  e o selo continua dizendo o último resultado. */
 export function situacaoDaFonte(f) {
   if (!objeto(f)) return { ...DESCONHECIDO, andando: false, avisosVelhos: false };
   const andando = f.andando === true;
-  if (estadoDeAntesDaConexao(f)) return { ...AGUARDANDO_COLETA, andando, avisosVelhos: true };
+  if (estadoDeAntesDaConexao(f)) return { ...AGUARDANDO_COLETA, texto: CONECTADO_AGORA, andando, avisosVelhos: true };
+  if (f.estado === AGUARDANDO_COLETA.chave) return { ...AGUARDANDO_COLETA, texto: CONFIGURADO_AGORA, andando, avisosVelhos: false };
   return { ...infoEstado(f.estado ?? null), andando, avisosVelhos: false };
 }
 
@@ -205,7 +271,8 @@ export const rotuloDaLigacao = ({ fonte, parte }) => (parte ? rotuloParte(fonte,
 // conexão. Aí o estado de cada parte guardado no cache é velho.
 function travadaInteira(f) {
   if (f.configurado === false) return 'falta_configurar';
-  if (f.oauth === true && !objeto(f.conexao)) return 'falta_conectar';
+  // Conexão que não se sabe (o cofre não foi lido) não é falta de conexão.
+  if (semConexao(f)) return 'falta_conectar';
   return null;
 }
 
@@ -237,7 +304,7 @@ export function fontesDoCanal(codigo, fontes) {
     // O estado da parte só vale quando nada por cima dele mudou depois da
     // coleta (a trava de agora, ou uma conexão mais nova que ela). Aí o
     // motivo guardado da parte também é velho e não vai para a tela.
-    const porCima = travadaInteira(f) ?? (estadoDeAntesDaConexao(f) ? 'aguardando_coleta' : null);
+    const porCima = travadaInteira(f) ?? (retratoDeAntes(f) ? 'aguardando_coleta' : null);
     const estado = porCima ?? (p ? p.estado : (f.estado ?? null));
     const info = infoEstado(estado);
     return {
@@ -272,14 +339,27 @@ export function estadoDoCanal(codigo, fontes) {
 
 const PAPEIS = ['gestao', 'marketing', 'visualizacao'];
 
+/** O LinkedIn ainda tem números no retrato do servidor? É o caso do
+ *  Desconectar em que o cache não deixou apagar o retrato (a regra de guarda
+ *  do LinkedIn): a conexão saiu, os números ficaram, e o aviso manda
+ *  desconectar de novo. A régua é ultimaBoaEm (alguma coleta trouxe dado), e
+ *  não coletadoEm: a coleta de cada manhã sem conexão também grava retrato,
+ *  sem número nenhum. */
+export const linkedinComNumeros = (f) => objeto(f) && f.fonte === 'linkedin' && !!f.ultimaBoaEm;
+
 /** Os botões de uma fonte para um papel (o `papel` que o servidor mandou):
  *  - atualizar ("Atualizar agora"): gestão e marketing, com a fonte
  *    configurada e, nas fontes por OAuth, conectada (senão a coleta só
- *    repetiria "falta configurar" ou "falta conectar");
- *  - conectar: gestão, fonte por OAuth, configurada e sem conexão;
- *  - reconectar: gestão, fonte por OAuth, configurada e com conexão;
+ *    repetiria "falta configurar" ou "falta conectar"). Com a conexão
+ *    desconhecida (o cofre não foi lido), aparece: a coleta lê o cofre
+ *    sozinha e diz a verdade;
+ *  - conectar: gestão, fonte por OAuth, configurada e sem conexão (sabido);
+ *  - reconectar: gestão, fonte por OAuth, configurada e com conexão (ou com
+ *    a conexão desconhecida: reconectar vale nos dois casos);
  *  - desconectar: gestão, fonte por OAuth e com conexão (sem os secrets do
- *    app também: apagar do cofre não depende deles).
+ *    app também: apagar do cofre não depende deles); no LinkedIn, também
+ *    enquanto o retrato tiver números (linkedinComNumeros), porque o
+ *    Desconectar é que leva o retrato junto.
  *  Papel desconhecido vale o menor: só ver. */
 export function acoesDaFonte(f, papel) {
   const p = PAPEIS.includes(papel) ? papel : 'visualizacao';
@@ -290,11 +370,12 @@ export function acoesDaFonte(f, papel) {
   const oauth = f.oauth === true;
   const configurada = f.configurado === true;
   const conectada = objeto(f.conexao);
+  const incerta = conexaoDesconhecida(f);
   return {
-    atualizar: grava && configurada && (!oauth || conectada),
-    conectar: gestao && oauth && configurada && !conectada,
-    reconectar: gestao && oauth && configurada && conectada,
-    desconectar: gestao && oauth && conectada,
+    atualizar: grava && configurada && (!oauth || conectada || incerta),
+    conectar: gestao && oauth && configurada && !conectada && !incerta,
+    reconectar: gestao && oauth && configurada && (conectada || incerta),
+    desconectar: gestao && oauth && (conectada || linkedinComNumeros(f)),
   };
 }
 
@@ -518,6 +599,27 @@ export function legendaDaColeta({ rotulo, coletadoEm = null, tentadoEm = null } 
   const coletado = fmtDataHora(coletadoEm, hoje, { vazio: null });
   const tentado = fmtDataHora(tentadoEm, hoje, { vazio: null });
   return `${nome}, ${coletado ? `coletado em ${coletado}` : 'ainda sem coleta'}${tentado ? `; última tentativa em ${tentado}` : ''}`;
+}
+
+/** A legenda do quadro "Avisos da última coleta" da sub-aba Dados (revisão
+ *  de 12/10). Antes ela levava as fontes todas do canal e a coleta MAIS NOVA
+ *  delas, e a tentativa sem dado do Google Ads (09:23) carimbava como
+ *  "coletado em 09:23" os avisos do Google (09:11). Agora:
+ *  - entram só as fontes que têm aviso (fora as de retrato de antes de uma
+ *    conexão ou de um cadastro, cujos avisos não aparecem); sem nenhuma, as
+ *    fontes do quadro;
+ *  - "coletado em" é a coleta que trouxe dado; a que não trouxe só aparece
+ *    como "última tentativa", e só quando é mais nova que a coleta boa. */
+export function legendaDosAvisos(fontes, porFonte, hoje) {
+  const lista = [...new Set(Array.isArray(fontes) ? fontes : [])].map((k) => (objeto(porFonte) && objeto(porFonte[k]) ? porFonte[k] : null)).filter(Boolean);
+  const comAviso = lista.filter((f) => !retratoDeAntes(f) && Array.isArray(f.avisos) && f.avisos.some((a) => typeof a === 'string' && a.trim()));
+  const usadas = comAviso.length ? comAviso : lista;
+  const maisNova = (xs) => xs.filter((x) => Number.isFinite(instante(x))).sort((a, b) => instante(b) - instante(a))[0] ?? null;
+  const trouxe = (f) => Number.isFinite(instante(f.ultimaBoaEm)) && instante(f.ultimaBoaEm) >= instante(f.coletadoEm);
+  const coletadoEm = maisNova(usadas.filter(trouxe).map((f) => f.coletadoEm));
+  const tentou = maisNova(usadas.filter((f) => !trouxe(f)).map((f) => f.coletadoEm));
+  const tentadoEm = tentou && (!coletadoEm || instante(tentou) > instante(coletadoEm)) ? tentou : null;
+  return legendaDaColeta({ rotulo: usadas.map((f) => ROTULO_FONTE[f.fonte] ?? String(f.fonte)).join(', ') || 'Fontes', coletadoEm, tentadoEm }, hoje);
 }
 
 /* ------------------------------------------------------ os motivos -- */

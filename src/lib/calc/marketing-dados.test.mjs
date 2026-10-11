@@ -125,9 +125,9 @@ test('o caso ruim: número não medido nunca vira 0 (célula, número grande, so
 });
 
 test('o caso ruim: nenhum quadro das duas prévias mostra "0" no lugar de um número que veio null', () => {
-  // Procura, quadro a quadro, toda célula vazia: tem de ser o traço com
-  // "não medido" (ou "não informado") no title, e nenhuma célula com
-  // vazio=true pode trazer um número.
+  // Procura, quadro a quadro, toda célula vazia: tem de ser o ponto de
+  // ausente com "não medido" (ou "não informado") no title, e nenhuma
+  // célula com vazio=true pode trazer um número.
   for (const r of [VARIEDADE, CHEIAS, REVISAO2]) {
     for (const q of todosOsQuadros(r)) {
       for (const b of blocos(q)) {
@@ -455,7 +455,7 @@ test('as réguas de velocidade do Google e das notas do PageSpeed', () => {
   assert.equal(tomDaNota(null), null);
 });
 
-test('as frases da aba não levam travessão (a regra da casa)', () => {
+test('as frases da aba não levam travessão (a regra da casa), nem as células', () => {
   // Só o que a TELA escreve: o texto que vem de fora (título de página do
   // site, nome de campanha) é dado e passa como veio.
   for (const r of [VARIEDADE, CHEIAS, REVISAO2]) {
@@ -469,4 +469,31 @@ test('as frases da aba não levam travessão (a regra da casa)', () => {
       for (const t of nossos.filter((x) => typeof x === 'string')) assert.equal(TRAVESSAO.test(t), false, `${q.id}: ${t}`);
     }
   }
+  // As CÉLULAS também (o dado ausente era o travessão sozinho na célula; a
+  // ordem do dono trocou pelo ponto). Travessão em célula só quando veio de
+  // fora, no texto do site ou da API.
+  const deFora = [];
+  const andar = (x) => {
+    if (typeof x === 'string') { if (TRAVESSAO.test(x)) deFora.push(x); }
+    else if (Array.isArray(x)) x.forEach(andar);
+    else if (x && typeof x === 'object') Object.values(x).forEach(andar);
+  };
+  andar([VARIEDADE.fontes, CHEIAS.fontes, REVISAO2.fontes]);
+  const veioDeFora = (t) => deFora.some((s) => s.includes(t.replace(/…$/, '')) || t.includes(s));
+  for (const r of [VARIEDADE, CHEIAS, REVISAO2]) {
+    for (const q of todosOsQuadros(r)) {
+      for (const b of blocos(q)) {
+        if (b.tipo !== 'tabela') continue;
+        for (const l of b.linhas) {
+          for (const c of l.celulas) {
+            if (c.vazio) assert.equal(c.texto, AUSENTE, `${q.id}: célula vazia sem o ponto`);
+            for (const t of [c.texto, c.titulo].filter((x) => typeof x === 'string')) {
+              if (TRAVESSAO.test(t)) assert.ok(veioDeFora(t), `${q.id}: travessão na célula: ${t}`);
+            }
+          }
+        }
+      }
+    }
+  }
+  assert.equal(TRAVESSAO.test(AUSENTE), false, 'o marcador de ausente não é travessão');
 });

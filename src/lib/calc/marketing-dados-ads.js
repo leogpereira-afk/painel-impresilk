@@ -32,10 +32,12 @@ import {
   blocoTexto,
   col,
   colSemanaFechada,
+  conhecido,
   formatar,
   lista,
   medida,
   montarQuadro,
+  nomeDaMoeda,
   numero,
   objeto,
   ordenar,
@@ -44,6 +46,7 @@ import {
   secao,
   secaoTabela,
   semDadoDaParte,
+  separarPorHoje,
   somaDisponivel,
   texto,
   traduzir,
@@ -95,7 +98,40 @@ const TIPO_GRUPO = Object.freeze({
   VIDEO_TRUE_VIEW_IN_STREAM: 'vídeo in-stream', VIDEO_BUMPER: 'vídeo curto (bumper)', VIDEO_RESPONSIVE: 'vídeo responsivo', VIDEO_NON_SKIPPABLE_IN_STREAM: 'vídeo não pulável',
   SMART_CAMPAIGN_ADS: 'inteligente',
 });
-const QUALIDADE = Object.freeze({ ABOVE_AVERAGE: 'acima da média', AVERAGE: 'na média', BELOW_AVERAGE: 'abaixo da média' });
+const QUALIDADE = Object.freeze({ ABOVE_AVERAGE: 'acima da média', AVERAGE: 'na média', BELOW_AVERAGE: 'abaixo da média', UNKNOWN: 'sem nota', UNSPECIFIED: 'sem nota' });
+// O tipo do anúncio (ad.type), com o nome da tela do Google Ads.
+const TIPO_ANUNCIO = Object.freeze({
+  RESPONSIVE_SEARCH_AD: 'Pesquisa responsivo', EXPANDED_TEXT_AD: 'texto expandido', TEXT_AD: 'texto', CALL_AD: 'só chamada',
+  RESPONSIVE_DISPLAY_AD: 'Display responsivo', IMAGE_AD: 'imagem', VIDEO_AD: 'vídeo', VIDEO_RESPONSIVE_AD: 'vídeo responsivo',
+  EXPANDED_DYNAMIC_SEARCH_AD: 'Pesquisa dinâmica', SMART_CAMPAIGN_AD: 'campanha inteligente', APP_AD: 'app', LOCAL_AD: 'local',
+  DEMAND_GEN_MULTI_ASSET_AD: 'Geração de demanda', DEMAND_GEN_CAROUSEL_AD: 'carrossel (Geração de demanda)', DEMAND_GEN_VIDEO_RESPONSIVE_AD: 'vídeo (Geração de demanda)',
+  DEMAND_GEN_PRODUCT_AD: 'produto (Geração de demanda)', SHOPPING_PRODUCT_AD: 'Shopping', SHOPPING_SMART_AD: 'Shopping inteligente', HOTEL_AD: 'hotel',
+  LEGACY_RESPONSIVE_DISPLAY_AD: 'Display responsivo antigo', LEGACY_APP_INSTALL_AD: 'instalação de app (antigo)', GMAIL_AD: 'Gmail', HTML5_UPLOAD_AD: 'HTML5',
+  IN_FEED_VIDEO_AD: 'vídeo no feed', VIDEO_BUMPER_AD: 'vídeo curto (bumper)', VIDEO_NON_SKIPPABLE_IN_STREAM_AD: 'vídeo não pulável',
+  VIDEO_TRUEVIEW_IN_STREAM_AD: 'vídeo in-stream',
+});
+// Os campos que mudaram numa alteração da conta (changedFields, o caminho
+// da API: "keyword.text", "amountMicros"), com o nome de gente; o caminho
+// que o mapa não conhece cai no último pedaço, e daí em "outro campo".
+const CAMPOS_ADS = Object.freeze({
+  amountMicros: 'valor do orçamento', status: 'situação', name: 'nome', cpcBidMicros: 'lance de CPC', cpmBidMicros: 'lance de CPM', cpvBidMicros: 'lance de CPV',
+  targetCpaMicros: 'CPA desejado', targetRoas: 'ROAS desejado', 'keyword.text': 'texto da palavra-chave', 'keyword.matchType': 'correspondência', text: 'texto',
+  matchType: 'correspondência', negative: 'palavra negativa', finalUrls: 'links finais', finalMobileUrls: 'links finais no celular',
+  trackingUrlTemplate: 'modelo de rastreamento', finalUrlSuffix: 'sufixo do link final', headlines: 'títulos', descriptions: 'descrições',
+  path1: 'caminho exibido', path2: 'caminho exibido', startDate: 'início', endDate: 'fim', startDateTime: 'início', endDateTime: 'fim',
+  biddingStrategyType: 'estratégia de lance', campaignBudget: 'orçamento', deliveryMethod: 'entrega do orçamento', period: 'período do orçamento',
+  networkSettings: 'redes', targetSearchNetwork: 'parceiros de pesquisa', targetContentNetwork: 'rede de Display', geoTargetConstant: 'local',
+  languageConstant: 'idioma', adSchedule: 'programação', dayOfWeek: 'dia da semana', startHour: 'hora de início', endHour: 'hora de fim', bidModifier: 'ajuste de lance',
+  type: 'tipo', url: 'link', phoneNumber: 'telefone', countryCode: 'país do telefone', callTrackingEnabled: 'rastreamento de chamadas', sitelinkAsset: 'sitelink',
+  linkText: 'texto do link', calloutText: 'frase de destaque', proximity: 'raio', radius: 'raio', locationGroup: 'grupo de locais', excludedParentAssetFieldTypes: 'recursos excluídos',
+});
+/** O nome de gente de um campo alterado na conta do Google Ads. */
+export function nomeDoCampoAds(caminho) {
+  const c = String(caminho ?? '').trim();
+  if (!c) return null;
+  const ultimo = c.split('.').pop();
+  return conhecido(CAMPOS_ADS, c) ?? conhecido(CAMPOS_ADS, ultimo) ?? (/Micros$/.test(ultimo) ? 'valor' : 'outro campo');
+}
 const APARELHO = Object.freeze({ MOBILE: 'celular', DESKTOP: 'computador', TABLET: 'tablet', CONNECTED_TV: 'TV', OTHER: 'outro' });
 const REDE = Object.freeze({ SEARCH: 'Pesquisa', SEARCH_PARTNERS: 'parceiros de pesquisa', CONTENT: 'Display', YOUTUBE: 'YouTube', YOUTUBE_SEARCH: 'YouTube', YOUTUBE_WATCH: 'YouTube', MIXED: 'várias' });
 const IDADE = Object.freeze({
@@ -136,7 +172,10 @@ const CLIENTE = Object.freeze({
   INTERNAL_TOOL: 'equipe do Google', OTHER: 'outro',
 });
 
-const situacao = (l) => traduzir(SITUACAO, l.situacao) ?? traduzir(STATUS, l.status);
+// A situação de serviço manda; sem ela, o status. O código que nenhum dos
+// dois mapas conhece vira "outra situação" (antes ia o código cru, e o
+// segundo mapa nem era consultado: o primeiro devolvia o código).
+const situacao = (l) => conhecido(SITUACAO, l.situacao) ?? conhecido(STATUS, l.status) ?? (l.situacao || l.status ? 'outra situação' : null);
 const tomSituacao = (l) => (l.status === 'REMOVED' || l.situacao === 'NOT_ELIGIBLE' || l.situacao === 'MISCONFIGURED' ? 'warn' : null);
 const tomPerdida = (p) => (objeto(p) && (p.maisDe90 === true || (medida(p.valor) ?? 0) >= 0.5) ? 'warn' : null);
 const recentesPrimeiro = (linhas, campo) => [...lista(linhas)].filter(objeto).sort((a, b) => String(b[campo] ?? '').localeCompare(String(a[campo] ?? '')));
@@ -258,10 +297,10 @@ function corpoAds(d, l, hoje) {
   const secoes = [
     tabelaDaParte('campanhas', 'campanhas', 'Campanhas', camp ? ordenar(camp.lista, (x) => x.totais?.gasto) : null, [
       col('nome', 'Campanha', 'texto', { max: 120 }),
-      col('tipo', 'Tipo', 'texto', { valor: (x) => traduzir(TIPO_CAMPANHA, x.tipo) }),
+      col('tipo', 'Tipo', 'texto', { valor: (x) => traduzir(TIPO_CAMPANHA, x.tipo, 'outro tipo') }),
       col('situacao', 'Situação', 'texto', { valor: situacao, tom: tomSituacao }),
-      col('orcamento', 'Orçamento', 'texto', { valor: (x) => (objeto(x.orcamento) && medida(x.orcamento.valor) !== null ? `${formatar('moeda', x.orcamento.valor, { moeda })} ${traduzir({ DAILY: 'por dia', CUSTOM_PERIOD: 'no período' }, x.orcamento.periodo) ?? ''}`.trim() : null), numerico: true }),
-      col('lance', 'Lance', 'texto', { valor: (x) => traduzir(LANCE, x.lance) }),
+      col('orcamento', 'Orçamento', 'texto', { valor: (x) => (objeto(x.orcamento) && medida(x.orcamento.valor) !== null ? `${formatar('moeda', x.orcamento.valor, { moeda })} ${traduzir({ DAILY: 'por dia', CUSTOM_PERIOD: 'no período' }, x.orcamento.periodo, 'em outro período') ?? ''}`.trim() : null), numerico: true }),
+      col('lance', 'Lance', 'texto', { valor: (x) => traduzir(LANCE, x.lance, 'outra estratégia') }),
       col('gasto', 'Gasto', 'moeda', { valor: (x) => x.totais?.gasto }),
       col('impressoes', 'Impressões', 'int', { valor: (x) => x.totais?.impressoes }),
       col('cliques', 'Cliques', 'int', { valor: (x) => x.totais?.cliques }),
@@ -324,11 +363,11 @@ function corpoAds(d, l, hoje) {
     camp
       ? secaoTabela('config', 'Configuração das campanhas', ordenar(camp.lista, (x) => x.totais?.gasto), [
         col('nome', 'Campanha', 'texto', { max: 120 }),
-        col('status', 'Status', 'texto', { valor: (x) => traduzir(STATUS, x.status) }),
-        col('subtipo', 'Subtipo', 'texto', { valor: (x) => traduzir(SUBTIPO, x.subtipo) }),
-        col('veiculacao', 'Veiculação', 'texto', { valor: (x) => traduzir(VEICULACAO, x.veiculacao), tom: (x) => (x.veiculacao === 'SUSPENDED' ? 'bad' : null) }),
-        col('motivos', 'Motivos da situação', 'texto', { valor: (x) => lista(x.motivos).map((k) => traduzir(MOTIVO, k)).filter(Boolean).join(', ') || null, max: 300 }),
-        col('entrega', 'Entrega do orçamento', 'texto', { valor: (x) => traduzir(ENTREGA, x.orcamento?.entrega) }),
+        col('status', 'Status', 'texto', { valor: (x) => traduzir(STATUS, x.status, 'outra situação') }),
+        col('subtipo', 'Subtipo', 'texto', { valor: (x) => traduzir(SUBTIPO, x.subtipo, 'outro subtipo') }),
+        col('veiculacao', 'Veiculação', 'texto', { valor: (x) => traduzir(VEICULACAO, x.veiculacao, 'outra situação'), tom: (x) => (x.veiculacao === 'SUSPENDED' ? 'bad' : null) }),
+        col('motivos', 'Motivos da situação', 'texto', { valor: (x) => [...new Set(lista(x.motivos).map((k) => traduzir(MOTIVO, k, 'outro motivo')).filter(Boolean))].join(', ') || null, max: 300 }),
+        col('entrega', 'Entrega do orçamento', 'texto', { valor: (x) => traduzir(ENTREGA, x.orcamento?.entrega, 'outra forma') }),
         col('recomendado', 'Orçamento recomendado', 'moeda', { valor: (x) => x.orcamento?.recomendado }),
         col('inicio', 'Início', 'dia'),
         col('fim', 'Fim', 'dia'),
@@ -336,11 +375,11 @@ function corpoAds(d, l, hoje) {
       : null,
     tabelaDaParte('termos', 'termos', 'Termos de pesquisa', termos ? [...ordenar(termos.lista, 'cliques'), ...outros] : null, [
       col('termo', 'Termo', 'texto', { max: 120 }),
-      col('status', 'Situação', 'texto', { valor: (x) => traduzir(STATUS_TERMO, x.status) }),
+      col('status', 'Situação', 'texto', { valor: (x) => traduzir(STATUS_TERMO, x.status, 'outra situação') }),
       col('campanha', 'Campanha', 'texto', { max: 80 }),
       col('grupos', 'Grupos', 'texto', { valor: (x) => lista(x.grupos).join(', ') || null, max: 200 }),
-      col('palavras', 'Palavra que acionou', 'texto', { valor: (x) => lista(x.palavras).filter(objeto).map((p) => `${p.texto} (${traduzir(CORRESPONDENCIA, p.correspondencia) ?? p.correspondencia})`).join(', ') || null }),
-      col('tipos', 'Correspondência do termo', 'texto', { valor: (x) => lista(x.tiposCorrespondencia).map((k) => traduzir(CORRESPONDENCIA, k)).filter(Boolean).join(', ') || null }),
+      col('palavras', 'Palavra que acionou', 'texto', { valor: (x) => lista(x.palavras).filter(objeto).map((p) => { const c = traduzir(CORRESPONDENCIA, p.correspondencia, 'outra correspondência'); return `${texto(p.texto, 80) ?? 'sem texto'}${c ? ` (${c})` : ''}`; }).join(', ') || null }),
+      col('tipos', 'Correspondência do termo', 'texto', { valor: (x) => [...new Set(lista(x.tiposCorrespondencia).map((k) => traduzir(CORRESPONDENCIA, k, 'outra correspondência')).filter(Boolean))].join(', ') || null }),
       ...COLS_METRICAS,
     ], {
       unidade: ['termo', 'termos'], vazio: 'Nenhum termo de pesquisa no período.', chave: (x, i) => `${x.outros ? 'outros-' : ''}${x.campanhaId ?? ''}-${x.termo}-${i}`,
@@ -368,7 +407,7 @@ function corpoAds(d, l, hoje) {
       : null,
     tabelaDaParte('resumo', 'semanas', 'Por semana', r ? [...lista(r.semanas)].filter(objeto).reverse() : null, [
       col('semana', 'Semana de', 'dia'),
-      colSemanaFechada('fechada', 'em andamento'),
+      colSemanaFechada('fechada', 'em andamento', { hoje }),
       col('atividade', 'Teve anúncio', 'sim', { tom: (s) => (s.atividade === false ? 'warn' : null) }),
       ...COLS_METRICAS,
       col('interacoes', 'Interações', 'int'),
@@ -387,7 +426,7 @@ function corpoAds(d, l, hoje) {
     tabelaDaParte('grupos', 'grupos', 'Grupos de anúncios', objeto(d.grupos) ? ordenar(d.grupos.lista, 'gasto') : null, [
       col('nome', 'Grupo', 'texto', { max: 100 }),
       col('campanha', 'Campanha', 'texto', { max: 80 }),
-      col('tipo', 'Tipo', 'texto', { valor: (x) => traduzir(TIPO_GRUPO, x.tipo) }),
+      col('tipo', 'Tipo', 'texto', { valor: (x) => traduzir(TIPO_GRUPO, x.tipo, 'outro tipo') }),
       col('situacao', 'Situação', 'texto', { valor: situacao, tom: tomSituacao }),
       ...COLS_METRICAS,
       col('interacoes', 'Interações', 'int'),
@@ -395,10 +434,10 @@ function corpoAds(d, l, hoje) {
     ], { unidade: ['grupo', 'grupos'], vazio: 'Nenhum grupo com gasto no período.', nota: cortadas(d.grupos?.cortados, ['grupo', 'grupos']) }),
     tabelaDaParte('anuncios', 'anuncios', 'Anúncios', objeto(d.anuncios) ? ordenar(d.anuncios.lista, 'gasto') : null, [
       col('titulo', 'Anúncio', 'texto', { valor: (x) => lista(x.titulos)[0] || x.nome, link: (x) => x.link, titulo: (x) => lista(x.titulos).join(' | ') || null, max: 100 }),
-      col('tipo', 'Tipo', 'texto', { valor: (x) => String(x.tipo ?? '').replace(/_AD$/, '').replace(/_/g, ' ').toLowerCase() || null }),
+      col('tipo', 'Tipo', 'texto', { valor: (x) => traduzir(TIPO_ANUNCIO, x.tipo, 'outro tipo') }),
       col('situacao', 'Situação', 'texto', { valor: situacao, tom: tomSituacao }),
-      col('forca', 'Força', 'texto', { valor: (x) => traduzir(FORCA, x.forca), tom: (x) => (x.forca === 'POOR' ? 'warn' : null) }),
-      col('aprovacao', 'Aprovação', 'texto', { valor: (x) => traduzir(APROVACAO, x.aprovacao), tom: (x) => (x.aprovacao === 'DISAPPROVED' ? 'bad' : null) }),
+      col('forca', 'Força', 'texto', { valor: (x) => traduzir(FORCA, x.forca, 'outra nota'), tom: (x) => (x.forca === 'POOR' ? 'warn' : null) }),
+      col('aprovacao', 'Aprovação', 'texto', { valor: (x) => traduzir(APROVACAO, x.aprovacao, 'outra situação'), tom: (x) => (x.aprovacao === 'DISAPPROVED' ? 'bad' : null) }),
       col('grupo', 'Grupo', 'texto', { max: 80 }),
       col('campanha', 'Campanha', 'texto', { max: 80 }),
       col('titulos', 'Títulos', 'texto', { valor: (x) => lista(x.titulos).join(' | ') || null, max: 600 }),
@@ -410,23 +449,23 @@ function corpoAds(d, l, hoje) {
     ], { unidade: ['anúncio', 'anúncios'], vazio: 'Nenhum anúncio com gasto no período.', nota: cortadas(d.anuncios?.cortados, ['anúncio', 'anúncios']) }),
     tabelaDaParte('palavras', 'palavras', 'Palavras-chave', objeto(d.palavras) ? ordenar(d.palavras.lista, 'gasto') : null, [
       col('texto', 'Palavra', 'texto', { max: 100 }),
-      col('correspondencia', 'Correspondência', 'texto', { valor: (x) => traduzir(CORRESPONDENCIA, x.correspondencia) }),
+      col('correspondencia', 'Correspondência', 'texto', { valor: (x) => traduzir(CORRESPONDENCIA, x.correspondencia, 'outra correspondência') }),
       col('situacao', 'Situação', 'texto', {
-        valor: (x) => [traduzir(STATUS, x.status), traduzir(VEICULACAO_PALAVRA, x.veiculacao)].filter(Boolean).join(', ') || null,
+        valor: (x) => [traduzir(STATUS, x.status, 'outra situação'), traduzir(VEICULACAO_PALAVRA, x.veiculacao, 'outra situação')].filter(Boolean).join(', ') || null,
         tom: (x) => (x.veiculacao === 'RARELY_SERVED' || x.status === 'REMOVED' ? 'warn' : null),
       }),
-      col('aprovacao', 'Aprovação', 'texto', { valor: (x) => traduzir(APROVACAO, x.aprovacao), tom: (x) => (x.aprovacao === 'DISAPPROVED' ? 'bad' : null) }),
+      col('aprovacao', 'Aprovação', 'texto', { valor: (x) => traduzir(APROVACAO, x.aprovacao, 'outra situação'), tom: (x) => (x.aprovacao === 'DISAPPROVED' ? 'bad' : null) }),
       col('grupo', 'Grupo', 'texto', { max: 80 }),
       col('campanha', 'Campanha', 'texto', { max: 80 }),
       col('qualidade', 'Índice de qualidade', 'texto', {
         valor: (x) => (objeto(x.qualidade) && medida(x.qualidade.nota) !== null ? `${formatar('int', x.qualidade.nota)} de 10` : null),
-        titulo: (x) => (objeto(x.qualidade) ? `Anúncio ${traduzir(QUALIDADE, x.qualidade.anuncio) ?? 'sem nota'}; página ${traduzir(QUALIDADE, x.qualidade.pagina) ?? 'sem nota'}; CTR esperado ${traduzir(QUALIDADE, x.qualidade.ctrEsperado) ?? 'sem nota'}` : null),
+        titulo: (x) => (objeto(x.qualidade) ? `Anúncio ${traduzir(QUALIDADE, x.qualidade.anuncio, 'sem nota') ?? 'sem nota'}; página ${traduzir(QUALIDADE, x.qualidade.pagina, 'sem nota') ?? 'sem nota'}; CTR esperado ${traduzir(QUALIDADE, x.qualidade.ctrEsperado, 'sem nota') ?? 'sem nota'}` : null),
         tom: (x) => (objeto(x.qualidade) && medida(x.qualidade.nota) !== null ? (x.qualidade.nota >= 7 ? 'ok' : x.qualidade.nota >= 5 ? 'warn' : 'bad') : null),
         numerico: true,
       }),
-      col('qAnuncio', 'Relevância do anúncio', 'texto', { valor: (x) => traduzir(QUALIDADE, x.qualidade?.anuncio) }),
-      col('qPagina', 'Experiência na página', 'texto', { valor: (x) => traduzir(QUALIDADE, x.qualidade?.pagina) }),
-      col('qCtr', 'CTR esperado', 'texto', { valor: (x) => traduzir(QUALIDADE, x.qualidade?.ctrEsperado) }),
+      col('qAnuncio', 'Relevância do anúncio', 'texto', { valor: (x) => traduzir(QUALIDADE, x.qualidade?.anuncio, 'outra nota') }),
+      col('qPagina', 'Experiência na página', 'texto', { valor: (x) => traduzir(QUALIDADE, x.qualidade?.pagina, 'outra nota') }),
+      col('qCtr', 'CTR esperado', 'texto', { valor: (x) => traduzir(QUALIDADE, x.qualidade?.ctrEsperado, 'outra nota') }),
       col('lanceCpc', 'Lance', 'moeda'),
       col('cpcPrimeiraPagina', 'CPC da 1ª página', 'moeda'),
       col('parcelaImpressoes', 'Parcela de impressões', 'parcela'),
@@ -437,25 +476,25 @@ function corpoAds(d, l, hoje) {
         Array.isArray(conv.acoes)
           ? blocoTabela(conv.acoes.filter(objeto), [
             col('nome', 'Ação', 'texto', { max: 100 }),
-            col('categoria', 'Categoria', 'texto', { valor: (x) => traduzir(CATEGORIA_CONV, x.categoria) }),
-            col('tipo', 'Tipo', 'texto', { valor: (x) => traduzir(TIPO_CONV, x.tipo) }),
-            col('origem', 'Origem', 'texto', { valor: (x) => traduzir(ORIGEM_CONV, x.origem) }),
+            col('categoria', 'Categoria', 'texto', { valor: (x) => traduzir(CATEGORIA_CONV, x.categoria, 'outra categoria') }),
+            col('tipo', 'Tipo', 'texto', { valor: (x) => traduzir(TIPO_CONV, x.tipo, 'outro tipo') }),
+            col('origem', 'Origem', 'texto', { valor: (x) => traduzir(ORIGEM_CONV, x.origem, 'outra origem') }),
             col('principal', 'Principal', 'sim'),
             col('contaNasConversoes', 'Entra em "Conversões"', 'sim'),
-            col('status', 'Situação', 'texto', { valor: (x) => traduzir(STATUS, x.status) }),
-            col('contagem', 'Conta', 'texto', { valor: (x) => traduzir({ ONE_PER_CLICK: 'uma por clique', MANY_PER_CLICK: 'todas' }, x.contagem) }),
-            col('valorPadrao', 'Valor padrão', 'moeda', { valor: (x) => x.valorPadrao, titulo: (x) => (texto(x.moeda, 3) && texto(x.moeda, 3) !== moeda ? `Na moeda ${texto(x.moeda, 3)}.` : null) }),
+            col('status', 'Situação', 'texto', { valor: (x) => traduzir(STATUS, x.status, 'outra situação') }),
+            col('contagem', 'Conta', 'texto', { valor: (x) => traduzir({ ONE_PER_CLICK: 'uma por clique', MANY_PER_CLICK: 'todas' }, x.contagem, 'outra regra') }),
+            col('valorPadrao', 'Valor padrão', 'moeda', { valor: (x) => x.valorPadrao, titulo: (x) => (texto(x.moeda, 3) && texto(x.moeda, 3) !== moeda ? `Em ${nomeDaMoeda(x.moeda)}.` : null) }),
             col('janelaCliqueDias', 'Janela (dias)', 'int'),
-            col('atribuicao', 'Atribuição', 'texto', { valor: (x) => traduzir(ATRIBUICAO, x.atribuicao) }),
+            col('atribuicao', 'Atribuição', 'texto', { valor: (x) => traduzir(ATRIBUICAO, x.atribuicao, 'outro modelo') }),
             col('eventoGa4', 'Evento do GA4', 'texto'),
             col('ultimaConversao', 'Última', 'dia'),
             col('todasConversoesHistorico', 'Desde sempre', 'num2'),
           ], { hoje, moeda, titulo: 'Ações de conversão' })
           : blocoTexto('Não veio nesta coleta.'),
         lista(conv.semanas).length
-          ? blocoTabela(ordenar(agrupar(conv.semanas, (x) => `${x.acaoId ?? x.acao}`, ['conversoes', 'valorConversoes', 'todasConversoes'], (x) => ({ acao: x.acao, categoria: x.categoria })), 'conversoes'), [
+          ? blocoTabela(ordenar(agrupar(separarPorHoje(conv.semanas, 'semana', hoje).ate, (x) => `${x.acaoId ?? x.acao}`, ['conversoes', 'valorConversoes', 'todasConversoes'], (x) => ({ acao: x.acao, categoria: x.categoria })), 'conversoes'), [
             col('acao', 'Ação', 'texto', { max: 100 }),
-            col('categoria', 'Categoria', 'texto', { valor: (x) => traduzir(CATEGORIA_CONV, x.categoria) }),
+            col('categoria', 'Categoria', 'texto', { valor: (x) => traduzir(CATEGORIA_CONV, x.categoria, 'outra categoria') }),
             col('conversoes', 'Conversões no período', 'num2'),
             col('valorConversoes', 'Valor', 'moeda'),
             col('todasConversoes', 'Todas as conversões', 'num2'),
@@ -465,7 +504,7 @@ function corpoAds(d, l, hoje) {
           ? blocoTabela(ordenar(conv.porCampanha.filter(objeto), 'conversoes'), [
             col('campanha', 'Campanha', 'texto', { max: 80 }),
             col('acao', 'Ação', 'texto', { max: 100 }),
-            col('categoria', 'Categoria', 'texto', { valor: (x) => traduzir(CATEGORIA_CONV, x.categoria) }),
+            col('categoria', 'Categoria', 'texto', { valor: (x) => traduzir(CATEGORIA_CONV, x.categoria, 'outra categoria') }),
             col('conversoes', 'Conversões', 'num2'),
             col('valorConversoes', 'Valor', 'moeda'),
             col('todasConversoes', 'Todas as conversões', 'num2'),
@@ -489,11 +528,11 @@ function corpoAds(d, l, hoje) {
           ? blocoTabela(ch.restrito.lista.filter(objeto), [
             col('inicio', 'Quando', 'instante'),
             col('duracao', 'Duração', 'dur'),
-            col('status', 'Situação', 'texto', { valor: (x) => traduzir({ RECEIVED: 'atendida', MISSED: 'perdida' }, x.status), tom: (x) => (x.status === 'MISSED' ? 'warn' : null) }),
-            col('tipo', 'Como ligou', 'texto', { valor: (x) => traduzir(TIPO_LIGACAO, x.tipo) }),
-            col('origem', 'De onde', 'texto', { valor: (x) => traduzir(ORIGEM_LIGACAO, x.origem) }),
+            col('status', 'Situação', 'texto', { valor: (x) => traduzir({ RECEIVED: 'atendida', MISSED: 'perdida' }, x.status, 'outra situação'), tom: (x) => (x.status === 'MISSED' ? 'warn' : null) }),
+            col('tipo', 'Como ligou', 'texto', { valor: (x) => traduzir(TIPO_LIGACAO, x.tipo, 'outro jeito') }),
+            col('origem', 'De onde', 'texto', { valor: (x) => traduzir(ORIGEM_LIGACAO, x.origem, 'outra origem') }),
             col('ddd', 'DDD', 'texto'),
-            col('pais', 'País', 'texto'),
+            col('pais', 'País', 'pais'),
             col('campanha', 'Campanha', 'texto', { max: 80 }),
           ], { hoje, titulo: 'Cada ligação', nota: 'Lista com DDD: dado pessoal, só a gestão vê.' })
           : null,
@@ -514,7 +553,7 @@ function corpoAds(d, l, hoje) {
             col('campanha', 'Campanha', 'texto', { max: 80 }),
             col('grupo', 'Grupo', 'texto', { max: 80 }),
             col('campos', 'Respostas', 'texto', {
-              valor: (x) => [...lista(x.campos).filter(objeto).map((c) => `${traduzir(CAMPO_LEAD, c.tipo) ?? c.tipo}: ${c.valor}`), ...lista(x.perguntas).filter(objeto).map((p) => `${p.pergunta} ${p.valor}`)].join('; ') || null,
+              valor: (x) => [...lista(x.campos).filter(objeto).map((c) => `${traduzir(CAMPO_LEAD, c.tipo, 'outro campo') ?? 'campo sem nome'}: ${c.valor}`), ...lista(x.perguntas).filter(objeto).map((p) => `${p.pergunta} ${p.valor}`)].join('; ') || null,
               max: 400,
             }),
             col('vistoEm', 'Chegou ao Painel', 'instante'),
@@ -524,13 +563,15 @@ function corpoAds(d, l, hoje) {
       : secao('leads', 'Leads de formulário', [blocoTexto(semDado('leads'))], { resumo: 'não veio' }),
     pub
       ? secao('publico', 'Público', [
-        Array.isArray(pub.idade) ? blocoTabela(ordenar(pub.idade, 'cliques'), [col('faixa', 'Idade', 'texto', { valor: (x) => traduzir(IDADE, x.faixa) }), ...COLS_METRICAS], { moeda }) : null,
-        Array.isArray(pub.genero) ? blocoTabela(ordenar(pub.genero, 'cliques'), [col('genero', 'Gênero', 'texto', { valor: (x) => traduzir(GENERO, x.genero) }), ...COLS_METRICAS], { moeda }) : null,
+        Array.isArray(pub.idade) ? blocoTabela(ordenar(pub.idade, 'cliques'), [col('faixa', 'Idade', 'texto', { valor: (x) => traduzir(IDADE, x.faixa, 'outra faixa') }), ...COLS_METRICAS], { moeda }) : null,
+        Array.isArray(pub.genero) ? blocoTabela(ordenar(pub.genero, 'cliques'), [col('genero', 'Gênero', 'texto', { valor: (x) => traduzir(GENERO, x.genero, 'outro') }), ...COLS_METRICAS], { moeda }) : null,
       ])
       : secao('publico', 'Público', [blocoTexto(semDado('publico'))], { resumo: 'não veio' }),
     tabelaDaParte('locais', 'locais', 'Cidades', objeto(d.locais) ? ordenar(d.locais.cidades, 'cliques') : null, [
-      col('nome', 'Cidade', 'texto', { valor: (x) => x.nome ?? x.nomeCompleto ?? x.geo, titulo: (x) => x.nomeCompleto }),
-      col('tipo', 'Tipo', 'texto', { valor: (x) => traduzir({ presenca: 'estava lá', interesse: 'buscou por lá' }, x.tipo) }),
+      col('nome', 'Cidade', 'texto', {
+        valor: (x) => [texto(x.nome ?? x.nomeCompleto, 120) ?? 'cidade sem nome', traduzir({ presenca: 'estava lá', interesse: 'buscou por lá' }, x.tipo, 'outro tipo')].filter(Boolean).join(', '),
+        titulo: (x) => x.nomeCompleto,
+      }),
       col('impressoes', 'Impressões', 'int'),
       col('cliques', 'Cliques', 'int'),
       col('gasto', 'Gasto', 'moeda'),
@@ -549,7 +590,7 @@ function corpoAds(d, l, hoje) {
         // a casa zerada), e não vira um zero inventado.
         blocoBarras(Object.entries(DIA_SEMANA).map(([k, rotulo]) => ({ rotulo, valor: somaDisponivel(grade.filter((g) => g.dia === k).map((g) => g.cliques)) })), { titulo: 'Cliques por dia da semana' }),
         blocoTabela(ordenar(grade, 'cliques'), [
-          col('dia', 'Dia', 'texto', { valor: (x) => traduzir(DIA_SEMANA, x.dia) }),
+          col('dia', 'Dia', 'texto', { valor: (x) => traduzir(DIA_SEMANA, x.dia, 'outro dia') }),
           col('hora', 'Hora', 'texto', { valor: (x) => (medida(x.hora) === null ? null : `${String(x.hora).padStart(2, '0')}h`) }),
           col('impressoes', 'Impressões', 'int'),
           col('cliques', 'Cliques', 'int'),
@@ -564,7 +605,7 @@ function corpoAds(d, l, hoje) {
         : secaoTabela('pmax', 'Performance Max', ordenar(d.pmax.grupos, 'gasto'), [
           col('nome', 'Grupo de recursos', 'texto', { max: 100 }),
           col('campanha', 'Campanha', 'texto', { max: 80 }),
-          col('status', 'Situação', 'texto', { valor: (x) => traduzir(STATUS, x.status) }),
+          col('status', 'Situação', 'texto', { valor: (x) => traduzir(STATUS, x.status, 'outra situação') }),
           ...COLS_METRICAS,
         ], { moeda, unidade: ['grupo', 'grupos'] })
       : secao('pmax', 'Performance Max', [blocoTexto(semDado('pmax'))], { resumo: 'não veio' }),
@@ -580,8 +621,8 @@ function corpoAds(d, l, hoje) {
         blocoPares([{ rotulo: 'Alterações nos últimos 30 dias', valor: alt.total, tipo: 'int' }]),
         lista(alt.porTipo).length
           ? blocoTabela(ordenar(alt.porTipo, 'total'), [
-            col('recurso', 'O quê', 'texto', { valor: (x) => traduzir(RECURSO, x.recurso) }),
-            col('operacao', 'Mudança', 'texto', { valor: (x) => traduzir(OPERACAO, x.operacao) }),
+            col('recurso', 'O quê', 'texto', { valor: (x) => traduzir(RECURSO, x.recurso, 'outro item') }),
+            col('operacao', 'Mudança', 'texto', { valor: (x) => traduzir(OPERACAO, x.operacao, 'outra mudança') }),
             col('total', 'Vezes', 'int'),
           ], { titulo: 'Por tipo' })
           : null,
@@ -591,10 +632,10 @@ function corpoAds(d, l, hoje) {
         objeto(alt.restrito) && Array.isArray(alt.restrito.lista)
           ? blocoTabela(alt.restrito.lista.filter(objeto), [
             col('quando', 'Quando', 'instante'),
-            col('recurso', 'O quê', 'texto', { valor: (x) => traduzir(RECURSO, x.recurso) }),
-            col('operacao', 'Mudança', 'texto', { valor: (x) => traduzir(OPERACAO, x.operacao) }),
-            col('campos', 'Campos', 'texto', { valor: (x) => lista(x.campos).join(', ') || null }),
-            col('cliente', 'Por onde', 'texto', { valor: (x) => traduzir(CLIENTE, x.cliente) }),
+            col('recurso', 'O quê', 'texto', { valor: (x) => traduzir(RECURSO, x.recurso, 'outro item') }),
+            col('operacao', 'Mudança', 'texto', { valor: (x) => traduzir(OPERACAO, x.operacao, 'outra mudança') }),
+            col('campos', 'Campos', 'texto', { valor: (x) => [...new Set(lista(x.campos).map(nomeDoCampoAds).filter(Boolean))].join(', ') || null }),
+            col('cliente', 'Por onde', 'texto', { valor: (x) => traduzir(CLIENTE, x.cliente, 'outro meio') }),
             col('email', 'Quem', 'texto'),
           ], { hoje, titulo: 'Cada alteração', nota: 'Com o e-mail de quem mexeu: dado pessoal, só a gestão vê.' })
           : null,
@@ -602,8 +643,7 @@ function corpoAds(d, l, hoje) {
       : secao('alteracoes', 'Alterações na conta', [blocoTexto(semDado('alteracoes'))], { resumo: 'não veio' }),
     r && Array.isArray(r.aparelhos)
       ? secaoTabela('aparelhos', 'Aparelhos e redes', ordenar(r.aparelhos, 'gasto'), [
-        col('aparelho', 'Aparelho', 'texto', { valor: (x) => traduzir(APARELHO, x.aparelho) }),
-        col('rede', 'Rede', 'texto', { valor: (x) => traduzir(REDE, x.rede) }),
+        col('aparelho', 'Aparelho e rede', 'texto', { valor: (x) => [traduzir(APARELHO, x.aparelho, 'outro aparelho'), traduzir(REDE, x.rede, 'outra rede')].filter(Boolean).join(', ') || null }),
         ...COLS_METRICAS,
         col('interacoes', 'Interações', 'int'),
       ], { moeda, unidade: ['linha', 'linhas'] })
@@ -633,16 +673,16 @@ function corpoAds(d, l, hoje) {
       blocoPares([
         { rotulo: 'Conta', valor: conta.nome },
         { rotulo: 'Número da conta', valor: conta.idFormatado },
-        { rotulo: 'Moeda', valor: conta.moeda },
-        { rotulo: 'Fuso', valor: conta.fuso },
+        { rotulo: 'Moeda', valor: conta.moeda, tipo: 'nomeMoeda' },
+        { rotulo: 'Fuso', valor: conta.fuso, tipo: 'fuso' },
         // Só o número da tag (é público, está no HTML do site); valor escondido
         // pela coletora ("[oculto]") ou fora do formato não vai.
         { rotulo: 'Tag de conversão', valor: /^\d{6,15}$/.test(String(conta.tag ?? '')) ? `AW-${conta.tag}` : null },
         { rotulo: 'A tag do site é desta conta', valor: conta.tagConfere, tipo: 'sim' },
         { rotulo: 'Via conta de administrador', valor: conta.viaGerente ?? 'não' },
         { rotulo: 'Relatório de chamadas', valor: conta.relatorioChamadas === true ? 'ligado' : conta.relatorioChamadas === false ? 'desligado' : null },
-        { rotulo: 'Regra dos leads da semana', valor: traduzir({ categorias: 'conversões das categorias de lead', total: 'todas as conversões principais' }, r?.regras?.leads) },
-        { rotulo: 'Regra das conversas da semana', valor: traduzir({ ligacoes_e_contato: 'ligações e ações de contato', ligacoes: 'ligações', contato: 'ações de contato' }, r?.regras?.conversas) },
+        { rotulo: 'Regra dos leads da semana', valor: traduzir({ categorias: 'conversões das categorias de lead', total: 'todas as conversões principais' }, r?.regras?.leads, 'outra regra') },
+        { rotulo: 'Regra das conversas da semana', valor: traduzir({ ligacoes_e_contato: 'ligações e ações de contato', ligacoes: 'ligações', contato: 'ações de contato' }, r?.regras?.conversas, 'outra regra') },
         { rotulo: 'Versão da API', valor: conta.versaoApi },
         { rotulo: 'Consultas nesta coleta', valor: conta.consultas, tipo: 'int' },
       ]),

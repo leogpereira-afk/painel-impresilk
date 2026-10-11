@@ -25,6 +25,16 @@
  *    as outras) ou ficou andando no servidor (a releitura começa de novo);
  *  - "Tentar de novo" (forçada).
  *
+ * A TRAVA DO "ATUALIZAR AGORA" MORA AQUI TAMBÉM (revisão de 12/10). O servidor
+ * aceita um pedido por fonte a cada 2 minutos; a tela guarda até quando cada
+ * fonte está travada (a resposta do pedido aceito, ou os segundos do 429), e
+ * os dois botões (Conexões e a sub-aba Dados) contam pela mesma trava, que
+ * sobrevive a sair da tela e voltar (useTravasDeColeta).
+ *
+ * LEITURA FORÇADA NÃO APROVEITA LEITURA QUE JÁ SAIU (revisão de 12/10): quem
+ * força (o Conexões depois do Desconectar, o "Tentar de novo") quer o estado
+ * de DEPOIS da ação; a leitura que saiu antes dela traria o de antes.
+ *
  * TROCOU A PESSOA, A MEMÓRIA SAI. As chaves "restrito" (dado pessoal) só vêm
  * para a gestão: um retrato da gestão não pode sobrar na memória para quem
  * entrar depois no mesmo aparelho. Sair e entrar (aoMudarSessao) e um crachá
@@ -34,7 +44,7 @@
  */
 import { useCallback, useEffect, useMemo, useSyncExternalStore } from 'react';
 import { coletarAgoraMarketing, lerFontesMarketing } from '../../../services/marketing.js';
-import { ESPERAS_DA_RELEITURA_S } from '../../../lib/calc/marketing-conexoes.js';
+import { ESPERAS_DA_RELEITURA_S, segundosDaTrava, travasDepois } from '../../../lib/calc/marketing-conexoes.js';
 import {
   andandoEntre,
   cheiasParaLer,
@@ -59,8 +69,9 @@ const MAX_RELEITURAS = ESPERAS_DA_RELEITURA_S.length + 4;
    - erro: a última leitura de TODAS falhou (faixa e Conexões);
    - errosCheias: fonte -> a frase da última leitura com os dados que falhou
      (a sub-aba Dados);
-   - lendoLeve / lendoCheias: o que está sendo lido agora. */
-const INICIAL = Object.freeze({ memoria: memoriaVazia(), erro: '', errosCheias: {}, lendoLeve: false, lendoCheias: [] });
+   - lendoLeve / lendoCheias: o que está sendo lido agora;
+   - travas: fonte -> até quando o "Atualizar agora" dela está travado (ms). */
+const INICIAL = Object.freeze({ memoria: memoriaVazia(), erro: '', errosCheias: {}, lendoLeve: false, lendoCheias: [], travas: Object.freeze({}) });
 
 let estado = INICIAL;
 let dono = null;
@@ -71,6 +82,18 @@ let emCurso = [];
 let relogio = null;
 let releituras = 0;
 const ouvintes = new Set();
+
+/* A HORA DE CADA NOTÍCIA, sempre maior que a anterior. A memória decide pela
+   hora em que a leitura SAIU qual notícia é a mais nova (marketing-fontes-
+   cache.js, regra 3); duas leituras no mesmo milissegundo empatavam, e a que
+   saiu ANTES (com o estado de antes do Desconectar) passava por cima da de
+   depois quando chegava por último (revisão de 12/10). Um milissegundo a
+   mais desempata, sem mudar nenhuma conta de validade. */
+let ultimoCarimbo = 0;
+function carimbo() {
+  ultimoCarimbo = Math.max(Date.now(), ultimoCarimbo + 1);
+  return ultimoCarimbo;
+}
 
 function publicar(parcial) {
   estado = { ...estado, ...parcial };
@@ -85,7 +108,31 @@ function limpar() {
   releituras = 0;
   dono = null;
   estado = INICIAL;
+  pararTique();
   for (const f of ouvintes) f();
+}
+
+/* O RELÓGIO DA CONTAGEM. Um tique por segundo, só enquanto alguma trava
+   corre e alguém olha a contagem (useTravasDeColeta). Os ouvintes dele são
+   outros: o tique não redesenha a faixa nem a sub-aba à toa. */
+let tique = null;
+let instante = Date.now();
+const ouvintesDoRelogio = new Set();
+function pararTique() {
+  clearInterval(tique);
+  tique = null;
+}
+function ligarTique() {
+  instante = Date.now();
+  if (tique || !ouvintesDoRelogio.size) return;
+  if (!Object.values(estado.travas).some((ate) => ate > instante)) return;
+  tique = setInterval(() => {
+    instante = Date.now();
+    if (!Object.values(estado.travas).some((ate) => ate > instante)) pararTique();
+    for (const f of ouvintesDoRelogio) f();
+  }, 1000);
+  // Fora do navegador (o teste), o relógio não segura o processo aberto.
+  tique?.unref?.();
 }
 
 aoMudarSessao(limpar);
@@ -112,7 +159,8 @@ const semErro = (erros, fontes) => Object.fromEntries(Object.entries(erros).filt
 // Uma leitura em andamento serve para outra quando traz tudo o que ela quer
 // (a leve não traz dados; a de todas serve para qualquer lista) e saiu
 // depois da notícia mais nova dessas fontes: a que saiu antes de a leitura
-// leve ver uma coleta nova traria a coleta de antes.
+// leve ver uma coleta nova traria a coleta de antes. A leitura forçada não
+// usa esta conta: ela nunca aproveita (ver pedir).
 const marcaDe = (k) => (Object.hasOwn(estado.memoria.marcas, k) ? estado.memoria.marcas[k] : -Infinity);
 const serve = (p, leve, fontes) =>
   (leve || !p.leve) &&
@@ -120,14 +168,18 @@ const serve = (p, leve, fontes) =>
   (fontes ?? Object.keys(estado.memoria.marcas)).every((k) => p.quando >= marcaDe(k));
 
 /* Uma ida ao servidor. Nunca lança: devolve true (entrou na memória) ou
-   false (o erro fica no estado, e o retrato anterior continua na tela). */
-function pedir(leve, fontes) {
-  const igual = emCurso.find((p) => serve(p, leve, fontes));
+   false (o erro fica no estado, e o retrato anterior continua na tela).
+   `nova`: não aproveita leitura em andamento. É a leitura forçada, que
+   vem depois de uma ação (o Desconectar): a que já tinha saído foi
+   respondida com o estado de antes da ação, e a linha continuava
+   "conectada" embaixo do aviso "desconectado" (revisão de 12/10). */
+function pedir(leve, fontes, { nova = false } = {}) {
+  const igual = nova ? null : emCurso.find((p) => serve(p, leve, fontes));
   if (igual) return igual.promessa;
   const minha = geracao;
   const token = getToken();
   // A hora em que a leitura SAI: é ela que diz se a notícia é a mais nova.
-  const quando = Date.now();
+  const quando = carimbo();
   const item = { leve, fontes, quando, promessa: null };
   item.promessa = lerFontesMarketing({ leve, fontes })
     .then((r) => {
@@ -213,12 +265,12 @@ export function lerFontes({ leve = false, fontes = null, forcar = false } = {}) 
   const agora = Date.now();
   if (leve) {
     if (!forcar && leveVale(estado.memoria, agora)) return Promise.resolve(vistaLeve(estado.memoria));
-    return pedir(true, null).then((ok) => (ok ? vistaLeve(estado.memoria) : null));
+    return pedir(true, null, { nova: forcar }).then((ok) => (ok ? vistaLeve(estado.memoria) : null));
   }
   const pedidas = listaDeFontes(fontes);
   const faltam = forcar ? pedidas : cheiasParaLer(estado.memoria, pedidas, agora);
   const esperas = [];
-  if (faltam.length) esperas.push(pedir(false, fontes == null && faltam.length === pedidas.length ? null : faltam));
+  if (faltam.length) esperas.push(pedir(false, fontes == null && faltam.length === pedidas.length ? null : faltam, { nova: forcar }));
   // Fonte do canal "andando" na memória e nenhuma releitura marcada (a
   // página estava fechada quando a coleta começou): confere agora, leve.
   const andando = andandoEntre(estado.memoria, pedidas.filter((k) => !faltam.includes(k)));
@@ -230,7 +282,7 @@ export function lerFontes({ leve = false, fontes = null, forcar = false } = {}) 
  *  fonte nova) entra na memória: a faixa e a sub-aba veem também. */
 export function guardarFonte(f) {
   const token = conferirDono();
-  const memoria = juntarFonte(estado.memoria, f, Date.now());
+  const memoria = juntarFonte(estado.memoria, f, carimbo());
   if (memoria !== estado.memoria) aplicar(memoria, token);
 }
 
@@ -248,8 +300,8 @@ export async function atualizarFontes(fontes) {
         const r = await coletarAgoraMarketing(fonte);
         if (minha === geracao) {
           const velha = Object.hasOwn(estado.memoria.estados, fonte) ? estado.memoria.estados[fonte] : null;
-          if (r.fonte) aplicar(juntarFonte(estado.memoria, r.fonte, Date.now()), token);
-          else if (r.andando === true && velha) aplicar(juntarFonte(estado.memoria, { ...velha, andando: true }, Date.now()), token);
+          if (r.fonte) aplicar(juntarFonte(estado.memoria, r.fonte, carimbo()), token);
+          else if (r.andando === true && velha) aplicar(juntarFonte(estado.memoria, { ...velha, andando: true }, carimbo()), token);
         }
         return { fonte, ok: true, andando: r.andando === true, nova: r.fonte ?? null, erro: null, status: null, aguardarSegundos: null };
       } catch (e) {
@@ -262,8 +314,41 @@ export async function atualizarFontes(fontes) {
       }
     })
   );
-  if (minha === geracao && resultados.some((r) => r.andando)) agendarReleitura({ recomecar: true });
+  if (minha === geracao) {
+    if (resultados.some((r) => r.andando)) agendarReleitura({ recomecar: true });
+    // A trava de cada fonte, pela resposta do servidor: aceito, 2 minutos;
+    // recusado com 429, os segundos que ele disse.
+    const travas = travasDepois(estado.travas, resultados, Date.now());
+    if (Object.keys(travas).some((k) => travas[k] !== estado.travas[k])) {
+      // O relógio anda antes do desenho: a contagem nasce certa, e não com
+      // a hora em que o tique parou da última vez.
+      instante = Date.now();
+      publicar({ travas });
+      ligarTique();
+    }
+  }
   return resultados;
+}
+
+const assinarRelogio = (f) => {
+  ouvintesDoRelogio.add(f);
+  ligarTique();
+  return () => {
+    ouvintesDoRelogio.delete(f);
+    if (!ouvintesDoRelogio.size) pararTique();
+  };
+};
+const verRelogio = () => instante;
+
+/** A trava do "Atualizar agora" por fonte, com a contagem andando:
+ *  devolve restante(fonte), os segundos que faltam (0: livre). A mesma nas
+ *  duas telas (Conexões e a sub-aba Dados), e vale de novo ao voltar à
+ *  tela enquanto não vence. */
+export function useTravasDeColeta() {
+  const agora = useSyncExternalStore(assinarRelogio, verRelogio, verRelogio);
+  const e = useSyncExternalStore(assinar, atual, atual);
+  const travas = e.travas;
+  return useCallback((fonte) => segundosDaTrava(travas, fonte, agora), [travas, agora]);
 }
 
 const assinar = (f) => {

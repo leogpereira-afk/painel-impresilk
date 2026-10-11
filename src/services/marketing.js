@@ -194,10 +194,16 @@ export const confirmarConexaoMarketing = (fonte, nonce) =>
 // Só a gestão. Apaga a conexão do cofre; no Google, revoga também (e isso
 // desliga juntos o Analytics, o Search Console e o Perfil da Empresa).
 // Devolve { revogado: true | false | null (o provedor não revoga por API),
-// aviso: frase para mostrar, ou null }.
+// aviso: frase para mostrar, ou null, retratoFicou: true quando o retrato do
+// LinkedIn não saiu do cache (12/10/2026: o aviso manda desconectar de novo,
+// e a tela mantém o botão) }.
 export const desconectarMarketing = (fonte) =>
   chamarMarketing("desconectar", { fonte }).then(
-    (r) => ({ revogado: typeof r.revogado === "boolean" ? r.revogado : null, aviso: typeof r.aviso === "string" && r.aviso ? r.aviso : null }),
+    (r) => ({
+      revogado: typeof r.revogado === "boolean" ? r.revogado : null,
+      aviso: typeof r.aviso === "string" && r.aviso ? r.aviso : null,
+      retratoFicou: r.retratoFicou === true,
+    }),
     servidorAntigo,
   );
 

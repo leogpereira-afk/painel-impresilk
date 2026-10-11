@@ -62,7 +62,10 @@ const tudo=(t,r)=>JSON.stringify(r)+'\n'+t.logs.join('\n')+'\n'+t.chamadas.map((
 test('o caso ruim: sem o secret, falta_configurar e nenhuma chamada', async()=>{
  const t=montar({env:{}}),r=await t.rodar();
  assert.equal(r.estado,'falta_configurar');assert.equal(t.chamadas.length,0);
- assert.match(r.avisos[0],/GOOGLE_ADS_SA_JSON/);assert.equal(r.partes.conta.codigo,'sem_secret');
+ // A frase vai uma vez, no motivo da parte (com o estado da fonte), e não se
+ // repete em "avisos" (revisão de 12/10).
+ assert.match(r.partes.conta.motivo,/GOOGLE_ADS_SA_JSON/);assert.equal(r.partes.conta.codigo,'sem_secret');
+ assert.equal(r.partes.conta.estado,'falta_configurar');assert.deepEqual(r.avisos,[]);
  assert.deepEqual(r.dados,{});assert.deepEqual(r.semanas,[]);assert.deepEqual(r.publicacoes,[]);assert.equal(r.conexao,undefined);
 });
 
@@ -107,7 +110,8 @@ test('o caso ruim: JSON errado vira falta_configurar, sem chamada e sem repetir 
 test('o caso ruim: chave recusada no token vira reconectar, uma chamada só, sem tocar no Google Ads', async()=>{
  const t=montar({rotas:{token:erro(400,'erro-token')}}),r=await t.rodar();
  assert.equal(r.estado,'reconectar');assert.deepEqual(nomes(t),['token']);
- assert.equal(r.partes.conta.codigo,'chave_recusada');assert.match(r.avisos.join(' '),/chave JSON nova/);
+ assert.equal(r.partes.conta.codigo,'chave_recusada');assert.match(r.partes.conta.motivo,/chave JSON nova/);
+ assert.equal(r.partes.conta.estado,'reconectar');assert.equal(r.avisos.includes(r.partes.conta.motivo),false,'a frase não se repete como aviso');
  assert.deepEqual(r.dados,{},'a parte boa da coleta anterior fica com a coletora');
  assert.equal(tudo(t,r).includes('Invalid JWT Signature'),false,'texto do provedor não sai');
  // Rede fora no token: erro, não reconectar (a chave pode estar boa).
@@ -118,7 +122,12 @@ test('o caso ruim: chave recusada no token vira reconectar, uma chamada só, sem
 test('o caso ruim: projeto sem o nível Explorer vira aguardando_aprovacao e para na primeira consulta', async()=>{
  const t=montar({rotas:{conta:erro(403,'erro-aprovacao')}}),r=await t.rodar();
  assert.equal(r.estado,'aguardando_aprovacao');assert.deepEqual(nomes(t),['token','contas','conta']);
- assert.match(r.avisos.join(' '),/nível Explorer/);assert.equal(r.partes.conta.codigo,'projeto_sem_aprovacao');
+ // A parte "conta" fica no MESMO estado da fonte (era "erro": a linha dizia
+ // "Conta: Erro na coleta" ao lado do selo "Aguardando aprovação"), e a frase
+ // dela não se repete em "avisos" (o "1 aviso" dizia a mesma coisa de novo).
+ assert.equal(r.partes.conta.estado,'aguardando_aprovacao');
+ assert.match(r.partes.conta.motivo,/nível Explorer/);assert.equal(r.partes.conta.codigo,'projeto_sem_aprovacao');
+ assert.equal(r.avisos.some((a)=>/nível Explorer/.test(a)),false,r.avisos.join(' | '));
  assert.equal(tudo(t,r).includes('Detalhe interno'),false);
  // A mesma recusa no meio da coleta: para ali, sem mais nenhum pedido.
  const t2=montar({rotas:{acoes:erro(403,'erro-aprovacao')}}),r2=await t2.rodar();
@@ -162,7 +171,10 @@ test('o caso ruim: API desligada é falta_configurar; conta de serviço sem aces
 test('o caso ruim: consulta opcional recusada vira aviso e null; o resto segue e o estado continua ok', async()=>{
  const t=montar({rotas:{ligacoes:erro(400,'erro-consulta')}}),r=await t.rodar();
  assert.equal(r.estado,'ok');assert.ok(nomes(t).includes('alteracoes'),'seguiu até o fim');
- assert.ok(r.avisos.some((a)=>/ligações pelo anúncio \(PROHIBITED_SEGMENT_WITH_METRIC_IN_SELECT_OR_WHERE_CLAUSE\)/.test(a)));
+ // O nome do erro da API vai só para o diário; o aviso é para gente.
+ assert.ok(r.avisos.includes('A API recusou a consulta de ligações pelo anúncio; esses números ficaram sem dado.'),r.avisos.join(' | '));
+ assert.equal(r.avisos.some((a)=>/PROHIBITED_SEGMENT|[A-Z]{3,}_[A-Z]{3,}/.test(a)),false);
+ assert.ok(t.logs.some((l)=>/PROHIBITED_SEGMENT_WITH_METRIC_IN_SELECT_OR_WHERE_CLAUSE/.test(l)),t.logs.join(' | '));
  assert.equal(tudo(t,r).includes('Cannot select'),false,'mensagem do provedor não vai para o aviso');
  const s=r.dados.resumo;
  assert.equal(s.regras.conversas,null);assert.ok(s.semanas.every((x)=>x.numeros.conversas===null&&x.ligacoes===null));
@@ -174,7 +186,9 @@ test('o caso ruim: consulta essencial recusada derruba só a sua parte; a reserv
  const t=montar({rotas:{palavras:erro(400,'erro-consulta'),palavras_reserva:erro(400,'erro-stream')}}),r=await t.rodar();
  assert.equal(r.estado,'parcial');assert.deepEqual(r.partes.palavras,{estado:'erro',motivo:G.MOTIVOS.recusada,codigo:'recusada',coletado_em:null});
  assert.equal(r.dados.palavras,undefined);assert.equal(r.partes.grupos.estado,'ok');
- assert.ok(r.avisos.some((a)=>/parte dos campos de palavras-chave/.test(a)));assert.ok(r.avisos.some((a)=>/UNRECOGNIZED_FIELD/.test(a)));
+ assert.ok(r.avisos.some((a)=>/parte dos campos de palavras-chave/.test(a)));
+ assert.equal(r.avisos.some((a)=>/UNRECOGNIZED_FIELD/.test(a)),false,'o nome do erro da API não vai para o aviso');
+ assert.ok(t.logs.some((l)=>/UNRECOGNIZED_FIELD/.test(l)),'vai para o diário');
  const t2=montar({rotas:{palavras:erro(400,'erro-consulta')}}),r2=await t2.rodar();
  assert.equal(r2.estado,'ok');assert.equal(r2.partes.palavras.estado,'ok');assert.equal(r2.dados.palavras.lista.length,2);
  const pedidos=t2.chamadas.filter((c)=>c.nome.startsWith('palavras'));
@@ -543,10 +557,13 @@ test('sem travessão nos avisos nem no arquivo do conector', async()=>{
  const fonte=readFileSync(new URL('../supabase/functions/_shared/mkt-fontes/google_ads.mjs',import.meta.url),'utf8');
  assert.equal(TRAVESSAO.test('a — b'),true,'o detector pega');
  assert.equal(TRAVESSAO.test(fonte),false);
+ // Os avisos e as frases das partes: as duas vão para a tela (a frase da
+ // porta fechada mora só na parte "conta", desde a revisão de 12/10).
  const avisos=[];
+ const frases=(r)=>[...r.avisos,...Object.values(r.partes).map((p)=>p.motivo).filter(Boolean)];
  for(const rotas of [{},{ligacoes:erro(400,'erro-consulta')},{token:erro(400,'erro-token')},{leads:erro(429,'erro-cota')},{contas:{resourceNames:[]}},{conta:erro(403,'erro-aprovacao')}])
-  avisos.push(...(await montar({rotas}).rodar()).avisos);
- avisos.push(...(await montar({env:{}}).rodar()).avisos,...(await montar({prazo:(ch)=>100_000-ch.length*8_000}).rodar()).avisos);
+  avisos.push(...frases(await montar({rotas}).rodar()));
+ avisos.push(...frases(await montar({env:{}}).rodar()),...frases(await montar({prazo:(ch)=>100_000-ch.length*8_000}).rodar()));
  assert.ok(avisos.length>8);
  for(const a of avisos)assert.equal(TRAVESSAO.test(a),false,a);
 });

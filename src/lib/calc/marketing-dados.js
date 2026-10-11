@@ -10,8 +10,8 @@
  * O QUADRO É DADO, NÃO DESENHO. Cada função de fonte devolve objetos simples
  * (o "Quadro" abaixo) com o texto JÁ FORMATADO; a tela (components/marketing/
  * dados/) só desenha. Assim o teste prova, sem abrir navegador, que o número
- * não medido aparece como "não medido" (ou o traço da casa na tabela) e nunca
- * como 0, e que nenhum link perigoso vira link.
+ * não medido aparece como "não medido" (ou o ponto de dado ausente na
+ * tabela) e nunca como 0, e que nenhum link perigoso vira link.
  *
  *   Quadro = { id, titulo, rotuloFonte, legenda, estado, temDado, destaque,
  *              topo: [Bloco], secoes: [Secao], notas: [texto], vazio }
@@ -27,18 +27,26 @@
  *   Numero = { id, rotulo, texto, titulo, vazio, nota: { texto, antes, tom, direcao } | null }
  *   Celula = { texto, titulo, vazio, link, tom, marca }
  *
- * TRÊS REGRAS:
+ * AS REGRAS:
  *  1. NULO NÃO VIRA ZERO. Soma de lista onde ninguém mediu é null (somaDisponivel);
- *     o total de um dia que perdeu uma das partes é null (somaEstrita). O
+ *     o total que perdeu uma das partes (o dia sem uma das quatro
+ *     visualizações, o computador sem o celular) é null (somaEstrita). O
  *     número de quadro vazio diz "não medido"; a célula de tabela mostra o
- *     traço de dado ausente da casa (components/lista.jsx), com "não medido"
- *     no title.
+ *     ponto de dado ausente (AUSENTE), com "não medido" no title e no
+ *     aria-label.
  *  2. TODO TEXTO VEM DE FORA (o HTML do site, o título do post, o nome da
  *     campanha): a tela escreve como texto (o React escapa) e link só sai do
  *     linkSeguro (http ou https absoluto).
  *  3. O ESTADO VEM ANTES DO NÚMERO. Parte que não está ok mostra o estado,
  *     com a frase do que fazer, em vez de números vazios; o dado velho que o
  *     cache ainda guarda aparece embaixo, com a data dele.
+ *  4. CÓDIGO DA API NÃO VAI PARA A TELA. O que vem em código (CELEBRATION,
+ *     link_click, ip_address) passa por um mapa de nomes de gente; o que o
+ *     mapa não conhece vira um nome genérico ("outra reação"), nunca o código
+ *     cru, nem no title.
+ *  5. SÓ SOMA O QUE JÁ ACONTECEU. A semana que ainda não começou e a data que
+ *     ainda não chegou (o `hoje` da tela) ficam fora das somas do período
+ *     (jaAconteceu); a tabela mostra a linha e diz por que ela não entrou.
  */
 import {
   NAO_MEDIDO,
@@ -64,10 +72,12 @@ import { linkSeguro } from '../../components/marketing/derivar.js';
 
 export { NAO_MEDIDO, linkSeguro };
 
-/** O traço de dado ausente da casa (components/lista.jsx: "Dado ausente é
- *  travessão, nunca N/A, null nem R$ 0"). Só em célula de tabela, com o
- *  "não medido" no title; frase nunca leva travessão. */
-export const AUSENTE = '\u2014';
+/** O marcador de dado ausente da aba: um ponto discreto, nunca N/A, null nem
+ *  R$ 0. Era o travessão da casa (components/lista.jsx); a ordem do dono é
+ *  nada de travessão, e as telas desta aba trocaram pelo ponto. Só em célula
+ *  de tabela, com o "não medido" (ou "não informado") no title e no
+ *  aria-label (Blocos.jsx); frase nunca leva marcador. */
+export const AUSENTE = '\u00b7';
 export const NAO_INFORMADO = 'não informado';
 
 export const objeto = (x) => !!x && typeof x === 'object' && !Array.isArray(x);
@@ -86,8 +96,8 @@ const plural = (n, um, varios) => `${fmtNumero(n)} ${n === 1 ? um : varios}`;
 export { plural };
 
 /** Uma lista de textos de fora numa linha só ("a, b, c"), com teto; lista
- *  vazia ou ausente é null (a célula mostra o traço, nunca "nenhum"
- *  inventado: quem chama decide se a lista vazia é "nenhum"). */
+ *  vazia ou ausente é null (a célula mostra o ponto de ausente, nunca
+ *  "nenhum" inventado: quem chama decide se a lista vazia é "nenhum"). */
 export function juntar(itens, { max = 400, rotular = (x) => x } = {}) {
   const l = lista(itens).map((x) => texto(rotular(x), 200)).filter(Boolean);
   return l.length ? texto(l.join(', '), max) : null;
@@ -163,14 +173,24 @@ export function agrupar(linhas, chave, campos, extra = () => ({})) {
 
 /** O mapa {chave: n} da API numa linha ("curtir 26, amei 4"), do maior para
  *  o menor. Chave sem número fica de fora (não vira 0); mapa vazio ou
- *  ausente é null. */
-export function textoDoMapa(mapa, { rotular = (k) => k, tipo = 'int', moeda, max = 400 } = {}) {
+ *  ausente é null. `rotular(chave)` dá o nome de gente, ou null quando não
+ *  conhece a chave: a que ele não conhece vai para `outros` ("outras
+ *  reações"), no fim, e nunca aparece com o código cru. Chaves que viram o
+ *  mesmo nome (PRAISE e CELEBRATION são "parabéns") somam numa parte só. */
+export function textoDoMapa(mapa, { rotular = (k) => k, outros = 'outros', tipo = 'int', moeda, max = 400 } = {}) {
   if (!objeto(mapa)) return null;
-  const itens = ordenar(
-    Object.entries(mapa).map(([k, v]) => ({ k, v: medida(v) })).filter((x) => x.v !== null),
-    'v'
-  );
-  return itens.length ? texto(itens.map((x) => `${rotular(x.k)} ${formatar(tipo, x.v, { moeda })}`).join(', '), max) : null;
+  const somas = new Map();
+  let resto = null;
+  for (const [k, v] of Object.entries(mapa)) {
+    const n = medida(v);
+    if (n === null) continue;
+    const nome = texto(rotular(k), 120);
+    if (nome && nome !== outros) somas.set(nome, (somas.get(nome) ?? 0) + n);
+    else resto = (resto ?? 0) + n;
+  }
+  const itens = ordenar([...somas].map(([nome, v]) => ({ nome, v })), 'v');
+  if (resto !== null) itens.push({ nome: outros, v: resto });
+  return itens.length ? texto(itens.map((x) => `${x.nome} ${formatar(tipo, x.v, { moeda })}`).join(', '), max) : null;
 }
 
 /** Soma os mapas {chave: n} (as ações da Meta, os eventos do Pixel). */
@@ -185,6 +205,39 @@ export function somarMapas(mapas) {
     }
   }
   return [...total.entries()].map(([chave, valor]) => ({ chave, valor }));
+}
+
+/** A data já chegou? O dia (ou o dia do instante, no fuso de quem olha) até
+ *  `hoje`, inclusive. Sem data que se leia, ou sem `hoje`, conta como já
+ *  acontecida: não se esconde o que não dá para provar que é futuro. */
+export function jaAconteceu(v, hoje) {
+  const dia = diaDe(v);
+  const h = paraDia(hoje);
+  return !dia || !h || dia <= h;
+}
+
+/** As linhas cuja data (o campo, ou a função que acha a data) já chegou, e
+ *  as que ainda não: {ate, depois}. A semana de amanhã, o post com data que
+ *  ainda não chegou e o story de amanhã ficam em `depois`, fora das somas do
+ *  período (regra 5). */
+export function separarPorHoje(linhas, campo, hoje) {
+  const pegar = typeof campo === 'function' ? campo : (l) => l?.[campo];
+  const ate = [], depois = [];
+  for (const l of lista(linhas)) (jaAconteceu(pegar(l), hoje) ? ate : depois).push(l);
+  return { ate, depois };
+}
+
+/** A frase do quadro sobre as linhas de data que ainda não chegou ("A
+ *  semana de 12/10 ainda não começou: ..."), ou null sem nenhuma. `oQue` é
+ *  [singular, plural] com o artigo ("a semana", "as semanas"). */
+export function notaDoFuturo(depois, campo, hoje, { oQue = ['a linha', 'as linhas'], verbo = ['ainda não chegou', 'ainda não chegaram'] } = {}) {
+  const pegar = typeof campo === 'function' ? campo : (l) => l?.[campo];
+  const dias = [...new Set(lista(depois).map((l) => rotuloDia(pegar(l), hoje)).filter(Boolean))];
+  if (!lista(depois).length) return null;
+  const um = lista(depois).length === 1;
+  const quando = dias.length ? ` de ${dias.length > 1 ? `${dias.slice(0, -1).join(', ')} e ${dias[dias.length - 1]}` : dias[0]}` : '';
+  const nome = um ? oQue[0] : oQue[1];
+  return `${nome.charAt(0).toUpperCase()}${nome.slice(1)}${quando} ${um ? verbo[0] : verbo[1]}: ${um ? 'aparece' : 'aparecem'} na tabela e ${um ? 'fica' : 'ficam'} fora das somas do período.`;
 }
 
 /** As duas últimas linhas que servem para comparar (a semana fechada mais
@@ -252,13 +305,143 @@ export function rotuloPeriodo(de, ate, hoje) {
   return null;
 }
 
-/** O nome que vem em código da API (ENABLED, MOBILE, AGE_RANGE_25_34): o que
- *  a tabela conhece vira palavra; o que não conhece aparece como veio (um
- *  código novo não some calado). */
-export function traduzir(mapa, v) {
+/** O nome de gente de um código da API (ENABLED, MOBILE, AGE_RANGE_25_34):
+ *  o que o mapa conhece vira palavra; o que não conhece vira `outro`, o nome
+ *  genérico que quem chama passa ("outra situação"), e NUNCA o código cru,
+ *  nem no title (regra 4). Assim o código novo não some calado (a linha
+ *  continua lá, com o nome genérico) e não aparece em inglês. Vazio é null. */
+export function traduzir(mapa, v, outro = 'outro') {
+  if (v == null || v === '') return null;
+  return conhecido(mapa, v) ?? outro;
+}
+
+/** O nome de um código que o mapa conhece, ou null quando não conhece (para
+ *  encadear mapas: `conhecido(A, v) ?? conhecido(B, v) ?? 'outro'`). */
+export function conhecido(mapa, v) {
   if (v == null || v === '') return null;
   const k = String(v);
-  return Object.hasOwn(mapa, k) ? mapa[k] : k;
+  return Object.hasOwn(mapa, k) ? mapa[k] : null;
+}
+
+/* Os países que mais aparecem, para quando o navegador não traduz sozinho
+   (Intl.DisplayNames, que dá o nome de qualquer país em português). */
+const PAISES_FIXOS = Object.freeze({
+  BR: 'Brasil', PT: 'Portugal', US: 'Estados Unidos', AR: 'Argentina', PY: 'Paraguai', UY: 'Uruguai', CL: 'Chile', ES: 'Espanha', IT: 'Itália',
+  FR: 'França', DE: 'Alemanha', GB: 'Reino Unido', JP: 'Japão', AO: 'Angola', MZ: 'Moçambique', MX: 'México', CA: 'Canadá', CO: 'Colômbia',
+  PE: 'Peru', BO: 'Bolívia', IN: 'Índia', CN: 'China',
+});
+/* ISO 3166-1 de três letras para o de duas: o Search Console manda "bra",
+   a Meta e o Pinterest mandam "BR". "ZZZ" é a região que o Google não
+   identificou. */
+const ISO3 = 'AFG:AF ALA:AX ALB:AL DZA:DZ ASM:AS AND:AD AGO:AO AIA:AI ATA:AQ ATG:AG ARG:AR ARM:AM ABW:AW AUS:AU AUT:AT AZE:AZ BHS:BS BHR:BH BGD:BD '
+  + 'BRB:BB BLR:BY BEL:BE BLZ:BZ BEN:BJ BMU:BM BTN:BT BOL:BO BES:BQ BIH:BA BWA:BW BVT:BV BRA:BR IOT:IO BRN:BN BGR:BG BFA:BF BDI:BI CPV:CV KHM:KH '
+  + 'CMR:CM CAN:CA CYM:KY CAF:CF TCD:TD CHL:CL CHN:CN CXR:CX CCK:CC COL:CO COM:KM COG:CG COD:CD COK:CK CRI:CR CIV:CI HRV:HR CUB:CU CUW:CW CYP:CY '
+  + 'CZE:CZ DNK:DK DJI:DJ DMA:DM DOM:DO ECU:EC EGY:EG SLV:SV GNQ:GQ ERI:ER EST:EE SWZ:SZ ETH:ET FLK:FK FRO:FO FJI:FJ FIN:FI FRA:FR GUF:GF PYF:PF '
+  + 'ATF:TF GAB:GA GMB:GM GEO:GE DEU:DE GHA:GH GIB:GI GRC:GR GRL:GL GRD:GD GLP:GP GUM:GU GTM:GT GGY:GG GIN:GN GNB:GW GUY:GY HTI:HT HMD:HM VAT:VA '
+  + 'HND:HN HKG:HK HUN:HU ISL:IS IND:IN IDN:ID IRN:IR IRQ:IQ IRL:IE IMN:IM ISR:IL ITA:IT JAM:JM JPN:JP JEY:JE JOR:JO KAZ:KZ KEN:KE KIR:KI PRK:KP '
+  + 'KOR:KR KWT:KW KGZ:KG LAO:LA LVA:LV LBN:LB LSO:LS LBR:LR LBY:LY LIE:LI LTU:LT LUX:LU MAC:MO MDG:MG MWI:MW MYS:MY MDV:MV MLI:ML MLT:MT MHL:MH '
+  + 'MTQ:MQ MRT:MR MUS:MU MYT:YT MEX:MX FSM:FM MDA:MD MCO:MC MNG:MN MNE:ME MSR:MS MAR:MA MOZ:MZ MMR:MM NAM:NA NRU:NR NPL:NP NLD:NL NCL:NC NZL:NZ '
+  + 'NIC:NI NER:NE NGA:NG NIU:NU NFK:NF MKD:MK MNP:MP NOR:NO OMN:OM PAK:PK PLW:PW PSE:PS PAN:PA PNG:PG PRY:PY PER:PE PHL:PH PCN:PN POL:PL PRT:PT '
+  + 'PRI:PR QAT:QA REU:RE ROU:RO RUS:RU RWA:RW BLM:BL SHN:SH KNA:KN LCA:LC MAF:MF SPM:PM VCT:VC WSM:WS SMR:SM STP:ST SAU:SA SEN:SN SRB:RS SYC:SC '
+  + 'SLE:SL SGP:SG SXM:SX SVK:SK SVN:SI SLB:SB SOM:SO ZAF:ZA SGS:GS SSD:SS ESP:ES LKA:LK SDN:SD SUR:SR SJM:SJ SWE:SE CHE:CH SYR:SY TWN:TW TJK:TJ '
+  + 'TZA:TZ THA:TH TLS:TL TGO:TG TKL:TK TON:TO TTO:TT TUN:TN TUR:TR TKM:TM TCA:TC TUV:TV UGA:UG UKR:UA ARE:AE GBR:GB USA:US UMI:UM URY:UY UZB:UZ '
+  + 'VUT:VU VEN:VE VNM:VN VGB:VG VIR:VI WLF:WF ESH:EH YEM:YE ZMB:ZM ZWE:ZW XKX:XK';
+let iso3 = null;
+let regioes; // Intl.DisplayNames: undefined, ainda não tentado; null, o navegador não tem
+function nomeDaRegiao(dois) {
+  if (regioes === undefined) {
+    try {
+      regioes = new Intl.DisplayNames(['pt-BR'], { type: 'region', fallback: 'none' });
+    } catch {
+      regioes = null;
+    }
+  }
+  try {
+    return regioes?.of(dois) ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/** O nome de um país em português, pelo código ISO de duas letras (Meta,
+ *  Pinterest: "BR") ou de três (Search Console: "bra"). Código que não é de
+ *  país vira `outro`, nunca o código cru; vazio é null. */
+export function nomeDoPais(codigo, outro = 'outro país') {
+  const c = String(codigo ?? '').trim().toUpperCase();
+  if (!c) return null;
+  if (c === 'ZZZ') return 'país não identificado';
+  iso3 ??= new Map(ISO3.split(' ').map((p) => p.split(':')));
+  const dois = c.length === 3 ? iso3.get(c) : /^[A-Z]{2}$/.test(c) ? c : null;
+  if (!dois) return outro;
+  return PAISES_FIXOS[dois] ?? nomeDaRegiao(dois) ?? outro;
+}
+
+let idiomas; // Intl.DisplayNames dos idiomas, como o das regiões
+
+/** O idioma da página ("pt-BR") pelo nome ("português (Brasil)"); código
+ *  que o navegador não conhece vira `outro`. Vazio é null. */
+export function nomeDoIdioma(codigo, outro = 'outro idioma') {
+  const c = typeof codigo === 'string' ? codigo.trim().replace(/_/g, '-') : '';
+  if (!c) return null;
+  if (idiomas === undefined) {
+    try {
+      idiomas = new Intl.DisplayNames(['pt-BR'], { type: 'language', fallback: 'none' });
+    } catch {
+      idiomas = null;
+    }
+  }
+  try {
+    return idiomas?.of(c) ?? outro;
+  } catch {
+    return outro;
+  }
+}
+
+let moedas; // Intl.DisplayNames das moedas, como o das regiões
+
+/** O nome da moeda em português ("BRL" vira "real brasileiro"); código que
+ *  o navegador não conhece vira `outro`, nunca o código cru. Vazio é null. */
+export function nomeDaMoeda(codigo, outro = 'outra moeda') {
+  const c = String(codigo ?? '').trim().toUpperCase();
+  if (!c) return null;
+  if (c === 'BRL') return 'real brasileiro';
+  if (moedas === undefined) {
+    try {
+      moedas = new Intl.DisplayNames(['pt-BR'], { type: 'currency', fallback: 'none' });
+    } catch {
+      moedas = null;
+    }
+  }
+  try {
+    const n = /^[A-Z]{3}$/.test(c) ? moedas?.of(c) : null;
+    return n ? `${n.charAt(0).toLowerCase()}${n.slice(1)}` : outro;
+  } catch {
+    return outro;
+  }
+}
+
+// Os fusos que mais aparecem, iguais em todo navegador; o resto pelo nome
+// que o navegador dá (Intl), e o que ele não conhece vira "outro fuso".
+const FUSOS_FIXOS = Object.freeze({
+  'America/Sao_Paulo': 'horário de Brasília', 'America/Los_Angeles': 'horário do Pacífico (Estados Unidos)', 'America/New_York': 'horário de Nova York',
+  'Europe/Lisbon': 'horário de Lisboa', UTC: 'UTC', 'Etc/UTC': 'UTC', GMT: 'UTC', 'Etc/GMT': 'UTC',
+});
+
+/** O fuso do relógio da conta ("America/Sao_Paulo") pelo nome de gente
+ *  ("horário de Brasília"), nunca o identificador cru. Vazio é null. */
+export function nomeDoFuso(fuso, outro = 'outro fuso') {
+  const f = typeof fuso === 'string' ? fuso.trim() : '';
+  if (!f) return null;
+  if (Object.hasOwn(FUSOS_FIXOS, f)) return FUSOS_FIXOS[f];
+  for (const timeZoneName of ['longGeneric', 'long']) {
+    try {
+      const nome = new Intl.DateTimeFormat('pt-BR', { timeZone: f, timeZoneName }).formatToParts(Date.UTC(2026, 0, 15)).find((p) => p.type === 'timeZoneName')?.value;
+      if (nome && !/^GMT/.test(nome)) return `${nome.charAt(0).toLowerCase()}${nome.slice(1)}`;
+    } catch {
+      /* fuso que o navegador não conhece, ou opção que ele não tem: tenta a próxima */
+    }
+  }
+  return outro;
 }
 
 /* ------------------------------------------------------- formatação -- */
@@ -290,7 +473,7 @@ export function textoPerdida(p, { vazio = NAO_MEDIDO } = {}) {
 }
 
 /* Os tipos de célula e de número. `vazio` é o que aparece no lugar do nulo:
-   o traço na tabela, "não medido" no número grande. */
+   o ponto de ausente na tabela, "não medido" no número grande. */
 const FORMATOS = {
   int: (v, o) => fmtNumero(v, { vazio: o.vazio }),
   num2: (v, o) => fmtNumero(v, { casas: 2, vazio: o.vazio }),
@@ -311,6 +494,10 @@ const FORMATOS = {
   perdida: (v, o) => textoPerdida(v, { vazio: o.vazio }),
   faixa: (v, o) => fmtFaixa(v, { vazio: o.vazio }),
   texto: (v, o) => texto(v, o.max ?? 300) ?? o.vazio,
+  fuso: (v, o) => nomeDoFuso(v) ?? o.vazio,
+  pais: (v, o) => nomeDoPais(v) ?? o.vazio,
+  nomeMoeda: (v, o) => nomeDaMoeda(v) ?? o.vazio,
+  idioma: (v, o) => nomeDoIdioma(v) ?? o.vazio,
   dia: (v, o) => rotuloDia(v, o.hoje) ?? o.vazio,
   instante: (v, o) => rotuloInstante(v, o.hoje) ?? o.vazio,
   sim: (v, o) => (v === true ? 'sim' : v === false ? 'não' : o.vazio),
@@ -330,9 +517,10 @@ export function estaVazio(tipo, v) {
   return formatar(tipo, v, { vazio: null }) === null;
 }
 
-/** Uma célula de tabela: o traço quando vazio, com "não medido" (número) ou
- *  "não informado" (texto) no title. `numerico` força a régua do número
- *  numa coluna de texto ("menos de 15" pessoas). */
+/** Uma célula de tabela: o ponto de ausente (AUSENTE) quando vazia, com
+ *  "não medido" (número) ou "não informado" (texto) no title, que a tela
+ *  também usa no aria-label. `numerico` força a régua do número numa coluna
+ *  de texto ("menos de 15" pessoas). */
 export function celula(tipo, v, opcoes = {}) {
   const vazio = estaVazio(tipo, v);
   const t = vazio ? AUSENTE : formatar(tipo, v, opcoes);
@@ -503,12 +691,14 @@ export function secaoTabela(id, titulo, linhas, colunas, opcoes = {}) {
 
 /** O gráfico de barras pequeno: pontos {x, rotulo, y, texto, fraco}. y nulo
  *  é "não medido" (a tela desenha a marca de ausência, nunca uma barra
- *  zerada). `resumo` é a frase para o leitor de tela. */
+ *  zerada); o ponto de data que ainda não chegou fica de fora. `resumo` é a
+ *  frase para o leitor de tela. */
 export function blocoGrafico(linhas, { x, y, titulo, tipo = 'int', unidade = '', hoje, moeda, fraco = () => false } = {}) {
   const pegarX = typeof x === 'function' ? x : (l) => l?.[x];
   const pegarY = typeof y === 'function' ? y : (l) => l?.[y];
+  // O dia (ou a semana) que ainda não chegou não vira barra (regra 5).
   const pontos = lista(linhas)
-    .filter((l) => objeto(l) && typeof pegarX(l) === 'string')
+    .filter((l) => objeto(l) && typeof pegarX(l) === 'string' && jaAconteceu(pegarX(l), hoje))
     .map((l) => {
       const valor = medida(pegarY(l));
       const rot = rotuloDia(pegarX(l), hoje) ?? pegarX(l);
@@ -526,7 +716,13 @@ export function blocoGrafico(linhas, { x, y, titulo, tipo = 'int', unidade = '',
   const maior = medidos.reduce((m, p) => (p.y > m.y ? p : m), medidos[0]);
   const ultimo = medidos[medidos.length - 1];
   const faltam = pontos.length - medidos.length;
-  const resumo = `${titulo}, ${rotuloPeriodo(pontos[0].x, pontos[pontos.length - 1].x, hoje) ?? ''}: o maior foi ${maior.texto}; o último medido, ${ultimo.texto}.${faltam ? ` ${plural(faltam, 'ponto', 'pontos')} sem medida.` : ''}`;
+  const periodo = rotuloPeriodo(pontos[0].x, pontos[pontos.length - 1].x, hoje);
+  // Tudo o que foi medido deu zero: "o maior foi 10/08: R$ 0,00" escolheria
+  // um ponto qualquer como o maior. A frase diz o que aconteceu.
+  const meio = maior.y === 0
+    ? `${medidos.length === 1 ? 'o único ponto medido ficou' : 'todos os pontos medidos ficaram'} em zero`
+    : `o maior foi ${maior.texto}; o último medido, ${ultimo.texto}`;
+  const resumo = `${titulo}${periodo ? `, ${periodo}` : ''}: ${meio}.${faltam ? ` ${plural(faltam, 'ponto', 'pontos')} sem medida.` : ''}`;
   return { tipo: 'grafico', titulo, pontos, resumo };
 }
 
@@ -658,12 +854,15 @@ export function montarQuadro({ id, titulo, rotuloFonte, ligacao, partes = null, 
 }
 
 /** A coluna "Situação" das semanas: fechada, ou ainda não (a semana aberta
- *  vem com os números nulos, e a tabela diz o porquê). */
-export const colSemanaFechada = (campo = 'fechada', rotuloAberta = 'ainda não fechada') =>
-  col(campo, 'Situação', 'texto', {
-    valor: (s) => (s?.[campo] === true ? 'fechada' : s?.[campo] === false ? rotuloAberta : null),
-    tom: (s) => (s?.[campo] === false ? 'warn' : null),
+ *  vem com os números nulos, e a tabela diz o porquê). Com `hoje`, a semana
+ *  que começa depois dele diz "ainda não começou" (regra 5). */
+export const colSemanaFechada = (campo = 'fechada', rotuloAberta = 'ainda não fechada', { hoje, data = 'semana' } = {}) => {
+  const futura = (s) => !!hoje && !jaAconteceu(s?.[data], hoje);
+  return col(campo, 'Situação', 'texto', {
+    valor: (s) => (futura(s) ? 'ainda não começou' : s?.[campo] === true ? 'fechada' : s?.[campo] === false ? rotuloAberta : null),
+    tom: (s) => (futura(s) || s?.[campo] === false ? 'warn' : null),
   });
+};
 
 /* De que parte é um aviso da fonte: os conectores começam a frase pelo nome
    da parte ("Search Console: há sitemap com erro", "Pixel: ..."). Aviso sem

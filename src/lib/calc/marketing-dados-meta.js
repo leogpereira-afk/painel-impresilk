@@ -28,10 +28,13 @@ import {
   blocoTexto,
   col,
   colSemanaFechada,
+  conhecido,
   formatar,
   lista,
   medida,
   montarQuadro,
+  nomeDoPais,
+  notaDoFuturo,
   numero,
   objeto,
   ordenar,
@@ -41,6 +44,7 @@ import {
   rotuloPeriodo,
   secao,
   secaoTabela,
+  separarPorHoje,
   somaDisponivel,
   somarMapas,
   texto,
@@ -52,45 +56,111 @@ import { rotuloSemana } from './marketing-dados-google.js';
 
 const recentesPrimeiro = (linhas, campo) => [...lista(linhas)].filter(objeto).sort((a, b) => String(b[campo] ?? '').localeCompare(String(a[campo] ?? '')));
 
-/** Os países (ISO de duas letras, como a Meta manda) que mais aparecem; o
- *  resto aparece com o código. */
-export const PAISES = Object.freeze({
-  BR: 'Brasil', PT: 'Portugal', US: 'Estados Unidos', AR: 'Argentina', PY: 'Paraguai', UY: 'Uruguai', CL: 'Chile', ES: 'Espanha', IT: 'Itália',
-  FR: 'França', DE: 'Alemanha', GB: 'Reino Unido', JP: 'Japão', AO: 'Angola', MZ: 'Moçambique', MX: 'México', CA: 'Canadá', CO: 'Colômbia', PE: 'Peru', BO: 'Bolívia',
+// As tarefas do usuário do sistema na Página. A Página nova manda as mesmas
+// com PROFILE_PLUS_ na frente (tirado antes de procurar).
+const TAREFAS = Object.freeze({
+  ANALYZE: 'analisar', CREATE_CONTENT: 'criar conteúdo', MODERATE: 'moderar', ADVERTISE: 'anunciar', MESSAGING: 'mensagens', MANAGE: 'gerenciar',
+  FACEBOOK_ACCESS: 'acesso pelo Facebook', FULL_CONTROL: 'controle total', TASKS: 'tarefas', LIVE_STREAM: 'transmitir ao vivo', REVENUE: 'receita',
+  COMMUNITY_ACTIVITY: 'atividade da comunidade', MANAGE_LEADS: 'gerenciar leads', MANAGE_JOBS: 'gerenciar vagas',
 });
-const TAREFAS = Object.freeze({ ANALYZE: 'analisar', CREATE_CONTENT: 'criar conteúdo', MODERATE: 'moderar', ADVERTISE: 'anunciar', MESSAGING: 'mensagens', MANAGE: 'gerenciar' });
 const OBJETIVO = Object.freeze({
   OUTCOME_LEADS: 'leads', OUTCOME_TRAFFIC: 'tráfego', OUTCOME_ENGAGEMENT: 'engajamento', OUTCOME_AWARENESS: 'reconhecimento', OUTCOME_SALES: 'vendas',
   OUTCOME_APP_PROMOTION: 'aplicativo', LEAD_GENERATION: 'leads', LINK_CLICKS: 'tráfego', MESSAGES: 'mensagens', POST_ENGAGEMENT: 'engajamento',
+  CONVERSIONS: 'conversões', BRAND_AWARENESS: 'reconhecimento', REACH: 'alcance', VIDEO_VIEWS: 'visualizações de vídeo', PAGE_LIKES: 'curtidas da Página',
+  EVENT_RESPONSES: 'respostas a evento', APP_INSTALLS: 'instalações do app', PRODUCT_CATALOG_SALES: 'vendas do catálogo', STORE_VISITS: 'visitas à loja',
+  OFFER_CLAIMS: 'ofertas',
 });
 const SITUACAO = Object.freeze({
   ACTIVE: 'ativa', PAUSED: 'pausada', DELETED: 'apagada', ARCHIVED: 'arquivada', CAMPAIGN_PAUSED: 'pausada', ADSET_PAUSED: 'conjunto pausado',
-  IN_PROCESS: 'em análise', WITH_ISSUES: 'com problema', PENDING_REVIEW: 'em revisão', DISAPPROVED: 'reprovada',
+  IN_PROCESS: 'em análise', WITH_ISSUES: 'com problema', PENDING_REVIEW: 'em revisão', DISAPPROVED: 'reprovada', PREAPPROVED: 'pré-aprovada',
+  PENDING_BILLING_INFO: 'falta o pagamento',
 });
 const PLATAFORMA = Object.freeze({ facebook: 'Facebook', instagram: 'Instagram', messenger: 'Messenger', audience_network: 'Audience Network', threads: 'Threads', whatsapp: 'WhatsApp' });
-/** As ações da Meta que mais aparecem, com nome de gente (o resto aparece
- *  com o código da Meta). */
+/** As ações da Meta (action_type), com nome de gente. A que não está aqui
+ *  ganha o nome da família dela ("outra conversão no site"), nunca o
+ *  código (nomeDaAcao). */
 export const ACOES_META = Object.freeze({
-  link_click: 'cliques no link', lead: 'leads', 'onsite_conversion.lead_grouped': 'leads de formulário', 'offsite_conversion.fb_pixel_lead': 'leads no site (Pixel)',
+  link_click: 'cliques no link', outbound_click: 'cliques de saída', landing_page_view: 'visitas à página de destino', lead: 'leads',
+  leadgen_grouped: 'leads de formulário', 'leadgen.other': 'leads de formulário', 'onsite_conversion.lead_grouped': 'leads de formulário',
+  'onsite_conversion.lead': 'leads na Meta', onsite_web_lead: 'leads no site', 'offsite_conversion.fb_pixel_lead': 'leads no site (Pixel)',
   'onsite_conversion.messaging_conversation_started_7d': 'conversas iniciadas', 'onsite_conversion.messaging_first_reply': 'primeiras respostas',
-  post_engagement: 'engajamento com o post', page_engagement: 'engajamento com a Página', video_view: 'visualizações de vídeo',
-  landing_page_view: 'visitas à página de destino', post_reaction: 'reações', comment: 'comentários', 'onsite_conversion.post_save': 'salvamentos',
-  like: 'curtidas da Página', post: 'compartilhamentos', 'offsite_conversion.fb_pixel_contact': 'contatos no site (Pixel)',
-  'offsite_conversion.fb_pixel_purchase': 'compras no site (Pixel)', purchase: 'compras', omni_purchase: 'compras',
+  'onsite_conversion.messaging_conversation_replied_7d': 'conversas respondidas', 'onsite_conversion.messaging_block': 'bloqueios nas mensagens',
+  'onsite_conversion.total_messaging_connection': 'contatos por mensagem', 'onsite_conversion.messaging_welcome_message_view': 'boas-vindas vistas',
+  'onsite_conversion.messaging_user_depth_2_message_send': 'conversas com 2 mensagens', 'onsite_conversion.messaging_user_depth_3_message_send': 'conversas com 3 mensagens',
+  'onsite_conversion.messaging_user_depth_5_message_send': 'conversas com 5 mensagens', 'onsite_conversion.flow_complete': 'formulários concluídos',
+  post_engagement: 'engajamento com o post', page_engagement: 'engajamento com a Página', post_interaction_gross: 'interações com o post',
+  post_interaction_net: 'interações com o post (líquidas)', video_view: 'visualizações de vídeo', photo_view: 'visualizações de foto',
+  post_reaction: 'reações', comment: 'comentários', 'onsite_conversion.post_save': 'salvamentos', 'onsite_conversion.post_net_save': 'salvamentos (líquidos)',
+  like: 'curtidas da Página', post: 'compartilhamentos', checkin: 'check-ins', rsvp: 'confirmações de presença',
+  'offsite_conversion.fb_pixel_contact': 'contatos no site (Pixel)', 'offsite_conversion.fb_pixel_purchase': 'compras no site (Pixel)',
+  'offsite_conversion.fb_pixel_complete_registration': 'cadastros no site (Pixel)', 'offsite_conversion.fb_pixel_add_to_cart': 'carrinhos no site (Pixel)',
+  'offsite_conversion.fb_pixel_initiate_checkout': 'inícios de compra (Pixel)', 'offsite_conversion.fb_pixel_view_content': 'visualizações de conteúdo (Pixel)',
+  'offsite_conversion.fb_pixel_search': 'buscas no site (Pixel)', 'offsite_conversion.fb_pixel_add_payment_info': 'dados de pagamento (Pixel)',
+  'offsite_conversion.fb_pixel_add_to_wishlist': 'listas de desejos (Pixel)', 'offsite_conversion.fb_pixel_custom': 'eventos personalizados (Pixel)',
+  purchase: 'compras', omni_purchase: 'compras', onsite_web_purchase: 'compras no site', 'onsite_conversion.purchase': 'compras na Meta',
+  add_to_cart: 'carrinhos', omni_add_to_cart: 'carrinhos', initiate_checkout: 'inícios de compra', omni_initiated_checkout: 'inícios de compra',
+  view_content: 'visualizações de conteúdo', omni_view_content: 'visualizações de conteúdo', complete_registration: 'cadastros',
+  omni_complete_registration: 'cadastros', search: 'buscas', omni_search: 'buscas', omni_landing_page_view: 'visitas à página de destino',
+  contact_total: 'contatos', contact_website: 'contatos no site', contact_mobile_app: 'contatos no app', schedule_total: 'agendamentos',
+  schedule_website: 'agendamentos no site', find_location_total: 'buscas pelo endereço', submit_application_total: 'inscrições',
+  subscribe_total: 'assinaturas', start_trial_total: 'testes grátis', app_install: 'instalações do app', mobile_app_install: 'instalações do app',
+  omni_app_install: 'instalações do app', click_to_call_native_call_placed: 'ligações feitas', click_to_call_call_confirm: 'ligações confirmadas',
+  click_to_call_native_20s_call_connect: 'ligações de 20 segundos',
 });
-const nomeDaAcao = (k) => traduzir(ACOES_META, String(k ?? '').replace(/^actions:/, ''));
-const TIPO_POST = Object.freeze({ added_photos: 'foto', added_video: 'vídeo', shared_story: 'compartilhamento', mobile_status_update: 'texto', created_event: 'evento', created_note: 'nota' });
+/** O nome de gente de uma ação da Meta ("link_click" vira "cliques no
+ *  link"). A desconhecida ganha o nome genérico da família dela, sem o
+ *  código: a conversão personalizada, a ação nas mensagens, a da Meta. */
+function nomeDaAcao(k) {
+  const c = String(k ?? '').replace(/^actions:/, '').trim();
+  if (!c) return null;
+  const nome = conhecido(ACOES_META, c);
+  if (nome) return nome;
+  if (/^offsite_conversion\.custom\./.test(c)) return 'conversão personalizada';
+  if (/^offsite_conversion\./.test(c)) return 'outra conversão no site';
+  if (/^onsite_conversion\.messaging/.test(c)) return 'outra ação nas mensagens';
+  if (/^onsite_conversion\./.test(c)) return 'outra ação na Meta';
+  if (/^omni_/.test(c)) return 'outra ação em todos os canais';
+  return 'outra ação';
+}
+const TIPO_POST = Object.freeze({
+  added_photos: 'foto', added_video: 'vídeo', shared_story: 'compartilhamento', mobile_status_update: 'texto', created_event: 'evento', created_note: 'nota',
+  wall_post: 'publicação no mural', app_created_story: 'publicação de aplicativo', published_story: 'publicação', tagged_in_photo: 'marcação em foto',
+  created_group: 'grupo', added_photos_album: 'álbum',
+});
 const ORIGEM_PIXEL = Object.freeze({ WEB: 'site (navegador)', APP: 'aplicativo', OFFLINE: 'offline', SERVER: 'servidor (API de conversões)', CAPI: 'servidor (API de conversões)' });
 // Os detalhes por tipo dos posts da Página, com o nome da tela do Facebook.
 const REACOES_FB = Object.freeze({ like: 'curtir', love: 'amei', wow: 'uau', haha: 'haha', sorry: 'triste', anger: 'grr', care: 'força', thankful: 'gratidão', pride: 'orgulho' });
 const CLIQUES_FB = Object.freeze({ 'link clicks': 'cliques no link', 'other clicks': 'outros cliques', 'photo view': 'ver a foto', 'video play': 'tocar o vídeo' });
 const ATIVIDADE_FB = Object.freeze({ comment: 'comentários', like: 'curtidas', share: 'compartilhamentos' });
+// As chaves de correspondência do Pixel (a qualidade, match_key_feedback) e
+// os campos da correspondência automática (em, ph...), com nome de gente.
+export const CHAVES_PIXEL = Object.freeze({
+  email: 'e-mail', em: 'e-mail', phone: 'telefone', ph: 'telefone', first_name: 'nome', fn: 'nome', last_name: 'sobrenome', ln: 'sobrenome',
+  gender: 'gênero', ge: 'gênero', date_of_birth: 'data de nascimento', db: 'data de nascimento', city: 'cidade', ct: 'cidade', state: 'estado', st: 'estado',
+  zip_code: 'CEP', zip: 'CEP', zp: 'CEP', country: 'país', external_id: 'ID do cliente no site', ip_address: 'endereço IP', client_ip_address: 'endereço IP',
+  user_agent: 'navegador', client_user_agent: 'navegador', fbc: 'identificador do clique no anúncio', click_id: 'identificador do clique no anúncio',
+  fbp: 'identificador do navegador', browser_id: 'identificador do navegador', lead_id: 'ID do lead', fb_login_id: 'login do Facebook',
+  page_scoped_user_id: 'quem falou com a Página', anon_id: 'ID anônimo', madid: 'ID de anúncio do celular', ctwa_clid: 'clique para o WhatsApp',
+  ig_account_id: 'conta do Instagram', subscription_id: 'ID da assinatura',
+});
+const nomeDaChave = (k) => traduzir(CHAVES_PIXEL, String(k ?? '').toLowerCase(), 'outro dado');
 
-/** O detalhe {tipo: n} da Meta em uma linha ("curtir 26, amei 4"). */
-const porTipo = (mapa, nomes = {}) => textoDoMapa(mapa, { rotular: (k) => traduzir(nomes, k) });
+/** O detalhe {tipo: n} da Meta em uma linha ("curtir 26, amei 4"); o tipo
+ *  que o mapa não conhece soma em `outros`, nunca com o código. */
+const porTipo = (mapa, nomes = {}, outros = 'outros') => textoDoMapa(mapa, { rotular: (k) => conhecido(nomes, k), outros });
 
-const mapaEmBarras = (mapa, rotular = (k) => k) =>
-  objeto(mapa) ? ordenar(Object.entries(mapa).map(([k, v]) => ({ rotulo: rotular(k), valor: v })), 'valor') : null;
+/** As barras de um mapa {chave: n}, do maior para o menor. Chaves que viram
+ *  o mesmo nome (o código desconhecido vira o nome genérico) somam numa
+ *  barra só; número que não veio continua sem número. */
+const mapaEmBarras = (mapa, rotular = (k) => k) => {
+  if (!objeto(mapa)) return null;
+  const porNome = new Map();
+  for (const [k, v] of Object.entries(mapa)) {
+    const nome = rotular(k) ?? k;
+    porNome.set(nome, porNome.has(nome) ? somaDisponivel([porNome.get(nome), v]) : medida(v));
+  }
+  return ordenar([...porNome].map(([rotulo, valor]) => ({ rotulo, valor })), 'valor');
+};
 
 /* -------------------------------------------------------- a Página -- */
 
@@ -101,7 +171,7 @@ function corpoPagina(p, hoje) {
   const tituloSemana = atual
     ? `${rotuloSemana(atual.semana, anterior?.semana, hoje)}${medida(atual.dias_com_dado) !== null && atual.dias_com_dado < 7 ? ` (${atual.dias_com_dado} de 7 dias medidos: o que precisa da semana inteira fica sem número)` : ''}`
     : null;
-  const paises = mapaEmBarras(p.seguidores_por_pais, (k) => traduzir(PAISES, k));
+  const paises = mapaEmBarras(p.seguidores_por_pais, (k) => nomeDoPais(k));
   const cidades = mapaEmBarras(p.seguidores_por_cidade);
   const posts = Array.isArray(p.posts) ? recentesPrimeiro(p.posts, 'criado_em') : null;
   const colData = col('data', 'Data', 'dia');
@@ -138,14 +208,14 @@ function corpoPagina(p, hoje) {
       secaoTabela('posts', 'Posts', posts, [
         colData,
         colPost,
-        col('tipo', 'Tipo', 'texto', { valor: (x) => traduzir(TIPO_POST, x.tipo) }),
+        col('tipo', 'Tipo', 'texto', { valor: (x) => traduzir(TIPO_POST, x.tipo, 'outro tipo') }),
         col('alcance', 'Alcance', 'int'),
         col('visualizacoes', 'Visualizações', 'int'),
-        col('reacoes', 'Reações', 'int', { titulo: (x) => porTipo(x.reacoes_por_tipo, REACOES_FB) }),
+        col('reacoes', 'Reações', 'int', { titulo: (x) => porTipo(x.reacoes_por_tipo, REACOES_FB, 'outras reações') }),
         col('comentarios', 'Comentários', 'int'),
         col('compartilhamentos', 'Compart.', 'int'),
-        col('engajamento', 'Engajamento', 'int', { titulo: (x) => porTipo(x.atividade_por_tipo, ATIVIDADE_FB) }),
-        col('cliques', 'Cliques', 'int', { titulo: (x) => porTipo(x.cliques_por_tipo, CLIQUES_FB) }),
+        col('engajamento', 'Engajamento', 'int', { titulo: (x) => porTipo(x.atividade_por_tipo, ATIVIDADE_FB, 'outras atividades') }),
+        col('cliques', 'Cliques', 'int', { titulo: (x) => porTipo(x.cliques_por_tipo, CLIQUES_FB, 'outros cliques') }),
         col('video', 'Vídeo (vis.)', 'int', { valor: (x) => x.video?.visualizacoes }),
       ], { hoje, aberta: true, unidade: ['post', 'posts'], vazio: 'Nenhum post nos últimos 90 dias.', semDado: 'A Meta não mandou os posts nesta coleta.' }),
       // Os detalhes por tipo e os números de vídeo, só quando algum post tem.
@@ -153,9 +223,9 @@ function corpoPagina(p, hoje) {
         ? secaoTabela('posts_tipos', 'Reações e cliques por post', comTipos, [
           colData,
           colPost,
-          col('reacoes_por_tipo', 'Reações por tipo', 'texto', { valor: (x) => porTipo(x.reacoes_por_tipo, REACOES_FB) }),
-          col('cliques_por_tipo', 'Cliques por tipo', 'texto', { valor: (x) => porTipo(x.cliques_por_tipo, CLIQUES_FB) }),
-          col('atividade_por_tipo', 'Atividade por tipo', 'texto', { valor: (x) => porTipo(x.atividade_por_tipo, ATIVIDADE_FB) }),
+          col('reacoes_por_tipo', 'Reações por tipo', 'texto', { valor: (x) => porTipo(x.reacoes_por_tipo, REACOES_FB, 'outras reações') }),
+          col('cliques_por_tipo', 'Cliques por tipo', 'texto', { valor: (x) => porTipo(x.cliques_por_tipo, CLIQUES_FB, 'outros cliques') }),
+          col('atividade_por_tipo', 'Atividade por tipo', 'texto', { valor: (x) => porTipo(x.atividade_por_tipo, ATIVIDADE_FB, 'outras atividades') }),
         ], { hoje, unidade: ['post', 'posts'] })
         : null,
       comVideo.length
@@ -204,7 +274,7 @@ function corpoPagina(p, hoje) {
         col('seguidores_liquidos', 'Seguidores', 'int'),
         col('video_visualizacoes', 'Vídeo (vis.)', 'int'),
         col('video_tempo_ms', 'Tempo de vídeo', 'durms'),
-        col('reacoes', 'Reações', 'texto', { valor: (x) => (objeto(x.reacoes) ? porTipo(x.reacoes, REACOES_FB) ?? 'nenhuma' : null) }),
+        col('reacoes', 'Reações', 'texto', { valor: (x) => (objeto(x.reacoes) ? porTipo(x.reacoes, REACOES_FB, 'outras reações') ?? 'nenhuma' : null) }),
       ], { hoje, limite: 14, unidade: ['dia', 'dias'] }),
       secao('paises', 'Seguidores por país', [paises ? blocoBarras(paises, { total: somaDisponivel(paises.map((x) => x.valor)) }) : blocoTexto('A Meta não mandou nesta coleta.')], { resumo: paises ? plural(paises.length, 'país', 'países') : 'não medido' }),
       secao('cidades', 'Seguidores por cidade', [cidades ? blocoBarras(cidades.slice(0, 15)) : blocoTexto('A Meta não mandou nesta coleta (ela pode ter recusado a métrica).')], { resumo: cidades ? plural(cidades.length, 'cidade', 'cidades') : 'não medido' }),
@@ -214,8 +284,8 @@ function corpoPagina(p, hoje) {
           { rotulo: 'Usuário', valor: p.usuario },
           { rotulo: 'Link', valor: p.link, link: p.link },
           { rotulo: 'Categoria', valor: p.categoria },
-          { rotulo: 'O que o usuário do sistema pode fazer', valor: Array.isArray(p.tarefas) ? p.tarefas.map((t) => traduzir(TAREFAS, t)).join(', ') || 'nada' : null },
-          { rotulo: 'Como a Página foi achada', valor: traduzir({ link: 'pelo link do canal Facebook', unica: 'é a única que o usuário vê', primeira: 'a primeira da lista (o canal não tem link)' }, p.escolhida_por) },
+          { rotulo: 'O que o usuário do sistema pode fazer', valor: Array.isArray(p.tarefas) ? [...new Set(p.tarefas.map((t) => traduzir(TAREFAS, String(t ?? '').replace(/^PROFILE_PLUS_/, ''), 'outra tarefa')).filter(Boolean))].join(', ') || 'nada' : null },
+          { rotulo: 'Como a Página foi achada', valor: traduzir({ link: 'pelo link do canal Facebook', unica: 'é a única que o usuário vê', primeira: 'a primeira da lista (o canal não tem link)' }, p.escolhida_por, 'de outro jeito') },
         ]),
       ]),
     ],
@@ -294,14 +364,18 @@ export function acoesPorLinha(linhas, chaveDaLinha) {
 
 function corpoConta(c, periodo, hoje) {
   const moeda = texto(c.moeda, 3) || 'BRL';
-  const semanas = lista(c.por_semana).filter(objeto);
+  const todas = lista(c.por_semana).filter(objeto);
+  // As somas do período só com as semanas que já começaram: a semana de
+  // amanhã (a Meta pode mandar, pelo fuso da conta) aparece na tabela, com a
+  // situação "ainda não começou", e fica fora das somas (regra 5).
+  const { ate: semanas, depois: futuras } = separarPorHoje(todas, 'semana', hoje);
   const soma = (k) => somaDisponivel(semanas.map((s) => s[k]));
   const gasto = soma('gasto'), impressoes = soma('impressoes'), cliques = soma('cliques'), leads = soma('leads');
   const { atual, anterior } = ultimasDuas(semanas, 'semana', (s) => s.fechada !== false);
   const comparar = (campo) => (anterior ? anterior[campo] : undefined);
   // As taxas de cada plataforma no período são contas do Painel com as
   // somas (taxa não se soma entre semanas).
-  const plataformas = ordenar(agrupar(c.por_plataforma, 'plataforma', ['gasto', 'impressoes', 'cliques', 'cliques_link', 'cliques_saida', 'leads', 'conversas', 'primeiras_respostas'], (x) => ({ plataforma: x.plataforma })), 'gasto')
+  const plataformas = ordenar(agrupar(separarPorHoje(c.por_plataforma, 'semana', hoje).ate, 'plataforma', ['gasto', 'impressoes', 'cliques', 'cliques_link', 'cliques_saida', 'leads', 'conversas', 'primeiras_respostas'], (x) => ({ plataforma: x.plataforma })), 'gasto')
     .map((x) => ({ ...x, ctr: razao(x.cliques, x.impressoes), cpc: razao(x.gasto, x.cliques), cpm: x.impressoes ? razao(x.gasto, x.impressoes / 1000) : null }));
   const campanhas = Array.isArray(c.campanhas) ? ordenar(c.campanhas, 'gasto') : null;
   const nomeDaCampanha = new Map(lista(c.campanhas).filter(objeto).map((x) => [String(x.id), texto(x.nome, 100)]));
@@ -313,10 +387,12 @@ function corpoConta(c, periodo, hoje) {
   };
   const acoesPeriodo = acoesDoPeriodo(semanas);
   const acoesCampanhas = acoesPorLinha(campanhas, (x) => x.id);
-  const acoesSemanas = acoesPorLinha(recentesPrimeiro(semanas, 'semana'), (x) => x.semana);
+  const acoesSemanas = acoesPorLinha(recentesPrimeiro(todas, 'semana'), (x) => x.semana);
   const tiposDeAcao = new Set([...acoesPeriodo, ...acoesCampanhas, ...acoesSemanas].map((a) => a.chave)).size;
   const colsAcao = [
-    col('chave', 'Ação', 'texto', { valor: (x) => nomeDaAcao(x.chave), titulo: (x) => x.chave }),
+    // O title nunca leva o código da Meta (post_engagement): só diz quando
+    // a ação é uma que esta tela ainda não traduz.
+    col('chave', 'Ação', 'texto', { valor: (x) => nomeDaAcao(x.chave), titulo: (x) => (conhecido(ACOES_META, String(x.chave ?? '').replace(/^actions:/, '')) ? null : 'Ação da Meta que esta tela ainda não traduz.') }),
     col('quantidade', 'Quantidade', 'num2'),
     col('valor', 'Valor', 'moeda'),
     col('custo', 'Custo por ação', 'moeda'),
@@ -351,8 +427,8 @@ function corpoConta(c, periodo, hoje) {
     secoes: [
       secaoTabela('campanhas', 'Campanhas', campanhas, [
         col('nome', 'Campanha', 'texto', { max: 120 }),
-        col('objetivo', 'Objetivo', 'texto', { valor: (x) => traduzir(OBJETIVO, x.objetivo) }),
-        col('situacao', 'Situação', 'texto', { valor: (x) => traduzir(SITUACAO, x.situacao_efetiva ?? x.situacao), tom: (x) => (['WITH_ISSUES', 'DISAPPROVED'].includes(x.situacao_efetiva) ? 'bad' : null) }),
+        col('objetivo', 'Objetivo', 'texto', { valor: (x) => traduzir(OBJETIVO, x.objetivo, 'outro objetivo') }),
+        col('situacao', 'Situação', 'texto', { valor: (x) => traduzir(SITUACAO, x.situacao_efetiva ?? x.situacao, 'outra situação'), tom: (x) => (['WITH_ISSUES', 'DISAPPROVED'].includes(x.situacao_efetiva) ? 'bad' : null) }),
         col('orcamento', 'Orçamento', 'texto', { valor: orcamento, numerico: true }),
         col('inicio', 'Início', 'dia'),
         col('fim', 'Fim', 'dia'),
@@ -372,9 +448,9 @@ function corpoConta(c, periodo, hoje) {
         col('resultados', 'Resultados', 'texto', { valor: (x) => textoResultados(x.resultados), numerico: true }),
         col('custo_por_resultado', 'Custo por resultado', 'texto', { valor: (x) => textoCustoPorResultado(x.custo_por_resultado, moeda), numerico: true }),
       ], { moeda, hoje, aberta: true, unidade: ['campanha', 'campanhas'], vazio: 'Nenhuma campanha no período.', nota: 'Campanha sem entrega no período fica com os números em branco.' }),
-      secaoTabela('semanas', 'Por semana', [...semanas].reverse(), [
+      secaoTabela('semanas', 'Por semana', [...todas].reverse(), [
         col('semana', 'Semana de', 'dia'),
-        colSemanaFechada('fechada', 'em andamento'),
+        colSemanaFechada('fechada', 'em andamento', { hoje }),
         col('gasto', 'Gasto', 'moeda'),
         col('impressoes', 'Impressões', 'int'),
         col('alcance', 'Alcance', 'int'),
@@ -392,7 +468,7 @@ function corpoConta(c, periodo, hoje) {
         col('custo_por_resultado', 'Custo por resultado', 'texto', { valor: (x) => textoCustoPorResultado(x.custo_por_resultado, moeda), numerico: true }),
       ], { moeda, hoje, unidade: ['semana', 'semanas'] }),
       secaoTabela('plataformas', 'Por plataforma', Array.isArray(c.por_plataforma) ? plataformas : null, [
-        col('plataforma', 'Plataforma', 'texto', { valor: (x) => traduzir(PLATAFORMA, x.plataforma) }),
+        col('plataforma', 'Plataforma', 'texto', { valor: (x) => traduzir(PLATAFORMA, x.plataforma, 'outra plataforma') }),
         col('gasto', 'Gasto', 'moeda'),
         col('impressoes', 'Impressões', 'int'),
         col('cliques', 'Cliques', 'int'),
@@ -445,7 +521,7 @@ function corpoConta(c, periodo, hoje) {
           acoesPeriodo.length
             ? blocoTabela(acoesPeriodo, colsAcao, {
               moeda, chave: 'chave', titulo: 'No período',
-              nota: 'Somadas nas semanas do período. O custo por ação do período é conta do Painel: o gasto dividido pela quantidade. Valor é quanto a ação vale (uma compra, por exemplo); ação sem valor fica com o traço.',
+              nota: 'Somadas nas semanas do período. O custo por ação do período é conta do Painel: o gasto dividido pela quantidade. Valor é quanto a ação vale (uma compra, por exemplo); ação sem valor fica sem valor, nunca R$ 0.',
             })
             : null,
           acoesCampanhas.length
@@ -460,13 +536,16 @@ function corpoConta(c, periodo, hoje) {
         blocoPares([
           { rotulo: 'Conta', valor: c.nome },
           { rotulo: 'Número', valor: c.numero },
-          { rotulo: 'Moeda', valor: c.moeda },
-          { rotulo: 'Fuso', valor: c.fuso },
+          { rotulo: 'Moeda', valor: c.moeda, tipo: 'nomeMoeda' },
+          { rotulo: 'Fuso', valor: c.fuso, tipo: 'fuso' },
           { rotulo: 'Situação', valor: c.situacao },
         ]),
       ]),
     ],
-    notas: ['O CTR e o CPC do período são contas do Painel com as somas; os das tabelas vêm da Meta.'],
+    notas: [
+      'O CTR e o CPC do período são contas do Painel com as somas; os das tabelas vêm da Meta.',
+      notaDoFuturo(futuras, 'semana', hoje, { oQue: ['a semana', 'as semanas'], verbo: ['ainda não começou', 'ainda não começaram'] }),
+    ],
   };
 }
 
@@ -516,9 +595,9 @@ function corpoPixel(px, periodo, hoje) {
       secaoTabela('dias', 'Por dia', dias ? [...dias].sort((a, b) => String(b.dia).localeCompare(String(a.dia))) : null, [
         col('dia', 'Dia', 'dia'),
         ...nomes.map((n) => col(`ev-${n}`, n, 'int', { valor: (d) => (objeto(d.eventos) ? d.eventos[n] ?? null : null) })),
-      ], { hoje, unidade: ['dia', 'dias'], semDado: 'A Meta não mandou os eventos por dia nesta coleta.', nota: 'Evento que não aparece num dia fica com o traço: a Meta só lista o que chegou.' }),
+      ], { hoje, unidade: ['dia', 'dias'], semDado: 'A Meta não mandou os eventos por dia nesta coleta.', nota: 'Evento que não aparece num dia fica sem número: a Meta só lista o que chegou.' }),
       secao('origem', 'De onde vêm os eventos', [
-        objeto(px.por_origem) ? blocoBarras(mapaEmBarras(px.por_origem, (k) => traduzir(ORIGEM_PIXEL, k))) : blocoTexto('A Meta não mandou nesta coleta.'),
+        objeto(px.por_origem) ? blocoBarras(mapaEmBarras(px.por_origem, (k) => traduzir(ORIGEM_PIXEL, k, 'outra origem'))) : blocoTexto('A Meta não mandou nesta coleta.'),
       ], { resumo: objeto(px.por_origem) ? null : 'não medido' }),
       secaoTabela('urls', 'Páginas que dispararam', urls, [col('url', 'Página', 'texto', { link: (x) => x.url, max: 120 }), col('disparos', 'Disparos', 'int')], {
         unidade: ['página', 'páginas'], semDado: 'A Meta não mandou nesta coleta.', nota: 'Só o endereço e o caminho: o resto da URL pode ter dado pessoal.',
@@ -526,20 +605,21 @@ function corpoPixel(px, periodo, hoje) {
       secaoTabela('qualidade', 'Qualidade da correspondência', Array.isArray(px.qualidade) ? px.qualidade.filter(objeto) : null, [
         col('evento', 'Evento'),
         col('nota', 'Nota (0 a 10)', 'dec1', { tom: (x) => (medida(x.nota) === null ? null : x.nota >= 6 ? 'ok' : x.nota >= 4 ? 'warn' : 'bad') }),
-        col('chaves', 'Dados que casam', 'texto', { valor: (x) => lista(x.chaves).filter(objeto).map((k) => `${k.chave} ${formatar('pct', k.cobertura, { casas: 0 })}`).join(', ') || null, max: 300 }),
+        // A chave vem com o nome da API (ip_address, email): vai o nome de gente.
+        col('chaves', 'Dados que casam', 'texto', { valor: (x) => lista(x.chaves).filter(objeto).map((k) => `${nomeDaChave(k.chave)} ${formatar('pct', k.cobertura, { casas: 0 })}`).join(', ') || null, max: 300 }),
         col('cobertura_eventos', 'Cobertura dos eventos', 'pct', { casas: 0 }),
         col('acr', 'Conversões a mais (API de conversões)', 'pct', { casas: 0 }),
-        col('frequencia_envio', 'Envio', 'texto', { valor: (x) => traduzir({ real_time: 'na hora', hourly: 'por hora', daily: 'por dia' }, x.frequencia_envio) }),
+        col('frequencia_envio', 'Envio', 'texto', { valor: (x) => traduzir({ real_time: 'na hora', hourly: 'por hora', daily: 'por dia' }, x.frequencia_envio, 'outra frequência') }),
       ], { unidade: ['evento', 'eventos'], semDado: 'A Meta não mandou nesta coleta.', nota: 'Cobertura: a parte dos eventos do Pixel que também chegou pela API de conversões. Conversões a mais: o que a API de conversões contou além do Pixel.' }),
       secao('configuracao', 'Configuração', [
         blocoPares([
           { rotulo: 'Pixel', valor: px.nome },
           { rotulo: 'ID', valor: px.id },
           { rotulo: 'Criado em', valor: px.criado_em, tipo: 'dia', hoje },
-          { rotulo: 'Cookie próprio', valor: traduzir({ FIRST_PARTY_COOKIE_ENABLED: 'ligado', FIRST_PARTY_COOKIE_DISABLED: 'desligado' }, px.cookie_primario) },
+          { rotulo: 'Cookie próprio', valor: traduzir({ FIRST_PARTY_COOKIE_ENABLED: 'ligado', FIRST_PARTY_COOKIE_DISABLED: 'desligado', EMPTY: 'não configurado' }, px.cookie_primario, 'outra situação') },
           { rotulo: 'Correspondência automática', valor: px.correspondencia_automatica, tipo: 'sim' },
-          { rotulo: 'Campos da correspondência', valor: lista(px.campos_correspondencia).join(', ') || null },
-          { rotulo: 'Uso dos dados', valor: traduzir({ ADVERTISING_AND_ANALYTICS: 'anúncios e análise', ANALYTICS_ONLY: 'só análise' }, px.uso_dados) },
+          { rotulo: 'Campos da correspondência', valor: [...new Set(lista(px.campos_correspondencia).map(nomeDaChave).filter(Boolean))].join(', ') || null },
+          { rotulo: 'Uso dos dados', valor: traduzir({ ADVERTISING_AND_ANALYTICS: 'anúncios e análise', ANALYTICS_ONLY: 'só análise', EMPTY: 'não configurado' }, px.uso_dados, 'outro uso') },
         ]),
       ]),
     ],
@@ -571,12 +651,20 @@ export function quadrosPixelMeta(l, { hoje } = {}) {
 
 const OBSERVACAO_IG = 'Os números do Instagram incluem anúncio e conteúdo impulsionado: não são só orgânicos.';
 const FORMATO_IG = Object.freeze({ IMAGE: 'foto', VIDEO: 'vídeo', CAROUSEL_ALBUM: 'carrossel', REELS: 'Reels', STORY: 'story', FEED: 'feed' });
-const formatoDaMidia = (m) => (m.produto === 'REELS' ? 'Reels' : traduzir(FORMATO_IG, m.tipo) ?? traduzir(FORMATO_IG, m.produto));
+const formatoDaMidia = (m) => (m.produto === 'REELS' ? 'Reels' : conhecido(FORMATO_IG, m.tipo) ?? conhecido(FORMATO_IG, m.produto) ?? (m.tipo || m.produto ? 'outro formato' : null));
 const GENERO_IG = Object.freeze({ F: 'feminino', M: 'masculino', U: 'não informado' });
 const QUEBRAS_IG = Object.freeze({
-  POST: 'post', REEL: 'Reels', STORY: 'story', CAROUSEL_CONTAINER: 'carrossel', AD: 'anúncio', FOLLOWER: 'seguidores', NON_FOLLOWER: 'não seguidores', UNKNOWN: 'não informado',
-  CALL: 'ligar', DIRECTION: 'como chegar', TEXT: 'mensagem', EMAIL: 'e-mail', BOOK_NOW: 'reservar', UNDEFINED: 'outro botão',
+  POST: 'post', REEL: 'Reels', REELS: 'Reels', STORY: 'story', CAROUSEL_CONTAINER: 'carrossel', AD: 'anúncio', IGTV: 'vídeo (IGTV)', LIVE: 'ao vivo',
+  FEED: 'feed', FOLLOWER: 'seguidores', NON_FOLLOWER: 'não seguidores', UNKNOWN: 'não informado',
+  CALL: 'ligar', DIRECTION: 'como chegar', TEXT: 'mensagem', EMAIL: 'e-mail', BOOK_NOW: 'reservar', INSTANT_EXPERIENCE: 'experiência instantânea',
+  UNDEFINED: 'outro botão',
 });
+// "Seguir e deixar" (follows_and_unfollows com a quebra follow_type): na
+// leitura usual da Meta, FOLLOWER conta quem passou a seguir e NON_FOLLOWER
+// quem deixou de seguir (a documentação não confirma; a nota da tabela diz).
+const SEGUIR_DEIXAR = Object.freeze({ FOLLOWER: 'seguiram', NON_FOLLOWER: 'deixaram de seguir', UNKNOWN: 'sem informação' });
+// Como a pessoa saiu do story (story_navigation_action_type).
+const NAVEGACAO_STORY = Object.freeze({ TAP_FORWARD: 'toques para avançar', TAP_BACK: 'toques para voltar', TAP_EXIT: 'toques para sair', SWIPE_FORWARD: 'deslizes para o próximo' });
 
 function corpoInstagramConta(ig, hoje) {
   const { atual, anterior } = ultimasDuas(ig.por_semana, 'semana', (s) => s.madura !== false);
@@ -608,7 +696,7 @@ function corpoInstagramConta(ig, hoje) {
     secoes: [
       secaoTabela('semanas', 'Por semana', recentesPrimeiro(ig.por_semana, 'semana'), [
         col('semana', 'Semana de', 'dia'),
-        colSemanaFechada('madura', 'ainda não madura'),
+        colSemanaFechada('madura', 'ainda não madura', { hoje }),
         col('alcance', 'Alcance', 'int'),
         col('visualizacoes', 'Visualizações', 'int'),
         col('contas_engajadas', 'Contas engajadas', 'int'),
@@ -620,8 +708,8 @@ function corpoInstagramConta(ig, hoje) {
         col('respostas', 'Respostas', 'int'),
         col('repostagens', 'Repostagens', 'int'),
         col('toques_links', 'Toques em links', 'int'),
-        col('seguir_deixar', 'Seguir e deixar (como a Meta manda)', 'texto', { valor: (x) => (objeto(x.seguir_deixar) ? Object.entries(x.seguir_deixar).map(([k, v]) => `${k} ${formatar('int', v)}`).join(', ') : null) }),
-      ], { hoje, aberta: true, unidade: ['semana', 'semanas'], nota: 'Semana madura: 3 dias depois do domingo. "Seguir e deixar" vai com os nomes da Meta, que não confirma qual é qual.' }),
+        col('seguir_deixar', 'Seguiram e deixaram de seguir', 'texto', { valor: (x) => (objeto(x.seguir_deixar) ? textoDoMapa(x.seguir_deixar, { rotular: (k) => conhecido(SEGUIR_DEIXAR, k), outros: 'outros' }) : null) }),
+      ], { hoje, aberta: true, unidade: ['semana', 'semanas'], nota: 'Semana madura: 3 dias depois do domingo. "Seguiram" e "deixaram de seguir" seguem a leitura usual dos números da Meta, que a documentação dela não confirma.' }),
       secaoTabela('alcance_dia', 'Alcance por dia', Array.isArray(ig.alcance_por_dia) ? recentesPrimeiro(ig.alcance_por_dia, 'dia') : null, [
         col('dia', 'Dia', 'dia'),
         col('alcance', 'Alcance', 'int'),
@@ -642,9 +730,12 @@ function corpoInstagramConta(ig, hoje) {
 function corpoInstagramPublicacoes(ig, hoje) {
   const midias = Array.isArray(ig.midias) ? recentesPrimeiro(ig.midias, 'criado_em') : null;
   const stories = Array.isArray(ig.stories) ? recentesPrimeiro(ig.stories, 'criado_em') : null;
+  // A soma e o maior alcance só com o que já foi publicado (regra 5): a
+  // publicação de data que ainda não chegou fica na tabela e fora das contas.
+  const { ate: publicadas, depois: futuras } = separarPorHoje(midias, (m) => m.data ?? m.criado_em, hoje);
   // O maior alcance entre as publicações que têm número (nenhuma medida: sem
   // número, e não zero).
-  const alcances = lista(midias).map((m) => medida(m.alcance)).filter((v) => v !== null);
+  const alcances = publicadas.map((m) => medida(m.alcance)).filter((v) => v !== null);
   const colData = col('data', 'Data', 'dia');
   const colMidia = col('titulo', 'Publicação', 'texto', { valor: (m) => m.titulo || formatoDaMidia(m), link: (m) => m.link, max: 120 });
   return {
@@ -653,7 +744,7 @@ function corpoInstagramPublicacoes(ig, hoje) {
       blocoNumeros([
         numero({ id: 'midias', rotulo: 'Publicações listadas', valor: midias ? midias.length : null }),
         numero({ id: 'stories', rotulo: 'Stories no ar', valor: stories ? stories.length : null }),
-        numero({ id: 'interacoes', rotulo: 'Interações (soma)', valor: midias ? somaDisponivel(midias.map((m) => m.interacoes)) : null, titulo: 'Soma das interações das publicações listadas.' }),
+        numero({ id: 'interacoes', rotulo: 'Interações (soma)', valor: midias ? somaDisponivel(publicadas.map((m) => m.interacoes)) : null, titulo: 'Soma das interações das publicações listadas.' }),
         numero({ id: 'alcance', rotulo: 'Maior alcance', valor: alcances.length ? Math.max(...alcances) : null, titulo: 'O alcance da publicação que mais alcançou.' }),
       ]),
     ],
@@ -702,12 +793,13 @@ function corpoInstagramPublicacoes(ig, hoje) {
         col('seguiram', 'Seguiram', 'int'),
         col('visitas_perfil', 'Visitas ao perfil', 'int'),
         col('atividade_perfil', 'Ações no perfil', 'int'),
-        col('navegacao', 'Navegação', 'texto', { valor: (m) => (objeto(m.navegacao) ? Object.entries(m.navegacao).map(([k, v]) => `${k.toLowerCase().replace(/_/g, ' ')} ${formatar('int', v)}`).join(', ') : null) }),
+        col('navegacao', 'Navegação', 'texto', { valor: (m) => (objeto(m.navegacao) ? textoDoMapa(m.navegacao, { rotular: (k) => conhecido(NAVEGACAO_STORY, k), outros: 'outras ações' }) : null) }),
         // O número do story é o do instante da leitura (revisão 2: lido_em e
         // parcial), nunca o final: a coluna diz quando foi lido.
         col('lido_em', 'Lido em', 'instante', { valor: (m) => m.lido_em, tom: (m) => (m.parcial === true ? 'warn' : null), titulo: (m) => (m.parcial === true ? 'Leitura parcial: o story ainda estava no ar.' : null) }),
       ], { hoje, unidade: ['story', 'stories'], vazio: 'Nenhum story no ar agora.', nota: 'Leitura parcial: o número é o da hora da leitura, não o final do story (ele some em 24 horas e a coleta roda uma vez por dia). Com menos de 5 espectadores a Meta não dá número.' }),
     ],
+    notas: [notaDoFuturo(futuras, (m) => m.data ?? m.criado_em, hoje, { oQue: ['a publicação', 'as publicações'], verbo: ['tem data que ainda não chegou', 'têm data que ainda não chegou'] })],
   };
 }
 
@@ -720,22 +812,22 @@ function corpoInstagramPublico(ig, hoje) {
     const itens = mapaEmBarras(mapa, rotular);
     return itens ? blocoBarras(itens.slice(0, limite), { titulo, total: somaDisponivel(itens.map((x) => x.valor)) }) : blocoTexto(`${titulo}: a Meta não mandou nesta coleta.`);
   };
-  const quebra = (k) => (k ? traduzir(QUEBRAS_IG, k) : k);
+  const quebra = (k) => traduzir(QUEBRAS_IG, k, 'outros');
   return {
     destaque: null,
     topo: [blocoTexto(`Retrato do mês corrente${demo.periodo && demo.periodo !== 'this_month' ? ` (${texto(demo.periodo, 30)})` : ''}, nos 45 maiores de cada lista.`)],
     secoes: [
       secao('seguidores', 'Quem segue', [
         barras(seg.idade, (k) => k, 'Idade'),
-        barras(seg.genero, (k) => traduzir(GENERO_IG, k), 'Gênero'),
+        barras(seg.genero, (k) => traduzir(GENERO_IG, k, 'outro'), 'Gênero'),
         barras(seg.cidade, (k) => k, 'Cidade'),
-        barras(seg.pais, (k) => traduzir(PAISES, k), 'País'),
+        barras(seg.pais, (k) => nomeDoPais(k), 'País'),
       ], { aberta: true }),
       secao('engajados', 'Quem interagiu', [
         barras(eng.idade, (k) => k, 'Idade'),
-        barras(eng.genero, (k) => traduzir(GENERO_IG, k), 'Gênero'),
+        barras(eng.genero, (k) => traduzir(GENERO_IG, k, 'outro'), 'Gênero'),
         barras(eng.cidade, (k) => k, 'Cidade'),
-        barras(eng.pais, (k) => traduzir(PAISES, k), 'País'),
+        barras(eng.pais, (k) => nomeDoPais(k), 'País'),
       ]),
       secao('quebras', `De onde veio o alcance${rotuloDia(q.semana, hoje) ? ` (semana de ${rotuloDia(q.semana, hoje)})` : ''}`, [
         barras(q.alcance_por_tipo, quebra, 'Alcance por tipo de publicação'),

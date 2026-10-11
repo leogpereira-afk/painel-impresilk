@@ -10,6 +10,12 @@
  * A TABELA ROLA DE LADO DENTRO DELA (a página nunca rola de lado no celular):
  * a primeira coluna fica presa à esquerda para a linha não perder o nome.
  * Mostra as primeiras linhas e um "Ver todas"; o resto já está ali.
+ *
+ * A CÉLULA SEM DADO mostra o ponto de ausente (AUSENTE, nunca o travessão:
+ * a ordem do dono), com "não medido" (ou "não informado") no title e no
+ * aria-label, para quem passa o mouse e para o leitor de tela.
+ *
+ * O TEXTO CINZA é o slate-500 (4,8:1 no branco), nunca o slate-400 (2,6:1).
  */
 import { useState } from 'react';
 import { clsx } from 'clsx';
@@ -20,12 +26,12 @@ import GraficoBarras from './GraficoBarras.jsx';
 // todas com par no tema escuro (index.css).
 const PILULA = { ok: 'bg-ok-50 text-ok-700', warn: 'bg-warn-50 text-warn-800', bad: 'bg-bad-50 text-bad-700' };
 const NOTA = { ok: 'text-ok-700', bad: 'text-bad-700', neutral: 'text-slate-500' };
-const PONTO_AVISO = { alerta: 'bg-bad-600', atencao: 'bg-warn-500', info: 'bg-slate-400' };
+const PONTO_AVISO = { alerta: 'bg-bad-600', atencao: 'bg-warn-500', info: 'bg-slate-500' };
 const NIVEL_AVISO = { alerta: 'Alerta', atencao: 'Atenção', info: 'Para saber' };
 const MARCA = {
   sim: { Icone: Check, cor: 'text-ok-700', fala: 'instalada' },
   falta: { Icone: X, cor: 'text-warn-700', fala: 'falta' },
-  nao: { Icone: Minus, cor: 'text-slate-400', fala: 'não aparece' },
+  nao: { Icone: Minus, cor: 'text-slate-500', fala: 'não aparece' },
 };
 
 function Link({ href, children }) {
@@ -47,7 +53,7 @@ function Nota({ nota }) {
           {nota.texto}
         </span>
       )}
-      <span className="text-slate-400">{nota.antes}</span>
+      <span className="text-slate-500">{nota.antes}</span>
     </dd>
   );
 }
@@ -63,7 +69,7 @@ function Numeros({ bloco }) {
               {/* O rótulo quebra em até duas linhas em vez de cortar: na
                   célula estreita, "Taxa de engajamento" perdia o fim. */}
               <dt className="line-clamp-2 text-[11.5px] leading-tight text-slate-500">{n.rotulo}</dt>
-              <dd className={clsx('tnum truncate leading-tight', n.vazio ? 'pt-0.5 text-[13px] text-slate-400' : 'text-[17px] font-semibold text-slate-900')}>
+              <dd className={clsx('tnum truncate leading-tight', n.vazio ? 'pt-0.5 text-[13px] text-slate-500' : 'text-[17px] font-semibold text-slate-900')}>
                 {n.texto}
               </dd>
               <Nota nota={n.nota} />
@@ -90,6 +96,15 @@ function Marca({ marca }) {
 function Celula({ c, coluna, primeira }) {
   let conteudo = c.texto;
   if (c.marca) conteudo = <Marca marca={c.marca} />;
+  // O ponto de ausente fala "não medido" ao leitor de tela (role img com o
+  // aria-label), e não "ponto".
+  else if (c.vazio) {
+    conteudo = (
+      <span role="img" className="mkt-dados-ausente" aria-label={c.titulo || 'não medido'}>
+        {c.texto}
+      </span>
+    );
+  }
   else if (c.link && !c.vazio) conteudo = <Link href={c.link}>{c.texto}</Link>;
   if (c.tom && !c.vazio && PILULA[c.tom]) conteudo = <span className={clsx('mkt-dados-pilula', PILULA[c.tom])}>{conteudo}</span>;
   const classe = clsx(coluna.alinhar === 'dir' && 'dir', c.vazio && 'vazio', c.marca && 'marca');
@@ -160,7 +175,7 @@ function Pares({ bloco }) {
       {bloco.itens.map((p) => (
         <div key={p.rotulo} className="mkt-dados-par">
           <dt>{p.rotulo}</dt>
-          <dd className={p.vazio ? 'text-slate-400' : 'text-slate-800'}>{p.link && !p.vazio ? <Link href={p.link}>{p.texto}</Link> : p.texto}</dd>
+          <dd className={p.vazio ? 'text-slate-500' : 'text-slate-800'}>{p.link && !p.vazio ? <Link href={p.link}>{p.texto}</Link> : p.texto}</dd>
         </div>
       ))}
     </dl>
@@ -201,7 +216,7 @@ function Barras({ bloco }) {
                   medido: trilho vazio e "não medido" ao lado. */}
               {b.fracao > 0 && <span className="mkt-dados-barras-cheio" style={{ width: `${Math.max(2, Math.min(100, b.fracao * 100))}%` }} />}
             </span>
-            <span className={clsx('mkt-dados-barras-valor tnum', b.fracao === null && 'text-slate-400')}>{b.texto}</span>
+            <span className={clsx('mkt-dados-barras-valor tnum', b.fracao === null && 'text-slate-500')}>{b.texto}</span>
           </li>
         ))}
       </ul>

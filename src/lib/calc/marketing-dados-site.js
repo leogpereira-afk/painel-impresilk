@@ -27,6 +27,7 @@ import {
   blocoTabela,
   blocoTexto,
   col,
+  conhecido,
   formatar,
   juntar,
   lista,
@@ -80,6 +81,34 @@ const VERIFICACOES = Object.freeze([
   ['pinterest', 'Pinterest'],
   ['bing', 'Bing'],
 ]);
+
+// As sete chaves do Consent Mode do Google, com nome de gente. Chave fora
+// delas (erro de digitação no site) vira "outra chave", nunca o código.
+const CHAVES_CONSENTIMENTO = Object.freeze({
+  ad_storage: 'anúncios (cookies)', analytics_storage: 'análise (cookies)', ad_user_data: 'dados para anúncios', ad_personalization: 'anúncios personalizados',
+  functionality_storage: 'funcionamento do site', personalization_storage: 'personalização', security_storage: 'segurança',
+});
+export const nomeDaChaveDeConsentimento = (k) => traduzir(CHAVES_CONSENTIMENTO, k, 'outra chave');
+// O tipo do Open Graph e o cartão do X que a página declara (vocabulário
+// fixo): o conhecido em português; o que o site inventou vai como ele
+// escreveu (é texto do site, como o título).
+const TIPO_OG = Object.freeze({ website: 'site', article: 'artigo', product: 'produto', profile: 'perfil', 'business.business': 'empresa', book: 'livro', 'video.other': 'vídeo', 'video.movie': 'vídeo', 'music.song': 'música' });
+const CARTAO_X = Object.freeze({ summary: 'resumo', summary_large_image: 'resumo com imagem grande', app: 'aplicativo', player: 'vídeo ou áudio' });
+const traduzirDoSite = (mapa, v) => conhecido(mapa, typeof v === 'string' ? v.trim().toLowerCase() : v) ?? texto(v, 80);
+
+/** O cabeçalho x-cache do servidor ("HIT", "MISS", "HIT from cloudfront")
+ *  em português; valor que a tela não conhece vai como o servidor escreveu
+ *  (é texto do servidor). */
+export function textoDoCache(v) {
+  const t = texto(v, 80);
+  if (!t) return null;
+  if (/\bHIT\b/i.test(t)) return 'servida do cache';
+  if (/\bMISS\b/i.test(t)) return 'fora do cache';
+  if (/\bBYPASS\b/i.test(t)) return 'cache ignorado';
+  if (/\b(EXPIRED|STALE)\b/i.test(t)) return 'cache vencido';
+  if (/\bDYNAMIC\b/i.test(t)) return 'sem cache (página dinâmica)';
+  return t;
+}
 
 /** O caminho de um endereço do site ("/?page_id=144"), para a tabela caber;
  *  o endereço inteiro vai no title e no link. */
@@ -189,7 +218,7 @@ function problemaDoSite(codigo) {
   if (!c) return null;
   const http = /^http_(\d{3})$/.exec(c);
   if (http) return `respondeu ${http[1]}`;
-  return motivoLegivel(c) ?? c;
+  return motivoLegivel(c) ?? 'outro problema';
 }
 
 /** Os nomes marcados (true) de um objeto de sim e não. Objeto ausente é
@@ -249,7 +278,7 @@ const colPagina = () => col('pagina', 'Página', 'texto', { valor: (p) => caminh
 export function chavesDoConsentimento(paginas) {
   const lidas = lista(paginas).filter((p) => objeto(p) && !p.erro && objeto(p.consentimento) && Array.isArray(p.consentimento.consent_chaves));
   if (!lidas.length) return null;
-  return juntar([...new Set(lidas.flatMap((p) => p.consentimento.consent_chaves))]) ?? 'nenhuma';
+  return juntar([...new Set(lidas.flatMap((p) => lista(p.consentimento.consent_chaves).map(nomeDaChaveDeConsentimento)))]) ?? 'nenhuma';
 }
 
 function corpoEtiquetas(pg) {
@@ -336,7 +365,7 @@ function corpoEtiquetas(pg) {
         col('rotulos', 'Rótulos de conversão', 'texto', { valor: (p) => (objeto(p.etiquetas) ? listaOuNenhum(p.etiquetas.ads_rotulos) : null) }),
         col('verificacoes', 'Verificações', 'texto', { valor: (p) => marcados(p.verificacoes, VERIFICACOES, 'nenhuma') }),
         col('consent', 'Consent Mode', 'sim', { valor: (p) => (objeto(p.consentimento) ? p.consentimento.consent_mode : null) }),
-        col('consent_chaves', 'Chaves do consentimento', 'texto', { valor: (p) => (objeto(p.consentimento) ? listaOuNenhum(p.consentimento.consent_chaves, 'nenhuma') : null) }),
+        col('consent_chaves', 'Chaves do consentimento', 'texto', { valor: (p) => (objeto(p.consentimento) ? listaOuNenhum(p.consentimento.consent_chaves, 'nenhuma', nomeDaChaveDeConsentimento) : null) }),
         col('banner', 'Banner de cookies', 'texto', { valor: (p) => (objeto(p.consentimento) ? texto(p.consentimento.banner) ?? 'nenhum' : null) }),
       ], { limite: 15, unidade: ['página', 'páginas'], vazio: 'Nenhuma página abriu nesta coleta.', nota: 'Só as páginas que abriram.' }),
     ],
@@ -428,7 +457,7 @@ function corpoPaginas(pg, site, hoje) {
           titulo: (p) => seo(p)?.canonical,
         }),
         col('robots', 'Robots da página', 'texto', { valor: (p) => (seo(p) ? texto(seo(p).robots, 160) ?? 'padrão (sem a meta robots)' : null) }),
-        col('lang', 'Idioma', 'texto', { valor: (p) => seo(p)?.lang }),
+        col('lang', 'Idioma', 'idioma', { valor: (p) => seo(p)?.lang }),
         col('h1', 'Títulos H1', 'int', { valor: (p) => seo(p)?.h1, tom: (p) => (medida(seo(p)?.h1) !== null && medida(seo(p).h1) !== 1 ? 'warn' : null) }),
         col('noindex', 'Fora do Google (noindex)', 'sim', { valor: (p) => seo(p)?.noindex, tom: (p) => (seo(p)?.noindex === true ? 'warn' : null) }),
       ], { aberta: true, nota: 'O título e a descrição são o que o Google costuma mostrar no resultado. Canônico: o endereço que a página diz ser o dela.' }),
@@ -442,10 +471,10 @@ function corpoPaginas(pg, site, hoje) {
           tom: (p) => (og(p) && !texto(og(p).imagem) ? 'warn' : null),
         }),
         col('og_tamanho', 'Tamanho da imagem', 'texto', { valor: (p) => tamanhoDaImagem(og(p)), numerico: true }),
-        col('og_tipo', 'Tipo', 'texto', { valor: (p) => og(p)?.tipo }),
+        col('og_tipo', 'Tipo', 'texto', { valor: (p) => traduzirDoSite(TIPO_OG, og(p)?.tipo) }),
         col('og_site', 'Nome do site', 'texto', { valor: (p) => og(p)?.nome_site }),
         col('og_url', 'Endereço compartilhado', 'texto', { valor: (p) => (texto(og(p)?.url) ? (mesmoEndereco(og(p).url, p.url) ? 'a própria página' : enderecoRelativo(og(p).url, p.url)) : null), link: (p) => og(p)?.url, titulo: (p) => og(p)?.url }),
-        col('og_cartao', 'Cartão do X (Twitter)', 'texto', { valor: (p) => og(p)?.twitter_card }),
+        col('og_cartao', 'Cartão do X (Twitter)', 'texto', { valor: (p) => traduzirDoSite(CARTAO_X, og(p)?.twitter_card) }),
         col('og_atualizado', 'Atualizado', 'instante', { valor: (p) => og(p)?.atualizado_em }),
       ], { nota: 'O que aparece quando alguém manda o link no WhatsApp, no Facebook ou no LinkedIn.' }),
       porPagina('estruturados', 'Dados estruturados', [
@@ -483,15 +512,15 @@ function corpoPaginas(pg, site, hoje) {
         col('pl_base64', 'Scripts em base64', 'int', { valor: (p) => pl(p)?.scripts_base64, titulo: () => 'Scripts escondidos em base64 que o Painel abriu para procurar as etiquetas.' }),
         col('sv_server', 'Servidor', 'texto', { valor: (p) => sv(p)?.server }),
         col('sv_powered', 'Feito com', 'texto', { valor: (p) => sv(p)?.x_powered_by }),
-        col('sv_cache', 'Cache da página', 'texto', { valor: (p) => sv(p)?.x_cache }),
-      ], { nota: 'As versões são as que o HTML mostra; traço é versão que a página não mostra.' }),
+        col('sv_cache', 'Cache da página', 'texto', { valor: (p) => textoDoCache(sv(p)?.x_cache) }),
+      ], { nota: 'As versões são as que o HTML mostra; a versão que a página não mostra fica sem número.' }),
       secaoTabela('resposta', 'Resposta das páginas', paginas, [
         colPagina(),
         col('status', 'Status', 'int', { tom: (p) => (medida(p.status) !== null && medida(p.status) >= 400 ? 'bad' : null) }),
         col('ms_cabecalho', 'Resposta', 'ms'),
         col('ms_total', 'Total', 'ms'),
         col('kb', 'Tamanho', 'texto', { valor: (p) => (medida(p.bytes) === null ? null : `${formatar('int', Math.round(medida(p.bytes) / 1024))} KB${p.truncada ? ' (cortada)' : ''}`), numerico: true }),
-        col('erro', 'Erro', 'texto', { valor: (p) => (p.erro ? `${problemaDoSite(p.erro) ?? p.erro}${p.trecho ? `: ${texto(p.trecho, 120)}` : ''}` : null), tom: (p) => (p.erro ? 'bad' : null) }),
+        col('erro', 'Erro', 'texto', { valor: (p) => (p.erro ? `${problemaDoSite(p.erro) ?? 'outro problema'}${p.trecho ? `: ${texto(p.trecho, 120)}` : ''}` : null), tom: (p) => (p.erro ? 'bad' : null) }),
       ], { limite: 15, unidade: ['página', 'páginas'], vazio: 'Nenhuma página lida nesta coleta.', nota: 'Os tempos são medidos do servidor do Painel, não do aparelho de quem visita.' }),
       inicio ? secao('inicio', 'Página inicial', [blocoPares(paresDaPagina(inicio, site, www, hoje))]) : null,
     ],
@@ -514,7 +543,7 @@ function paresDaPagina(p, site, www, hoje) {
     { rotulo: 'Descrição (SEO)', valor: seo.descricao },
     { rotulo: 'Canônico', valor: seo.canonical, link: seo.canonical },
     { rotulo: 'Robots da página', valor: seo.robots },
-    { rotulo: 'Idioma', valor: seo.lang },
+    { rotulo: 'Idioma', valor: seo.lang, tipo: 'idioma' },
     { rotulo: 'Títulos H1', valor: seo.h1, tipo: 'int' },
     { rotulo: 'Compartilhamento (título)', valor: og.titulo },
     { rotulo: 'Compartilhamento (imagem)', valor: og.imagem ? `${enderecoRelativo(og.imagem, p.url)}${tamanhoDaImagem(og) ? ` (${tamanhoDaImagem(og)})` : ''}` : null, link: og.imagem },
@@ -533,7 +562,7 @@ function paresDaPagina(p, site, www, hoje) {
     { rotulo: 'Redes sociais no site', valor: lista(ct.redes).map((r) => texto(r, 120)).filter(Boolean).join(', ') || null },
     { rotulo: 'Mapa na página', valor: ct.mapa, tipo: 'sim' },
     { rotulo: 'Servidor', valor: [texto(sv.server, 60), texto(sv.x_powered_by, 60)].filter(Boolean).join(', ') || null },
-    { rotulo: 'Cache da página', valor: sv.x_cache },
+    { rotulo: 'Cache da página', valor: textoDoCache(sv.x_cache) },
     { rotulo: 'Com e sem www', valor: www ? `${caminho(www.de) ? texto(www.de, 120) : 'o outro endereço'} ${medida(www.status) ? `responde ${www.status}` : 'não responde'}${www.para ? ` e leva para ${texto(www.para, 120)}` : ''}` : null },
   ];
 }
@@ -648,13 +677,13 @@ function corpoPagespeed(ps, hoje) {
       }),
       secaoTabela('melhorar', 'O que melhorar', melhorar, [
         col('titulo', 'Item', 'texto', { max: 160 }),
-        col('categoria', 'Área', 'texto', { valor: (l) => traduzir(CATEGORIA_PSI, l.categoria) }),
+        col('categoria', 'Área', 'texto', { valor: (l) => traduzir(CATEGORIA_PSI, l.categoria, 'outra área') }),
         col('valor', 'Detalhe', 'texto', { max: 160 }),
         col('celular', 'Economia no celular', 'ms'),
         col('computador', 'Economia no computador', 'ms'),
         col('notaCelular', 'Nota no celular', 'int', { tom: (l) => tomDaNota(l.notaCelular) }),
         col('notaComputador', 'Nota no computador', 'int', { tom: (l) => tomDaNota(l.notaComputador) }),
-      ], { aberta: true, unidade: ['item', 'itens'], vazio: 'O PageSpeed não apontou nada para melhorar.', nota: 'A nota de cada item vai de 0 a 100; traço é item que não apareceu naquele aparelho.' }),
+      ], { aberta: true, unidade: ['item', 'itens'], vazio: 'O PageSpeed não apontou nada para melhorar.', nota: 'A nota de cada item vai de 0 a 100; o item que não apareceu num aparelho fica sem nota nele.' }),
       secaoTabela('agentes', 'Leitura por agentes de IA', [...auditorias.values()], [
         col('titulo', 'Conferência', 'texto', { max: 160 }),
         col('valor', 'Detalhe', 'texto', { max: 120 }),
@@ -770,12 +799,12 @@ function corpoCrux(c, hoje) {
   }
   const comPartes = presentes.filter(([k]) => objeto(fontes[k].lcp_partes));
   const lcpCel = cel && objeto(cel.metricas?.lcp_ms) ? cel.metricas.lcp_ms.p75 : null;
-  const tabelaTipo = tabelaDeFracoes(fontes, presentes, 'lcp_tipo', { rotulo: 'Tipo', rotular: (k) => traduzir({ image: 'imagem', text: 'texto' }, k), titulo: 'O maior conteúdo é' });
-  const tabelaNav = tabelaDeFracoes(fontes, presentes, 'navegacao', { rotulo: 'Como chegou', rotular: (k) => traduzir(NAV, k) });
+  const tabelaTipo = tabelaDeFracoes(fontes, presentes, 'lcp_tipo', { rotulo: 'Tipo', rotular: (k) => traduzir({ image: 'imagem', text: 'texto' }, k, 'outro tipo'), titulo: 'O maior conteúdo é' });
+  const tabelaNav = tabelaDeFracoes(fontes, presentes, 'navegacao', { rotulo: 'Como chegou', rotular: (k) => traduzir(NAV, k, 'outro jeito') });
   // A fatia de cada aparelho só faz sentido nas consultas de todos os
   // aparelhos (o site inteiro e a página inicial).
   const tabelaAparelhos = tabelaDeFracoes(fontes, ORIGENS_CRUX.filter(([k]) => k === 'todos' || k === 'inicio'), 'aparelhos', {
-    rotulo: 'Aparelho', rotular: (k) => traduzir({ phone: 'celular', desktop: 'computador', tablet: 'tablet' }, k),
+    rotulo: 'Aparelho', rotular: (k) => traduzir({ phone: 'celular', desktop: 'computador', tablet: 'tablet' }, k, 'outro aparelho'),
   });
 
   return {
@@ -865,7 +894,7 @@ function corpoRobotsSitemap(robots, sitemap, hoje) {
         ? secao('sitemap', 'Sitemap', [
           blocoPares([
             { rotulo: 'Endereço que respondeu', valor: s.url ?? 'nenhum', link: s.url },
-            { rotulo: 'Tipo', valor: traduzir({ indice: 'índice de sitemaps', urls: 'lista de endereços' }, s.tipo) },
+            { rotulo: 'Tipo', valor: traduzir({ indice: 'índice de sitemaps', urls: 'lista de endereços' }, s.tipo, 'outro tipo') },
             { rotulo: 'Endereços', valor: s.total_urls, tipo: 'int' },
             { rotulo: 'Última alteração', valor: s.ultima_modificacao, tipo: 'instante', hoje },
             { rotulo: 'Sitemaps internos não lidos', valor: s.subs_nao_lidos, tipo: 'int' },
@@ -901,7 +930,7 @@ const COMPONENTES = Object.freeze({ wordpress: 'WordPress', elementor: 'Elemento
 
 function corpoWordpress(wp, versoes, dns, hoje) {
   const w = objeto(wp) ? wp : null;
-  const v = objeto(versoes) ? Object.entries(versoes).filter(([, x]) => objeto(x)).map(([k, x]) => ({ componente: traduzir(COMPONENTES, k), ...x })) : null;
+  const v = objeto(versoes) ? Object.entries(versoes).filter(([, x]) => objeto(x)).map(([k, x]) => ({ componente: traduzir(COMPONENTES, k, 'outro componente'), ...x })) : null;
   const d = objeto(dns) ? dns : null;
   const desatualizados = v ? v.filter((x) => x.desatualizado === true).length : null;
   const colsWp = [
@@ -920,7 +949,7 @@ function corpoWordpress(wp, versoes, dns, hoje) {
         numero({ id: 'paginas', rotulo: 'Páginas publicadas', valor: w?.paginas?.total }),
         numero({ id: 'posts', rotulo: 'Posts', valor: w?.posts?.total }),
         numero({ id: 'desatualizados', rotulo: 'Desatualizados', valor: desatualizados }),
-        numero({ id: 'dmarc', rotulo: 'DMARC', tipo: 'texto', valor: d ? (objeto(d.dmarc) ? traduzir(DMARC, d.dmarc.politica) : 'sem DMARC') : null }),
+        numero({ id: 'dmarc', rotulo: 'DMARC', tipo: 'texto', valor: d ? (objeto(d.dmarc) ? traduzir(DMARC, d.dmarc.politica, 'outra política') : 'sem DMARC') : null }),
       ]),
     ],
     secoes: [
@@ -957,7 +986,7 @@ function corpoWordpress(wp, versoes, dns, hoje) {
           blocoPares([
             { rotulo: 'Domínio', valor: d.dominio },
             { rotulo: 'SPF', valor: d.spf ?? 'sem SPF' },
-            { rotulo: 'DMARC', valor: objeto(d.dmarc) ? `${traduzir(DMARC, d.dmarc.politica) ?? 'sem política'}: ${texto(d.dmarc.registro, 200) ?? ''}` : 'sem DMARC' },
+            { rotulo: 'DMARC', valor: objeto(d.dmarc) ? `${traduzir(DMARC, d.dmarc.politica, 'outra política') ?? 'sem política'}: ${texto(d.dmarc.registro, 200) ?? ''}` : 'sem DMARC' },
             { rotulo: 'Servidores de e-mail (MX)', valor: lista(d.mx).join(', ') || 'nenhum' },
             { rotulo: 'Verificação do Google no DNS', valor: d.verificacoes?.google_site_verification, tipo: 'sim' },
             { rotulo: 'Verificação do Facebook no DNS', valor: d.verificacoes?.facebook_domain_verification, tipo: 'sim' },

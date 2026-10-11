@@ -565,3 +565,11 @@ test('com o mkt-oauth.mjs de verdade: a renovação vai ao LinkedIn com o env do
   assert.ok(t.chamadas.every(c=>c.headers.Authorization===`Bearer ${TOKEN_NOVO}`));
  }finally{globalThis.fetch=antes;}
 });
+
+test('o caso ruim (revisão de 12/10): número fora da faixa vira frase para gente; a chave interna e a data ISO ficam no diário', () => {
+  assert.equal(L.avisoDeForaDaFaixa(['impressoes 2026-09-28']), 'Um número veio fora da faixa e ficou de fora: as impressões da semana de 28/09.');
+  assert.equal(L.avisoDeForaDaFaixa(['seguidores 2026-09-28', 'cliques 2026-10-05', 'numero_novo 2026-10-05']),
+    'Alguns números vieram fora da faixa e ficaram de fora: os seguidores da semana de 28/09, os cliques da semana de 05/10 e um número da semana de 05/10.');
+  for (const a of [L.avisoDeForaDaFaixa(['engajamento 2026-09-28'])]) assert.equal(/impressoes|\d{4}-\d{2}-\d{2}|_/.test(a), false, a);
+  assert.equal(L.avisoDeForaDaFaixa([]), null);
+});

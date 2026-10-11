@@ -169,14 +169,18 @@ export const MOTIVOS = Object.freeze({
 export const AVISO_DESCONECTAR_GOOGLE = 'Desconectar o Google desliga juntos o Analytics, o Search Console e o Perfil da Empresa.';
 
 export class ErroOAuth extends Error {
-  /** `codigo` é curto e fixo; `detalhe` também (nunca texto do provedor). */
-  constructor(codigo, { status = null, detalhe = null, transitorio = false } = {}) {
+  /** `codigo` é curto e fixo; `detalhe` também (nunca texto do provedor).
+   *  `fonte`: só no state recusado DEPOIS de a assinatura e a fonte
+   *  conferirem (vencido, nonce torto): aí a fonte é nossa e a volta pode
+   *  dizer de qual conexão se trata. Assinatura errada nunca leva fonte. */
+  constructor(codigo, { status = null, detalhe = null, transitorio = false, fonte = null } = {}) {
     super(codigo);
     this.name = 'ErroOAuth';
     this.codigo = codigo;
     this.status = status;
     this.detalhe = detalhe;
     this.transitorio = transitorio;
+    this.fonte = fonte;
   }
 }
 
@@ -287,13 +291,16 @@ export async function conferirState(state, segredo, agora = Date.now()) {
   try { dados = JSON.parse(dec.decode(deB64url(corpo))); } catch { throw recusa('formato'); }
   if (!dados || typeof dados !== 'object') throw recusa('formato');
   if (!FONTES_OAUTH.includes(dados.fonte)) throw recusa('fonte');
-  if (typeof dados.quem !== 'string' || !dados.quem || dados.quem.length > 100) throw recusa('formato');
+  // Daqui para baixo a assinatura e a fonte conferem: a recusa leva a fonte,
+  // e a tela diz de qual conexão o pedido venceu (e não um aviso solto).
+  const recusaDa = (detalhe) => new ErroOAuth('state_invalido', { detalhe, fonte: dados.fonte });
+  if (typeof dados.quem !== 'string' || !dados.quem || dados.quem.length > 100) throw recusaDa('formato');
   const segundos = Math.floor(agora / 1000);
-  if (!Number.isFinite(dados.exp) || dados.exp < segundos) throw recusa('vencido');
+  if (!Number.isFinite(dados.exp) || dados.exp < segundos) throw recusaDa('vencido');
   // Validade maior que a nossa não saiu daqui, nem com a chave certa.
-  if (dados.exp - segundos > VALIDADE_STATE_S + 60) throw recusa('vencido');
+  if (dados.exp - segundos > VALIDADE_STATE_S + 60) throw recusaDa('vencido');
   // Sem o nonce não há pedido guardado para consumir.
-  if (typeof dados.n !== 'string' || !NONCE.test(dados.n)) throw recusa('formato');
+  if (typeof dados.n !== 'string' || !NONCE.test(dados.n)) throw recusaDa('formato');
   return { fonte: dados.fonte, quem: dados.quem, exp: dados.exp, n: dados.n };
 }
 

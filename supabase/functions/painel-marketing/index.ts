@@ -557,6 +557,10 @@ Deno.serve(async (req: Request) => {
         }
         return json({
           ok: true, revogado,
+          // O retrato do LinkedIn não saiu do cache: a tela mantém o
+          // Desconectar à vista (o aviso manda clicar de novo) e pinta o
+          // aviso como atenção, e não como "deu certo".
+          retratoFicou: avisoCache !== null,
           aviso: avisoCache ?? (revogado === false ? 'A conexão saiu do Painel, mas o Google não confirmou a revogação. Para garantir, tire o acesso do app na sua Conta Google (myaccount.google.com, na parte de segurança).' : fonte === 'google' ? AVISO_DESCONECTAR_GOOGLE : null),
         });
       }
