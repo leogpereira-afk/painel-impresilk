@@ -46,3 +46,9 @@ Autorização: Léo confirmou “subir” em 11/10/2026, após a entrega da revi
 Pré-publicação: 1094/1094 testes da suíte completa de auditoria com PostgreSQL local, sem ignorados; 711/711 testes integrados de patrimônio/cálculos/acesso da revisão; build e verificadores aprovados. Ajustados os verificadores de rotas para as permissões internas e os imports de teste da Licitação para os módulos compartilhados novos. Cópias de recuperação privadas preparadas fora do Git. Nenhuma reclassificação ou concessão de acesso será feita automaticamente.
 
 Estado: publicação em execução; confirmar as versões do servidor e a versão oficial das telas antes de declarar concluída.
+
+### Publicação concluída · 11/10/2026
+
+Patrimônio/Manutenções publicado com autorização “subir”, commit 86c01a0; duas permissões da equipe-auth no vida-leo, commit 5e9a9ce. Sete migrações de integridade aplicadas sem transformar registros; comparação privada confirmou preservação. Servidor conferido antes da tela e novamente após os Actions; versões ativas 119/103/113/48/44 e equipe-auth 78. Pages e functions verdes; arquivos oficiais das duas telas idênticos ao build validado. Build OK e 1094/1094 testes locais de auditoria aprovados. Nenhuma concessão de acesso automática.
+
+Limitação: conta restrita real não estava autenticada no navegador oficial. Testes dos handlers com perfis restritos simulados e leitura pública recusada com 401 passaram; conferência autenticada com pessoa restrita real continua pendente. Relatório detalhado em docs/patrimonio-fases.md. A vez continua Codex.

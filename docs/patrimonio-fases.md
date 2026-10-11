@@ -128,3 +128,21 @@ Pedido atual do dono: manter o padrão existente e agrupar a infraestrutura em E
 - Revisão independente aprovada após corrigir dois P2: linha ativa sem aparelho e preservação de referências antigas intactas. Referências novas inválidas continuam recusadas. Mesmos IDs de unidades consumidoras em outra ordem conservam a sequência anterior; alterações com duplicatas são recusadas. Falhas na consulta de contatos aparecem como indisponibilidade, preservando o vínculo.
 - As sete migrações 20261011120000 a 20261011120600 estão preparadas e **não foram aplicadas remotamente**. Os arquivos e históricos reais não foram alterados. Sem commit, merge, publicação ou liberação de acesso nesta expansão.
 - Próximo passo externo: publicação com autorização específica, servidor antes da tela e validação autenticada com pessoa restrita no servidor publicado. Concorrência real entre sessões não foi ensaiada; os testes locais não comprovam implantação.
+
+## Publicação da expansão · 11/10/2026
+
+Autorização explícita do dono: “subir”. Código do Painel publicado a partir do commit 86c01a0; ajuste pontual de equipe-auth publicado no vida-leo, commit 5e9a9ce.
+
+- As sete migrações de integridade foram aplicadas no Supabase: ramais_vinculos, equipamentos_familias, celulares_vinculos, fisicos_numeracao, fisicos_integridade, ativo_restaurar e infra_referencias. Nenhuma reclassificação ou concessão de acesso automática. Quantidades e assinaturas dos registros conferidas antes/depois permaneceram idênticas; detalhes e recuperação ficam somente em cópia privada fora do Git.
+- Servidor publicado e fonte conferida antes da tela. Após a publicação automática, versões finais ativas: painel-config 119, painel-ativos 103, painel-auth 113, painel-fotos 48, painel-agenda 44 e equipe-auth 78. Conteúdo dos arquivos publicado confere com o código validado, incluindo módulos compartilhados.
+- As funções novas/alteradas do banco recusam execução direta por anon e authenticated; permissões do service_role e search_path conferidos. O comparativo dos avisos de segurança não acrescentou alertas.
+- GitHub Actions aprovou o servidor e o Pages do commit 86c01a0. O build oficial e os arquivos públicos Patrimônio e Manutenções conferem byte a byte com o build local feito com a base do Pages. Entrada oficial aberta no navegador, sem criar dados de demonstração na produção.
+- Verificações locais: 1094/1094 testes de auditoria sem falhas/ignorados, 711/711 testes integrados da revisão, build aprovado, lint sem erros (dois avisos anteriores), navegação desktop/celular e respostas de perfis restritos simulados aprovadas.
+- Respostas publicadas de leitura de ativos, inventário, infraestrutura e calendário recusaram pedidos sem autenticação com 401 e sem dados. Isso não substitui o teste com uma conta restrita real.
+- **Limitação de conferência:** o navegador oficial estava no login, sem sessão restrita disponível. A leitura autenticada com pessoa real sem Inventário e valores continua pendente. Não houve criação de conta, ampliação de acesso, impersonação ou alteração de senha para contornar essa limitação. Concorrência real entre sessões também não foi ensaiada.
+
+Painel oficial: https://leogpereira-afk.github.io/painel-impresilk/
+
+Actions Pages: https://github.com/leogpereira-afk/painel-impresilk/actions/runs/38162512369
+
+Actions servidor: https://github.com/leogpereira-afk/painel-impresilk/actions/runs/38162512371
