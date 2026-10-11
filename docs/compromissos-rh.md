@@ -1,6 +1,6 @@
 # Compromissos: identidade existente do RH
 
-Implementação local concluída em 11/10/2026, conforme o pedido de vincular o ID do RH sem criar outra identificação. Publicação ainda não executada.
+Implementação local concluída em 11/10/2026, conforme o pedido de vincular o ID do RH sem criar outra identificação. Léo autorizou a publicação com “subir” após a revisão.
 
 ## Comportamento
 
@@ -24,8 +24,8 @@ Continuam valendo a filtragem por login e a gravação com comparação do estad
 
 Evidências privadas fora do Git: `/private/tmp/compromissos-rh-revisao.png`, `/private/tmp/compromissos-rh-celular.png` e `/private/tmp/compromissos-rh-tests-final.log`. Nenhum registro real foi criado ou alterado.
 
-## Publicação pendente
+## Publicação autorizada
 
-Obter autorização específica conforme `AGENTS.md`. Publicar e confirmar `painel-config` com o módulo compartilhado antes de liberar a tela dependente. Não é necessário modificar o RH, cadastrar pessoas ou aplicar migração. Preservar alterações paralelas da main ao preparar a publicação.
+Servidor publicado antes da tela: `painel-config` v123 ACTIVE. Os 14 arquivos da função e das dependências foram recuperados pelo conector e comparados integralmente com o código validado. Cópia anterior privada preservada fora do Git. A liberação da tela está em andamento. Não foi necessário modificar o RH, cadastrar pessoas ou aplicar migração; a main atual estava contida no ramo da revisão.
 
 Depois, verificar a versão oficial e o diretório autenticado com pessoas já cadastradas, conferir fotos/códigos e a separação de agenda com conta restrita. Não salvar registros fictícios em produção. A confirmação do vínculo real depende dos cadastros centrais existentes; vínculos faltantes devem ser corrigidos pelo fluxo de cadastro autorizado da tela.

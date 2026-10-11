@@ -6,6 +6,8 @@ Agente: codex. Autorização de Léo: “finalizar”, em 11/10/2026. Ramo `code
 
 Estado: integração local concluída com a ficha existente e o código `acesso_conta.id_pessoa`, nome/foto, encaminhamento e eventos por RH ID. 25 testes pertinentes aprovados; suíte completa com 1.716 aprovados, zero falhas e 84 condicionais de banco não executados. Builds e 15 verificadores aprovados; lint sem erros, um aviso anterior em Agenda. Desktop/celular e gravações fictícias conferidos no navegador. Relatório em `docs/compromissos-rh.md`. Não houve publicação, migração, concessão de acesso ou alteração de registros reais. A vez continua do Codex.
 
+Publicação autorizada por Léo: “subir”, em 11/10/2026, após a revisão local. Servidor publicado antes da tela: `painel-config` v123 ACTIVE, 14 arquivos comparados com o código validado e idênticos. A liberação da tela está em andamento. Nenhuma migração, alteração de registros ou concessão de acesso.
+
 ## Trabalho atual: Documentos e vencimentos
 
 Publicação autorizada por Léo: “pode subir”, em 11/10/2026, após revisão local. Servidor publicado e todos os arquivos conferidos antes da tela: painel-ativos 105, painel-agenda 46, painel-auth 115 e equipe-auth 79. RPC estrutural aplicada sem transformar registros; assinatura dos cadastros preservada. Publicação da tela em andamento. Nenhuma concessão de acesso.
