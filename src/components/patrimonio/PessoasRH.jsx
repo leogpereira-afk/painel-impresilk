@@ -2,7 +2,14 @@ import {createContext,useCallback,useContext,useEffect,useMemo,useState,useId,us
 import {lerPessoasPatrimonio} from '../../services/patrimonio.js';
 
 const Contexto=createContext({pessoas:[],carregando:true,erro:''});
-export function PessoasRHProvider({children}) {
+export function PessoasRHProvider({children,pessoasFornecidas}) {
+ if(pessoasFornecidas!==undefined) {
+  const pessoas=Array.isArray(pessoasFornecidas)?pessoasFornecidas:[];
+  return <Contexto.Provider value={{pessoas,carregando:false,erro:'',carregar:()=>{}}}>{children}</Contexto.Provider>;
+ }
+ return <PessoasRHRemotasProvider>{children}</PessoasRHRemotasProvider>;
+}
+function PessoasRHRemotasProvider({children}) {
  const [pessoas,setPessoas]=useState([]),[carregando,setCarregando]=useState(true),[erro,setErro]=useState('');
  const consulta=useRef(0);
  const carregar=useCallback(async()=>{

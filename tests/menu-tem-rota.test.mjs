@@ -20,7 +20,7 @@ import { readFile } from "node:fs/promises";
 import { MODULOS } from "../src/lib/modulos.js";
 
 // Permissões internas: são chips de uma única entrada, não páginas paralelas.
-const AREAS_NO_PATRIMONIO = { "inventario-valores": "patrimonio", seguranca: "patrimonio" };
+const PERMISSOES_INTERNAS = { "inventario-valores": "patrimonio", seguranca: "patrimonio", "documentos-pessoais": "documentos" };
 
 test("todo módulo oferecido no menu tem rota no App", async () => {
   const app = await readFile(new URL("../src/App.jsx", import.meta.url), "utf8");
@@ -30,11 +30,11 @@ test("todo módulo oferecido no menu tem rota no App", async () => {
   assert.ok(rotas.size >= 10, `esperava a tabela de rotas inteira, achei ${rotas.size}`);
 
   const menu = await readFile(new URL("../src/components/CentralShell.jsx", import.meta.url), "utf8");
-  for (const id of Object.keys(AREAS_NO_PATRIMONIO)) {
+  for (const id of Object.keys(PERMISSOES_INTERNAS)) {
     assert.match(menu, new RegExp(`MODULOS\\.filter\\(m=>!\\[[^\\]]*['"]${id}['"]`),
-      `${id} deve continuar dentro do Patrimônio, sem entrada lateral própria`);
+      `${id} deve continuar dentro de ${PERMISSOES_INTERNAS[id]}, sem entrada lateral própria`);
   }
-  const semRota = MODULOS.map((m) => m.id).filter((id) => !rotas.has(AREAS_NO_PATRIMONIO[id] || id));
+  const semRota = MODULOS.map((m) => m.id).filter((id) => !rotas.has(PERMISSOES_INTERNAS[id] || id));
   assert.deepEqual(semRota, [],
     `estes módulos aparecem no menu e o clique volta para o Início: ${semRota.join(", ")}`);
 });
@@ -61,7 +61,7 @@ test("rota de módulo é protegida por <Restrito>", async () => {
      dado. Exceção escrita é exceção decidida; exceção silenciosa é esquecimento. */
   const SEM_RESTRITO = new Set(["configuracoes", "glossario"]);
   const desprotegidos = MODULOS.map((m) => m.id)
-    .filter((id) => !SEM_RESTRITO.has(id) && !protegidos.has(id));
+    .filter((id) => !SEM_RESTRITO.has(id) && !protegidos.has(PERMISSOES_INTERNAS[id] || id));
   assert.deepEqual(desprotegidos, [],
     `rota de módulo sem <Restrito>: ${desprotegidos.join(", ")}`);
 });

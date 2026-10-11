@@ -29,7 +29,7 @@ export default function EquipamentosPatrimonio({ tipo, bens = [], setores = [], 
   const [vinculo, setVinculo] = useState('todos'), [pagina, setPagina] = useState(1), [relatorio, setRelatorio] = useState(null);
   const pedido = useRef(0);
   const gerenciar = podeAbrir('manutencoes');
-  const cadastro=params.get('cadastro'),fichaId=params.get('ficha');
+  const cadastro=params.get('cadastro'),fichaId=params.get('ficha'),itemId=params.get('item');
   const limparPedido=()=>setParams(p=>{const n=new URLSearchParams(p);n.delete('cadastro');n.delete('ficha');return n;},{replace:true});
   const fecharFormulario=()=>{setForm(null);limparPedido();};
   const novo=()=>{setErro('');setForm({cadastroId:crypto.randomUUID(),tipo,nome:'',especificacao:{}});};
@@ -52,11 +52,11 @@ export default function EquipamentosPatrimonio({ tipo, bens = [], setores = [], 
 
   const equipamentos = useMemo(() => projetarEquipamentos((ativos || []).map(i=>comNomeRH(i,pessoas)), bens, setores), [ativos, bens, setores,pessoas]);
   const todos = equipamentos.filter(item => item.tipo === tipo);
-  const lista = useMemo(() => filtrarEquipamentos(equipamentos, { tipo, busca, vinculo }), [equipamentos, tipo, busca, vinculo]);
+  const lista = useMemo(() => filtrarEquipamentos(equipamentos, { tipo, busca, vinculo }).filter(item=>!itemId||item.id===itemId), [equipamentos, tipo, busca, vinculo,itemId]);
   const paginas = Math.max(1, Math.ceil(lista.length / POR_PAGINA)), atual = Math.min(pagina, paginas);
   const recorte = lista.slice((atual - 1) * POR_PAGINA, atual * POR_PAGINA);
-  const comFiltro = Boolean(busca.trim()) || vinculo !== 'todos';
-  const limpar = () => { setBusca('');setVinculo('todos');setPagina(1); };
+  const comFiltro = Boolean(busca.trim()) || vinculo !== 'todos' || Boolean(itemId);
+  const limpar = () => { setBusca('');setVinculo('todos');setPagina(1);if(itemId)setParams(p=>{const n=new URLSearchParams(p);n.delete('item');return n;},{replace:true}); };
   const abrirRelatorio = () => setRelatorio({
     itens: lista, busca: busca.trim(), filtro: vinculo === 'todos' ? 'Todos' : vinculo === 'vinculado' ? 'Com ficha no inventário' : 'Sem vínculo confirmado',
     em: new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' }),

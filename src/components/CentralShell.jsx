@@ -22,7 +22,7 @@ export default function CentralShell({children,sessao,aoSair,controles}) {
   const naCentral = ['/acessos','/minha-conta','/backups','/configuracoes'].includes(location.pathname);
   // `documentos` agora e um modulo como os outros (src/lib/modulos.js): sai
   // do acrescimo a mao, que o punha no menu de TODA sessao, e entra no filtro.
-  const modulos = MODULOS.filter(m=>!['configuracoes','agenda','calendario-empresa','compromissos','reunioes','demandas','manutencoes','inventario-valores','seguranca'].includes(m.id) && (m.id==='patrimonio' ? !!destinoPatrimonio((podeAbrir('patrimonio',sessao)||podeAbrir('inventario-valores',sessao)||podeAbrir('seguranca',sessao)),podeAbrir('manutencoes',sessao)) : podeAbrir(m.id,sessao)));
+  const modulos = MODULOS.filter(m=>!['configuracoes','agenda','calendario-empresa','compromissos','reunioes','demandas','manutencoes','inventario-valores','seguranca','documentos-pessoais'].includes(m.id) && (m.id==='patrimonio' ? !!destinoPatrimonio((podeAbrir('patrimonio',sessao)||podeAbrir('inventario-valores',sessao)||podeAbrir('seguranca',sessao)),podeAbrir('manutencoes',sessao)) : podeAbrir(m.id,sessao)));
   const gruposAcesso = [
     {nome:'IMPRESILK', links:SISTEMAS.filter(s=>s.id!=='painel' && !s.pessoal && s.url)},
     {nome:'CENTRAL DO LÉO', links:SISTEMAS.filter(s=>s.id==='central')},

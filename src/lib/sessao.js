@@ -54,7 +54,14 @@ export function getToken() {
 }
 
 export function getSessao() {
-  if (import.meta.env.MODE === "review") return {usuario:"demo",nome:"Conta de demonstração",master:true,permissoes:["*"]};
+  if (import.meta.env.MODE === "review") {
+    // Perfis fictícios para conferir o que cada pessoa vê, sem autenticação
+    // real. Este ramo desaparece da compilação publicada.
+    const perfil = new URLSearchParams(window.location.search).get('perfil');
+    if (perfil === 'empresa') return { usuario:'demo',nome:'Consulta empresarial · simulação',master:false,permissoes:['documentos','patrimonio','calendario-empresa'] };
+    if (perfil === 'sem-valores') return { usuario:'demo',nome:'Consulta sem valores · simulação',master:false,permissoes:['documentos','documentos-pessoais','patrimonio','calendario-empresa'] };
+    return {usuario:"demo",nome:"Conta de demonstração",master:true,permissoes:["*"]};
+  }
   try {
     const raw = localStorage.getItem(K_SESSAO);
     if (!raw) return null;

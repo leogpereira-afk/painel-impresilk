@@ -57,7 +57,7 @@ const MODULOS = ["gestao", "contas-atrasadas", "orcamentos", "bancos", "marketin
   // tela nao tinha modulo nenhum: rota sem `Restrito`, item no menu fora do
   // filtro, e a porta de dados abria documento/veiculo/maquina/seguro para
   // qualquer pessoa logada -- inclusive para APAGAR.
-  "documentos",
+  "documentos", "documentos-pessoais",
   // 15/09/2026 -- "planilhas". O modulo e PLANO: cada planilha pertence a um
   // setor, e o setor e concedido a parte, nunca como "planilhas:FIN" dentro
   // desta lista. Medido antes de decidir: `somenteValidos` do cliente

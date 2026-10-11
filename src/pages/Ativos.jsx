@@ -1,725 +1,168 @@
-import {podeAbrir} from '../lib/sessao.js';
-import { useAbaNavegavel } from "../hooks/useAbaNavegavel.js";
-import PessoaRH,{PessoasRHProvider,usePessoasRH,comNomeRH} from '../components/patrimonio/PessoasRH.jsx';
-// Documentos, veiculos e maquinas -- tres lentes do mesmo controle: coisas com
-// data que alguem precisa renovar antes de vencer.
-//
-// A tela abre pelo que esta pior (vencido primeiro) porque e assim que o
-// problema chega: ninguem entra aqui para admirar o que esta em dia.
+import {useCallback,useEffect,useMemo,useRef,useState} from 'react';
+import {Link,useSearchParams} from 'react-router-dom';
+import {FileCheck2,Car,ShieldCheck,Wrench,Plus,Printer,RefreshCw,Search,Users,Trash2,ClipboardList,ArrowLeft} from 'lucide-react';
+import {useAbaNavegavel} from '../hooks/useAbaNavegavel.js';
+import {getSessao,podeAbrir} from '../lib/sessao.js';
+import {PessoasRHProvider,usePessoasRH} from '../components/patrimonio/PessoasRH.jsx';
+import JanelaFormulario from '../components/JanelaFormulario.jsx';
+import {PageTitle,CarregandoModulo,ErroModulo,AvisoAtualizacao,Empty} from '../components/ui.jsx';
+import * as api from '../services/documentos.js';
+import {ABAS_DOCUMENTOS,calcDocumentos,controlesDoBem,ehVeiculo,filtrarDocumentos,nomeTitular,situacaoRequisito} from '../lib/calc/documentos.js';
+import {dataLonga,moeda,ymdLocal} from '../lib/format.js';
+import FormControle,{novoControle} from '../components/documentos/FormControle.jsx';
+import {FormTitular,FormRequisito} from '../components/documentos/FormCadastros.jsx';
+import ListaDocumentos,{ListaVeiculos,ChipPrazo} from '../components/documentos/ListaDocumentos.jsx';
+import '../components/documentos/documentos.css';
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import {
-  FileCheck2,
-  Car,
-  Cog,
-  ShieldCheck,
-  Plus,
-  Trash2,
-  Upload,
-  Download,
-  AlertTriangle,
-  Check,
-  Search,
-  X,
-} from "lucide-react";
-import {
-  listarAtivos,
-  salvarAtivo,
-  removerAtivo,
-  listarLixeira,
-  restaurarAtivo,
-  guardarArquivo,
-  lerArquivo,
-  arquivoParaBase64,
-  abrirBase64,
-} from "../services/ativos.js";
-import { calcAtivos, TIPOS, CATEGORIAS } from "../lib/calc/ativos.js";
-import { dataLonga, moeda, numero, paraCampo, paraNumero, ymdLocal } from "../lib/format.js";
-import {
-  Card,
-  PageTitle,
-  SectionTitle,
-  StatCard,
-  Empty,
-  CarregandoModulo,
-  ErroModulo,
-  AvisoAtualizacao,
-  Segmented,
-} from "../components/ui.jsx";
+const ICONES={documento:FileCheck2,veiculo:Car,garantia:Wrench,seguro:ShieldCheck};
+const STATUS={vencido:'Vencidos',urgente:'A vencer',futuro:'A iniciar',ok:'Em dia',sem:'Prazo não informado',semVencimento:'Sem vencimento',encerrado:'Encerrados / cancelados'};
+const LISTA_VAZIA=[];
+const INICIAL={busca:'',titularId:'',status:'',categoria:'',rh:''};
+const texto=valor=>Array.isArray(valor)?valor.join(' · '):typeof valor==='object'&&valor?JSON.stringify(valor):String(valor??'');
 
-const ICONE = { documento: FileCheck2, veiculo: Car, maquina: Cog, seguro: ShieldCheck };
-
-const TOM = {
-  vencido: { chip: "chip-bad", barra: "bg-bad-600", texto: "text-bad-700" },
-  urgente: { chip: "chip-warn", barra: "bg-warn-600", texto: "text-warn-700" },
-  atencao: { chip: "chip", barra: "bg-slate-300", texto: "text-slate-600" },
-  ok: { chip: "chip-ok", barra: "bg-ok-600", texto: "text-ok-700" },
-  sem: { chip: "chip", barra: "bg-slate-200", texto: "text-slate-400" },
-};
-
-const vazio = (tipo) => ({
-  tipo,
-  nome: "",
-  categoria: "",
-  identificacao: "",
-  responsavel: "",
-  emissao: "",
-  validade: "",
-  medidorAtual: "",
-  medidorProximo: "",
-  unidadeMedidor: tipo === "veiculo" ? "km" : "horas",
-  // Apolice: `identificacao` guarda o numero dela, `responsavel` o corretor,
-  // `emissao`/`validade` a vigencia. Estes dois sao so dela.
-  seguradora: "",
-  valorSegurado: "",
-  valor: "",
-  observacao: "",
-});
-
-export default function Ativos() {
-  return <PessoasRHProvider><AtivosConteudo/></PessoasRHProvider>;
+export default function Ativos({sessao=getSessao()}={}) {
+  const chaveSessao=JSON.stringify([sessao?.usuario,sessao?.master,sessao?.permissoes||[]]);
+  const temDocumentos=podeAbrir('documentos',sessao);
+  const [dadosLidos,setDadosLidos]=useState({chave:'',conteudo:null}),[falha,setFalha]=useState({chave:'',mensagem:''}),[consulta,setConsulta]=useState({chave:'',atualizando:false});
+  const leitura=useRef(0);
+  const sessaoAtual=useRef(chaveSessao);sessaoAtual.current=chaveSessao;
+  const dados=temDocumentos&&dadosLidos.chave===chaveSessao?dadosLidos.conteudo:null;
+  const erro=falha.chave===chaveSessao?falha.mensagem:'';
+  const atualizando=consulta.chave===chaveSessao&&consulta.atualizando;
+  const carregar=useCallback(async()=>{
+    // Um formulário desmontado pode concluir uma operação depois da troca
+    // de acesso; nem o recarregamento dele pertence à sessão atual.
+    if(!temDocumentos||sessaoAtual.current!==chaveSessao)return;
+    const pedido=++leitura.current,atual=()=>pedido===leitura.current&&sessaoAtual.current===chaveSessao;
+    setConsulta({chave:chaveSessao,atualizando:true});
+    try {
+      const resposta=await api.listarDocumentos();if(!atual())return;
+      if(!['itens','bens','titulares','requisitos','pessoas'].every(chave=>Array.isArray(resposta?.[chave])))throw new Error('Não foi possível conferir a lista completa de documentos. Atualize para tentar novamente.');
+      setDadosLidos({chave:chaveSessao,conteudo:resposta});setFalha({chave:chaveSessao,mensagem:''});return resposta;
+    } catch(e) {if(atual())setFalha({chave:chaveSessao,mensagem:e.message});}
+    finally {if(atual())setConsulta({chave:chaveSessao,atualizando:false});}
+  },[chaveSessao,temDocumentos]);
+  const setDados=useCallback(valor=>{
+    if(sessaoAtual.current!==chaveSessao)return;
+    setDadosLidos(atual=>atual.chave===chaveSessao?{chave:chaveSessao,conteudo:typeof valor==='function'?valor(atual.conteudo):valor}:atual);
+  },[chaveSessao]);
+  useEffect(()=>{const contador=leitura;setDadosLidos({chave:chaveSessao,conteudo:null});void carregar();return()=>{contador.current++;};},[carregar,chaveSessao]);
+  if(!dados)return erro?<ErroModulo mensagem={erro} aoTentar={carregar}/>:<CarregandoModulo/>;
+  return <PessoasRHProvider key={chaveSessao} pessoasFornecidas={dados.pessoas||[]}><DocumentosConteudo key={chaveSessao} dados={dados} setDados={setDados} carregar={carregar} erroLeitura={erro} atualizando={atualizando}/></PessoasRHProvider>;
 }
-function AtivosConteudo() {
+
+function DocumentosConteudo({dados,setDados,carregar,erroLeitura,atualizando}) {
   const {pessoas}=usePessoasRH();
-  const [itens, setItens] = useState(null);
-  const [lixeira, setLixeira] = useState(null); // null = fechada
-  const [erro, setErro] = useState(null);
-  const [tipo, setTipo] = useAbaNavegavel("documento", ["documento", "veiculo", "maquina", "seguro"]);
-  const [busca, setBusca] = useState("");
-  /* OS CARTÕES VIRAM RECORTE. "Vencidos: 3" era um número que não virava
-     lista: para achar os 3 era conferir item por item, e eles podiam estar em
-     qualquer uma das lentes. Clicar filtra e mostra em qual lente estão. */
-  const [recorte, setRecorte] = useState(null); // "vencido" | "urgente" | "sem" | null
-  const [form, setForm] = useState(null); // null = formulario fechado
-  const [arquivo, setArquivo] = useState(null);
-  const [salvando, setSalvando] = useState(false);
-  const [msg, setMsg] = useState(null);
-
-  const pedidoLeitura = useRef(0);
-  const carregar = useCallback(async () => {
-    const pedido = ++pedidoLeitura.current;
-    try {
-      const lista = await listarAtivos();
-      if (pedido !== pedidoLeitura.current) return;
-      setItens(lista);
-      setErro(null);
-    } catch (e) {
-      if (pedido !== pedidoLeitura.current) return;
-      setErro(e.message);
-
-    }
-  }, []);
-
-  useEffect(() => {
-    carregar();
-  }, [carregar]);
-
-  const hojeISO = ymdLocal(new Date());
-  // Marketing e licitacoes (abas proprias) moram na mesma colecao mas nao tem a
-  // mecanica de vencimento -- so entram aqui os tipos DESTA tela, senao viram
-  // "sem data" nas estatisticas.
-  const vm = useMemo(
-    () => calcAtivos((itens || []).filter((x) => TIPOS[x.tipo]).map(x=>['veiculo','maquina'].includes(x.tipo)?comNomeRH(x,pessoas):x), hojeISO),
-    [itens, hojeISO,pessoas]
-  );
-
-  const daLente = useMemo(() => {
-    const q = busca.trim().toLowerCase();
-    return vm.lista
-      .filter((x) => x.tipo === tipo)
-      .filter((x) => !recorte || x.sit.nivel === recorte)
-      .filter((x) =>
-        !q
-          ? true
-          : `${x.nome} ${x.categoria} ${x.identificacao} ${x.responsavel} ${x.seguradora || ""}`
-              .toLowerCase()
-              .includes(q)
-      );
-  }, [vm, tipo, busca, recorte]);
-
-  // Quantos do recorte em CADA lente. O cartão conta a casa inteira e a lista
-  // mostra uma lente só: sem isto, clicar em "Vencidos: 3" estando em
-  // Documentos podia esvaziar a tela -- os 3 estavam nos Veículos.
-  const ondeEstao = useMemo(() => {
-    if (!recorte) return [];
-    return Object.keys(TIPOS)
-      .map((t) => ({
-        tipo: t,
-        rotulo: TIPOS[t].rotulo,
-        quantos: vm.lista.filter((x) => x.tipo === t && x.sit.nivel === recorte).length,
-      }))
-      .filter((x) => x.quantos > 0);
-  }, [vm, recorte]);
-
-  // Prêmio e importância segurada da carteira -- as duas perguntas que se faz
-  // sobre seguro depois de "vence quando".
-  const carteira = useMemo(() => {
-    // "Vigente" exige vigência: apólice sem data não pode inflar a carteira
-    // como se cobrisse -- ela entra num aviso próprio.
-    const apolices = vm.lista.filter(
-      (x) => x.tipo === "seguro" && x.sit.nivel !== "vencido" && x.sit.nivel !== "sem"
-    );
-    const semVigencia = vm.lista.filter((x) => x.tipo === "seguro" && x.sit.nivel === "sem").length;
-    return {
-      quantas: apolices.length,
-      semVigencia,
-      premio: apolices.reduce((t, x) => t + (Number(x.valor) || 0), 0),
-      segurado: apolices.reduce((t, x) => t + (Number(x.valorSegurado) || 0), 0),
-    };
-  }, [vm]);
-
-  const recortar = (nivel) => setRecorte((r) => (r === nivel ? null : nivel));
-
-  async function salvar(e) {
-    e.preventDefault();
-    setSalvando(true);
-    setMsg(null);
-    // Barra ANTES de gravar. O limite do servidor e ~3 MB (4 MB ja em base64) e
-    // ele so responde depois de a foto inteira subir: sem esta conferencia, a
-    // pessoa esperava o upload longo para ler "arquivo muito grande" -- e o
-    // item ja tinha sido cadastrado sem anexo.
-    if (arquivo && arquivo.size > 3 * 1024 * 1024) {
-      setSalvando(false);
-      return setMsg({
-        tom: "erro",
-        texto: `"${arquivo.name}" tem ${(arquivo.size / 1024 / 1024).toFixed(1)} MB. O limite e 3 MB -- mande o PDF ou reduza a foto.`,
-      });
-    }
-    try {
-      /* A FICHA TÉCNICA NÃO SAI DAQUI. Esta tela não tem campo de placa nem
-         de nº de série -- ela só carrega `especificacao` porque abriu o
-         registro inteiro. Reenviando o que leu, ela devolvia a ficha VELHA
-         por cima da que Manutenções acabou de corrigir. O servidor foi feito
-         para preservar campo AUSENTE (painel-ativos: `limparEspec`), e a
-         tela de Manutenções já cumpre a regra; esta metade faltava. */
-      const { especificacao: _naoEditoAqui, ...doForm } = form;
-      const base = {
-        ...doForm,
-        medidorAtual: paraNumero(form.medidorAtual),
-        medidorProximo: paraNumero(form.medidorProximo),
-        valor: paraNumero(form.valor),
-        valorSegurado: paraNumero(form.valorSegurado),
-      };
-      const payload={...base,temArquivo:!!arquivo||!!form.temArquivo};
-      if(['veiculo','maquina'].includes(form.tipo)&&!podeAbrir('inventario-valores')) {
-        for(const k of ['valor','nf','valorSegurado','arquivoNome','temArquivo','miniatura'])delete payload[k];
-        if(arquivo)throw new Error('Anexos de equipamentos exigem Inventário e valores.');
-      }
-      const item = await salvarAtivo(payload);
-      if (arquivo) {
-        try {
-          const b64 = await arquivoParaBase64(arquivo);
-          await guardarArquivo(item.id, b64, arquivo.type, arquivo.name);
-          // Só os dois campos do anexo: mandar `item` inteiro traria de volta
-          // a mesma ficha velha pela porta dos fundos.
-          await salvarAtivo({ id: item.id, tipo: item.tipo, nome: item.nome, temArquivo: true, arquivoNome: arquivo.name });
-        } catch (errArq) {
-          // Cadastro e anexo sao duas idas ao servidor. Falhando a segunda, o
-          // item ficava la dizendo que TEM arquivo -- e tentar de novo criava
-          // outro. Item novo volta atras; edicao so avisa (o item ja existia e
-          // tem historico, apagar seria pior que o erro).
-          if (!form.id) await removerAtivo(item.id).catch(() => {});
-          throw new Error(
-            form.id
-              ? `Salvei os dados, mas o arquivo nao subiu: ${errArq.message}`
-              : `Nao consegui subir o arquivo (${errArq.message}). Nada foi cadastrado -- tente de novo.`
-          );
-        }
-      }
-      setMsg({ tom: "ok", texto: `${item.nome} salvo.` });
-      setForm(null);
-      setArquivo(null);
-      // Mostra JA, sem esperar a listagem: cadastrar algo que nao aparece na
-      // hora parece que nao salvou.
-      setItens((atuais) => {
-        const outros = (atuais || []).filter((x) => x.id !== item.id);
-        return [...outros, { ...item, temArquivo: item.temArquivo || !!arquivo }];
-      });
-      // Reconcilia com o servidor um pouco depois, quando a listagem alcancar.
-      setTimeout(carregar, 60000);
-    } catch (err) {
-      setMsg({ tom: "erro", texto: err.message });
-    } finally {
-      setSalvando(false);
-    }
+  const [params,setParams]=useSearchParams();
+  const alvo=params.get('item')||'';
+  const alvoAplicado=useRef('');
+  const [aba,setAba]=useAbaNavegavel('documento',['documento','veiculo','garantia','seguro','maquina']);
+  const tipo=aba==='maquina'?'documento':aba;
+  const [filtros,setFiltros]=useState(INICIAL),[janela,setJanela]=useState(null),[ocupado,setOcupado]=useState(false),[erro,setErro]=useState(''),[mensagem,setMensagem]=useState(''),[relatorio,setRelatorio]=useState(null),[cadastros,setCadastros]=useState(false);
+  const titulares=dados.titulares||LISTA_VAZIA,bens=dados.bens||LISTA_VAZIA,requisitos=dados.requisitos||LISTA_VAZIA;
+  const bemAlvo=bens.find(b=>b.id===(params.get('bem')||alvo));
+  const hoje=ymdLocal(new Date());
+  const vm=useMemo(()=>calcDocumentos(dados.itens||[],hoje),[dados.itens,hoje]);
+  useEffect(()=>{
+    if(!alvo || alvoAplicado.current===alvo)return;
+    const registro=vm.lista.find(i=>i.id===alvo);
+    if(!registro){if(bemAlvo&&ehVeiculo(bemAlvo)){alvoAplicado.current=alvo;setFiltros(INICIAL);setAba('veiculo');}return;}
+    alvoAplicado.current=alvo;setFiltros(INICIAL);if(registro.tipo!==tipo)setAba(registro.tipo);
+  },[alvo,vm.lista,tipo,setAba,bemAlvo]);
+  const veiculos=useMemo(()=>bens.filter(ehVeiculo),[bens]);
+  const lente=useMemo(()=>tipo==='veiculo'?vm.lista.filter(i=>veiculos.some(b=>i.ativoIds?.includes(b.id))):vm.lista.filter(i=>i.tipo===tipo),[vm.lista,tipo,veiculos]);
+  const recorte=useMemo(()=>{
+    const lista=filtrarDocumentos(lente,filtros,titulares,pessoas);
+    if(tipo!=='veiculo'||!filtros.busca.trim())return lista;
+    const q=filtros.busca.trim().toLocaleLowerCase('pt-BR');
+    const ids=veiculos.filter(b=>[b.nome,b.identificacao,b.especificacao?.placa,b.especificacao?.marcaModelo].join(' ').toLocaleLowerCase('pt-BR').includes(q)).map(b=>b.id);
+    const associados=filtrarDocumentos(lente,{...filtros,busca:''},titulares,pessoas).filter(i=>i.ativoIds?.some(id=>ids.includes(id)));
+    return lente.filter(i=>lista.some(x=>x.id===i.id)||associados.some(x=>x.id===i.id));
+  },[lente,filtros,titulares,pessoas,tipo,veiculos]);
+  const bensVisiveis=useMemo(()=>{
+    const filtroControle=!!(filtros.titularId||filtros.status||filtros.categoria||filtros.rh);
+    const q=filtros.busca.trim().toLocaleLowerCase('pt-BR');
+    return veiculos.filter(b=>{
+      const vinculados=controlesDoBem(recorte,b.id).length>0;
+      if(filtroControle&&!vinculados)return false;
+      return !q||vinculados||[b.nome,b.identificacao,b.especificacao?.placa,b.especificacao?.marcaModelo].join(' ').toLocaleLowerCase('pt-BR').includes(q);
+    });
+  },[recorte,filtros,veiculos]);
+  const kpis=useMemo(()=>calcDocumentos(recorte,hoje).kpis,[recorte,hoje]);
+  const categorias=[...new Set(lente.map(i=>i.categoria).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'pt-BR'));
+  const requisitosRecorte=requisitos.filter(r=>{
+    const t=titulares.find(t=>t.id===r.titularId);
+    if(filtros.titularId==='__pendente__')return false;
+    if(filtros.titularId&&r.titularId!==filtros.titularId)return false;
+    if(filtros.categoria&&r.categoria!==filtros.categoria)return false;
+    const situacao=situacaoRequisito(r,vm.lista);
+    const responsavelId=situacao.item?.responsavelId;
+    if(filtros.rh==='__com__'&&!t?.pessoaId&&!responsavelId)return false;
+    if(filtros.rh==='__sem__'&&(t?.pessoaId||responsavelId))return false;
+    if(filtros.rh&&!filtros.rh.startsWith('__')&&t?.pessoaId!==filtros.rh&&responsavelId!==filtros.rh)return false;
+    if(filtros.status&&situacao.nivel!==filtros.status)return false;
+    const q=filtros.busca.trim().toLocaleLowerCase('pt-BR');
+    return !q||[r.categoria,r.estabelecimento,nomeTitular(t,pessoas),situacao.item?.nome].join(' ').toLocaleLowerCase('pt-BR').includes(q);
+  });
+  const carteira=recorte.filter(i=>i.tipo==='seguro'&&!['vencido','sem','encerrado','semVencimento','futuro'].includes(i.sit.nivel)&&(!i.emissao||i.emissao<=hoje));
+  const totalSeguro=chave=>{const informados=carteira.filter(i=>i[chave]!=null&&i[chave]!=='');return informados.length?`${moeda(informados.reduce((s,i)=>s+Number(i[chave]),0))}${informados.length<carteira.length?' · parcial':''}`:'Não informado';};
+  const setFiltro=chave=>e=>setFiltros(f=>({...f,[chave]:e.target.value}));
+  function abrir(proxima) {setErro('');setMensagem('');setJanela(proxima);}
+  function fechar() {if(!ocupado){setJanela(null);setErro('');}}
+  const novo=(tipoNovo,ativoIds=[])=>abrir({tipo:'controle',item:novoControle(tipoNovo||'documento',ativoIds)});
+  function atualizarLista(chave,item) {setDados(atual=>({...atual,[chave]:[...(atual[chave]||[]).filter(i=>i.id!==item.id),item]}));}
+  async function gravar(operacao,rotulo) {
+    setOcupado(true);setErro('');setMensagem('');
+    try {await operacao();setJanela(null);setMensagem(rotulo);await carregar();}
+    catch(e) {setErro(e.status===409?`${e.message} Seu preenchimento permanece neste formulário. Feche e atualize a lista para conferir a ficha mais recente antes de salvar novamente.`:e.message);}
+    finally {setOcupado(false);}
   }
-
-  async function baixar(item) {
-    try {
-      const a = await lerArquivo(item.id);
-      abrirBase64(a.base64, a.mime, a.nome || item.arquivoNome);
-    } catch (err) {
-      setMsg({ tom: "erro", texto: err.message });
-    }
+  const salvar=(item,arquivos)=>gravar(async()=>{
+    const anexos=[];for(const arquivo of arquivos)anexos.push(await api.prepararArquivo(arquivo));
+    const payload={...item};if(janela.item.id){payload.id=janela.item.id;delete payload.cadastroId;}
+    let salvo=janela.renovacao?await api.renovarControle(payload,janela.item.atualizadoEm??null,anexos[0]):await api.salvarControle(payload,janela.item.atualizadoEm??null,anexos[0]);
+    atualizarLista('itens',salvo);
+    for(const anexo of anexos.slice(1)){try{salvo=await api.salvarControle({...payload,id:salvo.id,cadastroId:undefined},salvo.atualizadoEm??null,anexo);atualizarLista('itens',salvo);}catch(e){setJanela(j=>({...j,item:salvo,renovacao:false}));throw new Error(`Os dados e alguns arquivos foram salvos. Um anexo não foi concluído: ${e.message}. Confira os anexos antes de enviar novamente.`);}}
+  },janela.renovacao?'Renovação salva. As versões anteriores foram preservadas.':'Controle salvo.');
+  async function baixar(item,versaoId,arquivoId) {setOcupado(true);setErro('');try{await api.baixarDocumento(item,versaoId,arquivoId);}catch(e){setErro(e.message);}finally{setOcupado(false);}}
+  async function abrirConsulta(tipoConsulta) {
+    abrir({tipo:tipoConsulta,itens:null});setOcupado(true);
+    try {const resposta=tipoConsulta==='lixeira'?await api.lixeiraDocumentos():await api.previaDocumentos();setJanela({tipo:tipoConsulta,itens:tipoConsulta==='lixeira'?resposta:resposta.itens||[],somenteLeitura:resposta.somenteLeitura});}
+    catch(e){setErro(e.message);}finally{setOcupado(false);}
   }
-
-  async function apagar(item) {
-    /* CONFIRMA ANTES: um toque na lixeira (colada no Editar, alvo de 8x8 no
-       celular) removia o item E o PDF do bucket permanentemente -- e este e o
-       cofre: a apolice apagada pode ser a unica copia digital. O Patrimonio,
-       na mesma area, sempre confirmou; as duas telas se contradiziam no gesto
-       mais perigoso. */
-    if (!window.confirm(`Apagar "${item.nome}"? Vai para a lixeira e pode ser restaurado.`)) return;
-    setMsg(null);
-    try {
-      await removerAtivo(item.id);
-      setMsg({ tom: "aviso", texto: `${item.nome} foi para a lixeira — dá para restaurar no fim desta tela.` });
-      setItens((atuais) => (atuais || []).filter((x) => x.id !== item.id));
-      // Formulario aberto no item que acabou de ser apagado: salvar dali
-      // RESSUSCITARIA o registro -- so que sem o arquivo, que ja se foi junto.
-      // (O servidor tambem recusa desde 04/08; fechar aqui evita o erro.)
-      if (form?.id === item.id) {
-        setForm(null);
-        setArquivo(null);
-      }
-    } catch (err) {
-      setMsg({ tom: "erro", texto: err.message });
-    }
-  }
-
-  if (erro && itens === null) return <ErroModulo mensagem={erro} aoTentar={carregar} />;
-  if (itens === null) return <CarregandoModulo />;
-
-  const k = vm.kpis;
-  // Km/horas é de veículo e máquina, e quem manda é o tipo DO ITEM aberto --
-  // não a lente. Escrito como "!== documento", a lente Seguros trouxe os
-  // campos de medidor para dentro do formulário da apólice.
-  const ehVeicMaq = form?.tipo === "veiculo" || form?.tipo === "maquina";
-
-  return (
-    <div className="space-y-8">
-      <AvisoAtualizacao erro={erro} aoTentar={carregar}/>
-      <PageTitle
-        titulo="Documentos e ativos"
-        descricao="Organize documentos, seguros e ativos. Confira vencimentos, responsáveis e arquivos."
-        acao={
-          <button className="btn-primary" onClick={() => setForm(vazio(tipo))}>
-            <Plus size={16} strokeWidth={2.4} />
-            {tipo === "maquina" ? "Nova" : "Novo"} {TIPOS[tipo].singular.toLowerCase()}
-          </button>
-        }
-      />
-
-      <p className="text-sm text-slate-500">Resumo geral de documentos, veículos, máquinas e seguros. Clique em um indicador para conferir os itens.</p>
-
-      {/* Os cartões recortam a lista. "Cadastrados" é o botão de voltar: ele
-          limpa o recorte em vez de aplicar um. */}
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <StatCard
-          rotulo="Vencidos" valor={numero(k.vencidos)} sub={k.vencidos ? "precisam de ação hoje" : k.semControle ? "há itens sem data para conferir" : "nenhum vencimento identificado"}
-          tom={k.vencidos ? "bad" : k.semControle ? "warn" : "neutral"} icone={AlertTriangle}
-          ativo={recorte === "vencido"}
-          onClick={k.vencidos ? () => recortar("vencido") : undefined}
-        />
-        <StatCard
-          rotulo="Vencem em 30 dias" valor={numero(k.urgentes)} sub={k.urgentes ? "renovar já" : "nas datas informadas"}
-          tom={k.urgentes ? "warn" : "ok"} icone={AlertTriangle}
-          ativo={recorte === "urgente"}
-          onClick={k.urgentes ? () => recortar("urgente") : undefined}
-        />
-        <StatCard
-          rotulo="Cadastrados" valor={numero(k.total)} sub="documentos, veículos, máquinas e seguros"
-          tom="neutral" icone={FileCheck2}
-          ativo={!recorte}
-          onClick={recorte ? () => setRecorte(null) : undefined}
-        />
-        <StatCard
-          rotulo="Sem data" valor={numero(k.semControle)} sub={k.semControle ? "conferir validade dos itens" : k.total ? "todos com data" : "nenhum item cadastrado"}
-          tom={k.semControle ? "warn" : "ok"} icone={AlertTriangle}
-          ativo={recorte === "sem"}
-          onClick={k.semControle ? () => recortar("sem") : undefined}
-        />
-      </div>
-
-      {msg && (
-        <p
-          className={`flex items-start gap-2 rounded-lg px-3 py-2 text-sm ${
-            msg.tom === "ok" ? "bg-ok-50 text-ok-700" : msg.tom === "erro" ? "bg-bad-50 text-bad-700" : "bg-warn-50 text-warn-700"
-          }`}
-        >
-          {msg.tom === "ok" ? <Check size={15} className="mt-0.5 shrink-0" /> : <AlertTriangle size={15} className="mt-0.5 shrink-0" />}
-          {msg.texto}
-        </p>
-      )}
-
-      {form && (
-        <Card>
-          <SectionTitle
-            titulo={form.id ? `Editar ${TIPOS[form.tipo].singular.toLowerCase()}` : `${form.tipo === "maquina" ? "Nova" : "Novo"} ${TIPOS[form.tipo].singular.toLowerCase()}`}
-            sub="A data de validade e o que faz o painel avisar antes de vencer."
-            acao={
-              <button className="btn-ghost" onClick={() => { setForm(null); setArquivo(null); }}>
-                <X size={15} /> Fechar
-              </button>
-            }
-          />
-          <form onSubmit={salvar} className="space-y-4">
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              <div>
-                <label className="label" htmlFor="a-nome">Nome</label>
-                <input
-                  id="a-nome"
-                  className="input"
-                  value={form.nome}
-                  onChange={(e) => setForm((f) => ({ ...f, nome: e.target.value }))}
-                  placeholder={form.tipo === "veiculo" ? "ex: Fiorino branca" : form.tipo === "maquina" ? "ex: Router CNC" : "ex: Alvara de funcionamento"}
-                  required
-                />
-              </div>
-              <div>
-                <label className="label" htmlFor="a-categoria">Categoria</label>
-                <input
-                  id="a-categoria"
-                  className="input"
-                  list="cats"
-                  value={form.categoria}
-                  onChange={(e) => setForm((f) => ({ ...f, categoria: e.target.value }))}
-                  placeholder="escolha ou digite"
-                />
-                <datalist id="cats">
-                  {(CATEGORIAS[form.tipo] || []).map((c) => (
-                    <option key={c} value={c} />
-                  ))}
-                </datalist>
-              </div>
-              <div>
-                <label className="label" htmlFor="a-identificacao">
-                  {form.tipo === "veiculo"
-                    ? "Placa"
-                    : form.tipo === "maquina"
-                      ? "Patrimônio"
-                      : form.tipo === "seguro"
-                        ? "Número da apólice"
-                        : "Número do documento"}
-                </label>
-                <input
-                  id="a-identificacao"
-                  className="input"
-                  value={form.identificacao}
-                  onChange={(e) => setForm((f) => ({ ...f, identificacao: e.target.value }))}
-                />
-              </div>
-              <div>
-                <label className="label" htmlFor="a-emissao">
-                  {form.tipo === "seguro" ? "Início da vigência" : "Emissão"}
-                </label>
-                <input
-                  id="a-emissao" type="date" className="input" value={form.emissao} onChange={(e) => setForm((f) => ({ ...f, emissao: e.target.value }))} />
-              </div>
-              <div>
-                <label className="label" htmlFor="a-validade">
-                  {form.tipo === "seguro" ? "Fim da vigência" : "Validade / próxima ação"}
-                </label>
-                <input
-                  id="a-validade" type="date" className="input" value={form.validade} onChange={(e) => setForm((f) => ({ ...f, validade: e.target.value }))} />
-              </div>
-              <div>
-                {['veiculo','maquina'].includes(form.tipo)?<PessoaRH valor={form.responsavelId||''} nome={form.responsavel||''} aoMudar={(responsavelId,responsavel)=>setForm(f=>({...f,responsavelId,responsavel}))}/>:<><label className="label" htmlFor="a-responsavel">
-                  {form.tipo === "seguro" ? "Corretor" : "Responsável"}
-                </label>
-                <input
-                  id="a-responsavel" className="input" value={form.responsavel} onChange={(e) => setForm((f) => ({ ...f, responsavel: e.target.value }))} placeholder={form.tipo === "seguro" ? "corretor e telefone" : "quem cuida disso"} /></>}
-              </div>
-
-              {/* Km/horas em campo de TEXTO, nao type="number": quem digita
-                  "90.000" (o jeito brasileiro) num input numerico entrega
-                  "90.000" ao navegador, que le como noventa -- ou como valor
-                  invalido e devolve string vazia. paraNumero/paraCampo fazem a
-                  ida e a volta, igual as Licitacoes. */}
-              {/* Dinheiro em campo de TEXTO: "12.500,00" num input numérico
-                  volta vazio ou vira doze e meio. */}
-              {form.tipo === "seguro" && (
-                <>
-                  <div>
-                    <label className="label" htmlFor="a-seguradora">Seguradora</label>
-                    <input
-                      id="a-seguradora"
-                      className="input"
-                      value={form.seguradora || ""}
-                      onChange={(e) => setForm((f) => ({ ...f, seguradora: e.target.value }))}
-                      placeholder="ex: Porto Seguro, Tokio Marine"
-                    />
-                  </div>
-                  <div>
-                    <label className="label" htmlFor="a-segurado">Valor segurado (R$)</label>
-                    <input
-                      id="a-segurado"
-                      inputMode="decimal"
-                      className="input"
-                      value={form.valorSegurado ?? ""}
-                      onChange={(e) => setForm((f) => ({ ...f, valorSegurado: e.target.value }))}
-                      onBlur={(e) => setForm((f) => ({ ...f, valorSegurado: paraCampo(paraNumero(e.target.value)) }))}
-                      placeholder="ex: 250.000,00"
-                    />
-                    <p className="mt-1 text-xs text-slate-500">Quanto a apólice cobre.</p>
-                  </div>
-                  <div>
-                    <label className="label" htmlFor="a-premio">Prêmio (R$ no ano)</label>
-                    <input
-                      id="a-premio"
-                      inputMode="decimal"
-                      className="input"
-                      value={form.valor ?? ""}
-                      onChange={(e) => setForm((f) => ({ ...f, valor: e.target.value }))}
-                      onBlur={(e) => setForm((f) => ({ ...f, valor: paraCampo(paraNumero(e.target.value)) }))}
-                      placeholder="ex: 3.480,00"
-                    />
-                    <p className="mt-1 text-xs text-slate-500">O que a empresa paga por ela.</p>
-                  </div>
-                </>
-              )}
-
-              {ehVeicMaq && (
-                <>
-                  <div>
-                    <label className="label" htmlFor="a-medidor">{form.unidadeMedidor === "km" ? "Km atual" : "Horas atuais"}</label>
-                    <input
-                      id="a-medidor"
-                      inputMode="decimal"
-                      className="input"
-                      value={form.medidorAtual}
-                      onChange={(e) => setForm((f) => ({ ...f, medidorAtual: e.target.value }))}
-                      onBlur={(e) => setForm((f) => ({ ...f, medidorAtual: paraCampo(paraNumero(e.target.value)) }))}
-                      placeholder={form.unidadeMedidor === "km" ? "ex: 90.000" : "ex: 1.200"}
-                    />
-                  </div>
-                  <div>
-                    <label className="label" htmlFor="a-proximo">Próxima manutenção em</label>
-                    <input
-                      id="a-proximo"
-                      inputMode="decimal"
-                      className="input"
-                      value={form.medidorProximo}
-                      onChange={(e) => setForm((f) => ({ ...f, medidorProximo: e.target.value }))}
-                      onBlur={(e) => setForm((f) => ({ ...f, medidorProximo: paraCampo(paraNumero(e.target.value)) }))}
-                      placeholder={form.unidadeMedidor === "km" ? "ex: 95.000" : "ex: 1.500"}
-                    />
-                  </div>
-                </>
-              )}
-            </div>
-
-            <div>
-              <label className="label" htmlFor="a-observacao">Observação</label>
-              <input
-                  id="a-observacao" className="input" value={form.observacao} onChange={(e) => setForm((f) => ({ ...f, observacao: e.target.value }))} placeholder={form.tipo === "seguro" ? "o que cobre, franquia, número do sinistro..." : "onde renovar, órgão, telefone do contato..."} />
-            </div>
-
-            <div>
-              <label className="label" htmlFor="a-arquivo">
-                {form.tipo === "seguro" ? "Apólice em PDF (até ~3 MB)" : "Arquivo (PDF ou imagem, até ~3 MB)"}
-              </label>
-              <input
-                id="a-arquivo"
-                type="file"
-                accept="application/pdf,image/*"
-                onChange={(e) => setArquivo(e.target.files?.[0] || null)}
-                className="block w-full text-sm text-slate-600 file:mr-3 file:rounded-lg file:border-0 file:bg-slate-100 file:px-3 file:py-2 file:font-display file:text-sm file:font-medium file:text-slate-700 hover:file:bg-slate-200"
-              />
-              {form.temArquivo && !arquivo && (
-                <p className="mt-1 text-xs text-slate-500">
-                  Já tem arquivo guardado ({form.arquivoNome || "documento"}). Escolher outro substitui.
-                </p>
-              )}
-            </div>
-
-            <button className="btn-primary" disabled={salvando}>
-              <Upload size={16} strokeWidth={2.4} />
-              {salvando ? "Salvando..." : "Salvar"}
-            </button>
-          </form>
-        </Card>
-      )}
-
-      <Card>
-        <SectionTitle
-          titulo={TIPOS[tipo].rotulo}
-          sub="Ordenado pelo que esta pior: vencido primeiro."
-          acao={
-            <Segmented
-              opcoes={Object.entries(TIPOS).map(([id, t]) => ({ valor: id, rotulo: t.rotulo }))}
-              valor={tipo}
-              onChange={(v) => {
-                setTipo(v);
-                setBusca("");
-              }}
-            />
-          }
-        />
-
-        {recorte && (
-          <div className="sem-impressao mb-3 flex flex-wrap items-center gap-2 rounded-lg bg-brand-50 px-3 py-2 text-sm text-brand-700">
-            <span>
-              {recorte === "vencido" ? "Vencidos" : recorte === "urgente" ? "Vencendo em 30 dias" : "Sem data"}:
-            </span>
-            {ondeEstao.map((o) => (
-              <button
-                key={o.tipo}
-                onClick={() => setTipo(o.tipo)}
-                aria-pressed={tipo === o.tipo}
-                className={`rounded-full px-2.5 py-0.5 font-display text-xs transition-colors ${
-                  tipo === o.tipo ? "bg-brand text-white" : "bg-white text-brand-700 hover:bg-brand-100"
-                }`}
-              >
-                {o.rotulo} {o.quantos}
-              </button>
-            ))}
-            <button className="btn-ghost !py-1 !px-2 text-xs" onClick={() => setRecorte(null)}>
-              <X size={13} /> ver todos
-            </button>
-          </div>
-        )}
-
-        {/* A carteira de seguros: prêmio e cobertura só fazem sentido somados. */}
-        {tipo === "seguro" && (carteira.quantas > 0 || carteira.semVigencia > 0) && !recorte && (
-          <div className="mb-3 flex flex-wrap items-center gap-x-5 gap-y-1 rounded-lg bg-slate-50 px-3 py-2 text-sm text-slate-600">
-            <span>
-              <b className="text-slate-900">{numero(carteira.quantas)}</b>{" "}
-              {carteira.quantas === 1 ? "apólice vigente" : "apólices vigentes"}
-            </span>
-            <span>
-              cobrem <b className="text-slate-900">{moeda(carteira.segurado)}</b>
-            </span>
-            <span>
-              custam <b className="text-slate-900">{moeda(carteira.premio)}</b> no ano
-            </span>
-            {carteira.semVigencia > 0 && (
-              <span className="text-warn-700">
-                {numero(carteira.semVigencia)} sem vigência informada
-              </span>
-            )}
-          </div>
-        )}
-
-        <div className="sem-impressao mb-4 relative max-w-sm">
-          <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-          <input className="input pl-9" aria-label="Buscar nesta seção" value={busca} onChange={(e) => setBusca(e.target.value)} placeholder={tipo === "seguro" ? "Buscar por seguradora, ramo ou apólice" : "Buscar por nome, categoria ou responsável"} />
-        </div>
-
-        {daLente.length === 0 && recorte ? (
-          <Empty>
-            Nada aqui em {TIPOS[tipo].rotulo.toLowerCase()}
-            {ondeEstao.length ? ` -- veja em ${ondeEstao.map((o) => o.rotulo.toLowerCase()).join(", ")}.` : "."}
-          </Empty>
-        ) : daLente.length === 0 ? (
-          <Empty>
-            Nenhum {TIPOS[tipo].singular.toLowerCase()} cadastrado ainda.{" "}
-            <button className="btn-ghost ml-1" onClick={() => setForm(vazio(tipo))}>
-              Cadastrar o primeiro
-            </button>
-          </Empty>
-        ) : (
-          <div className="space-y-2">
-            {daLente.map((it) => {
-              const Ic = ICONE[it.tipo];
-              const t = TOM[it.sit.nivel] || TOM.sem;
-              return (
-                <div
-                  key={it.id}
-                  className={`card flex flex-wrap items-center gap-3 border-l-4 p-4 ${
-                    it.sit.nivel === "vencido" ? "border-l-bad-600" : it.sit.nivel === "urgente" ? "border-l-warn-600" : "border-l-transparent"
-                  }`}
-                >
-                  <span className={`grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-slate-100 ${t.texto}`}>
-                    <Ic size={18} strokeWidth={2.2} />
-                  </span>
-
-                  <div className="min-w-0 flex-1">
-                    <p className="font-display text-sm font-semibold text-slate-900">
-                      {it.nome}
-                      {it.identificacao && <span className="ml-2 font-normal text-slate-400">{it.identificacao}</span>}
-                    </p>
-                    <p className="mt-0.5 text-xs text-slate-500">
-                      {(it.tipo === "seguro"
-                        ? [
-                            it.seguradora,
-                            it.categoria,
-                            it.valorSegurado ? `cobre ${moeda(it.valorSegurado)}` : null,
-                            it.valor ? `${moeda(it.valor)}/ano` : null,
-                            it.validade && `vigência até ${dataLonga(it.validade)}`,
-                          ]
-                        : [
-                            it.categoria,
-                            it.responsavel && `resp. ${it.responsavel}`,
-                            it.validade && `validade ${dataLonga(it.validade)}`,
-                          ]
-                      )
-                        .filter(Boolean)
-                        .join(" · ") || "sem detalhes"}
-                    </p>
-                    {it.observacao && <p className="mt-0.5 text-xs text-slate-400">{it.observacao}</p>}
-                  </div>
-
-                  <span className={`${t.chip} shrink-0`}>{(it.tipo === "maquina" || it.tipo === "veiculo") && it.validade ? "Validade cadastrada: " : ""}{it.sit.rotulo}</span>
-
-                  <div className="flex shrink-0 items-center gap-1">
-                    {it.temArquivo && (
-                      <button onClick={() => baixar(it)} className="grid h-8 w-8 place-items-center rounded-lg text-slate-400 transition-colors hover:bg-slate-100 hover:text-brand" title="Abrir o arquivo" aria-label={`Abrir o arquivo de ${it.nome}`}>
-                        <Download size={15} />
-                      </button>
-                    )}
-                    <button onClick={() => { setForm({ ...it, medidorAtual: paraCampo(it.medidorAtual), medidorProximo: paraCampo(it.medidorProximo), valor: paraCampo(it.valor), valorSegurado: paraCampo(it.valorSegurado) }); setArquivo(null); }} className="rounded-lg px-2 py-1 font-display text-sm text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-800">
-                      Editar
-                    </button>
-                    <button onClick={() => apagar(it)} className="grid h-8 w-8 place-items-center rounded-lg text-slate-400 transition-colors hover:bg-bad-50 hover:text-bad-700" title="Remover" aria-label={`Remover ${it.nome}`}>
-                      <Trash2 size={15} />
-                    </button>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </Card>
-
-      {/* A LIXEIRA DE 30 DIAS. Recolhida e carregada SO ao abrir: e socorro,
-          nao fluxo -- mas sem esta porta o soft-delete do servidor seria
-          recuperavel apenas por quem sabe chamar a API. */}
-      <Card>
-        <button
-          type="button"
-          className="flex w-full items-center justify-between text-left text-sm text-slate-500 hover:text-slate-800"
-          onClick={async () => {
-            if (lixeira === null) {
-              try { setLixeira(await listarLixeira()); }
-              catch (err) { setMsg({ tom: "erro", texto: err.message }); return; }
-            } else setLixeira(null);
-          }}
-        >
-          <span className="font-display font-medium">Lixeira</span>
-          <span className="text-xs">{lixeira === null ? "abrir" : "fechar"} · itens retirados podem ser recuperados</span>
-        </button>
-        {lixeira !== null && (
-          lixeira.length ? (
-            <div className="mt-3 space-y-2">
-              {lixeira.map((it) => (
-                <div key={it.id} className="flex items-center gap-3 border-t pt-2 text-sm" style={{ borderColor: "var(--hairline)" }}>
-                  <span className="min-w-0 flex-1 truncate text-slate-700">{it.nome}</span>
-                  <span className="shrink-0 text-xs text-slate-400">
-                    apagado {it._apagadoEm ? new Date(it._apagadoEm).toLocaleDateString("pt-BR") : ""}
-                  </span>
-                  <button
-                    type="button"
-                    className="btn-ghost h-8 px-3 text-sm"
-                    onClick={async () => {
-                      try {
-                        await restaurarAtivo(it.id);
-                        setLixeira((l) => (l || []).filter((x) => x.id !== it.id));
-                        await carregar();
-                        setMsg({ tom: "ok", texto: `${it.nome} restaurado.` });
-                      } catch (err) { setMsg({ tom: "erro", texto: err.message }); }
-                    }}
-                  >
-                    Restaurar
-                  </button>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <p className="mt-3 text-sm text-slate-400">Vazia.</p>
-          )
-        )}
-      </Card>
+  const acoesLista={titulares,pessoas,bens,ocupado,aoEditar:item=>abrir({tipo:'controle',item}),aoRenovar:item=>abrir({tipo:'controle',item,renovacao:true}),aoExcluir:item=>abrir({tipo:'excluir',item}),aoBaixar:baixar,aoBaixarLegado:async bem=>{setOcupado(true);setErro('');try{await api.baixarLegadoBem(bem);}catch(e){setErro(e.message);}finally{setOcupado(false);}},alvo};
+  const descricaoRecorte=[ABAS_DOCUMENTOS[tipo],filtros.titularId?nomeTitular(titulares.find(t=>t.id===filtros.titularId),pessoas):'Todos os titulares autorizados',STATUS[filtros.status],filtros.categoria,filtros.busca&&`Busca: ${filtros.busca}`,filtros.rh&&(filtros.rh==='__com__'?'Com vínculo ao RH':filtros.rh==='__sem__'?'Sem vínculo ao RH':`RH: ${pessoas.find(p=>p.id===filtros.rh)?.nome||'ID '+filtros.rh}`)].filter(Boolean).join(' · ');
+  if(relatorio)return <section className="documentos doc-print"><div className="doc-actions sem-impressao"><button className="btn-ghost" onClick={()=>setRelatorio(null)}><ArrowLeft size={16}/>Voltar à lista</button><button className="btn-primary" onClick={()=>window.print()}><Printer size={17}/>Imprimir / salvar PDF</button><p className="doc-note">Escolha “Salvar como PDF” na impressão.</p></div><header className="doc-report-heading"><small>IMPRESILK · DOCUMENTOS E VENCIMENTOS</small><h1>{ABAS_DOCUMENTOS[relatorio.tipo]}</h1><p>{relatorio.recorte}</p><p>{relatorio.itens.length} controles{relatorio.tipo==='veiculo'?` · ${relatorio.bens.length} veículos`:''} · Gerado em {relatorio.em}</p></header>{relatorio.tipo==='veiculo'?<ListaVeiculos bens={relatorio.bens} itens={relatorio.itens} titulares={relatorio.titulares} pessoas={relatorio.pessoas} bensRelacionados={relatorio.bensRelacionados} impressao/>:<ListaDocumentos itens={relatorio.itens} titulares={relatorio.titulares} pessoas={relatorio.pessoas} bens={relatorio.bens} impressao/>}{relatorio.tipo==='documento'&&!!relatorio.requisitos.length&&<section className="doc-requisitos"><h2>Aplicabilidade e pendências do recorte</h2>{relatorio.requisitos.map(r=><div className="doc-requisito" key={r.id}><strong>{r.categoria}</strong><span>{nomeTitular(relatorio.titulares.find(t=>t.id===r.titularId),relatorio.pessoas)}{r.estabelecimento&&` · ${r.estabelecimento}`}</span><ChipPrazo sit={situacaoRequisito(r,relatorio.controles)}/></div>)}</section>}</section>;
+  return <section className="documentos">
+    <PageTitle titulo="Documentos e vencimentos" descricao="Documentos, garantias e apólices dos titulares cadastrados, com vencimentos e histórico." acao={<div className="doc-actions sem-impressao"><button className="btn-ghost" disabled={ocupado||atualizando} onClick={carregar} aria-label="Atualizar documentos"><RefreshCw size={17}/></button><button className="btn-outline" disabled={ocupado} onClick={()=>setCadastros(v=>!v)} aria-expanded={cadastros}><Users size={16}/>Titulares</button><button className="btn-outline" disabled={ocupado} onClick={()=>setRelatorio(structuredClone({tipo,recorte:descricaoRecorte,itens:recorte,bens:tipo==='veiculo'?bensVisiveis:bens,bensRelacionados:bens,titulares,pessoas,requisitos:requisitosRecorte,controles:vm.lista,em:new Date().toLocaleString('pt-BR')}))}><Printer size={16}/>Exportar recorte</button><button className="btn-primary" disabled={ocupado} onClick={()=>novo(tipo==='veiculo'?'documento':tipo)}><Plus size={17}/>{tipo==='garantia'?'Nova garantia':tipo==='seguro'?'Nova apólice':'Novo documento'}</button></div>}/>
+    <AvisoAtualizacao erro={erroLeitura} aoTentar={carregar}/>
+    {mensagem&&<p className="doc-notice is-ok" role="status">{mensagem}</p>}{erro&&!janela&&<p className="doc-notice is-error" role="alert">{erro}</p>}
+    {aba==='maquina'&&<p className="doc-notice">As fichas físicas e as manutenções de máquinas estão no <Link to="/patrimonio?aba=maquinas">Patrimônio · Máquinas</Link>. Os controles continuam ligados aos bens pelo ID.</p>}
+    {aba==='maquina'&&bemAlvo?.documentoLegado&&<div className="doc-notice"><strong>Documento antigo · {bemAlvo.nome||bemAlvo.identificacao||'Máquina cadastrada'}</strong><p>ID {bemAlvo.id} · Validade: {bemAlvo.validade?dataLonga(bemAlvo.validade):'não informada'}.</p><p>A origem foi preservada na ficha física; sua classificação documental depende de conferência.</p></div>}
+    <nav className="doc-tabs sem-impressao" aria-label="Áreas de documentos">{Object.entries(ABAS_DOCUMENTOS).map(([id,nome])=>{const Icone=ICONES[id];return <button key={id} type="button" aria-current={tipo===id?'page':undefined} onClick={()=>{setFiltros(INICIAL);setParams(atuais=>{const copia=new URLSearchParams(atuais);copia.set('aba',id);copia.delete('item');return copia;});}}><Icone size={17}/>{nome}<span>{id==='veiculo'?veiculos.length:vm.lista.filter(i=>i.tipo===id).length}</span></button>;})}</nav>
+    {alvo && !bemAlvo && !vm.lista.some(i=>i.id===alvo) && <p className="doc-notice" role="status">O controle solicitado não está disponível neste acesso. Atualize a lista para conferir.</p>}
+    {alvo && vm.lista.some(i=>i.id===alvo) && !recorte.some(i=>i.id===alvo) && <p className="doc-notice sem-impressao">O controle solicitado está fora do recorte atual. <button className="btn-outline" onClick={()=>{setFiltros(INICIAL);setAba(vm.lista.find(i=>i.id===alvo).tipo);}}>Mostrar controle solicitado</button></p>}
+    <div className="doc-kpis sem-impressao">{[{rotulo:tipo==='veiculo'?'Controles dos veículos':'Controles',valor:kpis.total,status:''},{rotulo:'Vencidos',valor:kpis.vencidos,status:'vencido'},{rotulo:'A vencer',valor:kpis.urgentes,status:'urgente'},{rotulo:'Prazo não informado',valor:kpis.semPrazo,status:'sem'},{rotulo:'Em dia',valor:recorte.filter(i=>i.sit.nivel==='ok').length,status:'ok'}].map(k=><button className={`doc-kpi ${k.status==='vencido'?'is-bad':k.status==='urgente'||k.status==='sem'?'is-warn':''}`} type="button" key={k.rotulo} aria-pressed={filtros.status===k.status} onClick={()=>setFiltros(f=>({...f,status:f.status===k.status?'':k.status}))}><span>{k.rotulo}</span><strong>{k.valor}</strong></button>)}</div>
+    <div className="doc-filters sem-impressao">
+      <label className="label doc-search"><span><Search size={15}/>Buscar</span><input className="input" type="search" value={filtros.busca} onChange={setFiltro('busca')} placeholder={tipo==='veiculo'?'Veículo, placa ou controle':'Nome, número, titular ou contato'}/></label>
+      <label className="label">Titular<select className="input" value={filtros.titularId} onChange={setFiltro('titularId')}><option value="">Todos os titulares autorizados</option>{titulares.map(t=><option key={t.id} value={t.id}>{nomeTitular(t,pessoas)} · {t.tipo==='pessoa'?'Pessoa':'Empresa'}{titulares.filter(o=>nomeTitular(o,pessoas)===nomeTitular(t,pessoas)).length>1?` · ID ${t.id}`:''}</option>)}<option value="__pendente__">Titular pendente</option></select></label>
+      <label className="label">Status<select className="input" value={filtros.status} onChange={setFiltro('status')}><option value="">Todos os status</option>{Object.entries(STATUS).map(([id,nome])=><option key={id} value={id}>{nome}</option>)}</select></label>
+      <label className="label">Categoria<select className="input" value={filtros.categoria} onChange={setFiltro('categoria')}><option value="">Todas as categorias</option>{categorias.map(c=><option key={c} value={c}>{c}</option>)}</select></label>
+      <label className="label">Responsável / RH<select className="input" value={filtros.rh} onChange={setFiltro('rh')}><option value="">Todas</option><option value="__com__">Com vínculo ao RH</option><option value="__sem__">Sem vínculo ao RH</option>{pessoas.map(p=><option key={p.id} value={p.id}>{p.nome}{pessoas.filter(o=>o.nome===p.nome).length>1?` · ID ${p.id}`:''}</option>)}</select></label>
+      {Object.values(filtros).some(Boolean)&&<button type="button" className="btn-ghost" onClick={()=>setFiltros(INICIAL)}>Limpar filtros</button>}
     </div>
-  );
+    {cadastros&&<section className="doc-cadastros sem-impressao"><header><h2>Titulares cadastrados</h2><button className="btn-outline" disabled={ocupado} onClick={()=>abrir({tipo:'titular'})}><Plus size={16}/>Novo titular</button></header>{!titulares.length?<p className="doc-note">Cadastre a empresa ou pessoa confirmada antes de criar os controles.</p>:<div className="doc-holder-list">{titulares.map(t=><div key={t.id}><strong>{nomeTitular(t,pessoas)}</strong><span className="chip">{t.tipo==='pessoa'?'Pessoa':'Empresa'}</span><small>{t.pessoaId?`RH · ID ${t.pessoaId}`:`Titular · ID ${t.id}`}</small><button className="btn-ghost" disabled={ocupado} onClick={()=>abrir({tipo:'titular',item:t})}>Editar</button></div>)}</div>}</section>}
+    {tipo==='documento'&&<details className="doc-requisitos sem-impressao"><summary>Aplicabilidade dos documentos <span className="chip">{requisitosRecorte.length} requisitos</span><span className="doc-pending">{requisitosRecorte.filter(r=>situacaoRequisito(r,vm.lista).nivel==='faltante').length} faltantes</span></summary><p className="doc-note">Defina quais documentos cada titular precisa. Categorias sugeridas ajudam o cadastro; a exigência e o vínculo são confirmados pelo usuário.</p><button className="btn-outline" disabled={ocupado||!titulares.length} onClick={()=>abrir({tipo:'requisito'})}><Plus size={16}/>Novo requisito</button>{requisitosRecorte.map(r=><div className="doc-requisito" key={r.id}><div><strong>{r.categoria}</strong><small>{nomeTitular(titulares.find(t=>t.id===r.titularId),pessoas)}{r.estabelecimento&&` · ${r.estabelecimento}`}</small>{r.observacao&&<small>{r.observacao}</small>}</div><ChipPrazo sit={situacaoRequisito(r,vm.lista)}/><button className="btn-ghost" disabled={ocupado} onClick={()=>abrir({tipo:'requisito',item:r})}>Editar vínculo</button></div>)}</details>}
+    {tipo==='seguro'&&<div className="doc-insurance-summary"><span><strong>{carteira.length}</strong> apólices com vigência atual neste recorte</span>{carteira.length>0&&<><span>Prêmio: <strong>{totalSeguro('valor')}</strong></span><span>Importância segurada: <strong>{totalSeguro('valorSegurado')}</strong></span></>}</div>}
+    <div className="doc-list-heading"><h2>{ABAS_DOCUMENTOS[tipo]}</h2><p>{recorte.length} controles{tipo==='veiculo'?` · ${bensVisiveis.length} veículos`:''} no recorte</p></div>
+    {tipo==='veiculo'?bensVisiveis.length?<ListaVeiculos {...acoesLista} bens={bensVisiveis} bensRelacionados={bens} itens={recorte} aoNovo={novo}/>:<Empty>Nenhum veículo neste recorte. As fichas vêm do Patrimônio.</Empty>:recorte.length?<ListaDocumentos itens={recorte} {...acoesLista}/>:<Empty>Nenhum controle neste recorte.{!titulares.length&&<button className="btn-outline mt-3" onClick={()=>abrir({tipo:'titular'})}>Cadastrar primeiro titular</button>}</Empty>}
+    <div className="doc-actions doc-utilities sem-impressao"><button className="btn-ghost" disabled={ocupado} onClick={()=>abrirConsulta('lixeira')}><Trash2 size={15}/>Lixeira de documentos</button><button className="btn-ghost" disabled={ocupado} onClick={()=>abrirConsulta('previa')}><ClipboardList size={15}/>Prévia da organização</button></div>
+    {janela&&<JanelaFormulario titulo={janela.tipo==='controle'?(janela.renovacao?'Renovar controle':janela.item.id?'Editar controle':'Novo controle'):janela.tipo==='titular'?(janela.item?'Editar titular':'Novo titular'):janela.tipo==='requisito'?'Aplicabilidade do documento':janela.tipo==='excluir'?'Mover controle para a lixeira':janela.tipo==='lixeira'?'Lixeira de documentos':'Prévia da organização'} ocupado={ocupado} aoFechar={fechar} classe="doc-modal">
+      {janela.tipo==='controle'&&<FormControle inicial={janela.item} titulares={titulares} pessoas={pessoas} bens={bens} renovacao={janela.renovacao} ocupado={ocupado} erro={erro} aoSalvar={salvar} aoFechar={fechar}/>}
+      {janela.tipo==='titular'&&<FormTitular inicial={janela.item} pessoalPermitido={podeAbrir('documentos-pessoais')} ocupado={ocupado} erro={erro} aoFechar={fechar} aoSalvar={item=>gravar(async()=>atualizarLista('titulares',await api.salvarTitular(item,janela.item?.atualizadoEm??null)),'Titular salvo.')}/>}
+      {janela.tipo==='requisito'&&<FormRequisito inicial={janela.item} titulares={titulares} itens={vm.lista} pessoas={pessoas} ocupado={ocupado} erro={erro} aoFechar={fechar} aoSalvar={item=>gravar(async()=>atualizarLista('requisitos',await api.salvarRequisito(item,janela.item?.atualizadoEm??null)),'Aplicabilidade salva.')}/>}
+      {janela.tipo==='excluir'&&<div className="doc-form">{erro&&<p className="doc-notice is-error" role="alert">{erro}</p>}<p>Mover <strong>{janela.item.nome}</strong> para a lixeira de documentos? O controle sai da lista e pode ser recuperado. O bem patrimonial vinculado será preservado.</p><div className="doc-actions doc-footer"><button className="btn-primary" disabled={ocupado} onClick={()=>gravar(async()=>{await api.removerControle(janela.item.id,janela.item.atualizadoEm??null);setDados(d=>({...d,itens:(d.itens||[]).filter(i=>i.id!==janela.item.id)}));},'Controle movido para a lixeira.')}>Mover para lixeira</button><button className="btn-ghost" disabled={ocupado} onClick={fechar}>Cancelar</button></div></div>}
+      {['lixeira','previa'].includes(janela.tipo)&&<div className="doc-form">{erro&&<p className="doc-notice is-error" role="alert">{erro}</p>}{janela.itens===null?<p role="status">Consultando…</p>:janela.tipo==='lixeira'?janela.itens.length?<ul className="doc-versions">{janela.itens.map(i=><li key={i.id}><div><strong>{i.nome||i.categoria}</strong><small>{i.arquivoNome||'Arquivo não informado'}</small></div><button className="btn-outline" disabled={ocupado} onClick={()=>gravar(()=>api.restaurarControle(i.id),'Controle restaurado.')}>Restaurar</button></li>)}</ul>:<p>Nenhum documento na lixeira autorizada.</p>:<><p className="doc-note">Somente leitura. Esta prévia mostra o destino proposto e as pendências. Nenhum registro é migrado por esta tela.</p><ul className="doc-versions">{janela.itens.map((i,index)=><li key={i.id||index}><div><strong>ID {i.id}</strong><small>{texto(i.origem)} → {texto(i.destino)}</small><small>{texto(i.pendencias)||'Sem pendências informadas'}</small></div></li>)}</ul>{!janela.itens.length&&<p>Nenhum registro na prévia autorizada.</p>}</>}</div>}
+    </JanelaFormulario>}
+  </section>;
 }

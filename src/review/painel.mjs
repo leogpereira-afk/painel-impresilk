@@ -2,6 +2,7 @@ import {respostaAgenda,pessoasAgenda} from './compromissos.mjs';
 import {respostaComercial} from './comercial.mjs';
 import {respostaReunioes} from './reunioes.mjs';
 import {respostaMarketing} from './marketing.mjs';
+import {respostaDocumentos,agendaDocumentosDemo} from './documentos.mjs';
 import {validarVinculoPessoa,prepararPessoasControle} from '../../supabase/functions/_shared/patrimonio-pessoas.mjs';
 import {prepararControle} from '../../supabase/functions/_shared/patrimonio-controles.mjs';
 import {prepararFisico,prepararConferencia} from '../../supabase/functions/_shared/patrimonio-fisico.mjs';
@@ -129,6 +130,10 @@ export async function respostaPreview(url,opcoes={}){
  const u=new URL(url,location.origin), corpo=opcoes.body ? JSON.parse(opcoes.body) : {};
  const endpoint=u.pathname.split('/').pop();
  const ss=getSessao(),sessao={sub:'demo',nome:'Conta de demonstração',master:ss?.master,perms:ss?.permissoes||[]};
+ if(endpoint==='painel-ativos'){
+  const documentos=await respostaDocumentos(corpo,sessao,[...equipamentosDemo,...estruturasDemo]);
+  if(documentos)return documentos;
+ }
  if(endpoint==='painel-comercial')return respostaComercial(corpo);
  if(endpoint==='painel-reunioes')return respostaReunioes(corpo);
  if(endpoint==='painel-marketing')return respostaMarketing(corpo);
@@ -224,6 +229,7 @@ export async function respostaPreview(url,opcoes={}){
      ],
      eventos:[{id:'ev-demo',titulo:'Manutenção da impressora (exemplo)',data:d(16)}],
      plantoes:[{id:'pl-demo',data:d(14),tipo:'diarista',quem:'Bruno Exemplo',titulo:'Plantão de exemplo',inicio:'08:00',fim:'17:00'}]};
+   else if(corpo.action==='documentos')dados={eventos:agendaDocumentosDemo(mes,sessao,[...equipamentosDemo,...estruturasDemo])};
    else if(corpo.action==='patrimonio')dados={eventos:vencimentosIncendio(equipamentosDemo,mes)};
    else if(corpo.action==='empresa') dados={hoje:d(14),consultadoEm:new Date().toISOString(),
      eventos:[

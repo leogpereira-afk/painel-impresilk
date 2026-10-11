@@ -2,6 +2,8 @@ import {previaReclassificacao} from '../_shared/patrimonio-migracao.mjs';
 import {ativoPermitido,exigeInventario,temPermissao,FAMILIAS_EQUIPAMENTO} from '../_shared/patrimonio-acesso.mjs';
 import {lerPessoasPatrimonio,validarVinculoPessoa} from '../_shared/patrimonio-pessoas.mjs';
 import {prepararFisico} from '../_shared/patrimonio-fisico.mjs';
+import {atenderDocumentos} from '../_shared/documentos-handler.mjs';
+import {temHistoricoPessoal} from '../_shared/documentos.mjs';
 // ============================================================================
 // painel-ativos — documentos, veiculos e maquinas (substitui ativos.js)
 //
@@ -44,7 +46,7 @@ const BUCKET = "painel-arquivos";
 // "seguro" e a apolice: vence como documento (por isso mora na tela de
 // Documentos e ativos, e a Home avisa antes), mas carrega duas coisas que
 // documento nao tem -- a seguradora e a importancia segurada.
-const TIPOS = new Set(["documento", "veiculo", "maquina", "marketing", "licitacao", "predial", "informatica", "seguranca", "seguro"]);
+const TIPOS = new Set(["documento", "veiculo", "maquina", "marketing", "licitacao", "predial", "informatica", "seguranca", "seguro", "garantia"]);
 
 // FICHA TECNICA por familia -- a "especificacao" que a tela de Manutencoes pede
 // ao cadastrar. Lista FECHADA e por tipo: sem isso, o objeto vira depositario de
@@ -255,6 +257,7 @@ Deno.serve(async (req: Request) => {
   const MODULOS_DO_TIPO: Record<string, string[]> = {
     documento: ["documentos"],
     seguro: ["documentos"],
+    garantia: ["documentos"],
     // Veiculo e maquina tem DUAS telas: "Documentos e ativos" (a validade do
     // IPVA, do licenciamento, da revisao) e "Manutencoes", que cadastra o
     // mesmo carro para lancar gasto e historico. Exigir so `documentos`
@@ -277,15 +280,50 @@ Deno.serve(async (req: Request) => {
   };
   // Le o tipo do item guardado -- as acoes por id (remover, arquivos) so
   // recebem o id, entao a permissao depende do que esta gravado.
-  const tipoDoId = async (id: string): Promise<string | null> => {
-    const { data } = await sb.from("painel_registros").select("registro")
+  const registroDoId = async (id: string) => {
+    const { data, error } = await sb.from("painel_registros").select("registro")
       .eq("colecao", "ativo").eq("id", id).maybeSingle();
-    return (data?.registro as any)?.tipo ?? null;
+    if(error)throw error;
+    return data?.registro as any || null;
+  };
+  const tipoDoId = async (id: string): Promise<string | null> => (await registroDoId(id))?.tipo ?? null;
+  // As portas antigas obedecem à mesma classificação explícita de titular.
+  // Um controle sem titular confirmado é pendente, nunca presumido empresa.
+  const podeRegistro = async (registro: any) => {
+    if(!podeTipo(registro?.tipo))return false;
+    if(!['documento','seguro','garantia'].includes(registro?.tipo))return true;
+    if(!temPermissao(sessao,'documentos'))return false;
+    if((registro.pessoalHistorico===true||Array.isArray(registro.versoes)&&registro.versoes.length)&&!temPermissao(sessao,'documentos-pessoais')){
+      const titulares=new Map();
+      if(registro.pessoalHistorico!==true)for(const id of new Set(registro.versoes.map((v:any)=>v.snapshot?.titularId).filter(Boolean))){
+        const {data,error}=await sb.from('painel_registros').select('registro').eq('colecao','documentos_titulares').eq('id',id).maybeSingle();
+        if(error)throw error;if(data?.registro)titulares.set(id,data.registro);
+      }
+      if(temHistoricoPessoal(registro,titulares))return false;
+    }
+    if((registro.origem==='seguranca'||registro.origemTipo==='seguranca')&&!temPermissao(sessao,'seguranca'))return false;
+    if(Array.isArray(registro.ativoIds)&&!temPermissao(sessao,'seguranca'))for(const id of registro.ativoIds){
+      const atual=await registroDoId(id);
+      const {data,error}=atual?{data:null,error:null}:await sb.from('painel_registros').select('registro').eq('colecao','ativo_lixeira').eq('id',id).maybeSingle();
+      if(error)throw error;if(!(atual||data?.registro)||(atual||data?.registro)?.tipo==='seguranca')return false;
+    }
+    if(temPermissao(sessao,'documentos-pessoais'))return true;
+    if(!registro.titularId)return false;
+    const {data,error}=await sb.from('painel_registros').select('registro').eq('colecao','documentos_titulares').eq('id',registro.titularId).maybeSingle();
+    if(error)throw error;return data?.registro?.tipo==='empresa';
   };
   const barraId = async (id: string) => {
-    const tipo = await tipoDoId(id);
-    if (tipo && !podeTipo(tipo)) return resposta({ erro: "Voce nao tem acesso a este modulo." }, 403);
+    const registro = await registroDoId(id);
+    if (registro && !await podeRegistro(registro)) return resposta({ erro: "Voce nao tem acesso a este modulo." }, 403);
     return null;
+  };
+  const retornoLegado=(registro:any)=>{
+    const item=ativoPermitido(registro,sessao);
+    if(!['documento','seguro','garantia'].includes(item?.tipo))return item;
+    const arquivo=(a:any)=>a?{id:a.id,nome:a.nome,mime:a.mime,criadoEm:a.criadoEm,criadoPor:a.criadoPor}:null;
+    const publico={...item,...(Array.isArray(item.versoes)?{versoes:item.versoes.map((v:any)=>({id:v.id,emissao:v.emissao,validade:v.validade,arquivo:arquivo(v.arquivo),anexos:(v.anexos||[]).map(arquivo),criadoEm:v.criadoEm,criadoPor:v.criadoPor}))}:{}),...(Array.isArray(item.anexos)?{anexos:item.anexos.map(arquivo)}:{})};
+    if(item.tipo!=='seguro'){delete publico.valor;delete publico.valorSegurado;}
+    return publico;
   };
   // GRAVAR pede mais que ver. O Marketing tem papel dentro do modulo
   // (painel_mkt_papeis): quem e so "visualizacao" ve os materiais, mas nao
@@ -312,6 +350,17 @@ Deno.serve(async (req: Request) => {
     let equipeRH: Promise<any[]> | undefined;
     const pessoasRH=()=>equipeRH ||= lerPessoasPatrimonio(sb);
     switch (corpo.action) {
+      case 'listarDocumentos':
+      case 'salvarControle':
+      case 'renovarControle':
+      case 'lerVersaoDocumento':
+      case 'removerControle':
+      case 'lixeiraDocumentos':
+      case 'restaurarControle':
+      case 'salvarTitular':
+      case 'salvarRequisito':
+      case 'previaDocumentos':
+        return await atenderDocumentos({sb,sessao,corpo,resposta,quem,pessoasRH,bytesParaB64,bucket:BUCKET});
       case "previaMigracaoPatrimonio": {
         if(sessao.master !== true) return resposta({erro:'Só a direção confere a migração.'},403);
         const linhas=[];
@@ -409,7 +458,7 @@ Deno.serve(async (req: Request) => {
         if(!atual||atual.tipo!=='predial'||!['Extintor','AVCB'].includes(atual.categoria))return resposta({erro:'Item de incêndio não encontrado.'},404);
         if(corpo.action==='lerArquivoIncendio'){
           const meta=atual.arquivoIncendio;
-          if(!meta?.chave||!String(meta.chave).startsWith(`incendio/${encodeURIComponent(id)}/`))return resposta({erro:'Anexo não encontrado.'},404);
+          if(!meta?.chave||!(String(meta.chave).startsWith(`incendio/${encodeURIComponent(id)}/`)||atual.categoria==='AVCB'&&String(meta.chave).startsWith(`documentos/${encodeURIComponent(id)}/`)))return resposta({erro:'Anexo não encontrado.'},404);
           const {data:arq,error}=await sb.storage.from(BUCKET).download(meta.chave);
           if(error||!arq)return resposta({erro:'Anexo não encontrado.'},404);
           return resposta({ok:true,base64:bytesParaB64(await arq.arrayBuffer()),mime:meta.mime,nome:meta.nome});
@@ -528,7 +577,8 @@ Deno.serve(async (req: Request) => {
         // Filtra pelo que a sessao pode ver: a tela ja separava por tipo,
         // mas o servidor mandava tudo -- inclusive editais e materiais de
         // marca para quem nao tem esses modulos.
-        return resposta({ ok: true, itens: itens.filter((i: any) => podeTipo(i?.tipo)).map(i=>ativoPermitido(i,sessao)) });
+        const permitidos=[];for(const item of itens)if(await podeRegistro(item))permitidos.push(retornoLegado(item));
+        return resposta({ ok: true, itens: permitidos });
       }
 
       case "salvar": {
@@ -544,6 +594,10 @@ Deno.serve(async (req: Request) => {
           .eq("colecao", "ativo").eq("id", id).maybeSingle();
 
         if(falhaLeitura) throw new Error(falhaLeitura.message);
+        if(['documento','seguro','garantia'].includes(tipo)&&!ant?.registro&&!it.id)return await atenderDocumentos({sb,sessao,corpo:{...corpo,action:'salvarControle',item:{...it,cadastroId:id}},resposta,quem,pessoasRH,bytesParaB64,bucket:BUCKET});
+        if(!await podeRegistro(ant?.registro||it))return resposta({erro:'Sem acesso a este documento.'},403);
+        if(['documento','seguro','garantia'].includes(tipo)&&String(it.categoria||'').trim().toUpperCase()==='AVCB'&&String(ant?.registro?.categoria||'').toUpperCase()!=='AVCB')return resposta({erro:'Cadastre o AVCB na Prevenção contra incêndio e renove a mesma ficha.'},409);
+        if(['documento','seguro','garantia'].includes(tipo)&&ant?.registro&&corpo.versao!==(ant.registro.atualizadoEm||''))return resposta({erro:'Este controle mudou. Recarregue antes de salvar.'},409);
         if(it.cadastroId && !/^[a-zA-Z0-9-]{1,180}$/.test(it.cadastroId)) return resposta({erro:"Identificador inválido."},400);
 
         // Conferir SO o tipo do corpo deixava a porta aberta: quem perdeu o
@@ -604,6 +658,7 @@ Deno.serve(async (req: Request) => {
             checklist:(Array.isArray(x.checklist)?x.checklist:[]).slice(0,30).map((c:any,i:number)=>({id:String(c.id || i).slice(0,80),texto:String(c.texto || "").slice(0,300),feito:c.feito===true})).filter((c:any)=>c.texto.trim()) };
         };
         const limpo = {
+          ...Object.fromEntries(['titularId','ativoIds','origem','origemTipo','pessoalHistorico','semVencimento','alertaDias','estado','orgaoEmissor','estabelecimento','contato','assistencia','linkOficial','fornecedor','fabricante','compra','tipoGarantia','condicoes','cobertura','obrigacaoPagamento','pagamentoSituacao','acionamentos','versoes','anexos'].filter(k=>Object.hasOwn(a,k)).map(k=>[k,a[k]])),
           ...(a.bemId ? {bemId:a.bemId} : {}),
           ...(a.arquivoIncendio ? {arquivoIncendio:a.arquivoIncendio} : {}),
           id, tipo,
@@ -651,6 +706,10 @@ Deno.serve(async (req: Request) => {
           atualizadoPor: quem,
           criadoEm: ant?.registro?.criadoEm || agora,
         };
+        if(['documento','seguro','garantia'].includes(tipo))limpo.atualizadoEm=new Date(Math.max(Date.now(),(Date.parse(String(a.atualizadoEm||''))||0)+1)).toISOString();
+        if(['documento','seguro','garantia'].includes(tipo))Object.assign(limpo,validarVinculoPessoa(it,a,await pessoasRH(),'responsavel'));
+        if(tipo==='seguro')for(const chave of ['valor','valorSegurado']){const bruto=Object.hasOwn(it,chave)?it[chave]:a[chave];if(bruto==null||bruto==='')limpo[chave]=null;else if(!Number.isFinite(Number(bruto))||Number(bruto)<0)return resposta({erro:'Valor do seguro inválido.'},422);else limpo[chave]=Number(bruto);}
+        else if(['documento','garantia'].includes(tipo))for(const chave of ['valor','valorSegurado']){if(Object.hasOwn(a,chave))limpo[chave]=a[chave];else delete limpo[chave];}
 
         if (FAMILIAS_EQUIPAMENTO.includes(tipo)) {
           if(['predial','informatica','seguranca'].includes(tipo)&&a.categoria&&it.categoria!==undefined&&it.categoria!==a.categoria)
@@ -673,7 +732,7 @@ Deno.serve(async (req: Request) => {
         }
         const {data,error}=await sb.rpc('painel_registro_gravar',{p_colecao:'ativo',p_id:id,p_registro:limpo,p_anterior:ant?.registro || null});
         if(error) throw Object.assign(new Error(error.message),{code:error.code});
-        return resposta({ok:true,item:ativoPermitido(data,sessao)});
+        return resposta({ok:true,item:retornoLegado(data)});
       }
 
       // Retirar mantém registro e arquivo recuperáveis na lixeira.
@@ -684,6 +743,7 @@ Deno.serve(async (req: Request) => {
         const tipoRemover = await tipoDoId(id);
         if (!tipoRemover) return resposta({ erro: "item nao encontrado" }, 404);
         { const b = await barraGravar(tipoRemover); if (b) return b; }
+        if(['documento','seguro','garantia'].includes(tipoRemover))return await atenderDocumentos({sb,sessao,corpo:{...corpo,action:'removerControle'},resposta,quem,pessoasRH,bytesParaB64,bucket:BUCKET});
         if(corpo.bemId) exigeInventario(sessao);
         if(corpo.bemId && !sessao.master && !perms.includes('*') && !perms.includes('manutencoes')) return resposta({erro:'Sem acesso a Manutenções.'},403);
         const {error}=await sb.rpc('painel_ativo_retirar',{p_id:id,p_bem_id:corpo.bemId || null,p_por:quem});
@@ -694,8 +754,8 @@ Deno.serve(async (req: Request) => {
       case "lixeira": {
         const { data } = await sb.from("painel_registros").select("registro")
           .eq("colecao", "ativo_lixeira").order("atualizado_em", { ascending: false });
-        const itens = (data ?? []).map((r: any) => r.registro).filter((i: any) => podeTipo(i?.tipo));
-        return resposta({ ok: true, itens:itens.map(i=>ativoPermitido(i,sessao)) });
+        const itens=[];for(const linha of data||[])if(await podeRegistro(linha.registro))itens.push(linha.registro);
+        return resposta({ ok: true, itens:itens.map(retornoLegado) });
       }
 
       case "restaurar": {
@@ -706,6 +766,7 @@ Deno.serve(async (req: Request) => {
         if(erroLix)throw erroLix;
         if (!lix?.registro) return resposta({ erro: "nao esta na lixeira" }, 404);
         const reg = { ...(lix.registro as any) };
+        if(!await podeRegistro(reg))return resposta({erro:'Sem acesso a este documento.'},403);
         delete reg._apagadoEm;
         { const b = await barraGravar(reg?.tipo); if (b) return b; }
         const {error}=await sb.rpc('painel_ativo_restaurar',{p_id:id,p_anterior:lix.registro});
@@ -722,9 +783,11 @@ Deno.serve(async (req: Request) => {
         // o item primeiro e so entao mandam o arquivo -- id sem item aqui e
         // sinal de que o cadastro falhou (ou de chamada torta).
         const tipoDono = await tipoDoId(id);
+        {const b=await barraId(id);if(b)return b;}
         if(tipoDono && FAMILIAS_EQUIPAMENTO.includes(tipoDono)) exigeInventario(sessao);
         if (!tipoDono) return resposta({ erro: "Cadastre o item antes de anexar o arquivo." }, 400);
         { const b = await barraGravar(tipoDono); if (b) return b; }
+        if(['documento','seguro','garantia'].includes(tipoDono))return await atenderDocumentos({sb,sessao,corpo:{action:'salvarControle',item:{id,tipo:tipoDono},versao:corpo.versao,arquivo:{base64,mime:corpo.mime,nome:corpo.nome}},resposta,quem,pessoasRH,bytesParaB64,bucket:BUCKET});
         if (base64.length > MAX_ARQUIVO) return resposta({ erro: "Arquivo muito grande (limite ~3 MB)." }, 413);
 
         const mime = String(corpo.mime ?? "application/pdf");
@@ -743,6 +806,7 @@ Deno.serve(async (req: Request) => {
       case "lerArquivo": {
         const id = String(corpo.id ?? "");
         { const b = await barraId(id); if (b) return b; }
+        if(['documento','seguro','garantia'].includes(await tipoDoId(id)||''))return await atenderDocumentos({sb,sessao,corpo:{action:'lerVersaoDocumento',id},resposta,quem,pessoasRH,bytesParaB64,bucket:BUCKET});
         /* So arquivo DE ATIVO. O bucket e compartilhado com os anexos de
            conversa dos compromissos (que tem dono e regra propria no
            painel-config): sem esta trava, qualquer pessoa logada baixava o
@@ -767,7 +831,7 @@ Deno.serve(async (req: Request) => {
     }
   } catch (e) {
     console.error("[painel-ativos] erro:", e);
-    if ([403,422,503].includes((e as any)?.status)) return resposta({erro:(e as Error).message},(e as any).status);
+    if ([400,403,404,409,413,422,503].includes((e as any)?.status)) return resposta({erro:(e as Error).message},(e as any).status);
     if ((e as any)?.code === "23503") return resposta({erro:"Este cadastro possui vínculos. Troque ou desvincule o setor, aparelho, gravador, contato técnico, unidade consumidora ou bem nas fichas relacionadas antes de retirar ou alterar."},409);
     if ((e as any)?.code === "23505") return resposta({erro:"Número, canal ou cadastro já utilizado. Confira os itens ativos antes de salvar ou restaurar; a lixeira foi preservada."},409);
     if ((e as any)?.code === "40001") return resposta({erro:"Este registro mudou durante a edição. Recarregue antes de salvar."},409);

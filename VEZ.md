@@ -1,5 +1,13 @@
 # Vez do Painel Impresilk
 
+## Trabalho atual: Documentos e vencimentos
+
+Publicação autorizada por Léo: “pode subir”, em 11/10/2026, após revisão local. Servidor publicado e todos os arquivos conferidos antes da tela: painel-ativos 105, painel-agenda 46, painel-auth 115 e equipe-auth 79. RPC estrutural aplicada sem transformar registros; assinatura dos cadastros preservada. Publicação da tela em andamento. Nenhuma concessão de acesso.
+
+Agente: codex. Pedido de Léo em 11/10/2026, conforme especificação completa desta conversa. Menu lateral Documento & Seguros. Ramo codex/documentos-vencimentos, clone isolado em /tmp. Escopo: implementação e revisão local de documentos, titulares, veículos vinculados, garantias, seguros, versões, permissões e calendário. Publicação e migração de registros dependem de aprovação específica. Plano em docs/documentos-vencimentos.md. Preservar arquivos e cadastros; nenhuma concessão automática de acesso.
+
+Verificação final local: 1.778/1.778 testes aprovados, sem ignorados; produção e revisão compiladas; lint sem erros (um aviso anterior em Agenda); 22 permissões conferem nas três listas. Tabela compacta, detalhes recolhíveis, impressão, abertura por ID e celular de 390px conferidos com dados fictícios. Sessão/permissão alterada descarta cache e formulários antigos. Não houve commit, publicação, migração de registros nem concessão de acesso. Falta autorização de publicação e validação autenticada real.
+
 Agente: codex
 
 Autorização: dono confirmou nesta conversa a criação do protocolo inicial e a vez do Codex.

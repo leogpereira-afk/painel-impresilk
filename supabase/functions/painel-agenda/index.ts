@@ -44,6 +44,7 @@ import { canceladaPCP, diasCasa, encerradaERP, projetarOS, hojeSP, pessoasDaAgen
 
 import { celebracoesRH } from "../_shared/calendario-celebracoes.mjs";
 import { vencimentosIncendio, CATEGORIAS_INCENDIO } from "../_shared/patrimonio-incendio.mjs";
+import { documentoAgendaPermitido, incendioAgendaPermitido, bemLegadoAgendaPermitido, vencimentosDocumentos, TIPOS_DOCUMENTOS_AGENDA } from "../_shared/documentos-agenda.mjs";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -121,16 +122,70 @@ async function lerColecao(tabela: string, colecao: string): Promise<any[]> {
 const texto = (v: unknown, max = 200) => String(v ?? "").trim().slice(0, max);
 
 // Somente vencimentos operacionais. Compra, NF, arquivo e pessoas não são lidos.
-async function agendaPatrimonio(mes:string) {
- const itens:any[]=[];
- for(let de=0;de<50000;de+=500) {
-  const {data,error}=await sb.from('painel_registros').select('id,tipo:registro->>tipo,categoria:registro->>categoria,nome:registro->>nome,validade:registro->>validade,numero:registro->especificacao->>numero,situacao:registro->especificacao->>situacao')
-   .eq('colecao','ativo').eq('registro->>tipo','predial').in('registro->>categoria',CATEGORIAS_INCENDIO).order('id').range(de,de+499);
-  if(error)throw new Error(error.message);
-  itens.push(...(data||[]));
-  if((data||[]).length<500)return {eventos:vencimentosIncendio(itens,mes),hoje:hojeSP(),consultadoEm:new Date().toISOString()};
- }
- throw new Error('A agenda do patrimônio excedeu o limite de consulta.');
+async function agendaPatrimonio(mes:string, sessao:any) {
+  const [titulares, indice] = await Promise.all([
+    lerIndiceDocumentos('documentos_titulares', 'id,tipo:registro->>tipo'),
+    lerIndiceDocumentos('ativo', 'id,tipo:registro->>tipo,categoria:registro->>categoria,titularId:registro->>titularId,pessoalHistorico:registro->>pessoalHistorico,versoes:registro->versoes', ['predial'], CATEGORIAS_INCENDIO),
+  ]);
+  const porTitular = new Map(titulares.map(item => [String(item.id), item]));
+  const autorizados = indice.filter(item => incendioAgendaPermitido(item, porTitular, sessao));
+  const itens = await lerCamposAgenda(autorizados.map(item => item.id), 'id,tipo:registro->>tipo,categoria:registro->>categoria,nome:registro->>nome,validade:registro->>validade,numero:registro->especificacao->>numero,situacao:registro->especificacao->>situacao,titularId:registro->>titularId,pessoalHistorico:registro->>pessoalHistorico,versoes:registro->versoes');
+  return {eventos:vencimentosIncendio(itens.filter(item => incendioAgendaPermitido(item, porTitular, sessao)),mes),hoje:hojeSP(),consultadoEm:new Date().toISOString()};
+}
+
+// Snapshots antigos podem anteceder a flag de privacidade. Deles só ficam os
+// IDs de titulares: o resto é descartado antes de autorizar títulos/prazos.
+function camposMinimosPrivacidade(linhas: any[]) {
+  return linhas.map(({versoes, ...linha}) => ({ ...linha, titularHistoricoIds: [...new Set(
+    (Array.isArray(versoes) ? versoes : []).map(v => v?.snapshot?.titularId).filter(id => typeof id === 'string' && id.trim()),
+  )] }));
+}
+
+// Só após conferir titular e origem consultamos os campos fechados que
+// realmente entram no calendário. Nenhuma versão entra no retorno.
+async function lerIndiceDocumentos(colecao: string, campos: string, tipos?: string[], categoria?: string|string[]) {
+  const itens: any[] = [];
+  for (let de = 0; de < 50000; de += 500) {
+    let consulta = sb.from('painel_registros').select(campos).eq('colecao', colecao);
+    if (tipos) consulta = consulta.in('registro->>tipo', tipos);
+    if (categoria) consulta = Array.isArray(categoria) ? consulta.in('registro->>categoria', categoria) : consulta.eq('registro->>categoria', categoria);
+    const { data, error } = await consulta.order('id').range(de, de + 499);
+    if (error) throw new Error(error.message);
+    if (!Array.isArray(data)) throw new Error('Resposta incompleta ao consultar a agenda de documentos.');
+    itens.push(...camposMinimosPrivacidade(data));
+    if (data.length < 500) return itens;
+  }
+  throw new Error('A agenda de documentos excedeu o limite de consulta.');
+}
+
+async function lerCamposAgenda(idsAutorizados: string[], campos: string) {
+  const itens: any[] = [];
+  for (let de = 0; de < idsAutorizados.length; de += 200) {
+    const ids = idsAutorizados.slice(de, de + 200);
+    const { data, error } = await sb.from('painel_registros').select(campos)
+      .eq('colecao', 'ativo').in('id', ids).order('id').range(0, 499);
+    if (error) throw new Error(error.message);
+    if (!Array.isArray(data) || data.length !== ids.length) throw new Error('Os controles mudaram ou a consulta ficou incompleta. Atualize a agenda.');
+    itens.push(...camposMinimosPrivacidade(data));
+  }
+  return itens;
+}
+
+async function agendaDocumentos(mes: string, sessao: any) {
+  const [titulares, indice] = await Promise.all([
+    lerIndiceDocumentos('documentos_titulares', 'id,tipo:registro->>tipo'),
+    lerIndiceDocumentos('ativo', 'id,tipo:registro->>tipo,categoria:registro->>categoria,titularId:registro->>titularId,pessoalHistorico:registro->>pessoalHistorico,versoes:registro->versoes,ativoIds:registro->ativoIds,origem:registro->>origem,origemTipo:registro->>origemTipo', [...TIPOS_DOCUMENTOS_AGENDA, 'veiculo', 'maquina', 'predial', 'informatica', 'seguranca']),
+  ]);
+  const bens = new Map(indice.filter(item => !TIPOS_DOCUMENTOS_AGENDA.includes(item.tipo)).map(item => [String(item.id), item.tipo]));
+  const porTitular = new Map(titulares.map(item => [String(item.id), item]));
+  const autorizados = indice.filter(item => documentoAgendaPermitido(item, porTitular, sessao, bens)
+    || bemLegadoAgendaPermitido(item, porTitular, sessao)
+    || item.tipo === 'predial' && item.categoria === 'AVCB' && incendioAgendaPermitido(item, porTitular, sessao));
+  // Lotes de IDs menores que a página: nem o limite padrão do PostgREST nem
+  // uma coleção volumosa pode transformar uma leitura parcial em sucesso.
+  const itens = await lerCamposAgenda(autorizados.map(item => item.id), 'id,tipo:registro->>tipo,categoria:registro->>categoria,nome:registro->>nome,titularId:registro->>titularId,pessoalHistorico:registro->>pessoalHistorico,versoes:registro->versoes,ativoIds:registro->ativoIds,origem:registro->>origem,origemTipo:registro->>origemTipo,semVencimento:registro->>semVencimento,estado:registro->>estado,validade:registro->>validade,situacao:registro->especificacao->>situacao');
+  const eventos = vencimentosDocumentos(itens, porTitular, sessao, mes, bens);
+  return { eventos, hoje: hojeSP(), consultadoEm: new Date().toISOString() };
 }
 
 // ---------------------------------------------------------------- producao --
@@ -297,7 +352,12 @@ Deno.serve(async (req) => {
       case "patrimonio": {
         const g=await exigirSessao(req,['patrimonio','inventario-valores']);
         if(g.resposta)return g.resposta;
-        return json(await agendaPatrimonio(mes));
+        return json(await agendaPatrimonio(mes, g.sessao));
+      }
+      case "documentos": {
+        const g = await exigirSessao(req, 'documentos');
+        if (g.resposta) return g.resposta;
+        return json(await agendaDocumentos(mes, g.sessao));
       }
       default:
         return json({ erro: "Acao desconhecida." }, 400);

@@ -6,6 +6,7 @@ import {transformSync} from 'esbuild';
 import vm from 'node:vm';
 import * as acesso from '../supabase/functions/_shared/patrimonio-acesso.mjs';
 import {previaReclassificacao} from '../supabase/functions/_shared/patrimonio-migracao.mjs';
+import {temHistoricoPessoal} from '../supabase/functions/_shared/documentos.mjs';
 import {abasPatrimonio,abaPatrimonioAtual,secaoEstruturaInicial} from '../src/lib/calc/navegacao-patrimonio.js';
 import {calcManutencoes, agruparGastos} from '../src/lib/calc/manutencoes.js';
 // Testamos Request -> handler real -> Response. Apenas JWT e banco são simulados.
@@ -17,7 +18,7 @@ function ambiente(nome,perms,linhas=[],master=false){
  },async rpc(n,p){escritas.push({n,p});return {data:p.p_registro,error:null};},storage:{from(){throw new Error('Não pode acessar arquivo sem permissão');}}};
  const source=readFileSync(new URL(`../supabase/functions/${nome}/index.ts`,import.meta.url),'utf8').replace(/^import .*;\s*$/gm,'');
  const code=transformSync(source,{loader:'ts',target:'es2022',format:'esm'}).code;
- vm.runInNewContext(code,{...acesso,previaReclassificacao,crypto:webcrypto, Deno:{env:{get:()=> 'teste'},serve:f=>handler=f},createClient:()=>sb,verificarJwt:async()=>({sub:'teste',perms,master}),crachaRevogado:async()=>false,validarVinculoPessoa:()=>({}),lerPessoasPatrimonio:async()=>[],Request,Response,console:{error(){}}});
+ vm.runInNewContext(code,{...acesso,previaReclassificacao,temHistoricoPessoal,crypto:webcrypto, Deno:{env:{get:()=> 'teste'},serve:f=>handler=f},createClient:()=>sb,verificarJwt:async()=>({sub:'teste',perms,master}),crachaRevogado:async()=>false,validarVinculoPessoa:()=>({}),lerPessoasPatrimonio:async()=>[],Request,Response,console:{error(){}}});
  return {escritas,async chamar(body){const r=await handler(new Request('http://test.invalid',{method:'POST',headers:{authorization:'Bearer teste'},body:JSON.stringify(body)}));return {status:r.status,body:await r.json()};}};
 }
 const registro=(colecao,id,registro)=>({colecao,id,registro:{id,...registro}});

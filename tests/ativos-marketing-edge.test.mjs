@@ -9,6 +9,8 @@ import { readFileSync } from 'node:fs';
 import { transformSync } from 'esbuild';
 import vm from 'node:vm';
 import { papelGrava } from '../supabase/functions/_shared/marketing-papel.mjs';
+import { atenderDocumentos } from '../supabase/functions/_shared/documentos-handler.mjs';
+import { temHistoricoPessoal } from '../supabase/functions/_shared/documentos.mjs';
 
 const fonte = readFileSync(new URL('../supabase/functions/painel-ativos/index.ts', import.meta.url), 'utf8').replace(/^import .*;\s*$/gm, '');
 const codigo = transformSync(fonte, { loader: 'ts', format: 'esm', target: 'es2022' }).code;
@@ -35,7 +37,7 @@ function ambiente({ papel = 'marketing', sessao = { sub: 'pessoa', perms: ['mark
     storage: { from() { return { async upload(id) { gravacoes.push({ upload: id }); return { error: null }; } }; } },
   };
   vm.runInNewContext(codigo, {
-    ...patrimonioAcesso,previaReclassificacao, Deno: { env: { get: () => 'teste' }, serve: (fn) => { handler = fn; } },
+    ...patrimonioAcesso,previaReclassificacao,atenderDocumentos,temHistoricoPessoal, Deno: { env: { get: () => 'teste' }, serve: (fn) => { handler = fn; } },
     createClient: () => sb, verificarJwt: async () => sessao, crachaRevogado: async () => false,
     papelNoMarketing: async (_sb, s) => { perguntasDePapel.push(s); return papel; }, papelGrava,
     Response, Request, console: { error() {} }, crypto, atob, btoa, Uint8Array,
@@ -72,11 +74,13 @@ test('o caso ruim: visualização no Marketing não envia, organiza, apaga, anex
 });
 
 test('papel marketing grava material; outros tipos nem perguntam o papel do Marketing', async () => {
-  const a = ambiente({ papel: 'marketing', linhas: [registro('logo', 'marketing'), registro('doc', 'documento')] });
+  // O documento legado não tem titular confirmado: a sessão precisa da
+  // autorização pessoal. O teste continua isolando apenas o papel Marketing.
+  const a = ambiente({ papel: 'marketing', sessao: { sub: 'pessoa', perms: ['marketing', 'documentos', 'documentos-pessoais'] }, linhas: [registro('logo', 'marketing'), registro('doc', 'documento')] });
   assert.equal((await a.chamar({ action: 'remover', id: 'logo' })).status, 200);
   assert.ok(a.gravacoes.some((g) => g.rpc === 'painel_ativo_retirar'));
   const antes = a.perguntasDePapel.length;
-  assert.equal((await a.chamar({ action: 'remover', id: 'doc' })).status, 200);
+  assert.equal((await a.chamar({ action: 'remover', id: 'doc', versao: '' })).status, 200);
   assert.equal(a.perguntasDePapel.length, antes);
   // Sem o módulo, o 403 de sempre (o papel nem chega a ser lido).
   const sem = ambiente({ papel: 'gestao', sessao: { sub: 'x', perms: ['documentos'] }, linhas: [registro('logo', 'marketing')] });

@@ -1,4 +1,4 @@
-// A agenda, so para ver. Duas leituras, nenhuma escrita -- e nao ha o que
+// A agenda, so para ver. Leituras sem escrita -- e nao ha o que
 // escrever: a function painel-agenda nao tem acao de gravar. Quem programa O.S.,
 // lanca plantao ou registra evento continua fazendo isso no PCP; quem lanca
 // evento da empresa, no RH. Aqui e a vitrine.
@@ -38,3 +38,9 @@ export const lerEmpresa = (mes) =>
   }));
 
 export const lerAgendaPatrimonio=mes=>chamar('patrimonio',mes).then(r=>Array.isArray(r?.eventos)?r.eventos:[]);
+
+/** Vencimentos autorizados, calculados das fichas vigentes de Documentos. */
+export const lerAgendaDocumentos = mes => chamar('documentos', mes).then(r => {
+  if (!Array.isArray(r?.eventos)) throw new Error('Resposta inválida ao consultar os vencimentos de documentos.');
+  return r.eventos;
+});

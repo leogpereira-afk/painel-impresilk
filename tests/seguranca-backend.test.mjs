@@ -89,14 +89,16 @@ test('conta com um módulo só não LISTA documento, veículo, máquina nem segu
  assert.deepEqual(r.body.itens, [], 'nada desses tipos pode atravessar a listagem');
 });
 
-test('quem recebeu Documentos e ativos grava e lê os quatro tipos', async () => {
+test('Documentos preserva os bens; documento legado sem titular exige autorização pessoal para leitura', async () => {
  const f = await funcao('painel-ativos', {linhas: ABERTOS.map(tipo => ({registro:{id:`${tipo}-1`, tipo, nome:'x'}}))});
  for (const tipo of ABERTOS) {
   const r = await f.chamar('documentos', {action:'salvar', item:{tipo, nome:'Alvará'}});
   assert.notEqual(r.status, 403, `${tipo} devia passar para quem tem o módulo`);
  }
  const l = await f.chamar('documentos', {action:'listar'});
- assert.deepEqual(l.body.itens.map(i=>i.tipo).sort(), [...ABERTOS].sort());
+ // Sem titular confirmado, documento/apólice não são presumidos empresariais.
+ // O corte vale na resposta do servidor; veículo e máquina permanecem visíveis.
+ assert.deepEqual(l.body.itens.map(i=>i.tipo).sort(), ['maquina','veiculo']);
 });
 
 test('quem cuida de Manutenções continua cadastrando veículo e máquina — e só isso', async () => {

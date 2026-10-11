@@ -7,7 +7,8 @@ import { ChevronLeft, ChevronRight, RefreshCw, Eye, CalendarDays } from "lucide-
 import {
   PageTitle, Card, Empty, CarregandoModulo, ErroModulo, AvisoAtualizacao,
 } from "../components/ui.jsx";
-import { lerEmpresa,lerAgendaPatrimonio } from "../services/agenda.js";
+import { lerEmpresa,lerAgendaPatrimonio,lerAgendaDocumentos } from "../services/agenda.js";
+import { combinarEventosCalendario, destinoEventoCalendario as destinoEvento } from '../../supabase/functions/_shared/documentos-agenda.mjs';
 import {lerAgendaProcessos} from '../services/processos.js';
 import {lerAgendaReunioes} from '../services/reunioes.js';
 import {podeAbrir} from '../lib/sessao.js';
@@ -39,8 +40,6 @@ const porExtenso = (iso) => {
   return Number.isFinite(+d) ? `${DOW[d.getUTCDay()]} ${curto}` : curto;
 };
 
-const destinoEvento=(e,mes)=>e.origem==='patrimonio'&&e.ativoId?`/patrimonio?aba=incendio&item=${encodeURIComponent(e.ativoId)}`:e.processoId?`/${e.tipoProcesso==='consultoria'?'consultorias':'demandas'}?processo=${encodeURIComponent(e.processoId)}&mes=${mes}`:e.reuniaoId?'/reunioes?encontro='+encodeURIComponent(e.reuniaoId)+'&mes='+mes:null;
-
 export default function CalendarioEmpresa({sessao}) {
   const [mes, setMes] = useMesCalendario(mesAtual);
   const [foco, setFoco] = useState("");
@@ -49,7 +48,10 @@ export default function CalendarioEmpresa({sessao}) {
   const [atualizando, setAtualizando] = useState(false);
   const [encontros,setEncontros]=useState([]),[erroReunioes,setErroReunioes]=useState('');
   const [processos,setProcessos]=useState([]),[erroProcessos,setErroProcessos]=useState('');
-  const [patrimonio,setPatrimonio]=useState([]),[erroPatrimonio,setErroPatrimonio]=useState('');
+  const [patrimonio,setPatrimonio]=useState({chave:'',eventos:[]}),[erroPatrimonio,setErroPatrimonio]=useState('');
+  const [documentos,setDocumentos]=useState({chave:'',eventos:[]}),[erroDocumentos,setErroDocumentos]=useState('');
+  const temDocumentos=podeAbrir('documentos',sessao);
+  const chaveDocumentos=JSON.stringify([sessao?.usuario,sessao?.master,sessao?.permissoes||[]]);
   const temPatrimonio=podeAbrir('patrimonio',sessao)||podeAbrir('inventario-valores',sessao);
   const temProcessos=podeAbrir('demandas',sessao);
   const temReunioes=podeAbrir('reunioes',sessao);
@@ -59,34 +61,37 @@ export default function CalendarioEmpresa({sessao}) {
     const meu = ++pedido.current;
     setAtualizando(true);
     try {
-      const [empresa,reunioes,trabalhos,bens]=await Promise.allSettled([lerEmpresa(mes),temReunioes?lerAgendaReunioes(mes):Promise.resolve([]),temProcessos?lerAgendaProcessos(mes):Promise.resolve([]),temPatrimonio?lerAgendaPatrimonio(mes):Promise.resolve([])]);
+      const [empresa,reunioes,trabalhos,bens,prazos]=await Promise.allSettled([lerEmpresa(mes),temReunioes?lerAgendaReunioes(mes):Promise.resolve([]),temProcessos?lerAgendaProcessos(mes):Promise.resolve([]),temPatrimonio?lerAgendaPatrimonio(mes):Promise.resolve([]),temDocumentos?lerAgendaDocumentos(mes):Promise.resolve([])]);
       // Resposta fora de ordem não pinta a tela (ver Agenda.jsx).
       if (meu !== pedido.current) return;
-      if(empresa.status==='rejected')throw empresa.reason;
-      setDados(empresa.value);
       setProcessos(trabalhos.status==='fulfilled'?trabalhos.value:[]);
       setErroProcessos(trabalhos.status==='rejected'?'Não foi possível carregar demandas e consultorias. Atualize para tentar novamente.':'');
-      setPatrimonio(bens.status==='fulfilled'?bens.value:[]);
+      setPatrimonio({chave:chaveDocumentos,eventos:bens.status==='fulfilled'?bens.value:[]});
       setErroPatrimonio(bens.status==='rejected'?'Não foi possível carregar os prazos de prevenção contra incêndio. Atualize para tentar novamente.':'');
       setEncontros(reunioes.status==='fulfilled'?reunioes.value:[]);
       setErroReunioes(reunioes.status==='rejected'?'Não foi possível carregar as reuniões. Atualize para tentar novamente.':'');
+      setDocumentos({chave:chaveDocumentos,eventos:prazos.status==='fulfilled'?prazos.value:[]});
+      setErroDocumentos(prazos.status==='rejected'?'Não foi possível carregar os vencimentos de documentos, seguros e garantias. Atualize para tentar novamente.':'');
+      if(empresa.status==='rejected')throw empresa.reason;
+      setDados(empresa.value);
       setErro("");
     } catch (e) {
       if (meu === pedido.current) setErro(e.message || "Não foi possível ler o calendário.");
     } finally {
       if (meu === pedido.current) setAtualizando(false);
     }
-  }, [mes,temReunioes,temProcessos,temPatrimonio]);
+  }, [mes,temReunioes,temProcessos,temPatrimonio,temDocumentos,chaveDocumentos]);
 
   useEffect(() => {
+    const contador = pedido;
     void recarregar();
-    return () => { pedido.current++; };
+    return () => { contador.current++; };
   }, [recarregar]);
 
   const hoje = dados?.hoje || "";
   const eventos = useMemo(
-    () => [...(dados?.eventos ?? []),...(temReunioes?encontros:[]),...(temProcessos?processos:[]),...(temPatrimonio?patrimonio:[])].filter(e=>e.data.startsWith(mes)).sort((a, b) => a.data.localeCompare(b.data) || (a.hora||'').localeCompare(b.hora||'') || a.titulo.localeCompare(b.titulo, "pt-BR")),
-    [dados,encontros,temReunioes,mes,processos,temProcessos,temPatrimonio,patrimonio],
+    () => combinarEventosCalendario([dados?.eventos ?? [],temReunioes?encontros:[],temProcessos?processos:[],temPatrimonio&&patrimonio.chave===chaveDocumentos?patrimonio.eventos:[],temDocumentos&&documentos.chave===chaveDocumentos?documentos.eventos:[]],mes),
+    [dados,encontros,temReunioes,mes,processos,temProcessos,temPatrimonio,patrimonio,temDocumentos,documentos,chaveDocumentos],
   );
 
   /* A legenda É o filtro, como no RH: clicar num tipo mostra só ele. Os tipos
@@ -127,9 +132,10 @@ export default function CalendarioEmpresa({sessao}) {
       <AvisoAtualizacao erro={erroReunioes} aoTentar={recarregar} />
       <AvisoAtualizacao erro={erroProcessos} aoTentar={recarregar} />
       <AvisoAtualizacao erro={erroPatrimonio} aoTentar={recarregar} />
+      <AvisoAtualizacao erro={erroDocumentos} aoTentar={recarregar} />
       <PageTitle
         titulo="Calendário da empresa"
-        descricao="Eventos, reuniões, demandas, consultorias e prazos do patrimônio em um só calendário."
+        descricao="Eventos, reuniões, demandas, consultorias e vencimentos em um só calendário."
         acao={
           <button type="button" className="btn-outline" disabled={atualizando} onClick={recarregar}>
             <RefreshCw size={16} className={atualizando ? "animate-spin" : ""} />
@@ -140,7 +146,7 @@ export default function CalendarioEmpresa({sessao}) {
 
       <details className="page-help text-sm text-slate-600">
         <summary className="cursor-pointer"><Eye size={14} className="inline mr-2" />Dados do RH · como funciona</summary>
-        <p className="mt-2">Aniversários e eventos vêm do RH. Encontros salvos em Reuniões aparecem automaticamente para quem tem acesso ao módulo; cancelamentos saem desta agenda. Abra o encontro para conferir os participantes e a ata. Prazos de demandas e consultorias aparecem apenas para os envolvidos e gestores com acesso ao módulo; são atualizados pela própria ficha.</p>
+        <p className="mt-2">Aniversários e eventos vêm do RH. Encontros salvos em Reuniões aparecem automaticamente para quem tem acesso ao módulo; cancelamentos saem desta agenda. Abra o encontro para conferir os participantes e a ata. Prazos de demandas, consultorias, patrimônio, documentos, seguros e garantias seguem as permissões da origem e são atualizados pela própria ficha. Documentos sem vencimento ou encerrados não geram eventos. Abra o prazo para conferir ou renovar o cadastro.</p>
       </details>
 
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -250,7 +256,7 @@ export default function CalendarioEmpresa({sessao}) {
           )}
           <p className="mt-4 flex items-center gap-1.5 text-xs text-slate-400">
             <CalendarDays size={13} aria-hidden="true" />
-            Fonte: RH, Reuniões, Demandas e Consultorias · cada registro é atualizado na sua origem.
+            Fonte: RH, Reuniões, Demandas, Consultorias, Patrimônio e Documentos · cada registro é atualizado na sua origem.
           </p>
         </Card>
       </div>

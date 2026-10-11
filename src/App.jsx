@@ -170,7 +170,7 @@ export default function App() {
       <GuardaDeRota chave={location.key}>
       <Suspense fallback={<p className="p-6 text-sm text-slate-400">Carregando…</p>}>
       <Routes>
-        <Route path="/" element={<Home />} />
+        <Route path="/" element={<Home sessao={sessao} />} />
         <Route
           path="/contas-atrasadas"
           element={
@@ -309,7 +309,7 @@ export default function App() {
           path="/documentos"
           element={
             <Restrito modulo="documentos" sessao={sessao}>
-              <Ativos />
+              <Ativos sessao={sessao} />
             </Restrito>
           }
         />
