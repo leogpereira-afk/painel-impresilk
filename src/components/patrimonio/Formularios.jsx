@@ -1,3 +1,4 @@
+import PessoaRH from './PessoasRH.jsx';
 import {useState} from "react";
 import {SectionTitle} from "../ui.jsx";
 import {SITUACOES,NOMES_GENERICOS} from "../../lib/calc/patrimonio.js";
@@ -85,7 +86,7 @@ export function FormBem({ inicial, setores, salvando, aoSalvar, aoFechar }) {
             <label className="label" htmlFor="b-nf">Nota fiscal</label>
             <input id="b-nf" className="input" placeholder="número da NF" value={f.nf} onChange={trocar("nf")} />
             {!f.nf && <label className="label mt-3">Motivo da ausência da nota<input className="input mt-1" value={f.motivoSemNota || ''} onChange={trocar('motivoSemNota')} placeholder="Ex.: documento ainda não localizado"/></label>}
-          </div><div><label className="label" htmlFor="b-responsavel">Responsável pelo cadastro</label><input id="b-responsavel" className="input" value={f.responsavel || ''} onChange={trocar('responsavel')}/>
+          </div><div><PessoaRH rotulo="Responsável pelo cadastro" valor={f.responsavelId||''} nome={f.responsavel||''} aoMudar={(responsavelId,responsavel)=>setF(v=>({...v,responsavelId,responsavel}))}/>
           </div>
 
           <div>

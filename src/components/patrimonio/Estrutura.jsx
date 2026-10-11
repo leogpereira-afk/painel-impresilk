@@ -1,3 +1,4 @@
+import PessoaRH,{usePessoasRH,comNomeRH} from './PessoasRH.jsx';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Building2, Plus, Pencil, Printer, Search, X, RefreshCw, ChevronLeft, ChevronRight, MapPin, UserRound, Wrench, Link2, Check } from 'lucide-react';
@@ -11,14 +12,15 @@ import './estrutura.css';
 
 const POR_PAGINA = 15;
 const fichaVazia = () => ({ cadastroId: crypto.randomUUID(), nome: '', categoria: '', identificacao: '', responsavel: '', observacao: '', especificacao: { local: '', marcaModelo: '', quantidade: '1', instalacao: '' } });
-const fichaDe = item => ({ id: item.id, nome: item.nome, categoria: item.categoria, identificacao: item.identificacao || '', responsavel: item.responsavel || '', observacao: item.observacao || '', especificacao: { ...item.especificacao, quantidade: item.especificacao?.quantidade || '1' }, atualizadoEm: item.atualizadoEm });
+const fichaDe = item => ({ id: item.id, nome: item.nome, categoria: item.categoria, identificacao: item.identificacao || '', responsavel: item.responsavel || '', responsavelId:item.responsavelId||'', observacao: item.observacao || '', especificacao: { ...item.especificacao, quantidade: item.especificacao?.quantidade || '1' }, atualizadoEm: item.atualizadoEm });
 const assinaturaFicha = item => JSON.stringify([
-  ...['nome', 'categoria', 'identificacao', 'responsavel', 'observacao'].map(campo => String(item[campo] ?? '').trim()),
+  ...['nome', 'categoria', 'identificacao', 'responsavel', 'responsavelId', 'observacao'].map(campo => String(item[campo] ?? '').trim()),
   ...['local', 'marcaModelo', 'instalacao'].map(campo => String(item.especificacao?.[campo] ?? '').trim()),
   Number(item.especificacao?.quantidade),
 ]);
 
 export default function EstruturaPatrimonio({ bens = [], setores = [], aoVerBem }) {
+  const {pessoas}=usePessoasRH();
   const [ativos, setAtivos] = useState(null), [carregando, setCarregando] = useState(false);
   const [erro, setErro] = useState(''), [mensagem, setMensagem] = useState('');
   const [busca, setBusca] = useState(''), [categoria, setCategoria] = useState('todos'), [pagina, setPagina] = useState(1);
@@ -33,7 +35,7 @@ export default function EstruturaPatrimonio({ bens = [], setores = [], aoVerBem 
     finally { if (numero === pedido.current) setCarregando(false); }
   }, []);
   useEffect(() => { carregar();const ref = pedido, ficha = formulario;return () => { ref.current++;ficha.current++; }; }, [carregar]);
-  const itens = useMemo(() => prepararEstrutura(ativos || [], bens, setores), [ativos, bens, setores]);
+  const itens = useMemo(() => prepararEstrutura((ativos || []).map(i=>comNomeRH(i,pessoas)), bens, setores), [ativos, bens, setores,pessoas]);
   const lista = useMemo(() => filtrarEstrutura(itens, { busca, categoria }), [itens, busca, categoria]);
   const categorias = useMemo(() => [...new Set([...CATEGORIAS_ESTRUTURA, ...itens.map(i => i.categoria)])].filter(Boolean), [itens]);
   const paginas = Math.max(1, Math.ceil(lista.length / POR_PAGINA)), atual = Math.min(pagina, paginas);
@@ -119,7 +121,7 @@ export default function EstruturaPatrimonio({ bens = [], setores = [], aoVerBem 
           <label htmlFor="estrutura-categoria">Categoria *<input className="input" id="estrutura-categoria" list="estrutura-categorias" value={form.categoria} onChange={campo('categoria')} maxLength={120} required placeholder="Escolha ou escreva"/><datalist id="estrutura-categorias">{categorias.map(c => <option key={c} value={c}/>)}</datalist></label>
           <label htmlFor="estrutura-identificacao">Número / identificação<input className="input" id="estrutura-identificacao" value={form.identificacao} onChange={campo('identificacao')} maxLength={120} placeholder="Ex.: AR-01, PORTÃO-02"/></label>
           <label htmlFor="estrutura-local">Local onde fica *<input className="input" id="estrutura-local" list="estrutura-locais" value={form.especificacao.local || ''} onChange={especificacao('local')} maxLength={120} required placeholder="Ex.: Administrativo · sala de reunião"/><datalist id="estrutura-locais">{[...new Set(setores.map(s => s.nome).filter(Boolean))].map(local => <option key={local} value={local}/>)}</datalist></label>
-          <label htmlFor="estrutura-responsavel">Responsável<input className="input" id="estrutura-responsavel" value={form.responsavel} onChange={campo('responsavel')} maxLength={180} placeholder="Quem cuida deste item"/></label>
+          <PessoaRH valor={form.responsavelId||''} nome={form.responsavel||''} aoMudar={(responsavelId,responsavel)=>{formulario.current++;setForm(f=>({...f,responsavelId,responsavel}));}}/>
           <label htmlFor="estrutura-modelo">Marca / modelo<input className="input" id="estrutura-modelo" value={form.especificacao.marcaModelo || ''} onChange={especificacao('marcaModelo')} maxLength={120} placeholder="Ex.: Marca, modelo, capacidade"/></label>
           <label htmlFor="estrutura-quantidade">Quantidade<input className="input" id="estrutura-quantidade" type="number" min="1" max="1000000" step="1" value={form.especificacao.quantidade} onChange={especificacao('quantidade')} required/></label>
           <label htmlFor="estrutura-instalacao">Data da instalação<input className="input" id="estrutura-instalacao" type="date" value={form.especificacao.instalacao || ''} onChange={especificacao('instalacao')}/></label>

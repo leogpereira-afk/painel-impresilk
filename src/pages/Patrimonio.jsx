@@ -1,3 +1,4 @@
+import {PessoasRHProvider,usePessoasRH,comNomeRH} from '../components/patrimonio/PessoasRH.jsx';
 import HistoricoBem from "../components/patrimonio/HistoricoBem.jsx";
 import {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {Plus, Search, Printer, Building2, Boxes, Wallet, AlertTriangle, Camera, LayoutGrid, List, ArrowUpRight, Pencil, Trash2, RefreshCw, Tag, ChevronLeft, ChevronRight, X, Phone, Smartphone, Archive, Wrench, BedDouble, Car, Cog} from 'lucide-react';
@@ -64,7 +65,9 @@ function Impressao({tipo,bens,setores,contexto,aoVoltar}) {
   </div>;
 }
 
-export default function Patrimonio() {
+export default function Patrimonio(){return <PessoasRHProvider><PatrimonioConteudo/></PessoasRHProvider>;}
+function PatrimonioConteudo() {
+  const {pessoas}=usePessoasRH();
   const [bens,setBens]=useState(null), [setoresMapa,setSetoresMapa]=useState(null), [erro,setErro]=useState(null);
   const [atualizando,setAtualizando]=useState(false), [msg,setMsg]=useState(null), [salvando,setSalvando]=useState(false);
   const [filtros,setFiltros]=useState(FILTROS_INICIAIS), [modo,setModo]=useState('cards');
@@ -85,7 +88,7 @@ export default function Patrimonio() {
     finally{if(atual===pedido.current)setAtualizando(false);}
   },[]);
   useEffect(()=>{carregar();carregarFotos();const controle=pedido;return()=>{controle.current++;};},[carregar,carregarFotos]);
-  const vm=useMemo(()=>calcPatrimonio(bens||{},setoresMapa||{},hoje),[bens,setoresMapa,hoje]);
+  const vm=useMemo(()=>calcPatrimonio(Object.fromEntries(Object.entries(bens||{}).map(([id,b])=>[id,comNomeRH(b,pessoas)])),setoresMapa||{},hoje),[bens,setoresMapa,hoje,pessoas]);
   const pendentes=useMemo(()=>vm.ativos.filter(b=>pendenciasBem(b,vm.setores,fotos).length),[vm,fotos]);
   const visiveis=useMemo(()=>filtrarInventario(vm.bens,vm.setores,fotos,filtros),[vm,fotos,filtros]);
   const paginas=Math.max(1,Math.ceil(visiveis.length/POR_PAGINA)), atual=Math.min(pagina,paginas);
@@ -108,7 +111,7 @@ export default function Patrimonio() {
     setSalvando(true);setMsg(null);
     try {
       const id=f.id||idNovo.current;
-      const dados={...(f.codigo?{codigo:f.codigo}:{}),setorSigla:f.setorSigla,nomeGenerico:f.nomeGenerico.trim(),descricaoTecnica:f.descricaoTecnica.trim(),nf:f.nf.trim(),motivoSemNota:String(f.motivoSemNota||'').trim(),responsavel:String(f.responsavel||'').trim(),dataAquisicao:f.dataAquisicao,valor:paraNumero(f.valor),situacao:f.situacao,observacao:f.observacao.trim()};
+      const dados={...(f.codigo?{codigo:f.codigo}:{}),setorSigla:f.setorSigla,nomeGenerico:f.nomeGenerico.trim(),descricaoTecnica:f.descricaoTecnica.trim(),nf:f.nf.trim(),motivoSemNota:String(f.motivoSemNota||'').trim(),responsavel:String(f.responsavel||'').trim(),responsavelId:f.responsavelId||'',dataAquisicao:f.dataAquisicao,valor:paraNumero(f.valor),situacao:f.situacao,observacao:f.observacao.trim()};
       const novo=await salvarBem(id,dados);setBens(novo);setJanela({tipo:'detalhe',bem:{...novo[id],id}});
       setMsg({texto:f.id?'Alterações salvas.':`Bem cadastrado. A etiqueta é ${novo[id]?.codigo||'gerada pelo servidor'}. Você já pode adicionar as fotos.`});
     }catch(e){setMsg({erro:true,texto:e.message});}finally{setSalvando(false);}

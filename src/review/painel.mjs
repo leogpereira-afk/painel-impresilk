@@ -2,8 +2,16 @@ import {respostaAgenda,pessoasAgenda} from './compromissos.mjs';
 import {respostaComercial} from './comercial.mjs';
 import {respostaReunioes} from './reunioes.mjs';
 import {respostaMarketing} from './marketing.mjs';
+import {validarVinculoPessoa,prepararPessoasControle} from '../../supabase/functions/_shared/patrimonio-pessoas.mjs';
+import {prepararControle} from '../../supabase/functions/_shared/patrimonio-controles.mjs';
+const pessoasPatrimonioDemo=[
+ {id:'rh-demo-ana-1',nome:'Ana Exemplo',disponivel:true},
+ {id:'rh-demo-ana-2',nome:'Ana Exemplo',disponivel:true},
+ {id:'rh-demo-bruno',nome:'Bruno Exemplo Atualizado',disponivel:true},
+ {id:'rh-demo-inativo',nome:'Colaborador desligado · exemplo',disponivel:false},
+];
 // Respostas fictícias, carregadas apenas na compilação review. Estrutura pode
-// ser criada/editada SOMENTE nesta memória; recarregar restaura os exemplos.
+// e os controles podem ser editados SOMENTE nesta memória; recarregar restaura os exemplos.
 const configs = {
  /* Contas FICTÍCIAS (CNPJ e chaves de teste, de ninguém): a tela só mostra titular Impresilk ou Universo.
     A ex4 tem o tipo da chave errado de propósito, para a prévia mostrar o aviso.
@@ -12,7 +20,7 @@ const configs = {
     por e-mail. */
  bancos:{ex1:{grupo:'Impresilk',banco:'BTG 208',titular:'Impresilk',doc:'11.222.333/0001-81',agencia:'0050',conta:'000000-1',pix:'123e4567-e12b-12d1-a456-426655440000',pixTipo:'Aleatoria',ordem:0},ex2:{grupo:'Impresilk',banco:'Sicoob Credinor',titular:'Impresilk',doc:'11.222.333/0001-81',agencia:'0000',conta:'00.000-0',pix:'11.222.333/0001-81',pixTipo:'CNPJ',codigoBanco:'756',ordem:1},ex3:{grupo:'Impresilk',banco:'BB',titular:'Impresilk',doc:'11.222.333/0001-81',agencia:'0000-0',conta:'00000-0',pix:'',pixTipo:'Conta e agencia',ordem:2},ex4:{grupo:'Universo',banco:'Sicoob Credinosso',titular:'Universo',doc:'11.444.777/0001-61',agencia:'0000',conta:'00.000-0',pix:'123e4567-e12b-12d1-a456-426655440001',pixTipo:'CNPJ',ordem:3},ex5:{grupo:'Universo',banco:'Cooperativa Exemplo',titular:'Universo Holding Exemplo',doc:'111.444.777-35',agencia:'1234-5',conta:'12345678-9',pix:'financeiro@exemplo.com.br',pixTipo:'E-mail',ordem:4}},
  marketing:{ex1:{nome:'Biblioteca da marca (exemplo)',url:'https://example.com'}},
- patrimonio:{ex1:{nomeGenerico:'Impressora',descricaoTecnica:'Equipamento de demonstração',origemAtivoId:'maq-demo',setorSigla:'PRO',codigo:'PRO-001',valor:10000,situacao:'uso',dataAquisicao:'2026-01-10'}},
+ patrimonio:{ex1:{nomeGenerico:'Impressora',descricaoTecnica:'Equipamento de demonstração',origemAtivoId:'maq-demo',setorSigla:'PRO',codigo:'PRO-001',valor:10000,situacao:'uso',dataAquisicao:'2026-01-10',responsavelId:'rh-demo-bruno',responsavel:'Bruno Exemplo'}},
  setores:{ex1:{sigla:'PRO',nome:'Produção',area:'Operações'}},
  patrimonio_controles:Object.fromEntries(['ramais','armarios','ferramentas','camas','celulares'].map((tipo,i)=>['controle-'+tipo,{tipo,numero:tipo==='celulares'?'(38) 99999-0000':String(i+1).padStart(2,'0'),modelo:tipo==='celulares'?'Samsung Galaxy A15':'',telefone:'(38) 3000-0000',pessoa:'Ana Exemplo',observacao:'Cadastro de demonstração',atualizadoEm:'2026-10-05T12:00:00Z',atualizadoPorNome:'Conta de demonstração'}])),
  manutencoes:{},permutas:{},campanhas:{},grupos_clientes:{},
@@ -24,8 +32,8 @@ Object.assign(configs.patrimonio_controles['controle-ferramentas'], {
  avaliacoes:[{id:'avaliacao-demo',data:'2026-10-01',proximaData:'2026-11-01',observacao:'Conferência mensal de demonstração',criadoEm:'2026-10-01T15:00:00Z',criadoPorNome:'Ana Exemplo',itens:[{itemId:'item-alicate',itemNome:'Alicate universal',quantidadeConferida:2,quantidadeEsperada:2,estado:'bom',observacao:''},{itemId:'item-chave',itemNome:'Chave de fenda',quantidadeConferida:1,quantidadeEsperada:2,estado:'desgaste',observacao:'Uma chave não encontrada'}]}]
 });
 const equipamentosDemo=[
- {id:'car-demo',tipo:'veiculo',nome:'Utilitário de demonstração',categoria:'Utilitário',identificacao:'VEI-01',responsavel:'Ana Exemplo',especificacao:{placa:'EXE1A23',marcaModelo:'Utilitário exemplo',ano:'2024',motorista:'Ana Exemplo'},atualizadoEm:'2026-10-05T12:00:00Z',atualizadoPor:'Conta de demonstração'},
- {id:'maq-demo',tipo:'maquina',nome:'Impressora de demonstração',categoria:'Impressão',responsavel:'Bruno Exemplo',setorSigla:'PRO',especificacao:{fabricante:'Fabricante exemplo',modelo:'Impressora UV',numeroSerie:'DEMO-001',setor:'Produção'},atualizadoEm:'2026-10-05T12:00:00Z',atualizadoPor:'Conta de demonstração'}
+ {id:'car-demo',tipo:'veiculo',nome:'Utilitário de demonstração',categoria:'Utilitário',identificacao:'VEI-01',responsavel:'Ana Exemplo',responsavelId:'rh-demo-ana-1',especificacao:{placa:'EXE1A23',marcaModelo:'Utilitário exemplo',ano:'2024',motorista:'Ana Exemplo',motoristaId:'rh-demo-ana-1'},atualizadoEm:'2026-10-05T12:00:00Z',atualizadoPor:'Conta de demonstração'},
+ {id:'maq-demo',tipo:'maquina',nome:'Impressora de demonstração',categoria:'Impressão',responsavel:'Bruno Exemplo',responsavelId:'rh-demo-bruno',setorSigla:'PRO',especificacao:{fabricante:'Fabricante exemplo',modelo:'Impressora UV',numeroSerie:'DEMO-001',setor:'Produção'},atualizadoEm:'2026-10-05T12:00:00Z',atualizadoPor:'Conta de demonstração'}
 ];
 const estruturasDemo = [
  {id:'predial-ac-demo',nome:'Ar-condicionado da recepção · exemplo',categoria:'Ar-condicionado',identificacao:'AC-DEMO-01',responsavel:'Ana Exemplo',especificacao:{local:'Recepção de demonstração',marcaModelo:'Fabricante exemplo · 12.000 BTU',quantidade:'1',instalacao:'2025-04-10'}},
@@ -52,7 +60,9 @@ function salvarEstruturaPreview(corpo){
  if(!item.id && anterior)return {item:structuredClone(anterior)};
  if(anterior && corpo.versao!==anterior.atualizadoEm)return erroPreview('Este cadastro mudou. Atualize a lista e confira antes de salvar.',409);
  const atualizadoEm=new Date(Math.max(Date.now(),Date.parse(anterior?.atualizadoEm||'')+1||0)).toISOString();
- const salvo={id,tipo:'predial',nome,categoria,identificacao:limpar(item.identificacao),responsavel:limpar(item.responsavel),observacao:limpar(item.observacao,2000),bemId:anterior?.bemId||'',especificacao:Object.fromEntries(['local','marcaModelo','quantidade','instalacao'].map(campo=>[campo,campo==='quantidade' && quantidade?String(Number(quantidade)):limpar(item.especificacao?.[campo],120)])),atualizadoEm,atualizadoPor:'Conta de demonstração'};
+ let pessoa;
+ try{pessoa=validarVinculoPessoa(item,anterior,pessoasPatrimonioDemo,'responsavel');}catch(e){return erroPreview(e.message,e.status||422);}
+ const salvo={id,tipo:'predial',nome,categoria,identificacao:limpar(item.identificacao),...pessoa,observacao:limpar(item.observacao,2000),bemId:anterior?.bemId||'',especificacao:Object.fromEntries(['local','marcaModelo','quantidade','instalacao'].map(campo=>[campo,campo==='quantidade' && quantidade?String(Number(quantidade)):limpar(item.especificacao?.[campo],120)])),atualizadoEm,atualizadoPor:'Conta de demonstração'};
  if(indice>=0)estruturasDemo[indice]=salvo;else estruturasDemo.push(salvo);
  return {item:structuredClone(salvo)};
 }
@@ -64,7 +74,15 @@ export async function respostaPreview(url,opcoes={}){
  if(endpoint==='painel-marketing')return respostaMarketing(corpo);
  let dados;
  if(endpoint==='painel-config' && corpo.chave==='compromissos'){const agenda=respostaAgenda(corpo);return new Response(JSON.stringify({ok:!agenda.erro,...agenda}),{status:agenda.erro?409:200,headers:{'Content-Type':'application/json'}});}
- if(endpoint==='painel-config' && corpo.action==='lixeiraRegistros') dados={itens:[]};
+ if(endpoint==='painel-config' && corpo.action==='pessoasPatrimonio')dados={pessoas:structuredClone(pessoasPatrimonioDemo)};
+ else if(endpoint==='painel-config' && corpo.action==='merge' && corpo.chave==='patrimonio_controles'){
+   try{
+     const proximo=structuredClone(configs.patrimonio_controles);
+     for(const [id,campos] of Object.entries(corpo.patch||{}))proximo[id]=prepararControle(prepararPessoasControle(campos,proximo[id],pessoasPatrimonioDemo),proximo[id],{sub:'demo',nome:'Conta de demonstração'},new Date().toISOString());
+     configs.patrimonio_controles=proximo;dados={valor:structuredClone(proximo)};
+   }catch(e){return erroPreview(e.message,e.status||422);}
+ }
+ else if(endpoint==='painel-config' && corpo.action==='lixeiraRegistros') dados={itens:[]};
  else if(endpoint==='painel-fotos' && corpo.action==='resumo') dados={porBem:{}};
  else if(endpoint==='painel-fotos' && corpo.action==='listar') dados={fotos:[]};
  else if(endpoint==='painel-config' && corpo.action==='get'){

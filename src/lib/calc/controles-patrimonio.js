@@ -6,7 +6,7 @@ export const CONTROLES = {
  camas:{titulo:'Camas',singular:'Cama',novo:'Nova cama',pessoa:'Dono / responsável',descricao:'Número da cama e pessoa que a utiliza.'},
 };
 const normalizar=s=>String(s??'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
-export const temResponsavel = registro => Boolean(String(registro?.pessoa ?? '').trim());
+export const temResponsavel = registro => Boolean(String(registro?.pessoa || registro?.local || '').trim());
 export function resumirControles(mapa,tipo) {
  const itens=Object.values(mapa||{}).filter(r=>r.tipo===tipo);
  const atribuidos=itens.filter(temResponsavel).length;
@@ -14,7 +14,7 @@ export function resumirControles(mapa,tipo) {
 }
 export function listarControles(mapa,tipo,busca='',situacao='todos') {
  const termos=normalizar(busca).split(/\s+/).filter(Boolean);
- return Object.entries(mapa||{}).map(([id,r])=>({...r,id})).filter(r=>r.tipo===tipo&&(situacao==='atribuidos'?temResponsavel(r):situacao==='disponiveis'?!temResponsavel(r):true)&&termos.every(t=>normalizar([r.numero,r.modelo,r.telefone,r.pessoa,r.observacao].join(' ')).includes(t)))
+ return Object.entries(mapa||{}).map(([id,r])=>({...r,id})).filter(r=>r.tipo===tipo&&(situacao==='atribuidos'?temResponsavel(r):situacao==='disponiveis'?!temResponsavel(r):true)&&termos.every(t=>normalizar([r.numero,r.modelo,r.telefone,r.local,r.pessoa,r.observacao].join(' ')).includes(t)))
  .sort((a,b)=>String(a.numero).localeCompare(String(b.numero),'pt-BR',{numeric:true})||a.id.localeCompare(b.id));
 }
 export function textoAtualizacao(r) {

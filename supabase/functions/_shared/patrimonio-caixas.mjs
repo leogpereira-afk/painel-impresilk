@@ -38,10 +38,11 @@ function conferirLimite(registros, nome) {
   if (registros.length >= LIMITES[nome]) falhar(`O limite de ${nome} desta caixa foi atingido. O histórico foi preservado.`);
 }
 const maiorData = registros => registros.reduce((maior, registro) => registro.data > maior ? registro.data : maior, '');
+export const chaveVinculoPessoa = pessoa => pessoa?.pessoaId ? 'rh:'+pessoa.pessoaId : 'legado:'+chavePessoa(typeof pessoa==='string'?pessoa:pessoa?.pessoa||'');
 const chavePessoa = valor => valor.trim().normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\s+/g, ' ');
 export function quantidadeEmUso(movimentacoes = [], itemId, pessoa) {
   return movimentacoes.reduce((total, movimento) => {
-    if (movimento.itemId !== itemId || (pessoa !== undefined && chavePessoa(movimento.pessoa) !== chavePessoa(pessoa))) return total;
+    if (movimento.itemId !== itemId || (pessoa !== undefined && chaveVinculoPessoa(movimento) !== chaveVinculoPessoa(pessoa))) return total;
     return total + (movimento.tipo === 'entrega' ? movimento.quantidade : -movimento.quantidade);
   }, 0);
 }
@@ -97,18 +98,20 @@ export function aplicarOperacaoCaixa(anterior, operacao, sessao, agora) {
   if (operacao.tipo === 'entrega' || operacao.tipo === 'devolucao') {
     const item = itemAtivo(texto(operacao.itemId, 'identificação do item', 100, true));
     const total = quantidade(operacao.quantidade, 'quantidade', 1);
-    const pessoa = texto(operacao.pessoa, 'pessoa', 120, true);
+    const pessoa = texto(operacao.pessoa, 'pessoa', 180, true);
+    const pessoaId=texto(operacao.pessoaId,'ID da pessoa',180);
+    const referencia={pessoa,pessoaId};
     const data = dia(operacao.data, 'data', hoje);
     const ultimaMovimentacao = maiorData(movimentacoes.filter(movimento => movimento.itemId === item.id));
     const ultimaAvaliacao = maiorData(avaliacoes);
     if (data < ultimaMovimentacao) falhar(`A data não pode ser anterior à última movimentação deste item (${ultimaMovimentacao}).`);
     if (data < ultimaAvaliacao) falhar(`A data não pode ser anterior à última avaliação da caixa (${ultimaAvaliacao}).`);
     if (operacao.tipo === 'entrega' && total > item.quantidade - quantidadeEmUso(movimentacoes, item.id)) falhar('A quantidade da entrega excede o saldo disponível na caixa.');
-    if (operacao.tipo === 'devolucao' && total > quantidadeEmUso(movimentacoes, item.id, pessoa)) falhar('A devolução excede a quantidade em uso por essa pessoa.');
+    if (operacao.tipo === 'devolucao' && total > quantidadeEmUso(movimentacoes, item.id, referencia)) falhar('A devolução excede a quantidade em uso por essa pessoa.');
     conferirLimite(movimentacoes, 'movimentacoes');
     const movimento = {
       id: crypto.randomUUID(), tipo: operacao.tipo, itemId: item.id, itemNome: item.nome,
-      quantidade: total, pessoa, data,
+      quantidade: total, pessoa, pessoaId, data,
       estado: estado(operacao.estado), observacao: texto(operacao.observacao, 'observação', 1000), ...autoria,
     };
     return { ...resultado, movimentacoes: [...movimentacoes, movimento] };

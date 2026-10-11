@@ -23,6 +23,7 @@ function ambiente({ listar = async () => [item('A'), item('B')], salvar = async 
     useCallback: fn => fn, useMemo: fn => fn(), useEffect: fn => { if (!montado) efeitos.push(fn); },
     ...Object.fromEntries(['Link', 'Building2', 'Plus', 'Pencil', 'Printer', 'Search', 'X', 'RefreshCw', 'ChevronLeft', 'ChevronRight', 'MapPin', 'UserRound', 'Wrench', 'Link2', 'Check', 'JanelaFormulario'].map(n => [n, n])),
     CATEGORIAS_ESTRUTURA, prepararEstrutura, filtrarEstrutura,
+    usePessoasRH:()=>({pessoas:[]}),comNomeRH:registro=>registro,PessoaRH:'PessoaRH',
     listarEquipamentosPatrimonio: () => listar(), salvarEstrutura: (dado, versao) => salvar(clone(dado), versao),
     podeAbrir: () => true, textoAtualizacao: x => x.atualizadoEm || '', dataLonga: x => x,
     crypto: { randomUUID: () => '671f0a1d-0fbe-4b90-9ad8-3cbd81e8a7e0' }, window: { confirm: () => true }, console,

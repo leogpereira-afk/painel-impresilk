@@ -49,3 +49,5 @@ export const semearSetores = (lista) =>
 export const lerControles = () => chamar("get", {chave:"patrimonio_controles"}).then(r=>r.valor || {});
 export const salvarControle = (id,dados,versaoAnterior=null) => chamar("merge", {chave:"patrimonio_controles",patch:{[id]:{...dados,versaoAnterior}}}).then(r=>r.valor || {});
 export const removerControle = id => chamar("removerId", {chave:"patrimonio_controles",id});
+
+export const lerPessoasPatrimonio = () => chamar('pessoasPatrimonio',{}).then(r=>r.pessoas || []);

@@ -1,4 +1,5 @@
 import { useAbaNavegavel } from "../hooks/useAbaNavegavel.js";
+import PessoaRH,{PessoasRHProvider,usePessoasRH,comNomeRH} from '../components/patrimonio/PessoasRH.jsx';
 // Documentos, veiculos e maquinas -- tres lentes do mesmo controle: coisas com
 // data que alguem precisa renovar antes de vencer.
 //
@@ -75,6 +76,10 @@ const vazio = (tipo) => ({
 });
 
 export default function Ativos() {
+  return <PessoasRHProvider><AtivosConteudo/></PessoasRHProvider>;
+}
+function AtivosConteudo() {
+  const {pessoas}=usePessoasRH();
   const [itens, setItens] = useState(null);
   const [lixeira, setLixeira] = useState(null); // null = fechada
   const [erro, setErro] = useState(null);
@@ -113,8 +118,8 @@ export default function Ativos() {
   // mecanica de vencimento -- so entram aqui os tipos DESTA tela, senao viram
   // "sem data" nas estatisticas.
   const vm = useMemo(
-    () => calcAtivos((itens || []).filter((x) => TIPOS[x.tipo]), hojeISO),
-    [itens, hojeISO]
+    () => calcAtivos((itens || []).filter((x) => TIPOS[x.tipo]).map(x=>['veiculo','maquina'].includes(x.tipo)?comNomeRH(x,pessoas):x), hojeISO),
+    [itens, hojeISO,pessoas]
   );
 
   const daLente = useMemo(() => {
@@ -403,11 +408,11 @@ export default function Ativos() {
                   id="a-validade" type="date" className="input" value={form.validade} onChange={(e) => setForm((f) => ({ ...f, validade: e.target.value }))} />
               </div>
               <div>
-                <label className="label" htmlFor="a-responsavel">
+                {['veiculo','maquina'].includes(form.tipo)?<PessoaRH valor={form.responsavelId||''} nome={form.responsavel||''} aoMudar={(responsavelId,responsavel)=>setForm(f=>({...f,responsavelId,responsavel}))}/>:<><label className="label" htmlFor="a-responsavel">
                   {form.tipo === "seguro" ? "Corretor" : "Responsável"}
                 </label>
                 <input
-                  id="a-responsavel" className="input" value={form.responsavel} onChange={(e) => setForm((f) => ({ ...f, responsavel: e.target.value }))} placeholder={form.tipo === "seguro" ? "corretor e telefone" : "quem cuida disso"} />
+                  id="a-responsavel" className="input" value={form.responsavel} onChange={(e) => setForm((f) => ({ ...f, responsavel: e.target.value }))} placeholder={form.tipo === "seguro" ? "corretor e telefone" : "quem cuida disso"} /></>}
               </div>
 
               {/* Km/horas em campo de TEXTO, nao type="number": quem digita

@@ -20,7 +20,7 @@ export function prepararControle(campos, anterior, sessao, agora) {
   // Duas gravações no mesmo milissegundo também precisam de versões diferentes.
   const anteriorMs=Date.parse(anterior?.atualizadoEm),agoraMs=Date.parse(agora);
   const atualizadoEm=Number.isFinite(anteriorMs)&&anteriorMs>=agoraMs?new Date(anteriorMs+1).toISOString():agora;
-  return {tipo,numero,numeroChave:numero.replace(/\D/g,'').replace(/^0+(?=\d)/,''),modelo,telefone,pessoa:texto('pessoa',120),observacao:texto('observacao',1000),
+  return {tipo,numero,numeroChave:numero.replace(/\D/g,'').replace(/^0+(?=\d)/,''),modelo,telefone,pessoaId:texto('pessoaId',180),local:tipo==='ramais'?texto('local',120):'',pessoa:texto('pessoa',180),observacao:texto('observacao',1000),
     criadoEm:anterior?.criadoEm || agora,criadoPor:anterior?.criadoPor || String(sessao.sub),
     atualizadoEm,atualizadoPor:String(sessao.sub),atualizadoPorNome:String(sessao.nome || sessao.sub),...caixa};
 }

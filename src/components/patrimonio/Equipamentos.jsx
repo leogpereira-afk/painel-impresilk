@@ -1,3 +1,4 @@
+import {usePessoasRH,comNomeRH} from './PessoasRH.jsx';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Car, Cog, Search, X, Printer, RefreshCw, ChevronLeft, ChevronRight, ArrowUpRight, Link2 } from 'lucide-react';
@@ -18,6 +19,7 @@ const caminhoManutencao = id => `/manutencoes?aba=itens&item=${encodeURIComponen
 
 export default function EquipamentosPatrimonio({ tipo, bens = [], setores = [], aoVerBem }) {
   const meta = TIPOS[tipo], Icone = meta.icone;
+  const {pessoas}=usePessoasRH();
   const [ativos, setAtivos] = useState(null), [erro, setErro] = useState('');
   const [carregando, setCarregando] = useState(false), [busca, setBusca] = useState('');
   const [vinculo, setVinculo] = useState('todos'), [pagina, setPagina] = useState(1), [relatorio, setRelatorio] = useState(null);
@@ -38,7 +40,7 @@ export default function EquipamentosPatrimonio({ tipo, bens = [], setores = [], 
   useEffect(() => { carregar(); const ref = pedido; return () => { ref.current++; }; }, [carregar]);
   useEffect(() => { setBusca('');setVinculo('todos');setPagina(1);setRelatorio(null); }, [tipo]);
 
-  const equipamentos = useMemo(() => projetarEquipamentos(ativos || [], bens, setores), [ativos, bens, setores]);
+  const equipamentos = useMemo(() => projetarEquipamentos((ativos || []).map(i=>comNomeRH(i,pessoas)), bens, setores), [ativos, bens, setores,pessoas]);
   const todos = equipamentos.filter(item => item.tipo === tipo);
   const lista = useMemo(() => filtrarEquipamentos(equipamentos, { tipo, busca, vinculo }), [equipamentos, tipo, busca, vinculo]);
   const paginas = Math.max(1, Math.ceil(lista.length / POR_PAGINA)), atual = Math.min(pagina, paginas);

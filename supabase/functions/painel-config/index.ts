@@ -1,3 +1,4 @@
+import {lerPessoasPatrimonio, validarVinculoPessoa, prepararPessoasControle} from '../_shared/patrimonio-pessoas.mjs';
 import {contextoComercial} from '../_shared/comercial-contexto.ts';
 import {gestorComercial} from '../_shared/comercial.mjs';
 // ============================================================================
@@ -380,7 +381,14 @@ Deno.serve(async (req: Request) => {
       const valor=await lerOverlay(chave,donoDaVez(chave),await crivoDe(chave));
       return chave==='ov_orc'&&orcPermitidos?Object.fromEntries(Object.entries(valor||{}).filter(([id])=>orcPermitidos!.has(id))):valor;
     };
+    let equipeRH: Promise<any[]> | undefined;
+    const pessoasRH=()=>equipeRH ||= lerPessoasPatrimonio(sb);
     switch (corpo.action) {
+      case 'pessoasPatrimonio':
+        if (!sessao) return resposta({erro:'Entre no sistema.',semSessao:true},401);
+        // Documentos também edita os mesmos veículos e máquinas de Manutenções.
+        if (!temModulo('patrimonio') && !temModulo('manutencoes') && !temModulo('documentos')) return resposta({erro:'Sem acesso ao cadastro de pessoas do Patrimônio.'},403);
+        return resposta({ok:true,pessoas:await pessoasRH()});
       case "ping":
         return resposta({ ok: true });
 
@@ -647,9 +655,12 @@ Deno.serve(async (req: Request) => {
             }
             let fundido: any = { ...(data?.registro ?? {}), ...camposLimpos };
             if (chave === "patrimonio_controles") {
-              try { fundido = prepararControle(campos, data?.registro ?? null, sessao, new Date().toISOString()); }
+              try { fundido = prepararControle(prepararPessoasControle(campos,data?.registro,await pessoasRH()), data?.registro ?? null, sessao, new Date().toISOString()); }
               catch (e) { return resposta({erro:(e as Error).message}, (e as any).status || 422); }
-            } else if (chave === "patrimonio" || chave === "setores") {
+            } else if (chave === 'patrimonio') {
+              Object.assign(fundido,validarVinculoPessoa(camposLimpos,data?.registro,await pessoasRH(),'responsavel'));
+              fundido = carimbarPatrimonio(fundido,data?.registro ?? null,sessao,new Date().toISOString());
+            } else if (chave === 'setores') {
               fundido = carimbarPatrimonio(fundido, data?.registro ?? null, sessao, new Date().toISOString());
             }
             if (POR_DONO.has(chave)) {
@@ -1032,6 +1043,7 @@ Deno.serve(async (req: Request) => {
     if ((e as any)?.status===403)return resposta({erro:(e as any).message,codigo:(e as any).codigo||null},403);
     console.error("[painel-config] erro:", e);
     if ((e as any)?.code === "23503") return resposta({ erro: "O vínculo com o setor mudou. Atualize a lista; escolha um setor existente e transfira seus bens antes de removê-lo." }, 409);
+    if ([422,503].includes((e as any)?.status)) return resposta({erro:(e as Error).message},(e as any).status);
     if ((e as any)?.code === "40001") return resposta({ erro: "Outra pessoa alterou este registro. Recarregue antes de salvar." }, 409);
     return resposta({ erro: "Não foi possível salvar ou carregar os dados. Tente novamente." }, 500);
   }

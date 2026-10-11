@@ -1,8 +1,9 @@
+import PessoaRH,{usePessoasRH,comNomeRH} from './PessoasRH.jsx';
 import {useMemo, useState} from 'react';
 import {Archive, ArrowDownLeft, ArrowUpRight, Check, ClipboardCheck, ChevronLeft, Package, Pencil, Plus, Printer, RefreshCw} from 'lucide-react';
 import JanelaFormulario from '../JanelaFormulario.jsx';
 import {lerControles, salvarControle} from '../../services/patrimonio.js';
-import {quantidadeEmUso, saldoDisponivelCaixa} from '../../../supabase/functions/_shared/patrimonio-caixas.mjs';
+import {quantidadeEmUso, saldoDisponivelCaixa, chaveVinculoPessoa} from '../../../supabase/functions/_shared/patrimonio-caixas.mjs';
 import './acervo-caixa.css';
 
 const ESTADOS = {bom:'Bom', desgaste:'Com desgaste', danificado:'Danificado', nao_verificado:'Não verificado'};
@@ -11,7 +12,6 @@ const hoje = () => new Intl.DateTimeFormat('en-CA', {timeZone:'America/Sao_Paulo
 const dataTexto = data => data ? new Date(`${data}T12:00:00Z`).toLocaleDateString('pt-BR', {timeZone:'America/Sao_Paulo'}) : '—';
 const instanteTexto = data => data ? new Date(data).toLocaleString('pt-BR', {timeZone:'America/Sao_Paulo'}) : '—';
 const ativosDaCaixa = registro => (registro.acervo || []).filter(item => !item.arquivado);
-const chavePessoa = pessoa => pessoa.trim().normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\s+/g, ' ');
 const autor = registro => registro.criadoPorNome || registro.criadoPor || 'Autor não informado';
 
 function proximoMes(data) {
@@ -46,7 +46,7 @@ function TabelaMovimentos({movimentos}) {
  if (!movimentos.length) return <p className="pat-caixa-empty-note">Nenhuma entrega ou devolução registrada.</p>;
  return <div className="pat-table-wrap"><table className="pat-table pat-caixa-table"><thead><tr><th>Data / movimento</th><th>Item</th><th>Qtd.</th><th>Pessoa</th><th>Estado / observação</th><th>Registrado por</th></tr></thead><tbody>{[...movimentos].sort((a,b) => b.data.localeCompare(a.data) || String(b.criadoEm).localeCompare(String(a.criadoEm))).map(m => <tr key={m.id}>
   <td data-label="Data / movimento">{dataTexto(m.data)}<small className={m.tipo === 'entrega' ? 'pat-caixa-out' : 'pat-caixa-in'}>{m.tipo === 'entrega' ? 'Entrega' : 'Devolução'}</small></td>
-  <td data-label="Item">{m.itemNome}</td><td data-label="Quantidade">{m.quantidade}</td><td data-label="Pessoa">{m.pessoa}</td>
+  <td data-label="Item">{m.itemNome}</td><td data-label="Quantidade">{m.quantidade}</td><td data-label="Pessoa">{m.pessoa}{!m.pessoaId?<small>Registro antigo</small>:movimentos.some(o=>o.pessoa===m.pessoa&&chaveVinculoPessoa(o)!==chaveVinculoPessoa(m))&&<small>ID {m.pessoaId}</small>}</td>
   <td data-label="Estado / observação">{ESTADOS[m.estado] || m.estado}{m.observacao && <small>{m.observacao}</small>}</td><td data-label="Registrado por">{autor(m)}<small>{instanteTexto(m.criadoEm)}</small></td>
  </tr>)}</tbody></table></div>;
 }
@@ -89,7 +89,9 @@ function RelatorioCaixa({relatorio, aoVoltar}) {
  </div>;
 }
 
-export default function AcervoCaixa({registro, atualizarControles, aoVoltar}) {
+export default function AcervoCaixa({registro:original, atualizarControles, aoVoltar}) {
+ const {pessoas:colaboradores}=usePessoasRH();
+ const registro=comNomeRH(original,colaboradores,'pessoa');
  const [aba,setAba] = useState('acervo'), [form,setForm] = useState(null), [erro,setErro] = useState(''), [mensagem,setMensagem] = useState(''), [ocupado,setOcupado] = useState(false), [relatorio,setRelatorio] = useState(null);
  const ativos = ativosDaCaixa(registro), movimentos = registro.movimentacoes || [], avaliacoes = registro.avaliacoes || [];
  const arquivados = (registro.acervo || []).filter(i => i.arquivado);
@@ -97,23 +99,24 @@ export default function AcervoCaixa({registro, atualizarControles, aoVoltar}) {
  const pendentes = useMemo(() => {
   const pessoas = new Map();
   for (const m of registro.movimentacoes || []) {
-   const chave = `${m.itemId}:${chavePessoa(m.pessoa)}`;
-   const existente = pessoas.get(chave) || {itemId:m.itemId, pessoa:m.pessoa, quantidade:0};
+   const chave = `${m.itemId}:${chaveVinculoPessoa(m)}`;
+   const existente = pessoas.get(chave) || {itemId:m.itemId, pessoa:comNomeRH(m,colaboradores,'pessoa').pessoa, pessoaId:m.pessoaId||'',quantidade:0};
    existente.quantidade += m.tipo === 'entrega' ? m.quantidade : -m.quantidade;
    pessoas.set(chave, existente);
   }
   return [...pessoas.values()].filter(p => p.quantidade > 0);
- },[registro.movimentacoes]);
+ },[registro.movimentacoes,colaboradores]);
  const itemForm = form?.itemId ? ativos.find(i => i.id === form.itemId) : null;
  const pessoasItem = pendentes.filter(p => p.itemId === form?.itemId);
- const limiteMovimento = !itemForm ? 0 : form?.tipo === 'entrega' ? saldoDisponivelCaixa(registro,itemForm.id) : quantidadeEmUso(movimentos,itemForm.id,form?.pessoa || '');
+ const nomeVinculado=p=>!p.pessoaId?`${p.pessoa} · entrega antiga`:pendentes.some(o=>o.itemId===p.itemId&&o.pessoa===p.pessoa&&chaveVinculoPessoa(o)!==chaveVinculoPessoa(p))?`${p.pessoa} · ID ${p.pessoaId}`:p.pessoa;
+ const limiteMovimento = !itemForm ? 0 : form?.tipo === 'entrega' ? saldoDisponivelCaixa(registro,itemForm.id) : quantidadeEmUso(movimentos,itemForm.id,form);
  const dataMinima = [...avaliacoes,...movimentos.filter(m => form?.tipo === 'avaliar' || m.itemId === form?.itemId)].reduce((maior,r) => r.data > maior ? r.data : maior,'');
 
  function abrir(novo) { setMensagem(''); setErro(''); setForm(novo); }
  function abrirItem(item) { abrir({tipo:'itemSalvar', item:{id:item?.id, nome:item?.nome || '', quantidade:item?.quantidade ?? '', estado:item?.estado || 'nao_verificado', observacao:item?.observacao || ''}}); }
- function abrirMovimento(tipo, item, pessoa='') {
+ function abrirMovimento(tipo, item, pessoa='',pessoaId='') {
   const inicial = item || ativos.find(i => tipo === 'entrega' ? saldoDisponivelCaixa(registro,i.id) > 0 : quantidadeEmUso(movimentos,i.id) > 0);
-  abrir({tipo,itemId:inicial?.id || '',quantidade:'',pessoa,data:hoje(),estado:'nao_verificado',observacao:''});
+  abrir({tipo,itemId:inicial?.id || '',quantidade:'',pessoa,pessoaId,data:hoje(),estado:'nao_verificado',observacao:''});
  }
  function abrirAvaliacao() { abrir({tipo:'avaliar',data:hoje(),proximaData:proximoMes(hoje()),observacao:'',itens:ativos.map(i => ({itemId:i.id,quantidadeConferida:'',estado:'nao_verificado',observacao:''}))}); }
  const campo = chave => e => setForm(f => ({...f,[chave]:e.target.value}));
@@ -131,7 +134,7 @@ export default function AcervoCaixa({registro, atualizarControles, aoVoltar}) {
  async function gravar(operacao) {
   setOcupado(true); setErro(''); setMensagem('');
   try {
-   const dados = {tipo:registro.tipo,numero:registro.numero,modelo:registro.modelo || '',telefone:registro.telefone || '',pessoa:registro.pessoa || '',observacao:registro.observacao || '',operacaoCaixa:operacao};
+   const dados = {tipo:registro.tipo,numero:registro.numero,modelo:registro.modelo || '',telefone:registro.telefone || '',pessoa:registro.pessoa || '',pessoaId:registro.pessoaId||'',observacao:registro.observacao || '',operacaoCaixa:operacao};
    atualizarControles(await salvarControle(registro.id,dados,registro.atualizadoEm ?? null));
    setForm(null); setMensagem(operacao.tipo === 'avaliar' ? 'Conferência registrada com data, avaliador e próxima avaliação.' : operacao.tipo === 'itemArquivar' ? 'Item arquivado. O histórico foi preservado.' : operacao.tipo === 'itemSalvar' ? 'Item salvo no acervo.' : operacao.tipo === 'entrega' ? 'Entrega registrada.' : 'Devolução registrada.');
   } catch(e) {
@@ -169,7 +172,7 @@ export default function AcervoCaixa({registro, atualizarControles, aoVoltar}) {
   </>}
   {aba === 'movimentacoes' && <>
    <div className="pat-caixa-section-heading"><p>Quem recebeu, quanto recebeu e o que já voltou para a caixa.</p><div className="pat-actions"><button className="btn-primary" disabled={ocupado || totais.disponivel < 1} onClick={() => abrirMovimento('entrega')}><ArrowUpRight size={17}/>Registrar entrega</button><button className="btn-outline" disabled={ocupado || totais.entregue < 1} onClick={() => abrirMovimento('devolucao')}><ArrowDownLeft size={17}/>Registrar devolução</button></div></div>
-   {pendentes.length > 0 && <section className="pat-caixa-pending"><h3>Itens com as pessoas</h3><div>{pendentes.map(p => <article key={`${p.itemId}:${p.pessoa}`}><div><strong>{(registro.acervo || []).find(i => i.id === p.itemId)?.nome || 'Item'}</strong><span>{p.quantidade} {p.quantidade === 1 ? 'unidade' : 'unidades'} com {p.pessoa}</span></div><button className="btn-ghost" disabled={ocupado} onClick={() => abrirMovimento('devolucao',ativos.find(i => i.id === p.itemId),p.pessoa)} aria-label={`Registrar devolução de ${p.pessoa}`}><ArrowDownLeft size={16}/>Devolver</button></article>)}</div></section>}
+   {pendentes.length > 0 && <section className="pat-caixa-pending"><h3>Itens com as pessoas</h3><div>{pendentes.map(p => <article key={`${p.itemId}:${chaveVinculoPessoa(p)}`}><div><strong>{(registro.acervo || []).find(i => i.id === p.itemId)?.nome || 'Item'}</strong><span>{p.quantidade} {p.quantidade === 1 ? 'unidade' : 'unidades'} com {nomeVinculado(p)}</span></div><button className="btn-ghost" disabled={ocupado} onClick={() => abrirMovimento('devolucao',ativos.find(i => i.id === p.itemId),p.pessoa,p.pessoaId)} aria-label={`Registrar devolução de ${nomeVinculado(p)}`}><ArrowDownLeft size={16}/>Devolver</button></article>)}</div></section>}
    <TabelaMovimentos movimentos={movimentos}/>
   </>}
   {aba === 'avaliacoes' && <><div className="pat-caixa-section-heading"><p>Confira a quantidade física na caixa, o estado de cada item e agende a próxima avaliação. O histórico guarda quem avaliou e quando.</p><button className="btn-primary" disabled={ocupado || !ativos.length} onClick={abrirAvaliacao}><ClipboardCheck size={17}/>Nova conferência</button></div><Avaliacoes avaliacoes={avaliacoes}/></>}
@@ -184,8 +187,8 @@ export default function AcervoCaixa({registro, atualizarControles, aoVoltar}) {
       <label className="label pat-control-wide">Observação <small>Opcional</small><textarea className="input" rows={2} maxLength={1000} value={form.item.observacao} onChange={campoItem('observacao')}/></label>
      </>}
      {(form.tipo === 'entrega' || form.tipo === 'devolucao') && <>
-      <label className="label pat-control-wide">Item<select className="input" value={form.itemId} required onChange={e => setForm(f => ({...f,itemId:e.target.value,pessoa:f.tipo === 'devolucao' ? '' : f.pessoa,quantidade:''}))}><option value="">Selecione o item</option>{ativos.filter(i => i.id === form.itemId || (form.tipo === 'entrega' ? saldoDisponivelCaixa(registro,i.id) > 0 : quantidadeEmUso(movimentos,i.id) > 0)).map(i => <option value={i.id} key={i.id}>{i.nome}</option>)}</select></label>
-      <label className="label">{form.tipo === 'entrega' ? 'Entregue para' : 'Devolvido por'}{form.tipo === 'entrega' ? <input className="input" required maxLength={120} value={form.pessoa} onChange={campo('pessoa')} placeholder="Nome da pessoa"/> : <select className="input" required value={form.pessoa} onChange={campo('pessoa')}><option value="">Selecione a pessoa</option>{pessoasItem.map(p => <option key={p.pessoa} value={p.pessoa}>{p.pessoa} · {p.quantidade} em uso</option>)}</select>}</label>
+      <label className="label pat-control-wide">Item<select className="input" value={form.itemId} required onChange={e => setForm(f => ({...f,itemId:e.target.value,pessoa:f.tipo === 'devolucao' ? '' : f.pessoa,pessoaId:f.tipo === 'devolucao'?'':f.pessoaId,quantidade:''}))}><option value="">Selecione o item</option>{ativos.filter(i => i.id === form.itemId || (form.tipo === 'entrega' ? saldoDisponivelCaixa(registro,i.id) > 0 : quantidadeEmUso(movimentos,i.id) > 0)).map(i => <option value={i.id} key={i.id}>{i.nome}</option>)}</select></label>
+      {form.tipo==='entrega'?<PessoaRH rotulo="Entregue para" obrigatorio valor={form.pessoaId||''} nome={form.pessoa||''} aoMudar={(pessoaId,pessoa)=>setForm(f=>({...f,pessoaId,pessoa}))}/>:<label className="label">Devolvido por<select className="input" required value={form.pessoa?chaveVinculoPessoa(form):''} onChange={e=>{const p=pessoasItem.find(p=>chaveVinculoPessoa(p)===e.target.value);setForm(f=>({...f,pessoa:p?.pessoa||'',pessoaId:p?.pessoaId||''}));}}><option value="">Selecione quem está com o item</option>{pessoasItem.map(p=><option key={chaveVinculoPessoa(p)} value={chaveVinculoPessoa(p)}>{nomeVinculado(p)} · {p.quantidade} em uso</option>)}</select></label>}
       <label className="label">Quantidade<input className="input" type="number" min={1} max={limiteMovimento} step="1" inputMode="numeric" required value={form.quantidade} onChange={campo('quantidade')}/><small>{form.tipo === 'entrega' ? `${limiteMovimento} disponíveis na caixa` : form.pessoa ? `${limiteMovimento} em uso por esta pessoa` : 'Selecione quem está devolvendo'}</small></label>
       <label className="label">Data {form.tipo === 'entrega' ? 'da entrega' : 'da devolução'}<input className="input" type="date" required min={dataMinima || undefined} max={hoje()} value={form.data} onChange={campo('data')}/>{dataMinima && <small>Último registro relevante: {dataTexto(dataMinima)}.</small>}</label><EstadoCampo valor={form.estado} aoMudar={campo('estado')}/>
       <label className="label pat-control-wide">Observação <small>Opcional</small><textarea className="input" rows={2} maxLength={1000} value={form.observacao} onChange={campo('observacao')}/></label>

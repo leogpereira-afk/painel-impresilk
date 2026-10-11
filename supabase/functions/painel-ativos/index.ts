@@ -1,3 +1,4 @@
+import {lerPessoasPatrimonio,validarVinculoPessoa} from '../_shared/patrimonio-pessoas.mjs';
 // ============================================================================
 // painel-ativos — documentos, veiculos e maquinas (substitui ativos.js)
 //
@@ -50,7 +51,7 @@ const TIPOS = new Set(["documento", "veiculo", "maquina", "marketing", "licitaca
 //
 // Espelhado em src/lib/calc/manutencoes.js (ESPEC_CAMPOS). Mexeu la, mexe aqui.
 const ESPEC_PERMITIDA: Record<string, string[]> = {
-  veiculo: ["placa", "marcaModelo", "ano", "cor", "combustivel", "renavam", "chassi", "lugares", "possuiGrade", "motorista"],
+  veiculo: ["placa", "marcaModelo", "ano", "cor", "combustivel", "renavam", "chassi", "lugares", "possuiGrade", "motorista", "motoristaId"],
   maquina: ["fabricante", "modelo", "numeroSerie", "ano", "setor", "potencia"],
   predial: ["local", "marcaModelo", "quantidade", "instalacao"],
 };
@@ -82,6 +83,7 @@ function equipamentoParaPatrimonio(id: unknown, registro: any) {
       observacao: texto(registro.observacao, 2000),
     } : {}),
     responsavel: texto(registro.responsavel),
+    responsavelId: texto(registro.responsavelId),
     bemId: texto(registro.bemId),
     especificacao: Object.fromEntries(campos.map(campo => [campo, texto(ficha[campo], ESPEC_MAX)])),
     atualizadoEm: texto(registro.atualizadoEm, 40),
@@ -274,6 +276,8 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
+    let equipeRH: Promise<any[]> | undefined;
+    const pessoasRH=()=>equipeRH ||= lerPessoasPatrimonio(sb);
     switch (corpo.action) {
       case "listarPatrimonio": {
         if (sessao.master !== true && !perms.includes("*") && !perms.includes("patrimonio")) {
@@ -326,8 +330,8 @@ Deno.serve(async (req: Request) => {
           if (retirado) return resposta({ erro: "Este cadastro foi retirado. Reabra a tela para cadastrar outro item." }, 409);
         }
         let campos;
-        try { campos = camposEstrutura(it, anterior || {}); }
-        catch (e) { return resposta({ erro: (e as Error).message }, 422); }
+        try { campos = {...camposEstrutura(it, anterior || {}),...validarVinculoPessoa(it,anterior,await pessoasRH(),'responsavel')}; }
+        catch (e) { return resposta({ erro: (e as Error).message }, (e as any).status || 422); }
         // Versão sempre muda, mesmo em duas gravações no mesmo milissegundo.
         const agora = new Date(Math.max(Date.now(), (Date.parse(anterior?.atualizadoEm || "") || 0) + 1)).toISOString();
         const novo = { ...(anterior || {}), ...campos, id, tipo: "predial",
@@ -482,6 +486,10 @@ Deno.serve(async (req: Request) => {
           criadoEm: ant?.registro?.criadoEm || agora,
         };
 
+        if (['veiculo','maquina','predial'].includes(tipo)) {
+          Object.assign(limpo,validarVinculoPessoa(it,a,await pessoasRH(),'responsavel'));
+          if (tipo==='veiculo') Object.assign(limpo.especificacao,validarVinculoPessoa(it.especificacao||{},a.especificacao,await pessoasRH(),'motorista'));
+        }
         if(corpo.patrimonio) {
           if(!sessao.master && !perms.includes('*') && !perms.includes('manutencoes')) return resposta({erro:'Sem acesso a Manutenções.'},403);
           const permitidos=['nomeGenerico','descricaoTecnica','observacao','setorSigla','nf','dataAquisicao','valor','situacao'];
@@ -593,6 +601,7 @@ Deno.serve(async (req: Request) => {
     }
   } catch (e) {
     console.error("[painel-ativos] erro:", e);
+    if ([422,503].includes((e as any)?.status)) return resposta({erro:(e as Error).message},(e as any).status);
     if ((e as any)?.code === "40001") return resposta({erro:"Este registro mudou durante a edição. Recarregue antes de salvar."},409);
     return resposta({ erro: "Não foi possível salvar a operação. Tente novamente." }, 500);
   }

@@ -1,3 +1,4 @@
+import {validarVinculoPessoa} from '../supabase/functions/_shared/patrimonio-pessoas.mjs';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -9,7 +10,7 @@ const fonte = readFileSync(new URL('../supabase/functions/painel-ativos/index.ts
 const codigo = transformSync(fonte, { loader: 'ts', format: 'esm', target: 'es2022' }).code;
 const ID = '671f0a1d-0fbe-4b90-9ad8-3cbd81e8a7e0';
 const sessaoPadrao = { sub: 'ana', nome: 'Ana Exemplo', perms: ['patrimonio'] };
-const novo = (extra = {}) => ({ cadastroId: ID, nome: 'Ar da recepção', categoria: 'Ar condicionado', identificacao: 'AC-01', responsavel: 'Manutenção', observacao: 'Limpar filtros', especificacao: { local: 'Recepção', marcaModelo: 'Marca 12.000 BTUs', quantidade: '1', instalacao: '2024-02-29' }, ...extra });
+const novo = (extra = {}) => ({ cadastroId: ID, nome: 'Ar da recepção', categoria: 'Ar condicionado', identificacao: 'AC-01', responsavelId:'rh-manutencao',responsavel: 'Manutenção', observacao: 'Limpar filtros', especificacao: { local: 'Recepção', marcaModelo: 'Marca 12.000 BTUs', quantidade: '1', instalacao: '2024-02-29' }, ...extra });
 function ambiente({ sessao = sessaoPadrao, revogada = false, linhas = [], erroLeitura = false } = {}) {
   let handler, erroRpc, antesGravar;
   const registros = structuredClone(linhas), consultas = [], gravacoes = [];
@@ -41,7 +42,7 @@ function ambiente({ sessao = sessaoPadrao, revogada = false, linhas = [], erroLe
     },
     storage: { from() { throw new Error('Estrutura não pode acessar anexos'); } },
   };
-  vm.runInNewContext(codigo, { Deno: { env: { get: () => 'teste' }, serve: fn => { handler = fn; } }, createClient: () => sb, verificarJwt: async () => sessao, crachaRevogado: async () => revogada, Request, Response, console: { error() {} } });
+  vm.runInNewContext(codigo, { Deno: { env: { get: () => 'teste' }, serve: fn => { handler = fn; } }, createClient: () => sb,validarVinculoPessoa,lerPessoasPatrimonio:async()=>[{id:'rh-manutencao',nome:'Manutenção',disponivel:true}], verificarJwt: async () => sessao, crachaRevogado: async () => revogada, Request, Response, console: { error() {} } });
   return {
     registros, consultas, gravacoes, antesGravar: fn => { antesGravar = fn; }, falharRpc: erro => { erroRpc = erro; },
     async chamar(item = novo(), versao, action = 'salvarEstrutura') {
@@ -61,7 +62,7 @@ test('cadastro cria somente ativo predial com autoria do servidor e retorna a pr
   assert.ok(Date.parse(salvo.atualizadoEm) > Date.parse('2000-01-01')); assert.equal(salvo.criadoEm, salvo.atualizadoEm);
   assert.equal(salvo.especificacao.quantidade, '2');
   assert.doesNotMatch(JSON.stringify(salvo), /sigiloso|segredo|forjado|9000|9900|Falso|cadastroId/);
-  assert.deepEqual(Object.keys(r.body.item).sort(), ['id', 'tipo', 'nome', 'categoria', 'identificacao', 'responsavel', 'observacao', 'especificacao', 'bemId', 'atualizadoEm', 'atualizadoPor'].sort());
+  assert.deepEqual(Object.keys(r.body.item).sort(), ['id', 'tipo', 'nome', 'categoria', 'identificacao', 'responsavel', 'responsavelId', 'observacao', 'especificacao', 'bemId', 'atualizadoEm', 'atualizadoPor'].sort());
   assert.deepEqual(a.gravacoes.map(x => x.args.p_colecao), ['ativo']);
   const listada = await a.chamar(undefined, undefined, 'listarPatrimonio');
   assert.deepEqual(listada.body.itens, [r.body.item]);
@@ -180,4 +181,25 @@ test('falha de leitura ou gravação não confirma salvamento nem usa operação
     const a = ambiente(); a.falharRpc(erro); const r = await a.chamar();
     assert.equal(r.status, erro.code === '40001' ? 409 : 500); assert.notEqual(r.body.ok, true); assert.equal(a.registros.length, 0); assert.equal(a.gravacoes.length, 1);
   }
+});
+
+test('Manutenções grava responsável e motorista pelo RH e não aceita nomes livres nos ativos físicos', async () => {
+  for(const tipo of ['veiculo','maquina','predial']) {
+    const a=ambiente({sessao:{sub:'demo',perms:['manutencoes']}});
+    const item={cadastroId:ID,tipo,nome:'Ativo fictício',responsavelId:'rh-manutencao',responsavel:'Nome forjado',especificacao:tipo==='veiculo'?{motoristaId:'rh-manutencao',motorista:'Motorista forjado'}:{}};
+    const r=await a.chamar(item,undefined,'salvar');
+    assert.equal(r.status,200);assert.equal(r.body.item.responsavelId,'rh-manutencao');assert.equal(r.body.item.responsavel,'Manutenção');
+    if(tipo==='veiculo') {assert.equal(r.body.item.especificacao.motoristaId,'rh-manutencao');assert.equal(r.body.item.especificacao.motorista,'Manutenção');}
+    const editado=await a.chamar({id:ID,tipo,nome:'Ativo atualizado'},undefined,'salvar');
+    assert.equal(editado.status,200);assert.equal(editado.body.item.responsavelId,'rh-manutencao');
+    if(tipo==='veiculo')assert.equal(editado.body.item.especificacao.motoristaId,'rh-manutencao');
+    for(const responsavelId of ['', 'id-inexistente']) {
+      const b=ambiente({sessao:{sub:'demo',perms:['manutencoes']}});
+      assert.equal((await b.chamar({...item,responsavelId},undefined,'salvar')).status,422);
+      assert.equal(b.gravacoes.length,0);
+    }
+  }
+  const b=ambiente({sessao:{sub:'demo',perms:['manutencoes']}});
+  assert.equal((await b.chamar({cadastroId:ID,tipo:'veiculo',nome:'Veículo fictício',especificacao:{motorista:'Sem ID'}},undefined,'salvar')).status,422);
+  assert.equal(b.gravacoes.length,0);
 });

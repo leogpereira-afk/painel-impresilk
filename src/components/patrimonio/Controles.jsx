@@ -1,3 +1,4 @@
+import PessoaRH,{usePessoasRH,comNomeRH} from './PessoasRH.jsx';
 import {useEffect,useMemo,useRef,useState} from 'react';
 import {Plus, Pencil, Trash2, Printer, Search, RefreshCw, ChevronLeft, ChevronRight, Smartphone, Phone, Archive, Wrench, BedDouble, List, UserCheck, CircleCheck, X, Check, Package} from 'lucide-react';
 import {lerControles,salvarControle,removerControle} from '../../services/patrimonio.js';
@@ -14,6 +15,7 @@ export function AtualizacaoPatrimonio({registro}) {
 }
 
 export default function ControlesPatrimonio({tipo}) {
+ const {pessoas}=usePessoasRH();
  const meta=CONTROLES[tipo], Icone=ICONES[tipo];
  const [mapa,setMapa]=useState(null), [erro,setErro]=useState(''), [mensagem,setMensagem]=useState('');
  const [busca,setBusca]=useState(''), [situacao,setSituacao]=useState('todos'), [pagina,setPagina]=useState(1);
@@ -36,8 +38,9 @@ export default function ControlesPatrimonio({tipo}) {
   finally{if(n===pedido.current)setCarregando(false);}
  }
  useEffect(()=>{carregar();const ref=pedido;return()=>{ref.current++;};},[]);
- const resumo=useMemo(()=>resumirControles(mapa,tipo),[mapa,tipo]);
- const lista=useMemo(()=>listarControles(mapa,tipo,busca,situacao),[mapa,tipo,busca,situacao]);
+ const mapaComRH=useMemo(()=>Object.fromEntries(Object.entries(mapa||{}).map(([id,r])=>[id,comNomeRH(r,pessoas,'pessoa')])),[mapa,pessoas]);
+ const resumo=useMemo(()=>resumirControles(mapaComRH,tipo),[mapaComRH,tipo]);
+ const lista=useMemo(()=>listarControles(mapaComRH,tipo,busca,situacao),[mapaComRH,tipo,busca,situacao]);
  const paginas=Math.max(1,Math.ceil(lista.length/POR_PAGINA)), atual=Math.min(pagina,paginas);
  const recorte=lista.slice((atual-1)*POR_PAGINA,atual*POR_PAGINA);
  const comFiltro=Boolean(busca.trim())||situacao!=='todos';
@@ -50,7 +53,7 @@ export default function ControlesPatrimonio({tipo}) {
  async function salvar(e){
   e.preventDefault();setOcupado(true);setErro('');
   try{
-   setMapa(await salvarControle(form.id,{tipo,numero:form.numero,modelo:form.modelo,telefone:form.telefone,pessoa:form.pessoa,observacao:form.observacao},form.atualizadoEm??null));
+   setMapa(await salvarControle(form.id,{tipo,numero:form.numero,modelo:form.modelo,telefone:form.telefone,pessoa:form.pessoa,pessoaId:form.pessoaId||'',local:form.local||'',observacao:form.observacao},form.atualizadoEm??null));
    if(tipo==='ferramentas'&&!form.atualizadoEm)setCaixaId(form.id);
    setForm(null);setMensagem('Cadastro salvo.');
   }catch(e){
@@ -83,7 +86,7 @@ export default function ControlesPatrimonio({tipo}) {
   </div>
   <header className="pat-report-title"><span>IMPRESILK · PATRIMÔNIO</span><h1>{meta.titulo}</h1><p>{relatorio.itens.length} registros · Emitido em {relatorio.em}</p><p>Filtro: {relatorio.filtro}{relatorio.busca?` · Busca: ${relatorio.busca}`:''}</p></header>
   <table className="pat-table pat-controles-table"><thead><tr><th>{tituloNumero}</th>{tipo==='celulares'&&<th>Modelo</th>}{tipo==='ramais'&&<th>Telefone</th>}<th>{meta.pessoa}</th>{tipo==='ferramentas'&&<th>Última / próxima conferência</th>}<th>Observações</th><th>Última atualização</th></tr></thead>
-   <tbody>{relatorio.itens.map(r=><tr key={r.id}><td>{r.numero}</td>{tipo==='celulares'&&<td>{r.modelo}</td>}{tipo==='ramais'&&<td>{r.telefone||'—'}</td>}<td>{temResponsavel(r)?r.pessoa:semResponsavel}</td>{tipo==='ferramentas'&&<td><ResumoConferenciaCaixa registro={r}/></td>}<td>{r.observacao||'—'}</td><td>{textoAtualizacao(r)}</td></tr>)}</tbody>
+   <tbody>{relatorio.itens.map(r=><tr key={r.id}><td>{r.numero}</td>{tipo==='celulares'&&<td>{r.modelo}</td>}{tipo==='ramais'&&<td>{r.telefone||'—'}</td>}<td>{[r.local,r.pessoa].filter(Boolean).join(' · ')||semResponsavel}</td>{tipo==='ferramentas'&&<td><ResumoConferenciaCaixa registro={r}/></td>}<td>{r.observacao||'—'}</td><td>{textoAtualizacao(r)}</td></tr>)}</tbody>
   </table>
  </div>;
 
@@ -112,7 +115,7 @@ export default function ControlesPatrimonio({tipo}) {
     <tbody>{recorte.map(r=><tr key={r.id}>
      <td data-label={tituloNumero}>{tipo==='ferramentas'?<button className="pat-caixa-open" onClick={()=>setCaixaId(r.id)} aria-label={`Abrir acervo da caixa ${r.numero}`}><strong className="pat-control-number">{r.numero}</strong><small>{(r.acervo||[]).filter(i=>!i.arquivado).length} tipos de itens</small></button>:<strong className="pat-control-number">{r.numero}</strong>}</td>
      {tipo==='celulares'&&<td data-label="Modelo">{r.modelo}</td>}{tipo==='ramais'&&<td data-label="Telefone">{r.telefone||'—'}</td>}
-     <td data-label={meta.pessoa}>{temResponsavel(r)?<span className="pat-control-person"><UserCheck size={15} aria-hidden="true"/>{r.pessoa}</span>:<span className="pat-control-available">{semResponsavel}</span>}</td>
+     <td data-label={meta.pessoa}>{temResponsavel(r)?<span className="pat-control-person"><UserCheck size={15} aria-hidden="true"/>{[r.local,r.pessoa].filter(Boolean).join(' · ')}</span>:<span className="pat-control-available">{semResponsavel}</span>}</td>
      {tipo==='ferramentas'&&<td data-label="Última / próxima conferência"><ResumoConferenciaCaixa registro={r}/></td>}
      <td data-label="Observação / atualização">{r.observacao&&<span className="pat-control-note">{r.observacao}</span>}<AtualizacaoPatrimonio registro={r}/></td>
      <td data-label="Ações"><div className="pat-actions">{tipo==='ferramentas'&&<button className="btn-outline" disabled={ocupado} onClick={()=>setCaixaId(r.id)} aria-label={`Abrir acervo da caixa ${r.numero}`}><Package size={16}/>Acervo</button>}<button className="btn-ghost" disabled={ocupado} onClick={()=>abrir(r)} aria-label={`Editar ${meta.singular} ${r.numero}`}><Pencil size={16}/>Editar</button><button className="btn-ghost pat-control-remove" disabled={ocupado} onClick={()=>remover(r)} aria-label={`Remover ${meta.singular} ${r.numero}`} title="Remover cadastro"><Trash2 size={16}/></button></div></td>
@@ -128,7 +131,8 @@ export default function ControlesPatrimonio({tipo}) {
      <label className="label">{tituloNumero}<input className="input" required type={tipo==='celulares'?'tel':'text'} inputMode={tipo==='celulares'?'tel':'numeric'} pattern={tipo==='celulares'?undefined:'[0-9]{1,12}'} maxLength={tipo==='celulares'?40:12} placeholder={tipo==='celulares'?'(38) 99999-0000':'Ex.: 01'} value={form.numero} onChange={campo('numero')}/></label>
      {tipo==='celulares'&&<label className="label">Modelo<input className="input" required maxLength={120} placeholder="Marca e modelo do aparelho" value={form.modelo||''} onChange={campo('modelo')}/></label>}
      {tipo==='ramais'&&<label className="label">Telefone do ramal (opcional)<input className="input" type="tel" maxLength={40} value={form.telefone} onChange={campo('telefone')}/></label>}
-     <label className="label">{meta.pessoa}<input className="input" maxLength={120} placeholder={tipo==='ramais'?'Pessoa ou local de atendimento':'Nome da pessoa'} value={form.pessoa} onChange={campo('pessoa')}/><small>{tipo==='ramais'?'Pode ser preenchido depois.':'Deixe vazio se ainda estiver disponível.'}</small></label>
+     <PessoaRH rotulo={tipo==='ramais'?'Pessoa responsável':meta.pessoa} valor={form.pessoaId||''} nome={form.pessoa||''} aoMudar={(pessoaId,pessoa)=>setForm(f=>({...f,pessoaId,pessoa}))}/>
+     {tipo==='ramais'&&<label className="label">Local de atendimento (opcional)<input className="input" maxLength={120} value={form.local||''} onChange={campo('local')} placeholder="Ex.: Recepção"/></label>}
      <label className="label pat-control-wide">Observações <small>Opcional</small><textarea className="input" rows={2} maxLength={1000} placeholder="Informações úteis para a próxima conferência" value={form.observacao} onChange={campo('observacao')}/></label>
     </fieldset>
     {form.atualizadoEm&&<AtualizacaoPatrimonio registro={form}/>}

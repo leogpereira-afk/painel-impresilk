@@ -1,3 +1,4 @@
+import {validarVinculoPessoa} from '../supabase/functions/_shared/patrimonio-pessoas.mjs';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -34,7 +35,7 @@ function ambiente({ sessao = { sub: 'pessoa', perms: ['patrimonio'] }, linhas = 
   };
   vm.runInNewContext(codigo, {
     Deno: { env: { get: () => 'teste' }, serve: fn => { handler = fn; } },
-    createClient: () => sb, verificarJwt: async () => sessao, crachaRevogado: async () => revogada,
+    createClient: () => sb,validarVinculoPessoa,lerPessoasPatrimonio:async()=>[{id:'rh-manutencao',nome:'Manutenção',disponivel:true}], verificarJwt: async () => sessao, crachaRevogado: async () => revogada,
     Response, Request, console: { error() {} },
   });
   return {
@@ -49,7 +50,7 @@ const registro = (id, tipo = 'veiculo', extra = {}, colecao = 'ativo') => ({ id,
 
 test('Patrimônio consulta carros, máquinas e estrutura da base de ativos com projeção fechada e ID canônico', async () => {
   const a = ambiente({ linhas: [
-    registro('v1', 'veiculo', { id: 'id-interno-incorreto', nome: 'Carro da entrega', responsavel: 'Operação', bemId: 'bem1', especificacao: { placa: 'ABC1D23', marcaModelo: 'Van exemplo', ano: '2024', renavam: 'RENAVAM-PRIVADO', chassi: 'CHASSI-PRIVADO', motorista: 'MOTORISTA-PRIVADO', segredo: 'SEGREDO-INTERNO' }, valor: 80000, valorSegurado: 95000, arquivoNome: 'CRLV-PRIVADO.pdf', temArquivo: true, observacao: 'OBSERVACAO-PRIVADA', miniatura: 'data:privado', atualizadoPor: 'Pessoa do cadastro', atualizadoEm: '2026-10-05T15:00:00Z' }),
+    registro('v1', 'veiculo', { id: 'id-interno-incorreto', nome: 'Carro da entrega', responsavel: 'Operação', responsavelId:'', bemId: 'bem1', especificacao: { placa: 'ABC1D23', marcaModelo: 'Van exemplo', ano: '2024', renavam: 'RENAVAM-PRIVADO', chassi: 'CHASSI-PRIVADO', motorista: 'MOTORISTA-PRIVADO', segredo: 'SEGREDO-INTERNO' }, valor: 80000, valorSegurado: 95000, arquivoNome: 'CRLV-PRIVADO.pdf', temArquivo: true, observacao: 'OBSERVACAO-PRIVADA', miniatura: 'data:privado', atualizadoPor: 'Pessoa do cadastro', atualizadoEm: '2026-10-05T15:00:00Z' }),
     registro('m1', 'maquina', { especificacao: { fabricante: 'Fabricante', modelo: 'M10', numeroSerie: 'SN-001', ano: '2025', setor: 'Impressão', segredo: 'SEGREDO-INTERNO' } }),
     registro('p1', 'predial', { categoria: 'Ar condicionado', identificacao: 'AC-01', observacao: 'Limpeza semestral', especificacao: { local: 'Sala', marcaModelo: 'Marca', quantidade: '2', instalacao: '2026-10-05', segredo: 'SEGREDO-INTERNO' }, valor: 80000 }),
     ...['documento', 'seguro', 'marketing', 'licitacao', 'inventado'].map(tipo => registro(tipo, tipo)),
@@ -59,9 +60,9 @@ test('Patrimônio consulta carros, máquinas e estrutura da base de ativos com p
   assert.equal(r.status, 200);
   assert.deepEqual(r.body.itens.map(item => item.id), ['m1', 'p1', 'v1']);
   const carro = r.body.itens[2];
-  assert.deepEqual(carro, { id: 'v1', tipo: 'veiculo', nome: 'Carro da entrega', responsavel: 'Operação', bemId: 'bem1', especificacao: { placa: 'ABC1D23', marcaModelo: 'Van exemplo', ano: '2024' }, atualizadoPor: 'Pessoa do cadastro', atualizadoEm: '2026-10-05T15:00:00Z' });
+  assert.deepEqual(carro, { id: 'v1', tipo: 'veiculo', nome: 'Carro da entrega', responsavel: 'Operação', responsavelId:'', bemId: 'bem1', especificacao: { placa: 'ABC1D23', marcaModelo: 'Van exemplo', ano: '2024' }, atualizadoPor: 'Pessoa do cadastro', atualizadoEm: '2026-10-05T15:00:00Z' });
   assert.deepEqual(r.body.itens[0].especificacao, { fabricante: 'Fabricante', modelo: 'M10', numeroSerie: 'SN-001', ano: '2025', setor: 'Impressão' });
-  assert.deepEqual(r.body.itens[1], { id: 'p1', tipo: 'predial', nome: 'Item p1', categoria: 'Ar condicionado', identificacao: 'AC-01', observacao: 'Limpeza semestral', responsavel: '', bemId: '', especificacao: { local: 'Sala', marcaModelo: 'Marca', quantidade: '2', instalacao: '2026-10-05' }, atualizadoEm: '', atualizadoPor: '' });
+  assert.deepEqual(r.body.itens[1], { id: 'p1', tipo: 'predial', nome: 'Item p1', categoria: 'Ar condicionado', identificacao: 'AC-01', observacao: 'Limpeza semestral', responsavel: '', responsavelId:'', bemId: '', especificacao: { local: 'Sala', marcaModelo: 'Marca', quantidade: '2', instalacao: '2026-10-05' }, atualizadoEm: '', atualizadoPor: '' });
   assert.doesNotMatch(JSON.stringify(r.body), /PRIVAD|SEGREDO|80000|95000|temArquivo|miniatura|valorSegurado/);
   assert.equal(a.gravacoes.length, 0);
 });

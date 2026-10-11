@@ -1,3 +1,4 @@
+import PessoaRH,{PessoasRHProvider,usePessoasRH,comNomeRH} from '../components/patrimonio/PessoasRH.jsx';
 import { useAbaNavegavel } from "../hooks/useAbaNavegavel.js";
 import {useSearchParams} from 'react-router-dom';
 // Manutenções: o que a empresa gasta para as coisas continuarem funcionando --
@@ -447,14 +448,7 @@ function FormItem({ inicial, salvando, aoSalvar, aoFechar, setores }) {
             </datalist>
           </div>
           <div>
-            <label className="label" htmlFor="i-responsavel">Responsável</label>
-            <input
-              id="i-responsavel"
-              className="input"
-              placeholder="quem cuida disso"
-              value={f.responsavel}
-              onChange={trocar("responsavel")}
-            />
+            {['veiculo','maquina','predial'].includes(f.tipo)?<PessoaRH valor={f.responsavelId||''} nome={f.responsavel||''} aoMudar={(responsavelId,responsavel)=>setF(v=>({...v,responsavelId,responsavel}))}/>:<><label className="label" htmlFor="i-responsavel">Responsável</label><input className="input" id="i-responsavel" value={f.responsavel} onChange={trocar('responsavel')}/></>}
           </div>
         </div>
 
@@ -470,8 +464,8 @@ function FormItem({ inicial, salvando, aoSalvar, aoFechar, setores }) {
               const id = `e-${c.id}`;
               return (
                 <div key={c.id} className={c.curto ? "" : ""}>
-                  <label className="label" htmlFor={id}>{c.rotulo}</label>
-                  {c.opcoes ? (
+                  {c.id!=='motorista'&&<label className="label" htmlFor={id}>{c.rotulo}</label>}
+                  {c.id==='motorista'?<PessoaRH rotulo={c.rotulo} valor={f.especificacao?.motoristaId||''} nome={valor} aoMudar={(motoristaId,motorista)=>setF(v=>({...v,especificacao:{...v.especificacao,motoristaId,motorista}}))}/>:c.opcoes ? (
                     <>
                       <input
                         id={id}
@@ -775,7 +769,9 @@ function LinhaItem({ item, aberto, aoAbrir, aoLancar, aoEditarItem, aoApagarItem
 
 // ---------------------------------------------------------------- página
 
-export default function Manutencoes() {
+export default function Manutencoes(){return <PessoasRHProvider><ManutencoesConteudo/></PessoasRHProvider>;}
+function ManutencoesConteudo() {
+  const {pessoas}=usePessoasRH();
   const [parametros,setParametros]=useSearchParams();
   const itemSelecionado=parametros.get('item')||'';
   const [itens, setItens] = useState(null);
@@ -853,8 +849,8 @@ export default function Manutencoes() {
   }, []);
 
   const vm = useMemo(
-    () => calcManutencoes(itens || [], mapa || {}, hojeISO),
-    [itens, mapa, hojeISO]
+    () => calcManutencoes((itens || []).map(i=>['veiculo','maquina','predial'].includes(i.tipo)?{...comNomeRH(i,pessoas),especificacao:i.tipo==='veiculo'?comNomeRH(i.especificacao||{},pessoas,'motorista'):i.especificacao}:i), mapa || {}, hojeISO),
+    [itens, mapa, hojeISO,pessoas]
   );
 
   const visiveis = useMemo(() => {
@@ -1039,7 +1035,7 @@ export default function Manutencoes() {
         if(paraNumero(f.valor)>0) doBem.valor=paraNumero(f.valor);
       }
       const salvo=await salvarEquipamento({
-        id:f.id || undefined,cadastroId:f.cadastroId,tipo:f.tipo,nome:f.nome,categoria:f.categoria,responsavel:f.responsavel,
+        id:f.id || undefined,cadastroId:f.cadastroId,tipo:f.tipo,nome:f.nome,categoria:f.categoria,responsavel:f.responsavel,responsavelId:f.responsavelId||'',
         identificacao:identificacaoDe(f),observacao:f.observacao,especificacao:f.especificacao || {},
         unidadeMedidor:UNIDADE_PADRAO[f.tipo] || '',medidorAtual:paraNumero(f.medidorAtual),medidorProximo:paraNumero(f.medidorProximo),
       },doBem,f.bemId);
