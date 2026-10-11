@@ -28,6 +28,7 @@ import {
   semanaParaLancar,
   semanasDoCanal,
   SITUACAO_AO_CONCLUIR,
+  trechosDaFileira,
   trocarMetricas,
   trocarPorId,
   ultimasPublicacoes,
@@ -158,6 +159,29 @@ test('nome do responsável: pessoa pelo id; sem id, o texto antigo; id fora da l
 test('fileira: canal ativo ou em implantação, na ordem que veio; desativado fora de implantação sai', () => {
   assert.deepEqual(canaisDaFileira(canais).map((c) => c.codigo), ['site', 'instagram', 'whatsapp', 'pinterest']);
   assert.deepEqual(canaisDaFileira(undefined), []);
+});
+
+test('fileira em trechos de um grupo só: a ordem cadastrada manda, e nenhum canal some', () => {
+  // A carga padrão: digital, contato e offline seguidos viram três trechos.
+  const padrao = [
+    { id: '1', grupo: 'digital' }, { id: '2', grupo: 'digital' },
+    { id: '3', grupo: 'contato' }, { id: '4', grupo: 'contato' },
+    { id: '5', grupo: 'offline' },
+  ];
+  assert.deepEqual(trechosDaFileira(padrao).map((t) => [t.grupo, t.canais.map((c) => c.id)]), [
+    ['digital', ['1', '2']],
+    ['contato', ['3', '4']],
+    ['offline', ['5']],
+  ]);
+  // O caso ruim: WhatsApp cadastrado entre Site e Instagram. A tela não
+  // reordena calada (o chip sairia do lugar que a gestão escolheu): vira um
+  // trecho a mais, com fio dos dois lados.
+  const misturada = [{ id: 's', grupo: 'digital' }, { id: 'w', grupo: 'contato' }, { id: 'i', grupo: 'digital' }];
+  assert.deepEqual(trechosDaFileira(misturada).map((t) => t.canais.map((c) => c.id)), [['s'], ['w'], ['i']]);
+  // Grupo vazio ou estranho não derruba o canal da fileira.
+  const estranhos = trechosDaFileira([{ id: 'a' }, { id: 'b', grupo: '' }, { id: 'c', grupo: 'novo' }, null]);
+  assert.deepEqual(estranhos.map((t) => [t.grupo, t.canais.length]), [['sem-grupo', 2], ['novo', 1]]);
+  assert.deepEqual(trechosDaFileira(undefined), []);
 });
 
 test('chip: pendentes contam ação aberta e item único; "parado" só em canal digital', () => {

@@ -3,8 +3,8 @@
 // orçamento e o formato de tela são os MESMOS do servidor
 // (_shared/marketing.mjs); o que muda é só onde se guarda.
 //
-// Etapa a2: canais (4 da carga padrão, com o Pinterest em implantação),
-// playbook desses canais, publicações e números da semana do Instagram, e
+// Etapa a2: canais (os 11 da carga padrão, com o Pinterest em implantação),
+// playbook de 4 deles, publicações e números da semana do Instagram, e
 // pessoas fictícias. Quem revisa é "gestao" (vê e mexe em tudo).
 import {
   prepararAcao, acaoParaTela, ErroMarketing, prepararCanal, canalParaTela, prepararItemPlaybook, itemParaTela, prepararConclusao,
@@ -45,17 +45,19 @@ function gravarPublicacao(dados, id = crypto.randomUUID()) {
   return linha;
 }
 
-// Exemplo: Site, Instagram, Pinterest (em implantação) e WhatsApp.
-const ID_CANAL = {
-  site: 'c0000000-0000-4000-8000-000000000001',
-  instagram: 'c0000000-0000-4000-8000-000000000002',
-  pinterest: 'c0000000-0000-4000-8000-000000000005',
-  whatsapp: 'c0000000-0000-4000-8000-000000000007',
-};
-for (const c of padrao.canais) if (ID_CANAL[c.codigo]) gravarCanal(c, ID_CANAL[c.codigo]);
+// Os 11 canais da carga padrão, como no ar: a fileira de chips só se prova
+// com a quantidade de verdade (com 4 canais tudo cabia, e o Facebook e o
+// Google Meu Negócio sumindo à direita nunca apareceu na prévia). O id segue
+// a ordem (Site 1, Instagram 2, ...), estável entre recargas.
+const ID_CANAL = Object.fromEntries(padrao.canais.map((c) => [c.codigo, `c0000000-0000-4000-8000-${String(c.ordem / 10).padStart(12, '0')}`]));
+for (const c of padrao.canais) gravarCanal(c, ID_CANAL[c.codigo]);
+// Playbook só de Site, Instagram, Pinterest (em implantação) e WhatsApp: com
+// os 11, o Fazer da prévia virava uma lista de dezenas de itens sem prazo. O
+// resto entra pelo "Carregar o padrão" das Configurações.
+const COM_PLAYBOOK = new Set(['site', 'instagram', 'pinterest', 'whatsapp']);
 canais.get(ID_CANAL.instagram).url_perfil = 'https://example.com/perfil-exemplo';
 canais.get(ID_CANAL.whatsapp).mensagem_whatsapp = 'Olá! Vi a Impresilk e quero um orçamento (exemplo).';
-for (const i of padrao.playbook) if (ID_CANAL[i.canal]) gravarItem(i, ID_CANAL[i.canal]);
+for (const i of padrao.playbook) if (COM_PLAYBOOK.has(i.canal)) gravarItem(i, ID_CANAL[i.canal]);
 const primeiraDoPinterest = [...playbook.values()].find((i) => i.codigo === 'pinterest-1');
 Object.assign(primeiraDoPinterest, { concluido_em: agora(), concluido_por: QUEM, evidencia_valor: 'Conta criada (exemplo)' });
 const bioDoInstagram = [...playbook.values()].find((i) => i.codigo === 'instagram-1');

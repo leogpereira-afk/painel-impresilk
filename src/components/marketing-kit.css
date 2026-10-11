@@ -158,6 +158,52 @@ html.dark .gaveta {
   html.dark .gaveta { box-shadow: -12px 0 48px #00000080; }
 }
 
+/* CARTÃO COMPACTO EM LINHA (CardCompacto emLinha). Celular: título e
+   situação em cima, com o "..." no canto; as ações na linha de baixo. Do sm
+   para cima, tudo numa linha: título e situação | ações | "...". Grade com
+   áreas, e não os botões desenhados duas vezes (um escondido por largura):
+   a ordem do Tab segue a leitura nas duas larguras. */
+.cartao-em-linha {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas:
+    "titulo menu"
+    "acoes acoes";
+  align-items: center;
+  column-gap: 8px;
+}
+.cartao-em-linha-titulo {
+  grid-area: titulo;
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px 12px;
+}
+.cartao-em-linha-acoes {
+  grid-area: acoes;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+.cartao-em-linha-menu {
+  grid-area: menu;
+  align-self: start;
+}
+@media (min-width: 640px) {
+  .cartao-em-linha {
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    grid-template-areas: "titulo acoes menu";
+  }
+  .cartao-em-linha-acoes {
+    margin-top: 0;
+  }
+  .cartao-em-linha-menu {
+    align-self: center;
+  }
+}
+
 /* MENU "..." do CardCompacto: a lista que abre sob o botão. Sombra e borda
    da casa; no escuro, a superfície do tema. */
 .menu-mais {

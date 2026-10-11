@@ -45,6 +45,34 @@ body {
   letter-spacing: -0.02em;
 }
 
+/* ALVO DE TOQUE MAIOR QUE O DESENHO. A régua da casa é 44px para navegação
+   e 40px para controle; numa barra compacta o botão é DESENHADO com 32 a
+   36px e o dedo continua acertando uma faixa de 40 ou 44px, centrada nele.
+   O ::before faz parte do botão para o clique (e não pinta nada).
+   Quem usa precisa de folga em volta: um pai com overflow (a fileira que
+   rola de lado, por exemplo) corta a faixa no limite dele, e por isso a
+   fileira do Marketing tem 4px de respiro em cima e embaixo.
+   O `relative` vai com especificidade zero (:where): este bloco fica depois
+   das utilitárias no CSS, e um `absolute` do Tailwind no mesmo botão
+   perderia para ele sem o :where. */
+:where(.alvo-40, .alvo-44) {
+  position: relative;
+}
+.alvo-40::before,
+.alvo-44::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: max(100%, 40px);
+  height: max(100%, 40px);
+  transform: translate(-50%, -50%);
+}
+.alvo-44::before {
+  width: max(100%, 44px);
+  height: max(100%, 44px);
+}
+
 ::-webkit-scrollbar {
   width: 9px;
   height: 9px;

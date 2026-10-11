@@ -1,9 +1,17 @@
-/* O CHIP DO CANAL: a pílula de 44px da fileira do Marketing.
+/* O CHIP DO CANAL: a pílula da fileira do Marketing.
  *
- * Mostra, da esquerda para a direita: ícone, nome, o indicador com a seta,
- * o semáforo (ponto SEMPRE com o texto ao lado, nunca só a cor) e o número de
- * pendentes. No celular (`compacto`) fica só ícone, nome e ponto; o ponto
- * ganha um sinal dentro (✓, relógio, !) para continuar dizendo algo sem cor.
+ * Inteiro, mostra da esquerda para a direita: ícone, nome, o indicador com a
+ * seta, o semáforo (ponto com o texto ao lado) e o número de pendentes, numa
+ * pílula de 44px.
+ *
+ * `compacto` (o que a fileira usa, em toda largura, desde 11/10/2026): com 11
+ * canais o chip inteiro deixava 3 ou 4 à vista, e o dono não achou o Facebook
+ * nem o Google Meu Negócio (estavam lá, fora da tela). Fica ícone, nome, o
+ * indicador só quando passa de zero, o semáforo só como ponto (com um sinal
+ * dentro, ✓, relógio ou !, para não depender da cor) e os pendentes num
+ * número pequeno. Desenho de 36px, texto de 13px; o toque continua em 44px
+ * (.alvo-44). Nada some: o texto do semáforo, o indicador (inclusive o zero
+ * e a comparação) e os pendentes vão por extenso no aria-label e no title.
  *
  * A COR DO CANAL é detalhe, nunca fundo: um fio de 3px na borda esquerda, por
  * `style` (classe montada com a cor some no build do Tailwind, e o fundo
@@ -88,10 +96,25 @@ export function SetaVariacao({ variacao, subirE, size = 14 }) {
 
 const TOM_TEXTO = { ok: 'text-ok-700', warn: 'text-warn-700', bad: 'text-bad-700', neutral: 'text-slate-500' };
 const TOM_PONTO = { ok: 'bg-ok-600', warn: 'bg-warn-600', bad: 'bg-bad-600', neutral: 'bg-slate-400' };
+/* O ponto do chip compacto é a ÚNICA marca do estado à vista (o texto foi
+   para o title e o aria-label), e precisa de 3:1 contra o chip. Os tons do
+   ponto inteiro não chegavam lá no tema claro: o âmbar dava 2,9:1 no chip
+   comum e 2,5:1 no escolhido, o verde 3,0 e 2,6, o cinza 2,3. No claro vai um
+   tom mais escuro (4,3 a 4,6:1 no chip comum, 3,7 a 3,9:1 no escolhido, e o
+   sinal branco a 4,8:1 ou mais). No escuro é o contrário: o tom escuro
+   sumia no chip escolhido (2,7:1), então o par `dark:` fica no tom de antes
+   (4,1 a 5,1:1), e o vermelho sobe um tom (o 600 dava 2,8:1 no escolhido; o
+   500 dá 3,6). */
+const TOM_PONTO_COMPACTO = {
+  ok: 'bg-ok-700 dark:bg-ok-600',
+  warn: 'bg-warn-700 dark:bg-warn-600',
+  bad: 'bg-bad-600 dark:bg-bad-500',
+  neutral: 'bg-slate-500 dark:bg-slate-400',
+};
 
-/** O ponto do semáforo. Inteiro: ponto e texto. Compacto: ponto maior com um
- *  sinal dentro (a forma diz o estado sem depender da cor) e o texto para o
- *  leitor de tela e para o dedo que pousa em cima (title). */
+/** O ponto do semáforo. Inteiro: ponto e texto. Compacto: ponto de 14px com
+ *  um sinal dentro (a forma diz o estado sem depender da cor) e o texto para
+ *  o leitor de tela e para o dedo que pousa em cima (title). */
 export function PontoSemaforo({ semaforo, compacto = false }) {
   if (!semaforo?.texto) return null;
   const tom = TOM_PONTO[semaforo.tom] ? semaforo.tom : 'neutral';
@@ -101,13 +124,13 @@ export function PontoSemaforo({ semaforo, compacto = false }) {
     // lado e alarga a PÁGINA no celular: foi o que a prévia em 375px mostrou.
     return (
       <span
-        className={clsx('relative grid h-4 w-4 shrink-0 place-items-center rounded-full text-white', TOM_PONTO[tom])}
+        className={clsx('relative grid h-3.5 w-3.5 shrink-0 place-items-center rounded-full text-white', TOM_PONTO_COMPACTO[tom])}
         title={semaforo.texto}
       >
-        {tom === 'ok' && <Check size={10} strokeWidth={3.5} aria-hidden="true" />}
-        {tom === 'warn' && <Clock3 size={10} strokeWidth={3} aria-hidden="true" />}
+        {tom === 'ok' && <Check size={9} strokeWidth={3.5} aria-hidden="true" />}
+        {tom === 'warn' && <Clock3 size={9} strokeWidth={3} aria-hidden="true" />}
         {tom === 'bad' && (
-          <span aria-hidden="true" className="text-[11px] font-bold leading-none">
+          <span aria-hidden="true" className="text-[10px] font-bold leading-none">
             !
           </span>
         )}
@@ -139,6 +162,9 @@ export default function ChipCanal({ canal, indicador, pendentes, semaforo, ativo
   const nome = canal?.nome || 'Canal';
   // Indicador sem número (lista que não chegou) não aparece: nada de "0".
   const temIndicador = ehNumero(indicador?.valor);
+  // No compacto, nem o zero medido aparece (ocupava lugar em quase todo chip
+  // dizendo "nada"); ele continua no aria-label e no title.
+  const mostraIndicador = temIndicador && (!compacto || indicador.valor > 0);
   const nPendentes = Number.isInteger(pendentes) && pendentes > 0 ? pendentes : 0;
   const descricao = [
     nome,
@@ -159,29 +185,36 @@ export default function ChipCanal({ canal, indicador, pendentes, semaforo, ativo
       className={clsx(
         ativo ? 'chip-sel' : 'chip-btn',
         // relative: nada posicionado aqui dentro escapa da fileira que rola.
-        'sem-impressao relative min-h-11 shrink-0 snap-start gap-2 whitespace-nowrap text-sm',
-        compacto ? 'px-3' : 'px-3.5'
+        'sem-impressao relative shrink-0 snap-start whitespace-nowrap',
+        compacto ? 'alvo-44 h-9 gap-1 px-2.5 text-[13px]' : 'min-h-11 gap-2 px-3.5 text-sm'
       )}
       style={cor ? { borderLeft: `3px solid ${cor}` } : undefined}
     >
-      {Icone ? <Icone size={16} strokeWidth={2.2} className="shrink-0" aria-hidden="true" /> : <IconeCanal nome={canal?.icone} />}
+      {Icone ? (
+        <Icone size={compacto ? 15 : 16} strokeWidth={2.2} className="shrink-0" aria-hidden="true" />
+      ) : (
+        <IconeCanal nome={canal?.icone} size={compacto ? 15 : 16} />
+      )}
       <span className="max-w-[10rem] truncate">{nome}</span>
-      {!compacto && temIndicador && (
-        <span className="tnum inline-flex items-center gap-0.5 text-xs" aria-hidden="true">
+      {mostraIndicador && (
+        <span className={clsx('tnum inline-flex items-center gap-0.5', compacto ? 'text-[12px]' : 'text-xs')} aria-hidden="true">
           {numeroCompacto(indicador.valor)}
           {/* Sem mudança, sem seta: o traço do "estável" ao lado de um 0
               parecia um sinal de menos. O "igual ao período anterior" fica
               no aria-label e no title. */}
-          {indicador.variacao !== 0 && <SetaVariacao variacao={indicador.variacao} subirE="bom" size={13} />}
+          {indicador.variacao !== 0 && <SetaVariacao variacao={indicador.variacao} subirE="bom" size={compacto ? 12 : 13} />}
         </span>
       )}
       <span aria-hidden="true" className="inline-flex">
         <PontoSemaforo semaforo={semaforo} compacto={compacto} />
       </span>
-      {!compacto && nPendentes > 0 && (
+      {nPendentes > 0 && (
         <span
           aria-hidden="true"
-          className="tnum min-w-[1.25rem] rounded-full bg-white px-1.5 py-0.5 text-center text-[11px] font-semibold leading-none text-slate-700"
+          className={clsx(
+            'tnum rounded-full bg-white text-center font-semibold leading-none text-slate-700',
+            compacto ? 'min-w-[1.125rem] px-1 py-[3px] text-[11px]' : 'min-w-[1.25rem] px-1.5 py-0.5 text-[11px]'
+          )}
         >
           {nPendentes}
         </span>

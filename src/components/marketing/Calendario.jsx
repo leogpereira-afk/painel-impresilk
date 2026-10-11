@@ -11,7 +11,8 @@
  */
 import { useMemo } from 'react';
 import { CalendarCheck, ChevronLeft, ChevronRight, Megaphone } from 'lucide-react';
-import { Card, Empty } from '../ui.jsx';
+import { Empty } from '../ui.jsx';
+import { Bloco } from './Bloco.jsx';
 import { useMarketing } from './contexto.js';
 import { MES_VALIDO, calendarioDoMes, diaDaSemana, mesVizinho, nomeDoMes } from './derivar.js';
 import { useParamNavegavel } from '../../hooks/useParamNavegavel.js';
@@ -31,8 +32,8 @@ export default function Calendario({ canal }) {
   const titulo = nome.charAt(0).toUpperCase() + nome.slice(1);
 
   return (
-    <Card className="p-4 sm:p-5">
-      <div className="mb-3 flex flex-wrap items-center gap-2">
+    <Bloco>
+      <div className="mb-2 flex flex-wrap items-center gap-2">
         <button type="button" className="btn-ghost h-11 w-11 p-0" onClick={() => setMes(mesVizinho(mes, -1))} aria-label="Mês anterior">
           <ChevronLeft size={20} aria-hidden="true" />
         </button>
@@ -87,6 +88,6 @@ export default function Calendario({ canal }) {
           ))}
         </div>
       )}
-    </Card>
+    </Bloco>
   );
 }

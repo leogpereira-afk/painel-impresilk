@@ -6,6 +6,10 @@
  * Grupo comprido mostra as 8 primeiras e um "Mostrar todas": a fila é para
  * decidir o que fazer agora, e quinze itens sem prazo empurrariam o resto da
  * tela para baixo.
+ *
+ * Do lg para cima o rótulo do grupo (Atrasadas · 1) vira uma coluna à
+ * esquerda, na altura da primeira linha, em vez de ocupar uma linha sozinho
+ * (marketing.css, .mkt-fila-grupo). No celular ele continua em cima.
  */
 import { useState } from 'react';
 import LinhaTarefa from '../LinhaTarefa.jsx';
@@ -29,16 +33,16 @@ export default function FilaFazer({ linhas, hoje, canaisPorId, pessoas, podeGrav
   if (!total) return vazio || null;
 
   return (
-    <div className="space-y-4">
+    <div className="mkt-fila">
       {GRUPOS.filter((g) => grupos[g.id].length).map((g) => {
         const todas = grupos[g.id];
         const visiveis = abertos[g.id] ? todas : todas.slice(0, POR_VEZ);
         return (
-          <section key={g.id} aria-label={g.rotulo}>
-            <h3 className={`mb-1 font-display text-xs font-semibold uppercase tracking-wide ${g.classe}`}>
+          <section key={g.id} aria-label={g.rotulo} className="mkt-fila-grupo">
+            <h3 className={`mkt-fila-rotulo font-display text-xs font-semibold uppercase leading-4 tracking-wide ${g.classe}`}>
               {g.rotulo} <span className="tnum font-normal text-slate-400">· {todas.length}</span>
             </h3>
-            <div>
+            <div className="min-w-0">
               {visiveis.map((l) => (
                 <LinhaTarefa
                   key={l.chave}
@@ -54,12 +58,12 @@ export default function FilaFazer({ linhas, hoje, canaisPorId, pessoas, podeGrav
                   onSair={() => onSair(l.chave)}
                 />
               ))}
+              {todas.length > POR_VEZ && (
+                <button type="button" className="btn-ghost mt-1 min-h-11" onClick={() => setAbertos((a) => ({ ...a, [g.id]: !a[g.id] }))}>
+                  {abertos[g.id] ? 'Mostrar menos' : `Mostrar todas (${todas.length})`}
+                </button>
+              )}
             </div>
-            {todas.length > POR_VEZ && (
-              <button type="button" className="btn-ghost mt-1 min-h-11" onClick={() => setAbertos((a) => ({ ...a, [g.id]: !a[g.id] }))}>
-                {abertos[g.id] ? 'Mostrar menos' : `Mostrar todas (${todas.length})`}
-              </button>
-            )}
           </section>
         );
       })}

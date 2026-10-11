@@ -14,6 +14,12 @@
  * Ação: { rotulo, onClick, href, icone, primaria, perigo, desabilitado,
  *         titulo }. `href` só http(s), mailto, tel ou caminho do próprio
  *         painel: link "javascript:" não vira botão.
+ *
+ * `emLinha`: título, o que vem em `children` (uma linha de situação) e as
+ * ações na MESMA linha, do sm para cima; no celular as ações descem para
+ * baixo do título e o "..." fica no canto de cima. Os botões são desenhados
+ * com 36px e tocam em 44px (.alvo-44). É o cabeçalho do canal aberto do
+ * Marketing, que gastava três linhas onde cabe uma.
  */
 import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 import { clsx } from 'clsx';
@@ -23,11 +29,11 @@ import './marketing-kit.css';
 const HREF_SEGURO = /^(https?:\/\/|mailto:|tel:|\/(?!\/)|\?)/i;
 const externo = (href) => /^https?:\/\//i.test(href);
 
-function BotaoAcao({ acao }) {
+function BotaoAcao({ acao, compacto = false }) {
   const Icone = acao.icone;
   const classe = clsx(
     acao.primaria ? 'btn-primary' : acao.perigo ? 'btn-ghost text-bad-700' : 'btn-outline',
-    'min-h-11'
+    compacto ? 'alvo-44 min-h-9 px-3 py-1.5' : 'min-h-11'
   );
   const conteudo = (
     <>
@@ -162,7 +168,7 @@ function MenuMais({ itens }) {
   );
 }
 
-export default function CardCompacto({ titulo, sub, acoes, menu, children, className }) {
+export default function CardCompacto({ titulo, sub, acoes, menu, children, className, emLinha = false }) {
   const ref = useRef(null);
   const [dentroDeCard, setDentroDeCard] = useState(false);
   // Antes de pintar: se houver um .card acima, este perde a moldura sem
@@ -175,6 +181,36 @@ export default function CardCompacto({ titulo, sub, acoes, menu, children, class
   const visiveis = lista.slice(0, 2);
   const noMenu = [...lista.slice(2), ...(Array.isArray(menu) ? menu : []).filter(Boolean)];
   const tituloTexto = typeof titulo === 'string' ? titulo : undefined;
+
+  if (emLinha) {
+    return (
+      <section
+        ref={ref}
+        className={clsx('cartao-em-linha min-w-0', dentroDeCard ? 'border-t py-3 first:border-0' : 'card p-3', className)}
+        style={dentroDeCard ? { borderColor: 'var(--fio-lista, #f0f0f5)' } : undefined}
+      >
+        <div className="cartao-em-linha-titulo">
+          <h3 className="min-w-0 truncate font-display text-sm font-semibold text-slate-900" title={tituloTexto}>
+            {titulo}
+          </h3>
+          {sub && <p className="line-clamp-2 text-xs text-slate-500">{sub}</p>}
+          {children}
+        </div>
+        {visiveis.length > 0 && (
+          <div className="cartao-em-linha-acoes">
+            {visiveis.map((acao, i) => (
+              <BotaoAcao key={acao.id || acao.rotulo || i} acao={acao} compacto />
+            ))}
+          </div>
+        )}
+        {noMenu.length > 0 && (
+          <div className="cartao-em-linha-menu">
+            <MenuMais itens={noMenu} />
+          </div>
+        )}
+      </section>
+    );
+  }
 
   return (
     // min-w-0: numa grade ou fileira, o título de uma linha (nowrap) faria o

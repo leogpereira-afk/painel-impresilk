@@ -4,7 +4,8 @@
  */
 import { useMemo, useState } from 'react';
 import { CalendarCheck, CheckCircle2, Megaphone } from 'lucide-react';
-import { Card, SectionTitle, Empty } from '../ui.jsx';
+import { Empty } from '../ui.jsx';
+import { Bloco, TopoBloco } from './Bloco.jsx';
 import { useMarketing } from './contexto.js';
 import { historicoDoCanal } from './derivar.js';
 import { dataLonga } from '../../lib/format.js';
@@ -20,8 +21,10 @@ export default function Historico({ canal }) {
   const faltam = itens.length - visiveis.length;
 
   return (
-    <Card className="p-4 sm:p-5">
-      <SectionTitle titulo="Histórico" sub="Ações concluídas, passos do playbook feitos e publicações. As publicações aparecem dos últimos 400 dias." />
+    <Bloco>
+      {/* subSempre: a janela de 400 dias é o recorte do dado (publicação
+          mais velha não aparece), e fica à vista também no celular. */}
+      <TopoBloco subSempre titulo="Histórico" sub="Ações concluídas, passos do playbook feitos e publicações (estas, dos últimos 400 dias)." />
       {itens.length === 0 ? (
         <Empty className="gap-3 px-4">
           <p>Nada concluído ainda em {canal.nome}.</p>
@@ -55,6 +58,6 @@ export default function Historico({ canal }) {
           )}
         </>
       )}
-    </Card>
+    </Bloco>
   );
 }

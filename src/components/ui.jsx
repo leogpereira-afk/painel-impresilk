@@ -205,13 +205,20 @@ export function BarRow({ rotulo, valorTexto, pct, tom = "brand", sub }) {
 }
 
 // Alternador de opcoes (ex.: faturamento x volume).
-export function Segmented({ opcoes, valor, onChange, className }) {
+// `compacto`: a mesma barra desenhada com 36px de altura (botões de 30px),
+// para cabeçalho de uma linha só. O toque continua numa faixa de 40px
+// (.alvo-40): o pai não pode cortar a faixa com overflow.
+export function Segmented({ opcoes, valor, onChange, className, compacto = false }) {
   return (
     // sem-impressao: e um CONTROLE. No papel ele saia com todas as opcoes lado
     // a lado e nenhuma marcada (a regra de impressao zera o fundo do botao
     // ativo), fazendo o leitor achar que via um dado.
     <div
-      className={clsx("sem-impressao inline-flex max-w-full flex-wrap gap-1 rounded-xl border bg-white p-1", className)}
+      className={clsx(
+        "sem-impressao inline-flex max-w-full flex-wrap rounded-xl border bg-white",
+        compacto ? "gap-0.5 p-0.5" : "gap-1 p-1",
+        className
+      )}
       style={{ borderColor: "var(--hairline)" }}
     >
       {opcoes.map((o) => (
@@ -224,7 +231,8 @@ export function Segmented({ opcoes, valor, onChange, className }) {
           // iguais; aria-pressed diz qual esta ligado.
           aria-pressed={valor === o.valor}
           className={clsx(
-            "min-h-10 rounded-lg px-3 py-2 font-display text-sm font-medium transition-all",
+            "rounded-lg font-display font-medium transition-all",
+            compacto ? "alvo-40 h-[30px] px-2.5 text-[13px]" : "min-h-10 px-3 py-2 text-sm",
             valor === o.valor ? "bg-brand text-white shadow-sm" : "text-slate-600 hover:bg-slate-100"
           )}
         >

@@ -14,7 +14,8 @@
  */
 import { useMemo, useState } from 'react';
 import { FileUp, Plus, BarChart3 } from 'lucide-react';
-import { Card, SectionTitle, Empty } from '../ui.jsx';
+import { Empty } from '../ui.jsx';
+import { Bloco, TopoBloco } from './Bloco.jsx';
 import { SetaVariacao } from '../ChipCanal.jsx';
 import { useMarketing } from './contexto.js';
 import { semanaParaComparar, semanaParaLancar, semanasDoCanal, ultimasPublicacoes } from './derivar.js';
@@ -107,33 +108,35 @@ export default function Resultados({ canal }) {
   const lancarPublicacao = () => abrir({ tipo: 'publicacao', canalId: canal.id });
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-3">
+      {/* Botões desenhados com 36px, toque de 40px: são controles. */}
       {podeGravar && (
         <div className="flex flex-wrap gap-2">
-          <button type="button" className="btn-primary min-h-11" onClick={lancarSemana}>
+          <button type="button" className="btn-primary alvo-40 min-h-9 px-3 py-1.5" onClick={lancarSemana}>
             <BarChart3 size={16} strokeWidth={2.2} aria-hidden="true" />
             Lançar números da semana
           </button>
-          <button type="button" className="btn-outline min-h-11" onClick={lancarPublicacao}>
+          <button type="button" className="btn-outline alvo-40 min-h-9 px-3 py-1.5" onClick={lancarPublicacao}>
             <Plus size={16} strokeWidth={2.4} aria-hidden="true" />
             Lançar publicação
           </button>
-          <button type="button" className="btn-outline min-h-11" onClick={() => abrir({ tipo: 'csv', canalId: canal.id })}>
+          <button type="button" className="btn-outline alvo-40 min-h-9 px-3 py-1.5" onClick={() => abrir({ tipo: 'csv', canalId: canal.id })}>
             <FileUp size={16} strokeWidth={2.2} aria-hidden="true" />
             Importar CSV
           </button>
         </div>
       )}
 
-      <Card className="p-4 sm:p-5">
-        <SectionTitle
+      <Bloco>
+        <TopoBloco
           titulo="Números da semana"
+          subSempre
           sub={cmp?.atual ? fonteDoNumero(cmp.atual, hoje) : 'Nada lançado nesta semana.'}
           acao={
             semanas.length > 1 && (
-              <label className="label mb-0">
-                Semana
-                <select className="input mt-1.5" value={semana} onChange={(e) => setEscolhida(e.target.value)}>
+              <label className="flex items-center gap-2">
+                <span className="label-filtro">Semana</span>
+                <select className="filtro h-10" value={semana} onChange={(e) => setEscolhida(e.target.value)}>
                   {semanas.map((s) => (
                     <option key={s} value={s}>
                       {dataCurta(s)} a {dataCurta(somarDias(s, 6))}
@@ -166,12 +169,14 @@ export default function Resultados({ canal }) {
             </div>
           </>
         )}
-      </Card>
+      </Bloco>
 
-      <div className="grid gap-5 lg:grid-cols-2">
+      <div className="grid gap-3 lg:grid-cols-2">
         {['engajamento', 'leads'].map((campo) => (
-          <Card key={campo} className="p-4 sm:p-5">
-            <SectionTitle titulo={`Top 5 por ${ROTULO_TOP[campo].toLocaleLowerCase('pt-BR')}`} sub="Só entra publicação com o número lançado." />
+          <Bloco key={campo}>
+            {/* subSempre: o critério diz por que uma publicação não está na
+                lista, e isso é dado; fica à vista também no celular. */}
+            <TopoBloco subSempre titulo={`Top 5 por ${ROTULO_TOP[campo].toLocaleLowerCase('pt-BR')}`} sub="Só entra publicação com o número lançado." />
             {tops[campo]?.length ? (
               <div>
                 {tops[campo].map((p) => (
@@ -194,13 +199,15 @@ export default function Resultados({ canal }) {
                 )}
               </Empty>
             )}
-          </Card>
+          </Bloco>
         ))}
       </div>
 
       {ultimas.length > 0 && (
-        <Card className="p-4 sm:p-5">
-          <SectionTitle titulo="Últimas publicações" sub="Toque para lançar ou corrigir os números." />
+        <Bloco>
+          {/* subSempre: é instrução de uso, e o celular (onde o title não
+              abre) é justamente o aparelho de toque. */}
+          <TopoBloco subSempre titulo="Últimas publicações" sub="Toque para lançar ou corrigir os números." />
           <div>
             {ultimas.map((p) => (
               <LinhaPublicacao
@@ -212,7 +219,7 @@ export default function Resultados({ canal }) {
               />
             ))}
           </div>
-        </Card>
+        </Bloco>
       )}
     </div>
   );

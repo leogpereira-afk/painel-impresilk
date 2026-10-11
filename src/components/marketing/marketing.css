@@ -1,28 +1,327 @@
 /* A PÁGINA DO MARKETING: só o que o Tailwind não resolve sozinho. As peças
    (chip, linha de tarefa, gaveta, cartão compacto) têm o desenho delas em
-   ../marketing-kit.css; aqui fica a fileira de chips e o calendário.
+   ../marketing-kit.css; aqui fica o topo, a fileira de chips, os blocos
+   compactos, a fila do Fazer e o calendário.
 
-   A FILEIRA DE CHIPS fica presa no topo ao rolar (sticky). Ela precisa de
+   COMPACTO DE PROPÓSITO (11/10/2026). O dono pediu "os cards mais para
+   cima, compactos o possível levando em conta a qualidade da informação":
+   do topo da página ao primeiro item do Fazer eram 392px no computador e
+   591px no celular. Os cortes ficaram no respiro, nunca nos rótulos nem nos
+   números grandes: título e botão numa linha, fileira mais baixa, blocos com
+   12 a 16px de borda interna, cabeçalho de bloco numa linha só. */
+
+/* Os blocos da página, um embaixo do outro: 8px entre eles. A fileira fica
+   a 4px do título (o respiro dela, que guarda o toque de 44px dos chips,
+   completa o vão). */
+.mkt-pagina > * + * {
+  margin-top: 8px;
+}
+.mkt-pagina > .mkt-fileira {
+  margin-top: 4px;
+}
+
+/* O TOPO: "Marketing", a frase de apoio e o "Materiais e Drive" numa linha.
+   A frase é curta e cede (reticências, com o texto inteiro no title) antes
+   do botão; no celular ela sai do desenho, porque lá não cabe ao lado do
+   título e uma linha só para ela empurrava a fileira para baixo. Sai do
+   desenho e não da página: fica para o leitor de tela (recorte abaixo), como
+   a frase dos blocos. */
+.mkt-topo {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 36px;
+}
+.mkt-topo .mkt-titulo {
+  margin: 0;
+  font-size: 22px;
+  line-height: 1.25;
+}
+.mkt-topo-frase {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 14px;
+}
+@media (min-width: 640px) {
+  .mkt-topo .mkt-titulo {
+    font-size: 24px;
+  }
+}
+
+/* A FILEIRA DE CHIPS fica presa no topo ao rolar (sticky). Ela precisa de
    fundo: sem ele, os cartões passam por baixo dos chips e o texto dos dois se
    mistura. O fundo é o da página (var(--bg)), que o tema escuro já troca. A
-   rolagem é de lado, com encaixe, e só na fileira: a PÁGINA nunca rola de
-   lado no celular. */
+   rolagem é de lado e só na fileira: a PÁGINA nunca rola de lado no celular.
+   Chips de 36px com 4px de respiro em volta: a faixa tem 44px, o toque de
+   44px de cada chip (.alvo-44) cabe nela sem ser cortado pelo overflow, e o
+   anel do foco (2px de linha a 2px do chip) também, inclusive no primeiro
+   chip e no último (com 2px dos lados, o traço de fora do anel era cortado). */
 .mkt-fileira {
   position: sticky;
   top: 0;
   z-index: 20;
   background: var(--bg);
-  padding: 8px 0;
+}
+.mkt-fileira-caixa {
+  position: relative;
 }
 .mkt-fileira-trilho {
-  display: flex;
-  gap: 8px;
+  /* A largura da seta, num lugar só: dá o scroll-padding (o encaixe e o Tab
+     param o chip fora da seta), o fim do esmaecido e a distância em que o
+     Fileira.jsx põe o chip escolhido (ele lê o scroll-padding). Se os três
+     discordam, o chip aceso para dentro do esmaecido: com a máscara indo até
+     56px e o chip a 44px, os 12px do começo dele (o fio com a cor do canal)
+     ficavam lavados. */
+  --mkt-seta: 44px;
   overflow-x: auto;
+  overflow-y: hidden;
   scroll-snap-type: x proximity;
-  scroll-padding-inline: 2px;
+  scroll-padding-inline: var(--mkt-seta);
   overscroll-behavior-x: contain;
-  scrollbar-width: thin;
-  padding: 2px 2px 4px;
+  scrollbar-width: none;
+  padding: 4px;
+}
+.mkt-fileira-trilho::-webkit-scrollbar {
+  display: none;
+}
+/* Com mouse, sem encaixe: a roda anda de 100 em 100px, e o encaixe puxava a
+   fileira de volta para o chip anterior a cada volta da roda. No dedo o
+   encaixe continua (o deslize para com um chip inteiro na borda). */
+@media (pointer: fine) {
+  .mkt-fileira-trilho {
+    scroll-snap-type: none;
+  }
+}
+.mkt-fileira-conteudo {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: max-content;
+}
+/* Um fio fino entre a Visão geral e cada grupo de canais (digital,
+   contato, offline). O fio é mais escuro que o --hairline: aquele some no
+   fundo cinza da página. */
+.mkt-fileira-grupo {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.mkt-fileira-grupo::before {
+  content: "";
+  flex: none;
+  width: 1px;
+  height: 20px;
+  margin: 0 3px;
+  background: #c9cbd8;
+}
+html.dark .mkt-fileira-grupo::before {
+  background: rgba(255, 255, 255, 0.2);
+}
+/* O esmaecido: só do lado em que há mais chips, e só na largura da seta
+   (--mkt-seta). Máscara, e não um degradê pintado com a cor do fundo, para
+   valer igual no claro e no escuro. */
+.mkt-fileira-trilho.mais-esq {
+  -webkit-mask-image: linear-gradient(to right, transparent 0, #000 var(--mkt-seta));
+  mask-image: linear-gradient(to right, transparent 0, #000 var(--mkt-seta));
+}
+.mkt-fileira-trilho.mais-dir {
+  -webkit-mask-image: linear-gradient(to left, transparent 0, #000 var(--mkt-seta));
+  mask-image: linear-gradient(to left, transparent 0, #000 var(--mkt-seta));
+}
+.mkt-fileira-trilho.mais-esq.mais-dir {
+  -webkit-mask-image: linear-gradient(to right, transparent 0, #000 var(--mkt-seta), #000 calc(100% - var(--mkt-seta)), transparent 100%);
+  mask-image: linear-gradient(to right, transparent 0, #000 var(--mkt-seta), #000 calc(100% - var(--mkt-seta)), transparent 100%);
+}
+/* As setas: o alvo é o botão inteiro (44px); o círculo de 30px é o desenho,
+   com o fundo do cartão para não sumir em cima do esmaecido. */
+.mkt-fileira-seta {
+  position: absolute;
+  top: 50%;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  margin-top: -22px;
+  padding: 0;
+  color: #475569;
+}
+.mkt-fileira-seta.esq {
+  left: -6px;
+}
+.mkt-fileira-seta.dir {
+  right: -6px;
+}
+.mkt-fileira-seta > span {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border: 1px solid var(--hairline);
+  border-radius: 999px;
+  background: var(--surface);
+  box-shadow: 0 1px 6px #18213b26;
+  transition: border-color 0.15s, color 0.15s;
+}
+.mkt-fileira-seta:hover > span {
+  border-color: #9ba1f6;
+  color: #3840e8;
+}
+html.dark .mkt-fileira-seta {
+  color: #d3d9e8;
+}
+html.dark .mkt-fileira-seta > span {
+  box-shadow: 0 1px 6px #00000080;
+}
+html.dark .mkt-fileira-seta:hover > span {
+  border-color: rgba(155, 161, 246, 0.55);
+  color: #c3c7fb;
+}
+
+/* O BLOCO COMPACTO (Bloco.jsx): o cartão da casa com 12px de borda interna
+   (16px dos lados no computador); era 20/24px. */
+.mkt-bloco {
+  padding: 12px;
+}
+@media (min-width: 640px) {
+  .mkt-bloco {
+    padding: 12px 16px 14px;
+  }
+}
+/* O cabeçalho do bloco numa linha: título, a frase de apoio ao lado (do sm
+   para cima) e as ações à direita. As ações descem para a linha de baixo
+   quando não cabem, em vez de alargar a página. */
+.mkt-bloco-topo {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 12px;
+  margin-bottom: 8px;
+  min-height: 36px;
+}
+/* relative: segura a frase escondida do celular (position absolute) aqui
+   dentro; sem ele ela sobe até o <body> e pode alargar a página. */
+.mkt-bloco-topo-texto {
+  position: relative;
+  display: flex;
+  min-width: 0;
+  /* Base pela largura do título, e não fixa: com base de 12rem o "Fazer"
+     pedia 192px e empurrava os controles para a linha de baixo no celular,
+     onde título e controles cabem juntos. */
+  flex: 1 1 auto;
+  align-items: baseline;
+  gap: 4px 10px;
+}
+.mkt-bloco-titulo {
+  flex: none;
+  font-size: 17px;
+  line-height: 1.3;
+}
+/* A frase não pede largura (width 0, cresce no que sobra): assim quem decide
+   se as ações cabem na linha é só o título, e a frase cede com reticências
+   (o texto inteiro fica no title dela e no do título). relative: segura o
+   texto recortado (abaixo) aqui dentro. */
+.mkt-bloco-sub {
+  position: relative;
+  flex: 1 1 0;
+  width: 0;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+}
+/* Frase que é dado (subSempre) não ganha reticências: quebra a linha. */
+.mkt-bloco-sub.sempre {
+  white-space: normal;
+}
+/* Quando as ações quase não cabem, sobra para a frase um fiapo: a 768px, em
+   "Ações e resultados", ela ficava com 2px, um risco solto de meio "O" entre
+   o título e o "Mês do prazo". Abaixo de 6rem (umas 12 letras) a frase sai
+   do desenho e fica para o leitor de tela e no title. A frase é o próprio
+   container (o tamanho dela já vem do flex, nunca do texto, e por isso a
+   contenção não muda nada no desenho); quem some é o texto de dentro.
+   Navegador sem container query mostra o fiapo de antes. */
+.mkt-bloco-sub:not(.sempre) {
+  container-type: inline-size;
+}
+@container (max-width: 6rem) {
+  .mkt-bloco-sub-texto {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+  }
+}
+/* No celular a frase sai do desenho e fica para o leitor de tela (e no
+   title do título): lá ela não cabe ao lado do título, e numa linha própria
+   empurrava a lista para baixo. A frase do topo da página vai junto. Frase
+   que é dado ou instrução de uso (subSempre: de onde veio o número, o
+   recorte da lista, "toque para...") fica à vista: o title não abre no
+   toque. */
+@media (max-width: 639.98px) {
+  .mkt-bloco-topo-texto {
+    flex-wrap: wrap;
+  }
+  .mkt-bloco-sub.sempre {
+    flex-basis: 100%;
+    width: auto;
+  }
+  .mkt-topo-frase,
+  .mkt-bloco-sub:not(.sempre) {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    border: 0;
+  }
+}
+.mkt-bloco-acoes {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+/* A FILA DO FAZER: o rótulo do prazo (Atrasadas, Hoje...) em cima das
+   linhas. Do lg para cima ele vira uma coluna à esquerda, na altura da
+   primeira linha do grupo: a linha que ele ocupava sozinho volta para as
+   tarefas. */
+.mkt-fila > * + * {
+  margin-top: 10px;
+}
+.mkt-fila-rotulo {
+  margin-bottom: 2px;
+}
+@media (min-width: 1024px) {
+  .mkt-fila-grupo {
+    display: grid;
+    grid-template-columns: 8.5rem minmax(0, 1fr);
+    column-gap: 12px;
+  }
+  .mkt-fila-rotulo {
+    margin: 0;
+    /* (44px da linha - 16px do texto) / 2: o rótulo na altura do título da
+       primeira tarefa. */
+    padding-top: 14px;
+  }
+  .mkt-fila > * + * {
+    margin-top: 6px;
+    padding-top: 6px;
+    border-top: 1px solid var(--fio-lista, #f0f0f5);
+  }
 }
 
 /* O dia do calendário do canal: a data à esquerda, as entradas à direita.

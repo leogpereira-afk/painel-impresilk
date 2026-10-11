@@ -10,6 +10,7 @@ import { useEffect, useState, lazy, Suspense } from "react";
 import { Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { Lock } from "lucide-react";
 import Layout from "./components/Layout.jsx";
+import GuardaDeRota from "./components/GuardaDeRota.jsx";
 import Home from "./pages/Home.jsx";
 import Login from "./pages/Login.jsx";
 
@@ -126,7 +127,10 @@ export default function App() {
   // Com sessão na mão, as outras telas descem em segundo plano (ver ROTAS_PREFETCH).
   useEffect(() => { if (sessao && !colaboracao) prefetchRotas(); }, [sessao,colaboracao]);
 
-  if (colaboracao) return <Suspense fallback={<p className="p-6">Abrindo consultoria…</p>}><ColaborarProcesso/></Suspense>;
+  /* GuardaDeRota em volta de todo Suspense de rota: sem ela, a tela que não
+     carrega (arquivo antigo pedido depois de uma publicação nova) deixava o
+     painel inteiro em branco. Ver components/GuardaDeRota.jsx. */
+  if (colaboracao) return <GuardaDeRota chave={location.key}><Suspense fallback={<p className="p-6">Abrindo consultoria…</p>}><ColaborarProcesso/></Suspense></GuardaDeRota>;
 
   if (!sessao) return <Login aoEntrar={() => setSessao(getSessao())} />;
 
@@ -137,12 +141,14 @@ export default function App() {
   if (sessao.trocarSenha === true) {
     return (
       <Layout sessao={sessao}>
-        <Suspense fallback={<p className="p-6 text-sm text-slate-400">Carregando…</p>}>
-          <Routes>
-            <Route path="/minha-conta" element={<Acessos minhaConta />} />
-            <Route path="*" element={<Navigate to="/minha-conta" replace />} />
-          </Routes>
-        </Suspense>
+        <GuardaDeRota chave={location.key}>
+          <Suspense fallback={<p className="p-6 text-sm text-slate-400">Carregando…</p>}>
+            <Routes>
+              <Route path="/minha-conta" element={<Acessos minhaConta />} />
+              <Route path="*" element={<Navigate to="/minha-conta" replace />} />
+            </Routes>
+          </Suspense>
+        </GuardaDeRota>
       </Layout>
     );
   }
@@ -154,6 +160,7 @@ export default function App() {
           O aviso e discreto de proposito -- a espera e de milissegundos numa
           rede boa, e uma tarja grande piscando a cada clique incomoda mais do
           que a espera que ela anuncia. */}
+      <GuardaDeRota chave={location.key}>
       <Suspense fallback={<p className="p-6 text-sm text-slate-400">Carregando…</p>}>
       <Routes>
         <Route path="/" element={<Home />} />
@@ -314,6 +321,7 @@ export default function App() {
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
       </Suspense>
+      </GuardaDeRota>
     </Layout>
   );
 }

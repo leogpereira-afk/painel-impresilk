@@ -7,7 +7,8 @@ import { SITUACOES_FEITAS } from '../../supabase/functions/_shared/marketing.mjs
 import CardCompacto from './CardCompacto.jsx';
 import { corDoCanal } from './ChipCanal.jsx';
 import { Selo } from './lista.jsx';
-import { SectionTitle, Empty } from './ui.jsx';
+import { Empty } from './ui.jsx';
+import { TopoBloco } from './marketing/Bloco.jsx';
 import { useMarketing, useOrcamentosMarketing, mudouNoServidor } from './marketing/contexto.js';
 import { linkSeguro, nomeDoResponsavel } from './marketing/derivar.js';
 
@@ -25,7 +26,11 @@ import { linkSeguro, nomeDoResponsavel } from './marketing/derivar.js';
    id_pessoa). O texto antigo de canal e de responsável continua guardado e
    aparece aqui enquanto ninguém escolhe o canal ou a pessoa.
    Cada ação é um CardCompacto, fora de outro cartão (nunca cartão dentro de
-   cartão), com no máximo duas ações à vista. */
+   cartão), com no máximo duas ações à vista.
+
+   Cabeçalho numa linha (11/10/2026): o título, a frase, o mês do prazo e o
+   "Nova ação" no mesmo TopoBloco do resto da página; o filtro de mês, que
+   ocupava uma linha própria com o rótulo em cima do campo, entrou nele. */
 
 const SITUACAO_TOM = { Ideia: 'neutral', 'Produção': 'brand', 'Aprovação': 'warn', Programada: 'brand', Publicada: 'ok', Encerrada: 'neutral' };
 
@@ -83,16 +88,32 @@ export default function PlanejamentoMarketing() {
 
   return (
     <section aria-labelledby="titulo-acoes-marketing">
-      <SectionTitle
-        titulo={<span id="titulo-acoes-marketing">Ações e resultados</span>}
-        sub="Objetivo, responsável, prazo e oportunidades geradas por cada ação."
+      <TopoBloco
+        id="titulo-acoes-marketing"
+        titulo="Ações e resultados"
+        sub="Objetivo, responsável, prazo e oportunidades de cada ação."
         acao={
-          podeGravar && (
-            <button type="button" className="btn-primary min-h-11" onClick={() => abrir({ tipo: 'acao' })}>
-              <Plus size={16} strokeWidth={2.4} aria-hidden="true" />
-              Nova ação
-            </button>
-          )
+          <>
+            <label className="flex items-center gap-2">
+              <span className="label-filtro">Mês do prazo</span>
+              <input className="filtro h-10" type="month" value={mes} onChange={(e) => setMes(e.target.value)} />
+            </label>
+            {mes ? (
+              <button type="button" className="btn-ghost alvo-40 min-h-9 px-3 py-1.5" onClick={() => setMes('')}>
+                Ver todos os meses
+              </button>
+            ) : (
+              <button type="button" className="btn-ghost alvo-40 min-h-9 px-3 py-1.5" onClick={() => setMes(ymdLocal(new Date()).slice(0, 7))}>
+                Mês atual
+              </button>
+            )}
+            {podeGravar && (
+              <button type="button" className="btn-primary alvo-40 min-h-9 px-3 py-1.5" onClick={() => abrir({ tipo: 'acao' })}>
+                <Plus size={16} strokeWidth={2.4} aria-hidden="true" />
+                Nova ação
+              </button>
+            )}
+          </>
         }
       />
       {painel.legado.pendentes > 0 && (
@@ -110,22 +131,6 @@ export default function PlanejamentoMarketing() {
           )}
         </div>
       )}
-      <div className="mb-4 flex flex-wrap items-end gap-2">
-        <label className="label mb-0">
-          Mês do prazo
-          <input className="input mt-1.5 max-w-xs" type="month" value={mes} onChange={(e) => setMes(e.target.value)} />
-        </label>
-        {mes ? (
-          <button type="button" className="btn-ghost min-h-11" onClick={() => setMes('')}>
-            Ver todos os meses
-          </button>
-        ) : (
-          <button type="button" className="btn-ghost min-h-11" onClick={() => setMes(ymdLocal(new Date()).slice(0, 7))}>
-            Mês atual
-          </button>
-        )}
-      </div>
-
       {doMes.length === 0 ? (
         <Empty className="gap-3 px-4">
           <p>Nenhuma ação neste recorte. Cadastre uma ação com responsável e prazo para começar.</p>

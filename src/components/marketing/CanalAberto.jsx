@@ -11,6 +11,12 @@
  *
  * As rotinas do playbook aparecem listadas no Fazer, com o aviso de que
  * entram na agenda na próxima etapa (a3): até lá nada gera tarefa sozinho.
+ *
+ * Compacto (11/10/2026): o cabeçalho do canal numa linha no computador
+ * (ícone, nome, situação e os botões), as sub-abas com 36px e os blocos com
+ * menos respiro. Nenhum rótulo saiu: a situação é a mesma frase, só mais
+ * curta ("em 7 dias" no lugar de "nos últimos 7 dias", que o title diz por
+ * extenso).
  */
 import { useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -19,13 +25,14 @@ import CardCompacto from '../CardCompacto.jsx';
 import LinhaTarefa from '../LinhaTarefa.jsx';
 import { IconeCanal, PontoSemaforo, corDoCanal } from '../ChipCanal.jsx';
 import { Avatar } from '../lista.jsx';
-import { Card, SectionTitle, Segmented, Empty } from '../ui.jsx';
+import { Segmented, Empty } from '../ui.jsx';
+import { Bloco, TopoBloco } from './Bloco.jsx';
 import FilaFazer from './FilaFazer.jsx';
 import Resultados from './Resultados.jsx';
 import Calendario from './Calendario.jsx';
 import Historico from './Historico.jsx';
 import { useMarketing } from './contexto.js';
-import { useFiltroQuem, QUEM } from './VisaoGeral.jsx';
+import { useFiltroQuem, QUEM, BotaoNovaAcao } from './VisaoGeral.jsx';
 import { textoRecorrencia } from './Detalhes.jsx';
 import {
   SUBS_CANAL,
@@ -73,10 +80,11 @@ function CabecalhoCanal({ canal }) {
 
   return (
     <CardCompacto
+      emLinha
       titulo={
         <span className="inline-flex min-w-0 items-center gap-2">
-          <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg border" style={{ borderColor: cor || 'var(--hairline)', color: cor || undefined }}>
-            <IconeCanal nome={canal.icone} size={18} />
+          <span className="grid h-7 w-7 shrink-0 place-items-center rounded-lg border" style={{ borderColor: cor || 'var(--hairline)', color: cor || undefined }}>
+            <IconeCanal nome={canal.icone} size={16} />
           </span>
           <span className="truncate text-base">{canal.nome}</span>
         </span>
@@ -84,11 +92,11 @@ function CabecalhoCanal({ canal }) {
       acoes={acoes}
       menu={menu}
     >
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-slate-600">
+      <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-0.5 text-[13px] text-slate-600">
         <PontoSemaforo semaforo={r?.semaforo} />
         {ind && (
-          <span>
-            {numero(ind.valor)} {ind.valor === 1 ? 'publicação' : 'publicações'} nos últimos 7 dias
+          <span title={`${numero(ind.valor)} ${ind.valor === 1 ? 'publicação' : 'publicações'} nos últimos 7 dias`}>
+            {numero(ind.valor)} {ind.valor === 1 ? 'publicação' : 'publicações'} em 7 dias
           </span>
         )}
         {r?.pendentes > 0 && (
@@ -108,9 +116,10 @@ function Implantacao({ canal }) {
   const itens = useMemo(() => itensDeImplantacao(painel.playbook, canal.id), [painel.playbook, canal.id]);
   const feitos = itens.filter((i) => i.concluidoEm).length;
   return (
-    <Card className="p-4 sm:p-5">
-      <SectionTitle
+    <Bloco>
+      <TopoBloco
         titulo="Implantação do canal"
+        subSempre
         sub={itens.length ? `${feitos} de ${itens.length} ${itens.length === 1 ? 'passo feito' : 'passos feitos'}. O canal sai de implantação pela gestão, em Configurações.` : undefined}
       />
       {itens.length === 0 ? (
@@ -144,7 +153,7 @@ function Implantacao({ canal }) {
           })}
         </div>
       )}
-    </Card>
+    </Bloco>
   );
 }
 
@@ -167,8 +176,8 @@ function RotinasDoCanal({ canal }) {
   const { rotinas, gatilhos } = useMemo(() => rotinasDoCanal(painel.playbook, canal.id), [painel.playbook, canal.id]);
   if (!rotinas.length && !gatilhos.length) return null;
   return (
-    <Card className="p-4 sm:p-5">
-      <SectionTitle titulo="Rotinas do canal" sub="Entram na agenda de cada pessoa na próxima etapa. Por enquanto ficam aqui para consulta." />
+    <Bloco>
+      <TopoBloco subSempre titulo="Rotinas do canal" sub="Entram na agenda de cada pessoa na próxima etapa. Por enquanto ficam aqui para consulta." />
       {rotinas.length > 0 && (
         <div>
           {rotinas.map((i) => (
@@ -192,7 +201,7 @@ function RotinasDoCanal({ canal }) {
           </div>
         </>
       )}
-    </Card>
+    </Bloco>
   );
 }
 
@@ -205,21 +214,16 @@ function FazerDoCanal({ canal }) {
   );
   const novaAcao = () => abrir({ tipo: 'acao', canalId: canal.id });
   return (
-    <div className="space-y-5">
-      <Card className="p-4 sm:p-5">
-        <SectionTitle
+    <div className="space-y-3">
+      <Bloco>
+        <TopoBloco
           titulo="Fazer"
-          sub={`Ações abertas e itens do playbook de ${canal.nome} que ainda faltam.`}
+          sub={`Ações abertas e itens do playbook de ${canal.nome} que faltam.`}
           acao={
-            <div className="flex flex-wrap items-center gap-2">
-              {temPessoa && <Segmented opcoes={QUEM} valor={quem} onChange={setQuem} />}
-              {podeGravar && (
-                <button type="button" className="btn-primary min-h-11" onClick={novaAcao}>
-                  <Plus size={16} strokeWidth={2.4} aria-hidden="true" />
-                  Nova ação
-                </button>
-              )}
-            </div>
+            <>
+              {temPessoa && <Segmented compacto opcoes={QUEM} valor={quem} onChange={setQuem} />}
+              {podeGravar && <BotaoNovaAcao onClick={novaAcao} />}
+            </>
           }
         />
         <FilaFazer
@@ -242,7 +246,7 @@ function FazerDoCanal({ canal }) {
             </Empty>
           }
         />
-      </Card>
+      </Bloco>
       <RotinasDoCanal canal={canal} />
     </div>
   );
@@ -251,10 +255,10 @@ function FazerDoCanal({ canal }) {
 export default function CanalAberto({ canal }) {
   const [sub, setSub] = useParamNavegavel('sub', 'fazer', SUBS);
   return (
-    <div className="space-y-5">
+    <div className="space-y-3">
       <CabecalhoCanal canal={canal} />
       {canal.emImplantacao && <Implantacao canal={canal} />}
-      <Segmented opcoes={SUBS_CANAL} valor={sub} onChange={setSub} />
+      <Segmented compacto opcoes={SUBS_CANAL} valor={sub} onChange={setSub} />
       {sub === 'fazer' && <FazerDoCanal canal={canal} />}
       {sub === 'resultados' && <Resultados canal={canal} />}
       {sub === 'calendario' && <Calendario canal={canal} />}

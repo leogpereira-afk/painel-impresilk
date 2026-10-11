@@ -1,10 +1,13 @@
 /* MARKETING: o Centro de Comando (etapa a2, 11/10/2026).
  *
  * Contrato em docs/marketing/a2-contrato.md, seção 4. O que esta página faz:
- *  - topo com o botão fixo "Materiais e Drive" (?v=materiais), o conteúdo que
- *    esta página inteira era até a a1, sem mudar nada (MateriaisDrive.jsx);
+ *  - topo de uma linha (título, frase curta e o botão fixo "Materiais e
+ *    Drive", ?v=materiais), o conteúdo que esta página inteira era até a a1,
+ *    sem mudar nada (MateriaisDrive.jsx);
  *  - a fileira de chips presa no topo: "Visão geral" e um chip por canal
- *    ativo ou em implantação, na ordem cadastrada (?v=geral ou ?v=<código>);
+ *    ativo ou em implantação, na ordem cadastrada (?v=geral ou ?v=<código>),
+ *    com um fio entre os grupos (digital, contato, offline), setas e roda do
+ *    mouse para rolar de lado (marketing/Fileira.jsx);
  *  - a Visão geral (Fazer de todos os canais, números e a lista "Ações e
  *    resultados") e o canal aberto (Fazer, Resultados, Calendário e
  *    Histórico, em ?sub=);
@@ -28,21 +31,24 @@ import { useSearchParams } from 'react-router-dom';
 import { FolderOpen, LayoutGrid, X } from 'lucide-react';
 import ChipCanal from '../components/ChipCanal.jsx';
 import { SEGUNDOS_DESFAZER } from '../components/LinhaTarefa.jsx';
-import { PageTitle, Skeleton, ErroModulo, AvisoAtualizacao } from '../components/ui.jsx';
+import { Skeleton, ErroModulo, AvisoAtualizacao } from '../components/ui.jsx';
 import { useParamNavegavel } from '../hooks/useParamNavegavel.js';
 import { ymdLocal } from '../lib/format.js';
 import { lerPainelMarketing, listarPessoasMarketing, salvarAcaoMarketing, concluirPlaybook } from '../services/marketing.js';
 import { SITUACOES_ACAO } from '../../supabase/functions/_shared/marketing.mjs';
 import { MarketingCtx, useCelular, mudouNoServidor } from '../components/marketing/contexto.js';
 import {
+  ROTULO_GRUPO_CANAL,
   SITUACAO_AO_CONCLUIR,
   acaoComSituacao,
   canaisDaFileira,
   linhasFazer,
   resumoDosCanais,
+  trechosDaFileira,
   trocarMetricas,
   trocarPorId,
 } from '../components/marketing/derivar.js';
+import Fileira from '../components/marketing/Fileira.jsx';
 import VisaoGeral from '../components/marketing/VisaoGeral.jsx';
 import CanalAberto from '../components/marketing/CanalAberto.jsx';
 import MateriaisDrive from '../components/marketing/MateriaisDrive.jsx';
@@ -51,6 +57,10 @@ import '../components/marketing/marketing.css';
 
 const PAPEIS = ['gestao', 'marketing', 'visualizacao'];
 const LISTAS = ['canais', 'playbook', 'acoes', 'publicacoes', 'metricas'];
+// A frase de apoio do topo: à vista do sm para cima (com reticências, se
+// faltar lugar, e por isso também no title), e no celular só para o leitor
+// de tela.
+const FRASE_DO_TOPO = 'O que fazer, os números e os materiais de cada canal.';
 
 /* A resposta do "painel" no formato que as vistas usam. Lista que faltou
    NÃO vira lista vazia: zero publicações é uma medida, e a tela não pode
@@ -95,7 +105,7 @@ function Aviso({ aviso, onFechar }) {
 
 function Carregando() {
   return (
-    <div className="space-y-5" role="status" aria-label="Carregando o Marketing">
+    <div className="space-y-3" role="status" aria-label="Carregando o Marketing">
       <Skeleton className="h-48" />
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         {[0, 1, 2, 3].map((n) => (
@@ -127,7 +137,6 @@ export default function Marketing() {
   const statusAntes = useRef(new Map());
   const relogioAviso = useRef(null);
   const relogiosMantidos = useRef(new Map());
-  const trilho = useRef(null);
   const topo = useRef(null);
   const primeiraVista = useRef(true);
 
@@ -190,6 +199,7 @@ export default function Marketing() {
   }, [abaAntiga, setParams]);
 
   const fileira = useMemo(() => (painel ? canaisDaFileira(painel.canais) : []), [painel]);
+  const trechos = useMemo(() => trechosDaFileira(fileira), [fileira]);
   const codigos = useMemo(() => fileira.map((c) => c.codigo), [fileira]);
   const [vUrl, setV] = useParamNavegavel('v', 'geral', (x) => x === 'geral' || x === 'materiais' || codigos.includes(x), {
     limpar: ['sub', 'mes', 'aba'],
@@ -209,19 +219,6 @@ export default function Marketing() {
     [painel, idsDaFileira]
   );
   const canaisPorId = useMemo(() => new Map((painel?.canais || []).map((c) => [c.id, c])), [painel]);
-
-  // O chip escolhido sempre à vista na fileira (no celular, o canal do fim
-  // da lista abriria com o chip dele escondido à direita).
-  useEffect(() => {
-    const t = trilho.current;
-    const b = t?.querySelector('[aria-pressed="true"]');
-    if (!t || !b) return;
-    const esq = b.offsetLeft;
-    const dir = esq + b.offsetWidth;
-    // Sem animação: a rolagem suave era cancelada no celular quando a
-    // página ainda estava montando, e o chip aberto ficava cortado.
-    if (esq < t.scrollLeft || dir > t.scrollLeft + t.clientWidth) t.scrollLeft = Math.max(0, esq - 8);
-  }, [vista, fileira.length]);
 
   // Trocou de chip com a página rolada lá embaixo: volta para o começo do
   // conteúdo novo (a fileira fica no topo), em vez de abrir o canal pelo meio.
@@ -398,54 +395,63 @@ export default function Marketing() {
 
   return (
     <MarketingCtx.Provider value={ctx}>
-      <div className="space-y-4">
-        <div ref={topo}>
-          <PageTitle
-            titulo="Marketing"
-            descricao="O que fazer em cada canal, os números de cada um e os materiais da marca."
-            acao={
-              <button
-                type="button"
-                className={`${vista === 'materiais' ? 'btn-primary' : 'btn-outline'} min-h-11`}
-                aria-pressed={vista === 'materiais'}
-                onClick={() => setV('materiais')}
-              >
-                <FolderOpen size={16} strokeWidth={2.2} aria-hidden="true" />
-                Materiais e Drive
-              </button>
-            }
-          />
+      <div className="mkt-pagina">
+        {/* O topo numa linha: título, frase curta (no celular ela sai do
+            desenho e fica para o leitor de tela; `relative` segura o recorte
+            dela aqui dentro) e o botão. O botão é desenhado com 36px e toca
+            em 44px (.alvo-44). */}
+        <div ref={topo} className="mkt-topo">
+          <div className="relative flex min-w-0 items-baseline gap-3">
+            <h1 className="mkt-titulo shrink-0 font-display font-bold tracking-tight text-slate-900">Marketing</h1>
+            <p className="mkt-topo-frase text-slate-500" title={FRASE_DO_TOPO}>
+              {FRASE_DO_TOPO}
+            </p>
+          </div>
+          <button
+            type="button"
+            className={`${vista === 'materiais' ? 'btn-primary' : 'btn-outline'} alvo-44 min-h-9 shrink-0 px-3 py-1.5`}
+            aria-pressed={vista === 'materiais'}
+            onClick={() => setV('materiais')}
+          >
+            <FolderOpen size={16} strokeWidth={2.2} aria-hidden="true" />
+            Materiais e Drive
+          </button>
         </div>
 
-        <nav className="mkt-fileira sem-impressao" aria-label="Canais do Marketing">
-          <div ref={trilho} className="mkt-fileira-trilho relative">
-            <ChipCanal
-              canal={{ nome: 'Visão geral' }}
-              icone={LayoutGrid}
-              pendentes={totalPendentes}
-              ativo={geralAceso}
-              compacto={celular}
-              onClick={() => setV('geral')}
-            />
-            {painel
-              ? fileira.map((c) => {
-                  const r = resumo.get(c.id);
-                  return (
-                    <ChipCanal
-                      key={c.id}
-                      canal={c}
-                      indicador={r?.indicador}
-                      pendentes={r?.pendentes}
-                      semaforo={r?.semaforo}
-                      ativo={vista === c.codigo}
-                      compacto={celular}
-                      onClick={() => setV(c.codigo)}
-                    />
-                  );
-                })
-              : !erro && [0, 1, 2].map((n) => <Skeleton key={n} className="h-11 w-28 shrink-0 rounded-full" />)}
-          </div>
-        </nav>
+        <Fileira rotulo="Canais do Marketing" escolhido={geralAceso ? 'geral' : vista} quantos={fileira.length}>
+          <ChipCanal
+            canal={{ nome: 'Visão geral' }}
+            icone={LayoutGrid}
+            pendentes={totalPendentes}
+            ativo={geralAceso}
+            compacto
+            onClick={() => setV('geral')}
+          />
+          {painel
+            ? trechos.map((t, i) => (
+                // Um trecho por grupo seguido (digital, contato, offline), com
+                // o fio na frente (marketing.css). A ordem cadastrada manda:
+                // derivar.js, trechosDaFileira.
+                <div key={`${t.grupo}-${i}`} role="group" aria-label={ROTULO_GRUPO_CANAL[t.grupo] || 'Outros canais'} className="mkt-fileira-grupo">
+                  {t.canais.map((c) => {
+                    const r = resumo.get(c.id);
+                    return (
+                      <ChipCanal
+                        key={c.id}
+                        canal={c}
+                        indicador={r?.indicador}
+                        pendentes={r?.pendentes}
+                        semaforo={r?.semaforo}
+                        ativo={vista === c.codigo}
+                        compacto
+                        onClick={() => setV(c.codigo)}
+                      />
+                    );
+                  })}
+                </div>
+              ))
+            : !erro && [0, 1, 2].map((n) => <Skeleton key={n} className="h-9 w-24 shrink-0 rounded-full" />)}
+        </Fileira>
 
         {painel && erro && vista !== 'materiais' && <AvisoAtualizacao erro={erro} aoTentar={carregar} />}
         <Aviso aviso={aviso} onFechar={() => setAviso(null)} />

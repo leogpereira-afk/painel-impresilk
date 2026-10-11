@@ -7,6 +7,10 @@
  *  2. os quatro números: ações abertas, atrasadas, publicações em 7 dias e
  *     investimento do mês (2 colunas no celular, 4 no computador);
  *  3. a lista "Ações e resultados" de sempre (PlanejamentoMarketing).
+ *
+ * Compacta (11/10/2026): o Fazer é um Bloco com o cabeçalho numa linha (o
+ * título, a frase ao lado e os controles desenhados com 36px), para a
+ * primeira tarefa subir na tela. Os quatro números continuam grandes.
  */
 import { useMemo } from 'react';
 import { Link } from 'react-router-dom';
@@ -14,7 +18,8 @@ import { AlertTriangle, CalendarClock, ListTodo, Megaphone, Plus, Wallet } from 
 import FilaFazer from './FilaFazer.jsx';
 import PlanejamentoMarketing from '../PlanejamentoMarketing.jsx';
 import { SetaVariacao } from '../ChipCanal.jsx';
-import { Card, SectionTitle, StatCard, Empty, Segmented } from '../ui.jsx';
+import { StatCard, Empty, Segmented } from '../ui.jsx';
+import { Bloco, TopoBloco } from './Bloco.jsx';
 import { useMarketing } from './contexto.js';
 import { kpisGerais, linhasFazer } from './derivar.js';
 import { useParamNavegavel } from '../../hooks/useParamNavegavel.js';
@@ -32,6 +37,17 @@ export function useFiltroQuem() {
   const [quem, setQuem] = useParamNavegavel('quem', 'todas', ['todas', 'minhas'], { replace: true });
   const temPessoa = !!painel.idPessoa;
   return { quem: temPessoa ? quem : 'todas', setQuem, temPessoa, idPessoa: temPessoa && quem === 'minhas' ? painel.idPessoa : null };
+}
+
+/** O "Nova ação" dos cabeçalhos compactos: desenhado com 36px, toque de
+ *  40px (é controle, não navegação). */
+export function BotaoNovaAcao({ onClick, children = 'Nova ação' }) {
+  return (
+    <button type="button" className="btn-primary alvo-40 min-h-9 px-3 py-1.5" onClick={onClick}>
+      <Plus size={16} strokeWidth={2.4} aria-hidden="true" />
+      {children}
+    </button>
+  );
 }
 
 function textoVariacao(ind) {
@@ -53,7 +69,7 @@ export default function VisaoGeral() {
   const abrirLinha = (l) => abrir({ tipo: l.tipo === 'acao' ? 'acao' : 'item', id: l.id });
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-3">
       {semCanais && (
         <div className="rounded-xl bg-warn-50 p-4 text-sm text-warn-700">
           <p>Nenhum canal cadastrado ainda. Os chips, o playbook e os números de cada canal aparecem depois que a gestão cadastrar os canais.</p>
@@ -65,20 +81,16 @@ export default function VisaoGeral() {
         </div>
       )}
 
-      <Card>
-        <SectionTitle
+      <Bloco aria-labelledby="titulo-fazer-geral">
+        <TopoBloco
+          id="titulo-fazer-geral"
           titulo="Fazer"
-          sub="Ações abertas e itens do playbook que ainda faltam, de todos os canais."
+          sub="Ações abertas e itens do playbook que faltam, de todos os canais."
           acao={
-            <div className="flex flex-wrap items-center gap-2">
-              {temPessoa && <Segmented opcoes={QUEM} valor={quem} onChange={setQuem} />}
-              {podeGravar && (
-                <button type="button" className="btn-primary min-h-11" onClick={() => abrir({ tipo: 'acao' })}>
-                  <Plus size={16} strokeWidth={2.4} aria-hidden="true" />
-                  Nova ação
-                </button>
-              )}
-            </div>
+            <>
+              {temPessoa && <Segmented compacto opcoes={QUEM} valor={quem} onChange={setQuem} />}
+              {podeGravar && <BotaoNovaAcao onClick={() => abrir({ tipo: 'acao' })} />}
+            </>
           }
         />
         <FilaFazer
@@ -101,9 +113,9 @@ export default function VisaoGeral() {
             </Empty>
           }
         />
-      </Card>
+      </Bloco>
 
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-2.5 lg:grid-cols-4 lg:gap-3">
         <StatCard rotulo="Ações abertas" valor={k.abertas == null ? 'sem dado' : numero(k.abertas)} icone={ListTodo} sub="Ainda não publicadas nem encerradas" />
         <StatCard
           rotulo="Atrasadas"

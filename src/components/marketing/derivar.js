@@ -49,6 +49,27 @@ export function canaisDaFileira(canais) {
   return lista(canais).filter((c) => c && c.id && (c.ativo || c.emImplantacao));
 }
 
+/* Os nomes dos grupos de canal (a mesma lista do check de painel_mkt_canais),
+   para o leitor de tela ouvir em que grupo da fileira está. */
+export const ROTULO_GRUPO_CANAL = { digital: 'Canais digitais', contato: 'Canais de contato', offline: 'Canais offline' };
+
+/** A fileira em trechos de um grupo só (digital, contato, offline), para a
+ *  tela pôr um fio entre um grupo e outro. A ORDEM CADASTRADA MANDA: se a
+ *  gestão puser o WhatsApp entre o Site e o Instagram, a fileira fica nessa
+ *  ordem e ganha um trecho a mais, em vez de a tela reordenar os chips
+ *  calada. Grupo vazio ou desconhecido vira trecho próprio (nunca some). */
+export function trechosDaFileira(canais) {
+  const trechos = [];
+  for (const c of lista(canais)) {
+    if (!c) continue;
+    const grupo = typeof c.grupo === 'string' && c.grupo ? c.grupo : 'sem-grupo';
+    const ultimo = trechos[trechos.length - 1];
+    if (ultimo && ultimo.grupo === grupo) ultimo.canais.push(c);
+    else trechos.push({ grupo, canais: [c] });
+  }
+  return trechos;
+}
+
 /** As linhas do Fazer, no formato que a FilaFazer desenha.
  *  - canalId: só as do canal (nulo = todos os canais, a Visão geral);
  *  - mantidos: chaves que ficam na lista mesmo já feitas, enquanto o
