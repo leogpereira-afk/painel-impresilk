@@ -184,7 +184,7 @@ function PatrimonioConteudo() {
     <nav className="pat-tabs" aria-label="Visões do patrimônio">{abasVisiveis.map(([id,nome,Icone])=><button key={id} aria-current={(aba===id||(id==='inventario'&&aba==='pendencias'))?'page':undefined} onClick={()=>{setAba(id);setMsg(null);}}><Icone size={16} aria-hidden="true"/>{nome}{id==='pendencias'&&<span>{pendentes.length}</span>}</button>)}</nav>
 
     {veInventario&&['inventario','pendencias'].includes(aba)&&<nav className="pat-tabs" aria-label="Visões do inventário"><button aria-current={aba==='inventario'?'page':undefined} onClick={()=>setAba('inventario')}>Bens</button><button aria-current={aba==='pendencias'?'page':undefined} onClick={()=>setAba('pendencias')}>Pendências · {pendentes.length}</button></nav>}
-    {aba==='telefonia'&&<Telefonia bens={vm.bens} setores={vm.setores} secaoInicial={abaEscolhida==='celulares'?'celulares':abaEscolhida==='ramais'?'ramais':'relacao'}/>}
+    {aba==='telefonia'&&<Telefonia bens={vm.bens} setores={vm.setores} secaoInicial={abaEscolhida==='celulares'?'celulares':'ramais'}/>}
     {aba==='seguranca'&&<SegurancaPatrimonio bens={vm.bens} setores={vm.setores} aoVerBem={veInventario?verDetalhe:undefined}/>}
     {aba==='incendio'&&<Incendio bens={vm.bens} setores={vm.setores}/>}
     {CONTROLES[aba]&&<ControlesPatrimonio key={aba} tipo={aba}/>}

@@ -56,3 +56,7 @@ Limitação: conta restrita real não estava autenticada no navegador oficial. T
 ### Ajuste da navegação de Estrutura
 
 Pedido após a publicação: abrir em Itens e deixar Hidráulica separada. Itens é a primeira área e o destino padrão; Hidráulica apresenta apenas suas instalações e caixas-d’água, sem duplicação dentro de Itens. Links anteriores preservados. 29 testes pertinentes aprovados, build e lint dos arquivos alterados OK; navegador local confirmou abertura em Itens e caixa-d’água somente na área Hidráulica. Correção de navegação da publicação autorizada, sem alteração de servidor ou dados.
+
+### Listas de Ramais e Celulares
+
+Pedido complementar: Telefonia abre em Ramais, depois Celulares; ambos em lista. Linhas compactas com número, pessoa, setor e situação; aparelho, manutenção e trocas continuam recolhíveis. Relação de números e Plano corporativo seguem disponíveis. Build e lint dos arquivos alterados OK, 15 testes de telefonia/infra aprovados; abertura, duas listas e expansão dos detalhes conferidas no navegador, sem transbordamento em 390 px. Mudança somente de apresentação, sem migração ou alteração de registros.
