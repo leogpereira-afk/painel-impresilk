@@ -33,24 +33,27 @@ function pcpFicticio(){
   linhas.push({colecao:'performance_comissao_os_versoes',id:'cov-1',apagado:false,atualizado_em:'2026-12-02T10:00:00Z',registro:{osId:'os-1'}});
   const demandas=[{id:'dem-1',registro:{id:'dem-1',titulo:'Demanda fictícia'},revision:2,mutation_id:'m-2',atualizado_em:'2026-10-08T10:00:00Z'}];
   const cfg={instaladores:['Ana'],performancePCP:{equipes:[]}};
-  return {linhas,demandas,cfg,pagina:4,
+  // pcp_meta (revisão da onda-w1-backup, R4): a cópia de desfazer do robô do ERP e o cache de um mês.
+  const meta=[{chave:'carteira-auditoria:2026-10-01T10:00:00Z',valor:{em:'2026-10-01T10:00:00Z',numeros:['Q1'],antes:[{id:'os-1'}]},atualizado_em:'2026-10-01T10:00:00Z'},
+    {chave:'entregues:2026-09',valor:{mes:'2026-09',os:[]},atualizado_em:'2026-10-01T03:00:00Z'}];
+  return {linhas,demandas,meta,cfg,pagina:4,
     contar(){
       const pcp_registros={};
       for(const c of ['os','auditoria','foto_evento','performance_fechamentos','performance_regras','performance_comissao','performance_comissao_os_versoes'])pcp_registros[c]={total:0,apagados:0};
       for(const l of this.linhas){const c=(pcp_registros[l.colecao] ||= {total:0,apagados:0});c.total++;if(l.apagado)c.apagados++;}
-      return {pcp_registros,pcp_demandas:this.demandas.length};
+      return {pcp_registros,pcp_demandas:this.demandas.length,...(this.semContagemMeta?{}:{pcp_meta:this.meta.length})};
     },
     // Protocolo da porta exportarBackup do pcp-sync (cursor opaco; aqui, a posição).
     responder(corpo){
       if(corpo.action==='list')return {os:this.linhas.filter(l=>l.colecao==='os'&&!l.apagado).map(l=>l.registro),nextAfter:null};
       if(corpo.action==='getCfg')return {cfg:this.cfg};
       if(corpo.action!=='exportarBackup')return {error:'Ação desconhecida'};
-      const tudo=[...this.linhas.map(l=>['r',l]),...this.demandas.map(d=>['d',d])];
+      const tudo=[...this.linhas.map(l=>['r',l]),...this.demandas.map(d=>['d',d]),...this.meta.map(m=>['m',m])];
       const de=corpo.cursor?Number(JSON.parse(corpo.cursor)[2]):0,fatia=tudo.slice(de,de+this.pagina);
       const fim=de+fatia.length>=tudo.length;
       return {ok:true,formato:'pcp-exportacao-1',
         ...(de===0?{cfg:this.cfg,cfgVersao:'2026-10-01T00:00:00Z',contagemInicio:this.contar()}:{}),
-        registros:fatia.filter(x=>x[0]==='r').map(x=>x[1]),demandas:fatia.filter(x=>x[0]==='d').map(x=>x[1]),
+        registros:fatia.filter(x=>x[0]==='r').map(x=>x[1]),demandas:fatia.filter(x=>x[0]==='d').map(x=>x[1]),meta:fatia.filter(x=>x[0]==='m').map(x=>x[1]),
         nextCursor:fim?null:JSON.stringify(['r','x',String(de+fatia.length)]),
         ...(fim?{contagemFim:this.contagemFimForcada||this.contar()}:{})};
     }};
@@ -167,7 +170,7 @@ test('PCP no Hub: o arquivo do dia leva lápides, diário, horários de foto, se
   assert.equal(st.ok,true,JSON.stringify(st));
   assert.equal(st.porColecao.os,5);assert.equal(st.porColecao.auditoria,3);assert.equal(st.porColecao.performance_comissao,1);
   assert.equal(st.porColecao.pcp_demandas,1);assert.equal(st.lapides,1);
-  assert.equal(st.registros,amb.pcp.linhas.length+1);
+  assert.equal(st.registros,amb.pcp.linhas.length+1+amb.pcp.meta.length);
 });
 
 test('PCP no Hub: contagem que não bate (lápide fora da cópia) é ok:false, com a coleção escrita',async()=>{
@@ -280,4 +283,61 @@ test('A2: 403 do GitHub que não é limite (token sem acesso) é falha dita, nã
   await rodada(f);
   const st=statusPCP(amb);
   assert.equal(st.ok,false);assert.equal(st.emAndamento,false);assert.match(st.erro,/1 arquivo não copiado/);assert.match(st.erro,/403/);
+});
+
+// ---------------------------------------------------------------- revisão da onda-w1-backup (11/10/2026)
+/* S3: com uma divergência que não se resolve sozinha, o painel-backup
+   regravava o pcp/AAAA-MM-DD.json inteiro (perto de 4 MB) a cada rodada: o
+   agendador roda a cada 5 minutos e volta ao PCP enquanto ele está ok:false,
+   então eram até 288 gravações por dia, cada uma com a exportação inteira do
+   pcp-sync. Agora a mesma divergência já gravada hoje espera 1 hora para a
+   nova tentativa; o forcar passa na hora. */
+test('revisão onda-w1-backup: divergência que não se resolve não regrava o arquivo do dia a cada rodada do agendador',async()=>{
+  const amb=ambiente(),f=await funcao(amb);
+  const contar=amb.pcp.contar.bind(amb.pcp);
+  amb.pcp.contar=()=>{const c=contar();c.pcp_registros.os={total:6,apagados:2};return c;};
+  let exportacoes=0;const responder=amb.pcp.responder.bind(amb.pcp);
+  amb.pcp.responder=c=>{if(c.action==='exportarBackup'&&!c.cursor)exportacoes++;return responder(c);};
+  const gravacoes=()=>amb.puts.filter(p=>p===`pcp/${diaSP()}.json`).length;
+  for(let i=0;i<5;i++)await f({action:'auto',sistema:'pcp'});
+  assert.equal(gravacoes(),1,'uma gravação do arquivo do dia, não uma por rodada');
+  assert.equal(exportacoes,1,'nem a exportação inteira do PCP a cada rodada');
+  let st=statusPCP(amb);
+  assert.equal(st.ok,false);assert.match(st.erro,/A contagem não confere/);assert.match(st.erro,/Nova tentativa a partir das \d{2}:\d{2}/);
+  assert.ok(!/—/.test(st.erro));
+  // Passada 1 hora, tenta de novo.
+  const estado=amb.meta.get('backup_arquivos_pcp');estado.registros.em=new Date(Date.now()-61*60000).toISOString();amb.meta.set('backup_arquivos_pcp',estado);
+  await f({action:'auto',sistema:'pcp'});
+  assert.equal(gravacoes(),2);assert.equal(exportacoes,2);
+  // O forcar (pedido explícito, depois de um conserto) passa na hora.
+  await f({action:'auto',sistema:'pcp',forcar:true});
+  assert.equal(gravacoes(),3);
+  // A divergência resolvida: na tentativa seguinte (depois da espera) volta a ok.
+  amb.pcp.contar=contar;
+  const e2=amb.meta.get('backup_arquivos_pcp');e2.registros.em=new Date(Date.now()-61*60000).toISOString();amb.meta.set('backup_arquivos_pcp',e2);
+  await f({action:'auto',sistema:'pcp'});
+  st=statusPCP(amb);assert.equal(st.ok,true,JSON.stringify(st));assert.equal(gravacoes(),4);
+});
+
+/* R4: o pcp_meta (a cópia de desfazer do robô do ERP e o cache mensal) vai
+   no arquivo do dia, conferido pela contagem; a credencial do ERP nunca. */
+test('revisão onda-w1-backup: o pcp_meta vai no arquivo do dia, conferido pela contagem do PCP',async()=>{
+  let amb=ambiente(),f=await funcao(amb);
+  await rodada(f);
+  const bk=arquivoDoDia(amb);
+  assert.deepEqual((bk.pcp_meta||[]).map(m=>m.chave),amb.pcp.meta.map(m=>m.chave),'o pcp_meta está no arquivo');
+  assert.deepEqual(bk.pcp_meta[0].valor,amb.pcp.meta[0].valor);
+  assert.equal(bk.contagem.exportado.pcp_meta,2);
+  let st=statusPCP(amb);assert.equal(st.ok,true,JSON.stringify(st));assert.equal(st.porColecao.pcp_meta,2);
+  // PCP sem a contagem do pcp_meta (a porta regrediu, ou o pcp-sync de antes): ok:false, dito.
+  amb=ambiente();f=await funcao(amb);amb.pcp.semContagemMeta=true;
+  await rodada(f);
+  st=statusPCP(amb);assert.equal(st.ok,false);assert.match(st.erro,/pcp_meta: fora da contagem do PCP/);
+  // A credencial do ERP veio na exportação: nada é gravado e a falha é dita.
+  amb=ambiente();f=await funcao(amb);
+  amb.pcp.meta.push({chave:'mubisys',valor:{accessToken:'credencial-ficticia'},atualizado_em:'2026-10-01T00:00:00Z'});
+  await rodada(f);
+  st=statusPCP(amb);assert.equal(st.ok,false);assert.match(st.erro,/credencial do ERP/);
+  assert.equal(arquivoDoDia(amb),null,'o arquivo do dia não foi gravado');
+  assert.ok(![...amb.repo.values()].some(b=>b.toString('utf8').includes('credencial-ficticia')));
 });

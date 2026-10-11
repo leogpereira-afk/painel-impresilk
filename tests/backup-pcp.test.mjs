@@ -7,7 +7,7 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {exportarPCP, conferirExportacao, COLECOES_PCP_OBRIGATORIAS, statusPCP} from '../supabase/functions/_shared/backup-pcp.mjs';
 
-const contagem=(extra={})=>({pcp_registros:Object.fromEntries(COLECOES_PCP_OBRIGATORIAS.map(c=>[c,{total:0,apagados:0}]).concat(Object.entries(extra))),pcp_demandas:0});
+const contagem=(extra={})=>({pcp_registros:Object.fromEntries(COLECOES_PCP_OBRIGATORIAS.map(c=>[c,{total:0,apagados:0}]).concat(Object.entries(extra))),pcp_demandas:0,pcp_meta:0});
 const linha=(colecao,id,apagado=false)=>({colecao,id,apagado,registro:{id}});
 const paginas=lista=>{let i=0;return async()=>lista[i++];};
 
@@ -65,4 +65,32 @@ test('situação: ok só com contagem que bate, arquivo do dia gravado e todos o
   assert.equal(semReg.ok,false);assert.match(semReg.erro,/registros do PCP/);
   const div=statusPCP({nome:'PCP',em:'x',copia,registros:{...reg,divergencias:['a','b','c','d']},gravado:true});
   assert.equal(div.ok,false);assert.equal(div.erro,'A contagem não confere: a; b; c (e mais 1).');
+});
+
+test('revisão onda-w1-backup: o pcp_meta é conferido pela contagem; repetido, fora da faixa ou sem contagem é recusado ou divergência',async()=>{
+  const m=(chave)=>({chave,valor:{x:1},atualizado_em:'2026-10-01T00:00:00Z'});
+  const c={...contagem(),pcp_meta:2};
+  const exp=await exportarPCP(paginas([
+    {registros:[],demandas:[],meta:[m('a')],contagemInicio:c,cfg:{},nextCursor:'1'},
+    {registros:[],demandas:[],meta:[m('b')],nextCursor:null,contagemFim:c}]));
+  assert.deepEqual(exp.pcp_meta.map(x=>x.chave),['a','b']);
+  let r=conferirExportacao(exp);
+  assert.deepEqual(r.divergencias,[]);assert.equal(r.porColecao.pcp_meta,2);assert.equal(r.registros,2);assert.equal(r.exportado.pcp_meta,2);
+  r=conferirExportacao({...exp,pcp_meta:[m('a')]});
+  assert.ok(r.divergencias.includes('pcp_meta: 1 exportadas, esperadas 2'),JSON.stringify(r.divergencias));
+  r=conferirExportacao({...exp,contagemInicio:contagem(),contagemFim:{...contagem(),pcp_meta:undefined}});
+  assert.ok(r.divergencias.includes('pcp_meta: fora da contagem do PCP'),JSON.stringify(r.divergencias));
+  await assert.rejects(exportarPCP(paginas([
+    {registros:[],demandas:[],meta:[m('a')],contagemInicio:c,cfg:{},nextCursor:'1'},
+    {registros:[],demandas:[],meta:[m('a')],nextCursor:null,contagemFim:c}])),/repetida/);
+  await assert.rejects(exportarPCP(paginas([{registros:[],demandas:[],meta:[m('mubisys')],contagemInicio:c,cfg:{},nextCursor:null,contagemFim:c}])),/credencial do ERP/);
+});
+
+test('revisão onda-w1-backup: a situação diz quando a cópia com divergência tenta de novo',()=>{
+  const copia={completo:true,falhas:[],comCopia:3,existem:3,copiados:0,porBucket:{}};
+  const reg={divergencias:['os: 5 exportadas, esperadas 6'],porColecao:{os:5},lapides:1,registros:5};
+  const st=statusPCP({nome:'PCP',em:'x',copia,registros:reg,gravado:true,novaTentativaEm:'2026-10-11T15:05:00Z'});
+  assert.equal(st.ok,false);
+  assert.equal(st.erro,'A contagem não confere: os: 5 exportadas, esperadas 6. Nova tentativa a partir das 12:05.');
+  assert.equal(st.novaTentativaEm,'2026-10-11T15:05:00Z');
 });

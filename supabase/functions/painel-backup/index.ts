@@ -24,7 +24,7 @@ import {capturarArquivos,prepararArquivos} from "../_shared/arquivos-backup.ts";
 import {buscarComRetentativa} from "../_shared/repetir-http.ts";
 import {proximoBackup} from "../_shared/fila-backup.mjs";
 import {avancarCopia,base64} from "../_shared/backup-partes.mjs";
-import {exportarPCP,conferirExportacao,copiarArquivosIncremental,montarArquivoPCP,statusPCP,BUCKETS_PCP} from "../_shared/backup-pcp.mjs";
+import {exportarPCP,conferirExportacao,copiarArquivosIncremental,montarArquivoPCP,statusPCP,decidirExportacaoPCP,BUCKETS_PCP} from "../_shared/backup-pcp.mjs";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -448,7 +448,7 @@ async function guardarArquivoPCP(bucket: string, sha256: string, bytes: Uint8Arr
   }
 }
 
-async function copiarPCP(sys: any) {
+async function copiarPCP(sys: any, { forcar = false }: { forcar?: boolean } = {}) {
   const agora = new Date().toISOString(), hoje = diaSP(agora);
   const semDestino = await conferirDestino();
   if (semDestino) throw new Error(semDestino.motivo);
@@ -463,10 +463,13 @@ async function copiarPCP(sys: any) {
   // O que já foi copiado fica registrado antes de ler os registros: uma falha
   // na exportação não faz a rodada seguinte baixar tudo de novo.
   await guardarProgresso(anterior.registros ?? null);
-  // Os registros de hoje já gravados e conferidos valem enquanto os arquivos andam.
-  const jaHoje = anterior.registros?.dia === hoje && anterior.registros.gravado === true && !anterior.registros.divergencias?.length;
-  let registros: any = jaHoje ? anterior.registros : null, gravado = jaHoje, erroGravacao: string | null = null;
-  if (!jaHoje || copia.completo) {
+  // Os registros de hoje já gravados e conferidos valem enquanto os arquivos
+  // andam; os gravados com divergência esperam 1 hora (S3, decidirExportacaoPCP).
+  const decisao = decidirExportacaoPCP({ registros: anterior.registros, hoje, agora, copiaCompleta: copia.completo, forcar });
+  let registros: any = decisao.reaproveitar ? anterior.registros : null, gravado = decisao.reaproveitar, erroGravacao: string | null = null;
+  let novaTentativaEm: string | null = decisao.novaTentativaEm;
+  if (decisao.exportar) {
+    novaTentativaEm = null;
     const exportacao = await exportarPCP((corpo: unknown) => chamarSistema(sys, corpo));
     const conferencia = conferirExportacao(exportacao);
     const gh = await enviarParaGithub(sys.key, montarArquivoPCP({ nome: sys.nome, exportadoEm: agora, exportacao, conferencia, copia }));
@@ -476,7 +479,8 @@ async function copiarPCP(sys: any) {
       porColecao: conferencia.porColecao, lapides: conferencia.lapides, registros: conferencia.registros };
     await guardarProgresso(registros);
   }
-  return statusPCP({ nome: sys.nome, em: agora, copia, registros, gravado, erroGravacao });
+  if (decisao.exportar && registros?.divergencias?.length) novaTentativaEm = new Date(Date.parse(agora) + 60 * 60 * 1000).toISOString();
+  return statusPCP({ nome: sys.nome, em: agora, copia, registros, gravado, erroGravacao, novaTentativaEm });
 }
 
 // ---------------------------------------------------------------- hub
@@ -491,18 +495,18 @@ async function gravarStatus(st: unknown) {
   if(error) throw new Error('A cópia foi tentada, mas seu resultado não pôde ser registrado.');
 }
 
-async function backupDoHub(somente?: string) {
+async function backupDoHub(somente?: string, opcoes: { forcar?: boolean } = {}) {
   const operacao=crypto.randomUUID();
   const {data:reservou,error}=await sb.rpc("painel_backup_reservar",{p_operacao:operacao});
   if(error) throw new Error("Não foi possível iniciar o backup com segurança.");
   if(!reservou) throw new Error("Um backup já está em andamento. Aguarde a conclusão.");
-  try {return await executarBackupHub(somente);}
+  try {return await executarBackupHub(somente, opcoes);}
   finally {
     const {error}=await sb.from("painel_meta").delete().eq("chave","backup_operacao").eq("valor->>operacao",operacao);
     if(error) console.error("[painel-backup] A reserva será liberada automaticamente.");
   }
 }
-async function executarBackupHub(somente?: string) {
+async function executarBackupHub(somente?: string, { forcar = false }: { forcar?: boolean } = {}) {
   const anterior = await lerStatus();
   const porSistema: Record<string, any> = {...(anterior?.sistemas || {})};
   const chaves=['painel','fortemais',...sistemasExternos().map(s=>s.key)];
@@ -629,7 +633,7 @@ async function executarBackupHub(somente?: string) {
       porSistema[sys.key]={nome:sys.nome,em:agora,ok:false,erro:'Cópia iniciada; se não concluir, o agendamento tentará novamente.'};
       await confirmar(sys.key);
       if(sys.key==='pcp') {
-        porSistema[sys.key]=await copiarPCP(sys);
+        porSistema[sys.key]=await copiarPCP(sys, { forcar });
       } else if(sys.key==='bosques' || sys.particionado===true) {
         porSistema[sys.key]=await copiarPorPartes(sys);
       } else {
@@ -735,7 +739,7 @@ Deno.serve(async (req: Request) => {
       return resposta({ ok: true, pulou: "ja tem backup de hoje" });
     }
     if(corpo.forcar!==true && sistemas[proximo]?.ok && diaSP(sistemas[proximo].em)===hoje) return resposta({ok:true,pulou:'ja tem backup de hoje'});
-    try {return resposta({ ok: true, sistemas: await backupDoHub(proximo) });}
+    try {return resposta({ ok: true, sistemas: await backupDoHub(proximo, { forcar: corpo.forcar === true }) });}
     catch(e) {return resposta({erro:(e as Error).message},503);}
   }
 
