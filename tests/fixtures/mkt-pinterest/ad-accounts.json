@@ -1,0 +1,20 @@
+{
+ "items": [
+  {
+   "id": "549755885175",
+   "name": "Empresa Exemplo Anúncios",
+   "owner": {
+    "username": "empresa_exemplo"
+   },
+   "country": "BR",
+   "currency": "BRL",
+   "permissions": [
+    "ADMIN"
+   ],
+   "created_time": 1700000000,
+   "updated_time": 1760000000,
+   "time_zone": "America/Sao_Paulo"
+  }
+ ],
+ "bookmark": null
+}

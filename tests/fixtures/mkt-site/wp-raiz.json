@@ -1,0 +1,14 @@
+{
+ "name": "Gráfica Exemplo",
+ "description": "Site fictício",
+ "namespaces": [
+  "oembed/1.0",
+  "rankmath/v1",
+  "elementor/v1",
+  "elementor-pro/v1",
+  "litespeed/v1",
+  "litespeed/v3",
+  "wp/v2",
+  "wp-site-health/v1"
+ ]
+}

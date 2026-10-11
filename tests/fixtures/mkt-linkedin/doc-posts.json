@@ -1,0 +1,28 @@
+{
+ "paging": {
+  "start": 0,
+  "count": 10,
+  "links": []
+ },
+ "elements": [
+  {
+   "lifecycleState": "PUBLISHED",
+   "lastModifiedAt": 1634817395768,
+   "visibility": "PUBLIC",
+   "publishedAt": 1634817394721,
+   "author": "urn:li:organization:2414183",
+   "distribution": {
+    "feedDistribution": "MAIN_FEED",
+    "thirdPartyDistributionChannels": []
+   },
+   "content": {},
+   "lifecycleStateInfo": {
+    "isEditedByAuthor": false
+   },
+   "isReshareDisabledByAuthor": false,
+   "createdAt": 1634817394721,
+   "id": "urn:li:share:6856921137721544704",
+   "commentary": ""
+  }
+ ]
+}

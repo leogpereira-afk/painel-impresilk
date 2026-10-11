@@ -1,0 +1,33 @@
+{
+ "web": [
+  {
+   "event_name": "PageView",
+   "event_match_quality": {
+    "composite_score": 6.2,
+    "match_key_feedback": [
+     {
+      "identifier": "ip_address",
+      "coverage": {
+       "percentage": 100
+      }
+     },
+     {
+      "identifier": "email",
+      "coverage": {
+       "percentage": 12.5
+      }
+     }
+    ]
+   },
+   "event_coverage": {
+    "percentage": 0
+   },
+   "acr": {
+    "percentage": 0
+   },
+   "data_freshness": {
+    "upload_frequency": "real_time"
+   }
+  }
+ ]
+}

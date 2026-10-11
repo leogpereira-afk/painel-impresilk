@@ -1,0 +1,8 @@
+{
+ "error": {
+  "message": "(#80004) There have been too many calls to this ad-account.",
+  "type": "OAuthException",
+  "code": 80004,
+  "fbtrace_id": "AFakeTraceId000"
+ }
+}

@@ -7,7 +7,11 @@
  *  - se o canal está EM IMPLANTAÇÃO, o checklist de implantação vem antes de
  *    tudo, com concluir na linha. Os feitos ficam marcados na lista (dá para
  *    desmarcar), para o caminho inteiro ficar à vista;
- *  - as sub-abas Fazer, Resultados, Calendário e Histórico (?sub=).
+ *  - as sub-abas Fazer, Resultados, Calendário e Histórico (?sub=), e Dados
+ *    (?sub=dados) nos canais que têm integração (site, facebook, instagram,
+ *    google, linkedin, pinterest: FONTES_DO_CANAL em marketing-fontes.js).
+ *    A Dados mora em ./dados/ e desce só quando é aberta (lazy): as contas
+ *    dos seis conectores não pesam em quem só abre o Fazer.
  *
  * As rotinas do playbook aparecem listadas no Fazer, com o aviso de que
  * entram na agenda na próxima etapa (a3): até lá nada gera tarefa sozinho.
@@ -18,14 +22,14 @@
  * curta ("em 7 dias" no lugar de "nos últimos 7 dias", que o title diz por
  * extenso).
  */
-import { useMemo } from 'react';
+import { Suspense, lazy, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowUpRight, ClipboardCopy, Plus, Settings } from 'lucide-react';
 import CardCompacto from '../CardCompacto.jsx';
 import LinhaTarefa from '../LinhaTarefa.jsx';
 import { IconeCanal, PontoSemaforo, corDoCanal } from '../ChipCanal.jsx';
 import { Avatar } from '../lista.jsx';
-import { Segmented, Empty } from '../ui.jsx';
+import { Segmented, Empty, Skeleton } from '../ui.jsx';
 import { Bloco, TopoBloco } from './Bloco.jsx';
 import FilaFazer from './FilaFazer.jsx';
 import Resultados from './Resultados.jsx';
@@ -46,8 +50,19 @@ import {
 } from './derivar.js';
 import { useParamNavegavel } from '../../hooks/useParamNavegavel.js';
 import { numero } from '../../lib/format.js';
+import { canalTemFonte } from '../../lib/calc/marketing-fontes.js';
 
-const SUBS = SUBS_CANAL.map((s) => s.valor);
+const SubDados = lazy(() => import('./dados/SubDados.jsx'));
+
+/* A sub-aba Dados entra depois de Resultados (os números lançados à mão e os
+   que as integrações trazem ficam lado a lado), só no canal com fonte. Em
+   canal sem integração, ?sub=dados mostra o Fazer e a URL fica como veio. */
+const SUB_DADOS = Object.freeze({ valor: 'dados', rotulo: 'Dados' });
+function subsDoCanal(codigo) {
+  if (!canalTemFonte(codigo)) return SUBS_CANAL;
+  const i = SUBS_CANAL.findIndex((s) => s.valor === 'resultados');
+  return [...SUBS_CANAL.slice(0, i + 1), SUB_DADOS, ...SUBS_CANAL.slice(i + 1)];
+}
 
 function CabecalhoCanal({ canal }) {
   const { painel, hoje, podeGravar, ehGestao, abrir, avisar } = useMarketing();
@@ -253,14 +268,24 @@ function FazerDoCanal({ canal }) {
 }
 
 export default function CanalAberto({ canal }) {
-  const [sub, setSub] = useParamNavegavel('sub', 'fazer', SUBS);
+  const opcoes = useMemo(() => subsDoCanal(canal.codigo), [canal.codigo]);
+  const [sub, setSub] = useParamNavegavel('sub', 'fazer', opcoes.map((s) => s.valor));
   return (
     <div className="space-y-3">
       <CabecalhoCanal canal={canal} />
       {canal.emImplantacao && <Implantacao canal={canal} />}
-      <Segmented compacto opcoes={SUBS_CANAL} valor={sub} onChange={setSub} />
+      {/* Com a Dados são cinco sub-abas: a 375px elas pediam 352px e a
+          linha tinha 343, e o Histórico caía sozinho na linha de baixo.
+          Abaixo de 400px o respiro dos lados de cada botão desce de 10 para
+          8px (o toque continua em 40px de altura, .alvo-40 do Segmented). */}
+      <Segmented compacto className="max-[400px]:[&>button]:px-2" opcoes={opcoes} valor={sub} onChange={setSub} />
       {sub === 'fazer' && <FazerDoCanal canal={canal} />}
       {sub === 'resultados' && <Resultados canal={canal} />}
+      {sub === 'dados' && (
+        <Suspense fallback={<Skeleton className="h-40" />}>
+          <SubDados canal={canal} />
+        </Suspense>
+      )}
       {sub === 'calendario' && <Calendario canal={canal} />}
       {sub === 'historico' && <Historico canal={canal} />}
     </div>

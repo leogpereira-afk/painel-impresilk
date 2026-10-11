@@ -1,0 +1,23 @@
+[
+ {
+  "error": {
+   "code": 400,
+   "message": "Unrecognized field in the query: 'metrics.organic_queries'.",
+   "status": "INVALID_ARGUMENT",
+   "details": [
+    {
+     "@type": "type.googleapis.com/google.ads.googleads.v25.errors.GoogleAdsFailure",
+     "errors": [
+      {
+       "errorCode": {
+        "queryError": "UNRECOGNIZED_FIELD"
+       },
+       "message": "Unrecognized field in the query: 'metrics.organic_queries'."
+      }
+     ],
+     "requestId": "req-ficticio-erro"
+    }
+   ]
+  }
+ }
+]

@@ -1,0 +1,11 @@
+{
+ "Status": 0,
+ "Answer": [
+  {
+   "name": "exemplo.com.br.",
+   "type": 15,
+   "TTL": 300,
+   "data": "10 mx.hospedagem-ficticia.com.br."
+  }
+ ]
+}

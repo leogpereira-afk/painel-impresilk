@@ -1,0 +1,144 @@
+{
+ "items": [
+  {
+   "id": "1000000000000000001",
+   "created_at": "2026-10-08T14:00:00",
+   "title": "Fachada em ACM para loja",
+   "description": "Descrição fictícia do Pin 1000000000000000001",
+   "link": "https://www.impresilk.com.br/fachadas?utm_source=pinterest",
+   "alt_text": null,
+   "board_id": "800000000000000001",
+   "board_section_id": null,
+   "creative_type": "REGULAR",
+   "dominant_color": "#cc0000",
+   "has_been_promoted": false,
+   "is_owner": true,
+   "is_standard": true,
+   "is_product": false,
+   "parent_pin_id": null,
+   "media": {
+    "media_type": "image",
+    "images": {
+     "150x150": {
+      "width": 150,
+      "height": 150,
+      "url": "https://i.pinimg.com/150x150/1000000000000000001.jpg"
+     },
+     "400x300": {
+      "width": 400,
+      "height": 300,
+      "url": "https://i.pinimg.com/400x300/1000000000000000001.jpg"
+     }
+    }
+   },
+   "pin_metrics": {
+    "90d": {
+     "impression": 480,
+     "pin_click": 38,
+     "clickthrough": 24
+    },
+    "lifetime_metrics": {
+     "impression": 500,
+     "pin_click": 40,
+     "clickthrough": 25,
+     "reaction": 7,
+     "comment": 1
+    }
+   }
+  },
+  {
+   "id": "1000000000000000002",
+   "created_at": "2026-09-20T12:00:00",
+   "title": "Vídeo da instalação de letreiro",
+   "description": "Descrição fictícia do Pin 1000000000000000002",
+   "link": "https://parceiro-exemplo.com.br/video",
+   "alt_text": null,
+   "board_id": "800000000000000001",
+   "board_section_id": null,
+   "creative_type": "VIDEO",
+   "dominant_color": "#cc0000",
+   "has_been_promoted": false,
+   "is_owner": true,
+   "is_standard": true,
+   "is_product": false,
+   "parent_pin_id": null,
+   "media": {
+    "media_type": "video",
+    "images": {
+     "150x150": {
+      "width": 150,
+      "height": 150,
+      "url": "https://i.pinimg.com/150x150/1000000000000000002.jpg"
+     },
+     "400x300": {
+      "width": 400,
+      "height": 300,
+      "url": "https://i.pinimg.com/400x300/1000000000000000002.jpg"
+     }
+    }
+   },
+   "pin_metrics": {
+    "90d": {
+     "impression": 480,
+     "pin_click": 38,
+     "clickthrough": 24
+    },
+    "lifetime_metrics": {
+     "impression": 500,
+     "pin_click": 40,
+     "clickthrough": 25,
+     "reaction": 7,
+     "comment": 1
+    }
+   },
+   "ai_disclosures": []
+  },
+  {
+   "id": "1000000000000000003",
+   "created_at": "2026-10-02T01:30:00",
+   "title": "Adesivo de vitrine",
+   "description": "Descrição fictícia do Pin 1000000000000000003",
+   "link": "https://impresilk.com.br/contato",
+   "alt_text": null,
+   "board_id": "800000000000000001",
+   "board_section_id": null,
+   "creative_type": "REGULAR",
+   "dominant_color": "#cc0000",
+   "has_been_promoted": false,
+   "is_owner": true,
+   "is_standard": true,
+   "is_product": false,
+   "parent_pin_id": null,
+   "media": {
+    "media_type": "image",
+    "images": {
+     "150x150": {
+      "width": 150,
+      "height": 150,
+      "url": "https://i.pinimg.com/150x150/1000000000000000003.jpg"
+     },
+     "400x300": {
+      "width": 400,
+      "height": 300,
+      "url": "https://i.pinimg.com/400x300/1000000000000000003.jpg"
+     }
+    }
+   },
+   "pin_metrics": {
+    "90d": {
+     "impression": 480,
+     "pin_click": 38,
+     "clickthrough": 24
+    },
+    "lifetime_metrics": {
+     "impression": 500,
+     "pin_click": 40,
+     "clickthrough": 25,
+     "reaction": 7,
+     "comment": 1
+    }
+   }
+  }
+ ],
+ "bookmark": "bm-pagina-2"
+}

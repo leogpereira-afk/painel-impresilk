@@ -1,0 +1,136 @@
+{
+ "paging": {
+  "count": 10,
+  "start": 0
+ },
+ "elements": [
+  {
+   "organization": "urn:li:organization:90000001",
+   "totalPageStatistics": {
+    "clicks": {
+     "desktopCustomButtonClickCounts": [
+      {
+       "customButtonType": "VISIT_WEBSITE",
+       "clicks": 7
+      }
+     ],
+     "mobileCustomButtonClickCounts": []
+    },
+    "views": {
+     "allPageViews": {
+      "pageViews": 5000,
+      "uniquePageViews": 2100
+     },
+     "allDesktopPageViews": {
+      "pageViews": 3000,
+      "uniquePageViews": 1300
+     },
+     "allMobilePageViews": {
+      "pageViews": 2000,
+      "uniquePageViews": 800
+     },
+     "overviewPageViews": {
+      "pageViews": 2500,
+      "uniquePageViews": 1100
+     },
+     "desktopOverviewPageViews": {
+      "pageViews": 1500,
+      "uniquePageViews": 700
+     },
+     "mobileOverviewPageViews": {
+      "pageViews": 1000,
+      "uniquePageViews": 400
+     },
+     "careersPageViews": {
+      "pageViews": 0,
+      "uniquePageViews": 0
+     },
+     "jobsPageViews": {
+      "pageViews": 30,
+      "uniquePageViews": 20
+     },
+     "lifeAtPageViews": {
+      "pageViews": 10,
+      "uniquePageViews": 8
+     },
+     "aboutPageViews": {
+      "pageViews": 400,
+      "uniquePageViews": 300
+     }
+    }
+   },
+   "pageStatisticsByGeoCountry": [
+    {
+     "geo": "urn:li:geo:90000102",
+     "pageStatistics": {
+      "views": {
+       "allPageViews": {
+        "pageViews": 4500
+       }
+      }
+     }
+    }
+   ],
+   "pageStatisticsByGeo": [
+    {
+     "geo": "urn:li:geo:90000201",
+     "pageStatistics": {
+      "views": {
+       "allPageViews": {
+        "pageViews": 1200
+       }
+      }
+     }
+    }
+   ],
+   "pageStatisticsByFunction": [
+    {
+     "function": "urn:li:function:25",
+     "pageStatistics": {
+      "views": {
+       "allPageViews": {
+        "pageViews": 600
+       }
+      }
+     }
+    }
+   ],
+   "pageStatisticsByIndustryV2": [
+    {
+     "industryV2": "urn:li:industry:83",
+     "pageStatistics": {
+      "views": {
+       "allPageViews": {
+        "pageViews": 350
+       }
+      }
+     }
+    }
+   ],
+   "pageStatisticsBySeniority": [
+    {
+     "seniority": "urn:li:seniority:4",
+     "pageStatistics": {
+      "views": {
+       "allPageViews": {
+        "pageViews": 700
+       }
+      }
+     }
+    }
+   ],
+   "pageStatisticsByStaffCountRange": [
+    {
+     "staffCountRange": "SIZE_51_TO_200",
+     "pageStatistics": {
+      "views": {
+       "allPageViews": {
+        "pageViews": 420
+       }
+      }
+     }
+    }
+   ]
+  }
+ ]
+}

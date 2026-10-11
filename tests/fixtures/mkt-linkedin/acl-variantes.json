@@ -1,0 +1,38 @@
+{
+ "paging": {
+  "count": 20,
+  "start": 0
+ },
+ "elements": [
+  {
+   "roleAssignee": "urn:li:person:Ficticio01",
+   "state": "REQUESTED",
+   "role": "ADMINISTRATOR",
+   "organization": "urn:li:organization:90000009"
+  },
+  {
+   "roleAssignee": "urn:li:person:Ficticio01",
+   "state": "APPROVED",
+   "role": "ANALYST",
+   "organization": "urn:li:organization:90000008"
+  },
+  {
+   "roleAssignee": "urn:li:person:Ficticio01",
+   "state": "APPROVED",
+   "role": "ADMINISTRATOR",
+   "organizationTarget": "urn:li:organization:90000002"
+  },
+  {
+   "roleAssignee": "urn:li:person:Ficticio01",
+   "state": "APPROVED",
+   "role": "ADMINISTRATOR",
+   "organization": "urn:li:organization:90000002"
+  },
+  {
+   "roleAssignee": "urn:li:person:Ficticio01",
+   "state": "APPROVED",
+   "role": "ADMINISTRATOR",
+   "organization": "urn:li:company:5"
+  }
+ ]
+}

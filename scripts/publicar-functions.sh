@@ -102,12 +102,20 @@ for fn in "${FUNCOES[@]}"; do
   # varredura do diretório elas passaram a subir, e subiriam sem o arquivo que
   # o `import` do topo procura -- a porta da Central de Acessos publicada
   # quebrada. O tipo do .mjs é javascript, não typescript.
-  for dep in _shared/*.ts; do
-    [ -f "$dep" ] && args+=(-F "file=@$dep;filename=../$dep;type=application/typescript")
-  done
-  for dep in _shared/*.mjs; do
-    [ -f "$dep" ] && args+=(-F "file=@$dep;filename=../$dep;type=application/javascript")
-  done
+  #
+  # E AS SUBPASTAS DE _shared (11/10/2026). Os conectores do Marketing moram
+  # em _shared/mkt-fontes/ (registro.mjs importa os seis). Os dois lacos que
+  # ficavam aqui pegavam so o primeiro nivel (_shared/*.ts, _shared/*.mjs): a
+  # painel-mkt-fontes subiria sem a pasta e o Supabase recusaria a
+  # publicacao com "Module not found". E o MESMO defeito da lista nominal,
+  # agora em profundidade. O find varre a arvore inteira.
+  while IFS= read -r dep; do
+    case "$dep" in
+      *.mjs|*.js) tipo=application/javascript ;;
+      *)          tipo=application/typescript ;;
+    esac
+    args+=(-F "file=@$dep;filename=../$dep;type=$tipo")
+  done < <(find _shared -type f \( -name '*.ts' -o -name '*.mjs' -o -name '*.js' \) | sort)
 
   # POST /functions/deploy com uma parte `metadata` em JSON. O caminho antigo
   # (PATCH /functions/<slug> com os campos na query string) responde

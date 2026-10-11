@@ -28,7 +28,7 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { FolderOpen, LayoutGrid, X } from 'lucide-react';
+import { FolderOpen, Info, LayoutGrid, X } from 'lucide-react';
 import ChipCanal from '../components/ChipCanal.jsx';
 import { SEGUNDOS_DESFAZER } from '../components/LinhaTarefa.jsx';
 import { Skeleton, ErroModulo, AvisoAtualizacao } from '../components/ui.jsx';
@@ -37,6 +37,7 @@ import { ymdLocal } from '../lib/format.js';
 import { lerPainelMarketing, listarPessoasMarketing, salvarAcaoMarketing, concluirPlaybook } from '../services/marketing.js';
 import { SITUACOES_ACAO } from '../../supabase/functions/_shared/marketing.mjs';
 import { MarketingCtx, useCelular, mudouNoServidor } from '../components/marketing/contexto.js';
+import { avisarSemIdentidade } from '../lib/calc/marketing-conexoes.js';
 import {
   ROTULO_GRUPO_CANAL,
   SITUACAO_AO_CONCLUIR,
@@ -82,6 +83,10 @@ function normalizarPainel(r) {
     papeis: Array.isArray(r.papeis) ? r.papeis : [],
     legado: { pendentes: Number(r.legado?.pendentes) || 0 },
     podeMigrar: r.podeMigrar === true,
+    // O login não está ligado a uma pessoa do RH (campo novo do "painel").
+    // Só true ou false do servidor contam: sem o campo (função antiga), null,
+    // e nada é dito.
+    semIdentidade: typeof r.semIdentidade === 'boolean' ? r.semIdentidade : null,
   };
 }
 
@@ -454,6 +459,15 @@ export default function Marketing() {
         </Fileira>
 
         {painel && erro && vista !== 'materiais' && <AvisoAtualizacao erro={erro} aoTentar={carregar} />}
+        {/* Login sem pessoa do RH: só a gestão lê, numa linha discreta. Sem
+            a ligação, o filtro "Minhas" some e o papel definido por pessoa
+            não alcança este login. */}
+        {avisarSemIdentidade(painel) && vista !== 'materiais' && (
+          <p className="flex items-start gap-1.5 px-1 text-xs text-slate-500">
+            <Info size={14} aria-hidden="true" className="mt-px shrink-0" />
+            Seu login não está ligado a uma pessoa do RH, por isso o filtro Minhas não aparece.
+          </p>
+        )}
         <Aviso aviso={aviso} onFechar={() => setAviso(null)} />
 
         {conteudo}

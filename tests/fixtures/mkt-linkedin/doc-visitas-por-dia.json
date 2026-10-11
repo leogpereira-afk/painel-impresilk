@@ -1,0 +1,35 @@
+{
+ "paging": {
+  "count": 10,
+  "start": 0
+ },
+ "elements": [
+  {
+   "organization": "urn:li:organization:2414183",
+   "timeRange": {
+    "start": 1452124800000,
+    "end": 1452211200000
+   },
+   "totalPageStatistics": {
+    "clicks": {
+     "desktopCustomButtonClickCounts": [],
+     "mobileCustomButtonClickCounts": []
+    },
+    "views": {
+     "careersPageViews": {
+      "uniquePageViews": 0,
+      "pageViews": 0
+     },
+     "overviewPageViews": {
+      "uniquePageViews": 0,
+      "pageViews": 0
+     },
+     "allPageViews": {
+      "uniquePageViews": 0,
+      "pageViews": 0
+     }
+    }
+   }
+  }
+ ]
+}

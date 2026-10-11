@@ -1,0 +1,151 @@
+{
+ "paging": {
+  "start": 0,
+  "count": 100,
+  "links": []
+ },
+ "elements": [
+  {
+   "id": "urn:li:share:7000000000000000001",
+   "author": "urn:li:organization:90000001",
+   "lifecycleState": "PUBLISHED",
+   "visibility": "PUBLIC",
+   "publishedAt": 1791810000000,
+   "createdAt": 1791810000000,
+   "lastModifiedAt": 1791810000000,
+   "distribution": {
+    "feedDistribution": "MAIN_FEED",
+    "thirdPartyDistributionChannels": []
+   },
+   "content": {},
+   "lifecycleStateInfo": {
+    "isEditedByAuthor": false
+   },
+   "commentary": "TEXTO-DO-POST-NAO-PODE-VAZAR"
+  },
+  {
+   "id": "urn:li:ugcPost:7000000000000000002",
+   "author": "urn:li:organization:90000001",
+   "lifecycleState": "PUBLISHED",
+   "visibility": "PUBLIC",
+   "publishedAt": 1791484200000,
+   "createdAt": 1791484200000,
+   "lastModifiedAt": 1791484200000,
+   "distribution": {
+    "feedDistribution": "MAIN_FEED",
+    "thirdPartyDistributionChannels": []
+   },
+   "content": {
+    "media": {
+     "id": "urn:li:video:C4E00FICTICIO",
+     "title": "TITULO-DE-MIDIA-NAO-PODE-VAZAR"
+    }
+   },
+   "lifecycleStateInfo": {
+    "isEditedByAuthor": false
+   },
+   "commentary": "TEXTO-DO-POST-NAO-PODE-VAZAR"
+  },
+  {
+   "id": "urn:li:share:7000000000000000004",
+   "author": "urn:li:organization:90000001",
+   "lifecycleState": "DRAFT",
+   "visibility": "PUBLIC",
+   "publishedAt": 1791201600000,
+   "createdAt": 1791201600000,
+   "lastModifiedAt": 1791201600000,
+   "distribution": {
+    "feedDistribution": "MAIN_FEED",
+    "thirdPartyDistributionChannels": []
+   },
+   "content": {},
+   "lifecycleStateInfo": {
+    "isEditedByAuthor": false
+   },
+   "commentary": "TEXTO-DO-POST-NAO-PODE-VAZAR"
+  },
+  {
+   "id": "urn:li:share:7000000000000000005",
+   "author": "urn:li:organization:90000001",
+   "lifecycleState": "PUBLISHED",
+   "visibility": "PUBLIC",
+   "publishedAt": 1791028800000,
+   "createdAt": 1791028800000,
+   "lastModifiedAt": 1791028800000,
+   "distribution": {
+    "feedDistribution": "NONE"
+   },
+   "content": {},
+   "lifecycleStateInfo": {
+    "isEditedByAuthor": false
+   },
+   "commentary": "TEXTO-DO-POST-NAO-PODE-VAZAR",
+   "adContext": {
+    "dscStatus": "ACTIVE"
+   }
+  },
+  {
+   "id": "urn:li:ugcPost:7000000000000000006",
+   "author": "urn:li:organization:90000001",
+   "lifecycleState": "PUBLISHED",
+   "visibility": "PUBLIC",
+   "publishedAt": 1790821800000,
+   "createdAt": 1790821800000,
+   "lastModifiedAt": 1790821800000,
+   "distribution": {
+    "feedDistribution": "MAIN_FEED",
+    "thirdPartyDistributionChannels": []
+   },
+   "content": {
+    "media": {
+     "id": "urn:li:image:C4E00FICTICIO"
+    }
+   },
+   "lifecycleStateInfo": {
+    "isEditedByAuthor": false
+   },
+   "commentary": "TEXTO-DO-POST-NAO-PODE-VAZAR"
+  },
+  {
+   "id": "urn:li:share:7000000000000000003",
+   "author": "urn:li:organization:90000001",
+   "lifecycleState": "PUBLISHED",
+   "visibility": "PUBLIC",
+   "publishedAt": 1789905600000,
+   "createdAt": 1789905600000,
+   "lastModifiedAt": 1789905600000,
+   "distribution": {
+    "feedDistribution": "MAIN_FEED",
+    "thirdPartyDistributionChannels": []
+   },
+   "content": {
+    "article": {
+     "source": "https://exemplo.com.br/artigo",
+     "title": "TITULO-DE-ARTIGO-NAO-PODE-VAZAR"
+    }
+   },
+   "lifecycleStateInfo": {
+    "isEditedByAuthor": false
+   },
+   "commentary": "TEXTO-DO-POST-NAO-PODE-VAZAR"
+  },
+  {
+   "id": "urn:li:share:7000000000000000007",
+   "author": "urn:li:organization:90000001",
+   "lifecycleState": "PUBLISHED",
+   "visibility": "PUBLIC",
+   "publishedAt": 1782907200000,
+   "createdAt": 1782907200000,
+   "lastModifiedAt": 1782907200000,
+   "distribution": {
+    "feedDistribution": "MAIN_FEED",
+    "thirdPartyDistributionChannels": []
+   },
+   "content": {},
+   "lifecycleStateInfo": {
+    "isEditedByAuthor": false
+   },
+   "commentary": "TEXTO-DO-POST-NAO-PODE-VAZAR"
+  }
+ ]
+}

@@ -1,0 +1,106 @@
+{
+ "data": [
+  {
+   "name": "views",
+   "period": "day",
+   "title": "views",
+   "total_value": {
+    "value": 9100,
+    "breakdowns": [
+     {
+      "dimension_keys": [
+       "follower_type"
+      ],
+      "results": [
+       {
+        "dimension_values": [
+         "FOLLOWER"
+        ],
+        "value": 5100
+       },
+       {
+        "dimension_values": [
+         "NON_FOLLOWER"
+        ],
+        "value": 4000
+       }
+      ]
+     }
+    ]
+   },
+   "id": "17841400000000001/insights/views/day"
+  },
+  {
+   "name": "reach",
+   "period": "day",
+   "title": "reach",
+   "total_value": {
+    "value": 2240,
+    "breakdowns": [
+     {
+      "dimension_keys": [
+       "follow_type"
+      ],
+      "results": [
+       {
+        "dimension_values": [
+         "FOLLOWER"
+        ],
+        "value": 1200
+       },
+       {
+        "dimension_values": [
+         "NON_FOLLOWER"
+        ],
+        "value": 1040
+       }
+      ]
+     }
+    ]
+   },
+   "id": "17841400000000001/insights/reach/day"
+  },
+  {
+   "name": "profile_links_taps",
+   "period": "day",
+   "title": "profile_links_taps",
+   "total_value": {
+    "value": 18,
+    "breakdowns": [
+     {
+      "dimension_keys": [
+       "contact_button_type"
+      ],
+      "results": [
+       {
+        "dimension_values": [
+         "CALL"
+        ],
+        "value": 6
+       },
+       {
+        "dimension_values": [
+         "DIRECTION"
+        ],
+        "value": 4
+       },
+       {
+        "dimension_values": [
+         "TEXT"
+        ],
+        "value": 5
+       },
+       {
+        "dimension_values": [
+         "UNDEFINED"
+        ],
+        "value": 3
+       }
+      ]
+     }
+    ]
+   },
+   "id": "17841400000000001/insights/profile_links_taps/day"
+  }
+ ]
+}

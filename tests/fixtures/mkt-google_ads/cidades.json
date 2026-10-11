@@ -1,0 +1,53 @@
+{
+ "results": [
+  {
+   "geographicView": {
+    "resourceName": "customers/1234567890/geographicViews/2076~LOCATION_OF_PRESENCE",
+    "countryCriterionId": "2076",
+    "locationType": "LOCATION_OF_PRESENCE"
+   },
+   "segments": {
+    "geoTargetCity": "geoTargetConstants/1031836"
+   },
+   "metrics": {
+    "impressions": "400",
+    "clicks": "30",
+    "costMicros": "50000000",
+    "conversions": 3.0
+   }
+  },
+  {
+   "geographicView": {
+    "resourceName": "customers/1234567890/geographicViews/2076~AREA_OF_INTEREST",
+    "countryCriterionId": "2076",
+    "locationType": "AREA_OF_INTEREST"
+   },
+   "segments": {
+    "geoTargetCity": "geoTargetConstants/1031836"
+   },
+   "metrics": {
+    "impressions": "100",
+    "clicks": "5",
+    "costMicros": "9000000",
+    "conversions": 0.0
+   }
+  },
+  {
+   "geographicView": {
+    "resourceName": "customers/1234567890/geographicViews/2076~LOCATION_OF_PRESENCE",
+    "countryCriterionId": "2076",
+    "locationType": "LOCATION_OF_PRESENCE"
+   },
+   "segments": {
+    "geoTargetCity": "geoTargetConstants/1031893"
+   },
+   "metrics": {
+    "impressions": "50",
+    "clicks": "2",
+    "costMicros": "3000000"
+   }
+  }
+ ],
+ "fieldMask": "segments.geoTargetCity",
+ "requestId": "req-ficticio-0001"
+}

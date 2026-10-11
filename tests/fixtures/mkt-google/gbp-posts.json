@@ -1,0 +1,64 @@
+{
+ "localPosts": [
+  {
+   "name": "accounts/111/locations/222/localPosts/1",
+   "languageCode": "pt-BR",
+   "summary": "Fachada nova em ACM para a loja do centro, com letra caixa iluminada e adesivo jateado na vitrine inteira.",
+   "state": "LIVE",
+   "topicType": "STANDARD",
+   "createTime": "2026-10-06T01:30:00Z",
+   "updateTime": "2026-10-06T01:30:00Z",
+   "searchUrl": "https://local.google.com/place?id=111&use=posts&lpsid=1&utm_source=teste",
+   "callToAction": {
+    "actionType": "LEARN_MORE",
+    "url": "https://impresilk.com.br/"
+   },
+   "media": [
+    {
+     "googleUrl": "https://lh3.googleusercontent.com/teste1"
+    }
+   ]
+  },
+  {
+   "name": "accounts/111/locations/222/localPosts/2",
+   "summary": "Venha ver.",
+   "state": "LIVE",
+   "topicType": "EVENT",
+   "createTime": "2026-09-15T13:00:00Z",
+   "searchUrl": "https://local.google.com/place?id=111&use=posts&lpsid=2",
+   "event": {
+    "title": "Feira de Sinalização",
+    "schedule": {}
+   }
+  },
+  {
+   "name": "accounts/111/locations/222/localPosts/3",
+   "summary": "Desconto.",
+   "state": "LIVE",
+   "topicType": "OFFER",
+   "createTime": "2026-09-01T13:00:00Z",
+   "searchUrl": "https://local.google.com/place?id=111&use=posts&lpsid=3",
+   "event": {
+    "title": "10% em adesivos"
+   },
+   "offer": {
+    "couponCode": "TESTE10"
+   }
+  },
+  {
+   "name": "accounts/111/locations/222/localPosts/4",
+   "summary": "Recusado.",
+   "state": "REJECTED",
+   "topicType": "STANDARD",
+   "createTime": "2026-09-02T13:00:00Z",
+   "searchUrl": "https://local.google.com/place?id=111&use=posts&lpsid=4"
+  },
+  {
+   "name": "accounts/111/locations/222/localPosts/5",
+   "summary": "Sem link.",
+   "state": "LIVE",
+   "topicType": "STANDARD",
+   "createTime": "2026-09-03T13:00:00Z"
+  }
+ ]
+}

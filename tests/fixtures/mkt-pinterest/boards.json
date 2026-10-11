@@ -1,0 +1,31 @@
+{
+ "items": [
+  {
+   "id": "800000000000000001",
+   "name": "Fachadas",
+   "description": "Fachadas que fizemos",
+   "privacy": "PUBLIC",
+   "pin_count": 120,
+   "follower_count": 40,
+   "collaborator_count": 0,
+   "created_at": "2021-03-01T10:00:00",
+   "board_pins_modified_at": "2026-10-08T14:00:00.000Z",
+   "is_ads_only": false,
+   "owner": {
+    "username": "empresa_exemplo"
+   }
+  },
+  {
+   "id": "800000000000000002",
+   "name": "Adesivos",
+   "description": null,
+   "privacy": "PROTECTED",
+   "pin_count": 35,
+   "follower_count": 12,
+   "collaborator_count": 1,
+   "created_at": "2022-06-01T10:00:00",
+   "board_pins_modified_at": null
+  }
+ ],
+ "bookmark": null
+}

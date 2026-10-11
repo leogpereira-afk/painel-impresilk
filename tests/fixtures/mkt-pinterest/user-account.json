@@ -1,0 +1,14 @@
+{
+ "account_type": "BUSINESS",
+ "id": "900000000000000001",
+ "profile_image": "https://i.pinimg.com/exemplo/perfil.jpg",
+ "website_url": "https://www.impresilk.com.br",
+ "username": "empresa_exemplo",
+ "business_name": "Empresa Exemplo Comunicação Visual",
+ "board_count": 12,
+ "pin_count": 420,
+ "follower_count": 1234,
+ "following_count": 56,
+ "monthly_views": 98765,
+ "about": "Fachadas, letreiros e adesivos. Texto fictício para teste."
+}

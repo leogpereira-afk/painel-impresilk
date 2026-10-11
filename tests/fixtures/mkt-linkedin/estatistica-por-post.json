@@ -1,0 +1,47 @@
+{
+ "paging": {
+  "count": 10,
+  "start": 0,
+  "links": []
+ },
+ "elements": [
+  {
+   "organizationalEntity": "urn:li:organization:90000001",
+   "share": "urn:li:share:7000000000000000001",
+   "totalShareStatistics": {
+    "impressionCount": 800,
+    "uniqueImpressionsCount": 500,
+    "clickCount": 20,
+    "likeCount": 30,
+    "commentCount": 4,
+    "shareCount": 2,
+    "engagement": 0.07
+   }
+  },
+  {
+   "organizationalEntity": "urn:li:organization:90000001",
+   "ugcPost": "urn:li:ugcPost:7000000000000000002",
+   "totalShareStatistics": {
+    "impressionCount": 1200,
+    "clickCount": 15,
+    "likeCount": 40,
+    "commentCount": 6,
+    "shareCount": 3,
+    "engagement": 0.0533
+   }
+  },
+  {
+   "organizationalEntity": "urn:li:organization:90000001",
+   "ugcPost": "urn:li:ugcPost:7000000000000000006",
+   "totalShareStatistics": {
+    "impressionCount": 300,
+    "uniqueImpressionsCount": 200,
+    "clickCount": 1,
+    "likeCount": 9,
+    "commentCount": 0,
+    "shareCount": 0,
+    "engagement": 0.0333
+   }
+  }
+ ]
+}

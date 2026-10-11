@@ -1,0 +1,10 @@
+{
+ "access_token": "tk-ficticio-NOVO-pina",
+ "response_type": "refresh_token",
+ "token_type": "bearer",
+ "expires_in": 2592000,
+ "scope": "boards:read,pins:read,user_accounts:read,ads:read",
+ "refresh_token": "rf-ficticio-NOVO-pinr",
+ "refresh_token_expires_in": 5184000,
+ "refresh_token_expires_at": 1798761600
+}

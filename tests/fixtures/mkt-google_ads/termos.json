@@ -1,0 +1,105 @@
+{
+ "results": [
+  {
+   "searchTermView": {
+    "resourceName": "customers/1234567890/searchTermViews/501~1~x",
+    "searchTerm": "fachada em acm",
+    "status": "NONE"
+   },
+   "segments": {
+    "keyword": {
+     "info": {
+      "text": "fachada acm",
+      "matchType": "PHRASE"
+     }
+    },
+    "searchTermMatchType": "PHRASE"
+   },
+   "campaign": {
+    "resourceName": "customers/1234567890/campaigns/501",
+    "id": "501",
+    "name": "Pesquisa Comunicação Visual"
+   },
+   "adGroup": {
+    "resourceName": "customers/1234567890/adGroups/601",
+    "id": "601",
+    "name": "Fachadas"
+   },
+   "metrics": {
+    "impressions": "120",
+    "clicks": "10",
+    "costMicros": "20000000",
+    "conversions": 1.0,
+    "conversionsValue": 0.0
+   }
+  },
+  {
+   "searchTermView": {
+    "resourceName": "customers/1234567890/searchTermViews/501~1~x",
+    "searchTerm": "Fachada em ACM",
+    "status": "NONE"
+   },
+   "segments": {
+    "keyword": {
+     "info": {
+      "text": "fachada",
+      "matchType": "BROAD"
+     }
+    },
+    "searchTermMatchType": "PHRASE"
+   },
+   "campaign": {
+    "resourceName": "customers/1234567890/campaigns/501",
+    "id": "501",
+    "name": "Pesquisa Comunicação Visual"
+   },
+   "adGroup": {
+    "resourceName": "customers/1234567890/adGroups/601",
+    "id": "601",
+    "name": "Letreiros"
+   },
+   "metrics": {
+    "impressions": "30",
+    "clicks": "2",
+    "costMicros": "4000000",
+    "conversions": 0.0,
+    "conversionsValue": 0.0
+   }
+  },
+  {
+   "searchTermView": {
+    "resourceName": "customers/1234567890/searchTermViews/501~1~x",
+    "searchTerm": "letreiro luminoso preço",
+    "status": "NONE"
+   },
+   "segments": {
+    "keyword": {
+     "info": {
+      "text": "letreiro luminoso",
+      "matchType": "PHRASE"
+     }
+    },
+    "searchTermMatchType": "PHRASE"
+   },
+   "campaign": {
+    "resourceName": "customers/1234567890/campaigns/501",
+    "id": "501",
+    "name": "Pesquisa Comunicação Visual"
+   },
+   "adGroup": {
+    "resourceName": "customers/1234567890/adGroups/601",
+    "id": "601",
+    "name": "Letreiros"
+   },
+   "metrics": {
+    "impressions": "80",
+    "clicks": "8",
+    "costMicros": "16000000",
+    "conversions": 1.0,
+    "conversionsValue": 0.0
+   }
+  }
+ ],
+ "fieldMask": "searchTermView.searchTerm",
+ "requestId": "req-ficticio-0001"
+}

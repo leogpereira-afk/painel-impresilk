@@ -17,6 +17,7 @@ import { Segmented } from "../components/ui.jsx";
 import { useLocation } from "react-router-dom";
 import { ConfiguracaoPermutas, ConfiguracaoMarketing, ConfiguracaoCampanhas } from "../components/ConfiguracoesModulos.jsx";
 import LixeiraRegistros from "../components/LixeiraRegistros.jsx";
+import ConexoesMarketing from "../components/marketing/ConexoesMarketing.jsx";
 import { Aviso, CabecalhoDaArea, sessaoDaArea } from "../components/AreaSistemas.jsx";
 import "./configuracoes.css";
 
@@ -101,7 +102,7 @@ export default function Configuracoes() {
     { id: "cobranca", titulo: "Contas atrasadas e cobrança", sub: "Metas, motivos, régua e faixas de atraso.", ve: geral },
     { id: "orcamentos", titulo: "Orçamentos e vendas", sub: "Limites, vendedores e motivos de perda.", ve: geral },
     { id: "permutas", titulo: "Permutas", sub: "Período de cada permuta.", ve: podeAbrir("permutas", sessao) },
-    { id: "marketing", titulo: "Marketing", sub: "Atalhos do Drive.", ve: podeAbrir("marketing", sessao) },
+    { id: "marketing", titulo: "Marketing", sub: "Conexões, atalhos do Drive, canais e papéis.", ve: podeAbrir("marketing", sessao) },
     { id: "campanhas", titulo: "Campanhas", sub: "Metas e períodos dos eventos.", ve: podeAbrir("campanhas", sessao) },
     // A lixeira e so para a conta da direcao ou para quem tem acesso total.
     { id: "lixeira", titulo: "Cadastros retirados", sub: "Recupere cadastros com os anexos.", ve: !!(sessao?.master || sessao?.permissoes?.includes("*")) },
@@ -485,7 +486,13 @@ export default function Configuracoes() {
         {bloco("permutas", <>
           <Sub titulo="Período de cada permuta" sub="Defina o intervalo de busca de O.S. de cada parceria."><ConfiguracaoPermutas /></Sub>
         </>)}
+        {/* As Conexões vêm primeiro no grupo: a volta do Conectar
+            (?secao=marketing&conexao=...) e os selos da faixa "Fontes" caem
+            no topo do grupo, e é ali que o aviso e a linha da fonte ficam,
+            sem a lista de atalhos mudando de altura em cima deles. Todos os
+            papéis do Marketing veem; os botões são de cada papel. */}
         {bloco("marketing", <>
+          <Sub titulo="Conexões" sub="De onde vêm os números do Marketing: o estado de cada fonte, a última coleta e o que falta para ligar."><ConexoesMarketing /></Sub>
           <Sub titulo="Atalhos do Drive" sub="Cadastre os endereços que aparecem na biblioteca de Marketing."><ConfiguracaoMarketing /></Sub>
         </>)}
         {bloco("campanhas", <>

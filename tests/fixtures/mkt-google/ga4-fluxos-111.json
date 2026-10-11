@@ -1,0 +1,14 @@
+{
+ "dataStreams": [
+  {
+   "name": "properties/111/dataStreams/1",
+   "type": "WEB_DATA_STREAM",
+   "displayName": "Outro",
+   "webStreamData": {
+    "measurementId": "G-OUTRO12345",
+    "defaultUri": "https://outrosite.com.br"
+   },
+   "createTime": "2023-01-01T00:00:00Z"
+  }
+ ]
+}

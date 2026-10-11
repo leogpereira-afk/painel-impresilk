@@ -1,0 +1,58 @@
+{
+ "results": [
+  {
+   "callView": {
+    "resourceName": "customers/1234567890/callViews/c1",
+    "startCallDateTime": "2026-10-09 10:00:00",
+    "endCallDateTime": "2026-10-09 10:03:00",
+    "callDurationSeconds": "180",
+    "callStatus": "RECEIVED",
+    "type": "MANUALLY_DIALED",
+    "callerAreaCode": "31",
+    "callerCountryCode": "BR",
+    "callTrackingDisplayLocation": "AD"
+   },
+   "campaign": {
+    "resourceName": "customers/1234567890/campaigns/501",
+    "id": "501",
+    "name": "Pesquisa Comunicação Visual"
+   }
+  },
+  {
+   "callView": {
+    "resourceName": "customers/1234567890/callViews/c2",
+    "startCallDateTime": "2026-10-09 15:00:00",
+    "endCallDateTime": "2026-10-09 15:00:00",
+    "callDurationSeconds": "0",
+    "callStatus": "MISSED",
+    "type": "MANUALLY_DIALED",
+    "callerCountryCode": "BR",
+    "callTrackingDisplayLocation": "AD"
+   },
+   "campaign": {
+    "resourceName": "customers/1234567890/campaigns/501",
+    "id": "501",
+    "name": "Pesquisa Comunicação Visual"
+   }
+  },
+  {
+   "callView": {
+    "resourceName": "customers/1234567890/callViews/c3",
+    "startCallDateTime": "2026-09-30 11:00:00",
+    "endCallDateTime": "2026-09-30 11:00:10",
+    "callDurationSeconds": "10",
+    "callStatus": "RECEIVED",
+    "type": "HIGH_END_MOBILE_SEARCH",
+    "callerCountryCode": "BR",
+    "callTrackingDisplayLocation": "LANDING_PAGE"
+   },
+   "campaign": {
+    "resourceName": "customers/1234567890/campaigns/501",
+    "id": "501",
+    "name": "Pesquisa Comunicação Visual"
+   }
+  }
+ ],
+ "fieldMask": "callView.startCallDateTime",
+ "requestId": "req-ficticio-0001"
+}

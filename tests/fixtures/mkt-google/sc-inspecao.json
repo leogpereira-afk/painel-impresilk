@@ -1,0 +1,36 @@
+{
+ "inspectionResult": {
+  "inspectionResultLink": "https://search.google.com/search-console/inspect?resource_id=sc-domain:impresilk.com.br&id=teste",
+  "indexStatusResult": {
+   "verdict": "PASS",
+   "coverageState": "Submitted and indexed",
+   "robotsTxtState": "ALLOWED",
+   "indexingState": "INDEXING_ALLOWED",
+   "lastCrawlTime": "2026-10-03T14:22:10Z",
+   "pageFetchState": "SUCCESSFUL",
+   "googleCanonical": "https://impresilk.com.br/?page_id=144",
+   "userCanonical": "https://impresilk.com.br/?page_id=144",
+   "sitemap": [
+    "https://impresilk.com.br/sitemap_index.xml"
+   ],
+   "referringUrls": [
+    "https://impresilk.com.br/"
+   ],
+   "crawledAs": "MOBILE"
+  },
+  "richResultsResult": {
+   "verdict": "PASS",
+   "detectedItems": [
+    {
+     "richResultType": "Breadcrumbs",
+     "items": [
+      {
+       "name": "Unnamed item",
+       "issues": []
+      }
+     ]
+    }
+   ]
+  }
+ }
+}

@@ -1,0 +1,21 @@
+{
+ "sitemap": [
+  {
+   "path": "https://impresilk.com.br/sitemap_index.xml",
+   "lastSubmitted": "2026-10-01T12:00:00.000Z",
+   "isPending": false,
+   "isSitemapsIndex": true,
+   "type": "sitemap",
+   "lastDownloaded": "2026-10-02T08:30:00.000Z",
+   "warnings": "0",
+   "errors": "1",
+   "contents": [
+    {
+     "type": "web",
+     "submitted": "24",
+     "indexed": "20"
+    }
+   ]
+  }
+ ]
+}

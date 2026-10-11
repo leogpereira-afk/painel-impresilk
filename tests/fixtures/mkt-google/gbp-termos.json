@@ -1,0 +1,22 @@
+{
+ "searchKeywordsCounts": [
+  {
+   "searchKeyword": "comunicação visual",
+   "insightsValue": {
+    "value": "132"
+   }
+  },
+  {
+   "searchKeyword": "impresilk",
+   "insightsValue": {
+    "value": "95"
+   }
+  },
+  {
+   "searchKeyword": "adesivo para vitrine",
+   "insightsValue": {
+    "threshold": "15"
+   }
+  }
+ ]
+}

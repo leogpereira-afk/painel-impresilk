@@ -1,0 +1,14 @@
+{
+ "accounts": [
+  {
+   "name": "accounts/100",
+   "accountName": "Léo Pessoal",
+   "type": "PERSONAL",
+   "role": "PRIMARY_OWNER",
+   "verificationState": "UNVERIFIED",
+   "vettedState": "NOT_VETTED",
+   "permissionLevel": "OWNER_LEVEL"
+  }
+ ],
+ "nextPageToken": "p2"
+}

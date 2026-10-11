@@ -1,0 +1,21 @@
+{
+ "name": "locations/222/attributes",
+ "attributes": [
+  {
+   "name": "attributes/has_wheelchair_accessible_entrance",
+   "valueType": "BOOL",
+   "values": [
+    true
+   ]
+  },
+  {
+   "name": "attributes/url_whatsapp",
+   "valueType": "URL",
+   "uriValues": [
+    {
+     "uri": "https://wa.me/5531900000000"
+    }
+   ]
+  }
+ ]
+}

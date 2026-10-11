@@ -1,0 +1,41 @@
+{
+ "dimensionHeaders": [
+  {
+   "name": "country"
+  }
+ ],
+ "metricHeaders": [
+  {
+   "name": "activeUsers",
+   "type": "TYPE_INTEGER"
+  }
+ ],
+ "rows": [
+  {
+   "dimensionValues": [
+    {
+     "value": "Japan"
+    }
+   ],
+   "metricValues": [
+    {
+     "value": "2541"
+    }
+   ]
+  },
+  {
+   "dimensionValues": [
+    {
+     "value": "France"
+    }
+   ],
+   "metricValues": [
+    {
+     "value": "12"
+    }
+   ]
+  }
+ ],
+ "metadata": {},
+ "rowCount": 2
+}

@@ -1,0 +1,76 @@
+{
+ "type": "YOUR_TOTAL_AUDIENCE",
+ "date": "2026-10-12",
+ "size": 45000,
+ "size_is_upper_bound": false,
+ "demographics": {
+  "ages": [
+   {
+    "key": "25-34",
+    "name": "25-34",
+    "ratio": 0.41
+   },
+   {
+    "key": "35-44",
+    "name": "35-44",
+    "ratio": 0.27
+   }
+  ],
+  "genders": [
+   {
+    "key": "female",
+    "name": "female",
+    "ratio": 0.62
+   },
+   {
+    "key": "male",
+    "name": "male",
+    "ratio": 0.35
+   }
+  ],
+  "countries": [
+   {
+    "key": "BR",
+    "name": "Brazil",
+    "ratio": 0.97
+   }
+  ],
+  "metros": [
+   {
+    "key": "31000",
+    "name": "Belo Horizonte",
+    "ratio": 0.22
+   }
+  ],
+  "devices": [
+   {
+    "key": "MOBILE",
+    "name": "Mobile",
+    "ratio": 0.81
+   },
+   {
+    "key": "WEB",
+    "name": "Web",
+    "ratio": 0.19
+   }
+  ]
+ },
+ "categories": [
+  {
+   "id": "1",
+   "key": "home_decor",
+   "name": "Home decor",
+   "ratio": 0.3,
+   "index": 1.8,
+   "subcategories": [
+    {
+     "id": "11",
+     "key": "signage",
+     "name": "Signage",
+     "ratio": 0.1,
+     "index": 2.5
+    }
+   ]
+  }
+ ]
+}

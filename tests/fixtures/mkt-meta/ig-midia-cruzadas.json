@@ -1,0 +1,26 @@
+{
+ "data": [
+  {
+   "name": "facebook_views",
+   "period": "lifetime",
+   "title": "facebook_views",
+   "values": [
+    {
+     "value": 300
+    }
+   ],
+   "id": "m/insights/facebook_views/lifetime"
+  },
+  {
+   "name": "crossposted_views",
+   "period": "lifetime",
+   "title": "crossposted_views",
+   "values": [
+    {
+     "value": 350
+    }
+   ],
+   "id": "m/insights/crossposted_views/lifetime"
+  }
+ ]
+}

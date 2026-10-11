@@ -1,0 +1,155 @@
+{
+ "age": [
+  {
+   "name": "follower_demographics",
+   "period": "lifetime",
+   "title": "follower_demographics",
+   "total_value": {
+    "breakdowns": [
+     {
+      "dimension_keys": [
+       "age"
+      ],
+      "results": [
+       {
+        "dimension_values": [
+         "25-34"
+        ],
+        "value": 1800
+       },
+       {
+        "dimension_values": [
+         "35-44"
+        ],
+        "value": 1500
+       }
+      ]
+     }
+    ]
+   },
+   "id": "17841400000000001/insights/follower_demographics/lifetime"
+  },
+  {
+   "name": "engaged_audience_demographics",
+   "period": "lifetime",
+   "title": "engaged_audience_demographics",
+   "total_value": {
+    "breakdowns": [
+     {
+      "dimension_keys": [
+       "age"
+      ],
+      "results": [
+       {
+        "dimension_values": [
+         "25-34"
+        ],
+        "value": 90
+       }
+      ]
+     }
+    ]
+   },
+   "id": "17841400000000001/insights/engaged_audience_demographics/lifetime"
+  }
+ ],
+ "city": [
+  {
+   "name": "follower_demographics",
+   "period": "lifetime",
+   "title": "follower_demographics",
+   "total_value": {
+    "breakdowns": [
+     {
+      "dimension_keys": [
+       "city"
+      ],
+      "results": [
+       {
+        "dimension_values": [
+         "Belo Horizonte, Minas Gerais"
+        ],
+        "value": 2600
+       },
+       {
+        "dimension_values": [
+         "Contagem, Minas Gerais"
+        ],
+        "value": 400
+       }
+      ]
+     }
+    ]
+   },
+   "id": "17841400000000001/insights/follower_demographics/lifetime"
+  }
+ ],
+ "country": [
+  {
+   "name": "follower_demographics",
+   "period": "lifetime",
+   "title": "follower_demographics",
+   "total_value": {
+    "breakdowns": [
+     {
+      "dimension_keys": [
+       "country"
+      ],
+      "results": [
+       {
+        "dimension_values": [
+         "BR"
+        ],
+        "value": 5100
+       },
+       {
+        "dimension_values": [
+         "PT"
+        ],
+        "value": 20
+       }
+      ]
+     }
+    ]
+   },
+   "id": "17841400000000001/insights/follower_demographics/lifetime"
+  }
+ ],
+ "gender": [
+  {
+   "name": "follower_demographics",
+   "period": "lifetime",
+   "title": "follower_demographics",
+   "total_value": {
+    "breakdowns": [
+     {
+      "dimension_keys": [
+       "gender"
+      ],
+      "results": [
+       {
+        "dimension_values": [
+         "F"
+        ],
+        "value": 2500
+       },
+       {
+        "dimension_values": [
+         "M"
+        ],
+        "value": 2600
+       },
+       {
+        "dimension_values": [
+         "U"
+        ],
+        "value": 130
+       }
+      ]
+     }
+    ]
+   },
+   "id": "17841400000000001/insights/follower_demographics/lifetime"
+  }
+ ]
+}

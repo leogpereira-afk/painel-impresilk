@@ -1,0 +1,31 @@
+{
+ "accountSummaries": [
+  {
+   "name": "accountSummaries/900",
+   "account": "accounts/900",
+   "displayName": "Outra empresa",
+   "propertySummaries": [
+    {
+     "property": "properties/111",
+     "displayName": "Outro site",
+     "propertyType": "PROPERTY_TYPE_ORDINARY",
+     "parent": "accounts/900"
+    }
+   ]
+  },
+  {
+   "name": "accountSummaries/901",
+   "account": "accounts/901",
+   "displayName": "Impresilk",
+   "propertySummaries": [
+    {
+     "property": "properties/222",
+     "displayName": "impresilk.com.br",
+     "propertyType": "PROPERTY_TYPE_ORDINARY",
+     "parent": "accounts/901",
+     "canEdit": false
+    }
+   ]
+  }
+ ]
+}

@@ -1,0 +1,87 @@
+{
+ "results": [
+  {
+   "campaign": {
+    "resourceName": "customers/1234567890/campaigns/501",
+    "id": "501",
+    "name": "Pesquisa Comunicação Visual",
+    "status": "ENABLED",
+    "advertisingChannelType": "SEARCH"
+   },
+   "segments": {
+    "date": "2026-09-01"
+   },
+   "metrics": {
+    "impressions": "300",
+    "clicks": "20",
+    "interactions": "20",
+    "costMicros": "40000000",
+    "conversions": 2.0,
+    "conversionsValue": 0.0,
+    "allConversions": 2.0
+   }
+  },
+  {
+   "campaign": {
+    "resourceName": "customers/1234567890/campaigns/501",
+    "id": "501",
+    "name": "Pesquisa Comunicação Visual",
+    "status": "ENABLED",
+    "advertisingChannelType": "SEARCH"
+   },
+   "segments": {
+    "date": "2026-09-02"
+   },
+   "metrics": {
+    "impressions": "200",
+    "clicks": "10",
+    "interactions": "10",
+    "costMicros": "25500000",
+    "conversions": 1.5,
+    "conversionsValue": 0.0,
+    "allConversions": 1.5
+   }
+  },
+  {
+   "campaign": {
+    "resourceName": "customers/1234567890/campaigns/502",
+    "id": "502",
+    "name": "Performance Max Fachadas",
+    "status": "ENABLED",
+    "advertisingChannelType": "PERFORMANCE_MAX"
+   },
+   "segments": {
+    "date": "2026-09-01"
+   },
+   "metrics": {
+    "impressions": "500",
+    "clicks": "15",
+    "interactions": "15",
+    "costMicros": "30000000",
+    "conversions": 1.0,
+    "conversionsValue": 0.0,
+    "allConversions": 1.0
+   }
+  },
+  {
+   "campaign": {
+    "resourceName": "customers/1234567890/campaigns/503",
+    "id": "503",
+    "name": "Campanha antiga",
+    "status": "REMOVED",
+    "advertisingChannelType": "SEARCH"
+   },
+   "segments": {
+    "date": "2026-08-12"
+   },
+   "metrics": {
+    "impressions": "50",
+    "clicks": "3",
+    "interactions": "3",
+    "costMicros": "6000000"
+   }
+  }
+ ],
+ "fieldMask": "campaign.id,segments.date",
+ "requestId": "req-ficticio-0001"
+}

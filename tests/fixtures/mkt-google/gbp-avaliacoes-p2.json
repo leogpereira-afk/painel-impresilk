@@ -1,0 +1,19 @@
+{
+ "reviews": [
+  {
+   "name": "accounts/111/locations/222/reviews/C",
+   "reviewId": "C",
+   "reviewer": {
+    "displayName": "Cliente C",
+    "profilePhotoUrl": "https://example.com/p.jpg",
+    "isAnonymous": false
+   },
+   "starRating": "THREE",
+   "comment": "Texto de teste.",
+   "createTime": "2026-08-01T10:00:00Z",
+   "updateTime": "2026-08-01T10:00:00Z"
+  }
+ ],
+ "averageRating": 4.5,
+ "totalReviewCount": 4
+}

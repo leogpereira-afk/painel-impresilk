@@ -1,0 +1,21 @@
+{
+ "error": {
+  "code": 403,
+  "message": "The Google Cloud project is not approved for production access. Detalhe interno 1234567890.",
+  "status": "PERMISSION_DENIED",
+  "details": [
+   {
+    "@type": "type.googleapis.com/google.ads.googleads.v25.errors.GoogleAdsFailure",
+    "errors": [
+     {
+      "errorCode": {
+       "authorizationError": "CLOUD_PROJECT_NOT_APPROVED_FOR_PRODUCTION"
+      },
+      "message": "The Google Cloud project is not approved for production access. Detalhe interno 1234567890."
+     }
+    ],
+    "requestId": "req-ficticio-erro"
+   }
+  ]
+ }
+}

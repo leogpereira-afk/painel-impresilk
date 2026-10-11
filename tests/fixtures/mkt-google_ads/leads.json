@@ -1,0 +1,61 @@
+{
+ "results": [
+  {
+   "leadFormSubmissionData": {
+    "resourceName": "customers/1234567890/leadFormSubmissionData/L1",
+    "id": "L1",
+    "submissionDateTime": "2026-09-20 14:30:00-03:00",
+    "gclid": "gclid-ficticio-1",
+    "leadFormSubmissionFields": [
+     {
+      "fieldType": "FULL_NAME",
+      "fieldValue": "Fulana de Teste"
+     },
+     {
+      "fieldType": "PHONE_NUMBER",
+      "fieldValue": "+55 31 90000-0001"
+     },
+     {
+      "fieldType": "EMAIL",
+      "fieldValue": "fulana@example.com"
+     }
+    ],
+    "customLeadFormSubmissionFields": [
+     {
+      "questionText": "Qual o tamanho da fachada?",
+      "fieldValue": "6 metros"
+     }
+    ]
+   },
+   "campaign": {
+    "resourceName": "customers/1234567890/campaigns/501",
+    "id": "501",
+    "name": "Pesquisa Comunicação Visual"
+   },
+   "adGroup": {
+    "resourceName": "customers/1234567890/adGroups/601",
+    "name": "Fachadas"
+   }
+  },
+  {
+   "leadFormSubmissionData": {
+    "resourceName": "customers/1234567890/leadFormSubmissionData/L2",
+    "id": "L2",
+    "submissionDateTime": "2026-10-02 09:10:00-03:00",
+    "leadFormSubmissionFields": [
+     {
+      "fieldType": "FULL_NAME",
+      "fieldValue": "Beltrano Exemplo"
+     }
+    ]
+   },
+   "campaign": {
+    "resourceName": "customers/1234567890/campaigns/501",
+    "id": "501",
+    "name": "Pesquisa Comunicação Visual"
+   }
+  }
+ ],
+ "fieldMask": "leadFormSubmissionData.id",
+ "requestId": "req-ficticio-0001"
+}

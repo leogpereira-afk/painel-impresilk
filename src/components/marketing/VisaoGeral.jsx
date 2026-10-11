@@ -11,11 +11,17 @@
  * Compacta (11/10/2026): o Fazer é um Bloco com o cabeçalho numa linha (o
  * título, a frase ao lado e os controles desenhados com 36px), para a
  * primeira tarefa subir na tela. Os quatro números continuam grandes.
+ *
+ * Integrações (11/10/2026): entre o Fazer e os números, a faixa "Fontes"
+ * (FaixaFontes.jsx), um selo por fonte de dados que leva a Configurações >
+ * Conexões. Ela lê as fontes sozinha: se falhar, só ela vira uma frase
+ * discreta, e a Visão geral continua inteira.
  */
 import { useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { AlertTriangle, CalendarClock, ListTodo, Megaphone, Plus, Wallet } from 'lucide-react';
 import FilaFazer from './FilaFazer.jsx';
+import FaixaFontes from './FaixaFontes.jsx';
 import PlanejamentoMarketing from '../PlanejamentoMarketing.jsx';
 import { SetaVariacao } from '../ChipCanal.jsx';
 import { StatCard, Empty, Segmented } from '../ui.jsx';
@@ -114,6 +120,8 @@ export default function VisaoGeral() {
           }
         />
       </Bloco>
+
+      <FaixaFontes />
 
       <div className="grid grid-cols-2 gap-2.5 lg:grid-cols-4 lg:gap-3">
         <StatCard rotulo="Ações abertas" valor={k.abertas == null ? 'sem dado' : numero(k.abertas)} icone={ListTodo} sub="Ainda não publicadas nem encerradas" />

@@ -1,0 +1,27 @@
+{
+ "items": [
+  {
+   "id": "626736533506",
+   "ad_account_id": "549755885175",
+   "name": "Leads de fachada",
+   "status": "ACTIVE",
+   "objective_type": "LEADS",
+   "daily_spend_cap": 20000000,
+   "lifetime_spend_cap": null,
+   "start_time": 1759276800,
+   "end_time": null
+  },
+  {
+   "id": "626736533507",
+   "ad_account_id": "549755885175",
+   "name": "Reconhecimento",
+   "status": "PAUSED",
+   "objective_type": "AWARENESS",
+   "daily_spend_cap": null,
+   "lifetime_spend_cap": 500000000,
+   "start_time": 1756684800,
+   "end_time": 1759276800
+  }
+ ],
+ "bookmark": null
+}

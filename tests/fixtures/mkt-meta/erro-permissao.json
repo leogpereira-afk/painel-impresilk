@@ -1,0 +1,8 @@
+{
+ "error": {
+  "message": "(#200) Requires pages_manage_posts permission",
+  "type": "OAuthException",
+  "code": 200,
+  "fbtrace_id": "AFakeTraceId000"
+ }
+}

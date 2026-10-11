@@ -1,0 +1,229 @@
+{
+ "record": {
+  "key": {
+   "formFactor": "PHONE",
+   "origin": "https://exemplo.com.br"
+  },
+  "metrics": {
+   "largest_contentful_paint": {
+    "histogramTimeseries": [
+     {
+      "start": 0,
+      "end": 2500,
+      "densities": [
+       0.55,
+       0.56,
+       "NaN",
+       0.58,
+       0.59,
+       0.6,
+       0.61,
+       0.61,
+       0.61,
+       0.61
+      ]
+     },
+     {
+      "start": 2500,
+      "end": 4000,
+      "densities": [
+       0.3,
+       0.3,
+       0.3,
+       0.3,
+       0.3,
+       0.3,
+       0.3,
+       0.3,
+       0.3,
+       0.3
+      ]
+     },
+     {
+      "start": 4000,
+      "densities": [
+       0.1,
+       0.1,
+       0.1,
+       0.1,
+       0.1,
+       0.1,
+       0.1,
+       0.1,
+       0.1,
+       0.1
+      ]
+     }
+    ],
+    "percentilesTimeseries": {
+     "p75s": [
+      3400,
+      3350,
+      null,
+      3300,
+      3200,
+      3150,
+      3100,
+      3120,
+      3080,
+      3100
+     ]
+    }
+   },
+   "interaction_to_next_paint": {
+    "percentilesTimeseries": {
+     "p75s": [
+      260,
+      255,
+      null,
+      250,
+      245,
+      240,
+      240,
+      238,
+      240,
+      240
+     ]
+    }
+   },
+   "cumulative_layout_shift": {
+    "percentilesTimeseries": {
+     "p75s": [
+      "0.08",
+      "0.07",
+      null,
+      "0.06",
+      "0.06",
+      "0.05",
+      "0.05",
+      "0.05",
+      "0.05",
+      "0.05"
+     ]
+    }
+   }
+  },
+  "collectionPeriods": [
+   {
+    "firstDate": {
+     "year": 2026,
+     "month": 7,
+     "day": 5
+    },
+    "lastDate": {
+     "year": 2026,
+     "month": 8,
+     "day": 1
+    }
+   },
+   {
+    "firstDate": {
+     "year": 2026,
+     "month": 7,
+     "day": 12
+    },
+    "lastDate": {
+     "year": 2026,
+     "month": 8,
+     "day": 8
+    }
+   },
+   {
+    "firstDate": {
+     "year": 2026,
+     "month": 7,
+     "day": 19
+    },
+    "lastDate": {
+     "year": 2026,
+     "month": 8,
+     "day": 15
+    }
+   },
+   {
+    "firstDate": {
+     "year": 2026,
+     "month": 7,
+     "day": 26
+    },
+    "lastDate": {
+     "year": 2026,
+     "month": 8,
+     "day": 22
+    }
+   },
+   {
+    "firstDate": {
+     "year": 2026,
+     "month": 8,
+     "day": 2
+    },
+    "lastDate": {
+     "year": 2026,
+     "month": 8,
+     "day": 29
+    }
+   },
+   {
+    "firstDate": {
+     "year": 2026,
+     "month": 8,
+     "day": 9
+    },
+    "lastDate": {
+     "year": 2026,
+     "month": 9,
+     "day": 5
+    }
+   },
+   {
+    "firstDate": {
+     "year": 2026,
+     "month": 8,
+     "day": 16
+    },
+    "lastDate": {
+     "year": 2026,
+     "month": 9,
+     "day": 12
+    }
+   },
+   {
+    "firstDate": {
+     "year": 2026,
+     "month": 8,
+     "day": 23
+    },
+    "lastDate": {
+     "year": 2026,
+     "month": 9,
+     "day": 19
+    }
+   },
+   {
+    "firstDate": {
+     "year": 2026,
+     "month": 8,
+     "day": 30
+    },
+    "lastDate": {
+     "year": 2026,
+     "month": 9,
+     "day": 26
+    }
+   },
+   {
+    "firstDate": {
+     "year": 2026,
+     "month": 9,
+     "day": 6
+    },
+    "lastDate": {
+     "year": 2026,
+     "month": 10,
+     "day": 3
+    }
+   }
+  ]
+ }
+}

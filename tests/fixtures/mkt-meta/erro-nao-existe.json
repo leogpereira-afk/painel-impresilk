@@ -1,0 +1,9 @@
+{
+ "error": {
+  "message": "Unsupported get request. Object with ID does not exist or cannot be loaded due to missing permissions.",
+  "type": "GraphMethodException",
+  "code": 100,
+  "fbtrace_id": "AFakeTraceId000",
+  "error_subcode": 33
+ }
+}

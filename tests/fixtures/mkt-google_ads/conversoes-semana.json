@@ -1,0 +1,214 @@
+{
+ "results": [
+  {
+   "customer": {
+    "resourceName": "customers/1234567890"
+   },
+   "segments": {
+    "week": "2026-08-10",
+    "conversionAction": "customers/1234567890/conversionActions/111",
+    "conversionActionName": "Formulário do site",
+    "conversionActionCategory": "SUBMIT_LEAD_FORM"
+   },
+   "metrics": {
+    "conversions": 3.0,
+    "conversionsValue": 0.0,
+    "allConversions": 3.0
+   }
+  },
+  {
+   "customer": {
+    "resourceName": "customers/1234567890"
+   },
+   "segments": {
+    "week": "2026-08-10",
+    "conversionAction": "customers/1234567890/conversionActions/222",
+    "conversionActionName": "Clique no WhatsApp",
+    "conversionActionCategory": "CONTACT"
+   },
+   "metrics": {
+    "conversions": 2.0,
+    "conversionsValue": 0.0,
+    "allConversions": 2.0
+   }
+  },
+  {
+   "customer": {
+    "resourceName": "customers/1234567890"
+   },
+   "segments": {
+    "week": "2026-08-17",
+    "conversionAction": "customers/1234567890/conversionActions/111",
+    "conversionActionName": "Formulário do site",
+    "conversionActionCategory": "SUBMIT_LEAD_FORM"
+   },
+   "metrics": {
+    "conversions": 4.0,
+    "conversionsValue": 0.0,
+    "allConversions": 4.0
+   }
+  },
+  {
+   "customer": {
+    "resourceName": "customers/1234567890"
+   },
+   "segments": {
+    "week": "2026-08-17",
+    "conversionAction": "customers/1234567890/conversionActions/222",
+    "conversionActionName": "Clique no WhatsApp",
+    "conversionActionCategory": "CONTACT"
+   },
+   "metrics": {
+    "conversions": 1.5,
+    "conversionsValue": 0.0,
+    "allConversions": 1.5
+   }
+  },
+  {
+   "customer": {
+    "resourceName": "customers/1234567890"
+   },
+   "segments": {
+    "week": "2026-08-31",
+    "conversionAction": "customers/1234567890/conversionActions/222",
+    "conversionActionName": "Clique no WhatsApp",
+    "conversionActionCategory": "CONTACT"
+   },
+   "metrics": {
+    "conversions": 2.0,
+    "conversionsValue": 0.0,
+    "allConversions": 2.0
+   }
+  },
+  {
+   "customer": {
+    "resourceName": "customers/1234567890"
+   },
+   "segments": {
+    "week": "2026-09-07",
+    "conversionAction": "customers/1234567890/conversionActions/111",
+    "conversionActionName": "Formulário do site",
+    "conversionActionCategory": "SUBMIT_LEAD_FORM"
+   },
+   "metrics": {
+    "conversions": 2.333,
+    "conversionsValue": 0.0,
+    "allConversions": 2.333
+   }
+  },
+  {
+   "customer": {
+    "resourceName": "customers/1234567890"
+   },
+   "segments": {
+    "week": "2026-09-14",
+    "conversionAction": "customers/1234567890/conversionActions/111",
+    "conversionActionName": "Formulário do site",
+    "conversionActionCategory": "SUBMIT_LEAD_FORM"
+   },
+   "metrics": {
+    "conversions": 5.0,
+    "conversionsValue": 0.0,
+    "allConversions": 5.0
+   }
+  },
+  {
+   "customer": {
+    "resourceName": "customers/1234567890"
+   },
+   "segments": {
+    "week": "2026-09-14",
+    "conversionAction": "customers/1234567890/conversionActions/222",
+    "conversionActionName": "Clique no WhatsApp",
+    "conversionActionCategory": "CONTACT"
+   },
+   "metrics": {
+    "conversions": 2.0,
+    "conversionsValue": 0.0,
+    "allConversions": 2.0
+   }
+  },
+  {
+   "customer": {
+    "resourceName": "customers/1234567890"
+   },
+   "segments": {
+    "week": "2026-09-14",
+    "conversionAction": "customers/1234567890/conversionActions/333",
+    "conversionActionName": "Visita à página de orçamento",
+    "conversionActionCategory": "PAGE_VIEW"
+   },
+   "metrics": {
+    "conversions": 0.0,
+    "conversionsValue": 0.0,
+    "allConversions": 10.0
+   }
+  },
+  {
+   "customer": {
+    "resourceName": "customers/1234567890"
+   },
+   "segments": {
+    "week": "2026-09-21",
+    "conversionAction": "customers/1234567890/conversionActions/111",
+    "conversionActionName": "Formulário do site",
+    "conversionActionCategory": "SUBMIT_LEAD_FORM"
+   },
+   "metrics": {
+    "conversions": 3.0,
+    "conversionsValue": 0.0,
+    "allConversions": 3.0
+   }
+  },
+  {
+   "customer": {
+    "resourceName": "customers/1234567890"
+   },
+   "segments": {
+    "week": "2026-09-28",
+    "conversionAction": "customers/1234567890/conversionActions/111",
+    "conversionActionName": "Formulário do site",
+    "conversionActionCategory": "SUBMIT_LEAD_FORM"
+   },
+   "metrics": {
+    "conversions": 4.0,
+    "conversionsValue": 0.0,
+    "allConversions": 4.0
+   }
+  },
+  {
+   "customer": {
+    "resourceName": "customers/1234567890"
+   },
+   "segments": {
+    "week": "2026-09-28",
+    "conversionAction": "customers/1234567890/conversionActions/222",
+    "conversionActionName": "Clique no WhatsApp",
+    "conversionActionCategory": "CONTACT"
+   },
+   "metrics": {
+    "conversions": 1.0,
+    "conversionsValue": 0.0,
+    "allConversions": 1.0
+   }
+  },
+  {
+   "customer": {
+    "resourceName": "customers/1234567890"
+   },
+   "segments": {
+    "week": "2026-10-05",
+    "conversionAction": "customers/1234567890/conversionActions/111",
+    "conversionActionName": "Formulário do site",
+    "conversionActionCategory": "SUBMIT_LEAD_FORM"
+   },
+   "metrics": {
+    "conversions": 1.0,
+    "conversionsValue": 0.0,
+    "allConversions": 1.0
+   }
+  }
+ ],
+ "fieldMask": "segments.week",
+ "requestId": "req-ficticio-0001"
+}

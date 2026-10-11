@@ -1,0 +1,23 @@
+{
+ "results": [
+  {
+   "customer": {
+    "resourceName": "customers/1234567890",
+    "id": "1234567890",
+    "descriptiveName": "Impresilk Comunicação Visual",
+    "currencyCode": "BRL",
+    "timeZone": "America/Sao_Paulo",
+    "manager": false,
+    "testAccount": false,
+    "conversionTrackingSetting": {
+     "conversionTrackingId": "11004527401"
+    },
+    "callReportingSetting": {
+     "callReportingEnabled": true
+    }
+   }
+  }
+ ],
+ "fieldMask": "customer.id,customer.descriptiveName",
+ "requestId": "req-ficticio-0001"
+}

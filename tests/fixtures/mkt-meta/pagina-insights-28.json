@@ -1,0 +1,20 @@
+{
+ "data": [
+  {
+   "name": "page_total_media_view_unique",
+   "period": "days_28",
+   "title": "28 Days",
+   "id": "100000000000001/insights/page_total_media_view_unique/days_28",
+   "values": [
+    {
+     "value": 2900,
+     "end_time": "2026-10-10T07:00:00+0000"
+    },
+    {
+     "value": 2950,
+     "end_time": "2026-10-11T07:00:00+0000"
+    }
+   ]
+  }
+ ]
+}

@@ -1,0 +1,55 @@
+{
+ "results": [
+  {
+   "campaign": {
+    "resourceName": "customers/1234567890/campaigns/501",
+    "id": "501",
+    "name": "Pesquisa Comunicação Visual",
+    "status": "ENABLED",
+    "primaryStatus": "ELIGIBLE",
+    "primaryStatusReasons": [],
+    "servingStatus": "SERVING",
+    "advertisingChannelType": "SEARCH",
+    "biddingStrategyType": "MAXIMIZE_CONVERSIONS",
+    "startDateTime": "2025-03-01 00:00:00",
+    "optimizationScore": 0.87
+   },
+   "campaignBudget": {
+    "resourceName": "customers/1234567890/campaignBudgets/9",
+    "amountMicros": "50000000",
+    "period": "DAILY",
+    "deliveryMethod": "STANDARD"
+   }
+  },
+  {
+   "campaign": {
+    "resourceName": "customers/1234567890/campaigns/502",
+    "id": "502",
+    "name": "Performance Max Fachadas",
+    "status": "ENABLED",
+    "primaryStatus": "LIMITED",
+    "primaryStatusReasons": [
+     "BUDGET_CONSTRAINED"
+    ],
+    "advertisingChannelType": "PERFORMANCE_MAX",
+    "biddingStrategyType": "MAXIMIZE_CONVERSION_VALUE"
+   },
+   "campaignBudget": {
+    "resourceName": "customers/1234567890/campaignBudgets/10",
+    "amountMicros": "30000000",
+    "period": "DAILY"
+   }
+  },
+  {
+   "campaign": {
+    "resourceName": "customers/1234567890/campaigns/504",
+    "id": "504",
+    "name": "Pausada sem gasto",
+    "status": "PAUSED",
+    "advertisingChannelType": "SEARCH"
+   }
+  }
+ ],
+ "fieldMask": "campaign.id",
+ "requestId": "req-ficticio-0001"
+}

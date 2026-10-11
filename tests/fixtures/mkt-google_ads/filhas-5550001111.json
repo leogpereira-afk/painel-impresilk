@@ -1,0 +1,37 @@
+{
+ "results": [
+  {
+   "customerClient": {
+    "resourceName": "customers/5550001111/customerClients/5550001111",
+    "id": "5550001111",
+    "descriptiveName": "Agência Fictícia (administradora)",
+    "manager": true,
+    "level": "0",
+    "status": "ENABLED"
+   }
+  },
+  {
+   "customerClient": {
+    "resourceName": "customers/5550001111/customerClients/1234567890",
+    "id": "1234567890",
+    "descriptiveName": "Impresilk Comunicação Visual",
+    "manager": false,
+    "testAccount": false,
+    "level": "1",
+    "status": "ENABLED"
+   }
+  },
+  {
+   "customerClient": {
+    "resourceName": "customers/5550001111/customerClients/4440003333",
+    "id": "4440003333",
+    "descriptiveName": "Cliente cancelado",
+    "manager": false,
+    "level": "1",
+    "status": "CANCELED"
+   }
+  }
+ ],
+ "fieldMask": "customerClient.id",
+ "requestId": "req-ficticio-0001"
+}

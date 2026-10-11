@@ -1,0 +1,18 @@
+{
+ "paging": {
+  "start": 0,
+  "count": 10,
+  "total": 1
+ },
+ "elements": [
+  {
+   "entity": "urn:li:ugcPost:7000000000000000002",
+   "statisticsType": "VIDEO_VIEW",
+   "timeRange": {
+    "start": 1791484200000,
+    "end": 1791810000000
+   },
+   "value": 42
+  }
+ ]
+}

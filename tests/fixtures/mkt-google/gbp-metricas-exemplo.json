@@ -1,0 +1,99 @@
+{
+ "multiDailyMetricTimeSeries": [
+  {
+   "dailyMetricTimeSeries": [
+    {
+     "dailyMetric": "WEBSITE_CLICKS",
+     "timeSeries": {
+      "datedValues": [
+       {
+        "date": {
+         "year": 2026,
+         "month": 10,
+         "day": 5
+        },
+        "value": "4"
+       },
+       {
+        "date": {
+         "year": 2026,
+         "month": 10,
+         "day": 6
+        }
+       },
+       {
+        "date": {
+         "year": 2026,
+         "month": 10,
+         "day": 7
+        },
+        "value": "2"
+       }
+      ]
+     }
+    },
+    {
+     "dailyMetric": "CALL_CLICKS",
+     "timeSeries": {
+      "datedValues": [
+       {
+        "date": {
+         "year": 2026,
+         "month": 10,
+         "day": 5
+        },
+        "value": "3"
+       },
+       {
+        "date": {
+         "year": 2026,
+         "month": 10,
+         "day": 6
+        },
+        "value": "1"
+       },
+       {
+        "date": {
+         "year": 2026,
+         "month": 10,
+         "day": 7
+        }
+       }
+      ]
+     }
+    },
+    {
+     "dailyMetric": "BUSINESS_IMPRESSIONS_MOBILE_SEARCH",
+     "timeSeries": {
+      "datedValues": [
+       {
+        "date": {
+         "year": 2026,
+         "month": 10,
+         "day": 5
+        },
+        "value": "87"
+       },
+       {
+        "date": {
+         "year": 2026,
+         "month": 10,
+         "day": 6
+        },
+        "value": "64"
+       },
+       {
+        "date": {
+         "year": 2026,
+         "month": 10,
+         "day": 7
+        },
+        "value": "71"
+       }
+      ]
+     }
+    }
+   ]
+  }
+ ]
+}

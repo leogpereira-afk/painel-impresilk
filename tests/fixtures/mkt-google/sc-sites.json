@@ -1,0 +1,16 @@
+{
+ "siteEntry": [
+  {
+   "siteUrl": "https://impresilk.com.br/",
+   "permissionLevel": "siteOwner"
+  },
+  {
+   "siteUrl": "sc-domain:impresilk.com.br",
+   "permissionLevel": "siteFullUser"
+  },
+  {
+   "siteUrl": "sc-domain:outro.com.br",
+   "permissionLevel": "siteUnverifiedUser"
+  }
+ ]
+}

@@ -1,0 +1,35 @@
+{
+ "data": [
+  {
+   "id": "100000000000001",
+   "name": "Impresilk Exemplo",
+   "username": "impresilk.exemplo",
+   "link": "https://www.facebook.com/impresilk.exemplo",
+   "category": "Gráfica",
+   "tasks": [
+    "ANALYZE",
+    "ADVERTISE",
+    "CREATE_CONTENT"
+   ],
+   "access_token": "TOKEN-DA-PAGINA-FICTICIO",
+   "instagram_business_account": {
+    "id": "17841400000000001",
+    "username": "impresilk_exemplo"
+   }
+  },
+  {
+   "id": "100000000000002",
+   "name": "Outra Página Exemplo",
+   "tasks": [
+    "ADVERTISE"
+   ],
+   "access_token": "TOKEN-DA-OUTRA-FICTICIO"
+  }
+ ],
+ "paging": {
+  "cursors": {
+   "before": "QVFI",
+   "after": "QVFJ"
+  }
+ }
+}

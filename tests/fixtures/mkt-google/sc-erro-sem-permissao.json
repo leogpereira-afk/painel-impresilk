@@ -1,0 +1,14 @@
+{
+ "error": {
+  "code": 403,
+  "message": "User does not have sufficient permission for site 'sc-domain:impresilk.com.br'.",
+  "status": "PERMISSION_DENIED",
+  "errors": [
+   {
+    "message": "User does not have sufficient permission for site.",
+    "domain": "global",
+    "reason": "forbidden"
+   }
+  ]
+ }
+}

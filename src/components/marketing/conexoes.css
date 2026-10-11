@@ -1,0 +1,298 @@
+/* AS CONEXÕES DO MARKETING: as linhas de Configurações > Marketing >
+   Conexões (ConexoesMarketing.jsx), o "Como ligar" (ComoLigar.jsx) e a faixa
+   "Fontes" da Visão geral (FaixaFontes.jsx). Só o que o Tailwind não resolve
+   sozinho. Toda cor daqui tem o par do tema escuro logo abaixo dela.
+
+   COMPACTO DE PROPÓSITO (a regra do dono: "o mais compacto possível levando
+   em conta a qualidade da informação"): a linha de uma fonte que funciona
+   são duas linhas de texto, com os botões à direita do computador para
+   cima; o que é longo (avisos, passo a passo) fica recolhido. */
+
+/* ------------------------------------------------------------ as linhas */
+
+.mkt-conexoes-lista {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* A linha, em grade, para o mesmo HTML servir às duas larguras (e não os
+   botões desenhados duas vezes; a regra do CardCompacto):
+   - celular: o nome e o selo, com "Como ligar" na ponta direita; embaixo,
+     na ordem de leitura, conta e coleta, partes, o que falta e os botões;
+   - do sm para cima: o texto à esquerda; os botões e, na ponta, "Como
+     ligar" (no mesmo x em toda linha) à direita das duas primeiras linhas.
+   O que abre (aviso, avisos, passo a passo) ocupa a largura toda. */
+.mkt-conexao {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  column-gap: 8px;
+  row-gap: 3px;
+  padding: 10px 0;
+  border-top: 1px solid var(--fio-lista, #f0f0f5);
+}
+.mkt-conexao > * {
+  grid-column: 1 / -1;
+}
+.mkt-conexao > .mkt-conexao-cabeca {
+  grid-column: 1;
+  grid-row: 1;
+}
+.mkt-conexao > .mkt-conexao-ligar {
+  grid-column: 2;
+  grid-row: 1;
+  align-self: center;
+  margin-right: -8px;
+}
+.mkt-conexao:first-child {
+  border-top: 0;
+  padding-top: 0;
+}
+.mkt-conexao:last-child {
+  padding-bottom: 0;
+}
+.mkt-conexao-cabeca {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+}
+.mkt-conexao-cabeca h4 {
+  margin: 0;
+}
+.mkt-conexao-meta,
+.mkt-conexao-detalhe {
+  margin: 0;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+/* Os botões desenhados com 32px tocam em 40px (.alvo-40): a folga de 4px em
+   cima e embaixo cabe no respiro da linha. */
+.mkt-conexao-botoes {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 6px;
+  margin-top: 6px;
+}
+@media (min-width: 640px) {
+  .mkt-conexao {
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    column-gap: 6px;
+  }
+  .mkt-conexao > * {
+    grid-column: 1;
+  }
+  .mkt-conexao > .mkt-conexao-botoes {
+    grid-column: 2;
+    grid-row: 1 / span 2;
+    align-self: start;
+    justify-content: flex-end;
+    margin: 0 0 0 10px;
+  }
+  .mkt-conexao > .mkt-conexao-ligar {
+    grid-column: 3;
+    grid-row: 1;
+    align-self: start;
+  }
+  .mkt-conexao > .mkt-conexao-largo {
+    grid-column: 1 / -1;
+  }
+}
+
+/* As partes: lado a lado quando só têm o estado; a que tem motivo ocupa a
+   linha (o motivo é frase). O ponto tem a cor do estado; o estado vem
+   escrito ao lado (a cor nunca é a única informação). */
+.mkt-conexao-partes {
+  line-height: 1.5;
+}
+.mkt-conexao-partes p {
+  margin: 0;
+}
+.mkt-conexao-partes ul {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1px 14px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.mkt-conexao-partes li {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.mkt-conexao-partes li.com-motivo {
+  flex-basis: 100%;
+}
+.mkt-conexao-ponto {
+  flex: none;
+  width: 6px;
+  height: 6px;
+  margin-top: 6px;
+  border-radius: 999px;
+}
+
+/* "1 aviso", no meio da linha da conta: um botão com cara de link, que abre
+   a lista embaixo. Toque de 40px pelo .alvo-40. */
+.mkt-conexao-alterna {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: #2529a6;
+  cursor: pointer;
+}
+.mkt-conexao-alterna:hover {
+  text-decoration: underline;
+}
+html.dark .mkt-conexao-alterna {
+  color: #9ba1f6;
+}
+
+.mkt-conexao-avisos {
+  margin: 4px 0 0;
+  padding-left: 18px;
+  list-style: disc;
+  line-height: 1.5;
+}
+
+/* O aviso de uma resposta (Atualizar, Desconectar, a volta do Conectar):
+   perto do botão que a pessoa tocou, com o X para fechar. */
+.mkt-conexao-aviso {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin-top: 6px;
+  padding: 4px 4px 4px 10px;
+  border-radius: 10px;
+  font-size: 13px;
+  line-height: 1.45;
+}
+.mkt-conexao-aviso p {
+  margin: 0;
+  padding: 4px 0;
+}
+.mkt-conexoes > .mkt-conexao-aviso:first-child {
+  margin-top: 0;
+}
+
+/* ------------------------------------------------------- "Como ligar" */
+
+.mkt-ligar {
+  margin-top: 6px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: #f6f7fb;
+  font-size: 13px;
+  line-height: 1.55;
+  color: #334155;
+  overflow-wrap: anywhere;
+}
+html.dark .mkt-ligar {
+  background: rgba(255, 255, 255, 0.04);
+  color: #d3d9e8;
+}
+.mkt-ligar > * + * {
+  margin-top: 8px;
+}
+.mkt-ligar p {
+  margin: 0;
+}
+.mkt-ligar-aviso {
+  color: #92400e;
+}
+html.dark .mkt-ligar-aviso {
+  color: #fcd34d;
+}
+.mkt-ligar h5 {
+  margin: 0;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #0f172a;
+}
+html.dark .mkt-ligar h5 {
+  color: #f2f4fb;
+}
+.mkt-ligar ol {
+  margin: 2px 0 0;
+  padding-left: 22px;
+  list-style: decimal;
+}
+.mkt-ligar li + li {
+  margin-top: 3px;
+}
+.mkt-ligar-link {
+  color: #2529a6;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+html.dark .mkt-ligar-link {
+  color: #9ba1f6;
+}
+.mkt-ligar-codigo {
+  padding: 0 4px;
+  border-radius: 4px;
+  background: rgba(15, 23, 42, 0.06);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12px;
+}
+html.dark .mkt-ligar-codigo {
+  background: rgba(255, 255, 255, 0.08);
+}
+.mkt-ligar-copiar {
+  display: inline-flex;
+  min-height: 24px;
+  gap: 4px;
+  padding: 0 6px;
+  border-radius: 8px;
+  font-size: 12px;
+  vertical-align: middle;
+}
+
+/* -------------------------------------------- a faixa da Visão geral */
+
+/* Uma linha só no computador (a 1280px cabem o título e os seis selos):
+   "Fontes" e um selo por fonte, todos irmãos na mesma fileira que quebra.
+   No celular o título fica no começo da primeira linha e os selos usam a
+   largura toda; nada alarga a página. 12px entre as linhas: o toque de 44px
+   (.alvo-44) de um selo desenhado com 32px passa 6px para cima e 6px para
+   baixo, e assim não pisa no toque do selo da linha vizinha. */
+.mkt-faixa-fontes {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 4px;
+}
+.mkt-faixa-fontes-titulo {
+  flex: none;
+  margin: 0 6px 0 0;
+  font-size: 15px;
+  line-height: 1.3;
+}
+.mkt-fonte-selo {
+  display: inline-flex;
+  max-width: 100%;
+  min-height: 32px;
+  align-items: center;
+  gap: 5px;
+  padding: 0 10px;
+  border: 1px solid var(--hairline);
+  border-radius: 999px;
+  background: var(--surface);
+  font-size: 12px;
+  line-height: 1.2;
+  transition: border-color 0.15s;
+}
+.mkt-fonte-selo:hover {
+  border-color: #9ba1f6;
+}
+html.dark .mkt-fonte-selo:hover {
+  border-color: rgba(155, 161, 246, 0.55);
+}

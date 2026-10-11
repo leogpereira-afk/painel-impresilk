@@ -1,0 +1,24 @@
+{
+ "Status": 0,
+ "TC": false,
+ "Question": [
+  {
+   "name": "exemplo.com.br.",
+   "type": 16
+  }
+ ],
+ "Answer": [
+  {
+   "name": "exemplo.com.br.",
+   "type": 16,
+   "TTL": 300,
+   "data": "\"v=spf1 include:_spf.hospedagem-ficticia.com.br -all\""
+  },
+  {
+   "name": "exemplo.com.br.",
+   "type": 16,
+   "TTL": 300,
+   "data": "_globalsign-domain-verification=codigo-ficticio"
+  }
+ ]
+}

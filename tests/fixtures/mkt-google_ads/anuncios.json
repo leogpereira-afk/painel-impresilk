@@ -1,0 +1,61 @@
+{
+ "results": [
+  {
+   "adGroupAd": {
+    "resourceName": "customers/1234567890/adGroupAds/601~901",
+    "ad": {
+     "resourceName": "customers/1234567890/ads/901",
+     "id": "901",
+     "type": "RESPONSIVE_SEARCH_AD",
+     "finalUrls": [
+      "https://www.example.com/fachadas"
+     ],
+     "responsiveSearchAd": {
+      "headlines": [
+       {
+        "text": "Fachadas em ACM"
+       },
+       {
+        "text": "Orçamento em 24 horas",
+        "pinnedField": "HEADLINE_1"
+       }
+      ],
+      "descriptions": [
+       {
+        "text": "Projeto, produção e instalação."
+       }
+      ],
+      "path1": "fachadas",
+      "path2": "acm"
+     }
+    },
+    "status": "ENABLED",
+    "primaryStatus": "ELIGIBLE",
+    "adStrength": "GOOD",
+    "policySummary": {
+     "approvalStatus": "APPROVED"
+    }
+   },
+   "adGroup": {
+    "resourceName": "customers/1234567890/adGroups/601",
+    "id": "601",
+    "name": "Fachadas"
+   },
+   "campaign": {
+    "resourceName": "customers/1234567890/campaigns/501",
+    "id": "501",
+    "name": "Pesquisa Comunicação Visual"
+   },
+   "metrics": {
+    "impressions": "350",
+    "clicks": "22",
+    "interactions": "22",
+    "costMicros": "45000000",
+    "conversions": 2.5,
+    "conversionsValue": 0.0
+   }
+  }
+ ],
+ "fieldMask": "adGroupAd.ad.id",
+ "requestId": "req-ficticio-0001"
+}

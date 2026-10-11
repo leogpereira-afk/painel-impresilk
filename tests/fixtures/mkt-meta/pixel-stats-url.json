@@ -1,0 +1,22 @@
+{
+ "data": [
+  {
+   "aggregation": "url",
+   "start_time": "2026-10-07T15:00:00+0000",
+   "data": [
+    {
+     "value": "https://impresilk.com.br/?page_id=144&email=fulano%40exemplo.com",
+     "count": 3
+    },
+    {
+     "value": "https://impresilk.com.br/?page_id=140",
+     "count": 150
+    },
+    {
+     "value": "https://impresilk.com.br/contato/#form",
+     "count": 7
+    }
+   ]
+  }
+ ]
+}

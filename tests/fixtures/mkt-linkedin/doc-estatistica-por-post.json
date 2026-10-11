@@ -1,0 +1,21 @@
+{
+ "elements": [
+  {
+   "organizationalEntity": "urn:li:organization:2414183",
+   "share": "urn:li:share:1000000",
+   "totalShareStatistics": {
+    "clickCount": 78,
+    "commentCount": 24,
+    "engagement": 0.022886324947985624,
+    "impressionCount": 5287,
+    "likeCount": 14,
+    "shareCount": 5
+   }
+  }
+ ],
+ "paging": {
+  "count": 10,
+  "links": [],
+  "start": 0
+ }
+}

@@ -1,0 +1,73 @@
+{
+ "id": "https://exemplo.com.br/",
+ "lighthouseResult": {
+  "lighthouseVersion": "13.5.0",
+  "fetchTime": "2026-10-11T09:13:00.000Z",
+  "finalDisplayedUrl": "https://exemplo.com.br/",
+  "configSettings": {
+   "formFactor": "mobile"
+  },
+  "categories": {
+   "agentic-browsing": {
+    "id": "agentic-browsing",
+    "title": "Navegação por agentes",
+    "score": 0.6,
+    "auditRefs": [
+     {
+      "id": "llms-txt",
+      "weight": 1
+     },
+     {
+      "id": "agent-accessibility-tree",
+      "weight": 1
+     },
+     {
+      "id": "webmcp-form-coverage",
+      "weight": 1
+     },
+     {
+      "id": "cumulative-layout-shift",
+      "weight": 1
+     },
+     {
+      "id": "ard-schema",
+      "weight": 0
+     }
+    ]
+   }
+  },
+  "audits": {
+   "llms-txt": {
+    "id": "llms-txt",
+    "title": "O site tem llms.txt",
+    "score": 0,
+    "scoreDisplayMode": "binary"
+   },
+   "agent-accessibility-tree": {
+    "id": "agent-accessibility-tree",
+    "title": "Árvore de acessibilidade legível",
+    "score": 1,
+    "scoreDisplayMode": "binary"
+   },
+   "webmcp-form-coverage": {
+    "id": "webmcp-form-coverage",
+    "title": "Formulários com WebMCP",
+    "score": null,
+    "scoreDisplayMode": "notApplicable"
+   },
+   "cumulative-layout-shift": {
+    "id": "cumulative-layout-shift",
+    "title": "Cumulative Layout Shift",
+    "score": 0.98,
+    "scoreDisplayMode": "numeric",
+    "displayValue": "0,041"
+   },
+   "ard-schema": {
+    "id": "ard-schema",
+    "title": "Esquema ARD",
+    "score": null,
+    "scoreDisplayMode": "informative"
+   }
+  }
+ }
+}

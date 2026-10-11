@@ -1,0 +1,28 @@
+{
+ "results": [
+  {
+   "changeEvent": {
+    "resourceName": "customers/1234567890/changeEvents/1",
+    "changeDateTime": "2026-10-07 16:20:00.123456",
+    "changeResourceType": "CAMPAIGN_BUDGET",
+    "resourceChangeOperation": "UPDATE",
+    "changedFields": "amountMicros",
+    "clientType": "GOOGLE_ADS_WEB_CLIENT",
+    "userEmail": "alguem@example.com"
+   }
+  },
+  {
+   "changeEvent": {
+    "resourceName": "customers/1234567890/changeEvents/2",
+    "changeDateTime": "2026-10-07 09:00:00.000000",
+    "changeResourceType": "AD_GROUP_CRITERION",
+    "resourceChangeOperation": "CREATE",
+    "changedFields": "keyword.text,keyword.matchType,status",
+    "clientType": "GOOGLE_ADS_WEB_CLIENT",
+    "userEmail": "alguem@example.com"
+   }
+  }
+ ],
+ "fieldMask": "changeEvent.changeDateTime",
+ "requestId": "req-ficticio-0001"
+}

@@ -1,0 +1,12 @@
+{
+ "accounts": [
+  {
+   "name": "accounts/111",
+   "accountName": "Impresilk (grupo)",
+   "type": "LOCATION_GROUP",
+   "role": "OWNER",
+   "verificationState": "VERIFIED",
+   "permissionLevel": "OWNER_LEVEL"
+  }
+ ]
+}

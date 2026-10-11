@@ -1,0 +1,36 @@
+{
+ "results": [
+  {
+   "customer": {
+    "resourceName": "customers/1234567890"
+   },
+   "segments": {
+    "date": "2026-10-10"
+   },
+   "metrics": {
+    "impressions": "100",
+    "clicks": "5",
+    "interactions": "5",
+    "costMicros": "10000000",
+    "conversions": 0.0
+   }
+  },
+  {
+   "customer": {
+    "resourceName": "customers/1234567890"
+   },
+   "segments": {
+    "date": "2026-10-09"
+   },
+   "metrics": {
+    "impressions": "120",
+    "clicks": "6",
+    "interactions": "6",
+    "costMicros": "12345678",
+    "conversions": 1.0
+   }
+  }
+ ],
+ "fieldMask": "segments.date",
+ "requestId": "req-ficticio-0001"
+}

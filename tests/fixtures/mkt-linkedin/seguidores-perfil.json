@@ -1,0 +1,102 @@
+{
+ "paging": {
+  "count": 10,
+  "start": 0
+ },
+ "elements": [
+  {
+   "organizationalEntity": "urn:li:organization:90000001",
+   "followerCountsByAssociationType": [
+    {
+     "associationType": "EMPLOYEE",
+     "followerCounts": {
+      "organicFollowerCount": 12,
+      "paidFollowerCount": 0
+     }
+    }
+   ],
+   "followerCountsByGeoCountry": [
+    {
+     "geo": "urn:li:geo:90000101",
+     "followerCounts": {
+      "organicFollowerCount": 40,
+      "paidFollowerCount": 3
+     }
+    },
+    {
+     "geo": "urn:li:geo:90000102",
+     "followerCounts": {
+      "organicFollowerCount": 900,
+      "paidFollowerCount": 10
+     }
+    }
+   ],
+   "followerCountsByGeo": [
+    {
+     "geo": "urn:li:geo:90000201",
+     "followerCounts": {
+      "organicFollowerCount": 300,
+      "paidFollowerCount": 0
+     }
+    }
+   ],
+   "followerCountsByFunction": [
+    {
+     "function": "urn:li:function:15",
+     "followerCounts": {
+      "organicFollowerCount": 80,
+      "paidFollowerCount": 0
+     }
+    },
+    {
+     "function": "urn:li:function:25",
+     "followerCounts": {
+      "organicFollowerCount": 120,
+      "paidFollowerCount": 0
+     }
+    }
+   ],
+   "followerCountsByIndustry": [
+    {
+     "industry": "urn:li:industry:83",
+     "followerCounts": {
+      "organicFollowerCount": 70,
+      "paidFollowerCount": 0
+     }
+    }
+   ],
+   "followerCountsBySeniority": [
+    {
+     "seniority": "urn:li:seniority:4",
+     "followerCounts": {
+      "organicFollowerCount": 200,
+      "paidFollowerCount": 0
+     }
+    }
+   ],
+   "followerCountsByStaffCountRange": [
+    {
+     "staffCountRange": "SIZE_11_TO_50",
+     "followerCounts": {
+      "organicFollowerCount": 150,
+      "paidFollowerCount": 0
+     }
+    },
+    {
+     "staffCountRange": "SIZE_10001_OR_MORE",
+     "followerCounts": {
+      "organicFollowerCount": 90,
+      "paidFollowerCount": 0
+     }
+    },
+    {
+     "staffCountRange": "SIZE_1",
+     "followerCounts": {
+      "organicFollowerCount": 5,
+      "paidFollowerCount": 0
+     }
+    }
+   ]
+  }
+ ]
+}

@@ -1,0 +1,70 @@
+{
+ "results": [
+  {
+   "conversionAction": {
+    "resourceName": "customers/1234567890/conversionActions/111",
+    "id": "111",
+    "name": "Formulário do site",
+    "type": "WEBPAGE",
+    "category": "SUBMIT_LEAD_FORM",
+    "status": "ENABLED",
+    "origin": "WEBSITE",
+    "primaryForGoal": true,
+    "includeInConversionsMetric": true,
+    "countingType": "ONE_PER_CLICK",
+    "valueSettings": {
+     "defaultValue": 1.0,
+     "defaultCurrencyCode": "BRL"
+    },
+    "clickThroughLookbackWindowDays": "30",
+    "attributionModelSettings": {
+     "attributionModel": "GOOGLE_SEARCH_ATTRIBUTION_DATA_DRIVEN"
+    }
+   },
+   "metrics": {
+    "allConversions": 120.5,
+    "conversionLastConversionDate": "2026-10-09"
+   }
+  },
+  {
+   "conversionAction": {
+    "resourceName": "customers/1234567890/conversionActions/222",
+    "id": "222",
+    "name": "Clique no WhatsApp",
+    "type": "WEBPAGE",
+    "category": "CONTACT",
+    "status": "ENABLED",
+    "origin": "WEBSITE",
+    "primaryForGoal": true,
+    "includeInConversionsMetric": true,
+    "countingType": "ONE_PER_CLICK"
+   },
+   "metrics": {
+    "allConversions": 40.0,
+    "conversionLastConversionDate": "2026-10-08"
+   }
+  },
+  {
+   "conversionAction": {
+    "resourceName": "customers/1234567890/conversionActions/333",
+    "id": "333",
+    "name": "Visita à página de orçamento",
+    "type": "GOOGLE_ANALYTICS_4_CUSTOM",
+    "category": "PAGE_VIEW",
+    "status": "ENABLED",
+    "origin": "WEBSITE",
+    "primaryForGoal": false,
+    "includeInConversionsMetric": false,
+    "countingType": "MANY_PER_CLICK",
+    "googleAnalytics4Settings": {
+     "eventName": "page_view"
+    }
+   },
+   "metrics": {
+    "allConversions": 900.0
+   }
+  }
+ ],
+ "fieldMask": "conversionAction.id",
+ "requestId": "req-ficticio-0001"
+}

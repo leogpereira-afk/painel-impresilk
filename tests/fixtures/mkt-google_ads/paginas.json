@@ -1,0 +1,19 @@
+{
+ "results": [
+  {
+   "landingPageView": {
+    "resourceName": "customers/1234567890/landingPageViews/1",
+    "unexpandedFinalUrl": "https://www.example.com/fachadas"
+   },
+   "metrics": {
+    "impressions": "500",
+    "clicks": "30",
+    "costMicros": "65500000",
+    "conversions": 3.5,
+    "conversionsValue": 0.0
+   }
+  }
+ ],
+ "fieldMask": "landingPageView.unexpandedFinalUrl",
+ "requestId": "req-ficticio-0001"
+}

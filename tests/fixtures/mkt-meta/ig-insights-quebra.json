@@ -1,0 +1,39 @@
+{
+ "data": [
+  {
+   "name": "reach",
+   "period": "day",
+   "title": "Accounts reached",
+   "description": "The number of unique accounts that have seen your content, at least once, including in ads. Content includes posts, stories, reels, videos and live videos. Reach is different from impressions, which may include multiple views of your content by the same accounts. This metric is estimated and in development.",
+   "total_value": {
+    "value": 224,
+    "breakdowns": [
+     {
+      "dimension_keys": [
+       "media_product_type"
+      ],
+      "results": [
+       {
+        "dimension_values": [
+         "CAROUSEL_CONTAINER"
+        ],
+        "value": 100
+       },
+       {
+        "dimension_values": [
+         "POST"
+        ],
+        "value": 124
+       }
+      ]
+     }
+    ]
+   },
+   "id": "17841405309211844/insights/reach/day"
+  }
+ ],
+ "paging": {
+  "previous": "https://graph.facebook.com/...",
+  "next": "https://graph.facebook.com/..."
+ }
+}

@@ -1,0 +1,35 @@
+{
+ "results": [
+  {
+   "campaign": {
+    "resourceName": "customers/1234567890/campaigns/501",
+    "id": "501"
+   },
+   "segments": {
+    "week": "2026-09-28"
+   },
+   "metrics": {
+    "searchImpressionShare": 0.0999,
+    "searchTopImpressionShare": 0.5,
+    "searchAbsoluteTopImpressionShare": 0.2,
+    "searchBudgetLostImpressionShare": 0.9001,
+    "searchRankLostImpressionShare": 0.3
+   }
+  },
+  {
+   "campaign": {
+    "resourceName": "customers/1234567890/campaigns/501",
+    "id": "501"
+   },
+   "segments": {
+    "week": "2026-09-21"
+   },
+   "metrics": {
+    "searchImpressionShare": 0.55,
+    "searchBudgetLostImpressionShare": 0.1
+   }
+  }
+ ],
+ "fieldMask": "campaign.id",
+ "requestId": "req-ficticio-0001"
+}

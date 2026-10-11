@@ -1,0 +1,47 @@
+{
+ "data": [
+  {
+   "id": "18000000000000001",
+   "caption": "Letreiro em LED pronto para instalar\n#comunicacaovisual",
+   "media_type": "IMAGE",
+   "media_product_type": "FEED",
+   "permalink": "https://www.instagram.com/p/AbCdEf1/?igsh=exemplo",
+   "timestamp": "2026-10-09T18:30:00+0000",
+   "media_url": "https://scontent.exemplo/m1.jpg",
+   "like_count": 40,
+   "comments_count": 5,
+   "saved_count": 3,
+   "shares_count": 2,
+   "reposts_count": 0,
+   "is_ai_generated": false
+  },
+  {
+   "id": "18000000000000002",
+   "caption": "Bastidores da impressora UV",
+   "media_type": "VIDEO",
+   "media_product_type": "REELS",
+   "permalink": "https://www.instagram.com/reel/AbCdEf2/",
+   "timestamp": "2026-09-30T12:00:00+0000",
+   "thumbnail_url": "https://scontent.exemplo/m2.jpg",
+   "like_count": 120,
+   "comments_count": 9,
+   "total_views_count": 3400
+  },
+  {
+   "id": "18000000000000003",
+   "caption": "Antiga",
+   "media_type": "CAROUSEL_ALBUM",
+   "media_product_type": "FEED",
+   "permalink": "https://www.instagram.com/p/Antiga3/",
+   "timestamp": "2026-05-01T12:00:00+0000",
+   "like_count": 10,
+   "comments_count": 1
+  }
+ ],
+ "paging": {
+  "cursors": {
+   "before": "X",
+   "after": "Y"
+  }
+ }
+}

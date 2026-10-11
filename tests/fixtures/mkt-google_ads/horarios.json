@@ -1,0 +1,52 @@
+{
+ "results": [
+  {
+   "campaign": {
+    "resourceName": "customers/1234567890/campaigns/501",
+    "id": "501"
+   },
+   "segments": {
+    "dayOfWeek": "TUESDAY",
+    "hour": 14
+   },
+   "metrics": {
+    "impressions": "20",
+    "clicks": "1",
+    "costMicros": "2000000"
+   }
+  },
+  {
+   "campaign": {
+    "resourceName": "customers/1234567890/campaigns/501",
+    "id": "501"
+   },
+   "segments": {
+    "dayOfWeek": "MONDAY",
+    "hour": 9
+   },
+   "metrics": {
+    "impressions": "50",
+    "clicks": "4",
+    "costMicros": "8000000",
+    "conversions": 1.0
+   }
+  },
+  {
+   "campaign": {
+    "resourceName": "customers/1234567890/campaigns/502",
+    "id": "502"
+   },
+   "segments": {
+    "dayOfWeek": "MONDAY",
+    "hour": 9
+   },
+   "metrics": {
+    "impressions": "30",
+    "clicks": "1",
+    "costMicros": "2000000"
+   }
+  }
+ ],
+ "fieldMask": "segments.dayOfWeek,segments.hour",
+ "requestId": "req-ficticio-0001"
+}

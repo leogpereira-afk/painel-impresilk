@@ -1,0 +1,110 @@
+{
+ "data": [
+  {
+   "date_start": "2026-08-17",
+   "date_stop": "2026-10-12",
+   "spend": "1800.50",
+   "impressions": "3200",
+   "reach": "2100",
+   "frequency": "1.523809",
+   "clicks": "80",
+   "inline_link_clicks": "50",
+   "outbound_clicks": [
+    {
+     "action_type": "outbound_click",
+     "value": "12"
+    }
+   ],
+   "ctr": "2.5",
+   "cpc": "0.565",
+   "cpm": "14.125",
+   "actions": [
+    {
+     "action_type": "link_click",
+     "value": "50"
+    },
+    {
+     "action_type": "lead",
+     "value": "3"
+    },
+    {
+     "action_type": "onsite_conversion.messaging_conversation_started_7d",
+     "value": "4"
+    },
+    {
+     "action_type": "post_engagement",
+     "value": "120"
+    }
+   ],
+   "cost_per_action_type": [
+    {
+     "action_type": "lead",
+     "value": "15.066667"
+    }
+   ],
+   "results": [
+    {
+     "indicator": "actions:onsite_conversion.lead_grouped",
+     "values": [
+      {
+       "value": "3",
+       "attribution_windows": [
+        "default"
+       ]
+      }
+     ]
+    }
+   ],
+   "campaign_id": "23850000000000001",
+   "campaign_name": "Leads Fachadas BH",
+   "objective": "OUTCOME_LEADS"
+  },
+  {
+   "date_start": "2026-08-17",
+   "date_stop": "2026-10-12",
+   "spend": "620.00",
+   "impressions": "3200",
+   "reach": "2100",
+   "frequency": "1.523809",
+   "clicks": "80",
+   "inline_link_clicks": "50",
+   "outbound_clicks": [
+    {
+     "action_type": "outbound_click",
+     "value": "12"
+    }
+   ],
+   "ctr": "2.5",
+   "cpc": "0.565",
+   "cpm": "14.125",
+   "actions": [
+    {
+     "action_type": "link_click",
+     "value": "300"
+    }
+   ],
+   "cost_per_action_type": [
+    {
+     "action_type": "lead",
+     "value": "15.066667"
+    }
+   ],
+   "results": [
+    {
+     "indicator": "actions:onsite_conversion.lead_grouped",
+     "values": [
+      {
+       "value": "3",
+       "attribution_windows": [
+        "default"
+       ]
+      }
+     ]
+    }
+   ],
+   "campaign_id": "23850000000000002",
+   "campaign_name": "Tráfego Site",
+   "objective": "OUTCOME_TRAFFIC"
+  }
+ ]
+}

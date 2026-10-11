@@ -1,0 +1,12 @@
+[
+ {
+  "id": 1,
+  "date_gmt": "2025-09-08T20:14:22",
+  "modified_gmt": "2025-09-08T20:14:22",
+  "slug": "ola-mundo",
+  "link": "https://exemplo.com.br/?p=1",
+  "title": {
+   "rendered": "Ol&aacute;, mundo!"
+  }
+ }
+]

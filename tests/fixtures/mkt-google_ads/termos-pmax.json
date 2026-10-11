@@ -1,0 +1,24 @@
+{
+ "results": [
+  {
+   "campaignSearchTermView": {
+    "resourceName": "customers/1234567890/campaignSearchTermViews/502~x",
+    "searchTerm": "fachada de loja"
+   },
+   "campaign": {
+    "resourceName": "customers/1234567890/campaigns/502",
+    "id": "502",
+    "name": "Performance Max Fachadas"
+   },
+   "metrics": {
+    "impressions": "90",
+    "clicks": "4",
+    "costMicros": "8000000",
+    "conversions": 0.5,
+    "conversionsValue": 0.0
+   }
+  }
+ ],
+ "fieldMask": "campaignSearchTermView.searchTerm",
+ "requestId": "req-ficticio-0001"
+}

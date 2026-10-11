@@ -1,0 +1,47 @@
+{
+ "results": [
+  {
+   "adGroupCriterion": {
+    "resourceName": "customers/1234567890/adGroupCriteria/601~503002",
+    "ageRange": {
+     "type": "AGE_RANGE_25_34"
+    }
+   },
+   "metrics": {
+    "impressions": "200",
+    "clicks": "10",
+    "costMicros": "20000000",
+    "conversions": 1.0
+   }
+  },
+  {
+   "adGroupCriterion": {
+    "resourceName": "customers/1234567890/adGroupCriteria/602~503002",
+    "ageRange": {
+     "type": "AGE_RANGE_25_34"
+    }
+   },
+   "metrics": {
+    "impressions": "100",
+    "clicks": "5",
+    "costMicros": "10000000"
+   }
+  },
+  {
+   "adGroupCriterion": {
+    "resourceName": "customers/1234567890/adGroupCriteria/601~503003",
+    "ageRange": {
+     "type": "AGE_RANGE_35_44"
+    }
+   },
+   "metrics": {
+    "impressions": "150",
+    "clicks": "9",
+    "costMicros": "18000000",
+    "conversions": 2.0
+   }
+  }
+ ],
+ "fieldMask": "adGroupCriterion.ageRange.type",
+ "requestId": "req-ficticio-0001"
+}

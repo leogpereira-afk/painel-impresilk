@@ -1,0 +1,48 @@
+{
+ "locations": [
+  {
+   "name": "locations/222",
+   "title": "Impresilk Comunicação Visual",
+   "websiteUri": "https://impresilk.com.br/",
+   "phoneNumbers": {
+    "primaryPhone": "(31) 3333-0000"
+   },
+   "categories": {
+    "primaryCategory": {
+     "name": "categories/gcid:sign_shop",
+     "displayName": "Loja de placas"
+    },
+    "additionalCategories": [
+     {
+      "name": "categories/gcid:print_shop",
+      "displayName": "Gráfica"
+     }
+    ]
+   },
+   "storefrontAddress": {
+    "regionCode": "BR",
+    "postalCode": "30000-000",
+    "administrativeArea": "MG",
+    "locality": "Belo Horizonte",
+    "addressLines": [
+     "Rua de Teste, 100"
+    ]
+   },
+   "openInfo": {
+    "status": "OPEN"
+   },
+   "profile": {
+    "description": "Comunicação visual."
+   },
+   "metadata": {
+    "mapsUri": "https://maps.google.com/maps?cid=987654321",
+    "newReviewUri": "https://search.google.com/local/writereview?placeid=ChIJteste",
+    "placeId": "ChIJteste",
+    "hasVoiceOfMerchant": true,
+    "hasPendingEdits": false,
+    "hasGoogleUpdated": false,
+    "canOperateLocalPost": true
+   }
+  }
+ ]
+}

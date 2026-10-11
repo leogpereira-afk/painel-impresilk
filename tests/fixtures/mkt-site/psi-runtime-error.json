@@ -1,0 +1,273 @@
+{
+ "captchaResult": "CAPTCHA_NOT_NEEDED",
+ "kind": "pagespeedonline#result",
+ "id": "https://exemplo.com.br/",
+ "loadingExperience": {
+  "initial_url": "https://exemplo.com.br/"
+ },
+ "lighthouseResult": {
+  "requestedUrl": "https://exemplo.com.br/",
+  "finalUrl": "https://exemplo.com.br/",
+  "finalDisplayedUrl": "https://exemplo.com.br/",
+  "lighthouseVersion": "13.5.0",
+  "fetchTime": "2026-10-11T09:12:30.000Z",
+  "runWarnings": [],
+  "configSettings": {
+   "formFactor": "mobile",
+   "locale": "pt-BR"
+  },
+  "audits": {
+   "first-contentful-paint": {
+    "id": "first-contentful-paint",
+    "title": "First Contentful Paint",
+    "score": 0.55,
+    "scoreDisplayMode": "numeric",
+    "displayValue": "2,8 s"
+   },
+   "largest-contentful-paint": {
+    "id": "largest-contentful-paint",
+    "title": "Largest Contentful Paint",
+    "score": 0.31,
+    "scoreDisplayMode": "numeric",
+    "displayValue": "5,1 s"
+   },
+   "total-blocking-time": {
+    "id": "total-blocking-time",
+    "title": "Total Blocking Time",
+    "score": 0.82,
+    "scoreDisplayMode": "numeric",
+    "displayValue": "210 ms"
+   },
+   "cumulative-layout-shift": {
+    "id": "cumulative-layout-shift",
+    "title": "Cumulative Layout Shift",
+    "score": 0.98,
+    "scoreDisplayMode": "numeric",
+    "displayValue": "0,041"
+   },
+   "speed-index": {
+    "id": "speed-index",
+    "title": "Speed Index",
+    "score": 0.6,
+    "scoreDisplayMode": "numeric",
+    "displayValue": "4,4 s"
+   },
+   "interactive": {
+    "id": "interactive",
+    "title": "Tempo até ficar interativa",
+    "score": 0.5,
+    "scoreDisplayMode": "numeric",
+    "displayValue": "6,0 s",
+    "numericValue": 6012.3,
+    "numericUnit": "millisecond"
+   },
+   "server-response-time": {
+    "id": "server-response-time",
+    "title": "O tempo de resposta inicial do servidor foi longo",
+    "score": 0,
+    "scoreDisplayMode": "metricSavings",
+    "displayValue": "A raiz do documento levou 1.320 ms",
+    "numericValue": 1320.4,
+    "numericUnit": "millisecond",
+    "metricSavings": {
+     "FCP": 1220,
+     "LCP": 1220
+    }
+   },
+   "render-blocking-insight": {
+    "id": "render-blocking-insight",
+    "title": "Solicitações de bloqueio de renderização",
+    "score": 0,
+    "scoreDisplayMode": "metricSavings",
+    "displayValue": "Economia estimada de 600 ms",
+    "metricSavings": {
+     "FCP": 600,
+     "LCP": 600
+    }
+   },
+   "image-delivery-insight": {
+    "id": "image-delivery-insight",
+    "title": "Melhorar a entrega de imagens",
+    "score": 0.5,
+    "scoreDisplayMode": "metricSavings",
+    "displayValue": "Economia estimada de 120 KiB",
+    "metricSavings": {
+     "LCP": 300
+    }
+   },
+   "color-contrast": {
+    "id": "color-contrast",
+    "title": "As cores de primeiro e segundo plano não têm uma taxa de contraste suficiente",
+    "score": 0,
+    "scoreDisplayMode": "binary"
+   },
+   "image-alt": {
+    "id": "image-alt",
+    "title": "Os elementos de imagem têm atributos [alt]",
+    "score": 1,
+    "scoreDisplayMode": "binary"
+   },
+   "is-on-https": {
+    "id": "is-on-https",
+    "title": "Usa HTTPS",
+    "score": 1,
+    "scoreDisplayMode": "binary"
+   },
+   "errors-in-console": {
+    "id": "errors-in-console",
+    "title": "Erros do navegador foram registrados no console",
+    "score": 0,
+    "scoreDisplayMode": "binary"
+   },
+   "meta-description": {
+    "id": "meta-description",
+    "title": "O documento tem uma metadescrição",
+    "score": 1,
+    "scoreDisplayMode": "binary"
+   },
+   "crawlable-anchors": {
+    "id": "crawlable-anchors",
+    "title": "Os links não são rastreáveis",
+    "score": 0,
+    "scoreDisplayMode": "binary"
+   },
+   "robots-txt": {
+    "id": "robots-txt",
+    "title": "O arquivo robots.txt é válido",
+    "score": null,
+    "scoreDisplayMode": "notApplicable"
+   },
+   "full-page-screenshot": {
+    "id": "full-page-screenshot",
+    "title": "Captura",
+    "score": null,
+    "scoreDisplayMode": "informative",
+    "details": {
+     "type": "full-page-screenshot",
+     "screenshot": {
+      "data": "data:image/webp;base64,AAAA"
+     }
+    }
+   }
+  },
+  "categories": {
+   "performance": {
+    "id": "performance",
+    "title": "Desempenho",
+    "score": null,
+    "auditRefs": [
+     {
+      "id": "first-contentful-paint",
+      "weight": 10,
+      "group": "metrics",
+      "acronym": "FCP"
+     },
+     {
+      "id": "largest-contentful-paint",
+      "weight": 25,
+      "group": "metrics",
+      "acronym": "LCP"
+     },
+     {
+      "id": "total-blocking-time",
+      "weight": 30,
+      "group": "metrics",
+      "acronym": "TBT"
+     },
+     {
+      "id": "cumulative-layout-shift",
+      "weight": 25,
+      "group": "metrics",
+      "acronym": "CLS"
+     },
+     {
+      "id": "speed-index",
+      "weight": 10,
+      "group": "metrics",
+      "acronym": "SI"
+     },
+     {
+      "id": "interactive",
+      "weight": 0,
+      "group": "hidden",
+      "acronym": "TTI"
+     },
+     {
+      "id": "render-blocking-insight",
+      "weight": 0,
+      "group": "insights"
+     },
+     {
+      "id": "image-delivery-insight",
+      "weight": 0,
+      "group": "insights"
+     },
+     {
+      "id": "server-response-time",
+      "weight": 0,
+      "group": "diagnostics"
+     },
+     {
+      "id": "full-page-screenshot",
+      "weight": 0
+     }
+    ]
+   },
+   "accessibility": {
+    "id": "accessibility",
+    "title": "Acessibilidade",
+    "score": null,
+    "auditRefs": [
+     {
+      "id": "color-contrast",
+      "weight": 7,
+      "group": "a11y-color-contrast"
+     },
+     {
+      "id": "image-alt",
+      "weight": 10
+     }
+    ]
+   },
+   "best-practices": {
+    "id": "best-practices",
+    "title": "Práticas recomendadas",
+    "score": null,
+    "auditRefs": [
+     {
+      "id": "is-on-https",
+      "weight": 5
+     },
+     {
+      "id": "errors-in-console",
+      "weight": 1
+     }
+    ]
+   },
+   "seo": {
+    "id": "seo",
+    "title": "SEO",
+    "score": null,
+    "auditRefs": [
+     {
+      "id": "meta-description",
+      "weight": 1
+     },
+     {
+      "id": "crawlable-anchors",
+      "weight": 1
+     },
+     {
+      "id": "robots-txt",
+      "weight": 1
+     }
+    ]
+   }
+  },
+  "runtimeError": {
+   "code": "FAILED_DOCUMENT_REQUEST",
+   "message": "O Lighthouse não carregou a página."
+  }
+ },
+ "analysisUTCTimestamp": "2026-10-11T09:12:31.204Z"
+}

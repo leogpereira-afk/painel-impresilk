@@ -1,0 +1,12 @@
+{
+ "offers": [
+  {
+   "response": "latest",
+   "download": "https://downloads.wordpress.org/release/wordpress-7.1.3.zip",
+   "current": "7.1.3",
+   "version": "7.1.3",
+   "locale": "en_US"
+  }
+ ],
+ "translations": []
+}

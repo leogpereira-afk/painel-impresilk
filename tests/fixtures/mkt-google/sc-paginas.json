@@ -1,0 +1,23 @@
+{
+ "rows": [
+  {
+   "keys": [
+    "https://impresilk.com.br/"
+   ],
+   "clicks": 30,
+   "impressions": 800,
+   "ctr": 0.0375,
+   "position": 8.1
+  },
+  {
+   "keys": [
+    "https://impresilk.com.br/?page_id=144"
+   ],
+   "clicks": 4,
+   "impressions": 300,
+   "ctr": 0.0133,
+   "position": 18.0
+  }
+ ],
+ "responseAggregationType": "byPage"
+}

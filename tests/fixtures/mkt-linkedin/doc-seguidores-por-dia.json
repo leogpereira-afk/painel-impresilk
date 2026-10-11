@@ -1,0 +1,30 @@
+{
+ "paging": {
+  "count": 10,
+  "start": 0
+ },
+ "elements": [
+  {
+   "timeRange": {
+    "start": 1536364800000,
+    "end": 1536451200000
+   },
+   "followerGains": {
+    "organicFollowerGain": 223,
+    "paidFollowerGain": 12
+   },
+   "organizationalEntity": "urn:li:organization:2414183"
+  },
+  {
+   "timeRange": {
+    "start": 1536451200000,
+    "end": 1536537600000
+   },
+   "followerGains": {
+    "organicFollowerGain": 1,
+    "paidFollowerGain": 2
+   },
+   "organizationalEntity": "urn:li:organization:2414183"
+  }
+ ]
+}

@@ -1,0 +1,123 @@
+{
+ "data": [
+  {
+   "name": "views",
+   "period": "lifetime",
+   "title": "views",
+   "values": [
+    {
+     "value": 900
+    }
+   ],
+   "id": "m/insights/views/lifetime"
+  },
+  {
+   "name": "reach",
+   "period": "lifetime",
+   "title": "reach",
+   "values": [
+    {
+     "value": 700
+    }
+   ],
+   "id": "m/insights/reach/lifetime"
+  },
+  {
+   "name": "likes",
+   "period": "lifetime",
+   "title": "likes",
+   "values": [
+    {
+     "value": 41
+    }
+   ],
+   "id": "m/insights/likes/lifetime"
+  },
+  {
+   "name": "comments",
+   "period": "lifetime",
+   "title": "comments",
+   "values": [
+    {
+     "value": 5
+    }
+   ],
+   "id": "m/insights/comments/lifetime"
+  },
+  {
+   "name": "saved",
+   "period": "lifetime",
+   "title": "saved",
+   "values": [
+    {
+     "value": 3
+    }
+   ],
+   "id": "m/insights/saved/lifetime"
+  },
+  {
+   "name": "shares",
+   "period": "lifetime",
+   "title": "shares",
+   "values": [
+    {
+     "value": 2
+    }
+   ],
+   "id": "m/insights/shares/lifetime"
+  },
+  {
+   "name": "total_interactions",
+   "period": "lifetime",
+   "title": "total_interactions",
+   "values": [
+    {
+     "value": 51
+    }
+   ],
+   "id": "m/insights/total_interactions/lifetime"
+  },
+  {
+   "name": "follows",
+   "period": "lifetime",
+   "title": "follows",
+   "values": [
+    {
+     "value": 1
+    }
+   ],
+   "id": "m/insights/follows/lifetime"
+  },
+  {
+   "name": "profile_visits",
+   "period": "lifetime",
+   "title": "profile_visits",
+   "values": [
+    {
+     "value": 12
+    }
+   ],
+   "id": "m/insights/profile_visits/lifetime"
+  },
+  {
+   "name": "profile_activity",
+   "period": "lifetime",
+   "title": "Profile activity",
+   "total_value": {
+    "value": 4
+   },
+   "id": "m/insights/profile_activity/lifetime"
+  },
+  {
+   "name": "reposts",
+   "period": "lifetime",
+   "title": "reposts",
+   "values": [
+    {
+     "value": 0
+    }
+   ],
+   "id": "m/insights/reposts/lifetime"
+  }
+ ]
+}

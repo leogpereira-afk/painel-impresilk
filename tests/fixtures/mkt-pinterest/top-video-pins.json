@@ -1,0 +1,24 @@
+{
+ "date_availability": {
+  "is_realtime": false,
+  "latest_available_timestamp": "2026-10-12T00:00:00Z"
+ },
+ "pins": [
+  {
+   "pin_id": "1000000000000000002",
+   "metrics": {
+    "IMPRESSION": 150,
+    "SAVE": 3,
+    "OUTBOUND_CLICK": 2,
+    "VIDEO_MRC_VIEW": 60,
+    "VIDEO_AVG_WATCH_TIME": 3200,
+    "VIDEO_V50_WATCH_TIME": 900,
+    "QUARTILE_95_PERCENT_VIEW": 8,
+    "VIDEO_10S_VIEW": 20,
+    "VIDEO_START": 75
+   },
+   "data_status": "READY"
+  }
+ ],
+ "sort_by": "VIDEO_MRC_VIEW"
+}

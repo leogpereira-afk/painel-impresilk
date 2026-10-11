@@ -5,26 +5,96 @@
 //
 // Etapa a2: canais (os 11 da carga padrão, com o Pinterest em implantação),
 // playbook de 4 deles, publicações e números da semana do Instagram, e
-// pessoas fictícias. Quem revisa é "gestao" (vê e mexe em tudo).
+// pessoas fictícias. Quem revisa é a direção ("gestao": vê e mexe em tudo).
+//
+// Integrações (11/10/2026): as ações das fontes de dados (fontes,
+// conectarInicio, conectarConfirmar, desconectar, coletarAgora) moram em
+// marketing-fontes.mjs, com os dados que os conectores de verdade geraram
+// (fontes-ficticias.json). Lá estão também os parâmetros da prévia:
+// ?papel=marketing ou ?papel=visualizacao revisa a tela com outro papel (vale
+// para a página inteira, como no servidor: o "painel" devolve o mesmo papel e
+// as ações de gravar recusam o que o papel não pode), e ?cenario=... simula
+// os casos raros das fontes (e o sem-identidade do "painel", aqui embaixo).
+// Os campos novos do servidor também estão aqui: temContaPainel em cada
+// pessoa da ação "pessoas" e semIdentidade no "painel".
 import {
   prepararAcao, acaoParaTela, ErroMarketing, prepararCanal, canalParaTela, prepararItemPlaybook, itemParaTela, prepararConclusao,
   prepararPublicacao, prepararLinhaCsv, publicacaoParaTela, prepararMetricas, metricasParaTela, prepararPapel, papelParaTela,
   padraoParaBanco, hojeSP, somarDias, segundaDaSemana, LIMITE_LINHAS_CSV, NUMEROS_SEMANA,
 } from '../../supabase/functions/_shared/marketing.mjs';
 import { CANAIS_PADRAO, PLAYBOOK_PADRAO } from '../../supabase/functions/_shared/marketing-padrao.mjs';
+import { ACOES_FONTES, FRASES, criarFontesDaPrevia, parametrosDaPrevia, pedidoValido } from './marketing-fontes.mjs';
 
 const QUEM = 'revisao';
+// O papel de quem revisa (?papel=); sem ele, a direção, como sempre foi.
+const PREVIA = parametrosDaPrevia(typeof location !== 'undefined' ? location.href : 'http://localhost/');
+
+/* O PEDIDO de conexão feito na prévia sobrevive à navegação da volta do
+   Conectar (o endereço de Configurações recarrega a página no servidor de
+   desenvolvimento): fica guardado nesta aba e é lido UMA vez, ao carregar, e
+   apagado. Na volta, a tela confirma o pedido (conectarConfirmar), e só aí a
+   conexão vale, como no servidor; um F5 depois restaura o exemplo, como no
+   resto da prévia. Pedido com mais de 10 minutos (uma navegação que não
+   aconteceu) não vale. Sem sessionStorage (aba anônima, armazenamento
+   bloqueado), o pedido só não sobrevive à recarga: a confirmação responde
+   "pedido vencido", e a prévia continua funcionando. */
+const CHAVE_PEDIDO = 'painel-previa-mkt-conexao';
+// A prévia compilada (revisao-local.html) usa HashRouter: a volta só troca o
+// que vem depois do #, a página não recarrega, e o pedido já está na memória.
+const rotaNoHash = () => typeof location !== 'undefined' && location.hash.startsWith('#/');
+function guardarPedido(pedido) {
+  try {
+    if (pedido && !rotaNoHash()) sessionStorage.setItem(CHAVE_PEDIDO, JSON.stringify(pedido));
+    else sessionStorage.removeItem(CHAVE_PEDIDO);
+  } catch { /* sem sessionStorage: ver acima */ }
+}
+function lerPedido() {
+  try {
+    const v = JSON.parse(sessionStorage.getItem(CHAVE_PEDIDO) || 'null');
+    sessionStorage.removeItem(CHAVE_PEDIDO);
+    return pedidoValido(v) && Date.now() - v.em < 10 * 60 * 1000 ? v : null;
+  } catch {
+    return null;
+  }
+}
+/* Para onde o Conectar da prévia manda: Configurações, com a consulta da
+   volta de verdade (no HashRouter, depois do #). No servidor de
+   desenvolvimento a volta recarrega a página, e o papel e os cenários da
+   prévia (?papel=, ?cenario=) vão junto: sem eles, o "pedido-vencido" e o
+   "outra-pessoa" sumiam justo na recarga em que a confirmação acontece. */
+function enderecoDeVolta(consulta) {
+  if (rotaNoHash()) return `${location.pathname}${location.search}#/configuracoes?${consulta}`;
+  const daPrevia = new URLSearchParams();
+  for (const k of ['papel', 'cenario']) for (const v of new URLSearchParams(location.search).getAll(k)) daPrevia.append(k, v);
+  const extra = daPrevia.toString();
+  return `${import.meta.env.BASE_URL}configuracoes?${consulta}${extra ? `&${extra}` : ''}`;
+}
+const fontesDaPrevia = criarFontesDaPrevia({
+  carregar: () => import('./fontes-ficticias.json').then((m) => m.default),
+  carregarCheias: () => import('./fontes-ficticias-cheias.json').then((m) => m.default),
+  papel: PREVIA.papel,
+  cenarios: PREVIA.cenarios,
+  pedidoGuardado: lerPedido(),
+  guardarPedido,
+  enderecoDeVolta,
+  quem: QUEM,
+});
 const ID_PESSOA = '100001';
+// ?cenario=sem-identidade: o login não está ligado a uma pessoa do RH (o
+// servidor devolve idPessoa null e semIdentidade true no "painel").
+const SEM_IDENTIDADE = PREVIA.cenarios.has('sem-identidade');
 const hoje = hojeSP();
 const agora = () => new Date().toISOString();
 const carimbo = () => ({ criado_em: agora(), criado_por: QUEM, atualizado_em: agora(), atualizado_por: QUEM });
 
 const acoes = new Map(), vinculo = new Map(), canais = new Map(), playbook = new Map();
 const publicacoes = new Map(), metricas = new Map(), papeis = new Map();
+// temContaPainel (campo novo da ação "pessoas"): a Carla não tem conta no
+// Painel, e o papel dela (visualização, logo abaixo) só vale quando tiver.
 const pessoas = [
-  { idPessoa: '100001', nome: 'Ana Exemplo', area: 'Marketing' },
-  { idPessoa: '100002', nome: 'Bruno Exemplo', area: 'Comercial' },
-  { idPessoa: '100003', nome: 'Carla Exemplo', area: 'Produção' },
+  { idPessoa: '100001', nome: 'Ana Exemplo', area: 'Marketing', temContaPainel: true },
+  { idPessoa: '100002', nome: 'Bruno Exemplo', area: 'Comercial', temContaPainel: true },
+  { idPessoa: '100003', nome: 'Carla Exemplo', area: 'Produção', temContaPainel: false },
 ];
 
 const padrao = padraoParaBanco(CANAIS_PADRAO, PLAYBOOK_PADRAO);
@@ -243,21 +313,23 @@ function carregarPadrao() {
 function painel() {
   const desde = somarDias(hoje, -400), desdeSemana = somarDias(segundaDaSemana(hoje), -7 * 25);
   return {
-    papel: 'gestao', idPessoa: ID_PESSOA, hoje,
+    papel: PREVIA.papel, idPessoa: SEM_IDENTIDADE ? null : ID_PESSOA, semIdentidade: SEM_IDENTIDADE, hoje,
     canais: [...canais.values()].map(canalParaTela).sort((a, b) => a.ordem - b.ordem || a.nome.localeCompare(b.nome, 'pt-BR')),
     playbook: [...playbook.values()].map(itemParaTela).sort((a, b) => a.canalId.localeCompare(b.canalId) || a.ordem - b.ordem),
     acoes: lista(),
     publicacoes: [...publicacoes.values()].filter((p) => !p.retirada_em && p.data >= desde).map(publicacaoParaTela).sort((a, b) => b.data.localeCompare(a.data)),
     metricas: [...metricas.values()].filter((m) => m.semana >= desdeSemana).map(metricasParaTela).sort((a, b) => b.semana.localeCompare(a.semana)),
-    papeis: [...papeis.values()].map(papelParaTela),
-    legado: { pendentes: 0 }, podeMigrar: true,
+    // Como o servidor: a lista de papéis é só da gestão, e trazer as ações
+    // antigas é só da direção.
+    papeis: PREVIA.papel === 'gestao' ? [...papeis.values()].map(papelParaTela) : [],
+    legado: { pendentes: 0 }, podeMigrar: PREVIA.direcao,
   };
 }
 
 const ACOES = {
   painel,
   pessoas: () => ({ pessoas: pessoas.map((p) => ({ ...p })), semId: 1 }),
-  acoes: () => ({ acoes: lista(), legado: { pendentes: 0 }, podeMigrar: true }),
+  acoes: () => ({ acoes: lista(), legado: { pendentes: 0 }, podeMigrar: PREVIA.direcao }),
   salvarAcao,
   retirarAcao: (b) => {
     const a = acoes.get(b.id);
@@ -303,11 +375,25 @@ const ACOES = {
   carregarPadrao,
 };
 
+/* QUEM GRAVA O QUÊ, como a porta de verdade: visualização só olha; canal,
+   playbook, papéis e a carga padrão são da gestão; trazer as ações antigas é
+   da direção. As frases são as da porta (FRASES, conferidas no teste). */
+const GRAVA = new Set(['salvarAcao', 'retirarAcao', 'concluirPlaybook', 'salvarPublicacao', 'retirarPublicacao', 'importarPublicacoes', 'salvarMetricas']);
+const SO_GESTAO = new Set(['salvarCanal', 'salvarPlaybook', 'retirarPlaybook', 'definirPapel', 'carregarPadrao']);
+function conferirPapel(acao) {
+  if (GRAVA.has(acao) && PREVIA.papel === 'visualizacao') falhar(FRASES.soVer, 403);
+  if (SO_GESTAO.has(acao) && PREVIA.papel !== 'gestao') falhar(FRASES.soGestao, 403);
+  if (acao === 'migrarLegado' && !PREVIA.direcao) falhar('Só a direção traz as ações antigas.', 403);
+}
+
 const responder = (corpo, status = 200) => new Response(JSON.stringify(corpo), { status, headers: { 'Content-Type': 'application/json' } });
 export function respostaMarketing(b) {
+  // As fontes de dados respondem depois de ler o JSON (import sob demanda).
+  if (ACOES_FONTES.includes(b?.action)) return fontesDaPrevia.responder(b.action, b).then(({ status, corpo }) => responder(corpo, status));
   try {
     const fazer = Object.hasOwn(ACOES, b?.action) ? ACOES[b.action] : null;
     if (!fazer) falhar('Ação inválida.', 400);
+    conferirPapel(b.action);
     return responder({ ok: true, ...fazer(b) });
   } catch (e) {
     return responder({ erro: e.message }, e.status || 400);

@@ -1,0 +1,80 @@
+{
+ "data": [
+  {
+   "name": "post_media_view",
+   "period": "lifetime",
+   "title": "post_media_view",
+   "values": [
+    {
+     "value": 1200
+    }
+   ],
+   "id": "x/insights/post_media_view/lifetime"
+  },
+  {
+   "name": "post_total_media_view_unique",
+   "period": "lifetime",
+   "title": "post_total_media_view_unique",
+   "values": [
+    {
+     "value": 800
+    }
+   ],
+   "id": "x/insights/post_total_media_view_unique/lifetime"
+  },
+  {
+   "name": "post_clicks",
+   "period": "lifetime",
+   "title": "post_clicks",
+   "values": [
+    {
+     "value": 35
+    }
+   ],
+   "id": "x/insights/post_clicks/lifetime"
+  },
+  {
+   "name": "post_clicks_by_type",
+   "period": "lifetime",
+   "title": "post_clicks_by_type",
+   "values": [
+    {
+     "value": {
+      "link clicks": 20,
+      "other clicks": 15
+     }
+    }
+   ],
+   "id": "x/insights/post_clicks_by_type/lifetime"
+  },
+  {
+   "name": "post_reactions_by_type_total",
+   "period": "lifetime",
+   "title": "post_reactions_by_type_total",
+   "values": [
+    {
+     "value": {
+      "like": 26,
+      "love": 4
+     }
+    }
+   ],
+   "id": "x/insights/post_reactions_by_type_total/lifetime"
+  },
+  {
+   "name": "post_activity_by_action_type",
+   "period": "lifetime",
+   "title": "post_activity_by_action_type",
+   "values": [
+    {
+     "value": {
+      "share": 2,
+      "like": 30,
+      "comment": 5
+     }
+    }
+   ],
+   "id": "x/insights/post_activity_by_action_type/lifetime"
+  }
+ ]
+}

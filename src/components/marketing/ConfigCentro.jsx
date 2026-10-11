@@ -21,6 +21,7 @@ import { CampoPessoa } from './FormAcao.jsx';
 import { textoRecorrencia, TIPO_PLAYBOOK, RECORRENCIA, PRIORIDADE, EVIDENCIA } from './Detalhes.jsx';
 import { mudouNoServidor } from './contexto.js';
 import { nomeDoResponsavel, trocarPorId } from './derivar.js';
+import { semContaNoPainel } from '../../lib/calc/marketing-conexoes.js';
 import {
   lerPainelMarketing,
   listarPessoasMarketing,
@@ -638,13 +639,23 @@ function SecaoPlaybook({ canais, playbook, canalId, onCanal, pessoas, ocupado, a
   );
 }
 
+/* PESSOA SEM CONTA NO PAINEL (campo temContaPainel da ação "pessoas"): o
+   papel fica gravado, mas só vale quando ela tiver um login ligado a ela. O
+   aviso só aparece quando o servidor disse que não tem; sem o campo (função
+   antiga), nada é dito. */
+const SEM_CONTA = 'Sem conta no Painel: o papel só vale quando ela tiver conta.';
+
 function SecaoPapeis({ papeis, pessoas, erroPessoas, recarregarPessoas, ocupado, aviso, onDefinir }) {
   const [novoId, setNovoId] = useState('');
   const [novoPapel, setNovoPapel] = useState('marketing');
   const linhas = useMemo(
     () =>
       papeis
-        .map((p) => ({ ...p, nome: Array.isArray(pessoas) ? nomeDoResponsavel({ responsavelId: p.idPessoa }, pessoas) : 'Carregando...' }))
+        .map((p) => ({
+          ...p,
+          nome: Array.isArray(pessoas) ? nomeDoResponsavel({ responsavelId: p.idPessoa }, pessoas) : 'Carregando...',
+          semConta: semContaNoPainel(pessoas, p.idPessoa),
+        }))
         .sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR')),
     [papeis, pessoas]
   );
@@ -660,7 +671,13 @@ function SecaoPapeis({ papeis, pessoas, erroPessoas, recarregarPessoas, ocupado,
         <ul>
           {linhas.map((p) => (
             <li key={p.idPessoa} className="mkt-linha flex-wrap">
-              <span className="min-w-0 flex-1 truncate text-sm text-slate-800">{p.nome}</span>
+              {/* Pelo menos 10rem para o nome (e o aviso embaixo dele): no
+                  celular o papel e o "Voltar ao padrão" descem para a linha
+                  de baixo, em vez de espremer o nome até sumir. */}
+              <span className="min-w-[10rem] flex-1">
+                <span className="block truncate text-sm text-slate-800">{p.nome}</span>
+                {p.semConta && <span className="block text-xs text-warn-700">{SEM_CONTA}</span>}
+              </span>
               <select
                 className="input w-auto"
                 aria-label={`Papel de ${p.nome}`}
@@ -704,6 +721,11 @@ function SecaoPapeis({ papeis, pessoas, erroPessoas, recarregarPessoas, ocupado,
         <button className="btn-primary min-h-11" disabled={ocupado || !novoId}>
           Definir papel
         </button>
+        {semContaNoPainel(pessoas, novoId) && (
+          <p role="status" className="text-xs text-warn-700 sm:col-span-3">
+            {SEM_CONTA}
+          </p>
+        )}
       </form>
     </section>
   );

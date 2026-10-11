@@ -1,0 +1,39 @@
+{
+ "paging": {
+  "count": 10,
+  "start": 0
+ },
+ "elements": [
+  {
+   "timeRange": {
+    "start": 1451606400000,
+    "end": 1451692800000
+   },
+   "totalShareStatistics": {
+    "clickCount": 0,
+    "engagement": 0,
+    "likeCount": 0,
+    "commentCount": 0,
+    "shareCount": 0,
+    "impressionCount": 331,
+    "uniqueImpressionsCounts": 203
+   },
+   "organizationalEntity": "urn:li:organization:2414183"
+  },
+  {
+   "timeRange": {
+    "start": 1451692800000,
+    "end": 1451779200000
+   },
+   "totalShareStatistics": {
+    "clickCount": 0,
+    "engagement": 0,
+    "likeCount": 0,
+    "commentCount": 0,
+    "shareCount": 0,
+    "impressionCount": 0
+   },
+   "organizationalEntity": "urn:li:organization:2414183"
+  }
+ ]
+}

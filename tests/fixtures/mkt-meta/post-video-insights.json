@@ -1,0 +1,59 @@
+{
+ "data": [
+  {
+   "name": "post_video_views",
+   "period": "lifetime",
+   "title": "post_video_views",
+   "values": [
+    {
+     "value": 400
+    }
+   ],
+   "id": "x/insights/post_video_views/lifetime"
+  },
+  {
+   "name": "post_video_avg_time_watched",
+   "period": "lifetime",
+   "title": "post_video_avg_time_watched",
+   "values": [
+    {
+     "value": 6100
+    }
+   ],
+   "id": "x/insights/post_video_avg_time_watched/lifetime"
+  },
+  {
+   "name": "post_video_view_time",
+   "period": "lifetime",
+   "title": "post_video_view_time",
+   "values": [
+    {
+     "value": 2440000
+    }
+   ],
+   "id": "x/insights/post_video_view_time/lifetime"
+  },
+  {
+   "name": "post_video_complete_views_organic",
+   "period": "lifetime",
+   "title": "post_video_complete_views_organic",
+   "values": [
+    {
+     "value": 50
+    }
+   ],
+   "id": "x/insights/post_video_complete_views_organic/lifetime"
+  },
+  {
+   "name": "post_video_complete_views_paid",
+   "period": "lifetime",
+   "title": "post_video_complete_views_paid",
+   "values": [
+    {
+     "value": 0
+    }
+   ],
+   "id": "x/insights/post_video_complete_views_paid/lifetime"
+  }
+ ]
+}

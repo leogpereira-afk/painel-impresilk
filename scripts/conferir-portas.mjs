@@ -27,6 +27,20 @@ const PUBLICAS = {
   "painel-auth:trocarSenha": "troca com a senha antiga na mão, sem sessão",
   "painel-auth:esqueci": "pedido de recuperação, antes de existir sessão",
   "painel-backup:auto": "chamado pelo pg_cron com x-token, não com crachá",
+  // Integrações do Marketing (11/10/2026, docs/marketing/integracoes-contrato.md).
+  "painel-mkt-fontes:coletar":
+    "porta de máquina: o pg_cron e a painel-marketing chamam com x-token " +
+    "(PAINEL_TOKEN), conferido no topo da function antes do switch; quem " +
+    "decide se a PESSOA pode pedir a coleta é a painel-marketing, com crachá e papel",
+  "painel-mkt-oauth:(function inteira)":
+    "é a volta do provedor de OAuth (Google, LinkedIn, Pinterest): o navegador " +
+    "chega sem crachá. O que vale como porteiro é o state assinado com o " +
+    "PAINEL_JWT_SECRET, emitido pela painel-marketing só para a gestão, com a " +
+    "fonte, o login e o nonce dentro, válido 10 minutos e UMA vez (o nonce é " +
+    "consumido no banco); sem ele não troca nem grava nada. E nem com ele a " +
+    "conexão chega ao cofre: fica PENDENTE, amarrada ao nonce e ao login, e só " +
+    "entra pela conectarConfirmar da painel-marketing, com o crachá de quem " +
+    "clicou (quem tem só a URL completa o consentimento, mas não confirma)",
   "painel-acesso:entrar": "login dos outros sistemas",
   // Aposentadas: respondem 410 ("mudou de casa") e não tocam em dado nenhum.
   "painel-auth:listarContas": "aposentada; responde 410 e não lê nada",
@@ -55,6 +69,7 @@ const GUARDA_NO_RAMO = /exigirSessao|exigirDirecao|exigirToken|exigirMaster|x-to
 const GUARDA_NO_TOPO = /semSessao:\s*true\s*\}\s*,\s*401|Entre no sistema.*401|exigirSessao/;
 
 let faltando = 0, conferidas = 0;
+const semDespacho = [];
 for (const fn of readdirSync(DIR).filter((f) => !f.startsWith("_"))) {
   const caminho = `${DIR}/${fn}/index.ts`;
   if (!existsSync(caminho)) continue;
@@ -66,6 +81,16 @@ for (const fn of readdirSync(DIR).filter((f) => !f.startsWith("_"))) {
 
   // Cada bloco vai do seu `case "x"` até o próximo `case` (ou o fim).
   const casos = [...src.matchAll(/case\s+"([^"]+)"\s*:/g)];
+  /* FUNCTION SEM DESPACHO POR AÇÃO (uma porta só, como a volta do OAuth):
+     não há `case` para conferir. Se ela é pública de propósito, a declaração
+     fica escrita como "<function>:(function inteira)", com o motivo, e conta
+     como conferida. As outras sem `case` saem na lista do rodapé: zero
+     achado nelas é "não cheguei lá", não "está limpo". */
+  if (!casos.length) {
+    if (PUBLICAS[`${fn}:(function inteira)`]) conferidas++;
+    else if (!fechadaNoTopo) semDespacho.push(fn);
+    continue;
+  }
   for (let i = 0; i < casos.length; i++) {
     const nome = casos[i][1];
     const ini = casos[i].index;
@@ -81,6 +106,12 @@ for (const fn of readdirSync(DIR).filter((f) => !f.startsWith("_"))) {
   }
 }
 
+if (semDespacho.length) {
+  console.log(
+    `(${semDespacho.length} function(s) sem \`case "acao"\`, NÃO conferidas por este script: ${semDespacho.join(", ")}. ` +
+    `O papel delas é conferido pelo scripts/conferir-papel.mjs.)`,
+  );
+}
 console.log(
   faltando
     ? `\n${faltando} ação(ões) sem porteiro. Ou chame exigirSessao, ou declare em PUBLICAS com o motivo.`

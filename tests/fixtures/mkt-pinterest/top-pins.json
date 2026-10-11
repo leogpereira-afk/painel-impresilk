@@ -1,0 +1,48 @@
+{
+ "date_availability": {
+  "is_realtime": false,
+  "latest_available_timestamp": 1760227200000
+ },
+ "pins": [
+  {
+   "pin_id": "1000000000000000001",
+   "metrics": {
+    "IMPRESSION": 300,
+    "ENGAGEMENT": 30,
+    "PIN_CLICK": 12,
+    "OUTBOUND_CLICK": 9,
+    "SAVE": 6
+   },
+   "data_status": {
+    "IMPRESSION": "READY"
+   }
+  },
+  {
+   "pin_id": "1000000000000000004",
+   "metrics": {
+    "IMPRESSION": 200,
+    "ENGAGEMENT": 20,
+    "PIN_CLICK": 8,
+    "OUTBOUND_CLICK": 5,
+    "SAVE": 4
+   },
+   "data_status": {
+    "IMPRESSION": "READY"
+   }
+  },
+  {
+   "pin_id": "1000000000000000077",
+   "metrics": {
+    "IMPRESSION": 100,
+    "ENGAGEMENT": 9,
+    "PIN_CLICK": 3,
+    "OUTBOUND_CLICK": 2,
+    "SAVE": 1
+   },
+   "data_status": {
+    "IMPRESSION": "ESTIMATE"
+   }
+  }
+ ],
+ "sort_by": "ENGAGEMENT"
+}

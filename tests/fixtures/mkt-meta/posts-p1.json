@@ -1,0 +1,53 @@
+{
+ "data": [
+  {
+   "id": "100000000000001_9001",
+   "created_time": "2026-10-08T14:00:00+0000",
+   "message": "Fachada nova em ACM para cliente de BH\nDetalhes no site",
+   "permalink_url": "https://www.facebook.com/impresilk.exemplo/posts/pfbid0Exemplo1?utm_source=teste",
+   "full_picture": "https://scontent.exemplo/foto1.jpg",
+   "status_type": "added_photos",
+   "shares": {
+    "count": 2
+   },
+   "reactions": {
+    "data": [],
+    "summary": {
+     "total_count": 30
+    }
+   },
+   "comments": {
+    "data": [],
+    "summary": {
+     "total_count": 5
+    }
+   }
+  },
+  {
+   "id": "100000000000001_9002",
+   "created_time": "2026-09-20T13:00:00+0000",
+   "message": "",
+   "permalink_url": "https://www.facebook.com/impresilk.exemplo/videos/9002/",
+   "status_type": "added_video",
+   "reactions": {
+    "data": [],
+    "summary": {
+     "total_count": 0
+    }
+   },
+   "comments": {
+    "data": [],
+    "summary": {
+     "total_count": 0
+    }
+   }
+  }
+ ],
+ "paging": {
+  "cursors": {
+   "before": "A",
+   "after": "B"
+  },
+  "next": "https://graph.facebook.com/v26.0/100000000000001/published_posts?after=B&limit=100"
+ }
+}

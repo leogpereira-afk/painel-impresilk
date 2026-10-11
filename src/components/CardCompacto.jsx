@@ -62,8 +62,13 @@ function BotaoAcao({ acao, compacto = false }) {
 
 /* O menu "...". Abre sob o botão; fecha ao tocar fora, no Esc e ao escolher.
    As setas andam entre os itens. O Esc é segurado aqui: dentro de uma Gaveta,
-   o mesmo Esc fecharia a gaveta inteira junto com o menu. */
-function MenuMais({ itens }) {
+   o mesmo Esc fecharia a gaveta inteira junto com o menu. Exportado para as
+   linhas de Conexões do Marketing, que seguem a mesma regra de duas ações à
+   vista e o resto no "...". `compacto`: o botão desenhado com 32px, ao lado
+   de botões de 32px, e o toque em 40px (.alvo-40, é controle); sem o recuo
+   para o canto do cartão. `rotulo`: o nome do botão para o leitor de tela
+   quando há vários "..." na mesma tela ("Mais ações do Google"). */
+export function MenuMais({ itens, compacto = false, rotulo = 'Mais ações' }) {
   const [aberto, setAberto] = useState(false);
   const raiz = useRef(null);
   const botao = useRef(null);
@@ -105,16 +110,16 @@ function MenuMais({ itens }) {
   }
 
   return (
-    <div ref={raiz} className="relative -mr-1 -mt-1 shrink-0" onKeyDown={teclas}>
+    <div ref={raiz} className={clsx('relative shrink-0', !compacto && '-mr-1 -mt-1')} onKeyDown={teclas}>
       <button
         ref={botao}
         type="button"
-        className="btn-ghost sem-impressao h-11 w-11 p-0"
+        className={clsx('btn-ghost sem-impressao p-0', compacto ? 'alvo-40 h-8 w-8' : 'h-11 w-11')}
         aria-haspopup="menu"
         aria-expanded={aberto}
         aria-controls={aberto ? id : undefined}
-        aria-label="Mais ações"
-        title="Mais ações"
+        aria-label={rotulo}
+        title={rotulo}
         onClick={() => setAberto((a) => !a)}
       >
         <MoreHorizontal size={18} aria-hidden="true" />

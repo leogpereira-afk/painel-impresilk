@@ -1,0 +1,34 @@
+{
+ "data": [
+  {
+   "name": "follows_and_unfollows",
+   "period": "day",
+   "title": "Follows and unfollows",
+   "description": "",
+   "total_value": {
+    "breakdowns": [
+     {
+      "dimension_keys": [
+       "follow_type"
+      ],
+      "results": [
+       {
+        "dimension_values": [
+         "FOLLOWER"
+        ],
+        "value": 25
+       },
+       {
+        "dimension_values": [
+         "NON_FOLLOWER"
+        ],
+        "value": 4
+       }
+      ]
+     }
+    ]
+   },
+   "id": "17841400000000001/insights/follows_and_unfollows/day"
+  }
+ ]
+}

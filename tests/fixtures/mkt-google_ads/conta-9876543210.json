@@ -1,0 +1,23 @@
+{
+ "results": [
+  {
+   "customer": {
+    "resourceName": "customers/9876543210",
+    "id": "9876543210",
+    "descriptiveName": "Conta Antiga de Teste",
+    "currencyCode": "BRL",
+    "timeZone": "America/Sao_Paulo",
+    "manager": false,
+    "testAccount": false,
+    "conversionTrackingSetting": {
+     "conversionTrackingId": "999000999"
+    },
+    "callReportingSetting": {
+     "callReportingEnabled": false
+    }
+   }
+  }
+ ],
+ "fieldMask": "customer.id",
+ "requestId": "req-ficticio-0001"
+}

@@ -1,0 +1,149 @@
+{
+ "results": [
+  {
+   "customer": {
+    "resourceName": "customers/1234567890"
+   },
+   "segments": {
+    "week": "2026-08-10"
+   },
+   "metrics": {
+    "impressions": "1000",
+    "clicks": "50",
+    "interactions": "50",
+    "costMicros": "100000000",
+    "conversions": 5.0,
+    "conversionsValue": 0.0,
+    "allConversions": 6.5,
+    "searchImpressionShare": 0.42
+   }
+  },
+  {
+   "customer": {
+    "resourceName": "customers/1234567890"
+   },
+   "segments": {
+    "week": "2026-08-17"
+   },
+   "metrics": {
+    "impressions": "1200",
+    "clicks": "60",
+    "interactions": "60",
+    "costMicros": "120500000",
+    "conversions": 6.0,
+    "conversionsValue": 0.0,
+    "allConversions": 7.0,
+    "searchImpressionShare": 0.0999
+   }
+  },
+  {
+   "customer": {
+    "resourceName": "customers/1234567890"
+   },
+   "segments": {
+    "week": "2026-08-31"
+   },
+   "metrics": {
+    "impressions": "900",
+    "clicks": "45",
+    "interactions": "45",
+    "costMicros": "90000000",
+    "conversions": 3.0,
+    "conversionsValue": 0.0,
+    "allConversions": 3.0,
+    "searchImpressionShare": 0.35
+   }
+  },
+  {
+   "customer": {
+    "resourceName": "customers/1234567890"
+   },
+   "segments": {
+    "week": "2026-09-07"
+   },
+   "metrics": {
+    "impressions": "1100",
+    "clicks": "55",
+    "interactions": "55",
+    "costMicros": "110000000",
+    "conversions": 4.0,
+    "conversionsValue": 0.0,
+    "allConversions": 4.0,
+    "searchImpressionShare": 0.4
+   }
+  },
+  {
+   "customer": {
+    "resourceName": "customers/1234567890"
+   },
+   "segments": {
+    "week": "2026-09-14"
+   },
+   "metrics": {
+    "impressions": "1300",
+    "clicks": "70",
+    "interactions": "70",
+    "costMicros": "140000000",
+    "conversions": 7.0,
+    "conversionsValue": 0.0,
+    "allConversions": 17.0,
+    "searchImpressionShare": 0.45
+   }
+  },
+  {
+   "customer": {
+    "resourceName": "customers/1234567890"
+   },
+   "segments": {
+    "week": "2026-09-21"
+   },
+   "metrics": {
+    "impressions": "1000",
+    "clicks": "52",
+    "interactions": "52",
+    "costMicros": "104000000",
+    "conversions": 5.0,
+    "conversionsValue": 0.0,
+    "allConversions": 5.0,
+    "searchImpressionShare": 0.41
+   }
+  },
+  {
+   "customer": {
+    "resourceName": "customers/1234567890"
+   },
+   "segments": {
+    "week": "2026-09-28"
+   },
+   "metrics": {
+    "impressions": "1150",
+    "clicks": "61",
+    "interactions": "61",
+    "costMicros": "122000000",
+    "conversions": 6.0,
+    "conversionsValue": 0.0,
+    "allConversions": 6.0,
+    "searchImpressionShare": 0.43
+   }
+  },
+  {
+   "customer": {
+    "resourceName": "customers/1234567890"
+   },
+   "segments": {
+    "week": "2026-10-05"
+   },
+   "metrics": {
+    "impressions": "700",
+    "clicks": "30",
+    "interactions": "30",
+    "costMicros": "60000000",
+    "conversions": 2.0,
+    "conversionsValue": 0.0,
+    "allConversions": 2.0
+   }
+  }
+ ],
+ "fieldMask": "segments.week,metrics.impressions",
+ "requestId": "req-ficticio-0001"
+}

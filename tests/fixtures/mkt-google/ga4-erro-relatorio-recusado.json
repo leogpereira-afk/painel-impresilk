@@ -1,0 +1,7 @@
+{
+ "error": {
+  "code": 400,
+  "message": "Field advertiserAdCost is not compatible with sessionGoogleAdsCampaignName. Check compatibility.",
+  "status": "INVALID_ARGUMENT"
+ }
+}

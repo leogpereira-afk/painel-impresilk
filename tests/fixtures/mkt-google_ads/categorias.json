@@ -1,0 +1,33 @@
+{
+ "results": [
+  {
+   "customerSearchTermInsight": {
+    "resourceName": "customers/1234567890/customerSearchTermInsights/1",
+    "categoryLabel": "fachadas comerciais",
+    "id": "1"
+   },
+   "metrics": {
+    "impressions": "400",
+    "clicks": "20",
+    "conversions": 2.0,
+    "searchVolume": {
+     "min": "1000",
+     "max": "5000"
+    }
+   }
+  },
+  {
+   "customerSearchTermInsight": {
+    "resourceName": "customers/1234567890/customerSearchTermInsights/2",
+    "categoryLabel": "",
+    "id": "2"
+   },
+   "metrics": {
+    "impressions": "10",
+    "clicks": "0"
+   }
+  }
+ ],
+ "fieldMask": "customerSearchTermInsight.categoryLabel",
+ "requestId": "req-ficticio-0001"
+}

@@ -1,0 +1,14 @@
+{
+ "reactionSummaries": {
+  "EMPATHY": {
+   "reactionType": "EMPATHY",
+   "count": 1
+  }
+ },
+ "commentsState": "OPEN",
+ "commentSummary": {
+  "count": 4,
+  "topLevelCount": 3
+ },
+ "entity": "urn:li:activity:6524387688164966400"
+}

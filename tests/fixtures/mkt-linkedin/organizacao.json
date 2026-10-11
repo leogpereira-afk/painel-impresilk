@@ -1,0 +1,14 @@
+{
+ "id": 90000001,
+ "localizedName": "Empresa Exemplo Ltda",
+ "vanityName": "empresa-exemplo",
+ "localizedWebsite": "https://exemplo.com.br",
+ "staffCountRange": "SIZE_11_TO_50",
+ "industries": [
+  "urn:li:industry:83"
+ ],
+ "organizationType": "PRIVATELY_HELD",
+ "logoV2": {
+  "original": "urn:li:digitalmediaAsset:FICTICIO"
+ }
+}

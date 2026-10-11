@@ -1,0 +1,56 @@
+{
+ "all": {
+  "daily_metrics": [
+   {
+    "date": "2026-10-05",
+    "data_status": "READY",
+    "metrics": {
+     "IMPRESSION": 10,
+     "OUTBOUND_CLICK": 1,
+     "PIN_CLICK": 2,
+     "SAVE": 1,
+     "SAVE_RATE": 0.1,
+     "USER_FOLLOW": 1,
+     "PROFILE_VISIT": 0,
+     "TOTAL_COMMENTS": 0,
+     "TOTAL_REACTIONS": 1
+    }
+   },
+   {
+    "date": "2026-10-06",
+    "data_status": "PROCESSING",
+    "metrics": {
+     "IMPRESSION": 5,
+     "OUTBOUND_CLICK": 0,
+     "PIN_CLICK": 1,
+     "SAVE": 0,
+     "SAVE_RATE": 0,
+     "USER_FOLLOW": 0,
+     "PROFILE_VISIT": 1,
+     "TOTAL_COMMENTS": 0,
+     "TOTAL_REACTIONS": 0
+    }
+   },
+   {
+    "date": "2026-09-30",
+    "data_status": "BEFORE_PIN_CREATED",
+    "metrics": {}
+   }
+  ],
+  "summary_metrics": {
+   "IMPRESSION": 15,
+   "OUTBOUND_CLICK": 1,
+   "PIN_CLICK": 3,
+   "SAVE": 1,
+   "SAVE_RATE": 0.067,
+   "USER_FOLLOW": 1,
+   "PROFILE_VISIT": 1,
+   "TOTAL_COMMENTS": 0,
+   "TOTAL_REACTIONS": 1
+  },
+  "lifetime_metrics": {
+   "TOTAL_COMMENTS": 4,
+   "TOTAL_REACTIONS": 9
+  }
+ }
+}

@@ -1,0 +1,12 @@
+{
+ "googleAdsLinks": [
+  {
+   "name": "properties/222/googleAdsLinks/5",
+   "customerId": "1234567890",
+   "canManageClients": false,
+   "adsPersonalizationEnabled": true,
+   "createTime": "2025-01-10T00:00:00Z",
+   "updateTime": "2025-01-10T00:00:00Z"
+  }
+ ]
+}

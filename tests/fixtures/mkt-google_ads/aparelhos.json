@@ -1,0 +1,53 @@
+{
+ "results": [
+  {
+   "customer": {
+    "resourceName": "customers/1234567890"
+   },
+   "segments": {
+    "device": "MOBILE",
+    "adNetworkType": "SEARCH"
+   },
+   "metrics": {
+    "impressions": "5000",
+    "clicks": "300",
+    "interactions": "300",
+    "costMicros": "600000000",
+    "conversions": 30.0
+   }
+  },
+  {
+   "customer": {
+    "resourceName": "customers/1234567890"
+   },
+   "segments": {
+    "device": "DESKTOP",
+    "adNetworkType": "SEARCH"
+   },
+   "metrics": {
+    "impressions": "2300",
+    "clicks": "123",
+    "interactions": "123",
+    "costMicros": "260500000",
+    "conversions": 8.0
+   }
+  },
+  {
+   "customer": {
+    "resourceName": "customers/1234567890"
+   },
+   "segments": {
+    "device": "MOBILE",
+    "adNetworkType": "CONTENT"
+   },
+   "metrics": {
+    "impressions": "1050",
+    "clicks": "0",
+    "interactions": "0",
+    "costMicros": "10000000"
+   }
+  }
+ ],
+ "fieldMask": "segments.device",
+ "requestId": "req-ficticio-0001"
+}

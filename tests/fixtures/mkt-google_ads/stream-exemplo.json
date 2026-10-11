@@ -1,0 +1,32 @@
+[
+ {
+  "results": [
+   {
+    "campaign": {
+     "resourceName": "customers/1234567890/campaigns/111111111",
+     "name": "Test campaign",
+     "status": "ENABLED"
+    },
+    "metrics": {
+     "impressions": "10922"
+    },
+    "segments": {
+     "device": "MOBILE"
+    }
+   },
+   {
+    "campaign": {
+     "resourceName": "customers/1234567890/campaigns/111111111",
+     "name": "Test campaign",
+     "status": "ENABLED"
+    },
+    "metrics": {
+     "impressions": "28297"
+    },
+    "segments": {
+     "device": "DESKTOP"
+    }
+   }
+  ]
+ }
+]

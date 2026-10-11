@@ -1,0 +1,10 @@
+{
+ "access_token": "pina-exemplo-da-doc",
+ "response_type": "refresh_token",
+ "token_type": "bearer",
+ "expires_in": 2592000,
+ "scope": "boards:read",
+ "refresh_token": "pinr-exemplo-da-doc",
+ "refresh_token_expires_in": 5184000,
+ "refresh_token_expires_at": 1730227664
+}

@@ -1,0 +1,101 @@
+{
+ "data": [
+  {
+   "date_start": "2026-10-05",
+   "date_stop": "2026-10-11",
+   "spend": "200.00",
+   "impressions": "3200",
+   "reach": "2100",
+   "frequency": "1.523809",
+   "clicks": "80",
+   "inline_link_clicks": "50",
+   "outbound_clicks": [
+    {
+     "action_type": "outbound_click",
+     "value": "12"
+    }
+   ],
+   "ctr": "2.5",
+   "cpc": "0.565",
+   "cpm": "14.125",
+   "actions": [
+    {
+     "action_type": "link_click",
+     "value": "50"
+    },
+    {
+     "action_type": "lead",
+     "value": "3"
+    },
+    {
+     "action_type": "onsite_conversion.messaging_conversation_started_7d",
+     "value": "4"
+    },
+    {
+     "action_type": "post_engagement",
+     "value": "120"
+    }
+   ],
+   "cost_per_action_type": [
+    {
+     "action_type": "lead",
+     "value": "15.066667"
+    }
+   ],
+   "results": [
+    {
+     "indicator": "actions:onsite_conversion.lead_grouped",
+     "values": [
+      {
+       "value": "3",
+       "attribution_windows": [
+        "default"
+       ]
+      }
+     ]
+    }
+   ],
+   "publisher_platform": "facebook"
+  },
+  {
+   "date_start": "2026-10-05",
+   "date_stop": "2026-10-11",
+   "spend": "100.00",
+   "impressions": "3200",
+   "reach": "2100",
+   "frequency": "1.523809",
+   "clicks": "80",
+   "inline_link_clicks": "50",
+   "outbound_clicks": [
+    {
+     "action_type": "outbound_click",
+     "value": "12"
+    }
+   ],
+   "ctr": "2.5",
+   "cpc": "0.565",
+   "cpm": "14.125",
+   "actions": [],
+   "cost_per_action_type": [
+    {
+     "action_type": "lead",
+     "value": "15.066667"
+    }
+   ],
+   "results": [
+    {
+     "indicator": "actions:onsite_conversion.lead_grouped",
+     "values": [
+      {
+       "value": "3",
+       "attribution_windows": [
+        "default"
+       ]
+      }
+     ]
+    }
+   ],
+   "publisher_platform": "instagram"
+  }
+ ]
+}

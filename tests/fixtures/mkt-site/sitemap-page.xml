@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:image="http://www.google.com/schemas/sitemap-image/1.1">
+	<url>
+		<loc>https://exemplo.com.br/</loc>
+		<lastmod>2026-09-27T09:20:34+00:00</lastmod>
+		<image:image><image:loc>https://exemplo.com.br/wp-content/uploads/2026/09/og-exemplo.jpg</image:loc></image:image>
+	</url>
+	<url>
+		<loc>https://exemplo.com.br/?page_id=151</loc>
+		<lastmod>2026-09-28T14:43:11+00:00</lastmod>
+	</url>
+	<url>
+		<loc>https://exemplo.com.br/?page_id=144</loc>
+		<lastmod>2026-09-28T14:43:09+00:00</lastmod>
+	</url>
+	<url>
+		<loc>https://exemplo.com.br/?page_id=2</loc>
+		<lastmod>2025-09-08T20:14:22+00:00</lastmod>
+	</url>
+</urlset>

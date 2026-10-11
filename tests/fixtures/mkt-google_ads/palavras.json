@@ -1,0 +1,73 @@
+{
+ "results": [
+  {
+   "adGroupCriterion": {
+    "resourceName": "customers/1234567890/adGroupCriteria/601~777",
+    "criterionId": "777",
+    "keyword": {
+     "text": "fachada acm",
+     "matchType": "PHRASE"
+    },
+    "status": "ENABLED",
+    "systemServingStatus": "ELIGIBLE",
+    "approvalStatus": "APPROVED",
+    "qualityInfo": {
+     "qualityScore": 7,
+     "creativeQualityScore": "ABOVE_AVERAGE",
+     "postClickQualityScore": "AVERAGE",
+     "searchPredictedCtr": "BELOW_AVERAGE"
+    },
+    "effectiveCpcBidMicros": "2500000",
+    "positionEstimates": {
+     "firstPageCpcMicros": "1800000"
+    }
+   },
+   "adGroup": {
+    "resourceName": "customers/1234567890/adGroups/601",
+    "id": "601",
+    "name": "Fachadas"
+   },
+   "campaign": {
+    "resourceName": "customers/1234567890/campaigns/501",
+    "id": "501",
+    "name": "Pesquisa Comunicação Visual"
+   },
+   "metrics": {
+    "impressions": "250",
+    "clicks": "18",
+    "costMicros": "36000000",
+    "conversions": 2.0,
+    "conversionsValue": 0.0,
+    "searchImpressionShare": 0.0999
+   }
+  },
+  {
+   "adGroupCriterion": {
+    "resourceName": "customers/1234567890/adGroupCriteria/602~777",
+    "criterionId": "777",
+    "keyword": {
+     "text": "letreiro luminoso",
+     "matchType": "PHRASE"
+    },
+    "status": "ENABLED"
+   },
+   "adGroup": {
+    "resourceName": "customers/1234567890/adGroups/602",
+    "id": "602",
+    "name": "Letreiros"
+   },
+   "campaign": {
+    "resourceName": "customers/1234567890/campaigns/501",
+    "id": "501",
+    "name": "Pesquisa Comunicação Visual"
+   },
+   "metrics": {
+    "impressions": "0",
+    "clicks": "0",
+    "costMicros": "0"
+   }
+  }
+ ],
+ "fieldMask": "adGroupCriterion.criterionId",
+ "requestId": "req-ficticio-0001"
+}

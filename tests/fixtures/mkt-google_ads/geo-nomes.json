@@ -1,0 +1,20 @@
+{
+ "results": [
+  {
+   "geoTargetConstant": {
+    "resourceName": "geoTargetConstants/1031836",
+    "name": "Cidade Fictícia A",
+    "canonicalName": "Cidade Fictícia A,State of Minas Gerais,Brazil"
+   }
+  },
+  {
+   "geoTargetConstant": {
+    "resourceName": "geoTargetConstants/1031893",
+    "name": "Cidade Fictícia B",
+    "canonicalName": "Cidade Fictícia B,State of Minas Gerais,Brazil"
+   }
+  }
+ ],
+ "fieldMask": "geoTargetConstant.name",
+ "requestId": "req-ficticio-0001"
+}

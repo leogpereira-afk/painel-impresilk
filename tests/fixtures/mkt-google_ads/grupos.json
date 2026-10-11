@@ -1,0 +1,51 @@
+{
+ "results": [
+  {
+   "adGroup": {
+    "resourceName": "customers/1234567890/adGroups/601",
+    "id": "601",
+    "name": "Fachadas",
+    "status": "ENABLED",
+    "type": "SEARCH_STANDARD",
+    "primaryStatus": "ELIGIBLE"
+   },
+   "campaign": {
+    "resourceName": "customers/1234567890/campaigns/501",
+    "id": "501",
+    "name": "Pesquisa Comunicação Visual"
+   },
+   "metrics": {
+    "impressions": "350",
+    "clicks": "22",
+    "interactions": "22",
+    "costMicros": "45000000",
+    "conversions": 2.5,
+    "conversionsValue": 0.0,
+    "phoneCalls": "3"
+   }
+  },
+  {
+   "adGroup": {
+    "resourceName": "customers/1234567890/adGroups/602",
+    "id": "602",
+    "name": "Letreiros",
+    "status": "PAUSED",
+    "type": "SEARCH_STANDARD"
+   },
+   "campaign": {
+    "resourceName": "customers/1234567890/campaigns/501",
+    "id": "501",
+    "name": "Pesquisa Comunicação Visual"
+   },
+   "metrics": {
+    "impressions": "150",
+    "clicks": "8",
+    "interactions": "8",
+    "costMicros": "20500000",
+    "conversions": 1.0
+   }
+  }
+ ],
+ "fieldMask": "adGroup.id",
+ "requestId": "req-ficticio-0001"
+}

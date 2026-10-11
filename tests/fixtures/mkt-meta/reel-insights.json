@@ -1,0 +1,83 @@
+{
+ "data": [
+  {
+   "name": "blue_reels_play_count",
+   "period": "lifetime",
+   "title": "blue_reels_play_count",
+   "values": [
+    {
+     "value": 900
+    }
+   ],
+   "id": "x/insights/blue_reels_play_count/lifetime"
+  },
+  {
+   "name": "fb_reels_total_plays",
+   "period": "lifetime",
+   "title": "fb_reels_total_plays",
+   "values": [
+    {
+     "value": 1100
+    }
+   ],
+   "id": "x/insights/fb_reels_total_plays/lifetime"
+  },
+  {
+   "name": "fb_reels_replay_count",
+   "period": "lifetime",
+   "title": "fb_reels_replay_count",
+   "values": [
+    {
+     "value": 200
+    }
+   ],
+   "id": "x/insights/fb_reels_replay_count/lifetime"
+  },
+  {
+   "name": "post_video_avg_time_watched",
+   "period": "lifetime",
+   "title": "post_video_avg_time_watched",
+   "values": [
+    {
+     "value": 8000
+    }
+   ],
+   "id": "x/insights/post_video_avg_time_watched/lifetime"
+  },
+  {
+   "name": "post_video_view_time",
+   "period": "lifetime",
+   "title": "post_video_view_time",
+   "values": [
+    {
+     "value": 7200000
+    }
+   ],
+   "id": "x/insights/post_video_view_time/lifetime"
+  },
+  {
+   "name": "post_video_followers",
+   "period": "lifetime",
+   "title": "post_video_followers",
+   "values": [
+    {
+     "value": 3
+    }
+   ],
+   "id": "x/insights/post_video_followers/lifetime"
+  },
+  {
+   "name": "post_video_social_actions",
+   "period": "lifetime",
+   "title": "post_video_social_actions",
+   "values": [
+    {
+     "value": {
+      "SHARE": 4
+     }
+    }
+   ],
+   "id": "x/insights/post_video_social_actions/lifetime"
+  }
+ ]
+}

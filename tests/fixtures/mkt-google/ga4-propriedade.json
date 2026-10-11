@@ -1,0 +1,11 @@
+{
+ "name": "properties/222",
+ "displayName": "impresilk.com.br",
+ "timeZone": "America/Sao_Paulo",
+ "currencyCode": "BRL",
+ "serviceLevel": "GOOGLE_ANALYTICS_STANDARD",
+ "propertyType": "PROPERTY_TYPE_ORDINARY",
+ "createTime": "2024-03-01T12:00:00Z",
+ "account": "accounts/901",
+ "industryCategory": "BUSINESS_AND_INDUSTRIAL_MARKETS"
+}

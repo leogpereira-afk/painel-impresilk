@@ -1,0 +1,38 @@
+{
+ "reviews": [
+  {
+   "name": "accounts/111/locations/222/reviews/A",
+   "reviewId": "A",
+   "reviewer": {
+    "displayName": "Cliente A",
+    "profilePhotoUrl": "https://example.com/p.jpg",
+    "isAnonymous": false
+   },
+   "starRating": "FIVE",
+   "comment": "Texto de teste.",
+   "createTime": "2026-10-06T14:02:11Z",
+   "updateTime": "2026-10-06T14:02:11Z",
+   "reviewReply": {
+    "comment": "Obrigado!",
+    "updateTime": "2026-10-07T09:15:00Z",
+    "reviewReplyState": "APPROVED"
+   }
+  },
+  {
+   "name": "accounts/111/locations/222/reviews/B",
+   "reviewId": "B",
+   "reviewer": {
+    "displayName": "Cliente B",
+    "profilePhotoUrl": "https://example.com/p.jpg",
+    "isAnonymous": false
+   },
+   "starRating": "FOUR",
+   "comment": "Texto de teste.",
+   "createTime": "2026-09-20T10:00:00Z",
+   "updateTime": "2026-09-20T10:00:00Z"
+  }
+ ],
+ "averageRating": 4.5,
+ "totalReviewCount": 4,
+ "nextPageToken": "r2"
+}

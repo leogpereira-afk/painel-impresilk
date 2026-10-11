@@ -1,0 +1,26 @@
+{
+ "results": [
+  {
+   "assetGroup": {
+    "resourceName": "customers/1234567890/assetGroups/801",
+    "id": "801",
+    "name": "Fachadas de lojas",
+    "status": "ENABLED"
+   },
+   "campaign": {
+    "resourceName": "customers/1234567890/campaigns/502",
+    "id": "502",
+    "name": "Performance Max Fachadas"
+   },
+   "metrics": {
+    "impressions": "500",
+    "clicks": "15",
+    "costMicros": "30000000",
+    "conversions": 1.0,
+    "conversionsValue": 0.0
+   }
+  }
+ ],
+ "fieldMask": "assetGroup.id",
+ "requestId": "req-ficticio-0001"
+}

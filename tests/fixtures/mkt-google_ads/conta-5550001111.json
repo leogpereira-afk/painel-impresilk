@@ -1,0 +1,17 @@
+{
+ "results": [
+  {
+   "customer": {
+    "resourceName": "customers/5550001111",
+    "id": "5550001111",
+    "descriptiveName": "Agência Fictícia (administradora)",
+    "currencyCode": "BRL",
+    "timeZone": "America/Sao_Paulo",
+    "manager": true,
+    "testAccount": false
+   }
+  }
+ ],
+ "fieldMask": "customer.id",
+ "requestId": "req-ficticio-0001"
+}

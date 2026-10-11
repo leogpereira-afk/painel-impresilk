@@ -1,0 +1,33 @@
+{
+ "results": [
+  {
+   "adGroupCriterion": {
+    "resourceName": "customers/1234567890/adGroupCriteria/601~10",
+    "gender": {
+     "type": "FEMALE"
+    }
+   },
+   "metrics": {
+    "impressions": "220",
+    "clicks": "12",
+    "costMicros": "24000000"
+   }
+  },
+  {
+   "adGroupCriterion": {
+    "resourceName": "customers/1234567890/adGroupCriteria/601~11",
+    "gender": {
+     "type": "MALE"
+    }
+   },
+   "metrics": {
+    "impressions": "260",
+    "clicks": "15",
+    "costMicros": "30000000",
+    "conversions": 2.0
+   }
+  }
+ ],
+ "fieldMask": "adGroupCriterion.gender.type",
+ "requestId": "req-ficticio-0001"
+}

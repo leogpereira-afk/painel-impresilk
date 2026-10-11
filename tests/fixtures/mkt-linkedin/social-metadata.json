@@ -1,0 +1,26 @@
+{
+ "reactionSummaries": {
+  "LIKE": {
+   "reactionType": "LIKE",
+   "count": 20
+  },
+  "PRAISE": {
+   "reactionType": "PRAISE",
+   "count": 5
+  },
+  "ENTERTAINMENT": {
+   "reactionType": "ENTERTAINMENT",
+   "count": 2
+  },
+  "CELEBRATION": {
+   "reactionType": "CELEBRATION",
+   "count": 1
+  }
+ },
+ "commentsState": "OPEN",
+ "commentSummary": {
+  "count": 6,
+  "topLevelCount": 4
+ },
+ "entity": "urn:li:share:7000000000000000001"
+}

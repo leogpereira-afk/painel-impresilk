@@ -43,6 +43,15 @@
  * O QUE ELE NÃO PEGA, escrito aqui para ninguém confundir verde com seguro:
  * se o ramo confere UM módulo e grava em OUTRO, para ele está provado. Ele
  * confere que alguém olhou o papel, não que olhou o papel certo.
+ *
+ * E ESCRITA SÓ PELO VAULT ELE NÃO VÊ. A função SQL que grava apenas por
+ * vault.create_secret / vault.update_secret (o cofre das conexões do
+ * Marketing: painel_mkt_conexao_gravar, _apagar, _pendente e _confirmar) não
+ * tem insert/update/delete no corpo e chama funções que o repositório não
+ * declara, então sai daqui como LEITURA. Os ramos que gravam por ela
+ * (painel-marketing: conectarConfirmar e desconectar) têm a guarda do papel
+ * escrita à mão, com comentário dizendo por quê; o teste deles
+ * (tests/mkt-fontes-edge.test.mjs) é quem segura que ela não saia.
  */
 import { readdirSync, readFileSync, existsSync, statSync } from "node:fs";
 import { dirname, join } from "node:path";
@@ -71,6 +80,18 @@ const SEM_PAPEL = {
     "freio (porta_travada, que consome a ficha na mesma operação que confere) " +
     "e o rastro da tentativa (porta_registrar). Nenhum dado de outra pessoa " +
     "está ao alcance deste ramo",
+  "painel-mkt-oauth:(function inteira)":
+    "é a VOLTA do provedor de OAuth (Google, LinkedIn, Pinterest): o " +
+    "navegador chega sem crachá, então não há papel a conferir aqui. O papel " +
+    "é conferido ANTES e DEPOIS, na painel-marketing, só para a gestão: no " +
+    "conectarInicio, que assina o state com o PAINEL_JWT_SECRET levando a " +
+    "fonte e o login, e no conectarConfirmar, que exige o crachá de quem " +
+    "clicou. Esta function não grava no cofre: depois de conferir o state " +
+    "(assinatura, prazo de 10 minutos, fonte da lista), consumir o pedido " +
+    "guardado no clique (painel_mkt_conexao_consumir, que faz o state valer " +
+    "uma vez só) e trocar o code no provedor, ela só deixa a conexão PENDENTE " +
+    "(painel_mkt_conexao_pendente, no Vault, amarrada ao nonce e ao login); " +
+    "state que não confere, ou já usado, volta sem gravar nada",
   "painel-gestao:preferencia":
     "grava só a preferência de tela DA PRÓPRIA PESSOA (chave usuario+bloco, " +
     "tirada da sessão, nunca do corpo); não há papel a conferir porque não " +

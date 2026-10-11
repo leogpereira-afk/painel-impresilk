@@ -1,0 +1,76 @@
+{
+ "results": [
+  {
+   "campaign": {
+    "resourceName": "customers/1234567890/campaigns/501",
+    "id": "501"
+   },
+   "segments": {
+    "date": "2026-08-11"
+   },
+   "metrics": {
+    "phoneCalls": "1",
+    "phoneImpressions": "30",
+    "phoneThroughRate": 0.05
+   }
+  },
+  {
+   "campaign": {
+    "resourceName": "customers/1234567890/campaigns/501",
+    "id": "501"
+   },
+   "segments": {
+    "date": "2026-09-01"
+   },
+   "metrics": {
+    "phoneCalls": "2",
+    "phoneImpressions": "40",
+    "phoneThroughRate": 0.05
+   }
+  },
+  {
+   "campaign": {
+    "resourceName": "customers/1234567890/campaigns/501",
+    "id": "501"
+   },
+   "segments": {
+    "date": "2026-09-15"
+   },
+   "metrics": {
+    "phoneCalls": "1",
+    "phoneImpressions": "20",
+    "phoneThroughRate": 0.05
+   }
+  },
+  {
+   "campaign": {
+    "resourceName": "customers/1234567890/campaigns/501",
+    "id": "501"
+   },
+   "segments": {
+    "date": "2026-09-16"
+   },
+   "metrics": {
+    "phoneCalls": "0",
+    "phoneImpressions": "25",
+    "phoneThroughRate": 0.05
+   }
+  },
+  {
+   "campaign": {
+    "resourceName": "customers/1234567890/campaigns/501",
+    "id": "501"
+   },
+   "segments": {
+    "date": "2026-10-06"
+   },
+   "metrics": {
+    "phoneCalls": "1",
+    "phoneImpressions": "10",
+    "phoneThroughRate": 0.05
+   }
+  }
+ ],
+ "fieldMask": "campaign.id",
+ "requestId": "req-ficticio-0001"
+}

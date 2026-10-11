@@ -1,0 +1,90 @@
+{
+ "items": [
+  {
+   "id": "1000000000000000004",
+   "created_at": "2022-05-01T10:00:00",
+   "title": "Placa antiga",
+   "description": "Descrição fictícia do Pin 1000000000000000004",
+   "link": null,
+   "alt_text": null,
+   "board_id": "800000000000000001",
+   "board_section_id": null,
+   "creative_type": "REGULAR",
+   "dominant_color": "#cc0000",
+   "has_been_promoted": false,
+   "is_owner": true,
+   "is_standard": true,
+   "is_product": false,
+   "parent_pin_id": null,
+   "media": {
+    "media_type": "image",
+    "images": {
+     "150x150": {
+      "width": 150,
+      "height": 150,
+      "url": "https://i.pinimg.com/150x150/1000000000000000004.jpg"
+     },
+     "400x300": {
+      "width": 400,
+      "height": 300,
+      "url": "https://i.pinimg.com/400x300/1000000000000000004.jpg"
+     }
+    }
+   },
+   "pin_metrics": {
+    "90d": {
+     "impression": 480,
+     "pin_click": 38,
+     "clickthrough": 24
+    }
+   }
+  },
+  {
+   "id": "1000000000000000005",
+   "created_at": "2026-10-01T10:00:00",
+   "title": "Pin salvo de outra pessoa",
+   "description": "Descrição fictícia do Pin 1000000000000000005",
+   "link": "https://outro-exemplo.com.br",
+   "alt_text": null,
+   "board_id": "800000000000000001",
+   "board_section_id": null,
+   "creative_type": "REGULAR",
+   "dominant_color": "#cc0000",
+   "has_been_promoted": false,
+   "is_owner": false,
+   "is_standard": true,
+   "is_product": false,
+   "parent_pin_id": null,
+   "media": {
+    "media_type": "image",
+    "images": {
+     "150x150": {
+      "width": 150,
+      "height": 150,
+      "url": "https://i.pinimg.com/150x150/1000000000000000005.jpg"
+     },
+     "400x300": {
+      "width": 400,
+      "height": 300,
+      "url": "https://i.pinimg.com/400x300/1000000000000000005.jpg"
+     }
+    }
+   },
+   "pin_metrics": {
+    "90d": {
+     "impression": 480,
+     "pin_click": 38,
+     "clickthrough": 24
+    },
+    "lifetime_metrics": {
+     "impression": 500,
+     "pin_click": 40,
+     "clickthrough": 25,
+     "reaction": 7,
+     "comment": 1
+    }
+   }
+  }
+ ],
+ "bookmark": null
+}

@@ -1,0 +1,19 @@
+{
+ "data": [
+  {
+   "name": "page_follows_country",
+   "period": "day",
+   "title": "País",
+   "id": "100000000000001/insights/page_follows_country/day",
+   "values": [
+    {
+     "value": {
+      "BR": 4100,
+      "PT": 12
+     },
+     "end_time": "2026-10-11T07:00:00+0000"
+    }
+   ]
+  }
+ ]
+}

@@ -1,0 +1,14 @@
+{
+ "dataStreams": [
+  {
+   "name": "properties/222/dataStreams/7",
+   "type": "WEB_DATA_STREAM",
+   "displayName": "Site Impresilk",
+   "webStreamData": {
+    "measurementId": "G-W14DLRNWRD",
+    "defaultUri": "https://impresilk.com.br"
+   },
+   "createTime": "2024-03-01T12:00:00Z"
+  }
+ ]
+}

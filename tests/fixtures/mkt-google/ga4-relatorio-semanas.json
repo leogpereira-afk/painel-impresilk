@@ -1,0 +1,113 @@
+{
+ "dimensionHeaders": [
+  {
+   "name": "isoYearIsoWeek"
+  }
+ ],
+ "metricHeaders": [
+  {
+   "name": "activeUsers",
+   "type": "TYPE_INTEGER"
+  },
+  {
+   "name": "engagementRate",
+   "type": "TYPE_FLOAT"
+  },
+  {
+   "name": "userEngagementDuration",
+   "type": "TYPE_SECONDS"
+  }
+ ],
+ "rows": [
+  {
+   "dimensionValues": [
+    {
+     "value": "202634"
+    }
+   ],
+   "metricValues": [
+    {
+     "value": "312"
+    },
+    {
+     "value": "0.72391"
+    },
+    {
+     "value": "5321.44"
+    }
+   ]
+  },
+  {
+   "dimensionValues": [
+    {
+     "value": "202641"
+    }
+   ],
+   "metricValues": [
+    {
+     "value": "0"
+    },
+    {
+     "value": "0"
+    },
+    {
+     "value": "0"
+    }
+   ]
+  },
+  {
+   "dimensionValues": [
+    {
+     "value": "202653"
+    }
+   ],
+   "metricValues": [
+    {
+     "value": "9"
+    },
+    {
+     "value": "x"
+    },
+    {
+     "value": ""
+    }
+   ]
+  }
+ ],
+ "rowCount": 5,
+ "metadata": {
+  "currencyCode": "BRL",
+  "timeZone": "America/Sao_Paulo",
+  "dataLossFromOtherRow": true,
+  "subjectToThresholding": true,
+  "dataTruncationReasons": [
+   {
+    "type": "DATA_TRUNCATION_TYPE_GOOGLE_ADS",
+    "dataTruncationDate": {
+     "year": 2023,
+     "month": 10,
+     "day": 1
+    }
+   }
+  ]
+ },
+ "propertyQuota": {
+  "tokensPerDay": {
+   "consumed": 12,
+   "remaining": 199988
+  },
+  "tokensPerHour": {
+   "consumed": 12,
+   "remaining": 39988
+  },
+  "tokensPerProjectPerHour": {
+   "consumed": 12,
+   "remaining": 13988
+  },
+  "serverErrorsPerProjectPerHour": {
+   "consumed": 0,
+   "remaining": 10
+  }
+ },
+ "kind": "analyticsData#runReport"
+}

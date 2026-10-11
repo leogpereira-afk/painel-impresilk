@@ -1,0 +1,32 @@
+{
+ "rows": [
+  {
+   "keys": [
+    "impresilk"
+   ],
+   "clicks": 25,
+   "impressions": 210,
+   "ctr": 0.119,
+   "position": 1.2
+  },
+  {
+   "keys": [
+    "comunicação visual bh"
+   ],
+   "clicks": 6,
+   "impressions": 900,
+   "ctr": 0.0066,
+   "position": 14.8
+  },
+  {
+   "keys": [
+    "adesivo de vitrine"
+   ],
+   "clicks": 1,
+   "impressions": 120,
+   "ctr": 0.0083,
+   "position": 22.4
+  }
+ ],
+ "responseAggregationType": "byProperty"
+}

@@ -1,0 +1,18 @@
+{
+ "data": [
+  {
+   "id": "act_1000000001",
+   "account_id": "1000000001",
+   "name": "Impresilk Anúncios Exemplo",
+   "currency": "BRL",
+   "timezone_name": "America/Sao_Paulo",
+   "account_status": 1
+  }
+ ],
+ "paging": {
+  "cursors": {
+   "before": "a",
+   "after": "b"
+  }
+ }
+}

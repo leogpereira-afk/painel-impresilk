@@ -149,6 +149,51 @@ test('papel efetivo: direção é gestão (mesmo com linha na tabela), a tabela 
  assert.deepEqual(await papel({sub:'semconta',perms:['marketing']}),['marketing',null]);
 });
 
+test('o caso ruim: login que não acha a pessoa (duas contas, ou nenhuma) volta semIdentidade, com o papel padrão; quem é achado e a direção não', async()=>{
+ const t=setup(),ver=async s=>{t.session(s);const r=await t.call({action:'painel'});return [r.status,r.papel,r.semIdentidade];};
+ // Duas contas para o mesmo login: ninguém, e a tela precisa saber.
+ assert.deepEqual(await ver(DUP),[200,'marketing',true]);
+ assert.deepEqual(await ver({sub:'semconta',perms:['marketing']}),[200,'marketing',true]);
+ // Não tranca ninguém: o padrão continua sendo marketing, que grava.
+ t.session(DUP);assert.equal((await t.call({action:'salvarPublicacao',publicacao:{canalId:CANAL,data:hoje}})).status,200);
+ assert.deepEqual(await ver(ANA),[200,'marketing',false]);
+ assert.deepEqual(await ver(GIL),[200,'gestao',false]);
+ // A direção é gestão sem precisar achar a pessoa.
+ assert.deepEqual(await ver({sub:'diretor-sem-conta',master:true}),[200,'gestao',false]);
+});
+
+test('o caso ruim: temContaPainel só vai para a gestão, e só é verdadeiro quando um login do Painel cai na pessoa pela mesma regra do papel', async()=>{
+ const t=setup();
+ // Contas do Painel (painel_contas): ana, bia e dup. O gil não tem linha
+ // (mas é quem pede, com crachá do Painel na mão); o leo também não.
+ t.db.painel_contas=[{usuario:'ana',hash:'NAO-SAI-hash',salt:'NAO-SAI-salt'},{usuario:'bia'},{usuario:'dup'}];
+ const ficha=(id,nome,cpf)=>({colecao:'colaboradores',apagado:false,id,nome,cpf,areaId:'mk',statusId:'ativo'});
+ t.db.registros.push(ficha('r4','Bia Exemplo','222.222.000-00'),ficha('r5','Gil Exemplo','555.555.000-00'),ficha('r6','Duda Exemplo','333.333.000-00'),
+  ficha('r7','Caio Sem Conta','666.666.000-00'),ficha('r8','Leo Exemplo','999.999.000-00'));
+ // Marketing e visualização: a chave nem vai (quem tem conta em qual sistema é mapa de onde bater).
+ for(const s of [ANA,BIA]){
+  t.session(s);const r=await t.call({action:'pessoas'});
+  assert.equal(r.status,200,s.sub);
+  assert.equal(r.pessoas.some(p=>'temContaPainel' in p),false,s.sub);
+ }
+ t.session(GIL);
+ const g=await t.call({action:'pessoas'});
+ const porId=Object.fromEntries(g.pessoas.map(p=>[p.idPessoa,p.temContaPainel]));
+ assert.deepEqual(porId,{
+  '123456':true,   // ana: conta direta
+  '222222':true,   // bia
+  '555555':true,   // gil: o login de quem pede
+  '333333':false,  // dup: duas contas para o login, a regra do papel não acha ninguém
+  '666666':false,  // sem conta nenhuma
+  '999999':false,  // leo: sem linha em painel_contas e não é quem pede
+ });
+ assert.deepEqual(Object.keys(g.pessoas[0]).sort(),['area','idPessoa','nome','temContaPainel']);
+ assert.equal(/NAO-SAI|"usuario"|"login"/.test(JSON.stringify(g)),false,'nem login nem senha saem');
+ // A direção pedindo: o login dela conta.
+ t.session(LEO);
+ assert.equal((await t.call({action:'pessoas'})).pessoas.find(p=>p.idPessoa==='999999').temContaPainel,true);
+});
+
 test('o caso ruim: visualização não grava NADA, e nenhuma função de escrita chega ao banco', async()=>{
  const t=setup();t.session(BIA);
  const pedidos=[

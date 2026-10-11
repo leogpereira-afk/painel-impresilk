@@ -1,0 +1,29 @@
+{
+ "data": [
+  {
+   "id": "100000000000001_8001",
+   "created_time": "2026-06-01T13:00:00+0000",
+   "message": "Post antigo",
+   "permalink_url": "https://www.facebook.com/impresilk.exemplo/posts/pfbid0Antigo",
+   "status_type": "added_photos",
+   "reactions": {
+    "data": [],
+    "summary": {
+     "total_count": 9
+    }
+   },
+   "comments": {
+    "data": [],
+    "summary": {
+     "total_count": 1
+    }
+   }
+  }
+ ],
+ "paging": {
+  "cursors": {
+   "before": "C",
+   "after": "D"
+  }
+ }
+}

@@ -1,0 +1,21 @@
+{
+ "error": {
+  "code": 400,
+  "message": "Cannot select or filter on the following segments: 'segments.device' with metric 'metrics.phone_calls'.",
+  "status": "INVALID_ARGUMENT",
+  "details": [
+   {
+    "@type": "type.googleapis.com/google.ads.googleads.v25.errors.GoogleAdsFailure",
+    "errors": [
+     {
+      "errorCode": {
+       "queryError": "PROHIBITED_SEGMENT_WITH_METRIC_IN_SELECT_OR_WHERE_CLAUSE"
+      },
+      "message": "Cannot select or filter on the following segments: 'segments.device' with metric 'metrics.phone_calls'."
+     }
+    ],
+    "requestId": "req-ficticio-erro"
+   }
+  ]
+ }
+}

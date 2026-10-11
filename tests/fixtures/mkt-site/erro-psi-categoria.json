@@ -1,0 +1,17 @@
+{
+ "error": {
+  "code": 400,
+  "message": "Invalid value at 'category' (type.googleapis.com/google.cloud.pagespeedonline.v5.Category), \"AGENTIC_BROWSING\"",
+  "status": "INVALID_ARGUMENT",
+  "details": [
+   {
+    "@type": "type.googleapis.com/google.rpc.BadRequest",
+    "fieldViolations": [
+     {
+      "field": "category"
+     }
+    ]
+   }
+  ]
+ }
+}
