@@ -110,3 +110,27 @@ test('telefonia não desfaz origem inversa, inclusive legado sem bemId',async()=
   if(!bemId&&!pedido){assert.equal(r.status,200);}else{assert.equal(r.status,409);assert.equal(a.escritas.length,0);}
  }
 });
+
+test('manutencao nova exige ficha fisica cadastrada por ID, antes de qualquer escrita',async()=>{
+ for(const ativoId of ['',null,'inexistente','Mesmo nome','retirado','documento']){
+  const rows=[registro('ativo','real',{tipo:'maquina',nome:'Mesmo nome'}),registro('ativo_lixeira','retirado',{tipo:'maquina'}),registro('ativo','documento',{tipo:'documento'})];
+  const a=ambiente('painel-config',['manutencoes'],rows);
+  const r=await a.chamar({action:'merge',chave:'manutencoes',patch:{novo:{ativoId,data:'2026-10-11',valor:50}}});
+  assert.ok([409,422].includes(r.status),JSON.stringify(r));assert.equal(a.escritas.length,0);
+ }
+ for(const tipo of ['veiculo','maquina','predial','informatica','seguranca']){
+  const a=ambiente('painel-config',['manutencoes','seguranca'],[registro('ativo','real',{tipo})]);
+  const r=await a.chamar({action:'merge',chave:'manutencoes',patch:{novo:{ativoId:'real',valor:50}}});assert.equal(r.status,200);assert.equal(a.escritas.length,1);
+ }
+});
+test('lote de manutencoes com referencia invalida nao grava nem o primeiro item valido',async()=>{
+ const a=ambiente('painel-config',['manutencoes'],[registro('ativo','real',{tipo:'maquina'})]);
+ const r=await a.chamar({action:'merge',chave:'manutencoes',patch:{primeiro:{ativoId:'real'},segundo:{ativoId:'inexistente'}}});assert.equal(r.status,409);assert.equal(a.escritas.length,0);
+});
+test('historico de item retirado continua corrigivel mas nao recebe novas manutencoes nem novo vinculo inexistente',async()=>{
+ const h=registro('manutencoes','hist',{ativoId:'retirado',valor:42});
+ let a=ambiente('painel-config',['manutencoes'],[h]);
+ assert.equal((await a.chamar({action:'merge',chave:'manutencoes',patch:{hist:{valor:43}}})).status,200);
+ a=ambiente('painel-config',['manutencoes'],[h]);assert.equal((await a.chamar({action:'merge',chave:'manutencoes',patch:{hist:{ativoId:'retirado',valor:43}}})).status,200);
+ a=ambiente('painel-config',['manutencoes'],[h]);assert.equal((await a.chamar({action:'merge',chave:'manutencoes',patch:{hist:{ativoId:'outro'}}})).status,409);assert.equal(a.escritas.length,0);
+});

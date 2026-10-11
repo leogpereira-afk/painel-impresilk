@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { caminhoManutencao, redirecionarManutencoes, destinoPatrimonio, recortarManutencoes, abasPatrimonio, abaPatrimonioAtual, secaoEstruturaInicial } from './navegacao-patrimonio.js';
+import { caminhoCadastroPatrimonio, caminhoManutencao, redirecionarManutencoes, destinoPatrimonio, recortarManutencoes, abasPatrimonio, abaPatrimonioAtual, secaoEstruturaInicial } from './navegacao-patrimonio.js';
 import { calcManutencoes, agruparGastos, CATEGORIAS_POR_FAMILIA } from './manutencoes.js';
 
 test('acesso unificado mantém usuários com apenas manutenção e não concede inventário', () => {
@@ -29,6 +29,25 @@ test('links antigos preservam ficha e histórico; novos codificam IDs', () => {
   assert.equal(url.searchParams.get('item'), 'a&b');
   assert.equal(url.searchParams.get('novo'), 'maquina');
   assert.equal(new URL(caminhoManutencao({familia:'invalida',novo:true}), url).searchParams.has('novo'), false);
+});
+
+test('a ficha da manutenção retorna ao cadastro na área correta, pelo mesmo ID',()=>{
+  for(const [familia,categoria,aba,param,secao] of [
+    ['veiculo','','carros'],['maquina','','maquinas'],
+    ['informatica','Computador','estrutura','estrutura','computadores'],
+    ['informatica','Telefone','telefonia','telefonia','ramais'],
+    ['informatica','Celular','telefonia','telefonia','celulares'],
+    ['predial','Hidráulica','estrutura','estrutura','hidraulica'],
+    ['predial','Transformador','estrutura','estrutura','eletrica'],
+    ['seguranca','Alarme','seguranca','seguranca','alarmes'],
+    ['seguranca','Acesso facial','seguranca','seguranca','facial'],
+  ]){
+    const url=new URL(caminhoCadastroPatrimonio({familia,categoria,item:'id&a',novo:true}),'https://example.com');
+    assert.equal(url.pathname,'/patrimonio');assert.equal(url.searchParams.get('aba'),aba);
+    assert.equal(url.searchParams.get('ficha'),'id&a');
+    if(param)assert.equal(url.searchParams.get(param),secao);
+    assert.equal(url.searchParams.has('cadastro'),['veiculo','maquina'].includes(familia));
+  }
 });
 test('ficha usa apenas seu custo e preserva lançamentos órfãos na visão geral', () => {
   const itens = [{id:'a'},{id:'b'}];

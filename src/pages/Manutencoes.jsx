@@ -1,8 +1,8 @@
-import PessoaRH,{PessoasRHProvider,usePessoasRH,comNomeRH} from '../components/patrimonio/PessoasRH.jsx';
+import {PessoasRHProvider,usePessoasRH,comNomeRH} from '../components/patrimonio/PessoasRH.jsx';
 import { useAbaNavegavel } from "../hooks/useAbaNavegavel.js";
-import {Link,useSearchParams} from 'react-router-dom';
+import {Link,Navigate,useSearchParams} from 'react-router-dom';
 import {podeAbrir} from '../lib/sessao.js';
-import {recortarManutencoes,ROTA_MANUTENCOES} from '../lib/calc/navegacao-patrimonio.js';
+import {recortarManutencoes,ROTA_MANUTENCOES,caminhoCadastroPatrimonio} from '../lib/calc/navegacao-patrimonio.js';
 import '../components/patrimonio/manutencoes.css';
 // Manutenções: o que a empresa gasta para as coisas continuarem funcionando --
 // os carros, as máquinas e o prédio (câmeras, ar condicionado, elétrica,
@@ -13,15 +13,7 @@ import '../components/patrimonio/manutencoes.css';
 // item existe para a conta que decide -- o carro que vai ao mecânico todo mês
 // custa mais que a parcela de um novo, e isso só aparece somando.
 //
-// CADASTRO: as três famílias nascem aqui, cada uma com a sua ficha técnica
-// (placa e ano do carro, número de série da máquina, local da câmera). O
-// registro é gravado na MESMA coleção de ativos que a tela "Documentos e
-// ativos" usa -- então o carro cadastrado aqui aparece lá para receber IPVA e
-// licenciamento, e não existem duas verdades sobre o mesmo veículo.
-//
-// O formulário daqui manda menos campos que o de lá (não pede validade de
-// documento). Quem garante que salvar por aqui não apaga o IPVA é o servidor:
-// painel-ativos mantém o que não veio no corpo. Ver o comentário de `limpo`.
+// Itens são cadastrados em Bens e cadastros. Aqui ficam os serviços.
 
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -40,22 +32,17 @@ import {
   CalendarClock,
   Coins,
 } from "lucide-react";
-import { listarAtivos, salvarEquipamento, salvarAtivo, removerAtivo } from "../services/ativos.js";
-// O item cadastrado aqui também é patrimônio: mesma coisa, duas perguntas
-// ("quanto me custa para manter" e "quanto vale, e onde está").
-import { lerSetores } from "../services/patrimonio.js";
+import { listarAtivos } from "../services/ativos.js";
+// O cadastro físico vem de Bens e cadastros; o serviço mantém seu ID.
 import { lerManutencoes, salvarManutencao, removerManutencao } from "../services/manutencoes.js";
 import { getFluxoMensal } from "../services/mubi.js";
 import {
   calcManutencoes,
   agruparGastos,
   FAMILIAS,
-  CATEGORIAS_POR_FAMILIA,
   TIPOS_SERVICO,
-  ESPEC_CAMPOS,
   resumoEspec,
   unidadeDe,
-  UNIDADE_PADRAO,
 } from "../lib/calc/manutencoes.js";
 import { moeda, moedaCheia, numero, dataLonga, ymdLocal, paraNumero, paraCampo } from "../lib/format.js";
 import {
@@ -105,19 +92,6 @@ const LANCAMENTO_VAZIO = {
   proxima: "",
 };
 
-const ITEM_VAZIO = {
-  id: "",
-  tipo: "predial",
-  nome: "",
-  categoria: "",
-  identificacao: "",
-  responsavel: "",
-  observacao: "",
-  especificacao: {},
-  medidorAtual: "",
-  medidorProximo: "",
-};
-
 // Acento não pode atrapalhar quem procura. Depois que as categorias passaram a
 // ter acento, digitar "predio" deixava de achar "Prédio" -- e quem busca no
 // celular raramente acentua.
@@ -137,29 +111,6 @@ const semAcento = (s) =>
 // do outro o que de fato saiu do caixa naquele mês. Os dois números nunca são
 // somados; se divergirem, é isso mesmo que a tela precisa mostrar.
 const ehCentroDeManutencao = (nome) => /manuten/i.test(semAcento(nome));
-
-// UM DONO PARA A PLACA.
-//
-// `identificacao` é o campo que a tela "Documentos e ativos" já usa para a
-// placa (lá o rótulo é literalmente "Placa", e é o que aparece na listagem
-// dela). A ficha nova criou um segundo lugar para o mesmo dado no MESMO
-// registro -- e duas telas podiam mostrar placas diferentes do mesmo carro.
-//
-// Regra: para veículo e máquina, a FICHA manda, e `identificacao` é sempre um
-// espelho dela. Espelhar só "quando estivesse vazio" não resolvia: corrigir a
-// placa na ficha deixava a outra tela com a placa velha para sempre.
-const identificacaoDe = (f) => {
-  const e = f.especificacao || {};
-  if (f.tipo === "veiculo") {
-    const placa = String(e.placa || "").trim();
-    if (placa) return placa;
-  }
-  if (f.tipo === "maquina") {
-    const serie = String(e.numeroSerie || "").trim();
-    if (serie) return serie;
-  }
-  return String(f.identificacao || "").trim();
-};
 
 // ---------------------------------------------------------------- formularios
 //
@@ -205,7 +156,8 @@ function FormLancamento({ inicial, itens, salvando, aoSalvar, aoFechar }) {
           <div className="sm:col-span-2">
             <label className="label" htmlFor="m-item">No que foi feito</label>
             <select id="m-item" className="input" value={f.ativoId} onChange={trocarItem} required>
-              <option value="">escolha o carro, a máquina ou o item do prédio</option>
+              <option value="">selecione um item de Bens e cadastros</option>
+              {f.id&&f.ativoId&&!itens.some(i=>i.id===f.ativoId)&&<option value={f.ativoId}>{f.ativoNome||'Item retirado'} · histórico preservado</option>}
               {Object.entries(FAMILIAS).filter(([id])=>id!=='seguranca'||podeAbrir('seguranca')).map(([fam, meta]) => {
                 const doGrupo = itens.filter((i) => i.tipo === fam);
                 if (!doGrupo.length) return null;
@@ -327,309 +279,6 @@ function FormLancamento({ inicial, itens, salvando, aoSalvar, aoFechar }) {
   );
 }
 
-// Cadastro do item. O TIPO vem primeiro porque ele muda o resto do formulário:
-// carro pede placa, máquina pede número de série, câmera pede local. Um
-// formulário único com todos os campos obrigaria a pular linha em branco.
-const AJUDA_TIPO = {
-  veiculo: "Carro, moto, van ou caminhão da empresa.",
-  maquina: "Impressora, router, laser, DTF, compressor — o que produz.",
-  predial: "Ar condicionado, quadro elétrico, bomba e instalações do prédio.",
-  informatica:"Computadores, rede, telefones e celulares.",
-  seguranca:"Câmeras, alarmes, portões e controle de acesso. Nunca cadastre senhas ou biometria.",
-};
-const EXEMPLO_NOME = {
-  veiculo: "ex: Strada da instalação",
-  maquina: "ex: Laser fibra 1530",
-  predial: "ex: Ar condicionado da produção",
-};
-
-function FormItem({ inicial, salvando, aoSalvar, aoFechar, setores }) {
-  const [f, setF] = useState(inicial);
-  const trocar = (campo) => (e) => setF((v) => ({ ...v, [campo]: e.target.value }));
-  const trocarEspec = (campo, maiusculo) => (e) => {
-    const v = maiusculo ? e.target.value.toUpperCase() : e.target.value;
-    setF((old) => ({ ...old, especificacao: { ...(old.especificacao || {}), [campo]: v } }));
-  };
-  // Trocar o tipo de um item JÁ cadastrado o servidor recusa (o edital viraria
-  // documento e mudaria de permissão). Então o seletor só existe no cadastro.
-  const novo = !f.id;
-  const campos = ESPEC_CAMPOS[f.tipo] || [];
-  const categorias = CATEGORIAS_POR_FAMILIA[f.tipo] || [];
-  const unidade = UNIDADE_PADRAO[f.tipo] || "";
-  const meta = FAMILIAS[f.tipo] || FAMILIAS.predial;
-
-  return (
-    <Card>
-      <SectionTitle
-        titulo={f.id ? `Editar ${meta.singular.toLowerCase()}` : "Novo item"}
-        sub={
-          f.id
-            ? "O que você mudar aqui vale também na tela Documentos e ativos — é o mesmo cadastro."
-            : "Escolha o que é: cada tipo pede a ficha dele. O item passa a valer nas duas telas."
-        }
-        acao={
-          <button className="btn-ghost" onClick={aoFechar}>
-            <X size={15} /> Fechar
-          </button>
-        }
-      />
-      <form
-        className="space-y-4"
-        onSubmit={(e) => {
-          e.preventDefault();
-          aoSalvar(f);
-        }}
-      >
-        {novo ? (
-          <div>
-            <span className="label">O que é</span>
-            <div className="grid gap-2 sm:grid-cols-3">
-              {Object.entries(FAMILIAS).filter(([id])=>id!=='seguranca'||podeAbrir('seguranca')).map(([id, m]) => {
-                const Icone = ICONE_FAMILIA[id] || Wrench;
-                const marcado = f.tipo === id;
-                return (
-                  <button
-                    key={id}
-                    type="button"
-                    aria-pressed={marcado}
-                    onClick={() =>
-                      // Trocar de tipo LIMPA a ficha, a categoria E o medidor:
-                      // placa não faz sentido numa câmera (o servidor
-                      // descartaria a chave em silêncio, e a pessoa veria o dado
-                      // sumir sem entender), e o km digitado para um carro
-                      // ficava escondido no estado e ia gravado num item predial
-                      // -- que nem mostra o campo.
-                      setF((v) => ({
-                        ...v, tipo: id, especificacao: {}, categoria: "",
-                        medidorAtual: "", medidorProximo: "",
-                      }))
-                    }
-                    className={`flex items-start gap-2.5 rounded-xl border p-3 text-left transition-colors ${
-                      marcado ? "border-brand-300 bg-brand-50" : "hover:bg-slate-50"
-                    }`}
-                    style={marcado ? undefined : { borderColor: "var(--hairline)" }}
-                  >
-                    <Icone size={18} strokeWidth={2.2} className={marcado ? "text-brand" : "text-slate-400"} />
-                    <span className="min-w-0">
-                      <span className={`block font-display text-sm font-semibold ${marcado ? "text-brand-700" : "text-slate-900"}`}>
-                        {m.singular}
-                      </span>
-                      <span className="block text-xs leading-snug text-slate-500">{AJUDA_TIPO[id]}</span>
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        ) : (
-          <p className="rounded-lg bg-slate-50 px-3 py-2 text-sm text-slate-600">
-            Tipo: <b>{meta.singular}</b> — não dá para trocar depois de cadastrado. Se errou, retire e
-            cadastre de novo.
-          </p>
-        )}
-
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          <div>
-            <label className="label" htmlFor="i-nome">Nome</label>
-            <input
-              id="i-nome"
-              className="input"
-              placeholder={EXEMPLO_NOME[f.tipo]}
-              value={f.nome}
-              onChange={trocar("nome")}
-              required
-            />
-          </div>
-          <div>
-            <label className="label" htmlFor="i-categoria">Categoria</label>
-            <input
-              id="i-categoria"
-              className="input"
-              list={`cats-${f.tipo}`}
-              placeholder="escolha ou digite"
-              value={f.categoria}
-              onChange={trocar("categoria")}
-            />
-            <datalist id={`cats-${f.tipo}`}>
-              {categorias.map((c) => (
-                <option key={c} value={c} />
-              ))}
-            </datalist>
-          </div>
-          <div>
-            {['veiculo','maquina','predial','informatica','seguranca'].includes(f.tipo)?<PessoaRH valor={f.responsavelId||''} nome={f.responsavel||''} aoMudar={(responsavelId,responsavel)=>setF(v=>({...v,responsavelId,responsavel}))}/>:<><label className="label" htmlFor="i-responsavel">Responsável</label><input className="input" id="i-responsavel" value={f.responsavel} onChange={trocar('responsavel')}/></>}
-          </div>
-        </div>
-
-        {/* A ficha técnica da família. Os campos moram em `especificacao` e a
-            lista é a mesma que o servidor aceita (ESPEC_PERMITIDA). */}
-        <div>
-          <p className="mb-2 font-display text-xs font-semibold uppercase tracking-wide text-slate-500">
-            Ficha {f.tipo === "veiculo" ? "do veículo" : f.tipo === "maquina" ? "da máquina" : "do item"}
-          </p>
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {campos.map((c) => {
-              const valor = (f.especificacao || {})[c.id] || "";
-              const id = `e-${c.id}`;
-              return (
-                <div key={c.id} className={c.curto ? "" : ""}>
-                  {c.id!=='motorista'&&<label className="label" htmlFor={id}>{c.rotulo}</label>}
-                  {c.id==='motorista'?<PessoaRH rotulo={c.rotulo} valor={f.especificacao?.motoristaId||''} nome={valor} aoMudar={(motoristaId,motorista)=>setF(v=>({...v,especificacao:{...v.especificacao,motoristaId,motorista}}))}/>:c.opcoes ? (
-                    <>
-                      <input
-                        id={id}
-                        className="input"
-                        list={`op-${c.id}`}
-                        placeholder="escolha ou digite"
-                        value={valor}
-                        onChange={trocarEspec(c.id)}
-                      />
-                      <datalist id={`op-${c.id}`}>
-                        {c.opcoes.map((o) => (
-                          <option key={o} value={o} />
-                        ))}
-                      </datalist>
-                    </>
-                  ) : (
-                    <input
-                      id={id}
-                      type={c.data ? "date" : "text"}
-                      className="input"
-                      placeholder={c.ph || ""}
-                      value={valor}
-                      onChange={trocarEspec(c.id, c.maiusculo)}
-                    />
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* Medidor só onde ele existe. A câmera não roda km nem hora. */}
-        {unidade && (
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            <div>
-              <label className="label" htmlFor="i-medatual">
-                {unidade === "km" ? "Km atual" : "Horas de uso"}
-              </label>
-              <input
-                id="i-medatual"
-                inputMode="decimal"
-                className="input"
-                placeholder={unidade === "km" ? "ex: 92.400" : "ex: 1.340"}
-                value={f.medidorAtual}
-                onChange={trocar("medidorAtual")}
-                onBlur={(e) => setF((v) => ({ ...v, medidorAtual: paraCampo(paraNumero(e.target.value)) }))}
-              />
-            </div>
-            <div>
-              <label className="label" htmlFor="i-medprox">
-                {unidade === "km" ? "Próxima revisão em (km)" : "Próxima revisão em (horas)"}
-              </label>
-              <input
-                id="i-medprox"
-                inputMode="decimal"
-                className="input"
-                placeholder={unidade === "km" ? "ex: 100.000" : "ex: 1.500"}
-                value={f.medidorProximo}
-                onChange={trocar("medidorProximo")}
-                onBlur={(e) => setF((v) => ({ ...v, medidorProximo: paraCampo(paraNumero(e.target.value)) }))}
-              />
-            </div>
-          </div>
-        )}
-
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {/* Identificação só no predial. Em veículo e máquina ela é o espelho
-              da placa / do nº de série da ficha -- ter os dois na mesma tela
-              era convidar a pessoa a digitar valores diferentes para a mesma
-              coisa, e a outra tela mostraria um deles. */}
-          {f.tipo === "predial" && (
-            <div>
-              <label className="label" htmlFor="i-identificacao">Onde fica / identificação</label>
-              <input
-                id="i-identificacao"
-                className="input"
-                placeholder="ex: sala da produção, 3º andar"
-                value={f.identificacao}
-                onChange={trocar("identificacao")}
-              />
-            </div>
-          )}
-          <div className="sm:col-span-2">
-            <label className="label" htmlFor="i-observacao">Observação</label>
-            <input
-              id="i-observacao"
-              className="input"
-              placeholder="telefone da assistência, particularidades..."
-              value={f.observacao}
-              onChange={trocar("observacao")}
-            />
-          </div>
-
-          {/* FICHA DE PATRIMÔNIO — o mesmo item, a outra pergunta.
-              Aqui se pergunta quanto custa para manter; no Patrimônio, quanto
-              vale e onde está. Eram dois cadastros que não se conheciam, e a
-              mesma máquina era digitada duas vezes com nomes diferentes — daí
-              o valor do seguro nunca fechar com a lista de manutenção.
-              Preenchido aqui, o item nasce nas duas telas. A etiqueta é gerada
-              pelo servidor na primeira gravação. */}
-          {podeAbrir('inventario-valores') && <><div className="sm:col-span-2 mt-1 border-t pt-3" style={{ borderColor: "var(--hairline)" }}>
-            <p className="label">Ficha de patrimônio <span className="font-normal text-slate-400">— aparece também em Patrimônio</span></p>
-          </div>
-          <div>
-            <label className="label" htmlFor="i-setor">Setor</label>
-            <select id="i-setor" className="input" value={f.setorSigla || ""} onChange={trocar("setorSigla")}>
-              <option value="">onde fica...</option>
-              {(setores || []).map((s) => (
-                <option key={s.sigla} value={s.sigla}>{s.sigla} — {s.nome}</option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="label" htmlFor="i-nf">Nota fiscal</label>
-            <input id="i-nf" className="input" placeholder="número da NF"
-              value={f.nf || ""} onChange={trocar("nf")} />
-          </div>
-          <div>
-            <label className="label" htmlFor="i-aquisicao">Data de aquisição</label>
-            <input id="i-aquisicao" type="date" className="input"
-              value={f.dataAquisicao || ""} onChange={trocar("dataAquisicao")} />
-          </div>
-          <div>
-            <label className="label" htmlFor="i-valor">Valor pago (R$)</label>
-            <input id="i-valor" className="input" inputMode="decimal" placeholder="ex: 78.500,00"
-              value={f.valor || ""} onChange={trocar("valor")} />
-          </div></>}
-        </div>
-
-        {novo && f.tipo === "veiculo" && (
-          <p className="rounded-lg bg-slate-50 px-3 py-2 text-sm text-slate-600">
-            IPVA, licenciamento e seguro não se cadastram aqui: este veículo vai aparecer em{" "}
-            <b>Documentos e ativos</b>, que é a tela do vencimento de documento.
-          </p>
-        )}
-        {novo && f.tipo === "maquina" && (
-          <p className="rounded-lg bg-slate-50 px-3 py-2 text-sm text-slate-600">
-            Contrato de assistência e seguro com data de vencimento se cadastram em{" "}
-            <b>Documentos e ativos</b>, que é a tela do vencimento.
-          </p>
-        )}
-
-        <div className="flex flex-wrap items-center gap-2">
-          <button className="btn-primary" disabled={salvando}>
-            {salvando ? "Salvando..." : f.id ? "Salvar" : "Cadastrar item"}
-          </button>
-          <button type="button" className="btn-ghost" onClick={aoFechar}>
-            Cancelar
-          </button>
-        </div>
-      </form>
-    </Card>
-  );
-}
-
 function Historico({ item, aoEditar, aoApagar }) {
   if (!item.historico.length) {
     return (
@@ -700,7 +349,7 @@ function Historico({ item, aoEditar, aoApagar }) {
   );
 }
 
-function LinhaItem({ item, aberto, aoAbrir, aoLancar, aoEditarItem, aoApagarItem, aoEditar, aoApagar }) {
+function LinhaItem({ item, aberto, aoAbrir, aoLancar, destinoFicha, aoEditar, aoApagar }) {
   const Icone = ICONE_FAMILIA[item.familia] || Wrench;
   const tom = TOM_SIT[item.sit.nivel];
   return (
@@ -750,25 +399,7 @@ function LinhaItem({ item, aberto, aoAbrir, aoLancar, aoEditarItem, aoApagarItem
             <Plus size={14} strokeWidth={2.6} />
             Lançar
           </button>
-          {/* Editar vale para as três famílias: agora o cadastro nasce aqui, e
-              o servidor preserva o que este formulário não manda (validade do
-              IPVA, anexo do CRLV). Antes só o predial podia, e com razão. */}
-          <button
-            type="button"
-            onClick={aoEditarItem}
-            className="grid h-8 w-8 place-items-center rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-900"
-            title="Editar a ficha deste item"
-          >
-            <Pencil size={14} />
-          </button>
-          <button
-            type="button"
-            onClick={aoApagarItem}
-            className="grid h-8 w-8 place-items-center rounded-lg text-slate-500 hover:bg-bad-50 hover:text-bad-700"
-            title="Retirar item"
-          >
-            <Trash2 size={14} />
-          </button>
+          {destinoFicha&&<Link to={destinoFicha} className="btn-ghost !py-1 !px-2 text-xs">Ver cadastro</Link>}
         </span>
       </div>
       {aberto && <Historico item={item} aoEditar={aoEditar} aoApagar={aoApagar} />}
@@ -801,22 +432,11 @@ function ManutencoesConteudo() {
   const [mesAberto, setMesAberto] = useState(null);
   const [erp, setErp] = useState(null);
   const [aberto, setAberto] = useState(null);
-  useEffect(()=>{setAberto(itemSelecionado||null);setFamilia(itemSelecionado?'tudo':familiaInicial);setRecorte(null);setBusca('');setFormLanc(null);setFormItem(null);},[itemSelecionado,familiaInicial]);
+  useEffect(()=>{setAberto(itemSelecionado||null);setFamilia(itemSelecionado?'tudo':familiaInicial);setRecorte(null);setBusca('');setFormLanc(null);},[itemSelecionado,familiaInicial]);
   const [formLanc, setFormLanc] = useState(null);
-  const [formItem, setFormItem] = useState(null);
-  // Setores do Patrimônio: o item cadastrado aqui nasce lá também, e "onde
-  // fica" é a pergunta que a outra tela faz.
-  const [setores, setSetores] = useState([]);
   const [salvando, setSalvando] = useState(false);
   const topoForm = useRef(null);
-  const novoTipo = parametros.get('novo');
-  useEffect(() => {
-    if (!FAMILIAS[novoTipo] || (novoTipo==='seguranca'&&!podeAbrir('seguranca'))) return;
-    setFormLanc(null);
-    setFormItem({...ITEM_VAZIO,cadastroId:crypto.randomUUID(),tipo:novoTipo,categoria:parametros.get('categoria')||'',especificacao:{}});
-    setParametros(p => {const n=new URLSearchParams(p);n.delete('novo');n.delete('categoria');return n;}, {replace:true});
-  }, [novoTipo,setParametros,parametros]);
-
+  const novoTipo=parametros.get('novo');
   // "Hoje" em estado é refeito ao voltar para a aba: numa tela de prazo, o dia
   // congelado faz "atrasada" continuar dizendo "em 1 dia" no dia seguinte.
   const [hojeISO, setHojeISO] = useState(() => ymdLocal(new Date()));
@@ -825,9 +445,8 @@ function ManutencoesConteudo() {
   const carregar = useCallback(async () => {
     const pedido = ++pedidoLeitura.current;
     try {
-      const [lista, m, st] = await Promise.all([listarAtivos(), lerManutencoes(), lerSetores()]);
+      const [lista, m] = await Promise.all([listarAtivos(), lerManutencoes()]);
       if (pedido !== pedidoLeitura.current) return;
-      setSetores(Object.values(st || {}).filter((x) => x?.sigla).sort((a2, b2) => a2.sigla.localeCompare(b2.sigla)));
       setItens(lista.filter((x) => FAMILIAS[x.tipo]));
       setMapa(m);
       setErro(null);
@@ -869,7 +488,6 @@ function ManutencoesConteudo() {
   useEffect(()=>{
     if(!lancarSelecionado || !itemSelecionado || !itens) return;
     if(itens.some(i=>i.id===itemSelecionado)) {
-      setFormItem(null);
       setFormLanc({...LANCAMENTO_VAZIO,cadastroId:crypto.randomUUID(),ativoId:itemSelecionado,data:hojeISO});
     }
     setParametros(p=>{const n=new URLSearchParams(p);n.delete('lancar');n.delete('categoria');return n;},{replace:true});
@@ -960,7 +578,6 @@ function ManutencoesConteudo() {
     setTimeout(() => topoForm.current?.scrollIntoView({ behavior: "smooth", block: "center" }), 60);
 
   const abrirLancamento = (ativoId = "", lancamento = null) => {
-    setFormItem(null);
     setFormLanc(
       lancamento
         ? {
@@ -974,26 +591,10 @@ function ManutencoesConteudo() {
     rolarAoForm();
   };
 
-  const abrirItem = (item = null, tipo = "predial") => {
-    setFormLanc(null);
-    setFormItem(
-      item
-        ? {
-            ...ITEM_VAZIO,
-            ...item,
-            especificacao: { ...(item.especificacao || {}) },
-            // Medidor vem do servidor como número e o campo é de texto: sem a
-            // conversão, 92400 aparece cru e volta gravado como 92.400 → 92.
-            medidorAtual: paraCampo(item.medidorAtual),
-            medidorProximo: paraCampo(item.medidorProximo),
-          }
-        : { ...ITEM_VAZIO, cadastroId:crypto.randomUUID(), tipo, especificacao: {} }
-    );
-    rolarAoForm();
-  };
-
   async function gravarLancamento(f) {
     if (!f.ativoId) return setMsg({ tom: "erro", texto: "Escolha em que item o serviço foi feito." });
+    const historicoPreservado=f.id&&mapa[f.id]?.ativoId===f.ativoId;
+    if (!historicoPreservado&&!(itens||[]).some(i=>i.id===f.ativoId)) return setMsg({tom:'erro',texto:'Cadastre o item primeiro em Bens e cadastros. Atualize a lista se ele já foi cadastrado.'});
     if (!f.data) return setMsg({ tom: "erro", texto: "Informe a data do serviço." });
     setSalvando(true);
     setMsg(null);
@@ -1004,7 +605,7 @@ function ManutencoesConteudo() {
         ativoId: f.ativoId,
         // Nome desnormalizado: se o item for retirado, o gasto continua
         // identificável no histórico em vez de virar "(sem item)".
-        ativoNome: item?.nome || "",
+        ativoNome: item?.nome || mapa[f.id]?.ativoNome || "",
         data: f.data,
         valor: paraNumero(f.valor),
         tipo: f.tipo,
@@ -1042,88 +643,6 @@ function ManutencoesConteudo() {
     }
   }
 
-  async function gravarItem(f) {
-    if (!FAMILIAS[f.tipo]) return setMsg({ tom: "erro", texto: "Escolha se é veículo, máquina ou item do prédio." });
-    setSalvando(true);
-    setMsg(null);
-    try {
-      // MANDA SÓ O QUE ESTA TELA EDITA -- nada de espalhar `...f`.
-      //
-      // O servidor mantém o campo que NÃO vem no corpo. Se eu mandasse o
-      // registro inteiro, mandaria junto a `validade` e o `temArquivo` que
-      // foram lidos quando a página abriu: alguém mexe no IPVA em "Documentos
-      // e ativos", eu salvo a ficha aqui meia hora depois e gravo o valor
-      // velho por cima. A proteção do servidor só funciona com o campo
-      // ausente de verdade -- reenviar o cache da tela a anula.
-      const doBem={nomeGenerico:f.nome,descricaoTecnica:[f.categoria,identificacaoDe(f)].filter(Boolean).join(' · '),observacao:f.observacao || ''};
-      if(!f.id) Object.assign(doBem,{setorSigla:f.setorSigla || '',nf:f.nf || '',dataAquisicao:f.dataAquisicao || '',valor:paraNumero(f.valor),situacao:'uso'});
-      else {
-        if(f.setorSigla) doBem.setorSigla=f.setorSigla;
-        if(f.nf) doBem.nf=f.nf;
-        if(f.dataAquisicao) doBem.dataAquisicao=f.dataAquisicao;
-        if(paraNumero(f.valor)>0) doBem.valor=paraNumero(f.valor);
-      }
-      const salvarFicha=podeAbrir('inventario-valores')?salvarEquipamento:salvarAtivo;
-      const salvo=await salvarFicha({
-        id:f.id || undefined,cadastroId:f.cadastroId,tipo:f.tipo,nome:f.nome,categoria:f.categoria,responsavel:f.responsavel,responsavelId:f.responsavelId||'',
-        identificacao:identificacaoDe(f),observacao:f.observacao,especificacao:f.especificacao || {},
-        unidadeMedidor:UNIDADE_PADRAO[f.tipo] || '',medidorAtual:paraNumero(f.medidorAtual),medidorProximo:paraNumero(f.medidorProximo),
-      },doBem,f.bemId);
-
-      setItens((l) => {
-        const outros = (l || []).filter((x) => x.id !== salvo.id);
-        return [...outros, salvo];
-      });
-      setFormItem(null);
-      // Sem concordância de gênero: "Câmera cadastrado" era o que saía antes.
-      setMsg({ tom: "ok", texto: f.id ? `Ficha salva: ${salvo.nome}.` : `Item cadastrado: ${salvo.nome}.` });
-    } catch (e) {
-      setMsg({ tom: "erro", texto: e.message });
-    } finally {
-      setSalvando(false);
-    }
-  }
-
-  async function apagarItem(item) {
-    const linhas = [`Retirar "${item.nome}"?`];
-    if (item.quantos) {
-      linhas.push(
-        `\nEle tem ${item.quantos} ${item.quantos === 1 ? "manutenção lançada" : "manutenções lançadas"} ` +
-        `(${moeda(item.total)}). O histórico continua no total da empresa, e a ficha retirada fica disponível na lixeira.`
-      );
-    }
-    // Este item é o MESMO da tela Documentos e ativos. Retirar aqui leva junto
-    // o documento e o anexo de lá -- dizer isso na hora é a diferença entre um
-    // clique consciente e descobrir o sumiço quando a fiscalização pedir.
-    if (item.familia !== "predial" || item.validade || item.temArquivo) {
-      const perde = [
-        item.validade ? `a validade em ${dataLonga(item.validade)}` : null,
-        item.temArquivo ? `o arquivo anexado${item.arquivoNome ? ` (${item.arquivoNome})` : ""}` : null,
-      ].filter(Boolean);
-      linhas.push(
-        `\nEle some também de "Documentos e ativos" -- é o mesmo cadastro` +
-        (perde.length ? `, e leva junto ${perde.join(" e ")}.` : ".")
-      );
-    }
-    /* O ESPELHO NO PATRIMÔNIO TAMBÉM É DITO -- e tratado. Cadastrar aqui cria
-       um bem lá (`pat-<id>`); retirar apagava só este lado, e o bem ficava no
-       inventário para sempre, contando valor que a empresa não tem mais (é o
-       número que vai para o seguro). Baixar, e não apagar, é o certo: a
-       etiqueta está colada e o histórico do bem continua valendo. */
-    const idBem = podeAbrir('inventario-valores') ? item.bemId : undefined;
-    linhas.push("\nA ficha dele no Patrimônio será marcada como BAIXADA (não some do inventário).");
-    if (!window.confirm(linhas.join("\n"))) return;
-    setMsg(null);
-    try {
-      await removerAtivo(item.id,idBem);
-      setItens((l) => (l || []).filter((x) => x.id !== item.id));
-      if (formItem?.id === item.id) setFormItem(null);
-      setMsg({tom:"aviso",texto:`${item.nome} saiu da lista e a ficha no Patrimônio foi baixada. O histórico foi preservado.`});
-    } catch (e) {
-      setMsg({ tom: "erro", texto: e.message });
-    }
-  }
-
   // Recortar pela lista só faz sentido na aba dos itens: clicar em "Atrasadas"
   // estando no histórico tinha de trocar de aba sozinho, senão o clique não
   // mudava nada na tela.
@@ -1133,12 +652,13 @@ function ManutencoesConteudo() {
     if (familia !== "tudo") setFamilia("tudo");
   }
 
+  if(FAMILIAS[novoTipo]&&podeAbrir('patrimonio'))return <Navigate replace to={caminhoCadastroPatrimonio({familia:novoTipo,novo:true})}/>;
   if (erro && itens === null) return <ErroModulo mensagem={erro} aoTentar={carregar} />;
   if (itens === null || mapa === null) return <CarregandoModulo />;
 
   const k = vm.kpis;
   const selecionado = (itens || []).find(i=>i.id===itemSelecionado);
-  const abaOrigem = selecionado?.tipo === 'veiculo' ? 'carros' : selecionado?.tipo === 'maquina' ? 'maquinas' : 'estrutura';
+  const destinoBens=caminhoCadastroPatrimonio({familia:selecionado?.tipo||familia,categoria:selecionado?.categoria,item:selecionado?.id});
 
   return (
     <div className="pat-manutencoes space-y-4">
@@ -1148,14 +668,11 @@ function ManutencoesConteudo() {
         descricao={itemSelecionado ? "Serviços, custos e próxima manutenção deste equipamento." : "Cuide dos bens: serviços, próximos prazos e custos em um só lugar."}
         acao={
           <div className="flex flex-wrap gap-2">
-            <button className="btn-primary" disabled={!!itemSelecionado && !selecionado} onClick={() => abrirLancamento(itemSelecionado)}>
+            <button className="btn-primary" disabled={!itens.length || (!!itemSelecionado && !selecionado)} onClick={() => abrirLancamento(itemSelecionado)}>
               <Plus size={16} strokeWidth={2.4} />
               Nova manutenção
             </button>
-            <button className="btn-ghost" disabled={!!itemSelecionado && !selecionado} onClick={() => abrirItem(selecionado || null, familia === 'tudo' ? 'predial' : familia)}>
-              <Pencil size={16} strokeWidth={2.2} />
-              {selecionado ? 'Editar equipamento' : 'Cadastrar equipamento'}
-            </button>
+            {podeAbrir('patrimonio')&&<Link className="btn-outline" to={destinoBens}>{selecionado?'Ver cadastro':'Bens e cadastros'}</Link>}
           </div>
         }
       />
@@ -1163,7 +680,7 @@ function ManutencoesConteudo() {
       {itemSelecionado && <div className="pat-manutencoes-contexto" role="status">
         <span>{selecionado ? 'Indicadores e histórico exclusivos deste equipamento.' : 'Equipamento não encontrado. O histórico existente continua preservado.'}</span>
         <div className="flex flex-wrap gap-2">
-          {podeAbrir('patrimonio') && <Link className="btn-outline" to={`/patrimonio?aba=${abaOrigem}`}>Voltar aos bens</Link>}
+          {podeAbrir('patrimonio') && <Link className="btn-outline" to={destinoBens}>Voltar aos bens</Link>}
           <Link className="btn-ghost" to={ROTA_MANUTENCOES}>Ver todas as manutenções</Link>
         </div>
       </div>}
@@ -1252,16 +769,6 @@ function ManutencoesConteudo() {
             salvando={salvando}
             aoSalvar={gravarLancamento}
             aoFechar={() => setFormLanc(null)}
-          />
-        )}
-        {formItem && (
-          <FormItem
-            key={formItem.id || "novo-item"}
-            inicial={formItem}
-            setores={setores}
-            salvando={salvando}
-            aoSalvar={gravarItem}
-            aoFechar={() => setFormItem(null)}
           />
         )}
       </div>
@@ -1360,8 +867,8 @@ function ManutencoesConteudo() {
               : familia !== "tudo"
                 ? `Nenhum item em ${FAMILIAS[familia].rotulo.toLowerCase()}${
                     vm.lista.length ? " — mas há itens nas outras abas." : "."
-                  } Use "Cadastrar equipamento".`
-                : "Nenhum item cadastrado ainda. Use 'Cadastrar equipamento' — vale para carro, máquina e prédio."}
+                  } Cadastre o item em Bens e cadastros.`
+                : "Cadastre primeiro o item em Bens e cadastros para lançar uma manutenção."}
           </Empty>
         ) : (
           <div className="space-y-2">
@@ -1372,8 +879,7 @@ function ManutencoesConteudo() {
                 aberto={aberto === i.id}
                 aoAbrir={() => setAberto(aberto === i.id ? null : i.id)}
                 aoLancar={() => abrirLancamento(i.id)}
-                aoEditarItem={() => abrirItem(i)}
-                aoApagarItem={() => apagarItem(i)}
+                destinoFicha={podeAbrir('patrimonio')?caminhoCadastroPatrimonio({item:i.id,familia:i.familia,categoria:i.categoria}):null}
                 aoEditar={(l) => abrirLancamento(i.id, l)}
                 aoApagar={apagarLancamento}
               />

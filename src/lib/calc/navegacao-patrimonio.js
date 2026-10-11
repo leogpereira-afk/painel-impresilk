@@ -1,5 +1,21 @@
 export const ROTA_MANUTENCOES = '/patrimonio/manutencoes';
 
+export function caminhoCadastroPatrimonio({familia='',categoria='',item='',novo=false}={}) {
+  const telefonia=['Telefone','Central telefônica','Celular'].includes(categoria);
+  const aba=telefonia?'telefonia':({veiculo:'carros',maquina:'maquinas',informatica:'estrutura',seguranca:'seguranca'}[familia]||'estrutura');
+  const params=new URLSearchParams({aba});
+  if(telefonia)params.set('telefonia',categoria==='Celular'?'celulares':'ramais');
+  else if(familia==='informatica')params.set('estrutura','computadores');
+  if(familia==='predial'){
+    if(['Hidráulica','Caixa-d’água',"Caixa-d'água"].includes(categoria))params.set('estrutura','hidraulica');
+    if(['Elétrica','Iluminação','Padrão de energia','Transformador','Usina fotovoltaica'].includes(categoria))params.set('estrutura','eletrica');
+  }
+  if(familia==='seguranca')params.set('seguranca',{'Alarme':'alarmes','Chave':'chaves','Acesso facial':'facial','Portão':'portoes','Portão / automatizador':'portoes','Relógio de ponto':'ponto'}[categoria]||'cameras');
+  if(item)params.set('ficha',item);
+  if(novo&&['veiculo','maquina'].includes(familia))params.set('cadastro','novo');
+  return `/patrimonio?${params}`;
+}
+
 export function caminhoManutencao({ item = '', familia = '', novo = false, aba = 'itens', categoria = '', lancar = false } = {}) {
   const params = new URLSearchParams({ aba: aba === 'historico' ? 'historico' : 'itens' });
   if (item) params.set('item', item);

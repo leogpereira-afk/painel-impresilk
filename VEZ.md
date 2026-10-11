@@ -68,3 +68,11 @@ Ramais e Celulares usam tabela com cabecalhos, filtros Todos/Com responsavel/Dis
 ### Navegacao compacta de Seguranca
 
 Ajuste solicitado pelo dono: cameras/gravadores juntos, chaves/acesso facial juntos, alarmes, portoes e relogio de ponto; aba Desligamento retirada com sua consulta extra. Filtros por tipo e atalhos de cadastro preservam categorias e IDs. 24 testes pertinentes, lint e build aprovados; navegador local conferiu grupos, formulario de gravador e acesso facial e layout estreito. Sem alteracao de dados ou servidor.
+
+### Cadastro anterior a qualquer nova manutencao
+
+Pedido do dono: qualquer item que receba manutencao precisa estar em Bens e cadastros. Cadastro e edicao de Carros/Maquinas movidos para essa area; Manutencoes conserva os servicos e oferece retorno a ficha por ID. Links antigos de cadastro redirecionam para Bens. O servidor valida todos os IDs antes de escrever o lote; referencia ausente, nome, item retirado ou documento nao cria servico novo. Correcoes de historicos antigos mantem o vinculo anterior.
+
+Verificacao: 1014 testes de auditoria aprovados (83 condicionais de banco sem execucao nesta rodada), 610 testes de calculo/acesso aprovados, build e verificadores aprovados; lint sem erros, com os dois avisos anteriores. Navegador local conferiu ficha, formulario, item selecionado pelo mesmo ID e retorno ao cadastro, sem transbordamento em 319 px. A previa bloqueia gravacoes genericas: os testes de escrita usam handlers com banco/auth sinteticos, sem registros reais de teste.
+
+Publicacao dentro da evolucao autorizada do Patrimonio: painel-config 120 ativo e com todos os arquivos conferidos antes da liberacao da tela. Nenhuma migracao, concessao de acesso ou alteracao de cadastros reais. Confirmar os Actions e os arquivos oficiais da tela apos este commit. A vez permanece Codex.

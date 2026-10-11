@@ -4,8 +4,8 @@
 //
 // Os ITENS (o carro, a maquina, a camera) nao moram aqui: sao ativos do
 // painel-ativos. Veiculo e maquina ja estavam cadastrados em "Documentos e
-// ativos" e seria erro pedir para cadastrar de novo; o predial nasce na tela
-// de Manutencoes, com tipo "predial".
+// ativos" e o cadastro físico é gerenciado em Bens e cadastros.
+// Manutenções só registra serviços vinculados ao ID existente.
 
 import { comCracha, mensagemDoStatus } from "../lib/sessao.js";
 import { API } from "../lib/api.js";

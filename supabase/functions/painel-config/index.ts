@@ -712,6 +712,23 @@ Deno.serve(async (req: Request) => {
         if (OVERLAYS.has(chave)) {
           const barrado = barraChave(chave);
           if (barrado) return barrado;
+          if(chave==='manutencoes') {
+            // Conferir o lote inteiro antes da primeira escrita. Um serviço
+            // novo ou transferido exige o ID de uma ficha física cadastrada.
+            // Correções do histórico de um item retirado mantêm o vínculo antigo.
+            for(const [id,campos] of Object.entries(patch)) {
+              if(!campos||typeof campos!=='object'||Array.isArray(campos))return resposta({erro:'Manutenção inválida.'},422);
+              const {data:antes,error:erroAntes}=await sb.from('painel_registros').select('registro').eq('colecao','manutencoes').eq('id',id).maybeSingle();
+              if(erroAntes)throw erroAntes;
+              const anterior=antes?.registro;
+              const ref=Object.hasOwn(campos,'ativoId')?(campos as any).ativoId:anterior?.ativoId;
+              if(typeof ref!=='string'||!ref.trim())return resposta({erro:'Selecione um item cadastrado em Bens e cadastros.'},422);
+              if(anterior&&ref===anterior.ativoId)continue;
+              const {data:ativo,error:erroAtivo}=await sb.from('painel_registros').select('registro').eq('colecao','ativo').eq('id',ref).maybeSingle();
+              if(erroAtivo)throw erroAtivo;
+              if(!ativo||!['veiculo','maquina','predial','informatica','seguranca'].includes(ativo.registro?.tipo))return resposta({erro:'Cadastre primeiro o item em Bens e cadastros. Atualize a lista antes de lançar a manutenção.'},409);
+            }
+          }
           /* AS AÇÕES DO MARKETING MUDARAM DE CASA (10/10/2026): moram nas
              tabelas painel_mkt_* e passam pela painel-marketing, que tem a
              trava de orçamento no banco. Uma aba aberta na versão velha
