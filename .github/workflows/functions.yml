@@ -23,9 +23,16 @@
 # com o token como segredo do repositório, um ramo velho do Painel (sem a trava
 # abaixo) recebia o token e publicava o que quisesse. Com o segredo só no
 # environment e a política "só a main", run de outro ramo não recebe o token.
-# Passo do dono (Settings > Environments): criar "publicar-functions",
-# Deployment branches = Selected branches = main, e mover o
-# SUPABASE_ACCESS_TOKEN para lá (apagando o do repositório).
+# Passo do dono (Settings > Environments), NESTA ORDEM (revisão final de
+# 11/10/2026, PUB-02):
+#   1. este arquivo na main, com um run verde;
+#   2. criar "publicar-functions", Deployment branches = Selected branches =
+#      main, e pôr o SUPABASE_ACCESS_TOKEN nele;
+#   3. um run verde lendo o segredo do environment;
+#   4. só então apagar o SUPABASE_ACCESS_TOKEN do repositório.
+# Apagar antes do 1 deixa sem token o functions.yml e o functions-sistemas.yml
+# que não declaram environment: o push que mexe em supabase/functions deixa de
+# publicar e o cron fica vermelho de hora em hora.
 name: Edge Functions no Supabase
 
 on:
@@ -172,6 +179,11 @@ jobs:
           fi
           echo "ok: '$REF' contem a main ($(git rev-parse --short origin/main)); $(git rev-list --count origin/main..HEAD) commit(s) a frente dela."
 
+      # Depende de o deploy.yml do PCP rodar em TODO push da main, inclusive o
+      # so da vez (VEZ.md e docs/passagens/; sem paths-ignore desde a revisao
+      # final de 11/10/2026). Se aquele Deploy voltar a pular esses arquivos,
+      # depois de cada pegar ou passar a main fica a frente do verde e este
+      # passo recusa o disparo ate o proximo push de codigo de la.
       - name: A main do PCP e o ultimo Deploy verde?
         env:
           GH_TOKEN: ${{ github.token }}
