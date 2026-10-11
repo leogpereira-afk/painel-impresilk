@@ -37,10 +37,10 @@ export const removerCompromisso = (id) =>
 // pediu -- depois disso o item sai da lista de quem encaminhou.
 //
 // `recado` e opcional e vira a primeira linha que a pessoa de destino le.
-export const encaminharCompromisso = (id, paraUsuario, recado = "") =>
+export const encaminharCompromisso = (id, paraUsuario, recado = "", destinoRhId = "") =>
   chamar("merge", {
     chave: "compromissos",
-    patch: { [id]: { dono: paraUsuario, ...(recado ? { recado } : {}) } },
+    patch: { [id]: { dono: paraUsuario, destinoRhId, ...(recado ? { recado } : {}) } },
   }).then((r) => r.valor || {});
 
 // Recado na conversa, com anexo opcional. Quem carimba autor e hora e o
@@ -82,13 +82,4 @@ export function abrirBase64(base64, mime, nome) {
 }
 
 // Quem trabalha aqui (usuario + nome), para montar o "encaminhar para".
-export async function lerPessoas() {
-  const resp = await comCracha(`${API}/painel-auth`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ action: "listarPessoas" }),
-  });
-  const body = await resp.json().catch(() => null);
-  if (!resp.ok) throw new Error(body?.erro || "Nao consegui carregar a equipe.");
-  return body?.pessoas || [];
-}
+export const lerPessoas = () => chamar("pessoasCompromissos", {}).then(r => r.pessoas || []);

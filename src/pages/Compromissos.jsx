@@ -89,7 +89,17 @@ const PRIORIDADES = [
   { id: 'semData', campo: 'semData', nome: 'Sem data', apoio: 'Falta programar', icone: Clock3, tom: 'neutro' },
   { id: 'feitos', campo: 'concluidos', nome: 'Resolvidos', apoio: 'Histórico completo', icone: Check, tom: 'resolvido' },
 ];
+const nomeResponsavel = c => c.donoRH?.nome || c.donoNome || c.dono || 'Responsável não informado';
 const iniciais = nome => String(nome || '?').trim().split(/\s+/).filter(Boolean).slice(0, 2).map(n => n[0]).join('').toUpperCase();
+
+function AvatarRH({nome,foto}) {
+  const [falha,setFalha]=useState('');
+  return <span className="cp-avatar" aria-hidden="true">{foto && foto!==falha ? <img src={foto} alt="" onError={()=>setFalha(foto)}/> : iniciais(nome)}</span>;
+}
+function IdentidadeRH({nome,id,codigo,foto,vinculo}) {
+  const apoio={central:'Vínculo confirmado pelo acesso central',vinculado:'Vinculado ao RH',divergente:'O vínculo central mudou. Confira o responsável.',ausente:'Ficha do RH não encontrada',indisponivel:'Responsável indisponível para novos encaminhamentos',ambiguo:'Vínculo ambíguo no cadastro de acessos','sem-vinculo':'Vínculo com o RH pendente'};
+  return <div className="cp-identidade-rh"><AvatarRH nome={nome} foto={foto}/><div><strong>{nome}</strong><small>{codigo ? `ID RH: ${codigo}` : id ? 'Ficha do RH vinculada · código não informado' : 'Sem ID do RH confirmado'} · {apoio[vinculo] || apoio['sem-vinculo']}</small></div></div>;
+}
 
   // Eventos seguidos da MESMA pessoa viram um bloco so, com o nome uma vez no
   // topo -- e o que faz o histórico parecer conversa e nao log de sistema.
@@ -98,8 +108,8 @@ function blocosDaConversa(c) {
     const blocos = [];
     for (const ev of hist) {
       const ultimo = blocos[blocos.length - 1];
-      if (ultimo && ultimo.quem === ev.quem) ultimo.eventos.push(ev);
-      else blocos.push({ quem: ev.quem, nome: ev.quemNome || ev.quem, eventos: [ev] });
+      if (ultimo && ultimo.quem === ev.quem && ultimo.rhId === ev.quemRhId && ultimo.codigo === ev.quemRhCodigo && ultimo.nome === (ev.quemNome || ev.quem)) ultimo.eventos.push(ev);
+      else blocos.push({ quem: ev.quem, rhId: ev.quemRhId, codigo: ev.quemRhCodigo, nome: ev.quemNome || ev.quem, eventos: [ev] });
     }
   return blocos;
 }
@@ -132,7 +142,7 @@ function Conversa({ c, sessao, enviando, aoEnviar, aoBaixar, aoWhatsApp }) {
             {blocos.map((b, i) => (
               <div key={i} className={`flex flex-col ${meu(b.quem) ? "items-end" : "items-start"}`}>
                 <span className="mb-1 font-display text-xs font-semibold text-slate-500">
-                  {meu(b.quem) ? "Você" : b.nome}
+                  {meu(b.quem) ? "Você" : b.nome}{b.codigo && <small className="cp-historico-rh"> · ID RH: {b.codigo}</small>}
                 </span>
                 <div className="max-w-[85%] space-y-1">
                   {b.eventos.map((ev, j) => (
@@ -145,7 +155,7 @@ function Conversa({ c, sessao, enviando, aoEnviar, aoBaixar, aoWhatsApp }) {
                       {ev.tipo !== "recado" && (
                         <span className="block font-display text-xs font-semibold text-slate-600">
                           {ev.tipo === "criou" && "abriu o compromisso"}
-                          {ev.tipo === "passou" && `passou para ${ev.paraNome || ev.para}`}
+                          {ev.tipo === "passou" && `passou para ${ev.paraNome || ev.para}${ev.paraRhCodigo ? ` · ID RH: ${ev.paraRhCodigo}` : ''}`}
                           {ev.tipo === "concluiu" && "marcou como resolvido"}
                           {ev.tipo === "reabriu" && "reabriu"}
                         </span>
@@ -314,7 +324,7 @@ function MenuAcoes({ c, equipe, ocupado, acoes }) {
     <button type="button" ref={botao} className="cp-icon-button" aria-label={`Mais ações: ${c.titulo}`} aria-expanded={aberto} disabled={ocupado} onClick={() => setAberto(v => !v)}><MoreHorizontal size={19}/></button>
     {aberto && <div className="cp-menu-lista">
       <button type="button" onClick={() => executar(() => acoes.abrirForm(c))}><Pencil size={16}/>Editar compromisso</button>
-      {equipe.length > 1 && <button type="button" onClick={() => executar(() => acoes.prepararEncaminhamento(c))}><Forward size={16}/>Encaminhar</button>}
+      {equipe.some(p => p.usuario !== c.dono) && <button type="button" onClick={() => executar(() => acoes.prepararEncaminhamento(c))}><Forward size={16}/>Encaminhar</button>}
       {c.telefone && <><a href={`tel:${String(c.telefone).replace(/[^+\d]/g, '')}`}><Phone size={16}/>Ligar para o cliente</a><a href={`https://wa.me/${numeroWhatsApp(c.telefone)}`} target="_blank" rel="noopener noreferrer"><MessageCircle size={16}/>WhatsApp do cliente</a></>}
       <button type="button" className="cp-acao-excluir" onClick={() => executar(() => acoes.remover(c))}><Trash2 size={16}/>Excluir compromisso</button>
     </div>}
@@ -340,7 +350,7 @@ function Linha({ c, sessao, equipe, ocupado, bloqueado, remarcando, setRemarcand
       <div className="cp-item-conteudo">
         <div className="cp-item-meta"><span>{tipo.rotulo}</span>{c.cliente && <><span aria-hidden="true">·</span><span>{c.cliente}</span></>}</div>
         <h3><button type="button" onClick={() => setConversaAberta(aberta ? null : c.id)} aria-expanded={aberta}>{c.titulo}</button></h3>
-        <div className="cp-item-contexto"><span className="cp-responsavel"><span aria-hidden="true">{iniciais(c.donoNome || sessao?.nome)}</span>{c.donoNome || sessao?.nome || 'Responsável não informado'}</span>
+        <div className="cp-item-contexto"><span className="cp-responsavel"><AvatarRH nome={nomeResponsavel(c)} foto={c.donoRH?.fotoDataUrl}/>{nomeResponsavel(c)}<small className="cp-rh-id">{c.donoRH?.codigo ? `RH ${c.donoRH.codigo}` : c.donoRhId ? 'Vinculado ao RH' : 'RH pendente'}</small></span>
           {parado && <span className="cp-sem-retorno"><Clock3 size={12}/>Sem atualização há {diasSemNovidade} dias</span>}
           {c.crmOperacao && <span className="cp-origem">Mubisys</span>}{c.cobrancaOrigem && <span className="cp-origem">Cobrança</span>}
         </div>
@@ -363,6 +373,7 @@ function Linha({ c, sessao, equipe, ocupado, bloqueado, remarcando, setRemarcand
       <button type="button" className="cp-icon-button" aria-label="Fechar reagendamento" onClick={() => setRemarcando(null)}><X size={16}/></button>
     </div>}
     {aberta && <div className="cp-detalhe">
+      <IdentidadeRH nome={nomeResponsavel(c)} id={c.donoRhId} codigo={c.donoRH?.codigo} foto={c.donoRH?.fotoDataUrl} vinculo={c.donoRH?.vinculo}/>
       {(c.obs || c.encaminhadoPor || c.crmOperacao || c.cobrancaOrigem) && <div className="cp-notas">{c.obs && <p><strong>Observação:</strong> {c.obs}</p>}{c.encaminhadoPor && <p>Encaminhado por {c.encaminhadoPor}</p>}{c.crmOperacao && <p>Origem: Mubisys. Conclusão e reagendamento são controlados nesta agenda.</p>}{c.cobrancaOrigem && <p>Acompanhamento de cobrança. Confirme o recebimento no ERP.</p>}</div>}
       <Conversa c={c} sessao={sessao} enviando={enviando} aoEnviar={acoes.enviarRecado} aoBaixar={acoes.baixarAnexo} aoWhatsApp={acoes.mandarWhatsApp}/>
       <span className="cp-registro-id">Identificação do registro: {c.id}</span>
@@ -374,7 +385,7 @@ export default function Compromissos() {
   const sessao = getSessao();
   const ehDirecao = !!sessao?.master;
   const temComercial=podeAbrir('orcamentos',sessao);
-  const chaveComercial=JSON.stringify([sessao?.usuario,sessao?.master,sessao?.permissoes||[]]);
+  const chaveComercial=JSON.stringify([sessao?.usuario,sessao?.master,sessao?.permissoes||[],sessao?.vendedorId]);
 
   const [mapa, setMapaLido] = useState(null);
   const pedidoLeitura = useRef(0);
@@ -399,6 +410,7 @@ export default function Compromissos() {
   const [ocupado, setOcupado] = useState(null);
   const mutacao = useRef(false);
   const [equipe, setEquipe] = useState([]);
+  const [erroEquipe, setErroEquipe] = useState(null);
   const [remarcando, setRemarcando] = useState(null);     // id da linha remarcando
   // Os indicadores filtram a lista. Em aberto reúne todos os itens pendentes.
   const [recorte, setRecorte] = useState("abertos");
@@ -419,27 +431,24 @@ export default function Compromissos() {
     ultimaCarga.current = Date.now();
     setAtualizando(true);
     setHojeISO(ymdLocal(new Date()));
-    try {
-      const [compromissos,atividades]=await Promise.allSettled([lerCompromissos(),temComercial?lerAgendaComercial():Promise.resolve({eventos:[],vinculosLegados:[]})]);
-      if (pedido !== pedidoLeitura.current) return;
-      if(atividades.status==='fulfilled')setComercial({chave:chaveComercial,...atividades.value});
-      setErroComercial(atividades.status==='rejected'?'Não foi possível atualizar as atividades comerciais. A última consulta válida permanece visível.':'');
-      if(compromissos.status==='rejected')throw compromissos.reason;
-      setMapaLido(compromissos.value);
-      setErro(null);
-    } catch(e) {
-      if (pedido === pedidoLeitura.current) setErro(e.message);
-    } finally {
-      if (pedido === pedidoLeitura.current) setAtualizando(false);
-    }
+    const [agenda,pessoas,atividades]=await Promise.allSettled([
+      lerCompromissos(),lerPessoas(),
+      temComercial?lerAgendaComercial():Promise.resolve({eventos:[],vinculosLegados:[]}),
+    ]);
+    if(pedido!==pedidoLeitura.current)return;
+    if(agenda.status==='fulfilled'){setMapaLido(agenda.value);setErro(null);}
+    else setErro(agenda.reason.message);
+    if(pessoas.status==='fulfilled'){setEquipe(pessoas.value);setErroEquipe(null);}
+    else {setEquipe([]);setErroEquipe(pessoas.reason.message);}
+    if(atividades.status==='fulfilled')setComercial({chave:chaveComercial,...atividades.value});
+    setErroComercial(atividades.status==='rejected'?'Não foi possível atualizar as atividades comerciais. A última consulta válida desta carteira permanece visível.':'');
+    setAtualizando(false);
   }, [temComercial,chaveComercial]);
 
   useEffect(() => {
-    const controle = pedidoLeitura;
-    let vivo = true;
+    const controle=pedidoLeitura;
     recarregar();
-    lerPessoas().then(p => vivo && setEquipe(p)).catch(() => {});
-    return () => { vivo = false; controle.current++; };
+    return () => { controle.current++; };
   }, [recarregar]);
 
   // Voltou para a aba: refaz a conta do dia e busca o que chegou enquanto ela
@@ -557,13 +566,15 @@ export default function Compromissos() {
   const alternarFeito = c => executarMutacao(c,
     () => salvarCompromisso(c.id, { feito: !c.feito, feitoEm: !c.feito ? new Date().toISOString() : '' }),
     c.feito ? 'Compromisso reaberto. Confira em Em aberto.' : 'Compromisso concluído. Ele está no histórico de Resolvidos.');
-  const prepararEncaminhamento = c => { setAviso(null); setTransferencia({ c, usuario: '', recado: '' }); };
+  const prepararEncaminhamento = c => { setAviso(null); setTransferencia({ c, usuario: '', rhId: '', recado: '' }); };
   const encaminhar = async e => {
     e.preventDefault();
-    const { c, usuario, recado } = transferencia;
+    const { c, usuario, recado, rhId } = transferencia;
     if (!usuario || usuario === donoDe(c)) return;
-    const nome = equipe.find(p => p.usuario === usuario)?.nome || usuario;
-    const ok = await executarMutacao(c, () => encaminharCompromisso(c.id, usuario, recado.trim()), `Compromisso encaminhado para ${nome}.`);
+    const pessoa = equipe.find(p => p.usuario === usuario);
+    if (!pessoa?.disponivel || pessoa.rhId !== rhId) return;
+    const nome = pessoa.nome;
+    const ok = await executarMutacao(c, () => encaminharCompromisso(c.id, usuario, recado.trim(), rhId), `Compromisso encaminhado para ${nome}.`);
     if (ok) setTransferencia(null);
   };
 
@@ -664,6 +675,8 @@ export default function Compromissos() {
   };
   const acoes = { alternarFeito, abrirForm, remover, prepararEncaminhamento, enviarRecado, baixarAnexo, mandarWhatsApp, remarcar };
   const limparFiltros = () => { setBusca(''); setTipoFiltro(''); setDePessoa(null); setRecorte('abertos'); };
+  const responsavelForm=form?.id ? {nome:nomeResponsavel(form),rhId:form.donoRhId,...form.donoRH} : equipe.find(p=>p.usuario===sessao?.usuario);
+  const destinatario=equipe.find(p=>p.usuario===transferencia?.usuario);
   const temFiltros = !!(busca || tipoFiltro || dePessoa || recorte !== 'abertos');
   const prioridade = PRIORIDADES.find(p => p.id === recorte);
 
@@ -675,6 +688,7 @@ export default function Compromissos() {
     <div className="cp-page">
       <AvisoAtualizacao erro={erro} aoTentar={recarregar}/>
       <AvisoAtualizacao erro={erroComercial} aoTentar={recarregar}/>
+      <AvisoAtualizacao erro={erroEquipe} aoTentar={recarregar}/>
       <header className="cp-cabecalho">
         <div><p className="cp-eyebrow">OPERAÇÃO · {ehDirecao ? 'AGENDA DA EQUIPE' : 'MINHA AGENDA'}</p><h1>Compromissos</h1><p>Clareza sobre o que fazer, com quem e até quando.</p></div>
         <div className="cp-cabecalho-acoes"><button type="button" className="cp-atualizar" disabled={atualizando} onClick={recarregar}><RefreshCw size={17} className={atualizando ? 'animate-spin' : ''}/>{atualizando ? 'Atualizando…' : 'Atualizar'}</button><button type="button" className="cp-agenda-comercial" aria-expanded={agendaComercialAberta} aria-controls="cp-agenda-comercial" onClick={() => setAgendaComercialAberta(v => !v)}><CalendarCheck size={17}/>Agenda comercial</button><button type="button" className="btn-primary" onClick={() => abrirForm(null)}><Plus size={18}/>Novo compromisso</button></div>
@@ -686,28 +700,33 @@ export default function Compromissos() {
         </button>; })}
       </section>
       <section className="cp-filtros" aria-label="Busca e responsáveis">
-        <div className="cp-filtros-principal"><label className="cp-busca"><Search size={18}/><input aria-label="Buscar compromisso" placeholder="Buscar compromisso, cliente ou responsável…" value={busca} onChange={e => setBusca(e.target.value)}/>{busca && <button type="button" aria-label="Limpar busca" onClick={() => setBusca('')}><X size={16}/></button>}</label>
+        <div className="cp-filtros-principal"><label className="cp-busca"><Search size={18}/><input aria-label="Buscar compromisso" placeholder="Buscar compromisso, cliente, responsável ou ID RH…" value={busca} onChange={e => setBusca(e.target.value)}/>{busca && <button type="button" aria-label="Limpar busca" onClick={() => setBusca('')}><X size={16}/></button>}</label>
           <label className="cp-tipo-filtro"><span>Tipo</span><select value={tipoFiltro} onChange={e => setTipoFiltro(e.target.value)} aria-label="Tipo de compromisso"><option value="">Todos os tipos</option>{Object.entries(TIPOS).map(([id,t]) => <option value={id} key={id}>{t.rotulo}</option>)}</select></label>
           {temFiltros && <button type="button" className="cp-limpar" onClick={limparFiltros}>Limpar filtros</button>}
         </div>
         {ehDirecao && vm.pessoas.length > 1 && <div className="cp-equipe"><span className="cp-equipe-label">Responsável<small>Em aberto por pessoa</small></span><div className="cp-pessoas" aria-label="Filtrar por responsável">
           <button type="button" className={`cp-pessoa ${!dePessoa ? 'selecionada' : ''}`} aria-pressed={!dePessoa} onClick={() => setDePessoa(null)}><Users size={17}/>Equipe toda</button>
-          {vm.pessoas.map(p => <button type="button" key={p.dono} className={`cp-pessoa ${dePessoa === p.dono ? 'selecionada' : ''}`} aria-pressed={dePessoa === p.dono} onClick={() => setDePessoa(dePessoa === p.dono ? null : p.dono)} title={`${p.nome}: ${p.emAberto} em aberto, ${p.atrasados} atrasados`}><span className="cp-avatar">{iniciais(p.nome)}</span><span>{p.nome}</span><span className="cp-contador">{p.emAberto}</span>{p.atrasados > 0 && <span className="cp-pessoa-atraso" aria-label={`${p.atrasados} atrasados`}><AlertTriangle size={12}/>{p.atrasados}</span>}</button>)}
+          {vm.pessoas.map(p => <button type="button" key={p.dono} className={`cp-pessoa ${dePessoa === p.dono ? 'selecionada' : ''}`} aria-pressed={dePessoa === p.dono} onClick={() => setDePessoa(dePessoa === p.dono ? null : p.dono)} title={`${p.nome}: ${p.emAberto} em aberto, ${p.atrasados} atrasados`}><AvatarRH nome={p.nome} foto={p.fotoDataUrl}/><span>{p.nome}{p.rhCodigo && <small className="cp-rh-id"> RH {p.rhCodigo}</small>}</span><span className="cp-contador">{p.emAberto}</span>{p.atrasados > 0 && <span className="cp-pessoa-atraso" aria-label={`${p.atrasados} atrasados`}><AlertTriangle size={12}/>{p.atrasados}</span>}</button>)}
         </div></div>}
       </section>
       {aviso && <div role={aviso.tom === 'erro' ? 'alert' : 'status'} className={`cp-aviso cp-aviso--${aviso.tom}`}><span>{aviso.texto}</span>{aviso.tom === 'ok' && <button type="button" aria-label="Fechar mensagem" onClick={() => setAviso(null)}><X size={16}/></button>}</div>}
       <div className="cp-lista-cabecalho"><div><h2>{prioridade.nome}{dePessoa ? ` · ${vm.pessoas.find(p => p.dono === dePessoa)?.nome || dePessoa}` : ''}</h2><span>{vm.exibidos} {vm.exibidos === 1 ? 'compromisso' : 'compromissos'}{busca || tipoFiltro ? ' neste filtro' : ''}</span></div><span className="cp-ordem"><Clock3 size={14}/>{recorte === 'feitos' ? 'Últimas conclusões primeiro' : 'Prioridade e horário'}</span></div>
       {transferencia && <FormularioModal titulo="Encaminhar compromisso" descricao="O histórico e os anexos seguem com o compromisso para o novo responsável." salvando={!!ocupado} aoFechar={() => !ocupado && setTransferencia(null)}>
         <form className="compromisso-modal-form space-y-4" onSubmit={encaminhar}><p className="cp-encaminhar-titulo">{transferencia.c.titulo}</p>{aviso?.tom === 'erro' && <p role="alert" className="text-bad-700">{aviso.texto}</p>}
-          <label className="label" htmlFor="cp-destino">Novo responsável</label><select id="cp-destino" className="input" required value={transferencia.usuario} onChange={e => setTransferencia(t => ({...t, usuario:e.target.value}))}><option value="">Selecione uma pessoa</option>{equipe.filter(p => p.usuario !== donoDe(transferencia.c)).map(p => <option key={p.usuario} value={p.usuario}>{p.nome}</option>)}</select>
+          <label className="label" htmlFor="cp-destino">Novo responsável</label><select id="cp-destino" className="input" required value={transferencia.usuario} onChange={e => setTransferencia(t => ({...t, usuario:e.target.value, rhId:equipe.find(p=>p.usuario===e.target.value)?.rhId || ''}))}><option value="">Selecione uma pessoa</option>{equipe.filter(p => p.usuario !== donoDe(transferencia.c)).map(p => <option key={p.usuario} value={p.usuario} disabled={!p.disponivel}>{p.nome}{p.rhId ? p.rhCodigo ? ` · RH ${p.rhCodigo}` : ' · ficha RH vinculada' : ' · vínculo pendente'}{!p.disponivel ? ' · indisponível' : ''}</option>)}</select>
+          {destinatario && <IdentidadeRH nome={destinatario.nome} id={destinatario.rhId} codigo={destinatario.rhCodigo} foto={destinatario.fotoDataUrl} vinculo={destinatario.vinculo}/>}
+          {destinatario && destinatario.rhId !== transferencia.rhId && <p className="cp-rh-ajuda" role="alert">O vínculo desta pessoa mudou. Selecione novamente o responsável antes de encaminhar.</p>}
+          <p className="cp-rh-ajuda">Só recebem compromissos pessoas com acesso à agenda e vínculo ativo no RH. Para corrigir um vínculo, use Sistemas e configurações → Pessoas.</p>
           <label className="label" htmlFor="cp-recado">O que a pessoa precisa saber? (opcional)</label><textarea id="cp-recado" className="input" rows={3} value={transferencia.recado} onChange={e => setTransferencia(t => ({...t, recado:e.target.value}))}/>
-          <div className="cp-modal-acoes"><button type="button" className="btn-outline" disabled={!!ocupado} onClick={() => setTransferencia(null)}>Cancelar</button><button type="submit" className="btn-primary" disabled={!!ocupado || !transferencia.usuario}>{ocupado ? 'Encaminhando…' : 'Encaminhar compromisso'}</button></div>
+          <div className="cp-modal-acoes"><button type="button" className="btn-outline" disabled={!!ocupado} onClick={() => setTransferencia(null)}>Cancelar</button><button type="submit" className="btn-primary" disabled={!!ocupado || !destinatario?.disponivel || destinatario.rhId !== transferencia.rhId}>{ocupado ? 'Encaminhando…' : 'Encaminhar compromisso'}</button></div>
         </form>
       </FormularioModal>}
       {form && (
         <FormularioModal titulo={form.id ? "Editar compromisso" : "Novo compromisso"} salvando={salvando} aoFechar={fecharForm}>
           {aviso?.tom === "erro" && <p role="alert" className="mx-6 mb-4 rounded-lg bg-bad-50 p-3 text-sm text-bad-700">{aviso.texto}</p>}
           <form onSubmit={salvar} className="compromisso-modal-form space-y-4">
+            <IdentidadeRH nome={responsavelForm?.nome || sessao?.nome} id={responsavelForm?.rhId || responsavelForm?.id} codigo={responsavelForm?.rhCodigo || responsavelForm?.codigo} foto={responsavelForm?.fotoDataUrl} vinculo={responsavelForm?.vinculo}/>
+            {!form.id && !responsavelForm?.disponivel && <p className="cp-rh-ajuda" role="status">Confira o vínculo da sua conta com o RH em Sistemas e configurações → Pessoas antes de cadastrar.</p>}
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="sm:col-span-2">
                 <label className="label" htmlFor="c-titulo">O que precisa ser feito</label>
@@ -796,7 +815,7 @@ export default function Compromissos() {
               </div>
             </div>
             <div className="cp-modal-acoes">
-              <button className="btn-primary" disabled={salvando}>
+              <button className="btn-primary" disabled={salvando || (!form.id && !responsavelForm?.disponivel)}>
                 {salvando ? "Salvando..." : form.id ? "Salvar alterações" : "Cadastrar"}
               </button>
               <button type="button" className="btn-ghost" disabled={salvando} onClick={fecharForm}>

@@ -55,7 +55,7 @@ export default function CalendarioEmpresa({sessao}) {
   const temComercial=podeAbrir('orcamentos',sessao);
   const temDocumentos=podeAbrir('documentos',sessao);
   const chaveDocumentos=JSON.stringify([sessao?.usuario,sessao?.master,sessao?.permissoes||[]]);
-  const chaveComercial=JSON.stringify([chaveDocumentos,mes]);
+  const chaveComercial=JSON.stringify([chaveDocumentos,sessao?.vendedorId,mes]);
   const temPatrimonio=podeAbrir('patrimonio',sessao)||podeAbrir('inventario-valores',sessao);
   const temProcessos=podeAbrir('demandas',sessao);
   const temReunioes=podeAbrir('reunioes',sessao);

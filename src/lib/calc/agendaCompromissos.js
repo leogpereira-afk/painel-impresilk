@@ -21,16 +21,17 @@ function dataValida(data) {
 export function montarAgenda(mapa, { hoje, pessoa = '', usuario = '', busca = '', tipo = '', recorte = 'abertos' } = {}) {
   const todos = Object.entries(mapa || {}).filter(([, c]) => c && typeof c === 'object').map(([id, c]) => {
     const dias = dataValida(c.data) ? diasEntre(hoje, c.data) : null;
-    return { ...c, id, dono: c.dono ?? usuario, dias, pz: prazoCompromisso(dias) };
+    return { ...c, id, donoNome: c.donoRH?.nome || c.donoNome, dono: c.dono ?? usuario, dias, pz: prazoCompromisso(dias) };
   });
   const pessoas = [...new Set(todos.map(c => c.dono).filter(Boolean))].map(dono => {
     const registros = todos.filter(c => c.dono === dono), abertos = registros.filter(c => !c.feito);
-    return { dono, nome: registros.find(c => c.donoNome)?.donoNome || dono, emAberto: abertos.length,
+    const identidade = registros.find(c => c.donoRH)?.donoRH;
+    return { dono, nome: identidade?.nome || registros.find(c => c.donoNome)?.donoNome || dono, rhId: identidade?.id || '', rhCodigo: identidade?.codigo || '', fotoDataUrl: identidade?.fotoDataUrl || '', emAberto: abertos.length,
       atrasados: abertos.filter(c => c.dias !== null && c.dias < 0).length };
   }).sort((a, b) => b.atrasados - a.atrasados || b.emAberto - a.emAberto || a.nome.localeCompare(b.nome, 'pt-BR'));
   const termos = normalizar(busca).split(/\s+/).filter(Boolean);
   const base = todos.filter(c => (!pessoa || c.dono === pessoa) && (!tipo || c.tipo === tipo) &&
-    termos.every(termo => normalizar([c.titulo, c.cliente, c.donoNome, c.obs, c.id].join(' ')).includes(termo)));
+    termos.every(termo => normalizar([c.titulo, c.cliente, c.donoNome, c.donoRhId, c.donoRH?.codigo, c.obs, c.id].join(' ')).includes(termo)));
   const abertos = base.filter(c => !c.feito).sort((a, b) => a.pz.peso - b.pz.peso ||
     String(a.hora || '99:99').localeCompare(String(b.hora || '99:99')) || String(a.criadoEm || '').localeCompare(String(b.criadoEm || '')));
   const feitos = base.filter(c => c.feito).sort((a, b) => String(b.feitoEm || '').localeCompare(String(a.feitoEm || '')));

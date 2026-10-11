@@ -60,3 +60,12 @@ test('WhatsApp mantém DDI informado sem duplicar o 55', () => {
   assert.equal(numeroWhatsApp('(38) 99999-0000'),'5538999990000');
   assert.equal(numeroWhatsApp('+55 38 99999-0000'),'5538999990000');
 });
+
+test('busca usa ID e nome atual do RH sem juntar homônimos de logins diferentes',()=>{
+ const registros={a:{titulo:'Visita',dono:'ana',donoNome:'Nome antigo',donoRhId:'rh-101',donoRH:{id:'rh-101',codigo:'010101',nome:'Ana Atual',fotoDataUrl:'foto1'}},b:{titulo:'Visita',dono:'bia',donoNome:'Nome antigo',donoRhId:'rh-102',donoRH:{id:'rh-102',codigo:'010102',nome:'Ana Atual',fotoDataUrl:'foto2'}}};
+ const vm=montarAgenda(registros,{hoje:'2026-10-11',busca:'ana atual rh-102'});
+ assert.equal(vm.exibidos,1);assert.equal(vm.grupos[0].itens[0].id,'b');
+ assert.equal(vm.pessoas.length,2);assert.equal(vm.pessoas.find(p=>p.dono==='ana').fotoDataUrl,'foto1');
+ assert.equal(vm.pessoas.find(p=>p.dono==='bia').rhId,'rh-102');
+ assert.equal(montarAgenda(registros,{hoje:'2026-10-11',busca:'010102'}).grupos[0].itens[0].id,'b');
+});
