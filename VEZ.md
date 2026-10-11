@@ -64,3 +64,7 @@ Pedido complementar: Telefonia abre em Ramais, depois Celulares; ambos em lista.
 ### Telefonia no padrao de Armarios
 
 Ramais e Celulares usam tabela com cabecalhos, filtros Todos/Com responsavel/Disponiveis com contagem, busca, acoes a direita e historicos recolhiveis. Em celular, cada registro mostra os campos empilhados. Mantidos IDs, permissoes, edicao e historicos. Verificacao: 15 testes, lint dos componentes e build aprovados; navegador local conferiu filtro de disponibilidade e historico do aparelho. Publicacao dentro do ajuste visual solicitado pelo dono.
+
+### Navegacao compacta de Seguranca
+
+Ajuste solicitado pelo dono: cameras/gravadores juntos, chaves/acesso facial juntos, alarmes, portoes e relogio de ponto; aba Desligamento retirada com sua consulta extra. Filtros por tipo e atalhos de cadastro preservam categorias e IDs. 24 testes pertinentes, lint e build aprovados; navegador local conferiu grupos, formulario de gravador e acesso facial e layout estreito. Sem alteracao de dados ou servidor.
