@@ -6,12 +6,13 @@ import EstruturaLegada from './EstruturaLegada.jsx';
 import './estrutura-infra.css';
 
 const SECOES = [
+  ['outros','Itens'],
+  ['hidraulica','Hidráulica'],
   ['internet','Internet'],
   ['computadores','Computadores e servidores'],
   ['eletrica','Parte elétrica'],
-  ['outros','Outros itens e hidráulica'],
 ];
-export default function EstruturaPatrimonio({bens=[],setores=[],aoVerBem,secaoInicial='internet'}) {
+export default function EstruturaPatrimonio({bens=[],setores=[],aoVerBem,secaoInicial='outros'}) {
   const local=useLocation();
   const query=new URLSearchParams(local.search);
   const secao=SECOES.some(([id])=>id===query.get('estrutura'))?query.get('estrutura'):secaoInicial;
@@ -21,6 +22,6 @@ export default function EstruturaPatrimonio({bens=[],setores=[],aoVerBem,secaoIn
     {secao==='internet'&&<InternetInfra/>}
     {secao==='computadores'&&<Computadores bens={bens} setores={setores}/>}
     {secao==='eletrica'&&<EletricaInfra bens={bens} setores={setores} aoVerBem={aoVerBem}/>}
-    {secao==='outros'&&<EstruturaLegada bens={bens} setores={setores} aoVerBem={aoVerBem}/>}
+    {['outros','hidraulica'].includes(secao)&&<EstruturaLegada key={secao} modo={secao} bens={bens} setores={setores} aoVerBem={aoVerBem}/>}
   </section>;
 }

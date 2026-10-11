@@ -14,7 +14,7 @@ import './estrutura.css';
 
 const POR_PAGINA = 15;
 const dinheiro = valor => Number(valor).toLocaleString('pt-BR', {style:'currency',currency:'BRL'});
-const fichaVazia = modo => ({ cadastroId: crypto.randomUUID(), nome: '', categoria: modo === 'eletrica' ? 'Elétrica' : '', identificacao: '', responsavel: '', observacao: '', especificacao: { local: '', marcaModelo: '', quantidade: '1', instalacao: '' } });
+const fichaVazia = modo => ({ cadastroId: crypto.randomUUID(), nome: '', categoria: modo === 'eletrica' ? 'Elétrica' : modo === 'hidraulica' ? 'Hidráulica' : '', identificacao: '', responsavel: '', observacao: '', especificacao: { local: '', marcaModelo: '', quantidade: '1', instalacao: '' } });
 const fichaDe = item => ({ id: item.id, nome: item.nome, categoria: item.categoria, identificacao: item.identificacao || '', responsavel: item.responsavel || '', responsavelId:item.responsavelId||'', observacao: item.observacao || '', especificacao: { ...item.especificacao, quantidade: item.especificacao?.quantidade || '1' }, atualizadoEm: item.atualizadoEm });
 const assinaturaFicha = item => JSON.stringify([
   ...['nome', 'categoria', 'identificacao', 'responsavel', 'responsavelId', 'observacao'].map(campo => String(item[campo] ?? '').trim()),
@@ -23,9 +23,12 @@ const assinaturaFicha = item => JSON.stringify([
 ]);
 
 const ehEletrico = item => filtrarGrupoEstrutura([item], 'eletrica').length > 0;
+const ehHidraulico = item => filtrarGrupoEstrutura([item], 'hidraulica').length > 0;
+const pertenceSecao = (item, modo) => modo === 'eletrica' ? ehEletrico(item) : modo === 'hidraulica' ? ehHidraulico(item) : !ehEletrico(item) && !ehHidraulico(item);
 export default function EstruturaLegada({ bens = [], setores = [], aoVerBem, modo = 'outros' }) {
   const {pessoas}=usePessoasRH();
-  const [grupo, setGrupo] = useState('todos'), [ledger, setLedger] = useState(null), [erroLedger, setErroLedger] = useState('');
+  const grupo = modo === 'hidraulica' ? 'hidraulica' : modo === 'eletrica' ? 'eletrica' : 'todos';
+  const [ledger, setLedger] = useState(null), [erroLedger, setErroLedger] = useState('');
   const pedidoLedger = useRef(0);
   const [ativos, setAtivos] = useState(null), [carregando, setCarregando] = useState(false);
   const [erro, setErro] = useState(''), [mensagem, setMensagem] = useState('');
@@ -48,14 +51,14 @@ export default function EstruturaLegada({ bens = [], setores = [], aoVerBem, mod
     catch (e) { if (numero === pedidoLedger.current) setErroLedger(e.message || 'Não foi possível carregar os serviços.'); }
   }, [podeManutencao]);
   useEffect(() => { if (podeManutencao) carregarLedger();else { setLedger(null);setErroLedger(''); }const ref = pedidoLedger;return () => {ref.current++;}; }, [podeManutencao, carregarLedger]);
-  const itens = useMemo(() => prepararEstrutura((ativos || []).map(i=>comNomeRH(i,pessoas)), bens, setores).filter(i => modo === 'eletrica' ? ehEletrico(i) : !ehEletrico(i)), [ativos, bens, setores,pessoas,modo]);
+  const itens = useMemo(() => prepararEstrutura((ativos || []).map(i=>comNomeRH(i,pessoas)), bens, setores).filter(i => pertenceSecao(i, modo)), [ativos, bens, setores,pessoas,modo]);
   const lista = useMemo(() => filtrarEstrutura(filtrarGrupoEstrutura(itens, grupo), { busca, categoria }), [itens, busca, categoria, grupo]);
   const historico = useMemo(() => ledger === null ? null : historicoEstrutura(ledger, filtrarGrupoEstrutura(itens, grupo)), [ledger, itens, grupo]);
-  const categorias = useMemo(() => [...new Set([...CATEGORIAS_ESTRUTURA, ...itens.map(i => i.categoria)])].filter(c => c && (modo === 'eletrica' ? ehEletrico({categoria:c}) : !ehEletrico({categoria:c}))), [itens,modo]);
+  const categorias = useMemo(() => [...new Set([...CATEGORIAS_ESTRUTURA, ...itens.map(i => i.categoria)])].filter(c => c && pertenceSecao({categoria:c}, modo)), [itens,modo]);
   const paginas = Math.max(1, Math.ceil(lista.length / POR_PAGINA)), atual = Math.min(pagina, paginas);
   const recorte = lista.slice((atual - 1) * POR_PAGINA, atual * POR_PAGINA);
-  const filtrado = !!busca.trim() || categoria !== 'todos' || (modo === 'outros' && grupo !== 'todos');
-  const limpar = () => { setBusca('');setCategoria('todos');setGrupo('todos');setPagina(1); };
+  const filtrado = !!busca.trim() || categoria !== 'todos';
+  const limpar = () => { setBusca('');setCategoria('todos');setPagina(1); };
   const abrir = item => { formulario.current++;setForm(item ? fichaDe(item) : fichaVazia(modo));setErroForm('');setConflito(false);setMensagem(''); };
   const fechar = () => { if (!salvando) { formulario.current++;setForm(null);setErroForm('');setConflito(false); } };
   const campo = nome => e => { formulario.current++;setForm(f => ({ ...f, [nome]: e.target.value })); };
@@ -63,7 +66,7 @@ export default function EstruturaLegada({ bens = [], setores = [], aoVerBem, mod
   async function salvar(e) {
     e.preventDefault();if (salvando || conflito) return;
     if (!form.nome.trim() || !form.categoria.trim() || !form.especificacao.local.trim()) { setErroForm('Preencha nome, categoria e local.');return; }
-    if (ehEletrico({categoria:form.categoria}) !== (modo === 'eletrica')) { setErroForm('Escolha uma categoria desta seção.');return; }
+    if (!pertenceSecao({categoria:form.categoria}, modo)) { setErroForm('Escolha uma categoria desta seção.');return; }
     const quantidade = Number(form.especificacao.quantidade);
     if (!Number.isInteger(quantidade) || quantidade < 1 || quantidade > 1000000) { setErroForm('Informe uma quantidade inteira maior que zero.');return; }
     const geracao = formulario.current;
@@ -111,9 +114,8 @@ export default function EstruturaLegada({ bens = [], setores = [], aoVerBem, mod
   </div>;
 
   return <section className="pat-estrutura" aria-label="Estrutura da empresa">
-    <div className="pat-list-heading"><div className="pat-estrutura-heading"><span aria-hidden="true"><Building2 size={23}/></span><div><h2>{modo === 'eletrica' ? 'Instalações elétricas anteriores' : 'Outros itens físicos e hidráulica'}</h2><p>Fichas e serviços que já estavam cadastrados.</p></div></div><div className="pat-actions"><button className="btn-ghost" disabled={carregando || salvando} onClick={() => {carregarLedger();return carregar();}} aria-label="Atualizar estrutura"><RefreshCw size={17}/></button><button className="btn-outline" disabled={!lista.length || !!erro || carregando} onClick={abrirRelatorio}><Printer size={17}/>Salvar PDF</button><button className="btn-primary" disabled={ativos === null || salvando} onClick={() => abrir()}><Plus size={17}/>Novo item de estrutura</button></div></div>
-    <div className="pat-estrutura-intro"><Building2 size={18} aria-hidden="true"/><p>{modo === 'eletrica' ? 'As fichas anteriores de elétrica e iluminação continuam com seus locais e históricos de serviço.' : 'Ar-condicionado, ventiladores, bebedouros, cozinha, caixas-d’água, portões e motores continuam com suas fichas e históricos de serviço.'}</p></div>
-    {modo === 'outros' && <div className="pat-estrutura-grupos" aria-label="Grupos da estrutura">{GRUPOS_ESTRUTURA.filter(g => g.id !== 'eletrica').map(g => <button key={g.id} className="btn-outline" aria-pressed={grupo === g.id} onClick={() => {setGrupo(g.id);setCategoria('todos');setPagina(1);}}>{g.nome}</button>)}</div>}
+    <div className="pat-list-heading"><div className="pat-estrutura-heading"><span aria-hidden="true"><Building2 size={23}/></span><div><h2>{modo === 'eletrica' ? 'Instalações elétricas anteriores' : modo === 'hidraulica' ? 'Hidráulica' : 'Itens'}</h2><p>Fichas e serviços que já estavam cadastrados.</p></div></div><div className="pat-actions"><button className="btn-ghost" disabled={carregando || salvando} onClick={() => {carregarLedger();return carregar();}} aria-label="Atualizar estrutura"><RefreshCw size={17}/></button><button className="btn-outline" disabled={!lista.length || !!erro || carregando} onClick={abrirRelatorio}><Printer size={17}/>Salvar PDF</button><button className="btn-primary" disabled={ativos === null || salvando} onClick={() => abrir()}><Plus size={17}/>Novo item de estrutura</button></div></div>
+    <div className="pat-estrutura-intro"><Building2 size={18} aria-hidden="true"/><p>{modo === 'eletrica' ? 'As fichas anteriores de elétrica e iluminação continuam com seus locais e históricos de serviço.' : modo === 'hidraulica' ? 'Instalações hidráulicas e caixas-d’água, com seus locais e históricos de serviço.' : 'Ar-condicionado, ventiladores, bebedouros, cozinha e demais itens, com suas fichas e históricos de serviço.'}</p></div>
     {podeManutencao && <div className="pat-estrutura-totais" aria-live="polite">{erroLedger ? <p role="alert">Histórico indisponível: {erroLedger} <button className="btn-ghost" onClick={carregarLedger}>Tentar novamente</button></p> : !historico ? <p>Consultando histórico e custos…</p> : <><span>Serviços neste mês <strong>{dinheiro(historico.mes)}</strong></span><span>Serviços neste ano <strong>{dinheiro(historico.ano)}</strong></span></>}</div>}
     <div className="pat-estrutura-tools"><div className="pat-search"><Search size={18} aria-hidden="true"/><input className="input" aria-label="Buscar na estrutura" placeholder="Nome, identificação, local ou responsável…" value={busca} onChange={e => { setBusca(e.target.value);setPagina(1); }}/>{busca && <button type="button" aria-label="Limpar busca" onClick={() => { setBusca('');setPagina(1); }}><X size={16}/></button>}</div><label>Categoria<select className="input" value={categoria} onChange={e => { setCategoria(e.target.value);setPagina(1); }}><option value="todos">Todas as categorias</option>{categorias.map(c => <option key={c} value={c}>{c}</option>)}</select></label></div>
     <div className="pat-estrutura-count" aria-live="polite"><span>{ativos === null ? 'Consultando estrutura…' : `${lista.length} de ${itens.length} cadastros`}{filtrado && ' neste filtro'}</span>{filtrado && <button className="btn-ghost" onClick={limpar}>Limpar filtros</button>}</div>
@@ -134,7 +136,7 @@ export default function EstruturaLegada({ bens = [], setores = [], aoVerBem, mod
         {erroForm && <div role="alert" className="pat-notice is-error">{erroForm}{conflito && <button type="button" className="btn-outline" onClick={carregarVersaoAtual} disabled={carregando}>Carregar ficha atual</button>}</div>}
         <fieldset disabled={salvando}><div className="pat-estrutura-form-grid">
           <label className="pat-estrutura-wide" htmlFor="estrutura-nome">Nome do item *<input className="input" id="estrutura-nome" value={form.nome} onChange={campo('nome')} maxLength={180} required placeholder="Ex.: Ar-condicionado da sala de reunião"/></label>
-          <label htmlFor="estrutura-categoria">Categoria *<input className="input" id="estrutura-categoria" list="estrutura-categorias" value={form.categoria} onChange={campo('categoria')} maxLength={120} required placeholder="Escolha ou escreva"/><datalist id="estrutura-categorias">{CATEGORIAS_ESTRUTURA.map(c => <option key={c} value={c}/>)}</datalist></label>
+          <label htmlFor="estrutura-categoria">Categoria *<input className="input" id="estrutura-categoria" list="estrutura-categorias" value={form.categoria} onChange={campo('categoria')} maxLength={120} required placeholder="Escolha ou escreva"/><datalist id="estrutura-categorias">{categorias.map(c => <option key={c} value={c}/>)}</datalist></label>
           <label htmlFor="estrutura-identificacao">Número / identificação<input className="input" id="estrutura-identificacao" value={form.identificacao} onChange={campo('identificacao')} maxLength={120} placeholder="Ex.: AR-01, PORTÃO-02"/></label>
           <label htmlFor="estrutura-local">Local onde fica *<input className="input" id="estrutura-local" list="estrutura-locais" value={form.especificacao.local || ''} onChange={especificacao('local')} maxLength={120} required placeholder="Ex.: Administrativo · sala de reunião"/><datalist id="estrutura-locais">{[...new Set(setores.map(s => s.nome).filter(Boolean))].map(local => <option key={local} value={local}/>)}</datalist></label>
           <PessoaRH valor={form.responsavelId||''} nome={form.responsavel||''} aoMudar={(responsavelId,responsavel)=>{formulario.current++;setForm(f=>({...f,responsavelId,responsavel}));}}/>

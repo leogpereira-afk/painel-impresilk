@@ -15,7 +15,7 @@ test('Computadores migra para Estrutura sem perder o endereço antigo',()=>{
   assert.equal(abas.includes('computadores'),false);
   assert.equal(abaPatrimonioAtual('computadores'),'estrutura');
   assert.equal(secaoEstruturaInicial('computadores'),'computadores');
-  assert.equal(secaoEstruturaInicial('estrutura'),'internet');
+  assert.equal(secaoEstruturaInicial('estrutura'),'outros');
   assert.equal(abaPatrimonioAtual('ramais'),'telefonia');
   assert.equal(abaPatrimonioAtual('celulares'),'telefonia');
 });

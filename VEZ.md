@@ -52,3 +52,7 @@ Estado: publicação em execução; confirmar as versões do servidor e a versã
 Patrimônio/Manutenções publicado com autorização “subir”, commit 86c01a0; duas permissões da equipe-auth no vida-leo, commit 5e9a9ce. Sete migrações de integridade aplicadas sem transformar registros; comparação privada confirmou preservação. Servidor conferido antes da tela e novamente após os Actions; versões ativas 119/103/113/48/44 e equipe-auth 78. Pages e functions verdes; arquivos oficiais das duas telas idênticos ao build validado. Build OK e 1094/1094 testes locais de auditoria aprovados. Nenhuma concessão de acesso automática.
 
 Limitação: conta restrita real não estava autenticada no navegador oficial. Testes dos handlers com perfis restritos simulados e leitura pública recusada com 401 passaram; conferência autenticada com pessoa restrita real continua pendente. Relatório detalhado em docs/patrimonio-fases.md. A vez continua Codex.
+
+### Ajuste da navegação de Estrutura
+
+Pedido após a publicação: abrir em Itens e deixar Hidráulica separada. Itens é a primeira área e o destino padrão; Hidráulica apresenta apenas suas instalações e caixas-d’água, sem duplicação dentro de Itens. Links anteriores preservados. 29 testes pertinentes aprovados, build e lint dos arquivos alterados OK; navegador local confirmou abertura em Itens e caixa-d’água somente na área Hidráulica. Correção de navegação da publicação autorizada, sem alteração de servidor ou dados.

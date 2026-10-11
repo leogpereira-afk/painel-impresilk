@@ -41,5 +41,5 @@ export function abaPatrimonioAtual(aba) {
   return ['ramais','celulares'].includes(aba)?'telefonia':aba==='computadores'?'estrutura':aba;
 }
 export function secaoEstruturaInicial(aba) {
-  return aba==='computadores'?'computadores':'internet';
+  return aba==='computadores'?'computadores':'outros';
 }
