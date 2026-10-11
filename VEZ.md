@@ -60,3 +60,7 @@ Pedido após a publicação: abrir em Itens e deixar Hidráulica separada. Itens
 ### Listas de Ramais e Celulares
 
 Pedido complementar: Telefonia abre em Ramais, depois Celulares; ambos em lista. Linhas compactas com número, pessoa, setor e situação; aparelho, manutenção e trocas continuam recolhíveis. Relação de números e Plano corporativo seguem disponíveis. Build e lint dos arquivos alterados OK, 15 testes de telefonia/infra aprovados; abertura, duas listas e expansão dos detalhes conferidas no navegador, sem transbordamento em 390 px. Mudança somente de apresentação, sem migração ou alteração de registros.
+
+### Telefonia no padrao de Armarios
+
+Ramais e Celulares usam tabela com cabecalhos, filtros Todos/Com responsavel/Disponiveis com contagem, busca, acoes a direita e historicos recolhiveis. Em celular, cada registro mostra os campos empilhados. Mantidos IDs, permissoes, edicao e historicos. Verificacao: 15 testes, lint dos componentes e build aprovados; navegador local conferiu filtro de disponibilidade e historico do aparelho. Publicacao dentro do ajuste visual solicitado pelo dono.
