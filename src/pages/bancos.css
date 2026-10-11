@@ -215,8 +215,8 @@
    rótulo da chave e o do WhatsApp quebravam). */
 .bk-grade {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, 400px), 1fr));
-  gap: 14px;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 360px), 1fr));
+  gap: 12px;
 }
 
 /* ── Cartão da conta ────────────────────────────────────────────────────── */
@@ -224,9 +224,9 @@
   display: flex;
   flex-direction: column;
   min-width: 0;
-  padding: 18px;
+  padding: 14px;
   border: 1px solid var(--bk-fio);
-  border-radius: 18px;
+  border-radius: 16px;
   background: var(--surface);
   box-shadow: var(--bk-sombra);
   transition: border-color 0.2s;
@@ -295,13 +295,13 @@
   flex-wrap: wrap;
   align-items: center;
   gap: 6px;
-  margin-top: 12px;
+  margin-top: 8px;
 }
 .bk-chip {
   display: inline-flex;
   align-items: center;
   gap: 7px;
-  min-height: 32px;
+  min-height: 28px;
   max-width: 100%;
   padding: 0 10px;
   border: 1px solid var(--bk-fio);
@@ -354,19 +354,48 @@ button.bk-chip.aviso:hover {
   text-decoration: underline;
 }
 
-/* Agência, conta, documento: uma linha inteira copia. */
+/* Agência, conta, documento: uma linha inteira copia.
+   DUAS COLUNAS, porque agência e conta são curtas e ocupavam uma faixa inteira
+   cada uma. O documento (CNPJ tem 18 caracteres) atravessa as duas: espremido
+   em meia largura ele truncaria, e número de conta truncado não serve para
+   nada. Sai uma faixa inteira do cartão sem tirar um dado sequer. */
+/* AGÊNCIA E CONTA DIVIDEM UMA FAIXA; O DOCUMENTO FICA COM ELA INTEIRA.
+   São duas faixas em vez de três, sem tirar um dado sequer. O documento não
+   divide porque um CNPJ tem 18 caracteres e, espremido em meia largura,
+   truncaria -- e número truncado não serve para nada.
+
+   Por que `flex-wrap` e não grade: a grade distribui TRILHOS, e os itens aqui
+   são só dois. Num cartão largo (tablet, 727 px) uma grade de trilhos livres
+   abria quatro colunas, duas delas vazias. O flex distribui o que EXISTE:
+   os dois cabem lado a lado quando há espaço e caem um sob o outro quando não
+   há, sem limiar nenhum escrito à mão. Isso importa porque no celular o
+   cartão fica MAIS ESTREITO (343 px) do que numa das três colunas do desktop
+   (375 px) -- lá "000000-1" virava "000…". Uma media query de celular erraria
+   a pergunta: quem decide é o espaço do CARTÃO, não o da tela. */
 .bk-dados {
-  margin-top: 14px;
+  margin-top: 10px;
+  display: flex;
+  flex-wrap: wrap;
+  column-gap: 14px;
   border-top: 1px solid var(--bk-fio);
+}
+.bk-linha {
+  flex: 1 1 160px;
+  min-width: 0;
+}
+.bk-linha.largo,
+.bk-sem-pix {
+  flex: 1 1 100%;
+  min-width: 0;
 }
 .bk-linha {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
   border-bottom: 1px solid var(--fio-lista);
 }
 .bk-linha dt {
-  flex: 0 0 78px;
+  flex: 0 0 auto;
   font-family: "Poppins", system-ui, sans-serif;
   font-size: 11px;
   font-weight: 500;
@@ -384,9 +413,11 @@ button.bk-chip.aviso:hover {
   justify-content: flex-end;
   gap: 10px;
   width: 100%;
-  min-height: 42px;
-  padding: 0 8px;
-  margin-right: -8px;
+  /* 40px é o piso de CONTROLE da casa (44 para navegação). Abaixo disso o
+     dedo erra, então a compactação para aqui. */
+  min-height: 40px;
+  padding: 0 6px;
+  margin-right: -6px;
   border-radius: 10px;
   color: var(--bk-ink);
   text-align: right;
@@ -422,12 +453,12 @@ button.bk-chip.aviso:hover {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  min-height: 42px;
+  min-height: 40px;
   font-size: 13px;
   color: var(--bk-muted);
 }
 .bk-sem-pix dt {
-  flex: 0 0 78px;
+  flex: 0 0 auto;
   font-family: "Poppins", system-ui, sans-serif;
   font-size: 11px;
   font-weight: 500;
@@ -437,8 +468,8 @@ button.bk-chip.aviso:hover {
 
 /* ── O painel do Pix ────────────────────────────────────────────────────── */
 .bk-pix {
-  margin-top: 14px;
-  padding: 12px;
+  margin-top: 10px;
+  padding: 10px;
   border: 1px solid var(--bk-marca-fio);
   border-radius: 14px;
   background: var(--bk-marca-suave);
@@ -447,7 +478,7 @@ button.bk-chip.aviso:hover {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin-bottom: 8px;
+  margin-bottom: 6px;
 }
 .bk-pix-rotulo {
   font-family: "Poppins", system-ui, sans-serif;
@@ -470,9 +501,12 @@ button.bk-chip.aviso:hover {
   display: flex;
   align-items: center;
   gap: 12px;
+  /* 48px: cabe o valor e, quando copiada, a confirmação embaixo. A altura é
+     fixa de propósito -- a dica só nasce depois do clique, e sem o piso o
+     cartão pularia debaixo do dedo. */
   width: 100%;
-  min-height: 56px;
-  padding: 8px 8px 8px 14px;
+  min-height: 48px;
+  padding: 6px 6px 6px 12px;
   border: 1px solid var(--bk-marca-fio);
   border-radius: 12px;
   background: var(--surface);
@@ -552,7 +586,7 @@ button.bk-chip.aviso:hover {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 8px;
-  margin-top: 8px;
+  margin-top: 6px;
 }
 .bk-quieto {
   display: inline-flex;
@@ -594,7 +628,7 @@ button.bk-chip.aviso:hover {
   align-items: center;
   gap: 9px;
   min-height: 40px;
-  margin-top: 4px;
+  margin-top: 2px;
   padding: 0 4px;
   border-top: 1px solid var(--bk-marca-fio);
   font-size: 12.5px;
@@ -681,7 +715,7 @@ button.bk-chip.aviso:hover {
   display: flex;
   gap: 8px;
   margin-top: auto;
-  padding-top: 16px;
+  padding-top: 12px;
 }
 .bk-whats {
   display: inline-flex;

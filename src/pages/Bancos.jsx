@@ -185,10 +185,10 @@ function SeloBanco({ conta, todas, tamanho = "h-12 w-12" }) {
 
 /* UMA LINHA INTEIRA COPIA: o alvo é a largura toda, não o ícone de 13 px. O
    tique e a cor verde dizem que copiou; a região viva diz a quem não vê. */
-function Valor({ rotulo, valor, aoCopiar, copiado }) {
+function Valor({ rotulo, valor, aoCopiar, copiado, largo = false }) {
   if (!valor) return null;
   return (
-    <div className="bk-linha">
+    <div className={`bk-linha${largo ? " largo" : ""}`}>
       <dt>{rotulo}</dt>
       <dd>
         <button
@@ -247,9 +247,10 @@ function BlocoPix({ b, copiar, copiado, comConta, aoMudarComConta }) {
       >
         <span className="bk-pix-texto">
           <span className="bk-pix-valor">{info.legivel || b.pix}</span>
-          <span className="bk-pix-dica">
-            {chaveCopiada ? "Chave copiada: cole no app do banco" : "Toque para copiar a chave"}
-          </span>
+          {/* "Toque para copiar a chave" era instrução repetida: o botão ao
+              lado já diz "Copiar", e a linha custava altura em todo cartão.
+              A confirmação depois do clique continua -- essa informa. */}
+          {chaveCopiada && <span className="bk-pix-dica">Chave copiada: cole no app do banco</span>}
         </span>
         <span className="bk-pix-acao" aria-hidden="true">
           {chaveCopiada ? <Check size={16} strokeWidth={2.6} /> : <Copy size={16} />}
@@ -907,7 +908,7 @@ export default function Bancos() {
               return (
                 <article key={b.id} className="bk-conta" aria-labelledby={`bk-${b.id}`}>
                   <div className="bk-conta-topo">
-                    <SeloBanco conta={b} todas={todas} />
+                    <SeloBanco conta={b} todas={todas} tamanho="h-10 w-10" />
                     <div className="bk-conta-nome">
                       <h3 id={`bk-${b.id}`} title={b.banco}>{b.banco}</h3>
                       <p title={b.titular}>{b.titular}</p>
@@ -958,6 +959,7 @@ export default function Bancos() {
 
                   <dl className="bk-dados">
                     <Valor
+                      largo
                       rotulo={rotuloDoc}
                       valor={b.doc}
                       copiado={copiado === `${b.id}-doc`}
