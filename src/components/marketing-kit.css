@@ -1,0 +1,178 @@
+/* PEÇAS DO CENTRO DE COMANDO DO MARKETING (etapa a2): o que o Tailwind não
+   resolve sozinho. O resto mora nas classes da casa (.card, .chip, .btn-*),
+   para não nascer um segundo padrão visual.
+
+   GAVETA: variação do JanelaFormulario (o mesmo <dialog> nativo, a mesma
+   borda, o mesmo véu). No computador encosta na lateral direita com 420px;
+   no celular sobe de baixo, até 90% da altura, com a alça no topo. O
+   breakpoint é o md do Tailwind (768px): é a largura da JANELA que decide,
+   porque a gaveta cobre a tela inteira, barra lateral incluída. */
+
+.gaveta {
+  /* O navegador centraliza o dialog modal com margin:auto e limita largura e
+     altura; a gaveta desfaz isso para encostar na borda. */
+  position: fixed;
+  inset: auto 0 0 0;
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  max-width: 100%;
+  max-height: 90vh;
+  max-height: 90dvh;
+  border: 1px solid var(--hairline);
+  border-bottom: 0;
+  border-radius: 20px 20px 0 0;
+  background: var(--surface, #fff);
+  color: #1a1a2e;
+  box-shadow: 0 -12px 48px #18213b33;
+  overflow: hidden;
+}
+.gaveta[open] {
+  animation: gaveta-sobe 0.28s var(--ease-apple);
+}
+/* A caixa de dentro cobre o dialog inteiro: assim o único alvo "dialog" de
+   um clique é o véu, e o toque fora é reconhecido sem confundir com o vão
+   ao lado da alça. */
+.gaveta-caixa {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  max-height: inherit;
+}
+.gaveta::backdrop {
+  background: #11182788;
+  backdrop-filter: blur(2px);
+}
+/* A alça só aparece no celular: é o sinal de "folha que desce". Decorativa. */
+.gaveta-alca {
+  align-self: center;
+  width: 40px;
+  height: 4px;
+  margin-top: 8px;
+  border-radius: 4px;
+  background: var(--hairline);
+  flex: none;
+}
+.gaveta-caixa > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 4px 8px 4px 16px;
+  border-bottom: 1px solid var(--hairline);
+  flex: none;
+}
+.gaveta h2 {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 18px;
+  font-weight: 700;
+}
+.gaveta .gaveta-fechar {
+  min-height: 44px;
+  min-width: 44px;
+  padding: 0;
+}
+.gaveta-corpo {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 16px;
+}
+/* Sem rodapé, o fim do corpo é o fim da folha: a última linha não pode ficar
+   embaixo da barra de gestos do iPhone. */
+.gaveta-corpo:last-child {
+  padding-bottom: max(16px, env(safe-area-inset-bottom));
+}
+/* O rodapé (Salvar, Cancelar) fica sempre à vista, fora da rolagem, e longe
+   da barra de gestos do iPhone. */
+.gaveta-rodape {
+  flex: none;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 12px 16px;
+  padding-bottom: max(12px, env(safe-area-inset-bottom));
+  border-top: 1px solid var(--hairline);
+}
+.gaveta-rodape .btn,
+.gaveta-rodape .btn-primary,
+.gaveta-rodape .btn-outline,
+.gaveta-rodape .btn-ghost,
+.gaveta-rodape .btn-danger {
+  min-height: 44px;
+}
+
+@media (min-width: 768px) {
+  .gaveta {
+    inset: 0 0 0 auto;
+    width: 420px;
+    max-width: calc(100% - 24px);
+    height: 100%;
+    max-height: 100%;
+    max-height: 100dvh;
+    border: 0;
+    border-left: 1px solid var(--hairline);
+    border-radius: 20px 0 0 20px;
+    box-shadow: -12px 0 48px #18213b33;
+  }
+  .gaveta[open] {
+    animation-name: gaveta-entra;
+  }
+  .gaveta-alca {
+    display: none;
+  }
+  .gaveta-caixa > header {
+    padding: 10px 12px 10px 24px;
+  }
+  .gaveta-corpo {
+    padding: 20px 24px;
+  }
+  .gaveta-rodape {
+    padding: 12px 24px;
+  }
+}
+
+@keyframes gaveta-sobe {
+  from { transform: translateY(100%); }
+  to { transform: none; }
+}
+@keyframes gaveta-entra {
+  from { transform: translateX(100%); }
+  to { transform: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .gaveta[open] { animation: none; }
+}
+
+html.dark .gaveta {
+  background: var(--surface);
+  color: #e9ecf6;
+  box-shadow: 0 -12px 48px #00000080;
+}
+@media (min-width: 768px) {
+  html.dark .gaveta { box-shadow: -12px 0 48px #00000080; }
+}
+
+/* MENU "..." do CardCompacto: a lista que abre sob o botão. Sombra e borda
+   da casa; no escuro, a superfície do tema. */
+.menu-mais {
+  border: 1px solid var(--hairline);
+  background: var(--surface, #fff);
+}
+html.dark .menu-mais {
+  background: #1d2236;
+}
+
+/* INICIAIS DO RESPONSÁVEL NO ESCURO. O Avatar (lista.jsx) pinta as iniciais
+   com text-brand-ink, que não tem par no tema escuro de index.css: azul
+   quase preto sobre o fundo escurecido, ilegível. O conserto de verdade é o
+   par em index.css (vale para todo Avatar); até lá, a LinhaTarefa marca o
+   dela com .avatar-linha e clareia só ele. */
+html.dark .avatar-linha {
+  color: #c3c7fb;
+}

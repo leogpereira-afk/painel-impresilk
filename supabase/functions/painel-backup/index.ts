@@ -51,10 +51,15 @@ const contarRegistros = (chave: string, v: unknown) =>
    entram aqui à mão -- e o autoexame logo abaixo confere linha a linha que
    nenhuma ficou fora (ausência de cópia parece ausência de dado). A volta é
    a painel_mkt_restaurar, chamada de dentro da painel_restaurar_atomico.
-   A cópia sai da painel_mkt_exportar: as três tabelas lidas no MESMO
-   instante (uma por vez deixava escapar o vínculo de uma ação salva entre
-   as leituras) e sem o corte de 1000 linhas do PostgREST. */
-const TABELAS_MARKETING = ["painel_mkt_acoes", "painel_mkt_orcamento_vinculo", "painel_mkt_log"];
+   A cópia sai da painel_mkt_exportar: as tabelas lidas no MESMO instante
+   (uma por vez deixava escapar o vínculo de uma ação salva entre as
+   leituras) e sem o corte de 1000 linhas do PostgREST.
+   Etapa a2 (11/10/2026): canais, playbook, publicações, números da semana e
+   papéis (20261011a_marketing_canais.sql). */
+const TABELAS_MARKETING = [
+  "painel_mkt_canais", "painel_mkt_playbook", "painel_mkt_acoes", "painel_mkt_orcamento_vinculo",
+  "painel_mkt_publicacoes", "painel_mkt_metricas_canal", "painel_mkt_papeis", "painel_mkt_log",
+];
 
 const TABELAS_GESTAO = [
   "gestao_empresa", "gestao_identidade", "gestao_valor", "gestao_plano_ano",

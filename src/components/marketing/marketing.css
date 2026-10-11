@@ -1,0 +1,73 @@
+/* A PÁGINA DO MARKETING: só o que o Tailwind não resolve sozinho. As peças
+   (chip, linha de tarefa, gaveta, cartão compacto) têm o desenho delas em
+   ../marketing-kit.css; aqui fica a fileira de chips e o calendário.
+
+   A FILEIRA DE CHIPS fica presa no topo ao rolar (sticky). Ela precisa de
+   fundo: sem ele, os cartões passam por baixo dos chips e o texto dos dois se
+   mistura. O fundo é o da página (var(--bg)), que o tema escuro já troca. A
+   rolagem é de lado, com encaixe, e só na fileira: a PÁGINA nunca rola de
+   lado no celular. */
+.mkt-fileira {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  background: var(--bg);
+  padding: 8px 0;
+}
+.mkt-fileira-trilho {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  scroll-snap-type: x proximity;
+  scroll-padding-inline: 2px;
+  overscroll-behavior-x: contain;
+  scrollbar-width: thin;
+  padding: 2px 2px 4px;
+}
+
+/* O dia do calendário do canal: a data à esquerda, as entradas à direita.
+   No celular a data sobe e as entradas ocupam a largura toda. */
+.mkt-dia {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 4px;
+  padding: 10px 0;
+  border-top: 1px solid var(--fio-lista, #f0f0f5);
+}
+.mkt-dia:first-child {
+  border-top: 0;
+}
+@media (min-width: 640px) {
+  .mkt-dia {
+    grid-template-columns: 7.5rem 1fr;
+    gap: 12px;
+  }
+}
+
+/* A linha clicável das listas simples (rotinas, histórico, calendário,
+   playbook nas Configurações): 44px de alvo, fio entre as linhas. */
+.mkt-linha {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 44px;
+  padding: 6px 4px;
+  text-align: left;
+  border-top: 1px solid var(--fio-lista, #f0f0f5);
+}
+.mkt-linha:first-child {
+  border-top: 0;
+}
+button.mkt-linha:hover {
+  background: rgba(15, 23, 42, 0.03);
+}
+html.dark button.mkt-linha:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+@media print {
+  .mkt-fileira {
+    position: static;
+  }
+}

@@ -107,3 +107,51 @@ export function diasEntre(isoA, isoB) {
   const b = new Date(diaLocalISO(isoB) + "T00:00:00");
   return Math.round((b - a) / 86400000);
 }
+
+/* NUMERO CURTO para chip e cartao pequeno: "1,2 mil", "3,4 mi", "1 bi".
+   Quem mostra poe o valor exato no `title` (numero() ou moeda()), porque o
+   curto arredonda. O espaco entre o numero e "mil" e o inseparavel (U+00A0),
+   o mesmo que o moeda() ja usa: o "mil" nunca quebra de linha sozinho.
+
+   NULO NAO VIRA ZERO. numero() e moeda() devolvem "0" para vazio, e isso
+   serve para dinheiro somado; aqui o numero e uma medida (alcance, leads), e
+   medida nao informada nao e zero. Vazio, nulo e lixo devolvem "" e quem
+   chama decide o que mostrar no lugar. */
+const COMPACTO = new Intl.NumberFormat("pt-BR", { notation: "compact", maximumFractionDigits: 1 });
+const MOEDA_COMPACTA = new Intl.NumberFormat("pt-BR", {
+  style: "currency",
+  currency: "BRL",
+  notation: "compact",
+  minimumFractionDigits: 0,
+  maximumFractionDigits: 1,
+});
+// Abaixo de mil, dinheiro sem centavos, como o moeda(): "R$ 950", e nao "R$ 950,5".
+const MOEDA_COMPACTA_INTEIRA = new Intl.NumberFormat("pt-BR", {
+  style: "currency",
+  currency: "BRL",
+  notation: "compact",
+  maximumFractionDigits: 0,
+});
+
+function medidaOuNulo(v) {
+  if (typeof v === "number") return Number.isFinite(v) ? v : null;
+  if (typeof v === "string" && v.trim() !== "") {
+    const n = Number(v.trim());
+    return Number.isFinite(n) ? n : null;
+  }
+  return null;
+}
+
+export function numeroCompacto(v) {
+  const n = medidaOuNulo(v);
+  if (n === null) return "";
+  // -0,01 arredondado sairia "-0": abaixo da casa mostrada, e zero.
+  return COMPACTO.format(Math.abs(n) < 0.05 ? 0 : n);
+}
+
+export function moedaCompacta(v) {
+  const n = medidaOuNulo(v);
+  if (n === null) return "";
+  if (Math.abs(n) < 1000) return MOEDA_COMPACTA_INTEIRA.format(Math.round(n) || 0);
+  return MOEDA_COMPACTA.format(n);
+}

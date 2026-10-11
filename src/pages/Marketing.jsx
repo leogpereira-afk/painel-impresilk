@@ -1,359 +1,461 @@
-import { useAbaNavegavel } from "../hooks/useAbaNavegavel.js";
-// Marketing: logomarcas e materiais de marca num lugar so, mais os atalhos do
-// Drive para o que e grande demais para morar aqui (o servidor aceita ~3 MB
-// por arquivo -- logo cabe; video de campanha, nao).
-//
-// Reusa a infra dos Documentos (painel-ativos) com tipo "marketing": item +
-// arquivo. Os atalhos do Drive vivem no painel-config (chave "marketing").
-
-import {Link} from 'react-router-dom';
-import {podeAbrir} from '../lib/sessao.js';
-import PlanejamentoMarketing from "../components/PlanejamentoMarketing.jsx";
-import { useCallback, useEffect, useRef, useState } from "react";
+/* MARKETING: o Centro de Comando (etapa a2, 11/10/2026).
+ *
+ * Contrato em docs/marketing/a2-contrato.md, seção 4. O que esta página faz:
+ *  - topo com o botão fixo "Materiais e Drive" (?v=materiais), o conteúdo que
+ *    esta página inteira era até a a1, sem mudar nada (MateriaisDrive.jsx);
+ *  - a fileira de chips presa no topo: "Visão geral" e um chip por canal
+ *    ativo ou em implantação, na ordem cadastrada (?v=geral ou ?v=<código>);
+ *  - a Visão geral (Fazer de todos os canais, números e a lista "Ações e
+ *    resultados") e o canal aberto (Fazer, Resultados, Calendário e
+ *    Histórico, em ?sub=);
+ *  - o detalhe de ação, publicação, item ou números abre na Gaveta.
+ *
+ * UMA LEITURA SÓ, UM ESTADO SÓ. A página lê o "painel" do servidor uma vez e
+ * todas as vistas desenham a partir dele (contexto.js). Gravou, a linha
+ * devolvida pelo servidor troca a antiga no mesmo estado: a ação concluída
+ * no Fazer some da lista, do chip e dos números no mesmo instante, sem uma
+ * segunda cópia que discorde da primeira.
+ *
+ * QUEM VÊ O QUÊ: o papel vem do servidor (gestão, marketing, visualização).
+ * A tela só esconde botão; quem recusa de verdade é o servidor (403).
+ *
+ * ENDEREÇO: só o código do canal, o nome da sub-aba e o mês vão para a URL.
+ * Nenhum cliente, valor ou pessoa. O ?aba=materiais antigo continua abrindo
+ * os materiais (vira ?v=materiais).
+ */
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
+import { FolderOpen, LayoutGrid, X } from 'lucide-react';
+import ChipCanal from '../components/ChipCanal.jsx';
+import { SEGUNDOS_DESFAZER } from '../components/LinhaTarefa.jsx';
+import { PageTitle, Skeleton, ErroModulo, AvisoAtualizacao } from '../components/ui.jsx';
+import { useParamNavegavel } from '../hooks/useParamNavegavel.js';
+import { ymdLocal } from '../lib/format.js';
+import { lerPainelMarketing, listarPessoasMarketing, salvarAcaoMarketing, concluirPlaybook } from '../services/marketing.js';
+import { SITUACOES_ACAO } from '../../supabase/functions/_shared/marketing.mjs';
+import { MarketingCtx, useCelular, mudouNoServidor } from '../components/marketing/contexto.js';
 import {
-  Upload,
-  Download,
-  Trash2,
-  Link as LinkIcon,
-  ArrowUpRight,
-  Image as ImageIcon,
-  FileText,
-  AlertTriangle,
-} from "lucide-react";
-import {
-  listarAtivos,
-  salvarAtivo,
-  removerAtivo,
-  guardarArquivo,
-  lerArquivo,
-  arquivoParaBase64,
-  abrirBase64,
-} from "../services/ativos.js";
-import { lerAtalhos } from "../services/marketing.js";
-import { Card, PageTitle, SectionTitle, Segmented, Empty, CarregandoModulo, ErroModulo } from "../components/ui.jsx";
+  SITUACAO_AO_CONCLUIR,
+  acaoComSituacao,
+  canaisDaFileira,
+  linhasFazer,
+  resumoDosCanais,
+  trocarMetricas,
+  trocarPorId,
+} from '../components/marketing/derivar.js';
+import VisaoGeral from '../components/marketing/VisaoGeral.jsx';
+import CanalAberto from '../components/marketing/CanalAberto.jsx';
+import MateriaisDrive from '../components/marketing/MateriaisDrive.jsx';
+import GavetaDoMarketing from '../components/marketing/Gavetas.jsx';
+import '../components/marketing/marketing.css';
 
-const MAX_BYTES = 3 * 1024 * 1024; // o servidor barra ~4 MB de base64 (~3 MB reais)
+const PAPEIS = ['gestao', 'marketing', 'visualizacao'];
+const LISTAS = ['canais', 'playbook', 'acoes', 'publicacoes', 'metricas'];
 
-const ehImagem = (nome) => /\.(png|jpe?g|gif|webp|svg)$/i.test(String(nome || ""));
-
-// Encolhe uma imagem para uma data URL de ~200 px. E o que fica GRAVADO no
-// registro do material: assim a lista de logomarcas nao precisa baixar
-// megabytes de PNG so para desenhar o quadradinho de 96 px do cartao.
-// SVG nao passa por canvas (e vetor, ja e pequeno): vai inteiro.
-async function miniaturaDe(file) {
-  try {
-    if (!file || !file.type?.startsWith("image/")) return "";
-    if (/svg/i.test(file.type)) return "";
-    const url = URL.createObjectURL(file);
-    try {
-      const img = await new Promise((ok, falha) => {
-        const i = new Image();
-        i.onload = () => ok(i);
-        i.onerror = falha;
-        i.src = url;
-      });
-      const lado = 200;
-      const escala = Math.min(1, lado / Math.max(img.width || lado, img.height || lado));
-      const c = document.createElement("canvas");
-      c.width = Math.max(1, Math.round((img.width || lado) * escala));
-      c.height = Math.max(1, Math.round((img.height || lado) * escala));
-      const ctx = c.getContext("2d");
-      // Fundo branco: PNG com transparencia vira preto no JPEG.
-      ctx.fillStyle = "#ffffff";
-      ctx.fillRect(0, 0, c.width, c.height);
-      ctx.drawImage(img, 0, 0, c.width, c.height);
-      const dataUrl = c.toDataURL("image/jpeg", 0.72);
-      return dataUrl.length > 40000 ? "" : dataUrl;
-    } finally {
-      URL.revokeObjectURL(url);
-    }
-  } catch {
-    return ""; // miniatura e conforto: falhou, a tela cai no jeito antigo
+/* A resposta do "painel" no formato que as vistas usam. Lista que faltou
+   NÃO vira lista vazia: zero publicações é uma medida, e a tela não pode
+   afirmar o que não leu. Se o servidor respondeu sem as listas da a2 (a
+   função antiga ainda no ar), a página diz isso em vez de mostrar zeros. */
+function normalizarPainel(r) {
+  if (LISTAS.some((k) => !Array.isArray(r?.[k]))) {
+    throw new Error('O servidor do Marketing ainda está na versão anterior. Tente de novo em alguns minutos.');
   }
+  return {
+    // Papel desconhecido vale o menor: ver sem gravar.
+    papel: PAPEIS.includes(r.papel) ? r.papel : 'visualizacao',
+    idPessoa: r.idPessoa || null,
+    canais: r.canais,
+    playbook: r.playbook,
+    acoes: r.acoes,
+    publicacoes: r.publicacoes,
+    metricas: r.metricas,
+    papeis: Array.isArray(r.papeis) ? r.papeis : [],
+    legado: { pendentes: Number(r.legado?.pendentes) || 0 },
+    podeMigrar: r.podeMigrar === true,
+  };
+}
+
+function Aviso({ aviso, onFechar }) {
+  if (!aviso) return null;
+  const ok = aviso.tom !== 'erro';
+  return (
+    <div
+      role={ok ? 'status' : 'alert'}
+      // Preso ao pé da tela: no celular, quem mexeu lá embaixo na lista não
+      // via o aviso que nascia no topo (o erro passava calado).
+      className={`sem-impressao fixed inset-x-4 bottom-4 z-30 mx-auto flex max-w-xl items-start justify-between gap-2 rounded-lg px-3 py-1 text-sm shadow-lg ${ok ? 'bg-ok-50 text-ok-700' : 'bg-bad-50 text-bad-700'}`}
+    >
+      <p className="min-w-0 flex-1 break-words py-2">{aviso.texto}</p>
+      <button type="button" className="btn-ghost h-11 w-11 shrink-0 p-0" onClick={onFechar} aria-label="Fechar aviso">
+        <X size={16} aria-hidden="true" />
+      </button>
+    </div>
+  );
+}
+
+function Carregando() {
+  return (
+    <div className="space-y-5" role="status" aria-label="Carregando o Marketing">
+      <Skeleton className="h-48" />
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        {[0, 1, 2, 3].map((n) => (
+          <Skeleton key={n} className="h-24" />
+        ))}
+      </div>
+      <Skeleton className="h-64" />
+    </div>
+  );
 }
 
 export default function Marketing() {
-  const [aba, setAba] = useAbaNavegavel("acoes", ["acoes", "materiais"]);
-  const [itens, setItens] = useState(null);
-  const [atalhos, setAtalhos] = useState(null);
-  const [materialForm, setMaterialForm] = useState(null);
-  const [gravandoMaterial, setGravandoMaterial] = useState(false);
-  const [buscaMaterial, setBuscaMaterial] = useState("");
-  const [erro, setErro] = useState(null);
+  const [params, setParams] = useSearchParams();
+  const [painel, setPainel] = useState(null);
+  const [erro, setErro] = useState('');
+  const [pessoas, setPessoas] = useState(null);
+  const [erroPessoas, setErroPessoas] = useState('');
   const [aviso, setAviso] = useState(null);
+  const [gaveta, setGaveta] = useState(null);
+  // Linhas do Fazer que já estão feitas mas continuam na tela enquanto o
+  // "Desfazer" da LinhaTarefa está à vista (saem no onSair, 6 s depois).
+  const [mantidos, setMantidos] = useState(() => new Set());
+  const celular = useCelular();
+  // Um "hoje" por render, o mesmo para todas as contas da tela.
+  const hoje = ymdLocal(new Date());
 
-  // miniaturas: id -> data URL (so para imagens, carregadas depois da lista)
-  const [thumbs, setThumbs] = useState({});
+  const vivo = useRef(true);
+  const painelAtual = useRef(null);
+  const statusAntes = useRef(new Map());
+  const relogioAviso = useRef(null);
+  const relogiosMantidos = useRef(new Map());
+  const trilho = useRef(null);
+  const topo = useRef(null);
+  const primeiraVista = useRef(true);
 
   useEffect(() => {
-    let vivo = true;
-    Promise.all([listarAtivos(), lerAtalhos()])
-      .then(([lista, mapa]) => {
-        if (!vivo) return;
-        setItens(lista.filter((x) => x.tipo === "marketing"));
-        setAtalhos(mapa);
-      })
-      .catch((e) => vivo && setErro(e.message));
+    vivo.current = true;
+    const relogios = relogiosMantidos.current;
     return () => {
-      vivo = false;
+      vivo.current = false;
+      clearTimeout(relogioAviso.current);
+      for (const r of relogios.values()) clearTimeout(r);
     };
   }, []);
-
-  // Material cadastrado ANTES da miniatura gravada: baixa o arquivo uma unica
-  // vez, encolhe e GUARDA a miniatura no registro. Da proxima vez que alguem
-  // abrir a aba, ela ja vem na listagem e nao ha download nenhum. O material
-  // novo nem passa por aqui (a miniatura nasce no envio).
   useEffect(() => {
-    if (!itens) return;
-    let vivo = true;
-    (async () => {
-      for (const it of itens) {
-        if (!it.temArquivo || !ehImagem(it.arquivoNome)) continue;
-        if (it.miniatura || thumbs[it.id]) continue;
-        try {
-          const r = await lerArquivo(it.id);
-          if (!vivo) return;
-          if (!r?.base64) continue;
-          const dataUrl = `data:${r.mime || "image/png"};base64,${r.base64}`;
-          setThumbs((t) => ({ ...t, [it.id]: dataUrl }));
-          // Reduz e persiste, para nao repetir o download amanha.
-          const blob = await (await fetch(dataUrl)).blob();
-          const mini = await miniaturaDe(new File([blob], it.arquivoNome, { type: blob.type }));
-          if (!vivo || !mini) continue;
-          const salvo = await salvarAtivo({id:it.id,tipo:it.tipo,nome:it.nome,miniatura:mini});
-          if (!vivo) return;
-          setItens((l) => (l || []).map((x) => (x.id === it.id ? { ...x, miniatura: salvo?.miniatura || mini } : x)));
-        } catch {
-          /* miniatura e conforto; o download continua disponivel */
-        }
-      }
-    })();
-    return () => {
-      vivo = false;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [itens]);
+    painelAtual.current = painel;
+  }, [painel]);
 
-  // ---- materiais (upload / baixar / remover)
-  const inputArquivo = useRef(null);
-  const [nomeNovo, setNomeNovo] = useState("");
-  const [subindo, setSubindo] = useState(false);
+  const carregar = useCallback(async () => {
+    try {
+      const r = normalizarPainel(await lerPainelMarketing());
+      if (!vivo.current) return false;
+      setPainel(r);
+      setErro('');
+      return true;
+    } catch (e) {
+      if (vivo.current) setErro(e?.message || 'Não foi possível carregar o Marketing.');
+      return false;
+    }
+  }, []);
 
-  const enviar = useCallback(
-    async (e) => {
-      e.preventDefault();
-      setAviso(null);
-      const file = inputArquivo.current?.files?.[0];
-      if (!file) return setAviso({ tom: "erro", texto: "Escolha o arquivo." });
-      if (file.size > MAX_BYTES) {
-        return setAviso({
-          tom: "erro",
-          texto: "Arquivo acima de 3 MB. Coisas grandes vão para o Drive - use os atalhos ao lado.",
-        });
-      }
-      setSubindo(true);
-      try {
-        const nome = nomeNovo.trim() || file.name.replace(/\.[^.]+$/, "");
-        const item = await salvarAtivo({
-          tipo: "marketing",
-          nome,
-          arquivoNome: file.name,
-          temArquivo: true,
-          // Encolhida AQUI, uma vez, no envio. Antes a tela baixava o arquivo
-          // inteiro de cada material toda vez que alguem abria a aba.
-          miniatura: await miniaturaDe(file),
-        });
-        try {
-          const base64 = await arquivoParaBase64(file);
-          await guardarArquivo(item.id, base64, file.type, file.name);
-        } catch (e) {
-          // O item nasceu mas o arquivo nao subiu: desfaz, senao fica um cartao
-          // fantasma no proximo carregamento (e a retentativa criaria outro).
-          await removerAtivo(item.id).catch(() => {});
-          throw new Error(`O arquivo nao subiu (${e.message}). Nada foi guardado - tente de novo.`);
-        }
-        setItens((l) => [...(l || []), item]);
-        setNomeNovo("");
-        if (inputArquivo.current) inputArquivo.current.value = "";
-        setAviso({ tom: "ok", texto: `"${nome}" guardado.` });
-      } catch (err) {
-        setAviso({ tom: "erro", texto: err.message });
-      } finally {
-        setSubindo(false);
-      }
-    },
-    [nomeNovo]
+  // As pessoas vêm à parte: se a lista do RH falhar, o Marketing abre do
+  // mesmo jeito, e só o campo de responsável avisa e oferece tentar de novo.
+  const carregarPessoas = useCallback(async () => {
+    setErroPessoas('');
+    try {
+      const r = await listarPessoasMarketing();
+      if (vivo.current) setPessoas(Array.isArray(r.pessoas) ? r.pessoas : []);
+    } catch (e) {
+      if (vivo.current) setErroPessoas(e?.message || 'Não foi possível ler as pessoas.');
+    }
+  }, []);
+
+  useEffect(() => {
+    carregar();
+    carregarPessoas();
+  }, [carregar, carregarPessoas]);
+
+  // ?aba=materiais (endereço de antes da a2) passa a ser ?v=materiais.
+  const abaAntiga = params.get('v') === null && params.get('aba') === 'materiais';
+  useEffect(() => {
+    if (!abaAntiga) return;
+    setParams(
+      (atuais) => {
+        const c = new URLSearchParams(atuais);
+        c.delete('aba');
+        c.set('v', 'materiais');
+        return c;
+      },
+      { replace: true }
+    );
+  }, [abaAntiga, setParams]);
+
+  const fileira = useMemo(() => (painel ? canaisDaFileira(painel.canais) : []), [painel]);
+  const codigos = useMemo(() => fileira.map((c) => c.codigo), [fileira]);
+  const [vUrl, setV] = useParamNavegavel('v', 'geral', (x) => x === 'geral' || x === 'materiais' || codigos.includes(x), {
+    limpar: ['sub', 'mes', 'aba'],
+  });
+  const vista = abaAntiga ? 'materiais' : vUrl;
+  const canal = fileira.find((c) => c.codigo === vista) || null;
+  // Enquanto os canais carregam, ?v=instagram ainda não tem chip: nenhum
+  // chip fica aceso (acender a Visão geral e trocar para o canal um segundo
+  // depois parece clique errado).
+  const vBruto = params.get('v');
+  const geralAceso = painel ? vista !== 'materiais' && !canal : !abaAntiga && (!vBruto || vBruto === 'geral');
+
+  const resumo = useMemo(() => (painel ? resumoDosCanais(painel, hoje) : new Map()), [painel, hoje]);
+  const idsDaFileira = useMemo(() => new Set(fileira.map((c) => c.id)), [fileira]);
+  const totalPendentes = useMemo(
+    () => (painel ? linhasFazer({ acoes: painel.acoes, playbook: painel.playbook, canaisDoPlaybook: idsDaFileira }).filter((l) => !l.feito).length : null),
+    [painel, idsDaFileira]
+  );
+  const canaisPorId = useMemo(() => new Map((painel?.canais || []).map((c) => [c.id, c])), [painel]);
+
+  // O chip escolhido sempre à vista na fileira (no celular, o canal do fim
+  // da lista abriria com o chip dele escondido à direita).
+  useEffect(() => {
+    const t = trilho.current;
+    const b = t?.querySelector('[aria-pressed="true"]');
+    if (!t || !b) return;
+    const esq = b.offsetLeft;
+    const dir = esq + b.offsetWidth;
+    // Sem animação: a rolagem suave era cancelada no celular quando a
+    // página ainda estava montando, e o chip aberto ficava cortado.
+    if (esq < t.scrollLeft || dir > t.scrollLeft + t.clientWidth) t.scrollLeft = Math.max(0, esq - 8);
+  }, [vista, fileira.length]);
+
+  // Trocou de chip com a página rolada lá embaixo: volta para o começo do
+  // conteúdo novo (a fileira fica no topo), em vez de abrir o canal pelo meio.
+  useEffect(() => {
+    if (primeiraVista.current) {
+      primeiraVista.current = false;
+      return;
+    }
+    const el = topo.current;
+    if (!el) return;
+    // O fim do título é onde a fileira começa.
+    const y = el.getBoundingClientRect().bottom + window.scrollY;
+    if (window.scrollY > y) window.scrollTo({ top: y });
+  }, [vista]);
+
+  const avisar = useCallback((texto, tom = 'ok') => {
+    clearTimeout(relogioAviso.current);
+    setAviso({ texto, tom });
+    // Aviso de que deu certo some sozinho; o de erro fica até a pessoa ler.
+    if (tom !== 'erro') relogioAviso.current = setTimeout(() => vivo.current && setAviso(null), 8000);
+  }, []);
+
+  const abrir = useCallback((pedido) => setGaveta({ ...pedido, n: Date.now() }), []);
+  const fecharGaveta = useCallback(() => setGaveta(null), []);
+  const sairLinha = useCallback(
+    (chave) =>
+      setMantidos((m) => {
+        if (!m.has(chave)) return m;
+        const n = new Set(m);
+        n.delete(chave);
+        return n;
+      }),
+    []
   );
 
-  const baixar = async (it) => {
-    setAviso(null);
-    try {
-      const r = await lerArquivo(it.id);
-      if (!r?.base64) throw new Error("Arquivo nao encontrado no servidor.");
-      abrirBase64(r.base64, r.mime, r.nome || it.arquivoNome);
-    } catch (err) {
-      setAviso({ tom: "erro", texto: err.message });
-    }
-  };
+  // As trocas no estado, uma por tipo de linha. O servidor devolve a linha
+  // inteira já gravada (com a versão nova); ela toma o lugar da antiga.
+  const trocar = useMemo(
+    () => ({
+      acao: (a) => setPainel((p) => p && { ...p, acoes: trocarPorId(p.acoes, a) }),
+      item: (i) => setPainel((p) => p && { ...p, playbook: trocarPorId(p.playbook, i) }),
+      publicacao: (x) => setPainel((p) => p && { ...p, publicacoes: trocarPorId(p.publicacoes, x) }),
+      metricas: (m) => setPainel((p) => p && { ...p, metricas: trocarMetricas(p.metricas, m) }),
+      canal: (c) => setPainel((p) => p && { ...p, canais: trocarPorId(p.canais, c) }),
+    }),
+    []
+  );
+  const tirar = useMemo(
+    () => ({
+      acao: (id) => setPainel((p) => p && { ...p, acoes: p.acoes.filter((a) => a.id !== id) }),
+      publicacao: (id) => setPainel((p) => p && { ...p, publicacoes: p.publicacoes.filter((x) => x.id !== id) }),
+    }),
+    []
+  );
 
-  const remover = async (it) => {
-    // A logo apagada num toque pode ser a unica copia em alta resolucao.
-    if (!window.confirm(`Apagar "${it.nome}"? O arquivo vai junto, sem volta.`)) return;
-    setAviso(null);
-    try {
-      await removerAtivo(it.id);
-      setItens((l) => (l || []).filter((x) => x.id !== it.id));
-    } catch (err) {
-      setAviso({ tom: "erro", texto: err.message });
-    }
-  };
+  /* CONCLUIR NA LINHA DO FAZER (e desfazer). A LinhaTarefa chama isto na
+     hora do toque e mostra "Concluída · Desfazer" por 6 s.
+     - Ação: a situação vai para "Encerrada"; a situação de antes fica
+       guardada para o Desfazer devolver a mesma.
+     - Item único do playbook: concluir no banco. Item que pede link ou texto
+       como evidência não se conclui no escuro: a linha volta (devolve false)
+       e a gaveta abre pedindo a evidência.
+     Erro sobe para a LinhaTarefa, que volta a linha e mostra o motivo. Se o
+     motivo é "outra pessoa mexeu", a lista é relida para a próxima
+     tentativa já sair com a versão nova. */
+  const concluirLinha = useCallback(
+    async (l, feito) => {
+      const p = painelAtual.current;
+      if (!p) return false;
+      // A linha concluída fica na tela até o onSair da LinhaTarefa (6 s). Se
+      // a lista sair da tela antes (trocou de chip ou de sub-aba), o onSair
+      // nunca vem: este relógio da página tira a linha do mesmo jeito, senão
+      // ela ficaria riscada no Fazer até recarregar.
+      const manter = (sim) => {
+        clearTimeout(relogiosMantidos.current.get(l.chave));
+        relogiosMantidos.current.delete(l.chave);
+        if (sim) {
+          relogiosMantidos.current.set(
+            l.chave,
+            setTimeout(() => {
+              relogiosMantidos.current.delete(l.chave);
+              if (vivo.current) sairLinha(l.chave);
+            }, SEGUNDOS_DESFAZER * 1000 + 500)
+          );
+        }
+        setMantidos((m) => {
+          const n = new Set(m);
+          if (sim) n.add(l.chave);
+          else n.delete(l.chave);
+          return n;
+        });
+      };
+      // Desfazer: o relógio da página para enquanto o pedido anda. Senão ele
+      // tirava a linha no meio de um pedido lento, e um erro do desfazer
+      // sumia junto com ela.
+      if (!feito) {
+        clearTimeout(relogiosMantidos.current.get(l.chave));
+        relogiosMantidos.current.delete(l.chave);
+      }
+      try {
+        if (l.tipo === 'acao') {
+          const a = p.acoes.find((x) => x.id === l.id);
+          if (!a) throw new Error('Esta ação não existe mais. Recarregue a página.');
+          const status = feito ? SITUACAO_AO_CONCLUIR : statusAntes.current.get(l.chave) || SITUACOES_ACAO[0];
+          const salva = await salvarAcaoMarketing(acaoComSituacao(a, status), a.versao);
+          if (feito) statusAntes.current.set(l.chave, a.status);
+          else statusAntes.current.delete(l.chave);
+          if (vivo.current) {
+            trocar.acao(salva);
+            manter(feito);
+          }
+          return true;
+        }
+        const i = p.playbook.find((x) => x.id === l.id);
+        if (!i || i.ativo === false) throw new Error('Este item do playbook não existe mais. Recarregue a página.');
+        if (feito && (i.evidencia === 'link' || i.evidencia === 'texto')) {
+          abrir({ tipo: 'item', id: i.id });
+          return false;
+        }
+        const salvo = await concluirPlaybook(i.id, i.versao, feito);
+        if (vivo.current) {
+          trocar.item(salvo);
+          manter(feito);
+        }
+        return true;
+      } catch (e) {
+        if (mudouNoServidor(e)) carregar();
+        // O desfazer falhou: a linha continua concluída. O aviso da página
+        // fica até a pessoa ler (a linha sai sozinha logo depois).
+        if (!feito && vivo.current) {
+          manter(true);
+          avisar(`Não deu para desfazer: ${e?.message || 'tente de novo'}`, 'erro');
+        }
+        throw e;
+      }
+    },
+    [abrir, avisar, carregar, trocar, sairLinha]
+  );
 
+  const ctx = useMemo(
+    () =>
+      painel && {
+        painel,
+        hoje,
+        papel: painel.papel,
+        podeGravar: painel.papel !== 'visualizacao',
+        ehGestao: painel.papel === 'gestao',
+        pessoas,
+        erroPessoas,
+        recarregarPessoas: carregarPessoas,
+        canaisPorId,
+        idsDaFileira,
+        trocar,
+        tirar,
+        recarregar: carregar,
+        avisar,
+        abrir,
+        sairLinha,
+        concluirLinha,
+        mantidos,
+        celular,
+      },
+    [painel, hoje, pessoas, erroPessoas, carregarPessoas, canaisPorId, idsDaFileira, trocar, tirar, carregar, avisar, abrir, sairLinha, concluirLinha, mantidos, celular]
+  );
 
-  if (erro) {
-    return (
-      <div className="space-y-6">
-        <PageTitle titulo="Marketing" descricao="Logomarcas, materiais de marca e atalhos do Drive." />
-        <ErroModulo mensagem={erro} aoTentar={() => window.location.reload()}/>
-      </div>
-    );
-  }
-  if (itens === null || atalhos === null) return <CarregandoModulo />;
-
-  const listaAtalhos = Object.entries(atalhos)
-    .filter(([,a]) => a.tipo !== "acao")
-    .map(([id, a]) => ({ id, ...a }))
-    .sort((a, b) => String(a.nome).localeCompare(String(b.nome), "pt-BR"));
+  let conteudo;
+  // Os materiais abrem mesmo sem o painel (papel ainda desconhecido): aí
+  // os botões aparecem, e a painel-ativos é quem recusa a visualização.
+  if (vista === 'materiais') conteudo = <MateriaisDrive podeGravar={!painel || painel.papel !== 'visualizacao'} />;
+  else if (!painel && erro) conteudo = <ErroModulo mensagem={erro} aoTentar={carregar} />;
+  else if (!painel) conteudo = <Carregando />;
+  else if (canal) conteudo = <CanalAberto key={canal.id} canal={canal} />;
+  else conteudo = <VisaoGeral />;
 
   return (
-    <div className="space-y-8">
-      <PageTitle
-        titulo="Marketing"
-        descricao="Encontre logomarcas, materiais aprovados e atalhos da marca em um só lugar."
-      />
-
-      <Segmented opcoes={[{valor:"acoes",rotulo:"Ações e resultados"},{valor:"materiais",rotulo:"Materiais e Drive"}]} valor={aba} onChange={setAba}/>
-      <div hidden={aba !== "acoes"}><PlanejamentoMarketing/></div>
-      <div hidden={aba !== "materiais"} className="space-y-5">
-      {materialForm&&<Card><SectionTitle titulo={`Organizar material · ${materialForm.nome}`}/><form className="space-y-4" onSubmit={async e=>{e.preventDefault();setGravandoMaterial(true);setAviso(null);try{const salvo=await salvarAtivo(materialForm);setItens(l=>l.map(i=>i.id===salvo.id?salvo:i));setMaterialForm(null);}catch(e){setAviso({tom:"erro",texto:e.message});}finally{setGravandoMaterial(false);}}}><div className="grid gap-4 sm:grid-cols-2">
-      <label className="label">Categoria<input className="input" placeholder="Ex.: Fachadas, Apresentações, Identidade visual" value={materialForm.categoria||""} onChange={e=>setMaterialForm(f=>({...f,categoria:e.target.value}))}/></label>
-      <label className="label">Situação<select className="input" value={materialForm.status||"rascunho"} onChange={e=>setMaterialForm(f=>({...f,status:e.target.value}))}><option value="rascunho">A revisar</option><option value="aprovado">Aprovado para uso</option><option value="arquivado">Arquivado / versão antiga</option></select></label>
-      <label className="label">Responsável pela revisão<input className="input" value={materialForm.responsavel||""} onChange={e=>setMaterialForm(f=>({...f,responsavel:e.target.value}))}/></label>
-      <label className="label">Próxima revisão<input className="input" type="date" value={materialForm.validade||""} onChange={e=>setMaterialForm(f=>({...f,validade:e.target.value}))}/></label>
-      </div><button className="btn-primary" disabled={gravandoMaterial}>Salvar organização</button> <button type="button" className="btn-ghost" disabled={gravandoMaterial} onClick={()=>setMaterialForm(null)}>Cancelar</button></form></Card>}
-      {aviso && (
-        <p
-          className={`rounded-lg px-3 py-2 text-sm ${
-            aviso.tom === "ok" ? "bg-ok-50 text-ok-700" : "bg-bad-50 text-bad-700"
-          }`}
-        >
-          {aviso.texto}
-        </p>
-      )}
-
-      <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
-        {/* Materiais */}
-        <Card>
-          <SectionTitle
-            titulo="Logomarcas e materiais"
-            sub="Até 3 MB por arquivo - logos, papel timbrado, assinaturas de e-mail."
+    <MarketingCtx.Provider value={ctx}>
+      <div className="space-y-4">
+        <div ref={topo}>
+          <PageTitle
+            titulo="Marketing"
+            descricao="O que fazer em cada canal, os números de cada um e os materiais da marca."
+            acao={
+              <button
+                type="button"
+                className={`${vista === 'materiais' ? 'btn-primary' : 'btn-outline'} min-h-11`}
+                aria-pressed={vista === 'materiais'}
+                onClick={() => setV('materiais')}
+              >
+                <FolderOpen size={16} strokeWidth={2.2} aria-hidden="true" />
+                Materiais e Drive
+              </button>
+            }
           />
+        </div>
 
-          <label className="label mb-4">Buscar material<input type="search" className="input" value={buscaMaterial} onChange={e=>setBuscaMaterial(e.target.value)} placeholder="Nome, arquivo ou categoria"/></label>
-          {itens.length === 0 ? (
-            <Empty>Nada guardado ainda. Suba a primeira logomarca abaixo.</Empty>
-          ) : (
-            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-              {itens.filter(it=>`${it.nome} ${it.arquivoNome} ${it.categoria || ""}`.toLocaleLowerCase("pt-BR").includes(buscaMaterial.toLocaleLowerCase("pt-BR"))).map((it) => (
-                <div
-                  key={it.id}
-                  className="overflow-hidden rounded-xl border"
-                  style={{ borderColor: "var(--hairline)" }}
-                >
-                  <div className="grid h-28 place-items-center bg-slate-50 dark:bg-slate-800/40">
-                    {it.miniatura || thumbs[it.id] ? (
-                      <img src={it.miniatura || thumbs[it.id]} alt={it.nome} className="max-h-24 max-w-[85%] object-contain" />
-                    ) : ehImagem(it.arquivoNome) ? (
-                      <ImageIcon size={26} className="text-slate-300" />
-                    ) : (
-                      <FileText size={26} className="text-slate-300" />
-                    )}
-                  </div>
-                  <div className="px-3 pt-3 text-xs text-slate-600">{it.categoria||"Sem categoria"} · {it.status==="aprovado"?"Aprovado para uso":it.status==="arquivado"?"Versão antiga":"Revisão pendente"}</div>
-                  <button className="btn-ghost mx-2" onClick={()=>setMaterialForm({...it})}>Organizar material</button>
-                  <div className="flex items-center gap-1.5 p-2.5">
-                    <span className="min-w-0 flex-1">
-                      <span className="block truncate font-display text-sm font-medium text-slate-800">
-                        {it.nome}
-                      </span>
-                      <span className="block truncate text-xs text-slate-400">{it.arquivoNome}</span>
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => baixar(it)}
-                      className="grid h-8 w-8 shrink-0 place-items-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-brand"
-                      title={`Baixar ${it.nome}`}
-                    >
-                      <Download size={15} />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => remover(it)}
-                      className="grid h-8 w-8 shrink-0 place-items-center rounded-lg text-slate-400 hover:bg-bad-50 hover:text-bad-700"
-                      title={`Remover ${it.nome}`}
-                    >
-                      <Trash2 size={15} />
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-
-          <form onSubmit={enviar} className="mt-5 grid gap-3 border-t pt-4 sm:grid-cols-[1fr_auto_auto]" style={{ borderColor: "var(--hairline)" }}>
-            <input
-              className="input"
-              aria-label="Nome do material de marketing" placeholder="Nome (ex.: Logo horizontal fundo claro)"
-              value={nomeNovo}
-              onChange={(e) => setNomeNovo(e.target.value)}
+        <nav className="mkt-fileira sem-impressao" aria-label="Canais do Marketing">
+          <div ref={trilho} className="mkt-fileira-trilho relative">
+            <ChipCanal
+              canal={{ nome: 'Visão geral' }}
+              icone={LayoutGrid}
+              pendentes={totalPendentes}
+              ativo={geralAceso}
+              compacto={celular}
+              onClick={() => setV('geral')}
             />
-            <input ref={inputArquivo} aria-label="Arquivo do material de marketing" type="file" className="input file:mr-2 file:rounded file:border-0 file:bg-slate-100 file:px-2 file:py-1 file:text-xs" />
-            <button className="btn-primary" disabled={subindo}>
-              <Upload size={15} strokeWidth={2.4} />
-              {subindo ? "Subindo..." : "Guardar"}
-            </button>
-          </form>
-        </Card>
+            {painel
+              ? fileira.map((c) => {
+                  const r = resumo.get(c.id);
+                  return (
+                    <ChipCanal
+                      key={c.id}
+                      canal={c}
+                      indicador={r?.indicador}
+                      pendentes={r?.pendentes}
+                      semaforo={r?.semaforo}
+                      ativo={vista === c.codigo}
+                      compacto={celular}
+                      onClick={() => setV(c.codigo)}
+                    />
+                  );
+                })
+              : !erro && [0, 1, 2].map((n) => <Skeleton key={n} className="h-11 w-28 shrink-0 rounded-full" />)}
+          </div>
+        </nav>
 
-        {/* Atalhos do Drive */}
-        <Card className="h-fit">
-          <SectionTitle titulo="Atalhos do Drive" sub="Vídeos, campanhas e pastas grandes." />
+        {painel && erro && vista !== 'materiais' && <AvisoAtualizacao erro={erro} aoTentar={carregar} />}
+        <Aviso aviso={aviso} onFechar={() => setAviso(null)} />
 
-          {listaAtalhos.length === 0 ? (
-            <Empty>Nenhum atalho ainda.</Empty>
-          ) : (
-            <div className="space-y-1.5">
-              {listaAtalhos.map((a) => (
-                <div key={a.id} className="group flex items-center gap-1">
-                  <a
-                    href={a.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex min-w-0 flex-1 items-center gap-2 rounded-lg px-2.5 py-2 font-display text-sm font-medium text-slate-700 hover:bg-slate-100 hover:text-slate-900"
-                  >
-                    <LinkIcon size={14} className="shrink-0 text-slate-400" />
-                    <span className="min-w-0 flex-1 truncate">{a.nome}</span>
-                    <ArrowUpRight size={13} className="shrink-0 text-slate-300" />
-                  </a>
-
-                </div>
-              ))}
-            </div>
-          )}
-
-          {podeAbrir("marketing")&&<Link className="btn-outline mt-4" to="/configuracoes?secao=marketing">Configurar atalhos</Link>}
-        </Card>
+        {conteudo}
       </div>
-      </div>
-    </div>
+      {/* A gaveta fica FORA do space-y: o <dialog> é irmão dos blocos e o
+          margin-top que o space-y dá a todo irmão empurrava a gaveta para
+          baixo da tela (o rodapé com o Salvar sumia). */}
+      {ctx && gaveta && <GavetaDoMarketing key={gaveta.n} gaveta={gaveta} onFechar={fecharGaveta} />}
+    </MarketingCtx.Provider>
   );
 }

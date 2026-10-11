@@ -218,6 +218,10 @@ html.dark ::-webkit-scrollbar-thumb {
 .dark .bg-slate-50\/70 { background-color: rgba(255, 255, 255, 0.035); }
 .dark .bg-slate-100,
 .dark .bg-slate-100\/70 { background-color: rgba(255, 255, 255, 0.06); }
+/* O botão "Escolher arquivo" do <input type=file>: no escuro o navegador
+   pinta o texto de branco, e o fundo slate-100 sem par ficava quase branco
+   (texto invisível). */
+.dark .file\:bg-slate-100::file-selector-button { background-color: rgba(255, 255, 255, 0.1); color: #d3d9e8; }
 .dark .bg-slate-200 { background-color: rgba(255, 255, 255, 0.1); }
 
 .dark .text-slate-900 { color: #f2f4fb; }

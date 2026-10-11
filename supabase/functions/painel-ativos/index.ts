@@ -24,6 +24,7 @@
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { verificarJwt, crachaRevogado } from "../_shared/cripto.ts";
+import { papelNoMarketing, papelGrava } from "../_shared/marketing-papel.mjs";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -251,6 +252,19 @@ Deno.serve(async (req: Request) => {
     if (tipo && !podeTipo(tipo)) return resposta({ erro: "Voce nao tem acesso a este modulo." }, 403);
     return null;
   };
+  // GRAVAR pede mais que ver. O Marketing tem papel dentro do modulo
+  // (painel_mkt_papeis): quem e so "visualizacao" ve os materiais, mas nao
+  // envia, troca, apaga nem restaura. O papel vem da mesma funcao que a
+  // painel-marketing usa, para as duas portas nunca discordarem.
+  let papelMkt: string | null = null;
+  const barraGravar = async (tipo: string) => {
+    if (!podeTipo(tipo)) return resposta({ erro: "Voce nao tem acesso a este modulo." }, 403);
+    if (tipo === "marketing") {
+      papelMkt ??= await papelNoMarketing(sb, sessao);
+      if (!papelGrava(papelMkt)) return resposta({ erro: "Seu papel no Marketing é só de visualização." }, 403);
+    }
+    return null;
+  };
 
   let corpo: any = {};
   try {
@@ -357,7 +371,7 @@ Deno.serve(async (req: Request) => {
         const it = corpo.item ?? {};
         const tipo = String(it.tipo ?? "");
         if (!TIPOS.has(tipo)) return resposta({ erro: "tipo invalido" }, 400);
-        if (!podeTipo(tipo)) return resposta({ erro: "Voce nao tem acesso a este modulo." }, 403);
+        { const b = await barraGravar(tipo); if (b) return b; }
         if (!String(it.nome ?? "").trim()) return resposta({ erro: "informe o nome" }, 400);
 
         const agora = new Date().toISOString();
@@ -390,9 +404,7 @@ Deno.serve(async (req: Request) => {
         }
         const tipoGravado = (ant?.registro as any)?.tipo;
         if (tipoGravado) {
-          if (!podeTipo(tipoGravado)) {
-            return resposta({ erro: "Voce nao tem acesso a este modulo." }, 403);
-          }
+          { const b = await barraGravar(tipoGravado); if (b) return b; }
           if (tipoGravado !== tipo) {
             return resposta({ erro: "Nao da para mudar o tipo de um item ja cadastrado." }, 400);
           }
@@ -488,7 +500,9 @@ Deno.serve(async (req: Request) => {
         const id = String(corpo.id ?? "");
         if (!id) return resposta({ erro: "id ausente" }, 400);
         { const b = await barraId(id); if (b) return b; }
-        if (!(await tipoDoId(id))) return resposta({ erro: "item nao encontrado" }, 404);
+        const tipoRemover = await tipoDoId(id);
+        if (!tipoRemover) return resposta({ erro: "item nao encontrado" }, 404);
+        { const b = await barraGravar(tipoRemover); if (b) return b; }
         if(corpo.bemId && !sessao.master && !perms.includes('*') && !perms.includes('manutencoes')) return resposta({erro:'Sem acesso a Manutenções.'},403);
         const {error}=await sb.rpc('painel_ativo_retirar',{p_id:id,p_bem_id:corpo.bemId || null,p_por:quem});
         if(error) throw new Error(error.message);
@@ -510,7 +524,7 @@ Deno.serve(async (req: Request) => {
         if (!lix?.registro) return resposta({ erro: "nao esta na lixeira" }, 404);
         const reg = { ...(lix.registro as any) };
         delete reg._apagadoEm;
-        if (!podeTipo(reg?.tipo)) return resposta({ erro: "Voce nao tem acesso a este modulo." }, 403);
+        { const b = await barraGravar(reg?.tipo); if (b) return b; }
         await sb.from("painel_registros").upsert({
           colecao: "ativo", id, registro: reg, atualizado_em: new Date().toISOString(),
         }, { onConflict: "colecao,id" });
@@ -537,7 +551,7 @@ Deno.serve(async (req: Request) => {
         // sinal de que o cadastro falhou (ou de chamada torta).
         const tipoDono = await tipoDoId(id);
         if (!tipoDono) return resposta({ erro: "Cadastre o item antes de anexar o arquivo." }, 400);
-        if (!podeTipo(tipoDono)) return resposta({ erro: "Voce nao tem acesso a este modulo." }, 403);
+        { const b = await barraGravar(tipoDono); if (b) return b; }
         if (base64.length > MAX_ARQUIVO) return resposta({ erro: "Arquivo muito grande (limite ~3 MB)." }, 413);
 
         const mime = String(corpo.mime ?? "application/pdf");

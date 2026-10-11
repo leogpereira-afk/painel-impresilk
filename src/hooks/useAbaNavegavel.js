@@ -1,18 +1,8 @@
-import { useSearchParams } from 'react-router-dom';
+import { useParamNavegavel } from './useParamNavegavel.js';
 
 // Apenas nomes de abas: nenhum cliente, valor financeiro ou dado pessoal na URL.
+// A chave "aba" de sempre; o trabalho mora no useParamNavegavel, que faz o
+// mesmo para qualquer chave.
 export function useAbaNavegavel(padrao, permitidas) {
-  const [params, setParams] = useSearchParams();
-  const escolhida = params.get('aba');
-  const valor = permitidas.includes(escolhida) ? escolhida : padrao;
-  const definir = proxima => {
-    const nova = typeof proxima === 'function' ? proxima(valor) : proxima;
-    if (!permitidas.includes(nova) || nova === valor) return;
-    setParams(atuais => {
-      const copia = new URLSearchParams(atuais);
-      copia.set('aba', nova);
-      return copia;
-    });
-  };
-  return [valor, definir];
+  return useParamNavegavel('aba', padrao, permitidas);
 }
