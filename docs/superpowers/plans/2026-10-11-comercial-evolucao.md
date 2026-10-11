@@ -67,9 +67,9 @@ Owner: root/revisor independente.
 - [x] Conferir navegador desktop/390px, filtros, links e contadores.
 - [x] Entregar revisão concreta e dependências reais; solicitar aprovação específica só para publicar.
 
-## Estado da entrega local
+## Estado anterior à autorização de publicação
 
-Fases 1–3 implementadas e verificadas em 11/10/2026. Os dados de demonstração são fictícios. Publicação e validação autenticada no servidor de produção permanecem pendentes de autorização específica; nenhuma alteração de dados reais foi executada. Dependências de fonte ausente estão explícitas na interface e em docs/comercial-evolucao.md.
+Fases 1–3 implementadas e verificadas em 11/10/2026. Os dados de demonstração são fictícios. Na entrega local, publicação e validação autenticada ainda dependiam da autorização específica, recebida posteriormente; ambas foram conferidas conforme a seção abaixo. Nenhuma alteração de dados reais foi executada. Dependências de fonte ausente estão explícitas na interface e em docs/comercial-evolucao.md.
 
 ### Publicação autorizada e conferida
 

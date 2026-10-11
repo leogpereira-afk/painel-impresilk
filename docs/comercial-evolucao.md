@@ -58,7 +58,7 @@ Data: 11/10/2026. Estado: três etapas publicadas com autorização de Léo ("su
 | 13. Computador e celular | Chrome desktop e 390 px sem transbordamento; modal fecha por Escape; filtros mantidos e produto volta ao orçamento. |
 | 14. Verificações e publicação | Testes, build, lint, verificadores e revisão independente aprovados localmente. Servidor publicado antes da tela; workflows, código no ar e sessão real da Direção conferidos após autorização. |
 
-## Verificação executada
+## Verificação local antes da autorização de publicação
 
 - Auditoria: 1.226 casos; 1.142 aprovados, zero falhas, 84 casos condicionais de banco não executados nesta rodada.
 - Cálculos: 620 aprovados, zero falhas, zero ignorados.
@@ -68,7 +68,7 @@ Data: 11/10/2026. Estado: três etapas publicadas com autorização de Léo ("su
 - Revisão independente: F1–F14 corrigidos e encerrados; testes focados e asserções adicionais de funções/SSR/cliques executados. Não houve auditoria independente autenticada em produção.
 - Prévia no Chrome com dados inteiramente fictícios. Alterações da demonstração são descartadas ao recarregar.
 
-Nenhum commit, merge, push, implantação, concessão de acesso, envio de mensagem ou alteração de registros reais foi executado nesta reforma. O código está no ramo local codex/comercial-evolucao-20261011, a partir do atalho aprovado bc2c564.
+Ao entregar a revisão local, antes da autorização “subir”, o código ainda não havia sido commitado, integrado ou publicado. A publicação posterior está conferida na seção abaixo. Não houve concessão de acesso, envio de mensagem ou alteração de registros reais em nenhuma das etapas.
 
 ## Publicação e conferência oficial · 11/10/2026
 
