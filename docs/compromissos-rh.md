@@ -29,3 +29,14 @@ Evidências privadas fora do Git: `/private/tmp/compromissos-rh-revisao.png`, `/
 Servidor publicado antes da tela: `painel-config` v123 ACTIVE. Os 14 arquivos da função e das dependências foram recuperados pelo conector e comparados integralmente com o código validado. Cópia anterior privada preservada fora do Git. A liberação da tela está em andamento. Não foi necessário modificar o RH, cadastrar pessoas ou aplicar migração; a main atual estava contida no ramo da revisão.
 
 Depois, verificar a versão oficial e o diretório autenticado com pessoas já cadastradas, conferir fotos/códigos e a separação de agenda com conta restrita. Não salvar registros fictícios em produção. A confirmação do vínculo real depende dos cadastros centrais existentes; vínculos faltantes devem ser corrigidos pelo fluxo de cadastro autorizado da tela.
+
+## Conferência oficial concluída · 11/10/2026
+
+- Código `0117f1d`, liberação `b99705e`; GitHub Pages 38176183363 e Edge Functions 38176183434 concluídos com sucesso.
+- Servidor final `painel-config` v124 ACTIVE. Os 14 arquivos da versão recuperada após o workflow são idênticos aos revisados; autenticação e permissões existentes preservadas.
+- `index.html`, JavaScript e CSS principais e os dois arquivos de Compromissos em produção são idênticos, byte a byte, ao build local.
+- Navegador autenticado como Direção: nomes atuais, fotos carregadas, códigos existentes, busca preservando zero inicial, identidade no novo compromisso e seleção do destinatário no encaminhamento conferidos. Formulários cancelados antes de salvar. Sem transbordamento horizontal e sem erros JavaScript na verificação.
+- A conta sem ficha confirmada permanece indisponível para receber; nenhum vínculo foi inventado ou corrigido automaticamente. A correção continua em Sistemas e configurações → Pessoas, pelo cadastro existente.
+- Nenhum dado real, credencial, ID de pessoa ou fotografia incluído no Git. Evidência visual privada em `/private/tmp/compromissos-rh-publicado.png`.
+
+Limite da verificação: escrita, concorrência e perfis restritos cobertos por testes dos handlers com transporte/banco/autenticação simulados. Não havia sessão de uma conta restrita real para essa conferência; não foram criados registros de teste em produção. A publicação do código e a leitura autenticada da Direção estão confirmadas.

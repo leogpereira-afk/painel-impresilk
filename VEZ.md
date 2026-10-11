@@ -8,6 +8,8 @@ Estado: integração local concluída com a ficha existente e o código `acesso_
 
 Publicação autorizada por Léo: “subir”, em 11/10/2026, após a revisão local. Servidor publicado antes da tela: `painel-config` v123 ACTIVE, 14 arquivos comparados com o código validado e idênticos. A liberação da tela está em andamento. Nenhuma migração, alteração de registros ou concessão de acesso.
 
+Conferência oficial concluída em 11/10/2026: código `0117f1d`, liberação `b99705e`; Pages 38176183363 e Functions 38176183434 com sucesso. Função final `painel-config` v124 ACTIVE, 14 arquivos idênticos à revisão. HTML, JavaScript e CSS oficiais de Compromissos idênticos ao build validado. Sessão real da Direção confirmou nomes/fotos/códigos do RH, busca com zero inicial, identidade no formulário e destino do encaminhamento, sem gravar. Os controles não concedem acesso nem resolvem vínculos faltantes automaticamente. Testes locais de escrita/perfis restritos usam banco e autenticação simulados; conferência autenticada com conta restrita real não executada. Sem alteração de registros reais. Publicação concluída; a vez continua Codex.
+
 ## Trabalho atual: Documentos e vencimentos
 
 Publicação autorizada por Léo: “pode subir”, em 11/10/2026, após revisão local. Servidor publicado e todos os arquivos conferidos antes da tela: painel-ativos 105, painel-agenda 46, painel-auth 115 e equipe-auth 79. RPC estrutural aplicada sem transformar registros; assinatura dos cadastros preservada. Publicação da tela em andamento. Nenhuma concessão de acesso.
