@@ -32,11 +32,11 @@ on:
   workflow_dispatch:
     inputs:
       pcp_ref:
-        description: 'Ramo do PCP cujas functions publicar'
+        description: 'Ramo do PCP cujas functions publicar (tem de conter a main do PCP)'
         required: false
         default: 'main'
       rh_ref:
-        description: 'Ramo do RH (so com rh_funcoes)'
+        description: 'Ramo do RH (so com rh_funcoes; tem de conter a main do RH)'
         required: false
         default: 'main'
       rh_funcoes:
@@ -104,6 +104,27 @@ jobs:
         with:
           repository: leogpereira-afk/impresilk
           ref: ${{ github.event.inputs.pcp_ref || 'main' }}
+          # Historia inteira: com o padrao (1 commit) o merge-base abaixo nao
+          # enxerga a main e barra ate o ramo que a contem (medido em 10/10/2026).
+          fetch-depth: 0
+
+      # TRAVA (10/10/2026): o ramo pedido tem de CONTER a main do PCP. Na origem
+      # ha 3 ramos velhos (codex/entregas-parciais-equipes 36 commits atras,
+      # claude/admiring-noether 100, producao-lateral 188); qualquer um deles em
+      # pcp_ref poria no ar um pcp-sync mais velho que a tela v164, calado.
+      # "Servidor antes da tela" continua valendo: um ramo A FRENTE da main passa.
+      - name: O ramo do PCP contem a main?
+        env:
+          REF: ${{ github.event.inputs.pcp_ref || 'main' }}
+        run: |
+          set -euo pipefail
+          git fetch --no-tags --quiet origin +refs/heads/main:refs/remotes/origin/main
+          if ! git merge-base --is-ancestor origin/main HEAD; then
+            falta=$(git rev-list --count HEAD..origin/main)
+            echo "::error::O ramo '$REF' NAO contem a main do PCP: faltam $falta commit(s) da main nele. Publicar daqui poria no ar um servidor mais velho que a tela. Junte a main no ramo e dispare de novo."
+            exit 1
+          fi
+          echo "ok: '$REF' contem a main ($(git rev-parse --short origin/main)); $(git rev-list --count origin/main..HEAD) commit(s) a frente dela."
 
       - name: O secret existe?
         env:
@@ -133,6 +154,24 @@ jobs:
         with:
           repository: leogpereira-afk/impresilkrh
           ref: ${{ github.event.inputs.rh_ref || 'main' }}
+          # Historia inteira, pelo mesmo motivo do PCP acima.
+          fetch-depth: 0
+
+      # A MESMA TRAVA para o rh_ref (11/10/2026): publicar function do RH a
+      # partir de um ramo que nao contem a main do RH poria no ar um servidor
+      # mais velho que a tela do RH, calado. Ramo A FRENTE da main passa.
+      - name: O ramo do RH contem a main?
+        env:
+          REF: ${{ github.event.inputs.rh_ref || 'main' }}
+        run: |
+          set -euo pipefail
+          git fetch --no-tags --quiet origin +refs/heads/main:refs/remotes/origin/main
+          if ! git merge-base --is-ancestor origin/main HEAD; then
+            falta=$(git rev-list --count HEAD..origin/main)
+            echo "::error::O ramo '$REF' NAO contem a main do RH: faltam $falta commit(s) da main nele. Publicar daqui poria no ar um servidor mais velho que a tela. Junte a main no ramo e dispare de novo."
+            exit 1
+          fi
+          echo "ok: '$REF' contem a main do RH ($(git rev-parse --short origin/main)); $(git rev-list --count origin/main..HEAD) commit(s) a frente dela."
 
       - name: Publicar as functions pedidas do RH
         env:
