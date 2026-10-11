@@ -24,6 +24,7 @@ import {capturarArquivos,prepararArquivos} from "../_shared/arquivos-backup.ts";
 import {buscarComRetentativa} from "../_shared/repetir-http.ts";
 import {proximoBackup} from "../_shared/fila-backup.mjs";
 import {avancarCopia,base64} from "../_shared/backup-partes.mjs";
+import {exportarPCP,conferirExportacao,copiarArquivosIncremental,montarArquivoPCP,statusPCP,BUCKETS_PCP} from "../_shared/backup-pcp.mjs";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -399,6 +400,68 @@ async function copiarPorPartes(sys:any) {
  return {nome:sys.nome,em:new Date().toISOString(),ok:estado.terminou,emAndamento:!estado.terminou,partes:estado.partes.length,registros:estado.registros,erro:null};
 }
 
+// ---------------------------------------------------------------- pcp
+/* O PCP INTEIRO, E NAO SO AS O.S. VIVAS (auditoria do PCP v164, 11/10/2026:
+   A2, M20, M21, M29). O `list` do PCP entrega so O.S. vivas: o arquivo do dia
+   ficava sem as lapides (a O.S. excluida voltaria numa restauracao), sem o
+   diario, sem os horarios das fotos, sem as Demandas e sem o selo, as regras
+   e a comissao, e a tela dizia "PCP ok". As 780 fotos de evidencia nao tinham
+   copia nenhuma.
+
+   Agora: (1) os arquivos dos buckets pcp-arquivos e pcp-demandas vao para o
+   mesmo destino do painel-arquivos, arquivos/<bucket>/<sha256>, so o novo ou
+   mudado, com teto por rodada (o GitHub aceita 500 gravacoes por hora); o que
+   sobra fica para a rodada seguinte do agendador, e a tela mostra "copiando"
+   ate acabar, nunca "ok"; (2) os registros saem da porta exportarBackup do
+   pcp-sync (so da maquina), com a contagem por colecao conferida; contagem
+   que nao bate ou colecao faltando e ok:false, com o motivo escrito.
+   O arquivo do dia (pcp-backup-5) e gravado na primeira rodada do dia e de
+   novo quando os arquivos terminam, para levar o manifesto completo. A regua
+   pura mora em _shared/backup-pcp.mjs. */
+const CHAVE_ARQUIVOS_PCP = "backup_arquivos_pcp";
+
+async function guardarArquivoPCP(bucket: string, sha256: string, bytes: Uint8Array) {
+  if (!BUCKETS_PCP.includes(bucket) || !/^[a-f0-9]{64}$/.test(sha256)) throw new Error("Identificação de arquivo inválida.");
+  const url = `https://api.github.com/repos/${GH_REPO}/contents/arquivos/${bucket}/${sha256}`;
+  const headers = { Authorization: `Bearer ${GH_TOKEN}`, Accept: "application/vnd.github+json", "User-Agent": "impresilk-painel-backup" };
+  const existe = await buscarComRetentativa(url, { headers });
+  if (existe.status === 404) {
+    const enviado = await buscarComRetentativa(url, { method: "PUT", headers, body: JSON.stringify({ message: `backup de arquivo ${bucket}`, content: base64(bytes) }) });
+    if (!enviado.ok) throw new Error("falha ao guardar no repositório privado: " + enviado.status);
+  } else if (!existe.ok) throw new Error("falha ao conferir a cópia: " + existe.status);
+}
+
+async function copiarPCP(sys: any) {
+  const agora = new Date().toISOString(), hoje = diaSP(agora);
+  const semDestino = await conferirDestino();
+  if (semDestino) throw new Error(semDestino.motivo);
+  const { data, error } = await sb.from("painel_meta").select("valor").eq("chave", CHAVE_ARQUIVOS_PCP).maybeSingle();
+  if (error) throw new Error("Não foi possível consultar a cópia dos arquivos do PCP.");
+  const anterior: any = data?.valor ?? {};
+  const copia = await copiarArquivosIncremental({ buckets: BUCKETS_PCP, estado: anterior, bucketDe: (n: string) => sb.storage.from(n), guardar: guardarArquivoPCP });
+  const guardarProgresso = async (registros: unknown) => {
+    const salvo = await sb.from("painel_meta").upsert({ chave: CHAVE_ARQUIVOS_PCP, valor: { ...copia.estado, registros }, atualizado_em: new Date().toISOString() }, { onConflict: "chave" });
+    if (salvo.error) throw new Error("Os arquivos foram copiados, mas o progresso não foi confirmado. A próxima rodada confere de novo.");
+  };
+  // O que já foi copiado fica registrado antes de ler os registros: uma falha
+  // na exportação não faz a rodada seguinte baixar tudo de novo.
+  await guardarProgresso(anterior.registros ?? null);
+  // Os registros de hoje já gravados e conferidos valem enquanto os arquivos andam.
+  const jaHoje = anterior.registros?.dia === hoje && anterior.registros.gravado === true && !anterior.registros.divergencias?.length;
+  let registros: any = jaHoje ? anterior.registros : null, gravado = jaHoje, erroGravacao: string | null = null;
+  if (!jaHoje || copia.completo) {
+    const exportacao = await exportarPCP((corpo: unknown) => chamarSistema(sys, corpo));
+    const conferencia = conferirExportacao(exportacao);
+    const gh = await enviarParaGithub(sys.key, montarArquivoPCP({ nome: sys.nome, exportadoEm: agora, exportacao, conferencia, copia }));
+    gravado = gh.ok === true;
+    erroGravacao = gravado ? null : (gh as any).motivo;
+    registros = { dia: hoje, em: agora, gravado, arquivosCompletos: copia.completo, divergencias: conferencia.divergencias,
+      porColecao: conferencia.porColecao, lapides: conferencia.lapides, registros: conferencia.registros };
+    await guardarProgresso(registros);
+  }
+  return statusPCP({ nome: sys.nome, em: agora, copia, registros, gravado, erroGravacao });
+}
+
 // ---------------------------------------------------------------- hub
 
 async function lerStatus() {
@@ -548,7 +611,9 @@ async function executarBackupHub(somente?: string) {
       // sucesso antigo. A última cópia válida continua disponível à parte.
       porSistema[sys.key]={nome:sys.nome,em:agora,ok:false,erro:'Cópia iniciada; se não concluir, o agendamento tentará novamente.'};
       await confirmar(sys.key);
-      if(sys.key==='bosques' || sys.particionado===true) {
+      if(sys.key==='pcp') {
+        porSistema[sys.key]=await copiarPCP(sys);
+      } else if(sys.key==='bosques' || sys.particionado===true) {
         porSistema[sys.key]=await copiarPorPartes(sys);
       } else {
       const bkp = await puxarSistema(sys);

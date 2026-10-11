@@ -81,6 +81,33 @@ export function linhasDoBackup(status, SISTEMAS) {
 }
 
 /**
+ * O que a linha de um sistema mostra: `{ selo: {tom, texto}, arquivos,
+ * divergencias, lapides }`. O PCP (auditoria de 11/10/2026) traz a contagem
+ * por colecao conferida e a copia dos arquivos por sha256: a divergencia
+ * aparece escrita, os arquivos como "X de Y" (nao "partes") e as lapides sao
+ * ditas, porque sao elas que impedem a O.S. excluida de voltar.
+ */
+export function detalheDaLinha(l) {
+  const temTotal = typeof l.arquivosExistentes === "number";
+  const selo = l.estado === "semRodada"
+    ? { tom: "bad", texto: "não voltou na rodada" }
+    : l.estado === "copiando"
+      ? { tom: "neutral", texto: temTotal ? `copiando · ${l.arquivos ?? 0} de ${l.arquivosExistentes} arquivos` : `copiando · ${plural(l.partes || 0, "parte", "partes")}` }
+      : l.estado === "falhou"
+        ? { tom: "bad", texto: "falhou" }
+        : { tom: "ok", texto: typeof l.registros === "number" ? `ok · ${l.registros} registros` : "ok" };
+  const arquivos = typeof l.arquivos !== "number" ? null
+    : temTotal
+      ? `${l.arquivos} de ${l.arquivosExistentes} arquivos com cópia conferida${l.arquivosCopiadosNaRodada ? ` · ${l.arquivosCopiadosNaRodada} nesta rodada` : ""}`
+      : plural(l.arquivos, "arquivo com cópia conferida", "arquivos com cópia conferida");
+  const divergencias = Array.isArray(l.divergencias) ? l.divergencias.filter(Boolean).map(String) : [];
+  const lapides = typeof l.lapides === "number" && l.lapides > 0
+    ? `Inclui ${plural(l.lapides, "O.S. excluída (lápide)", "O.S. excluídas (lápides)")}, para não voltarem numa restauração.`
+    : null;
+  return { selo, arquivos, divergencias, lapides };
+}
+
+/**
  * A situacao em uma palavra: `{ tom, palavra, sub, segunda, curto, falharam,
  * semRodada, maisVelhoHoras, nuncaCopiado }`.
  * `progresso` ({ numero, total }) quando uma copia esta rodando nesta tela.

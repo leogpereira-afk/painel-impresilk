@@ -15,7 +15,7 @@ import {
   AlertTriangle, ArchiveRestore, CheckCircle2, DatabaseBackup, Download, Loader2, ShieldCheck,
 } from "lucide-react";
 import { baixarBackup, restaurarBackup, lerArquivoBackup, statusBackup, backupHubAgora } from "../services/backup.js";
-import { situacaoDoBackup, quandoCurto } from "../lib/backup-situacao.mjs";
+import { situacaoDoBackup, quandoCurto, detalheDaLinha } from "../lib/backup-situacao.mjs";
 import { SISTEMAS, nomeCompletoSis } from "../lib/sistemas.js";
 import { Card, ErroModulo, SectionTitle, Skeleton } from "../components/ui.jsx";
 import { LinhaLista, Selo } from "../components/lista.jsx";
@@ -37,13 +37,9 @@ const plural = (n, um, varios) => `${n} ${n === 1 ? um : varios}`;
 function LinhaBackup({ l, capacidades, enviando, aoRefazer, agora }) {
   const [vendo, setVendo] = useState(false);
   const temConteudo = !!l.porColecao && Object.keys(l.porColecao).length > 0;
-  const selo = l.estado === "semRodada"
-    ? { tom: "bad", texto: "não voltou na rodada" }
-    : l.estado === "copiando"
-      ? { tom: "neutral", texto: `copiando · ${plural(l.partes || 0, "parte", "partes")}` }
-      : l.estado === "falhou"
-        ? { tom: "bad", texto: "falhou" }
-        : { tom: "ok", texto: typeof l.registros === "number" ? `ok · ${l.registros} registros` : "ok" };
+  // Selo, arquivos "X de Y", divergência da contagem e lápides (o PCP desde 11/10/2026).
+  const detalhe = detalheDaLinha(l);
+  const selo = detalhe.selo;
   const fora = Array.isArray(l.colecoesForaDoBackup) ? l.colecoesForaDoBackup : [];
   const refazer = capacidades?.individual && (l.estado === "falhou" || l.estado === "copiando");
   return (
@@ -74,6 +70,13 @@ function LinhaBackup({ l, capacidades, enviando, aoRefazer, agora }) {
         </span>
       </div>
       {l.estado === "falhou" && l.erro && <p className="mt-1 text-sm text-bad-700">{l.erro}</p>}
+      {/* A CONTAGEM QUE NÃO CONFERE, coleção por coleção (o PCP). "ok" com
+          metade fora era o que a tela dizia até 11/10/2026. */}
+      {detalhe.divergencias.length > 0 && (
+        <ul className="mt-1 list-disc pl-5 text-sm text-bad-700">
+          {detalhe.divergencias.map((d) => <li key={d}>{d}</li>)}
+        </ul>
+      )}
       {/* COLEÇÃO QUE O BACKUP NÃO COPIOU. Só aparece quando existe, e é a
           diferença entre "está tudo salvo" e "está salvo o que alguém lembrou
           de listar". Já aconteceu duas vezes: as assinaturas ficaram um dia
@@ -84,9 +87,8 @@ function LinhaBackup({ l, capacidades, enviando, aoRefazer, agora }) {
           {fora.length === 1 ? "1 coleção fora do backup" : `${fora.length} coleções fora do backup`}: {fora.join(", ")}
         </p>
       )}
-      {typeof l.arquivos === "number" && (
-        <p className="mt-1 text-xs text-slate-500">{plural(l.arquivos, "arquivo com cópia conferida", "arquivos com cópia conferida")}</p>
-      )}
+      {detalhe.arquivos && <p className="mt-1 text-xs text-slate-500">{detalhe.arquivos}</p>}
+      {detalhe.lapides && <p className="mt-1 text-xs text-slate-500">{detalhe.lapides}</p>}
       {temConteudo && vendo && (
         <ul className="mt-2 grid gap-x-6 gap-y-1 rounded-xl bg-slate-50 p-3 text-sm text-slate-600 sm:grid-cols-2">
           {Object.entries(l.porColecao).map(([nome, n]) => (

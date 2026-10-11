@@ -6,7 +6,7 @@
  */
 import test from "node:test";
 import assert from "node:assert/strict";
-import { situacaoDoBackup, linhasDoBackup, quandoCurto } from "../src/lib/backup-situacao.mjs";
+import { situacaoDoBackup, linhasDoBackup, quandoCurto, detalheDaLinha } from "../src/lib/backup-situacao.mjs";
 import { SISTEMAS } from "../src/lib/sistemas.js";
 
 const AGORA = Date.parse("2026-09-26T15:00:00Z");
@@ -89,4 +89,43 @@ test("quando curto: hoje, ontem, data", () => {
   assert.match(quandoCurto(horasAtras(24), AGORA), /^ontem, /);
   assert.match(quandoCurto(horasAtras(24 * 5), AGORA), /^21\/09, /);
   assert.equal(quandoCurto("", AGORA), "");
+});
+
+/* O PCP NA LINHA DO BACKUP (auditoria do PCP v164, 11/10/2026). A linha dizia
+   "ok · 1070 registros" com metade do PCP fora, e "copiando · 300 partes"
+   seria o numero de arquivos com outro nome. Agora: a divergencia da contagem
+   aparece escrita, os arquivos aparecem como "X de Y", e as lapides sao ditas. */
+test("PCP: contagem que nao confere aparece escrita, coleção por coleção", () => {
+  const l = linhasDoBackup(tudoBem({ pcp: { ok: false, em: horasAtras(1), erro: "A contagem não confere: os: 5 exportadas, esperadas 6.",
+    divergencias: ["os: 5 exportadas, esperadas 6", "os: 1 excluídas (lápides) exportadas, esperadas 2"], arquivos: 3, arquivosExistentes: 3 } }), SISTEMAS)
+    .find((x) => x.id === "pcp");
+  const d = detalheDaLinha(l);
+  assert.equal(d.selo.tom, "bad");
+  assert.deepEqual(d.divergencias, ["os: 5 exportadas, esperadas 6", "os: 1 excluídas (lápides) exportadas, esperadas 2"]);
+  assert.equal(d.arquivos, "3 de 3 arquivos com cópia conferida");
+});
+
+test("PCP: cópia dos arquivos em andamento diz X de Y arquivos, não partes", () => {
+  const l = linhasDoBackup(tudoBem({ pcp: { ok: false, emAndamento: true, em: horasAtras(1), partes: 25, arquivos: 25, arquivosExistentes: 780, arquivosCopiadosNaRodada: 25 } }), SISTEMAS)
+    .find((x) => x.id === "pcp");
+  const d = detalheDaLinha(l);
+  assert.equal(l.estado, "copiando");
+  assert.deepEqual(d.selo, { tom: "neutral", texto: "copiando · 25 de 780 arquivos" });
+  assert.equal(d.arquivos, "25 de 780 arquivos com cópia conferida · 25 nesta rodada");
+});
+
+test("PCP ok: registros e lapides ditas; os outros sistemas seguem com o texto de antes", () => {
+  const st = tudoBem({ pcp: { ok: true, em: horasAtras(1), registros: 2229, lapides: 74, arquivos: 780, arquivosExistentes: 780, arquivosCopiadosNaRodada: 0 } });
+  const linhas = linhasDoBackup(st, SISTEMAS);
+  const d = detalheDaLinha(linhas.find((x) => x.id === "pcp"));
+  assert.deepEqual(d.selo, { tom: "ok", texto: "ok · 2229 registros" });
+  assert.equal(d.lapides, "Inclui 74 O.S. excluídas (lápides), para não voltarem numa restauração.");
+  assert.equal(d.arquivos, "780 de 780 arquivos com cópia conferida");
+  const painel = detalheDaLinha({ ...linhas.find((x) => x.id === "painel"), arquivos: 8 });
+  assert.equal(painel.arquivos, "8 arquivos com cópia conferida");
+  assert.equal(painel.lapides, null);
+  const bosques = detalheDaLinha({ id: "bosques", estado: "copiando", partes: 3 });
+  assert.deepEqual(bosques.selo, { tom: "neutral", texto: "copiando · 3 partes" });
+  assert.deepEqual(detalheDaLinha({ id: "vof", estado: "semRodada" }).selo, { tom: "bad", texto: "não voltou na rodada" });
+  for (const t of [d.lapides, d.arquivos]) assert.doesNotMatch(t, /—/);
 });
