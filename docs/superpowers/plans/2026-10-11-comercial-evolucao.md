@@ -70,3 +70,7 @@ Owner: root/revisor independente.
 ## Estado da entrega local
 
 Fases 1–3 implementadas e verificadas em 11/10/2026. Os dados de demonstração são fictícios. Publicação e validação autenticada no servidor de produção permanecem pendentes de autorização específica; nenhuma alteração de dados reais foi executada. Dependências de fonte ausente estão explícitas na interface e em docs/comercial-evolucao.md.
+
+### Publicação autorizada e conferida
+
+Léo autorizou “subir” após a entrega local. Código integrado com Compromissos RH, servidor primeiro, depois tela. Pages/Functions da liberação 3894c2a concluídos; 67 arquivos de funções e 114 arquivos da tela idênticos à revisão. Sessão real da Direção conferida sem gravação; testes restritos continuam sintéticos. Registro detalhado em docs/comercial-evolucao.md.

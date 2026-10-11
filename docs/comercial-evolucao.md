@@ -1,6 +1,6 @@
 # Comercial Impresilk — entrega para revisão
 
-Data: 11/10/2026. Estado: implementação local das três etapas concluída; publicação ainda pendente de autorização específica. O atalho do Brief anteriormente aprovado já estava publicado e foi preservado.
+Data: 11/10/2026. Estado: três etapas publicadas com autorização de Léo ("subir"), após a revisão local. Servidor e tela oficiais conferidos em 11/10/2026. O atalho do Brief anteriormente aprovado já estava publicado e foi preservado.
 
 ## O que mudou
 
@@ -37,7 +37,7 @@ Data: 11/10/2026. Estado: implementação local das três etapas concluída; pub
 4. Não há vínculo automático comprovado entre IDs do Brief e dos pedidos. O atalho e a consulta pela O.S. permanecem disponíveis.
 5. Fotos, preços, disponibilidade, prazos e conteúdo técnico não disponíveis na fonte permanecem ausentes ou sujeitos à confirmação. A estrutura das fichas está pronta para receber conteúdo autorizado e validado.
 6. Dados históricos truncados, pedidos com identificação insuficiente ou datas ausentes impedem indicadores definitivos. Informações conhecidas continuam consultáveis.
-7. A publicação das funções deve preceder a tela. A validação autenticada no servidor real será feita após publicação autorizada; a implementação local não comprova produção.
+7. A publicação das funções deve preceder a tela. A sessão real da Direção foi conferida após a publicação, em leitura e abertura dos formulários sem salvar. Conta restrita real não estava autenticada; perfis restritos e gravações continuam verificados nos testes e na prévia com dados simulados.
 
 ## Conferência dos 14 fluxos de aceitação
 
@@ -52,11 +52,11 @@ Data: 11/10/2026. Estado: implementação local das três etapas concluída; pub
 | 7. Metas e cobertura | Chrome: ausente, parcialmente cadastrada e completa em memória. Testes: zero, falha, IDs incertos e exclusão de inativo. |
 | 8. Dias úteis | Cálculos testam semana, feriados, exceções e períodos equivalentes; calendário ausente bloqueia comparação. |
 | 9. Revisão de orçamento | Testes e funções reais de abertura: vínculo explícito conserva valor representativo, ação, versão, contato e briefing. |
-| 10. Escopo e transferência | Handlers sintéticos Ana/Bia/direção e perfis da prévia. Remontagem por identidade/permissão/vendedor verificada no JSX real; sessão real pendente. |
+| 10. Escopo e transferência | Handlers sintéticos Ana/Bia/direção e perfis da prévia. Remontagem por identidade/permissão/vendedor verificada no JSX real; sessão real da Direção conferida sem gravar; conta restrita real não conferida. |
 | 11. Operação e pós-venda | Handler e Chrome: ID original, entrega efetiva, cancelamento e previsão confirmada/estimada distintos. Pós-venda histórico pagina candidatos. |
 | 12. Falhas de integração | Handlers e código de consulta: falha distinta de vazio, sem presumir fontes ou expor dados de outro contexto. Não foi interrompida a integração real. |
 | 13. Computador e celular | Chrome desktop e 390 px sem transbordamento; modal fecha por Escape; filtros mantidos e produto volta ao orçamento. |
-| 14. Verificações e publicação | Testes, build, lint, verificadores e revisão independente aprovados localmente. Servidor/tela/live ainda dependem de aprovação. |
+| 14. Verificações e publicação | Testes, build, lint, verificadores e revisão independente aprovados localmente. Servidor publicado antes da tela; workflows, código no ar e sessão real da Direção conferidos após autorização. |
 
 ## Verificação executada
 
@@ -69,3 +69,13 @@ Data: 11/10/2026. Estado: implementação local das três etapas concluída; pub
 - Prévia no Chrome com dados inteiramente fictícios. Alterações da demonstração são descartadas ao recarregar.
 
 Nenhum commit, merge, push, implantação, concessão de acesso, envio de mensagem ou alteração de registros reais foi executado nesta reforma. O código está no ramo local codex/comercial-evolucao-20261011, a partir do atalho aprovado bc2c564.
+
+## Publicação e conferência oficial · 11/10/2026
+
+Autorização de Léo: “subir”. Código 3e51a01, integração a25dce5 com Compromissos RH da main 2aeb387, liberação 3894c2a. Servidor publicado antes da tela; funções finais painel-comercial 25, painel-agenda 50, painel-config 126 e painel-dados 121 ACTIVE. Todos os 67 arquivos dos quatro pacotes são idênticos à revisão integrada. GitHub Pages 38178121510 e Edge Functions 38178121497 terminaram com sucesso; HTML e 113 assets oficiais idênticos ao build validado.
+
+Conferência autenticada no Chrome, somente leitura: indicadores e somas de suas listas, oportunidades de meses anteriores, registro rápido com responsável original, histórico de cliente por carteira, metas ausentes sem percentual consolidado, pedido/PCP com entrega efetiva e financeiro conciliado e ficha do catálogo com ausência de validação explícita. Selecionar uma vendedora atualizou números e fila para a carteira selecionada. A tela oficial foi conferida em 390 px, sem transbordamento horizontal. A consulta real de pós-venda retornou pedidos com entrega efetiva, cobertura parcial e paginação de candidatos explícitas. Nenhuma gravação de teste em produção. As quatro portas recusaram suas consultas válidas sem sessão com 401; uma consulta inicial ao painel-dados com formato inválido retornou 400, e foi repetida no formato correto da rota.
+
+Verificação final do código integrado: 1.156 testes de auditoria aprovados, 84 casos condicionais de banco não executados; 621 cálculos e 6 acessos aprovados; build, 15 verificadores e revisão independente do merge aprovados. Lint sem erros e um aviso anterior em Agenda. O revisor repetiu 43 testes focados e 78 asserções de carregamento independente, troca de identidade/carteira e preservação de RH/IDs comerciais. A cópia local antiga de equipe-auth estava desatualizada; a conferência de permissões passou contra a fonte oficial atual, igual à usada pela publicação.
+
+Limites reais: testes de escrita/perfis restritos usam banco e autenticação simulados; faltam os cadastros/validações descritos nas dependências acima. Não houve migração, concessão de acesso, mensagem, escrita no ERP/PCP ou alteração de registros reais.
