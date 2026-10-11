@@ -25,7 +25,7 @@
 // da busca (antes eram cartões grandes E um cabeçalho recolhível, a mesma
 // escolha duas vezes), e no cartão da conta só o WhatsApp é botão cheio.
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ChevronDown,
   Copy,
@@ -83,6 +83,9 @@ const VAZIO = {
    "CNPJ", e pagamento com o tipo errado trava no banco. 11 dígitos = CPF,
    14 = CNPJ; qualquer outra coisa fica com o rótulo neutro. */
 const ehCPF = (doc) => String(doc || "").replace(/\D/g, "").length === 11;
+
+// Para comparar o titular com o nome da seção sem tropeçar em caixa e acento.
+const semAcento = (t) => String(t || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().toLowerCase();
 
 /* O NÚMERO DO BANCO VAI NA MENSAGEM SEMPRE QUE É CONHECIDO. Até 10/10/2026 ia
    só o CADASTRADO (o deduzido do nome ficava de fora, por cautela com TED), e
@@ -159,51 +162,117 @@ async function lerLogo(file) {
   return url;
 }
 
-function SeloBanco({ conta, todas, tamanho = "h-12 w-12" }) {
+/* No selo de 32 px, a sigla que nem a 9 px cabe (medido em Poppins negrito:
+   "Nubank" tem 37 px) vai pelo nome curto que o próprio banco usa. */
+const SIGLA_COMPACTA = { Nubank: "Nu" };
+
+/* `compacto`: o selo de 32 px do cartão (11/10/2026). Raio, respiro e letra
+   acompanham o tamanho. */
+function SeloBanco({ conta, todas, tamanho = "h-12 w-12", compacto = false }) {
   const logo = logoDaConta(conta, todas);
+  const raio = compacto ? "rounded-[9px]" : "rounded-[14px]";
   if (logo) {
     // Branco fixo (não o bg-white do tema): no tema escuro, logo com fundo
     // transparente sumia num quadrado escuro.
     return (
-      <span className={`${tamanho} grid shrink-0 place-items-center overflow-hidden rounded-[14px] border p-1.5`} style={{ background: "#ffffff", borderColor: "var(--hairline)" }}>
+      <span className={`${tamanho} ${raio} grid shrink-0 place-items-center overflow-hidden border ${compacto ? "p-1" : "p-1.5"}`} style={{ background: "#ffffff", borderColor: "var(--hairline)" }}>
         <img src={logo} alt={`Logo ${conta.banco}`} className="max-h-full max-w-full object-contain" />
       </span>
     );
   }
   const s = seloDoBanco(conta);
-  const pequena = s.sigla.length > 4;
+  /* No selo de 32 px, sigla comprida vira iniciais ("Mercado Pago" vira MP)
+     ou as 4 primeiras letras ("Cooperativa" vira Coop): inteira, ela saía
+     cortada pela borda. É só enfeite; o nome do banco está ao lado. */
+  let sigla = s.sigla;
+  if (compacto && SIGLA_COMPACTA[sigla]) sigla = SIGLA_COMPACTA[sigla];
+  if (compacto && sigla.length > 6) {
+    const palavras = sigla.split(/\s+/).filter(Boolean);
+    sigla = palavras.length > 1 ? palavras.map((p) => p[0]).join("").slice(0, 3).toUpperCase() : sigla.slice(0, 4);
+  }
+  const n = sigla.length;
+  /* PISO DE 9 PX NO SELO COMPACTO. Com 8 px, "Sicoob" (o banco principal da
+     casa), "Caixa" e "Inter" ficavam ilegíveis. A 9 px, as de 5 letras cabem
+     com o respiro de sempre; as de 6 perdem o respiro dos lados e apertam a
+     letra um pouco (Sicoob: 31 px em Poppins, 30 apertada, num selo de 32). */
+  const letra = compacto
+    ? n <= 3 ? "text-[11px]" : n <= 4 ? "text-[10px]" : n <= 5 ? "text-[9px]" : "text-[9px] tracking-[-0.03em]"
+    : n > 4 ? "text-[9px]" : "text-xs";
+  const respiro = compacto && n >= 6 ? "px-0" : "px-0.5";
   return (
     <span
       aria-hidden="true"
-      className={`${tamanho} grid shrink-0 place-items-center rounded-[14px] px-0.5 text-center font-display font-bold leading-none ${pequena ? "text-[9px]" : "text-xs"}`}
+      className={`${tamanho} ${raio} grid shrink-0 place-items-center overflow-hidden ${respiro} text-center font-display font-bold leading-none ${letra}`}
       style={{ background: s.cor, color: s.texto, boxShadow: "inset 0 0 0 1px rgba(0,0,0,0.06)" }}
     >
-      {s.sigla}
+      {sigla}
     </span>
   );
 }
 
-/* UMA LINHA INTEIRA COPIA: o alvo é a largura toda, não o ícone de 13 px. O
-   tique e a cor verde dizem que copiou; a região viva diz a quem não vê. */
-function Valor({ rotulo, valor, aoCopiar, copiado, largo = false }) {
+/* UMA CÉLULA INTEIRA COPIA: rótulo pequeno em cima, valor em mono embaixo.
+   Até 10/10 cada dado era uma faixa da largura do cartão, com fio embaixo; o
+   Léo olhou o cartão a 1000 px e disse "está grande e cheio de espaço
+   desperdiçado". Agora CNPJ, agência e conta dividem uma linha quando cabem.
+
+   O botão fica no <dd> (a lista continua sendo lista de definição para o
+   leitor de tela), e o ::after dele cobre a célula toda: tocar no rótulo
+   também copia, e o alvo tem os 40 px de altura da célula. O valor nunca é
+   cortado (número truncado não serve): se não cabe, a célula desce para a
+   linha de baixo. O tique e a cor verde dizem que copiou; a região viva diz a
+   quem não vê. */
+function Valor({ rotulo, valor, aoCopiar, copiado }) {
   if (!valor) return null;
   return (
-    <div className={`bk-linha${largo ? " largo" : ""}`}>
+    <div className={`bk-dado ${copiado ? "copiado" : ""}`}>
       <dt>{rotulo}</dt>
       <dd>
         <button
           type="button"
           onClick={aoCopiar}
-          title={`Copiar ${rotulo}`}
+          title={`Copiar ${rotulo}: ${valor}`}
           aria-label={`Copiar ${rotulo}: ${valor}`}
-          className={`bk-copiavel ${copiado ? "copiado" : ""}`}
+          className="bk-copiavel"
         >
           <span className="bk-valor">{valor}</span>
-          {copiado ? <Check size={15} strokeWidth={2.6} /> : <Copy size={15} />}
+          {copiado ? <Check size={12} strokeWidth={2.8} /> : <Copy size={12} />}
         </button>
       </dd>
     </div>
   );
+}
+
+/* ONDE A CHAVE PODE QUEBRAR DE LINHA. Sem ponto de quebra, o navegador
+   partia a chave em qualquer letra: "financeiro@exemplo.com.b" / "r" no
+   tablet, "financeiro@exemplo.c" / "om.br" a 1440 (revisão de 11/10). A
+   chave se confere por pedaço, então a quebra cai na fronteira:
+   - depois do "@" e antes de cada "." do e-mail;
+   - depois da "/" (o CNPJ quebra em "11.222.333/" e "0001-81");
+   - depois do "-" quando vêm pelo menos 4 caracteres (a aleatória quebra
+     entre os blocos; o "-81" do CNPJ e do CPF não fica sozinho na linha).
+   Cada pedaço vira texto seguido de <wbr>, que não entra na cópia nem na
+   seleção. O overflow-wrap:anywhere do CSS fica só para o pedaço que,
+   sozinho, não cabe na largura toda.
+   Sem JSX de propósito: tests/bancos-cartao.test.mjs roda esta função. */
+function pedacosDaChave(chave) {
+  const s = String(chave || "");
+  const email = s.includes("@");
+  const pedacos = [];
+  let atual = "";
+  for (let i = 0; i < s.length; i++) {
+    const ch = s[i];
+    if (email && ch === "." && atual) {
+      pedacos.push(atual);
+      atual = "";
+    }
+    atual += ch;
+    if (ch === "@" || ch === "/" || (ch === "-" && s.length - i - 1 >= 4)) {
+      pedacos.push(atual);
+      atual = "";
+    }
+  }
+  if (atual) pedacos.push(atual);
+  return pedacos;
 }
 
 /* O BLOCO DO PIX. O que mais se faz com esta tela é passar a chave: o botão
@@ -232,28 +301,56 @@ function BlocoPix({ b, copiar, copiado, comConta, aoMudarComConta }) {
 
   const chaveCopiada = copiado === `${b.id}-pix`;
   const codigoCopiado = copiado === `${b.id}-codigo`;
+  const tipo = info.tipo ? nomeDoTipo(info.tipo) : b.pixTipo;
+  // No selo cabe só o essencial ("aleatória"); o nome inteiro vai no title.
+  const tipoCurto = String(tipo || "").replace(/^chave\s+/i, "");
+  const chaveVisivel = info.legivel || b.pix;
+  const textoWhatsPix = comConta
+    ? "Mandar no WhatsApp a chave Pix em destaque e, embaixo, a conta completa com o número do banco"
+    : "Mandar no WhatsApp uma mensagem só com a chave, para quem recebe copiar a mensagem inteira";
+  // O selo do tipo aparece num lugar só por vez: dentro do botão da chave no
+  // cartão estreito, no começo da linha das ações no largo (ver bancos.css).
+  const seloDoTipo = (extra = "") => (
+    <span className={`bk-pix-selo${extra}`} aria-hidden="true">
+      <b>Pix</b>
+      {tipoCurto}
+    </span>
+  );
 
   return (
     <section className="bk-pix" aria-label={`Pix de ${b.banco}`}>
-      <div className="bk-pix-cab">
-        <span className="bk-pix-rotulo">Pix</span>
-        <span className="bk-pix-tipo">{info.tipo ? nomeDoTipo(info.tipo) : b.pixTipo}</span>
-      </div>
+      {/* UMA LINHA SÓ: o tipo como selo, a chave e o Copiar. Antes eram três
+          faixas (rótulo e tipo, a chave com um botão grande, a dica). A linha
+          inteira é o botão, com 40 px de altura.
+          A CHAVE NUNCA É CORTADA: se não cabe numa linha (a aleatória tem 36
+          caracteres), ela quebra em duas dentro do botão, na fronteira de um
+          pedaço (pedacosDaChave). Reticências numa chave Pix escondem
+          justamente o pedaço que a pessoa confere. Ela vai inteira também no
+          title e no aria-label. */}
       <button
         type="button"
-        onClick={() => copiar(paraCopiar, `${b.id}-pix`, "Chave Pix")}
+        onClick={() => copiar(paraCopiar, `${b.id}-pix`, "Chave Pix", "Chave Pix copiada: cole no app do banco.")}
         className={`bk-pix-chave ${chaveCopiada ? "copiado" : ""}`}
-        title="Copiar a chave Pix no formato que o app do banco aceita"
+        title={`Copiar a chave Pix (${tipo}) no formato que o app do banco aceita: ${paraCopiar}`}
+        aria-label={`Copiar a chave Pix, ${tipo}: ${chaveVisivel}`}
       >
-        <span className="bk-pix-texto">
-          <span className="bk-pix-valor">{info.legivel || b.pix}</span>
-          {/* "Toque para copiar a chave" era instrução repetida: o botão ao
-              lado já diz "Copiar", e a linha custava altura em todo cartão.
-              A confirmação depois do clique continua -- essa informa. */}
-          {chaveCopiada && <span className="bk-pix-dica">Chave copiada: cole no app do banco</span>}
+        {seloDoTipo()}
+        <span className="bk-pix-valor">
+          {pedacosDaChave(chaveVisivel).map((p, i) => (
+            <Fragment key={i}>
+              {p}
+              <wbr />
+            </Fragment>
+          ))}
         </span>
+        {/* A CONFIRMAÇÃO É O PRÓPRIO BOTÃO: "Copiada" com o tique, no mesmo
+            lugar e com a mesma largura, e a frase "cole no app do banco" dita
+            pelo leitor de tela. Ela já foi para o aviso fixo do rodapé (revisão
+            de 11/10): ficava 6 s cobrindo o botão verde do cartão de baixo no
+            celular, continuava dizendo "Chave copiada" depois de copiar a
+            agência e apagava um aviso de erro ainda não lido. */}
         <span className="bk-pix-acao" aria-hidden="true">
-          {chaveCopiada ? <Check size={16} strokeWidth={2.6} /> : <Copy size={16} />}
+          {chaveCopiada ? <Check size={14} strokeWidth={2.6} /> : <Copy size={14} />}
           <span>{chaveCopiada ? "Copiada" : "Copiar"}</span>
         </span>
       </button>
@@ -263,39 +360,56 @@ function BlocoPix({ b, copiar, copiado, comConta, aoMudarComConta }) {
           {info.aviso}
         </p>
       )}
+      {/* AS AÇÕES SECUNDÁRIAS NUMA LINHA DISCRETA, todas à vista (nada foi
+          para menu): desenho de 28 px com toque de 40 (.alvo-40). O texto
+          curto lê como uma frase, "Chave no Whats [x] com a conta"; o que
+          cada uma faz por inteiro está no title e no aria-label.
+          O NOME ACESSÍVEL COMEÇA PELO TEXTO À VISTA (WCAG 2.5.3): no Controle
+          por Voz, "tocar em Chave no Whats" precisa achar o botão. */}
       <div className="bk-pix-extras">
+        {/* No cartão largo o selo do tipo vem para cá, como legenda da chave
+            (o app do banco mostra o tipo embaixo da chave do mesmo jeito), e
+            a chave ganha a largura toda do botão: cabe numa linha. */}
+        {seloDoTipo(" bk-pix-selo-linha")}
         <button
           type="button"
           onClick={() => setAberto(!aberto)}
           aria-expanded={aberto}
-          className="bk-quieto"
-          title="Gerar o código que o cliente cola no app e já paga"
+          className="bk-quieto alvo-40"
+          title="Pix copia e cola: gerar o código que o cliente cola no app e já paga"
+          aria-label="Copia e cola: gerar o código Pix"
         >
-          <QrCode size={15} />
-          Pix copia e cola
-          <ChevronDown size={14} className="bk-seta" />
+          <QrCode size={13} />
+          Copia e cola
+          <ChevronDown size={11} className="bk-seta" />
         </button>
-        <button
-          type="button"
-          onClick={() => abrirWhats(comConta ? textoPixComConta(b) : paraCopiar)}
-          className="bk-quieto"
-          title={
-            comConta
-              ? "Mandar no WhatsApp a chave Pix em destaque e, embaixo, a conta completa com o número do banco"
-              : "Mandar no WhatsApp uma mensagem só com a chave, para quem recebe copiar a mensagem inteira"
-          }
-        >
-          <MessageCircle size={15} />
-          {comConta ? "Pix e conta no Whats" : "Só a chave no Whats"}
-        </button>
+        {/* O botão e a caixinha andam juntos: no cartão estreito eles descem
+            inteiros para a segunda linha, e a frase não se parte no meio. */}
+        <span className="bk-pix-whats">
+          <button
+            type="button"
+            onClick={() => abrirWhats(comConta ? textoPixComConta(b) : paraCopiar)}
+            className="bk-quieto alvo-40"
+            title={textoWhatsPix}
+            aria-label={comConta ? "Chave no Whats: mandar a chave Pix e a conta completa" : "Chave no Whats: mandar só a chave Pix"}
+          >
+            <MessageCircle size={13} />
+            Chave no Whats
+          </button>
+          {/* A ESCOLHA DE MANDAR A CONTA JUNTO vale para todas as contas e fica
+              lembrada neste aparelho. O código copia e cola continua indo
+              sozinho: com texto junto, o app do banco recusa a colagem. */}
+          <label className="bk-junto alvo-40" title="Mandar a conta completa (com o número do banco) junto com a chave Pix no WhatsApp. Vale para todas as contas e fica lembrado neste aparelho.">
+            <input
+              type="checkbox"
+              checked={comConta}
+              onChange={(e) => aoMudarComConta(e.target.checked)}
+              aria-label="com a conta: mandar a conta completa junto com o Pix"
+            />
+            <span>com a conta</span>
+          </label>
+        </span>
       </div>
-      {/* A ESCOLHA DE MANDAR A CONTA JUNTO vale para todas as contas e fica
-          lembrada neste aparelho. O código copia e cola continua indo sozinho:
-          com texto junto, o app do banco recusa a colagem. */}
-      <label className="bk-junto">
-        <input type="checkbox" checked={comConta} onChange={(e) => aoMudarComConta(e.target.checked)} />
-        <span>Mandar a conta completa junto com o Pix</span>
-      </label>
 
       {aberto && (
         <div className="bk-cc">
@@ -490,7 +604,16 @@ export default function Bancos() {
      abaixo): trocar o ícone por um tique não chega a quem não vê. */
   const [falado, setFalado] = useState("");
   const falar = (t) => { setFalado(""); requestAnimationFrame(() => setFalado(t)); };
-  const copiar = async (texto, chave, rotulo = "Dado") => {
+  /* `fala`: o que o leitor de tela diz depois de copiar, quando há mais a
+     dizer que "<rótulo> copiado" (a chave Pix: "cole no app do banco").
+     TODA CÓPIA PASSA PELO falar(). A região de cima fica montada o tempo
+     todo e é zerada antes de receber o texto, então a segunda cópia da
+     mesma chave também é dita. A cópia da chave já usou o aviso do rodapé
+     (revisão de 11/10): região viva que nasce já com texto não tem anúncio
+     garantido, e com o mesmo texto da cópia anterior o React nem mexia no
+     DOM, e a segunda cópia ficava muda. A cópia também não mexe em `aviso`:
+     o de erro fica até alguém fechar. */
+  const copiar = async (texto, chave, rotulo = "Dado", fala = "") => {
     try {
       await navigator.clipboard.writeText(texto);
     } catch {
@@ -511,7 +634,7 @@ export default function Bancos() {
       }
     }
     setCopiado(chave);
-    falar(`${rotulo} copiado`);
+    falar(fala || `${rotulo} copiado`);
     clearTimeout(timer.current);
     timer.current = setTimeout(() => setCopiado(null), 1600);
   };
@@ -703,7 +826,7 @@ export default function Bancos() {
               <button
                 key={nome}
                 type="button"
-                className="bk-empresa"
+                className="bk-empresa alvo-40"
                 aria-pressed={escolhida === nome}
                 disabled={buscando}
                 title={buscando ? "Durante a busca aparecem todas as empresas" : undefined}
@@ -724,7 +847,9 @@ export default function Bancos() {
 
       {/* O AVISO FICA NO RODAPÉ DA TELA, não no topo da página: no celular,
           quem tocou em "confirmar" ou "Salvar" lá embaixo não via o erro que
-          aparecia centenas de pixels acima (revisão de 25/09). */}
+          aparecia centenas de pixels acima (revisão de 25/09). Ele é para o
+          que grava ou falha; a cópia que deu certo não abre aviso (ver
+          copiar()), só a que falhou. */}
       {aviso && (
         <div role={aviso.tom === "ok" ? "status" : "alert"} className={`bk-aviso ${aviso.tom === "ok" ? "ok" : "erro"}`}>
           {aviso.tom === "ok" ? <Check size={17} strokeWidth={2.6} /> : <AlertTriangle size={17} />}
@@ -905,61 +1030,97 @@ export default function Bancos() {
             {g.itens.map((b) => {
               const cod = codigoDaConta(b);
               const rotuloDoc = ehCPF(b.doc) ? "CPF" : "CNPJ";
+              /* O TITULAR SÓ APARECE QUANDO DIZ ALGO. Na seção "Impresilk",
+                 "Impresilk" embaixo de cada banco repetia o título da seção e
+                 custava uma linha por cartão. Diferente da seção (ex.:
+                 "Universo Holding" em "Universo"), ele aparece numa linha
+                 fina embaixo do banco. Igual, continua no title e no nome do
+                 cartão para o leitor de tela. */
+              const mesmoTitular = semAcento(b.titular) === semAcento(g.nome);
+              const copiouCod = copiado === `${b.id}-cod`;
               return (
-                <article key={b.id} className="bk-conta" aria-labelledby={`bk-${b.id}`}>
+                <article
+                  key={b.id}
+                  className="bk-conta"
+                  aria-labelledby={mesmoTitular ? `bk-${b.id}` : `bk-${b.id} bk-tit-${b.id}`}
+                >
+                  {/* CABEÇALHO NUMA PEÇA: selo de 32 px, o banco e, em linha
+                      fina embaixo, o número com o nome oficial. Antes eram
+                      três faixas (selo de 40 px com banco e titular, depois
+                      uma faixa só para o número). */}
                   <div className="bk-conta-topo">
-                    <SeloBanco conta={b} todas={todas} tamanho="h-10 w-10" />
+                    <SeloBanco conta={b} todas={todas} tamanho="h-8 w-8" compacto />
                     <div className="bk-conta-nome">
-                      <h3 id={`bk-${b.id}`} title={b.banco}>{b.banco}</h3>
-                      <p title={b.titular}>{b.titular}</p>
-                    </div>
-                    <div className="bk-conta-acoes">
-                      <button type="button" onClick={() => abrirForm(b)} className="bk-icone" title={`Editar ${b.banco}`} aria-label={`Editar ${b.banco}`}>
-                        <Pencil size={16} />
-                      </button>
-                      <button type="button" onClick={() => remover(b)} className="bk-icone perigo" title={`Remover ${b.banco}`} aria-label={`Remover ${b.banco}`}>
-                        <Trash2 size={16} />
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className="bk-codigo">
-                    {cod ? (
-                      <>
-                        <button
-                          type="button"
-                          onClick={() => copiar(cod.codigo, `${b.id}-cod`, "Número do banco")}
-                          className={`bk-chip ${copiado === `${b.id}-cod` ? "copiado" : ""}`}
-                          title="Copiar o número do banco"
-                          aria-label={`Copiar o número do banco: ${cod.codigo}`}
-                        >
-                          <strong>{cod.codigo}</strong>
-                          {cod.banco && <span>{cod.banco.nome}</span>}
-                          {copiado === `${b.id}-cod` ? <Check size={13} strokeWidth={2.6} /> : <Copy size={13} />}
-                        </button>
-                        {cod.deduzido && (
+                      <h3 id={`bk-${b.id}`} title={`${b.banco} · titular: ${b.titular}`}>
+                        {b.banco}
+                        {mesmoTitular && <span className="sr-only">, de {b.titular}</span>}
+                      </h3>
+                      {/* Titular diferente da seção ganha linha própria: ao
+                          lado do banco ele ficava com 40 px ("Univ...") no
+                          celular, e quem paga precisa ler o titular inteiro.
+                          Por isso ele QUEBRA em vez de cortar (bancos.css):
+                          o title não abre no toque. A linha é rara. */}
+                      {!mesmoTitular && (
+                        <p id={`bk-tit-${b.id}`} className="bk-conta-titular" title={b.titular}>
+                          {b.titular}
+                        </p>
+                      )}
+                      <div className="bk-codigo">
+                        {cod ? (
+                          <>
+                            <button
+                              type="button"
+                              onClick={() => copiar(cod.codigo, `${b.id}-cod`, "Número do banco")}
+                              className={`bk-chip alvo-40 ${copiouCod ? "copiado" : ""}`}
+                              title={`Copiar o número do banco: ${cod.codigo}${cod.banco ? ` (${cod.banco.nome})` : ""}`}
+                              aria-label={`Copiar o número do banco: ${cod.codigo}${cod.banco ? ` ${cod.banco.nome}` : ""}`}
+                            >
+                              <strong>{cod.codigo}</strong>
+                              {cod.banco && <span>{cod.banco.nome}</span>}
+                              {copiouCod ? <Check size={11} strokeWidth={2.8} /> : <Copy size={11} />}
+                            </button>
+                            {/* "Pelo nome · confirmar" virou "confirmar" com o
+                                triângulo: cabe ao lado do número no cartão
+                                estreito. O porquê (deduzido do nome, já vai na
+                                mensagem) está no title e no aria-label. */}
+                            {cod.deduzido && (
+                              <button
+                                type="button"
+                                onClick={() => confirmarCodigo(b, cod.codigo)}
+                                className="bk-chip aviso alvo-40"
+                                title="Número deduzido pelo nome do banco: ele já vai na mensagem. Toque para confirmar e gravar."
+                                aria-label={`Número ${cod.codigo} deduzido pelo nome do banco: confirmar`}
+                              >
+                                <AlertTriangle size={11} />
+                                confirmar
+                              </button>
+                            )}
+                          </>
+                        ) : (
                           <button
                             type="button"
-                            onClick={() => confirmarCodigo(b, cod.codigo)}
-                            className="bk-chip aviso"
-                            title="O número foi deduzido do nome do banco e já vai na mensagem. Confirme para gravar."
+                            onClick={() => abrirForm(b)}
+                            className="bk-chip aviso alvo-40"
+                            title="Esta conta não tem número do banco. Toque para cadastrar."
                           >
-                            <AlertTriangle size={13} />
-                            Pelo nome · confirmar
+                            <AlertTriangle size={11} />
+                            Sem número · cadastrar
                           </button>
                         )}
-                      </>
-                    ) : (
-                      <button type="button" onClick={() => abrirForm(b)} className="bk-chip aviso">
-                        <AlertTriangle size={13} />
-                        Sem número do banco · cadastrar
+                      </div>
+                    </div>
+                    <div className="bk-conta-acoes">
+                      <button type="button" onClick={() => abrirForm(b)} className="bk-icone mini alvo-40" title={`Editar ${b.banco}`} aria-label={`Editar ${b.banco}`}>
+                        <Pencil size={15} />
                       </button>
-                    )}
+                      <button type="button" onClick={() => remover(b)} className="bk-icone mini perigo alvo-40" title={`Remover ${b.banco}`} aria-label={`Remover ${b.banco}`}>
+                        <Trash2 size={15} />
+                      </button>
+                    </div>
                   </div>
 
                   <dl className="bk-dados">
                     <Valor
-                      largo
                       rotulo={rotuloDoc}
                       valor={b.doc}
                       copiado={copiado === `${b.id}-doc`}
@@ -994,7 +1155,7 @@ export default function Bancos() {
                       className="bk-whats"
                       title="Abrir o WhatsApp com estes dados prontos"
                     >
-                      <MessageCircle size={17} strokeWidth={2.3} />
+                      <MessageCircle size={16} strokeWidth={2.3} />
                       Mandar dados no WhatsApp
                     </button>
                     <button
@@ -1004,7 +1165,7 @@ export default function Bancos() {
                       title="Copiar a conta inteira"
                       aria-label="Copiar a conta inteira"
                     >
-                      {copiado === `${b.id}-tudo` ? <Check size={17} strokeWidth={2.6} /> : <Copy size={17} />}
+                      {copiado === `${b.id}-tudo` ? <Check size={16} strokeWidth={2.6} /> : <Copy size={16} />}
                     </button>
                   </div>
                 </article>

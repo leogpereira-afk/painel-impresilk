@@ -22,14 +22,21 @@
   --bk-ok-suave: #ecfbf2;
   --bk-aviso: #a5520a;
   --bk-aviso-suave: #fff6e5;
-  --bk-aviso-fio: #fde3b4;
   --bk-perigo: #b91c1c;
   --bk-perigo-suave: #fef2f2;
   --bk-sombra: 0 1px 2px rgba(24, 26, 84, 0.04), 0 10px 28px -18px rgba(24, 26, 84, 0.22);
+  /* Ícone de copiar em repouso e o anel do hover da chave Pix. Os dois têm
+     par no tema escuro, logo abaixo. O ícone é discreto, mas não some: no
+     chip do número do banco (sem borda nem fundo em repouso) ele é a única
+     pista de que ali se copia, e objeto gráfico pede 3:1. #878da3 dá 3,3:1
+     sobre o branco do cartão (o #b4b8cc de antes dava 1,97:1); o par do
+     escuro dá 3,1:1 sobre a superfície escura. */
+  --bk-icone-suave: #878da3;
+  --bk-marca-anel: rgba(56, 64, 232, 0.08);
   --bk-mono: "SF Mono", ui-monospace, Menlo, Consolas, "Liberation Mono", monospace;
   display: flex;
   flex-direction: column;
-  gap: 22px;
+  gap: 18px;
   min-width: 0;
 }
 .dark .bk-page {
@@ -45,10 +52,11 @@
   --bk-ok-suave: rgba(34, 197, 94, 0.14);
   --bk-aviso: #fcd34d;
   --bk-aviso-suave: rgba(217, 119, 6, 0.16);
-  --bk-aviso-fio: rgba(217, 119, 6, 0.34);
   --bk-perigo: #fca5a5;
   --bk-perigo-suave: rgba(220, 38, 38, 0.16);
   --bk-sombra: 0 1px 2px rgba(0, 0, 0, 0.3), 0 12px 30px -18px rgba(0, 0, 0, 0.6);
+  --bk-icone-suave: rgba(255, 255, 255, 0.34);
+  --bk-marca-anel: rgba(143, 149, 245, 0.16);
 }
 
 /* Sem peso de seletor (:where): a herança da fonte não pode vencer o tamanho
@@ -57,10 +65,13 @@
 :where(.bk-page) :where(button, input, select, textarea) {
   font-family: inherit;
 }
+/* Sem border-radius aqui: o contorno do foco acompanha o raio de cada peça.
+   Com raio fixo de 10 px (e o peso de .bk-page + :is), ele vencia o raio do
+   chip do número (7 px, 22 de altura), do lápis e da lixeira (9) e da chave
+   Pix (9), e o foco pelo teclado deformava o controle. */
 .bk-page :is(button, a, input, select, textarea):focus-visible {
   outline: 2px solid var(--bk-marca);
   outline-offset: 2px;
-  border-radius: 10px;
 }
 .bk-mono {
   font-family: var(--bk-mono);
@@ -99,15 +110,16 @@
   padding-right: 44px;
   border-radius: 12px;
 }
+/* 40 px, o piso de controle, dentro da busca de 44. */
 .bk-busca-limpar {
   position: absolute;
-  right: 4px;
+  right: 2px;
   top: 50%;
   transform: translateY(-50%);
   display: grid;
   place-items: center;
-  width: 36px;
-  height: 36px;
+  width: 40px;
+  height: 40px;
   border-radius: 9px;
   color: var(--bk-muted);
 }
@@ -183,7 +195,7 @@
 .bk-grupo {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 10px;
   min-width: 0;
 }
 .bk-grupo-cab {
@@ -210,23 +222,43 @@
   background: var(--bk-fio);
 }
 
-/* Duas colunas na largura comum do painel; a terceira só entra em tela muito
-   larga, onde os botões ainda cabem numa linha (com três colunas apertadas, o
-   rótulo da chave e o do WhatsApp quebravam). */
+/* ── Grade ──────────────────────────────────────────────────────────────────
+   CARTÃO COMPACTO DE VERDADE (11/10/2026). O Léo mandou o print do cartão a
+   uns 1000 px e disse: "se isso é o card compactado eu não vi nada, está
+   grande e cheio de espaço desperdiçado". O corte de antes (a0d993d) mexeu em
+   respiro; este mexe na ARRUMAÇÃO: cabeçalho numa peça, os dados numa linha,
+   o Pix numa linha e as ações secundárias numa linha discreta. Nenhum dado e
+   nenhuma ação saíram; o que saiu do desenho foi para title e aria-label.
+
+   Colunas de no mínimo 350 px: três a partir de ~1070 px de conteúdo (a tela
+   de 1440 tem ~1150), duas no meio (a de 1280 tem 989), uma no celular,
+   quatro só em monitor largo (~1430 px). Por que não três já em 1280: cada
+   cartão teria 323 px, menos que o do celular, e CNPJ, agência e conta não
+   caberiam mais numa linha.
+
+   `align-items: start`: cada cartão tem a altura do que tem dentro. Esticado,
+   o cartão sem Pix ficava da altura do vizinho com Pix, com um vão no meio:
+   era exatamente o "espaço desperdiçado" do print. */
 .bk-grade {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, 360px), 1fr));
-  gap: 12px;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 350px), 1fr));
+  align-items: start;
+  gap: 10px;
 }
 
 /* ── Cartão da conta ────────────────────────────────────────────────────── */
 .bk-conta {
+  /* O cartão é contêiner de consulta (@container bk-conta, no fim do
+     arquivo): quem decide o que cabe é a largura DO CARTÃO, não a da tela.
+     No celular o cartão (343 px) é mais estreito que uma das três colunas do
+     computador (379), e uma media query erraria a pergunta. */
+  container: bk-conta / inline-size;
   display: flex;
   flex-direction: column;
   min-width: 0;
-  padding: 14px;
+  padding: 10px 12px;
   border: 1px solid var(--bk-fio);
-  border-radius: 16px;
+  border-radius: 14px;
   background: var(--surface);
   box-shadow: var(--bk-sombra);
   transition: border-color 0.2s;
@@ -237,39 +269,50 @@
 .dark .bk-conta:hover {
   border-color: rgba(255, 255, 255, 0.16);
 }
+
+/* Cabeçalho: selo | banco e número | lápis e lixeira. O selo e os dois
+   ícones ficam centrados na altura das duas linhas do meio. */
 .bk-conta-topo {
-  display: flex;
-  align-items: flex-start;
-  gap: 12px;
+  display: grid;
+  grid-template-columns: 32px minmax(0, 1fr) auto;
+  align-items: center;
+  column-gap: 8px;
 }
 .bk-conta-nome {
   min-width: 0;
-  flex: 1;
-  padding-top: 2px;
+}
+/* O nome do banco pode ceder com reticências: não é número, e o nome
+   inteiro está no title. O titular NÃO: quem paga confere o titular inteiro,
+   e o title não abre no toque. Ele quebra em mais linhas (ver abaixo); só
+   aparece quando é diferente do nome da seção, então é raro. */
+.bk-conta-nome h3 {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .bk-conta-nome h3 {
   font-family: "Poppins", system-ui, sans-serif;
-  font-size: 16px;
+  font-size: 14.5px;
   font-weight: 600;
-  line-height: 1.3;
-  letter-spacing: -0.015em;
+  line-height: 18px;
+  letter-spacing: -0.01em;
   color: var(--bk-ink);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
-.bk-conta-nome p {
-  margin-top: 2px;
-  font-size: 13px;
+/* Só aparece quando o titular é diferente do nome da seção (ver o cartão). */
+.bk-conta-titular {
+  min-width: 0;
+  font-size: 12px;
+  line-height: 16px;
   color: var(--bk-muted);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
 }
 .bk-conta-acoes {
   display: flex;
-  gap: 2px;
-  margin: -4px -6px 0 0;
+  /* 8 px entre os dois: os alvos de 40 px (.alvo-40) se encostam sem se
+     sobrepor, e o toque no lápis nunca cai na lixeira. */
+  gap: 8px;
+  margin-right: -4px;
 }
 .bk-icone {
   display: grid;
@@ -280,6 +323,11 @@
   color: var(--bk-muted);
   transition: background-color 0.18s, color 0.18s;
 }
+.bk-icone.mini {
+  width: 32px;
+  height: 32px;
+  border-radius: 9px;
+}
 .bk-icone:hover {
   background: var(--bk-suave);
   color: var(--bk-ink);
@@ -289,33 +337,42 @@
   color: var(--bk-perigo);
 }
 
-/* Número do banco: chip que copia; e os avisos de número a confirmar. */
+/* Número do banco em linha fina embaixo do nome: o chip não tem borda, só
+   ganha fundo no hover. A margem negativa alinha o número com o nome.
+   UMA LINHA SÓ, sem quebrar: no cartão estreito o nome oficial do banco
+   cede com reticências (ele está inteiro no title e no aria-label do chip);
+   o número e o "confirmar" nunca. Quebrando, a linha virava duas e o
+   cabeçalho crescia 24 px justo no celular. */
 .bk-codigo {
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
-  gap: 6px;
-  margin-top: 8px;
+  gap: 4px;
+  margin: 2px 0 0 -6px;
+  min-width: 0;
 }
 .bk-chip {
   display: inline-flex;
+  flex: 0 1 auto;
   align-items: center;
-  gap: 7px;
-  min-height: 28px;
+  gap: 4px;
+  min-width: 0;
+  height: 22px;
   max-width: 100%;
-  padding: 0 10px;
-  border: 1px solid var(--bk-fio);
-  border-radius: 9px;
-  background: var(--bk-suave);
-  color: var(--bk-texto);
-  font-size: 12px;
-  transition: border-color 0.18s, background-color 0.18s, color 0.18s;
+  padding: 0 6px;
+  border-radius: 7px;
+  color: var(--bk-muted);
+  font-size: 11.5px;
+  line-height: 1;
+  transition: background-color 0.18s, color 0.18s;
 }
 .bk-chip strong {
+  flex-shrink: 0;
   font-family: var(--bk-mono);
+  font-size: 12px;
   font-weight: 600;
   color: var(--bk-ink);
 }
+/* O nome oficial pode ceder (ele está inteiro no title); o número, nunca. */
 .bk-chip span {
   min-width: 0;
   overflow: hidden;
@@ -324,10 +381,9 @@
 }
 .bk-chip svg {
   flex-shrink: 0;
-  color: var(--bk-muted);
+  color: var(--bk-icone-suave);
 }
 button.bk-chip:hover {
-  border-color: var(--bk-marca-fio);
   background: var(--bk-marca-suave);
   color: var(--bk-marca-forte);
 }
@@ -335,11 +391,13 @@ button.bk-chip:hover svg {
   color: var(--bk-marca);
 }
 .bk-chip.copiado,
-.bk-chip.copiado svg {
+.bk-chip.copiado svg,
+.bk-chip.copiado strong {
   color: var(--bk-ok-texto);
 }
 .bk-chip.aviso {
-  border-color: var(--bk-aviso-fio);
+  flex-shrink: 0;
+  padding: 0 7px;
   background: var(--bk-aviso-suave);
   color: var(--bk-aviso);
   font-weight: 600;
@@ -348,212 +406,203 @@ button.bk-chip:hover svg {
   color: currentColor;
 }
 button.bk-chip.aviso:hover {
-  border-color: var(--bk-aviso);
   background: var(--bk-aviso-suave);
   color: var(--bk-aviso);
   text-decoration: underline;
 }
 
-/* Agência, conta, documento: uma linha inteira copia.
-   DUAS COLUNAS, porque agência e conta são curtas e ocupavam uma faixa inteira
-   cada uma. O documento (CNPJ tem 18 caracteres) atravessa as duas: espremido
-   em meia largura ele truncaria, e número de conta truncado não serve para
-   nada. Sai uma faixa inteira do cartão sem tirar um dado sequer. */
-/* AGÊNCIA E CONTA DIVIDEM UMA FAIXA; O DOCUMENTO FICA COM ELA INTEIRA.
-   São duas faixas em vez de três, sem tirar um dado sequer. O documento não
-   divide porque um CNPJ tem 18 caracteres e, espremido em meia largura,
-   truncaria -- e número truncado não serve para nada.
+/* ── Dados: CNPJ, agência e conta numa linha ────────────────────────────────
+   Cada dado é uma célula: rótulo pequeno em cima, valor em mono embaixo,
+   ícone de copiar pequeno. Sem fio entre eles (o rótulo em cima já separa).
 
-   Por que `flex-wrap` e não grade: a grade distribui TRILHOS, e os itens aqui
-   são só dois. Num cartão largo (tablet, 727 px) uma grade de trilhos livres
-   abria quatro colunas, duas delas vazias. O flex distribui o que EXISTE:
-   os dois cabem lado a lado quando há espaço e caem um sob o outro quando não
-   há, sem limiar nenhum escrito à mão. Isso importa porque no celular o
-   cartão fica MAIS ESTREITO (343 px) do que numa das três colunas do desktop
-   (375 px) -- lá "000000-1" virava "000…". Uma media query de celular erraria
-   a pergunta: quem decide é o espaço do CARTÃO, não o da tela. */
+   `flex-wrap` e não grade, pela mesma razão de antes: quem decide é o espaço
+   do CARTÃO, não o da tela. Os três cabem numa linha a partir de ~320 px de
+   cartão (no celular de 375, com os dados de exemplo, sobram de 6 a 14
+   px); abaixo disso o CNPJ fica na primeira linha e agência e conta caem
+   juntas para a segunda. Nada é cortado: a célula não encolhe abaixo do
+   próprio valor (só o valor que sozinho não cabe no cartão inteiro quebra).
+
+   10 px acima: o alvo de 40 px do chip do número (22 px de desenho) desce 9
+   px; com 10 ele não cobre a célula de baixo. */
 .bk-dados {
-  margin-top: 10px;
   display: flex;
   flex-wrap: wrap;
-  column-gap: 14px;
-  border-top: 1px solid var(--bk-fio);
+  column-gap: 2px;
+  margin: 10px -4px 0;
 }
-.bk-linha {
-  flex: 1 1 160px;
+.bk-dado {
+  position: relative;
+  flex: 1 1 auto;
   min-width: 0;
-}
-.bk-linha.largo,
-.bk-sem-pix {
-  flex: 1 1 100%;
-  min-width: 0;
-}
-.bk-linha {
   display: flex;
-  align-items: center;
-  gap: 10px;
-  border-bottom: 1px solid var(--fio-lista);
+  flex-direction: column;
+  justify-content: center;
+  /* 40 px é o piso de CONTROLE da casa: a célula inteira é o alvo. */
+  min-height: 40px;
+  padding: 3px 4px;
+  border-radius: 9px;
+  transition: background-color 0.18s;
 }
-.bk-linha dt {
-  flex: 0 0 auto;
+.bk-dado dt,
+.bk-sem-pix dt {
   font-family: "Poppins", system-ui, sans-serif;
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 500;
+  line-height: 13px;
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--bk-muted);
 }
-.bk-linha dd {
-  flex: 1;
+.bk-dado dd {
+  /* flex e não bloco: num bloco, a linha do botão herda a altura de linha
+     do corpo (24 px) e a célula crescia 3 px à toa em todo cartão. */
+  display: flex;
   min-width: 0;
 }
 .bk-copiavel {
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  justify-content: flex-end;
-  gap: 10px;
-  width: 100%;
-  /* 40px é o piso de CONTROLE da casa (44 para navegação). Abaixo disso o
-     dedo erra, então a compactação para aqui. */
-  min-height: 40px;
-  padding: 0 6px;
-  margin-right: -6px;
-  border-radius: 10px;
+  gap: 4px;
+  max-width: 100%;
   color: var(--bk-ink);
-  text-align: right;
-  transition: background-color 0.18s, color 0.18s;
+  text-align: left;
+  transition: color 0.18s;
+}
+/* O ::after estica o botão sobre a célula: tocar no rótulo também copia. */
+.bk-copiavel::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 9px;
 }
 .bk-copiavel .bk-valor {
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
   font-family: var(--bk-mono);
-  font-size: 14px;
+  font-size: 13px;
+  line-height: 19px;
   font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
 }
 .bk-copiavel svg {
   flex-shrink: 0;
-  color: #b9bdcf;
+  color: var(--bk-icone-suave);
   transition: color 0.18s;
 }
-.bk-copiavel:hover {
+.bk-dado:hover {
   background: var(--bk-marca-suave);
+}
+.bk-dado:hover .bk-copiavel {
   color: var(--bk-marca-forte);
 }
-.bk-copiavel:hover svg {
+.bk-dado:hover .bk-copiavel svg {
   color: var(--bk-marca);
 }
-.bk-copiavel.copiado,
-.bk-copiavel.copiado svg {
+.bk-dado.copiado .bk-copiavel,
+.bk-dado.copiado .bk-copiavel svg {
   color: var(--bk-ok-texto);
 }
+/* O contorno do foco vai na célula toda (o ::after), não só no número. */
+.bk-page .bk-copiavel:focus-visible {
+  outline: none;
+}
+.bk-page .bk-copiavel:focus-visible::after {
+  outline: 2px solid var(--bk-marca);
+  outline-offset: 0;
+}
 .bk-sem-pix {
+  flex: 1 1 100%;
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  min-height: 40px;
-  font-size: 13px;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+  padding: 0 4px;
+  font-size: 12px;
+  line-height: 16px;
   color: var(--bk-muted);
 }
-.bk-sem-pix dt {
-  flex: 0 0 auto;
-  font-family: "Poppins", system-ui, sans-serif;
-  font-size: 11px;
-  font-weight: 500;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-}
 
-/* ── O painel do Pix ────────────────────────────────────────────────────── */
+/* ── O Pix ───────────────────────────────────────────────────────────────── */
 .bk-pix {
-  margin-top: 10px;
-  padding: 10px;
+  margin-top: 8px;
+  padding: 4px;
   border: 1px solid var(--bk-marca-fio);
-  border-radius: 14px;
+  border-radius: 12px;
   background: var(--bk-marca-suave);
-}
-.bk-pix-cab {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 6px;
-}
-.bk-pix-rotulo {
-  font-family: "Poppins", system-ui, sans-serif;
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--bk-marca-forte);
-}
-.bk-pix-tipo {
-  padding: 2px 8px;
-  border-radius: 999px;
-  background: var(--surface);
-  color: var(--bk-texto);
-  font-size: 11px;
-  font-weight: 500;
-  box-shadow: inset 0 0 0 1px var(--bk-marca-fio);
 }
 .bk-pix-chave {
   display: flex;
   align-items: center;
-  gap: 12px;
-  /* 48px: cabe o valor e, quando copiada, a confirmação embaixo. A altura é
-     fixa de propósito -- a dica só nasce depois do clique, e sem o piso o
-     cartão pularia debaixo do dedo. */
+  gap: 8px;
   width: 100%;
-  min-height: 48px;
-  padding: 6px 6px 6px 12px;
+  min-height: 40px;
+  padding: 4px 4px 4px 6px;
   border: 1px solid var(--bk-marca-fio);
-  border-radius: 12px;
+  border-radius: 9px;
   background: var(--surface);
   text-align: left;
   transition: border-color 0.18s, box-shadow 0.18s;
 }
 .bk-pix-chave:hover {
   border-color: var(--bk-marca);
-  box-shadow: 0 0 0 4px rgba(56, 64, 232, 0.08);
+  box-shadow: 0 0 0 3px var(--bk-marca-anel);
 }
-.bk-pix-texto {
-  min-width: 0;
-  flex: 1;
+/* O tipo da chave como selo: "PIX" na cor da marca e o tipo ao lado. */
+.bk-pix-selo {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: baseline;
+  gap: 4px;
+  padding: 3px 7px;
+  border-radius: 999px;
+  background: var(--bk-marca-suave);
+  color: var(--bk-texto);
+  font-family: "Poppins", system-ui, sans-serif;
+  font-size: 10.5px;
+  font-weight: 500;
+  line-height: 14px;
+  white-space: nowrap;
+}
+.bk-pix-selo b {
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--bk-marca-forte);
+}
+/* A cópia do selo que mora na linha das ações: escondida aqui e mostrada só
+   no cartão largo (@container no fim do arquivo), quando sai do botão da
+   chave. Sem fundo: ali o fundo já é o do bloco do Pix, e uma pílula branca
+   ao lado dos botões quietos pareceria mais um botão. */
+.bk-pix-selo.bk-pix-selo-linha {
+  display: none;
+  align-items: center;
+  height: 28px;
+  padding: 0 6px 0 5px;
+  background: none;
 }
 .bk-pix-valor {
-  display: block;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  flex: 1;
+  min-width: 0;
   font-family: var(--bk-mono);
-  font-size: 14.5px;
+  font-size: 13px;
   font-weight: 500;
+  line-height: 16px;
   color: var(--bk-ink);
   font-variant-numeric: tabular-nums;
-}
-.bk-pix-dica {
-  display: block;
-  margin-top: 2px;
-  font-size: 11.5px;
-  color: var(--bk-muted);
-}
-.bk-pix-chave.copiado .bk-pix-dica {
-  color: var(--bk-ok-texto);
-  font-weight: 600;
+  overflow-wrap: anywhere;
 }
 .bk-pix-acao {
   display: inline-flex;
-  align-items: center;
-  gap: 6px;
   flex-shrink: 0;
-  min-height: 40px;
-  padding: 0 14px;
-  border-radius: 10px;
+  align-items: center;
+  gap: 5px;
+  height: 30px;
+  padding: 0 9px;
+  border-radius: 7px;
   background: var(--bk-marca);
   color: #fff;
   font-family: "Poppins", system-ui, sans-serif;
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 600;
   transition: background-color 0.18s;
 }
@@ -573,7 +622,7 @@ button.bk-chip.aviso:hover {
   display: flex;
   align-items: flex-start;
   gap: 6px;
-  margin-top: 8px;
+  margin: 6px 4px 0;
   font-size: 12px;
   line-height: 1.45;
   color: var(--bk-aviso);
@@ -582,27 +631,37 @@ button.bk-chip.aviso:hover {
   flex-shrink: 0;
   margin-top: 2px;
 }
+/* A linha das ações secundárias: 28 px de desenho, 40 de toque (.alvo-40).
+   6 px acima: o alvo sobe 6 px e encosta no botão da chave sem cobri-lo.
+   Cabem numa linha a partir de ~330 px de painel (o cartão de três colunas
+   na tela de 1440 tem 343). No cartão mais estreito (celular) a dupla
+   "Chave no Whats / com a conta" desce inteira, e os 12 px entre as linhas
+   são o que impede o alvo de cima de cobrir o de baixo (6 + 6). */
 .bk-pix-extras {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 8px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 2px;
   margin-top: 6px;
 }
-.bk-quieto {
+.bk-pix-whats {
   display: inline-flex;
   align-items: center;
-  justify-content: center;
-  gap: 7px;
-  min-height: 40px;
-  padding: 0 10px;
-  border-radius: 10px;
+  gap: 2px;
+}
+.bk-quieto,
+.bk-junto {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 28px;
+  padding: 0 5px;
+  border-radius: 7px;
   color: var(--bk-texto);
   font-family: "Poppins", system-ui, sans-serif;
-  font-size: 12.5px;
+  font-size: 11px;
   font-weight: 500;
-  line-height: 1.25;
-  text-align: center;
-  min-width: 0;
+  white-space: nowrap;
   transition: background-color 0.18s, color 0.18s;
 }
 .bk-quieto svg {
@@ -610,7 +669,8 @@ button.bk-chip.aviso:hover {
   color: var(--bk-marca);
 }
 .bk-quieto:hover,
-.bk-quieto[aria-expanded="true"] {
+.bk-quieto[aria-expanded="true"],
+.bk-junto:hover {
   background: var(--surface);
   color: var(--bk-ink);
 }
@@ -621,37 +681,29 @@ button.bk-chip.aviso:hover {
 .bk-quieto[aria-expanded="true"] .bk-seta {
   transform: rotate(180deg);
 }
-
-/* "Mandar a conta completa junto com o Pix". */
+/* "com a conta": a caixinha que decide se o "Chave no Whats" leva a conta. */
 .bk-junto {
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  min-height: 40px;
-  margin-top: 2px;
-  padding: 0 4px;
-  border-top: 1px solid var(--bk-marca-fio);
-  font-size: 12.5px;
-  color: var(--bk-texto);
+  gap: 5px;
   cursor: pointer;
 }
 .bk-junto input {
-  width: 18px;
-  height: 18px;
+  width: 15px;
+  height: 15px;
   flex-shrink: 0;
   accent-color: var(--bk-marca);
   cursor: pointer;
 }
 
-/* Pix copia e cola, aberto dentro do painel do Pix. */
+/* Pix copia e cola, aberto dentro do painel do Pix. 8 px acima: o alvo da
+   linha de ações desce 6 px. */
 .bk-cc {
   display: flex;
   flex-direction: column;
   gap: 10px;
-  margin-top: 10px;
-  padding: 12px;
+  margin-top: 8px;
+  padding: 10px;
   border: 1px solid var(--bk-fio);
-  border-radius: 12px;
+  border-radius: 10px;
   background: var(--surface);
 }
 .bk-cc-campos {
@@ -710,26 +762,27 @@ button.bk-chip.aviso:hover {
   flex-shrink: 0;
 }
 
-/* ── Rodapé do cartão: a ação principal ─────────────────────────────────── */
+/* ── Rodapé do cartão: a ação principal ─────────────────────────────────────
+   O verde continua sendo o único botão cheio do cartão, agora com 40 px (o
+   piso de controle) em vez de 44, na mesma linha do copiar a conta inteira. */
 .bk-rodape {
   display: flex;
   gap: 8px;
-  margin-top: auto;
-  padding-top: 12px;
+  margin-top: 8px;
 }
 .bk-whats {
   display: inline-flex;
   flex: 1;
   align-items: center;
   justify-content: center;
-  gap: 8px;
-  min-height: 44px;
-  padding: 0 14px;
-  border-radius: 12px;
+  gap: 7px;
+  min-height: 40px;
+  padding: 0 12px;
+  border-radius: 10px;
   background: var(--bk-ok);
   color: #fff;
   font-family: "Poppins", system-ui, sans-serif;
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 600;
   box-shadow: 0 1px 2px rgba(17, 106, 51, 0.24);
   transition: background-color 0.18s, transform 0.18s var(--ease-apple);
@@ -739,19 +792,23 @@ button.bk-chip.aviso:hover {
 .bk-whats:hover {
   background: var(--bk-ok-forte);
 }
+/* O afundar do toque vai na CÉLULA (.bk-dado), não no botão: transform no
+   botão faria dele a caixa do ::after, que encolheria para o tamanho do
+   número no meio do toque, e o clique começado no rótulo terminaria fora do
+   botão (não copiava). */
 .bk-whats:active,
 .bk-pix-chave:active,
-.bk-copiavel:active {
+.bk-dado:active {
   transform: scale(0.985);
 }
 .bk-tudo {
   display: grid;
   place-items: center;
   flex-shrink: 0;
-  width: 44px;
-  height: 44px;
+  width: 40px;
+  height: 40px;
   border: 1px solid var(--bk-fio);
-  border-radius: 12px;
+  border-radius: 10px;
   color: var(--bk-muted);
   transition: background-color 0.18s, color 0.18s, border-color 0.18s;
 }
@@ -928,13 +985,15 @@ button.bk-chip.aviso:hover {
   flex: 1;
   padding-top: 1px;
 }
+/* O fechar do aviso com 40 px, o piso de controle (tinha 36). */
 .bk-aviso button {
   display: grid;
   place-items: center;
   flex-shrink: 0;
-  width: 36px;
-  height: 36px;
-  margin-top: -6px;
+  width: 40px;
+  height: 40px;
+  margin-top: -8px;
+  margin-bottom: -8px;
   border-radius: 10px;
 }
 .bk-aviso button:hover {
@@ -953,9 +1012,6 @@ button.bk-chip.aviso:hover {
 
 /* ── Celular ────────────────────────────────────────────────────────────── */
 @media (max-width: 640px) {
-  .bk-page {
-    gap: 18px;
-  }
   .bk-busca {
     flex-basis: 100%;
     max-width: none;
@@ -963,30 +1019,62 @@ button.bk-chip.aviso:hover {
   .bk-empresas {
     flex: 1 1 auto;
   }
-  .bk-conta {
-    padding: 14px;
-    border-radius: 16px;
-  }
-  .bk-linha dt,
-  .bk-sem-pix dt {
-    flex-basis: 64px;
-  }
+  /* O cartão no celular é o mesmo do computador: ele se arruma pelo espaço
+     do próprio cartão (@container bk-conta, logo abaixo), não pelo da tela.
+     No celular de 375 o cartão tem 317 px de conteúdo e cai no modo
+     estreito: o "Copiar" da chave fica só com o ícone. */
   .bk-cc-campos {
     grid-template-columns: 1fr;
+  }
+}
+
+/* ── Cartão estreito (celular e a coluna mais fina do computador) ─────────
+   As três ações secundárias do Pix pedem ~336 px com os ícones, e o painel
+   do Pix no celular tem 307. Sem os dois ícones da frente (o texto já diz o
+   que é: "Copia e cola", "Chave no Whats") elas cabem numa linha, e o cartão
+   não paga 40 px por uma segunda. A seta do "Copia e cola" fica: ela diz que
+   ali abre alguma coisa.
+
+   O "Copiar" da chave fica só com o ícone (como já era no celular antes): a
+   linha inteira é o botão, o aria-label diz o que ele faz e a confirmação é
+   o tique no lugar do ícone (e a fala do leitor de tela). Com a palavra, a
+   chave aleatória tinha 118 px e ia para três linhas; sem ela, 166 px e
+   duas. */
+@container bk-conta (max-width: 347px) {
+  .bk-quieto svg:not(.bk-seta) {
+    display: none;
   }
   .bk-pix-acao span {
     display: none;
   }
   .bk-pix-acao {
-    width: 44px;
-    min-height: 44px;
-    padding: 0;
     justify-content: center;
+    width: 30px;
+    padding: 0;
   }
 }
-@media (max-width: 380px) {
-  .bk-pix-extras {
-    grid-template-columns: 1fr;
+
+/* ── Cartão largo (duas colunas a 1280, tablet de uma coluna) ─────────────
+   Revisão de 11/10, medida a 1280 (cartão de 490 px, 464 de conteúdo): à
+   direita das ações do Pix sobravam 128 px vazios, e a chave aleatória ia
+   para duas linhas porque dividia a linha com o selo (83 px) e o "Copiar"
+   (78). Aqui o selo sai do botão e vira a legenda no começo da linha das
+   ações, que já existia: a chave ganha a largura toda e cabe numa linha, e
+   o vão da direita vira o selo. Nenhuma linha nova; o Pix encolhe.
+   A conta: selo ~70 + ações com ícone 336 = ~412 px, que cabem na linha a
+   partir de 440 px de conteúdo (430 por dentro do bloco do Pix). Abaixo
+   disso o selo volta para dentro do botão. Se um tipo de chave mais
+   comprido não couber, o flex-wrap das ações leva "Chave no Whats / com a
+   conta" para a linha de baixo, com os 12 px que separam os alvos. */
+@container bk-conta (min-width: 440px) {
+  .bk-pix-chave .bk-pix-selo {
+    display: none;
+  }
+  .bk-pix-selo.bk-pix-selo-linha {
+    display: inline-flex;
+  }
+  .bk-pix-chave {
+    padding-left: 10px;
   }
 }
 
