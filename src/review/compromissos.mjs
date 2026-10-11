@@ -1,8 +1,8 @@
 import {prepararCompromissoRH,enriquecerCompromissosRH,autorCompromissoRH} from '../../supabase/functions/_shared/compromissos-rh.mjs';
 // Exemplos fictícios para validar a agenda. Escritas ficam apenas na memória da prévia.
 const dia = deslocamento => { const d=new Date(); d.setDate(d.getDate()+deslocamento); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; };
-// Avatar ilustrativo fictício, só para conferir o carregamento da foto na prévia.
-const fotoExemplo='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAADAAAAAwCAYAAABXAvmHAAAAqklEQVR4nO3WsRGAMAxD0ezCWozA2PQcE8AEcLYjR4aoUJ3/ilzSlnW7vrzGDhCAHSAAO0AAdoAA7ICSgP04H1ce8BafgYACLPFoBAzgiUciIIBIPAohgAACCPADQBSBOFcvcQSBPE+/UfYEYE8A9uZ+iXvCUZAwABnfgwgBMuKjCDcgMz6CcAFGxHsRZsDIeA9iDgAj3ooQQIBsADPeghCgPICN0CWuDrgB+nE0VDr1CO0AAAAASUVORK5CYII=';
+// Retrato vertical fictício 1:2 para conferir recorte e contenção das miniaturas.
+const fotoExemplo='data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMjAiIGhlaWdodD0iMjQwIiB2aWV3Qm94PSIwIDAgMTIwIDI0MCI+PHJlY3Qgd2lkdGg9IjEyMCIgaGVpZ2h0PSIyNDAiIGZpbGw9IiNkNWU1ZWEiLz48Y2lyY2xlIGN4PSI2MCIgY3k9IjYwIiByPSIyOCIgZmlsbD0iI2JmODg2YSIvPjxwYXRoIGQ9Ik0zMCA1NCBRMjggMTUgNjIgMjIgUTk2IDIwIDkyIDU2IEw3OCAzOCBMNDAgNDNaIiBmaWxsPSIjMjYzNjQ1Ii8+PHBhdGggZD0iTTE1IDEyMCBRNjAgODMgMTA1IDEyMCBMMTExIDI0MCBIOVoiIGZpbGw9IiM1MTRiODkiLz48L3N2Zz4=';
 export const pessoasAgenda = [{usuario:'demo',nome:'Conta de demonstração',rhId:'RH-DEMO-001'},{usuario:'ana-exemplo',nome:'Ana Exemplo',rhId:'RH-DEMO-002'},{usuario:'bruno-exemplo',nome:'Bruno Exemplo',rhId:'RH-DEMO-003'}].map((p,i)=>({...p,rhCodigo:`00000${i+1}`,disponivel:true,vinculo:'vinculado',fotoDataUrl:i===1?fotoExemplo:''}));
 const diretorio={pessoas:pessoasAgenda,porRh:new Map(pessoasAgenda.map(p=>[p.rhId,{id:p.rhId,codigo:p.rhCodigo,nome:p.nome,fotoDataUrl:p.fotoDataUrl,ativo:true}]))};
 const sessao={sub:'demo',nome:'Conta de demonstração'};
