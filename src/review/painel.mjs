@@ -139,7 +139,8 @@ export async function respostaPreview(url,opcoes={}){
  if(endpoint==='painel-marketing')return respostaMarketing(corpo);
  let dados;
  if(endpoint==='painel-config' && corpo.chave==='compromissos'){const agenda=respostaAgenda(corpo);return new Response(JSON.stringify({ok:!agenda.erro,...agenda}),{status:agenda.erro?409:200,headers:{'Content-Type':'application/json'}});}
- if(endpoint==='painel-config' && corpo.action==='pessoasPatrimonio')dados={pessoas:structuredClone(pessoasPatrimonioDemo)};
+ if(endpoint==='painel-config' && corpo.action==='pessoasCompromissos')dados={pessoas:structuredClone(pessoasAgenda)};
+ else if(endpoint==='painel-config' && corpo.action==='pessoasPatrimonio')dados={pessoas:structuredClone(pessoasPatrimonioDemo)};
  else if(endpoint==='painel-config' && corpo.action==='patrimonioParametros')dados={limiteManutencaoPercentual:null};
  else if(endpoint==='painel-config'&&corpo.action==='lerInfra'){
   if(!temPermissao(sessao,'patrimonio'))return erroPreview('Sem acesso à infraestrutura.',403);

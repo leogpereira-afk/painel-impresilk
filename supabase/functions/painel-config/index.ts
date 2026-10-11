@@ -1,3 +1,4 @@
+import {lerEquipeCompromissos, enriquecerCompromissosRH, prepararCompromissoRH, autorCompromissoRH} from '../_shared/compromissos-rh.mjs';
 import {inventarioPermitido} from '../_shared/patrimonio-acesso.mjs';
 import {lerPessoasPatrimonio, validarVinculoPessoa, prepararPessoasControle} from '../_shared/patrimonio-pessoas.mjs';
 import {contextoComercial} from '../_shared/comercial-contexto.ts';
@@ -57,8 +58,6 @@ const COLECAO_ACESSO_SETOR = "planilhas_acesso";
 // pode ver a agenda da colega, e a direcao ve tudo. Isso e checado no
 // SERVIDOR: filtrar so na tela seria conforto, nao separacao.
 const POR_DONO = new Set(["compromissos"]);
-// Modulo que o DESTINO de um encaminhamento precisa ter para receber.
-const MODULO_POR_DONO: Record<string, string> = { compromissos: "compromissos" };
 // Diagnostico de cache pelo x-token (nomes sem o prefixo cache_ da era Blobs).
 const CACHES = new Set(["recebiveis", "pagar", "bancos", "orcamentos", "ordens", "dso_hist", "fluxo_mensal", "status"]);
 
@@ -88,6 +87,11 @@ type Evento = {
   em: string;
   quem: string;
   quemNome: string;
+  quemRhId?: string;
+  quemRhCodigo?: string;
+  paraRhCodigo?: string;
+  paraRhId?: string;
+  deRhId?: string;
   tipo: "criou" | "passou" | "recado" | "concluiu" | "reabriu";
   texto?: string;
   para?: string;
@@ -123,30 +127,8 @@ async function lerConfig(): Promise<any> {
   return data?.config ?? null;
 }
 
-// Existe conta com esse usuario? Devolve o nome para carimbar no item.
-// A direcao pode nao ter linha em painel_contas (enquanto usa a senha inicial
-// do ambiente), mas recebe compromisso como qualquer pessoa.
+// Mesmo login inicial do painel-auth; não cria cadastro de pessoa.
 const MASTER_USUARIO = (Deno.env.get("PAINEL_AUTH_MASTER_USUARIO") || "leonardo").trim().toLowerCase();
-async function pessoaValida(
-  usuario: string,
-  moduloExigido?: string,
-): Promise<{ usuario: string; nome: string } | null> {
-  const u = String(usuario || "").trim().toLowerCase();
-  if (!u) return null;
-  const { data } = await sb.from("painel_contas")
-    .select("usuario, nome, permissoes").eq("usuario", u).maybeSingle();
-  if (data) {
-    // Existir nao basta: o destino precisa PODER ABRIR a tela, senao o item
-    // vira invisivel para todo mundo menos a direcao.
-    if (moduloExigido) {
-      const perms = Array.isArray(data.permissoes) ? data.permissoes : [];
-      if (!perms.includes("*") && !perms.includes(moduloExigido)) return null;
-    }
-    return { usuario: data.usuario, nome: data.nome || data.usuario };
-  }
-  if (u === MASTER_USUARIO) return { usuario: u, nome: "Direcao" };
-  return null;
-}
 
 /* COLECOES QUE NAO PODEM SAIR INTEIRAS.
    `planilhas` e a primeira: cada linha pertence a um SETOR, e quem nao tem
@@ -402,12 +384,19 @@ Deno.serve(async (req: Request) => {
     const overlaySeguro=async(chave:string)=>{
       const valor=await lerOverlay(chave,donoDaVez(chave),await crivoDe(chave));
       if(chave==='patrimonio') return inventarioPermitido(valor,sessao);
+      if(chave==='compromissos') return enriquecerCompromissosRH(valor,await lerEquipeCompromissos(sb,{masterUsuario:MASTER_USUARIO,rhIds:Object.values(valor).map((c:any)=>c.donoRhId).filter(Boolean)}));
       if(chave==='manutencoes' && !temModulo('seguranca'))return Object.fromEntries(Object.entries(valor||{}).filter(([,r]:any)=>!segurancaIds.has(r?.ativoId)));
       return chave==='ov_orc'&&orcPermitidos?Object.fromEntries(Object.entries(valor||{}).filter(([id])=>orcPermitidos!.has(id))):valor;
     };
     let equipeRH: Promise<any[]> | undefined;
     const pessoasRH=()=>equipeRH ||= lerPessoasPatrimonio(sb);
     switch (corpo.action) {
+      case "pessoasCompromissos": {
+        if(!sessao)return resposta({erro:'Entre no sistema.',semSessao:true},401);
+        if(!temModulo('compromissos'))return resposta({erro:'Sem acesso a Compromissos.'},403);
+        const equipe=await lerEquipeCompromissos(sb,{masterUsuario:MASTER_USUARIO});
+        return resposta({pessoas:equipe.pessoas});
+      }
       case "lerInfra": {
         if(!sessao)return resposta({erro:'Entre no sistema.',semSessao:true},401);
         if(!temModulo('patrimonio')&&!temModulo('inventario-valores'))return resposta({erro:'Sem acesso ao Patrimônio.'},403);
@@ -745,6 +734,10 @@ Deno.serve(async (req: Request) => {
             const { data, error: erroLeitura } = await sb.from("painel_registros").select("registro")
               .eq("colecao", chave).eq("id", id).maybeSingle();
             if (erroLeitura) throw new Error(erroLeitura.message);
+            // A propriedade pode mudar entre a primeira consulta e esta.
+            // O mesmo registro usado na escrita precisa estar no meu escopo.
+            const escopoDono=donoDaVez(chave);
+            if(escopoDono && data && data.registro?.dono!==escopoDono)return resposta({erro:'Este compromisso não é seu.'},403);
             // O CODIGO DA ETIQUETA E GERADO AQUI, nunca no cliente. Ele vai
             // virar adesivo colado no bem: dois computadores cadastrando ao
             // mesmo tempo com a mesma sequencia gerariam duas etiquetas iguais
@@ -838,59 +831,16 @@ Deno.serve(async (req: Request) => {
               fundido = carimbarPatrimonio(fundido, data?.registro ?? null, sessao, new Date().toISOString());
             }
             if (POR_DONO.has(chave)) {
-              const donoAtual = (data?.registro as any)?.dono ?? null;
-              const eu = String(sessao?.sub ?? "");
-              const euNome = String(sessao?.nome || eu);
-              const pedido = (campos as any)?.dono ? String((campos as any).dono) : null;
-              const agora = new Date().toISOString();
-              const base = { em: agora, quem: eu, quemNome: euNome };
-
-              // ENCAMINHAR. Quem chegou ate aqui ja passou pelo barraDono, entao
-              // ou e a direcao, ou o item e dela -- so falta conferir que a
-              // pessoa de destino existe de verdade (nome digitado errado
-              // sumiria com o compromisso: ninguem mais o veria).
-              if (pedido && pedido !== donoAtual) {
-                const destino = await pessoaValida(pedido, MODULO_POR_DONO[chave]);
-                if (!destino) {
-                  return resposta(
-                    { erro: "Essa pessoa nao tem essa tela liberada -- fale com a direcao." },
-                    400,
-                  );
-                }
-                fundido.dono = destino.usuario;
-                fundido.donoNome = destino.nome;
-                fundido.encaminhadoPor = sessao?.nome || eu;
-                fundido.encaminhadoEm = agora;
-                // A ida fica registrada na propria conversa: quem recebe abre
-                // e ve de onde veio, e se voltar depois a linha do tempo mostra
-                // o caminho inteiro (era o `encaminhadoPor`, que so guardava a
-                // ULTIMA passagem e apagava as anteriores).
-                fundido.historico = comEvento(data?.registro, {
-                  ...base, tipo: "passou",
-                  para: destino.usuario, paraNome: destino.nome,
-                  texto: String((campos as any)?.recado ?? "").trim().slice(0, 2000) || undefined,
-                });
-              } else {
-                // Sem encaminhamento, o dono e carimbado pelo servidor e nao
-                // muda: mandar dono no corpo nao rouba item de ninguem.
-                fundido.dono = donoAtual ?? eu;
-                fundido.donoNome =
-                  (data?.registro as any)?.donoNome || sessao?.nome || fundido.dono;
-
-                if (!data) {
-                  // Nascimento do compromisso: a conversa comeca com quem criou.
-                  fundido.historico = [{ ...base, tipo: "criou" as const }];
-                } else if (
-                  (campos as any)?.feito !== undefined &&
-                  !!(campos as any).feito !== !!(data.registro as any)?.feito
-                ) {
-                  fundido.historico = comEvento(data.registro, {
-                    ...base, tipo: (campos as any).feito ? "concluiu" : "reabriu",
-                  });
-                }
+              const equipe=await lerEquipeCompromissos(sb,{masterUsuario:MASTER_USUARIO});
+              const pedido=String((campos as any)?.dono||data?.registro?.dono||sessao.sub);
+              if(!data || pedido!==data.registro?.dono) {
+                // A mesma revogação central do login alcança prazos de contrato
+                // e situações personalizadas do RH. Falha de consulta não libera.
+                const {data:revogado,error:erroDestino}=await sb.rpc('acesso_revogado',{p_sistema:'painel',p_sub:pedido,p_papel:''});
+                if(erroDestino)throw Object.assign(new Error('Não foi possível conferir o acesso do responsável. Tente novamente.'),{status:503});
+                if(revogado)throw Object.assign(new Error('Este responsável não tem acesso ativo à agenda.'),{status:422});
               }
-              // `recado` e instrucao de chamada, nao campo do registro.
-              delete fundido.recado;
+              fundido=prepararCompromissoRH(campos,data?.registro??null,sessao,equipe,new Date().toISOString());
             }
             /* A ETIQUETA PODE COLIDIR NA GRAVACAO (indice unico
                20260824c): o lock da funcao que gera o numero solta antes
@@ -940,9 +890,12 @@ Deno.serve(async (req: Request) => {
         const barradoDono = await barraDono(chave, id);
         if (barradoDono) return barradoDono;
 
-        const { data } = await sb.from("painel_registros").select("registro")
+        const { data, error: erroLeitura } = await sb.from("painel_registros").select("registro")
           .eq("colecao", chave).eq("id", id).maybeSingle();
+        if(erroLeitura)throw new Error(erroLeitura.message);
         if (!data) return resposta({ erro: "Este compromisso nao existe mais." }, 404);
+        const escopoDono=donoDaVez(chave);
+        if(escopoDono && data.registro?.dono!==escopoDono)return resposta({erro:'Este compromisso não é seu.'},403);
 
         const texto = String(corpo.texto ?? "").trim().slice(0, 2000);
         const base64 = String(corpo.base64 ?? "");
@@ -951,6 +904,7 @@ Deno.serve(async (req: Request) => {
           return resposta({ erro: "Arquivo muito grande (limite ~3 MB)." }, 413);
         }
 
+        const autor=autorCompromissoRH(sessao,await lerEquipeCompromissos(sb,{masterUsuario:MASTER_USUARIO}));
         let arquivo: Evento["arquivo"];
         if (base64) {
           // Chave por compromisso E por evento: trocar de anexo nao apaga o
@@ -969,8 +923,7 @@ Deno.serve(async (req: Request) => {
           ...(data.registro as any),
           historico: comEvento(data.registro, {
             em: new Date().toISOString(),
-            quem: String(sessao.sub ?? ""),
-            quemNome: String(sessao.nome || sessao.sub || ""),
+            ...autor,
             tipo: "recado",
             ...(texto ? { texto } : {}),
             ...(arquivo ? { arquivo } : {}),
