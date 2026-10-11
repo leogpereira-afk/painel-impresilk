@@ -7,7 +7,7 @@ let src=await readFile(new URL('../supabase/functions/painel-ativos/index.ts',im
 // abaixo roda em uma data URL, que não possui diretório para imports relativos.
 src=src.replace(/(['"])(\.\.\/_shared\/[^'"]+\.mjs)\1/g,(_m,_aspas,caminho)=>JSON.stringify(new URL('../supabase/functions/painel-ativos/'+caminho,import.meta.url).href));
 const {code}=await transform(src,{loader:'ts',format:'esm',target:'es2022'});await import('data:text/javascript;base64,'+Buffer.from(code).toString('base64'));
-const req=(token,item)=>handler(new Request('https://test.invalid',{method:'POST',headers:token?{authorization:'Bearer '+token}:{},body:JSON.stringify({action:'salvar',item})}));
+const req=(token,item,versao)=>handler(new Request('https://test.invalid',{method:'POST',headers:token?{authorization:'Bearer '+token}:{},body:JSON.stringify({action:'salvar',item,versao})}));
 assert.equal((await req(null,{tipo:'licitacao',nome:'A'})).status,401);assert.equal((await req('mkt',{tipo:'licitacao',nome:'A'})).status,403);
 let r=await req('lic',{id:'lic',tipo:'licitacao',nome:'Edital',responsavel:'Ana'});assert.equal(r.status,200);assert.equal(rows.get('lic').acompanhamento.checklist[0].feito,true);assert.equal(rows.get('lic').temArquivo,true);
 r=await req('lic',{id:'lic',tipo:'licitacao',nome:'Edital',acompanhamento:{proximaAcao:'Enviar',prazoAcao:'2026-09-10',checklist:[{id:'b',texto:'Proposta',feito:'sim'}],valorContratado:2500}});assert.equal(r.status,200);assert.equal(rows.get('lic').acompanhamento.checklist[0].feito,false);assert.equal(rows.get('lic').valor,1000);assert.equal(rows.get('lic').acompanhamento.valorContratado,2500);
@@ -19,5 +19,8 @@ r=await req('lic',{id:'lic',tipo:'licitacao',nome:'Edital',acompanhamento:{proxi
    primeiro e este verificador ficou para tras, travando o deploy da main.
    As duas regras continuam conferidas -- cada uma com o cracha que a alcanca. */
 assert.equal((await req('lic',{id:'lic',tipo:'documento',nome:'Tentativa'})).status,403);
-assert.equal((await req('dois',{id:'lic',tipo:'documento',nome:'Tentativa'})).status,400);
+// Sem versão, a proteção de concorrência recusa antes de conferir o tipo.
+assert.equal((await req('dois',{id:'lic',tipo:'documento',nome:'Tentativa'})).status,409);
+assert.equal((await req('dois',{id:'lic',tipo:'documento',nome:'Tentativa'},rows.get('lic').atualizadoEm||'')).status,400);
+assert.equal(rows.get('lic').tipo,'licitacao');
 console.log('Licitações: permissão, preservação do edital, checklist, valor contratado separado e tipo imutável conferidos.');
