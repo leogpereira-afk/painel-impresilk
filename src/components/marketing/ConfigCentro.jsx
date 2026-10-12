@@ -244,7 +244,7 @@ function FormCanal({ canal, ordemNova, onSalvo, onMudou, onFechar }) {
           <label className="label">
             Mensagem do WhatsApp
             <textarea className="input min-h-20" maxLength={300} value={form.mensagemWhatsapp} onChange={campo('mensagemWhatsapp')} />
-            <small className="mt-1 block font-normal normal-case tracking-normal text-slate-500">O atalho "Copiar link do WhatsApp" do canal leva esta mensagem já escrita.</small>
+            <small className="mt-1 block font-normal normal-case tracking-normal text-slate-500">O atalho "Copiar link do WhatsApp" do canal leva esta mensagem já escrita e abre a conversa com o número do canal WhatsApp (o Link do perfil dele: https://wa.me/ seguido de 55, DDD e número, só dígitos). Sem esse número, o atalho não aparece.</small>
           </label>
           <div className="grid gap-4 sm:grid-cols-2">
             <label className="label">

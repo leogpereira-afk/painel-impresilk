@@ -44,6 +44,7 @@ import {
   linhasFazer,
   linkSeguro,
   linkWhatsapp,
+  numeroDoWhatsapp,
   nomeDoResponsavel,
   resumoDosCanais,
   rotinasDoCanal,
@@ -70,7 +71,7 @@ function CabecalhoCanal({ canal }) {
   const r = useMemo(() => resumoDosCanais({ ...painel, canais: [canal] }, hoje).get(canal.id), [painel, canal, hoje]);
   const perfil = linkSeguro(canal.urlPerfil);
   const gerenciador = linkSeguro(canal.urlGerenciador);
-  const whats = linkWhatsapp(canal.mensagemWhatsapp);
+  const whats = linkWhatsapp(canal.mensagemWhatsapp, numeroDoWhatsapp(painel.canais));
 
   async function copiarWhatsapp() {
     try {

@@ -340,11 +340,39 @@ export function diaDaSemana(dia) {
   return DIAS_DA_SEMANA[new Date(Date.UTC(a, m - 1, n)).getUTCDay()];
 }
 
-/** O link do WhatsApp com a mensagem do canal já escrita (wa.me sem número:
- *  quem recebe o link escolhe a conversa). Sem mensagem, não há link. */
-export function linkWhatsapp(mensagem) {
+/** O número do WhatsApp da empresa, tirado do link do perfil do canal
+ *  WhatsApp (wa.me/<número>, api.whatsapp.com/send?phone=<número> ou só os
+ *  dígitos, com ou sem +, espaço e traço). Só dígitos, de 10 a 15. Sem canal
+ *  WhatsApp ativo ou sem número que preste, null. */
+export function numeroDoWhatsapp(canais) {
+  const canal = (canais ?? []).find((c) => c?.codigo === 'whatsapp' && c.ativo !== false);
+  const v = String(canal?.urlPerfil ?? '').trim();
+  if (!v) return null;
+  let bruto = v;
+  if (/^https?:\/\//i.test(v)) {
+    let u;
+    try { u = new URL(v); } catch { return null; }
+    const host = u.hostname.toLowerCase().replace(/^www\./, '');
+    if (host === 'wa.me') bruto = u.pathname.split('/').filter(Boolean)[0] ?? '';
+    else if (host === 'api.whatsapp.com' || host === 'web.whatsapp.com') bruto = u.searchParams.get('phone') ?? '';
+    else return null;
+  } else if (!/^[\d\s()+.-]+$/.test(v)) {
+    return null;
+  }
+  const n = bruto.replace(/\D/g, '');
+  return /^\d{10,15}$/.test(n) ? n : null;
+}
+
+/** O link do WhatsApp com a mensagem do canal já escrita: abre a conversa
+ *  com o número da empresa (o do canal WhatsApp), pronto para ir na bio, no
+ *  status ou numa conversa. Sem mensagem ou sem número, não há link: o wa.me
+ *  sem número abria a lista de contatos de quem clicava, e o cliente não
+ *  chegava ao comercial. */
+export function linkWhatsapp(mensagem, numero) {
   const t = String(mensagem ?? '').trim();
-  return t ? `https://wa.me/?text=${encodeURIComponent(t)}` : null;
+  const n = String(numero ?? '').replace(/\D/g, '');
+  if (!t || !/^\d{10,15}$/.test(n)) return null;
+  return `https://wa.me/${n}?text=${encodeURIComponent(t)}`;
 }
 
 /** Link que a tela pode abrir: só http(s). Qualquer outra coisa (inclusive

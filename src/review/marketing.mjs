@@ -127,6 +127,7 @@ for (const c of padrao.canais) gravarCanal(c, ID_CANAL[c.codigo]);
 const COM_PLAYBOOK = new Set(['site', 'instagram', 'pinterest', 'whatsapp']);
 canais.get(ID_CANAL.instagram).url_perfil = 'https://example.com/perfil-exemplo';
 canais.get(ID_CANAL.whatsapp).mensagem_whatsapp = 'Olá! Vi a Impresilk e quero um orçamento (exemplo).';
+canais.get(ID_CANAL.whatsapp).url_perfil = 'https://wa.me/5531900000000'; // número fictício
 for (const i of padrao.playbook) if (COM_PLAYBOOK.has(i.canal)) gravarItem(i, ID_CANAL[i.canal]);
 const primeiraDoPinterest = [...playbook.values()].find((i) => i.codigo === 'pinterest-1');
 Object.assign(primeiraDoPinterest, { concluido_em: agora(), concluido_por: QUEM, evidencia_valor: 'Conta criada (exemplo)' });

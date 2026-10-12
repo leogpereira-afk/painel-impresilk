@@ -18,6 +18,7 @@ import {
   linhasFazer,
   linkSeguro,
   linkWhatsapp,
+  numeroDoWhatsapp,
   MES_VALIDO,
   mesVizinho,
   nomeDoMes,
@@ -302,10 +303,38 @@ test('últimas publicações do canal: as mais novas primeiro, sem as retiradas'
   assert.deepEqual(ultimasPublicacoes(pubs, IG, 2).map((p) => p.id), ['p2', 'p5']);
 });
 
-test('WhatsApp do canal: link wa.me com a mensagem escrita; sem mensagem, sem link', () => {
-  assert.equal(linkWhatsapp('Olá! Quero um orçamento & prazo'), 'https://wa.me/?text=Ol%C3%A1!%20Quero%20um%20or%C3%A7amento%20%26%20prazo');
-  assert.equal(linkWhatsapp('   '), null);
-  assert.equal(linkWhatsapp(null), null);
+test('WhatsApp do canal: link wa.me com o número da empresa e a mensagem escrita', () => {
+  // número fictício (o repositório é público)
+  assert.equal(linkWhatsapp('Olá! Quero um orçamento & prazo', '5531900000000'), 'https://wa.me/5531900000000?text=Ol%C3%A1!%20Quero%20um%20or%C3%A7amento%20%26%20prazo');
+  assert.equal(linkWhatsapp('Olá', '+55 (31) 90000-0000'), 'https://wa.me/5531900000000?text=Ol%C3%A1');
+});
+
+test('WhatsApp do canal: sem mensagem ou sem número que preste, sem link (wa.me sem número não chega ao comercial)', () => {
+  assert.equal(linkWhatsapp('Olá! Quero um orçamento', null), null);
+  assert.equal(linkWhatsapp('Olá! Quero um orçamento', ''), null);
+  assert.equal(linkWhatsapp('Olá! Quero um orçamento', '123'), null);
+  assert.equal(linkWhatsapp('Olá! Quero um orçamento', '1234567890123456'), null);
+  assert.equal(linkWhatsapp('   ', '5531900000000'), null);
+  assert.equal(linkWhatsapp(null, '5531900000000'), null);
+});
+
+test('número do WhatsApp: tirado do link do perfil do canal WhatsApp', () => {
+  const com = (urlPerfil, extra = {}) => [{ id: IG, codigo: 'instagram', urlPerfil: 'https://wa.me/5531911111111' }, { id: WA, codigo: 'whatsapp', ativo: true, urlPerfil, ...extra }];
+  assert.equal(numeroDoWhatsapp(com('https://wa.me/5531900000000')), '5531900000000');
+  assert.equal(numeroDoWhatsapp(com('https://wa.me/5531900000000?text=oi')), '5531900000000');
+  assert.equal(numeroDoWhatsapp(com('https://api.whatsapp.com/send?phone=5531900000000&text=oi')), '5531900000000');
+  assert.equal(numeroDoWhatsapp(com('+55 31 90000-0000')), '5531900000000');
+  // casos ruins: sem canal, sem link, canal inativo, outro site, sem número, número curto
+  assert.equal(numeroDoWhatsapp([]), null);
+  assert.equal(numeroDoWhatsapp(null), null);
+  assert.equal(numeroDoWhatsapp(com(null)), null);
+  assert.equal(numeroDoWhatsapp(com('https://wa.me/5531900000000', { ativo: false })), null);
+  assert.equal(numeroDoWhatsapp(com('https://exemplo.com/5531900000000')), null);
+  assert.equal(numeroDoWhatsapp(com('https://wa.me/')), null);
+  assert.equal(numeroDoWhatsapp(com('https://wa.me/123')), null);
+  assert.equal(numeroDoWhatsapp(com('javascript:alert(5531900000000)')), null);
+  // o número de outro canal não vale: só o do canal WhatsApp
+  assert.equal(numeroDoWhatsapp([{ id: IG, codigo: 'instagram', urlPerfil: 'https://wa.me/5531911111111' }]), null);
 });
 
 // ----------------------------------------------------- trocas no estado --
