@@ -6,6 +6,8 @@ Agente: claude. Autorização de Léo nesta conversa, em 12/10/2026: "corrigir m
 
 Passo 1 publicado (`5414aab`) e lido no diário real: o Pixel volta "(#100) Permission Denied" e as visualizações do Instagram, "breakdown[0] must be one of ... follow_type ...". Passo 2: a divisão das visualizações por seguidor passa a pedir follow_type (o nome que a API aceita; a documentação diz follower_type); divisão recusada ganha aviso próprio (antes dizia que as visualizações tinham ficado vazias, e as da semana tinham vindo); estatísticas do Pixel negadas viram o código estatisticas_negadas, com uma chamada só e aviso claro. Verificação local: 624 e 1.252 testes aprovados, lint sem erros, build aprovado.
 
+Publicado e conferido em 12/10/2026: código `27cf675`, Functions 38234463130 e Pages 38234463138 com sucesso. Coleta real da Meta às 10:12 UTC: Instagram sem recusa (visualizações por seguidor chegaram), Pixel com estatisticas_negadas numa chamada só e um aviso, 65 chamadas (eram 70). As estatísticas do Pixel seguem negadas pela Meta: a causa (permissão do app ou modo do app) não está documentada e fica para investigar. Trabalho concluído: fim da vez do Claude, e o Léo decide quem segue.
+
 ## Trabalho atual · Testes de banco na CI
 
 Agente: claude. Autorização de Léo nesta conversa, em 12/10/2026: "testar o github automatico" (a CI passar a testar o banco de verdade). Ramo `claude/ci-banco-20261012`, clone isolado em /tmp. Escopo: `@electric-sql/pglite` 0.5.8 (exata, de 26/08/2026, sem dependências) no devDependencies, para o `npm ci` da CI instalar; `tests/banco-na-ci.test.mjs` falha na CI (CI=true) se o PGlite faltar, em vez de os testes de banco pularem calados. Sem mudança de código do Painel, de servidor ou de banco.
