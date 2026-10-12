@@ -35,6 +35,7 @@ import {
 } from "../_shared/senha-lojas.ts";
 import { senhaPedida, pedidoEmLote, motivoSeguro, falhaDeCredencial } from "../_shared/senha-regra.ts";
 import { recusaCerta } from "../_shared/troca-senha.ts";
+import { idPessoaDaFicha, MOTIVO_ID_NAO_COPIADO } from "../_shared/id-pessoa-acesso.mjs";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -394,20 +395,35 @@ async function senhaNaPortaDaFrente(conta: any, senha: string) {
  * Ficha nao encontrada devolve vazio em vez de estourar: amarrar e opcional
  * (terceirizado e conta de funcao nao tem ficha), e recusar aqui trancaria o
  * cadastro de quem nao e do quadro.
+ *
+ * O ID GRAVADO NA FICHA MANDA (D-004 do RH, D-015 do PCP, 12/10/2026): a ficha
+ * guarda `idPessoa` (6 digitos), que nasce no RH e nao muda quando o CPF e
+ * corrigido. A conta copia esse campo; so calcula pelo CPF quando ele falta
+ * (ficha antiga, antes do botao do admin do RH). A regua: _shared/id-pessoa-acesso.mjs.
  */
 async function amarrarNaFicha(nomeColaborador: string) {
   const alvo = normalizar(nomeColaborador);
   if (!alvo) return {};
+  // Os contratos de freelancer vem junto so para a conferencia do ID gravado
+  // (ID que ja e de outra pessoa nao e copiado); a ficha e achada so entre as fichas.
   const { data } = await sb.from("registros")
-    .select("id, registro").eq("colecao", "colaboradores").eq("apagado", false);
-  const acha = (data ?? []).filter((r: any) => normalizar(String(r.registro?.nome ?? "")) === alvo);
+    .select("id, colecao, registro").in("colecao", ["colaboradores", "freelancers"]).eq("apagado", false);
+  const acha = (data ?? []).filter((r: any) =>
+    r.colecao === "colaboradores" && normalizar(String(r.registro?.nome ?? "")) === alvo);
   // DOIS HOMONIMOS: nao escolher. Amarrar na pessoa errada liga o acesso de uma
   // a ficha da outra, e o desligamento passa a valer para quem nao saiu.
   if (acha.length !== 1) return {};
-  const cpf = String(acha[0].registro?.cpf ?? "").replace(/\D/g, "");
+  /* Gravado fora do formato, ou que ja e de outra pessoa (outro cadastro com o
+     mesmo ID e CPF diferente): nao e copiado, fica o ID do CPF de sempre, e o
+     aviso vai para o log da function, sem CPF nem ID no texto. */
+  const { idPessoa, motivo, outro } = idPessoaDaFicha(acha[0], data ?? []);
+  if (motivo) {
+    console.warn(`[painel-acesso] ficha ${String(acha[0].id)}: ${(MOTIVO_ID_NAO_COPIADO as Record<string, string>)[motivo] ?? motivo}` +
+      `${outro ? ` (${outro.colecao} ${outro.id})` : ""}; a conta fica com o ID calculado pelo CPF.`);
+  }
   return {
     colaborador_id: String(acha[0].id),
-    ...(cpf.length === 11 ? { id_pessoa: cpf.slice(0, 6) } : {}),
+    ...(idPessoa ? { id_pessoa: idPessoa } : {}),
   };
 }
 
