@@ -147,6 +147,9 @@ function linkSimples(valor, rotulo, max = 500) {
 // "#" e a barra do fim; parâmetro que muda a página (?page_id=140 do site)
 // fica.
 const RASTREIO = /^(utm_[a-z_]+|igsh|igshid|fbclid|gclid|si|mibextid)$/i;
+// Só o site do Pinterest de cada país (com ou sem www, ou com as 2 letras do
+// país na frente); ads., developers. e pin.it ficam como estão.
+const PINTEREST_PAIS = /^(?:(?:www|[a-z]{2})\.)?pinterest\.(?:com(?:\.[a-z]{2})?|co\.[a-z]{2}|[a-z]{2})$/i;
 export function normalizarLink(valor, rotulo = 'o link') {
   const bruto = texto(valor, 500, rotulo);
   if (!bruto) return null;
@@ -156,6 +159,11 @@ export function normalizarLink(valor, rotulo = 'o link') {
     throw new ErroMarketing(`${maiuscula(rotulo)} precisa começar com http:// ou https://.`);
   }
   u.hash = '';
+  // O mesmo Pin tem um endereço por país (br.pinterest.com, pinterest.com.br,
+  // pinterest.pt...). A API manda sempre www.pinterest.com (linkDoPin do
+  // conector); o link copiado do navegador no Brasil vem com br. Sem isto, o
+  // lançado à mão e o coletado viravam duas publicações do mesmo Pin.
+  if (PINTEREST_PAIS.test(u.hostname)) { u.protocol = 'https:'; u.hostname = 'www.pinterest.com'; }
   for (const k of [...u.searchParams.keys()]) if (RASTREIO.test(k)) u.searchParams.delete(k);
   if (u.pathname.length > 1 && u.pathname.endsWith('/')) u.pathname = u.pathname.replace(/\/+$/, '');
   const fora = u.toString();

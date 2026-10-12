@@ -33,7 +33,7 @@ import ChipCanal from '../components/ChipCanal.jsx';
 import { SEGUNDOS_DESFAZER } from '../components/LinhaTarefa.jsx';
 import { Skeleton, ErroModulo, AvisoAtualizacao } from '../components/ui.jsx';
 import { useParamNavegavel } from '../hooks/useParamNavegavel.js';
-import { ymdLocal } from '../lib/format.js';
+import { hojeDaTela } from '../lib/calc/marketing-canais.js';
 import { lerPainelMarketing, listarPessoasMarketing, salvarAcaoMarketing, concluirPlaybook } from '../services/marketing.js';
 import { SITUACOES_ACAO } from '../../supabase/functions/_shared/marketing.mjs';
 import { MarketingCtx, useCelular, mudouNoServidor } from '../components/marketing/contexto.js';
@@ -87,6 +87,10 @@ function normalizarPainel(r) {
     // Só true ou false do servidor contam: sem o campo (função antiga), null,
     // e nada é dito.
     semIdentidade: typeof r.semIdentidade === 'boolean' ? r.semIdentidade : null,
+    // O dia de São Paulo no servidor quando ele montou a resposta, e quando
+    // ela chegou aqui (relógio que só anda): a régua do "hoje" da tela.
+    hoje: typeof r.hoje === 'string' ? r.hoje : null,
+    recebidoEm: performance.now(),
   };
 }
 
@@ -139,8 +143,9 @@ export default function Marketing() {
   // "Desfazer" da LinhaTarefa está à vista (saem no onSair, 6 s depois).
   const [mantidos, setMantidos] = useState(() => new Set());
   const celular = useCelular();
-  // Um "hoje" por render, o mesmo para todas as contas da tela.
-  const hoje = ymdLocal(new Date());
+  // Um "hoje" por render, o mesmo para todas as contas da tela: o dia do
+  // servidor, virando à meia-noite (hojeDaTela).
+  const hoje = hojeDaTela(painel?.hoje, { passouMs: painel ? performance.now() - painel.recebidoEm : 0 });
 
   const vivo = useRef(true);
   const painelAtual = useRef(null);

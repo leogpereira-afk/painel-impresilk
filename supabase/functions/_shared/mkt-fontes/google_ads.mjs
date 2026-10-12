@@ -176,7 +176,8 @@
  *               vistoEm}}}}
  *    O Google apaga o lead do formulário depois de 60 dias. O conector só lê;
  *    a guarda é o próprio "dados": cada lead entra por id na primeira vez que
- *    aparece (vistoEm) e nunca sai. Para isso a coletora passa a coleta
+ *    aparece (vistoEm) e sai 12 meses depois do dia do formulário
+ *    (DIAS_GUARDA_LEADS; a coletora poda em toda execução, por podarGuardado). Para isso a coletora passa a coleta
  *    anterior em ctx.anterior (o objeto do cache, ou só o "dados"); sem ela,
  *    lead com mais de 60 dias some. total conta o que está guardado; novos,
  *    o que entrou agora; ultimos60, o que o Google devolveu hoje.
@@ -752,10 +753,48 @@ export function lerLeads(linhas) {
   }).filter((l) => l.id);
 }
 
+/** O PRAZO DE GUARDA DOS LEADS (decisão do Léo, 12/10/2026): 12 meses. Lead
+ *  é dado pessoal (nome, telefone, e-mail de quem mandou o formulário), e a
+ *  Política de Privacidade do site diz esse prazo. Conta do dia em que a
+ *  pessoa mandou o formulário; sem essa data, do dia em que o Painel viu o
+ *  lead (vistoEm). Lead sem nenhuma das duas sai: não dá para provar que
+ *  está dentro do prazo. */
+export const DIAS_GUARDA_LEADS = 365;
+const DIA_DO_LEAD = /^\d{4}-\d{2}-\d{2}/;
+
+/** Tira do porId os leads que passaram do prazo de guarda. Devolve um porId
+ *  novo (o de entrada fica como está) e quantos saíram. */
+export function podarLeads(porId, hoje) {
+  const limite = somarDias(hoje, -DIAS_GUARDA_LEADS);
+  const fica = {};
+  let sairam = 0;
+  for (const [id, l] of Object.entries(porId && typeof porId === 'object' ? porId : {})) {
+    const dia = [l?.data, l?.vistoEm].map((x) => String(x ?? '').slice(0, 10)).find((x) => DIA_DO_LEAD.test(x));
+    if (l && typeof l === 'object' && dia && dia >= limite) fica[id] = l;
+    else sairam++;
+  }
+  return { porId: fica, sairam };
+}
+
+/** A guarda roda em TODA execução da coletora, até na que falhou ou não
+ *  achou a conta: o prazo corre mesmo sem coleta nova, e a juntarRetrato
+ *  mantém a parte antiga quando a nova falha. Recebe os `dados` do retrato
+ *  já juntado e devolve os mesmos dados com os leads podados (e o total e os
+ *  resumos refeitos). Sem leads guardados, devolve os dados como vieram. */
+export function podarGuardado(dados, hoje) {
+  const leads = dados?.leads;
+  const porId = leads?.restrito?.porId;
+  if (!porId || typeof porId !== 'object') return dados;
+  const p = podarLeads(porId, hoje);
+  if (!p.sairam) return dados;
+  return { ...dados, leads: { ...leads, total: Object.keys(p.porId).length, ...resumirLeads(p.porId), restrito: { ...leads.restrito, porId: p.porId } } };
+}
+
 /** A GUARDA DOS LEADS. O Google apaga o lead depois de 60 dias; aqui o que já
- *  foi visto nunca sai, e o primeiro registro de cada id vale (vistoEm é o dia
- *  em que apareceu). Passou do teto, saem os mais antigos (o teto é alto de
- *  propósito: é para segurar um erro, não para podar). */
+ *  foi visto fica até o prazo de guarda (DIAS_GUARDA_LEADS), e o primeiro
+ *  registro de cada id vale (vistoEm é o dia em que apareceu). Passou do
+ *  teto, saem os mais antigos (o teto é alto de propósito: é para segurar um
+ *  erro, não para podar). */
 export function juntarLeads(anteriores, novos, hoje) {
   const porId = {};
   for (const [id, l] of Object.entries(anteriores && typeof anteriores === 'object' ? anteriores : {})) if (l && typeof l === 'object') porId[id] = l;
@@ -765,6 +804,8 @@ export function juntarLeads(anteriores, novos, hoje) {
     porId[l.id] = { ...l, vistoEm: hoje };
     entraram++;
   }
+  const podados = podarLeads(porId, hoje).porId;
+  for (const id of Object.keys(porId)) if (!podados[id]) delete porId[id];
   const ids = Object.keys(porId);
   if (ids.length > TETO.leads) {
     ids.sort((a, b) => String(porId[b].data ?? '').localeCompare(String(porId[a].data ?? '')));

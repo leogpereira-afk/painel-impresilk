@@ -186,7 +186,9 @@
  *                por um com a segunda inteira de outra semana dentro)
  *   leads        soma de LEADS dos anúncios, só na semana que teve lead, ou
  *                que cruza o período de uma campanha de objetivo LEAD (do
- *                start_time ao end_time; sem end_time, sem fim) E em que a
+ *                start_time ao end_time; ativa sem end_time, sem fim;
+ *                pausada sem end_time, até a última alteração dela; ver
+ *                periodoDeLeads) E em que a
  *                conta entregou anúncio (gasto, impressão paga, clique). Fora
  *                disso a chave nem vai: antes da campanha, depois que ela
  *                acaba ou enquanto ela não roda, o "zero" seria "não havia
@@ -724,6 +726,27 @@ export function lerCampanha(c) {
     inicio: isoDe(c.start_time),
     fim: isoDe(c.end_time),
   };
+}
+
+/** O período de uma campanha de objetivo LEAD para a regra dos leads da
+ *  semana (montarSemanas), em dias de São Paulo; null para as outras.
+ *  - end_time manda quando existe;
+ *  - ativa sem end_time: sem fim;
+ *  - pausada ou arquivada sem end_time (o Pinterest a deixa "sem fim"): o
+ *    período acaba no dia da última alteração dela (updated_time, que é a
+ *    pausa ou depois). Antes ela ficava no período para sempre, e numa
+ *    semana em que OUTRA campanha entregava anúncio o lead da semana virava
+ *    0 por cima do lançado à mão. Sem updated_time, ela não abre período:
+ *    um zero de verdade perdido é melhor que um zero falso gravado (o lead
+ *    que ela trouxe, n > 0, vai do mesmo jeito). */
+export function periodoDeLeads(c) {
+  if (!c || typeof c !== 'object' || !/LEAD/i.test(String(c.objective_type ?? ''))) return null;
+  const de = c.start_time != null ? diaSP(c.start_time) : null;
+  if (c.end_time != null && diaSP(c.end_time)) return { de, ate: diaSP(c.end_time) };
+  const status = String(c.status ?? '').toUpperCase();
+  if (!status || status === 'ACTIVE') return { de, ate: null };
+  const ate = c.updated_time != null ? diaSP(c.updated_time) : null;
+  return ate ? { de, ate } : null;
 }
 
 /** campaigns/analytics com granularity TOTAL: um A por campanha. Campanha
@@ -1345,10 +1368,8 @@ export async function coletar(ctx) {
       const rC = await paginar(cli, 'campanhas', `${caminho}/campaigns`, { page_size: TAMANHO_PAGINA }, MAX_PAGINAS_CAMPANHAS);
       if (rC.ok) {
         const campanhas = rC.itens.map(lerCampanha).filter(Boolean);
-        // O período de cada campanha de leads (end_time ausente: sem fim).
-        // Campanha pausada sem end_time segue "no período", e quem segura o
-        // zero falso aí é a entrega da semana.
-        for (const x of campanhas) if (/LEAD/i.test(x.objetivo || '')) periodosLeads.push({ de: x.inicio ? diaSP(x.inicio) : null, ate: x.fim ? diaSP(x.fim) : null });
+        // O período de cada campanha de leads (periodoDeLeads).
+        for (const item of rC.itens) { const per = periodoDeLeads(item); if (per) periodosLeads.push(per); }
         // Página que falhou é falta; passar do teto de páginas é só teto.
         if (rC.falha) falhaAnuncio(rC.falha);
         else if (!rC.completo) avisar('Há mais campanhas do que o Painel lê numa coleta; as mais antigas ficaram de fora.');

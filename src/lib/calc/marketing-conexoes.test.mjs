@@ -56,7 +56,7 @@ const ler = (n) => JSON.parse(readFileSync(new URL(`../../review/${n}`, import.m
 const VARIEDADE = ler('fontes-ficticias.json');
 const CHEIAS = ler('fontes-ficticias-cheias.json');
 const copia = (x) => JSON.parse(JSON.stringify(x));
-const HOJE = '2026-10-11';
+const HOJE = '2026-10-14'; // o dia da leitura dos dados fictícios (tests/gerar-fontes-ficticias.mjs)
 const TRAVESSAO = /[–—]/;
 const p = (q) => new URLSearchParams(q);
 const NONCE = 'AbCdEfGhIjKlMnOpQrStUv';
@@ -266,7 +266,7 @@ test('a linha do Google: as três partes na ordem do conector, cada uma com o es
   assert.equal(g.situacao.chave, 'parcial');
   assert.equal(g.conta, 'marketing@exemplo.com.br');
   assert.equal(g.conectado, 'conectado em 01/10');
-  assert.match(g.coleta, /^coletado em 11\/10 às \d{2}:\d{2}$/);
+  assert.match(g.coleta, /^coletado em 14\/10 às \d{2}:\d{2}$/);
   assert.deepEqual(g.partes.lista.map((x) => [x.chave, x.rotulo, x.info.rotulo]), [
     ['ga4', 'Google Analytics', 'Funcionando'],
     ['search_console', 'Search Console', 'Funcionando'],
@@ -300,7 +300,7 @@ test('a linha com muitas partes: só as que pedem atenção, e a conta das que f
   // A frase do estado não diz "não há o que fazer" quando o motivo manda pedir o acesso.
   assert.equal(/não há o que fazer/i.test(ads.situacao.texto), false, ads.situacao.texto);
   assert.match(ads.situacao.texto, /pedido de acesso/);
-  assert.match(ads.coleta, /^tentou em 11\/10 às \d{2}:\d{2}, sem dados ainda$/);
+  assert.match(ads.coleta, /^tentou em 14\/10 às \d{2}:\d{2}, sem dados ainda$/);
   const cheio = linhaDaConexao(CHEIAS.fontes.google_ads, 'gestao', HOJE);
   assert.deepEqual([cheio.partes.lista.length, cheio.partes.funcionando, cheio.partes.total, cheio.partes.resumidas], [0, 17, 17, true]);
   // O site com o PageSpeed sem a chave: as duas partes, com a frase do motivo.

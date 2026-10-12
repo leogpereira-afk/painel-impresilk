@@ -45,7 +45,7 @@ const ler = (n) => JSON.parse(readFileSync(new URL(`../../review/${n}`, import.m
 const VARIEDADE = ler('fontes-ficticias.json');
 const CHEIAS = ler('fontes-ficticias-cheias.json');
 const copia = (x) => JSON.parse(JSON.stringify(x));
-const HOJE = '2026-10-11';
+const HOJE = '2026-10-14'; // o dia da leitura dos dados fictícios (tests/gerar-fontes-ficticias.mjs)
 const CANAIS = Object.keys(FONTES_DO_CANAL);
 const TRAVESSAO = /[\u2013\u2014]/;
 const ctx = { hoje: HOJE };
@@ -96,7 +96,7 @@ function revisao2(r) {
     Object.assign(ultima, { fechada: false, impressoes: null, cliques_site: null, ligacoes: null, rotas: null, reservas: null, cliques: null, interacoes: null });
   }
   const ig = n.fontes.meta.dados.instagram;
-  if (ig) for (const s of ig.stories) Object.assign(s, { lido_em: '2026-10-11T09:17:00.000Z', parcial: true, titulo: null });
+  if (ig) for (const s of ig.stories) Object.assign(s, { lido_em: '2026-10-14T09:17:00.000Z', parcial: true, titulo: null });
   return n;
 }
 const REVISAO2 = revisao2(CHEIAS);
@@ -138,12 +138,22 @@ test('o caso ruim: nenhum quadro das duas prévias mostra "0" no lugar de um nú
       }
     }
   }
-  // E o caso concreto do retrato: a semana da Página do Facebook com um dia
-  // sem medida deixa as visualizações sem número (o conector manda null).
+  // E o caso concreto do retrato: a semana de 28/09 da Página do Facebook
+  // teve um dia sem medida (o conector manda null nas visualizações). Na
+  // comparação da semana seguinte ela é "não medido", sem variação inventada.
   const pagina = quadrosDoCanal('facebook', CHEIAS.fontes, ctx).find((q) => q.id === 'meta-pagina');
   const semana = pagina.topo.find((b) => b.tipo === 'numeros' && b.titulo?.startsWith('Semana'));
-  assert.equal(semana.itens.find((n) => n.id === 'visualizacoes').texto, NAO_MEDIDO);
-  assert.match(semana.titulo, /6 de 7 dias medidos/);
+  assert.match(semana.titulo, /comparada com a de 28\/09/);
+  const vis = semana.itens.find((n) => n.id === 'visualizacoes');
+  assert.deepEqual([vis.nota.antes, vis.nota.texto], [`antes: ${NAO_MEDIDO}`, null]);
+  // E quando é a semana MAIS RECENTE que tem o dia sem medida: o número fica
+  // sem valor e o título diz quantos dias foram medidos.
+  const r = copia(CHEIAS);
+  Object.assign(r.fontes.meta.dados.pagina.por_semana.at(-1), { dias_com_dado: 6, visualizacoes: null });
+  const pagina2 = quadrosDoCanal('facebook', r.fontes, ctx).find((q) => q.id === 'meta-pagina');
+  const semana2 = pagina2.topo.find((b) => b.tipo === 'numeros' && b.titulo?.startsWith('Semana'));
+  assert.equal(semana2.itens.find((n) => n.id === 'visualizacoes').texto, NAO_MEDIDO);
+  assert.match(semana2.titulo, /6 de 7 dias medidos/);
 });
 
 test('o gráfico desenha o não medido como ausência (y null), e o zero como zero', () => {
@@ -242,7 +252,7 @@ test('revisão 2: o story lido no meio do dia diz a hora da leitura e que ela é
   const i = tabela.colunas.findIndex((c) => c.id === 'lido_em');
   assert.ok(i > 0);
   const c = tabela.linhas[0].celulas[i];
-  assert.match(c.texto, /^11\/10 às \d\d:17$/, 'a hora no fuso de quem olha');
+  assert.match(c.texto, /^14\/10 às \d\d:17$/, 'a hora no fuso de quem olha');
   assert.equal(c.tom, 'warn');
   assert.match(c.titulo, /parcial/);
   assert.match(tabela.nota, /não o final do story/);
@@ -264,7 +274,7 @@ test('revisão 2: a semana do Perfil da Empresa ainda não fechada fica sem núm
 
 test('estado de antes da conexão e fonte não lida: nada de motivo velho', () => {
   const r = copia(VARIEDADE);
-  r.fontes.pinterest.conexao = { conectadoEm: '2026-10-11T12:00:00.000Z', conectadoPor: 'demo', conta: null, escopos: [], expiraEm: null, refreshExpiraEm: null };
+  r.fontes.pinterest.conexao = { conectadoEm: '2026-10-14T12:00:00.000Z', conectadoPor: 'demo', conta: null, escopos: [], expiraEm: null, refreshExpiraEm: null };
   const [q] = quadrosDoCanal('pinterest', r.fontes, ctx);
   assert.equal(q.estado.chave, 'aguardando_coleta');
   assert.equal(q.estado.motivo, null);
@@ -398,7 +408,7 @@ test('os avisos da coleta vão num quadro só, sem repetir o motivo que um quadr
   // Aviso de antes da conexão fala de uma situação que já mudou: não entra.
   const r = copia(VARIEDADE.fontes);
   r.pinterest.avisos = ['Aviso velho.'];
-  r.pinterest.conexao = { conectadoEm: '2026-10-11T12:00:00.000Z', escopos: [] };
+  r.pinterest.conexao = { conectadoEm: '2026-10-14T12:00:00.000Z', escopos: [] };
   assert.equal(quadroDeAvisos(ligacoesNaAba('pinterest', r), r, { hoje: HOJE }), null);
 });
 

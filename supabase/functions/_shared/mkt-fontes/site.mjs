@@ -1434,7 +1434,7 @@ export function conferir(d) {
     if (ds.logo_http) add('logo_http', 'info', 'O logo dos dados estruturados está em http://, sem cadeado.');
     if (/^http:\/\//i.test(inicio.seo.canonical ?? '')) add('canonical_http', 'atencao', 'O endereço canônico da página inicial está em http://.');
     if (/\d/.test(inicio.servidor?.x_powered_by ?? '')) add('versoes_expostas', 'info', 'O cabeçalho x-powered-by mostra a versão do PHP, o que ajuda quem procura falha conhecida.');
-    if (/miss/i.test(inicio.servidor?.x_cache ?? '')) add('cache_miss', 'info', 'A página inicial veio sem cache (x-cache MISS).');
+    if (/miss/i.test(inicio.servidor?.x_cache ?? '')) add('cache_miss', 'info', 'A página inicial veio montada na hora, sem a cópia pronta do cache, e por isso mais lenta. É normal logo depois de limpar o cache; se repetir todo dia, o cache não está guardando a página.');
     if (inicio.ms_cabecalho > 800) add('resposta_lenta', 'info', `A página inicial levou ${segundos(inicio.ms_cabecalho)} para começar a responder (medido do servidor do Painel, não do cliente).`);
   }
   const www = d.paginas?.redirecionamento_www;

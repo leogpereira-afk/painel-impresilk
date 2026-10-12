@@ -9,7 +9,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { CENARIOS, COMANDO, caminhoDoArquivo, gerarFontesFicticias, segredosFicticios, textoDoArquivo } from './gerar-fontes-ficticias.mjs';
+import { CENARIOS, COMANDO, LEITURA, caminhoDoArquivo, gerarFontesFicticias, segredosFicticios, textoDoArquivo } from './gerar-fontes-ficticias.mjs';
+import { DIA_DOS_DADOS } from '../src/review/marketing-fontes.mjs';
 import { FONTES, fonteParaTela, tirarRestrito } from '../supabase/functions/_shared/mkt-fontes/info.mjs';
 import { MOTIVOS } from '../supabase/functions/_shared/mkt-oauth.mjs';
 
@@ -100,12 +101,31 @@ test('o formato é o da ação "fontes": a resposta da porta, cada fonte no form
       assert.deepEqual(Object.keys(f).sort(), chaves, `${nome}.${x}`);
       assert.equal(f.fonte, x);
       assert.equal(f.oauth, ['google', 'linkedin', 'pinterest'].includes(x));
-      // As datas do relógio fixo: as coletas de 10 e 11/10/2026, no horário dos jobs.
-      assert.match(f.coletadoEm, /^2026-10-11T09:[0-3]\d:\d\d\.\d{3}Z$/, `${nome}.${x}`);
-      for (const p of Object.values(f.partes)) assert.ok(p.coletadoEm === null || /^2026-10-1[01]T09:/.test(p.coletadoEm));
+      // As datas do relógio fixo: as coletas de 13 e 14/10/2026, no horário dos jobs.
+      assert.match(f.coletadoEm, /^2026-10-14T09:[0-3]\d:\d\d\.\d{3}Z$/, `${nome}.${x}`);
+      for (const p of Object.values(f.partes)) assert.ok(p.coletadoEm === null || /^2026-10-1[34]T09:/.test(p.coletadoEm));
       // Texto do Painel sem travessão (título de post é do dono e fica como veio).
       for (const a of f.avisos) assert.equal(TRAVESSAO.test(a), false, `${nome}.${x}: ${a}`);
       for (const p of Object.values(f.partes)) assert.equal(TRAVESSAO.test(p.motivo ?? ''), false, `${nome}.${x}: ${p.motivo}`);
     }
   }
+});
+
+test('o caso ruim (12/10): nenhum conteúdo dos dados fictícios é de depois da coleta', () => {
+  // Os dias de cron eram 10 e 11/10, e as fixtures têm story, post e semana de
+  // anúncios de 12/10: a prévia mostrava conteúdo "de amanhã". Só o que é
+  // prazo (o vencimento do token) pode ser futuro.
+  const prazo = /expira|vence/i;
+  for (const nome of Object.keys(CENARIOS)) {
+    const futuras = [];
+    const andar = (x, caminho) => {
+      if (typeof x === 'string') { if (/^\d{4}-\d{2}-\d{2}/.test(x) && x.slice(0, 10) > LEITURA.slice(0, 10) && !prazo.test(caminho)) futuras.push(`${caminho}: ${x}`); }
+      else if (Array.isArray(x)) x.forEach((v, i) => andar(v, `${caminho}[${i}]`));
+      else if (x && typeof x === 'object') for (const [k, v] of Object.entries(x)) andar(v, `${caminho}.${k}`);
+    };
+    andar(arquivo(nome), nome);
+    assert.deepEqual(futuras, []);
+  }
+  // E a prévia ancora as datas a partir do mesmo dia da leitura.
+  assert.equal(LEITURA.slice(0, 10), DIA_DOS_DADOS);
 });

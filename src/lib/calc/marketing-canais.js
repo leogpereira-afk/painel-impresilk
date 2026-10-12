@@ -84,6 +84,28 @@ export function somarDias(dia, n) {
   return new Date(emMs(dia) + n * UM_DIA).toISOString().slice(0, 10);
 }
 
+/** O dia de São Paulo num instante (o mesmo hojeSP do servidor). */
+export function diaEmSaoPaulo(agora = new Date()) {
+  return agora.toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' });
+}
+
+/** O "hoje" da tela do Marketing. A régua é o dia que o servidor mandou com
+ *  o painel (é ele quem recusa data "no futuro" e conta as semanas): um
+ *  aparelho com a data errada não pinta tarefa de atrasada nem esconde a de
+ *  hoje. O relógio do aparelho só serve para a tela virar o dia à meia-noite
+ *  sem recarregar, e mesmo assim preso entre o dia do servidor e esse dia
+ *  mais os dias que passaram desde a leitura. `passouMs` vem de um relógio
+ *  que só anda (performance.now), que mudar a data do aparelho não mexe.
+ *  Sem dia do servidor (painel ainda não chegou), vale o dia de São Paulo. */
+export function hojeDaTela(hojeServidor, { agora = new Date(), passouMs = 0 } = {}) {
+  const local = diaEmSaoPaulo(agora);
+  if (!diaValido(hojeServidor)) return local;
+  const passou = Number.isFinite(passouMs) && passouMs > 0 ? passouMs : 0;
+  const teto = somarDias(hojeServidor, Math.ceil(passou / UM_DIA));
+  if (!diaValido(local) || local < hojeServidor) return hojeServidor;
+  return local > teto ? teto : local;
+}
+
 /** O `hoje` de cada função. Sem parâmetro, é o dia local de agora. Com
  *  parâmetro inválido, quebra alto: um "hoje" errado calado pinta a tela
  *  inteira de vermelho ou de verde, e ninguém desconfia. */

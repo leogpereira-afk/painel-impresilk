@@ -567,3 +567,31 @@ test('sem travessão nos avisos nem no arquivo do conector', async()=>{
  assert.ok(avisos.length>8);
  for(const a of avisos)assert.equal(TRAVESSAO.test(a),false,a);
 });
+
+test('o caso ruim (guarda de 12 meses): lead de mais de um ano sai, na coleta e em toda execução da coletora', async()=>{
+ // Decisão do Léo (12/10/2026): lead é dado pessoal e fica 12 meses, contados do dia do formulário.
+ assert.equal(G.DIAS_GUARDA_LEADS,365);
+ const limite='2025-10-11'; // HOJE (2026-10-11) menos 365 dias
+ const anterior={dados:{leads:{restrito:{porId:{
+  V:{id:'V',data:'2025-10-10 23:59:00-03:00',campanha:'Velha',campos:[{tipo:'EMAIL',valor:'velha@example.com'}],perguntas:[],vistoEm:'2025-10-10'},
+  N:{id:'N',data:`${limite} 08:00:00-03:00`,campanha:'No limite',campos:[],perguntas:[],vistoEm:limite},
+  S:{id:'S',data:null,campanha:'Sem data',campos:[],perguntas:[],vistoEm:'2026-01-10'},
+  X:{id:'X',data:'',campanha:'Nada',campos:[],perguntas:[]}}}}}};
+ const r=await montar({anterior}).rodar(),l=r.dados.leads;
+ assert.deepEqual(Object.keys(l.restrito.porId).sort(),['L1','L2','N','S'],'a velha e a sem data nenhuma saem');
+ assert.equal(JSON.stringify(l).includes('velha@example.com'),false);
+ assert.equal(l.total,4);
+ // podarGuardado: a coletora roda em toda execução, até na que falhou (a parte antiga fica no retrato).
+ const dados={resumo:{n:1},leads:{total:2,novos:0,ultimos60:0,porDia:[],porCampanha:[],restrito:{porId:{V:anterior.dados.leads.restrito.porId.V,N:anterior.dados.leads.restrito.porId.N}}}};
+ const p=G.podarGuardado(dados,HOJE);
+ assert.deepEqual(Object.keys(p.leads.restrito.porId),['N']);
+ assert.equal(p.leads.total,1);
+ assert.deepEqual(p.leads.porCampanha,[{campanha:'No limite',leads:1}]);
+ assert.deepEqual(p.resumo,{n:1},'o resto dos dados fica');
+ assert.equal(Object.keys(dados.leads.restrito.porId).length,2,'não mexe no objeto de entrada');
+ // Nada para podar: devolve o mesmo objeto; sem leads, também.
+ const semVelho={leads:{total:1,restrito:{porId:{N:anterior.dados.leads.restrito.porId.N}}}};
+ assert.equal(G.podarGuardado(semVelho,HOJE),semVelho);
+ assert.equal(G.podarGuardado({resumo:{}},HOJE).resumo !== undefined,true);
+ assert.equal(G.podarGuardado(null,HOJE),null);
+});

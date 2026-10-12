@@ -17,6 +17,7 @@ import {
   paraDia,
   diaValido,
   numeroOuNulo,
+  hojeDaTela,
 } from './marketing-canais.js';
 import { numeroCompacto, moedaCompacta } from '../format.js';
 
@@ -402,4 +403,31 @@ test('moedaCompacta: "R$ 12,4 mil", e abaixo de mil sem centavos', () => {
   assert.equal(legivel(moedaCompacta(0)), 'R$ 0');
   assert.equal(legivel(moedaCompacta(-0.3)), 'R$ 0');
   assert.equal(legivel(moedaCompacta(2500000)), 'R$ 2,5 mi');
+});
+
+/* -------------------------------------------------- o "hoje" da tela (12/10) */
+
+test('O CASO RUIM: aparelho com a data errada não muda o "hoje" da tela', () => {
+  // 11/10 às 15h em São Paulo (18h UTC); o servidor disse 11/10.
+  const atrasado = new Date('2026-09-01T18:00:00Z');
+  const adiantado = new Date('2026-12-25T18:00:00Z');
+  assert.equal(hojeDaTela('2026-10-11', { agora: atrasado, passouMs: 1000 }), '2026-10-11');
+  assert.equal(hojeDaTela('2026-10-11', { agora: adiantado, passouMs: 1000 }), '2026-10-12', 'adiantado só ganha o dia seguinte');
+  // Fuso do aparelho não conta: 02h UTC do dia 12 ainda é 23h do dia 11 em São Paulo.
+  assert.equal(hojeDaTela('2026-10-11', { agora: new Date('2026-10-12T02:00:00Z'), passouMs: 1000 }), '2026-10-11');
+});
+
+test('a tela vira o dia à meia-noite sem recarregar, e só o que o tempo passado permite', () => {
+  const meiaNoiteEPouco = new Date('2026-10-12T03:05:00Z'); // 00:05 do dia 12 em São Paulo
+  assert.equal(hojeDaTela('2026-10-11', { agora: meiaNoiteEPouco, passouMs: 10 * 60000 }), '2026-10-12');
+  const tresDias = new Date('2026-10-14T15:00:00Z');
+  assert.equal(hojeDaTela('2026-10-11', { agora: tresDias, passouMs: 3 * 86400000 }), '2026-10-14');
+  assert.equal(hojeDaTela('2026-10-11', { agora: tresDias, passouMs: 86400000 }), '2026-10-12');
+});
+
+test('sem o dia do servidor, vale o dia de São Paulo do aparelho', () => {
+  const agora = new Date('2026-10-12T02:00:00Z');
+  assert.equal(hojeDaTela(null, { agora }), '2026-10-11');
+  assert.equal(hojeDaTela('2026-02-30', { agora }), '2026-10-11');
+  assert.equal(hojeDaTela(undefined, { agora, passouMs: NaN }), '2026-10-11');
 });

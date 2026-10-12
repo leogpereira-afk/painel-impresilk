@@ -166,6 +166,43 @@ export function pedidoValido(p) {
     && Number.isFinite(p.em) && typeof p.quem === 'string' && !!p.quem;
 }
 
+/* ANCORAR EM HOJE (12/10/2026). Os dados fictícios são de um dia fixo: a
+   leitura do gerador (LEITURA de tests/gerar-fontes-ficticias.mjs; o teste
+   dos dados fictícios confere que é este dia). Sem âncora, a prévia aberta um
+   mês depois mostrava tudo coletado há um mês, e antes do dia, dados do
+   futuro. Ao carregar, toda data dos dados (texto que começa com AAAA-MM-DD,
+   valor ou chave) anda as SEMANAS INTEIRAS que passaram desde a leitura:
+   segunda continua segunda, a semana fechada continua fechada, e o
+   arredondamento é para baixo, para nada ficar depois de hoje. */
+export const DIA_DOS_DADOS = '2026-10-14';
+const DIA_MS = 86_400_000;
+const DATA_NO_INICIO = /^(\d{4})-(\d{2})-(\d{2})(?=$|[T ])/;
+function andarData(s, dias) {
+  const m = DATA_NO_INICIO.exec(s);
+  if (!m) return s;
+  const d = new Date(Date.UTC(+m[1], +m[2] - 1, +m[3]) + dias * DIA_MS);
+  return Number.isFinite(d.getTime()) ? d.toISOString().slice(0, 10) + s.slice(10) : s;
+}
+function andar(x, dias) {
+  if (typeof x === 'string') return andarData(x, dias);
+  if (Array.isArray(x)) return x.map((v) => andar(v, dias));
+  if (x && typeof x === 'object') return Object.fromEntries(Object.entries(x).map(([k, v]) => [andarData(k, dias), andar(v, dias)]));
+  return x;
+}
+/** Quantos dias as datas andam: as semanas inteiras de DIA_DOS_DADOS até o
+ *  dia de hoje em São Paulo (negativo antes do dia dos dados). */
+export function diasDaAncora(agoraMs) {
+  const hoje = new Date(agoraMs).toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' });
+  const dias = Math.round((Date.parse(`${hoje}T12:00:00Z`) - Date.parse(`${DIA_DOS_DADOS}T12:00:00Z`)) / DIA_MS);
+  return Number.isFinite(dias) ? Math.floor(dias / 7) * 7 : 0;
+}
+/** Os dados com as datas ancoradas em hoje (uma cópia; sem semana a andar,
+ *  os mesmos dados). */
+export function ancorarEmHoje(dados, agoraMs) {
+  const dias = diasDaAncora(agoraMs);
+  return dias ? andar(dados, dias) : dados;
+}
+
 /**
  * A porta de mentira das fontes.
  *  - carregar / carregarCheias: devolvem a resposta "fontes" dos dois
@@ -177,7 +214,8 @@ export function pedidoValido(p) {
  *  - guardarPedido(pedido): guarda o pedido para a recarga (sessionStorage);
  *    null apaga;
  *  - enderecoDeVolta(consulta): o endereço de Configurações da prévia;
- *  - agora e esperar: o relógio (o teste passa um de mentira);
+ *  - agora e esperar: o relógio (o teste passa um de mentira). As datas
+ *    dos dois arquivos andam até a semana de agora() (ancorarEmHoje);
  *  - gerarNonce: o nonce de cada Conectar (o teste passa um fixo).
  * responder(acao, corpo) devolve {status, corpo}.
  */
@@ -190,6 +228,8 @@ export function criarFontesDaPrevia({
   const grava = papel === 'gestao' || papel === 'marketing';
   let base = null;
   let carregando = null;
+  // Os dois arquivos, com as datas ancoradas em hoje (ancorarEmHoje).
+  const lerArquivo = async (f) => ancorarEmHoje(copia(await f()), agora());
   // Por fonte: `tela` (o objeto da resposta, como a gestão vê) e `retrato`
   // (o estado e os avisos que a última coleta gravou no cache, antes das
   // trocas que a porta faz por cima).
@@ -206,7 +246,7 @@ export function criarFontesDaPrevia({
   async function carregarUmaVez() {
     if (base) return;
     carregando ??= (async () => {
-      const r = cen.has('fontes-cheias') && carregarCheias ? await carregarCheias() : await carregar();
+      const r = await lerArquivo(cen.has('fontes-cheias') && carregarCheias ? carregarCheias : carregar);
       const dados = copia(r);
       for (const f of dados.ordem) fontes.set(f, { tela: dados.fontes[f], retrato: { estado: dados.fontes[f].estado, avisos: [...(dados.fontes[f].avisos || [])] } });
       // O mapa de motivos é o que a porta manda: o MOTIVOS do servidor, com
@@ -251,7 +291,7 @@ export function criarFontesDaPrevia({
     else if (t.oauth && !t.conexao) { item.retrato = { estado: 'falta_conectar', avisos: [] }; chamadas = 0; }
     else {
       if (t.oauth && ['falta_conectar', 'reconectar'].includes(item.retrato.estado) && carregarCheias) {
-        const cheia = copia((await carregarCheias()).fontes[fonte]);
+        const cheia = (await lerArquivo(carregarCheias)).fontes[fonte];
         item.tela = { ...cheia, conexao: { ...t.conexao, conta: cheia.conta ?? null }, configurado: t.configurado, ultimas: t.ultimas || [] };
         item.retrato = { estado: cheia.estado, avisos: [...(cheia.avisos || [])] };
         chamadas = cheia.ultimas?.[0]?.chamadas ?? chamadas;

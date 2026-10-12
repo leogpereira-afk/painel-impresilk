@@ -610,6 +610,51 @@ test('o caso ruim: campanha de leads que ACABOU não manda leads (nem zero) nas 
   }
 });
 
+test('o caso ruim: campanha de leads PAUSADA sem fim não manda leads 0 nas semanas em que OUTRA campanha entrega', async () => {
+  // Leads de agosto rodou de 03/08 e foi pausada em 31/08 (sem end_time). Em
+  // setembro e outubro só a campanha de reconhecimento entrega anúncio. Antes,
+  // toda semana dela recebia leads 0 por cima do lead lançado à mão.
+  const s = (iso) => Math.floor(Date.parse(iso) / 1000);
+  const lead = { id: '626736533506', ad_account_id: '549755885175', name: 'Leads de agosto', status: 'PAUSED', objective_type: 'LEADS', start_time: s('2026-08-03T03:00:00Z'), end_time: null };
+  const outra = { id: '626736533507', ad_account_id: '549755885175', name: 'Reconhecimento', status: 'ACTIVE', objective_type: 'AWARENESS', start_time: s('2026-08-01T03:00:00Z'), end_time: null };
+  const linhas = dias('2026-08-03', '2026-10-13').map((d) => ({ AD_ACCOUNT_ID: '549755885175', DATE: d, SPEND_IN_MICRO_DOLLAR: 1000000, PAID_IMPRESSION: 100, TOTAL_CLICKTHROUGH: 2, LEADS: d <= '2026-08-31' ? (d.endsWith('5') ? 0 : 1) : 0 }));
+  const rodar = async (camp) => {
+    const responder = (url, op, info) => {
+      const u = new URL(url);
+      if (u.pathname === '/v5/ad_accounts/549755885175/analytics') {
+        const de = u.searchParams.get('start_date'), ate = u.searchParams.get('end_date');
+        return linhas.filter((l) => l.DATE >= de && l.DATE <= ate);
+      }
+      if (u.pathname === '/v5/ad_accounts/549755885175/campaigns') return { items: [camp, outra], bookmark: null };
+      return respostaPadrao(url, op, info);
+    };
+    const r = await montar({ responder }).rodar();
+    return Object.fromEntries(r.semanas.map((x) => [x.semana, x.numeros.leads]));
+  };
+  // Com a data da pausa (updated_time): o período vai até ela.
+  const comPausa = await rodar({ ...lead, updated_time: s('2026-08-31T20:00:00Z') });
+  for (const sem of ['2026-09-07', '2026-09-14', '2026-09-21', '2026-09-28', '2026-10-05']) assert.equal(comPausa[sem], undefined, sem);
+  assert.equal(comPausa['2026-08-31'], 1);
+  // Sem a data da pausa: ela não abre período; semana com lead vai do mesmo jeito.
+  const semData = await rodar(lead);
+  for (const sem of ['2026-09-07', '2026-09-14', '2026-09-21', '2026-09-28', '2026-10-05']) assert.equal(semData[sem], undefined, sem);
+  assert.equal(semData['2026-08-24'], 6);
+  // Ativa, sem fim: aí o zero da semana com entrega é de verdade.
+  const ativa = await rodar({ ...lead, status: 'ACTIVE' });
+  assert.equal(ativa['2026-09-14'], 0);
+});
+
+test('periodoDeLeads: end_time manda; ativa sem fim; pausada até a última alteração; outro objetivo fica de fora', () => {
+  const s = (iso) => Math.floor(Date.parse(iso) / 1000);
+  const base = { objective_type: 'LEADS', start_time: s('2026-08-03T03:00:00Z') };
+  assert.deepEqual(P.periodoDeLeads({ ...base, status: 'PAUSED', end_time: s('2026-09-01T02:59:59Z') }), { de: '2026-08-03', ate: '2026-08-31' });
+  assert.deepEqual(P.periodoDeLeads({ ...base, status: 'ACTIVE', end_time: null }), { de: '2026-08-03', ate: null });
+  assert.deepEqual(P.periodoDeLeads({ ...base, status: 'ARCHIVED', end_time: null, updated_time: s('2026-09-10T15:00:00Z') }), { de: '2026-08-03', ate: '2026-09-10' });
+  assert.equal(P.periodoDeLeads({ ...base, status: 'PAUSED', end_time: null }), null);
+  assert.equal(P.periodoDeLeads({ ...base, objective_type: 'AWARENESS', status: 'ACTIVE' }), null);
+  assert.equal(P.periodoDeLeads(null), null);
+});
+
 test('o caso ruim: campanha de leads criada na semana 7 não manda leads (nem zero) nas semanas 1 a 6, e o lançado à mão fica', async () => {
   // A campanha de leads começa em 01/10 (meia-noite de São Paulo); o único
   // lead é desse dia. A outra campanha é de reconhecimento.

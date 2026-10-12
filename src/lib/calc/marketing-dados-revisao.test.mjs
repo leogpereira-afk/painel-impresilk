@@ -193,7 +193,7 @@ function textosDasPrevias() {
 // APIs mandam como valor. Fora daqui: endereço (?page_id=), nome de evento
 // do site e do GA4 (é o nome que o dono deu), @usuário e texto de fora.
 const CODIGO = /\b(?:[A-Z]{2,}(?:_[A-Z0-9]+)+|[a-z]+(?:_[a-z0-9]+)+(?:\.[a-z_0-9]+)*|[a-z]+[A-Z][A-Za-z]*PageViews|CELEBRATION|EMPLOYEE|FOLLOWER|PRAISE|ENTERTAINMENT|MOBILE|DESKTOP|ENABLED|PAUSED|ACTIVE|LIVE|READY|MISS|HIT)\b/;
-const PERMITIDOS = /page_id|sitemap_n|rest_route|utm_source|generate_lead|trabalhe_conosco|page_view|impresilk_exemplo|empresa_exemplo|AbCdEfGh_1|mx\.hospedagem|x-cache MISS/;
+const PERMITIDOS = /page_id|sitemap_n|rest_route|utm_source|generate_lead|trabalhe_conosco|page_view|impresilk_exemplo|empresa_exemplo|AbCdEfGh_1|mx\.hospedagem/;
 
 test('2. o caso ruim: nenhum código da API aparece na aba, nem no title (as duas prévias)', () => {
   // Endereço e caminho (sitemap_index.xml, ?page_id=) são dado, não código.

@@ -29,9 +29,9 @@
  * fictícias: domínio exemplo.com.br, "Gráfica Exemplo"), o banco (um objeto
  * e um Map), os secrets (todo valor tem FICTICIO no texto) e o relógio.
  *
- * O RELÓGIO É FIXO: dois dias de cron (10 e 11/10/2026, na hora dos jobs da
+ * O RELÓGIO É FIXO: dois dias de cron (13 e 14/10/2026, na hora dos jobs da
  * migração 20261012a, de 09:05 a 09:35 UTC) e a leitura da tela às 12h de
- * 11/10 em São Paulo. A cada leitura ele anda 1 ms (a execução "dura" o que
+ * 14/10 em São Paulo. A cada leitura ele anda 1 ms (a execução "dura" o que
  * o código pede de hora), e por isso o arquivo sai IGUAL toda vez: o teste
  * tests/mkt-fontes-ficticias.test.mjs gera de novo em memória e compara com
  * o que está em src/review/. Se um conector mudou e ninguém gerou de novo, o
@@ -64,7 +64,7 @@ export const CENARIOS = Object.freeze({
     conexoes: ['google'],
     perfilAguardando: true,
     adsAguardando: true,
-    foraDoAr: { '2026-10-10': ['meta'] },
+    foraDoAr: { '2026-10-13': ['meta'] },
   }),
   cheio: Object.freeze({
     arquivo: 'src/review/fontes-ficticias-cheias.json',
@@ -78,10 +78,15 @@ export const CENARIOS = Object.freeze({
 
 // Os dois dias de cron e a hora de cada job (migração 20261012a). O site vem
 // antes do google de propósito: o google lê do retrato do site os IDs G-.
-const DIAS = ['2026-10-10', '2026-10-11'];
+// Depois de tudo o que as fixtures têm de data: a mais nova é de 12/10 (story,
+// post do LinkedIn, semana de anúncios da Meta). Antes os dias eram 10 e 11/10,
+// e a prévia mostrava conteúdo "de amanhã" (revisão de 12/10/2026).
+const DIAS = ['2026-10-13', '2026-10-14'];
 const MINUTO = { site: '05', google: '11', meta: '17', google_ads: '23', linkedin: '29', pinterest: '35' };
-// A tela lê às 12h de domingo, 11/10/2026, em São Paulo.
-const LEITURA = '2026-10-11T15:00:00.000Z';
+// A tela lê às 12h de quarta, 14/10/2026, em São Paulo.
+// A prévia ancora as datas em hoje a partir deste dia (DIA_DOS_DADOS de
+// src/review/marketing-fontes.mjs; o teste dos dados fictícios confere).
+export const LEITURA = '2026-10-14T15:00:00.000Z';
 const DIA_MS = 86_400_000;
 const iso = (ms) => new Date(ms).toISOString();
 

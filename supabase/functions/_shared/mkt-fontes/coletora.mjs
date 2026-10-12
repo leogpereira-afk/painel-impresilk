@@ -480,6 +480,16 @@ export function normalizarResultado(bruto) {
 
 const boa = (e) => e === 'ok' || e === 'parcial';
 
+/** O PRAZO DE GUARDA DE UMA PARTE SEM COLETA BOA: 1 ano. A fonte que perdeu
+ *  o acesso (token do LinkedIn vencido, conexão desfeita, app sem os
+ *  secrets) continua rodando no cron e falhando, e a juntarRetrato mantém a
+ *  parte antiga a cada falha. Sem prazo, o último retrato ficaria guardado
+ *  para sempre: o LinkedIn só permite guardar número de relatório por 1 ano
+ *  (FAXINA do linkedin.mjs), e um dado de mais de um ano já não serve para
+ *  decidir nada em fonte nenhuma. */
+export const DIAS_GUARDA_PARTE = 365;
+const DIA_MS = 86_400_000;
+
 /** O RETRATO QUE VAI PARA O CACHE, juntando o novo com o anterior.
  *
  *  Coleta inteira boa (estado ok e todas as partes ok): o novo manda
@@ -489,7 +499,10 @@ const boa = (e) => e === 'ok' || e === 'parcial';
  *     não apaga a semana de números que já estava na tela;
  *   - parte parcial junta o novo por cima do anterior, campo a campo;
  *   - parte ok troca;
- *   - parte que não veio desta vez fica como estava.
+ *   - parte que não veio desta vez fica como estava;
+ *   - parte cuja última coleta boa passou de DIAS_GUARDA_PARTE perde os
+ *     dados (e a data da coleta boa); dado sem parte vence com a última
+ *     coleta boa da fonte (ultima_boa_em).
  *  Avisos são só os desta execução. */
 export function juntarRetrato(anterior, novo, agoraIso) {
   const ant = objeto(anterior) ? anterior : {};
@@ -514,13 +527,24 @@ export function juntarRetrato(anterior, novo, agoraIso) {
         : { estado: p.estado, motivo: p.motivo ?? null, coletado_em: pAnt[nome]?.coletado_em ?? null, tentado_em: agoraIso }, p);
     }
     dados = { ...dAnt };
+    const frescos = new Set();
     for (const [k, v] of Object.entries(dadosNovos)) {
       if (v === undefined) continue;
       const parte = partesNovas[k];
       if (parte && !boa(parte.estado) && k in dAnt) continue;
+      frescos.add(k);
       if (parte?.estado === 'parcial' && objeto(v) && objeto(dAnt[k])) { dados[k] = { ...dAnt[k], ...v }; continue; }
       dados[k] = v;
     }
+    // O prazo de guarda do que ficou de antes. Data que não se lê (ou
+    // agoraIso que não é data) não vence nada.
+    const limite = Date.parse(agoraIso) - DIAS_GUARDA_PARTE * DIA_MS;
+    const venceu = (iso) => { const ms = Date.parse(iso ?? ''); return Number.isFinite(ms) && ms < limite; };
+    for (const k of Object.keys(dados)) {
+      if (frescos.has(k)) continue;
+      if (objeto(partes[k]) ? venceu(partes[k].coletado_em) : venceu(ant.ultima_boa_em)) delete dados[k];
+    }
+    for (const [nome, p] of Object.entries(partes)) if (!frescos.has(nome) && venceu(p.coletado_em)) partes[nome] = { ...p, coletado_em: null };
   }
   const algoBom = novo.estado === 'ok' || Object.values(partesNovas).some((p) => boa(p.estado));
   return {

@@ -1,5 +1,11 @@
 # Vez do Painel Impresilk
 
+## Trabalho atual · Sobras do Centro de Comando do Marketing
+
+Agente: claude. Autorização de Léo nesta conversa, em 12/10/2026: "Sim, pega a vez" (aplicar e publicar as sobras do Marketing) e "12 meses" para a guarda dos leads do Google Ads. Ramo `claude/marketing-sobras-20261012`, clone isolado em /tmp. Escopo: leads do Google Ads guardados por 12 meses, contados do dia do formulário; parte do retrato de uma fonte sem coleta boa há mais de 1 ano sai do cache (o caso do token do LinkedIn vencido); o "hoje" da tela de Marketing vem do servidor; aviso de cache do conector do site em linguagem de gente; link do Pinterest de cada país (br.pinterest.com) igual ao que a API manda; campanha de leads pausada no Pinterest não grava lead 0 nas semanas seguintes; dados fictícios da prévia sem data no futuro e ancorados na semana de hoje. Sem migração e sem alteração de registros reais (conferido antes: nenhuma publicação do Pinterest no banco). Os trabalhos do Codex abaixo permanecem intactos.
+
+Estado: verificação local concluída. 624 testes de cálculo e 1.247 de tests/ aprovados, lint sem erros (o aviso anterior em Agenda), build e build da prévia aprovados, e as conferências da CI (portas, papel, imports, 404, realizado, acessos, gestão, cobrança, fotos, CRM, ações do Mubisys, licitação, restauro, classes) aprovadas. Publicação em andamento.
+
 ## Trabalho atual · Compromissos e identidade do RH
 
 Agente: codex. Autorização de Léo: “finalizar”, em 11/10/2026. Ramo `codex/compromissos-rh-20261011`, clone isolado em /tmp. Usar o vínculo existente `acesso_conta.colaborador_id`, sem criar identificadores de pessoas ou associar por nome. Preservar o dono usado nas permissões e os históricos. Implementação e verificação local autorizadas; publicação e alterações de dados reais dependem de autorização específica. Os demais trabalhos deste arquivo permanecem intactos.

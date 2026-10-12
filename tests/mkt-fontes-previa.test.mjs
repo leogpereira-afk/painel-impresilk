@@ -17,6 +17,7 @@ import { fileURLToPath } from 'node:url';
 import { build } from 'esbuild';
 import {
   FRASES, FRASES_CONFIRMAR, faltaApp, travaTexto, criarFontesDaPrevia, parametrosDaPrevia, conexaoDaPrevia, pedidoValido, ESPERA_COLETA_MS, DURACAO_ANDANDO_MS,
+  ancorarEmHoje, diasDaAncora, DIA_DOS_DADOS,
 } from '../src/review/marketing-fontes.mjs';
 import { FONTES, TRAVA_COLETA_MS, fonteParaTela, SECRETS_PADRAO } from '../supabase/functions/_shared/mkt-fontes/info.mjs';
 import { AVISO_DESCONECTAR_GOOGLE, FONTES_OAUTH, MOTIVOS, PROVEDORES, VALIDADE_STATE_S } from '../supabase/functions/_shared/mkt-oauth.mjs';
@@ -27,7 +28,7 @@ const ler = (n) => JSON.parse(readFileSync(new URL(`../src/review/${n}`, import.
 const VARIEDADE = ler('fontes-ficticias.json');
 const CHEIAS = ler('fontes-ficticias-cheias.json');
 const PORTA = readFileSync(new URL('../supabase/functions/painel-marketing/index.ts', import.meta.url), 'utf8');
-const INICIO = Date.parse('2026-10-11T15:00:00.000Z');
+const INICIO = Date.parse('2026-10-14T15:00:00.000Z'); // o dia dos dados (DIA_DOS_DADOS): a âncora não anda
 // Os nonces da prévia no teste: fixos e no formato do servidor (base64url).
 const NONCE = (n) => `nonce-de-teste-${String(n).padStart(4, '0')}`;
 
@@ -530,4 +531,33 @@ test('o caso ruim (serviços): a leitura das fontes só manda "leve" e "fontes" 
     { action: 'fontes', fontes: ['meta'] },
     { action: 'fontes', leve: true, fontes: [] },
   ]);
+});
+
+test('ancorar em hoje: as datas dos dados andam semanas inteiras até hoje, nunca para depois dele', () => {
+  const sp = (iso) => Date.parse(iso);
+  assert.equal(diasDaAncora(sp(`${DIA_DOS_DADOS}T15:00:00Z`)), 0);
+  assert.equal(diasDaAncora(sp('2026-10-20T15:00:00Z')), 0, 'seis dias depois: ainda a mesma semana');
+  assert.equal(diasDaAncora(sp('2026-10-21T15:00:00Z')), 7);
+  assert.equal(diasDaAncora(sp('2026-11-13T15:00:00Z')), 28);
+  assert.equal(diasDaAncora(sp('2026-10-12T15:00:00Z')), -7, 'antes do dia dos dados, volta uma semana');
+  // O dia é o de São Paulo: 02:30 UTC de 21/10 ainda é 23:30 de 20/10 lá.
+  assert.equal(diasDaAncora(sp('2026-10-21T02:30:00Z')), 0, '23:30 de 20/10 em São Paulo');
+  const r = ancorarEmHoje(CHEIAS, sp('2026-11-13T15:00:00Z'));
+  assert.notEqual(r, CHEIAS);
+  assert.equal(CHEIAS.fontes.site.coletadoEm.slice(0, 10), '2026-10-14', 'o original não muda');
+  assert.equal(r.fontes.site.coletadoEm, CHEIAS.fontes.site.coletadoEm.replace('2026-10-14', '2026-11-11'));
+  // Segunda continua segunda: toda semana da Página do Facebook.
+  for (const s of r.fontes.meta.dados.pagina.por_semana) assert.equal(new Date(`${s.semana}T12:00:00Z`).getUTCDay(), 1, s.semana);
+  // O que não é data fica como está (link, texto, número).
+  assert.equal(r.fontes.site.conta, CHEIAS.fontes.site.conta);
+  assert.equal(JSON.stringify(r).length, JSON.stringify(CHEIAS).length);
+  assert.equal(ancorarEmHoje(CHEIAS, sp('2026-10-15T15:00:00Z')), CHEIAS, 'sem semana a andar: os mesmos dados');
+});
+
+test('a prévia aberta um mês depois mostra a coleta da semana, e o Atualizar agora anda dali', async () => {
+  const UM_MES = Date.parse('2026-11-13T15:00:00.000Z');
+  const p = criarFontesDaPrevia({ carregar: async () => VARIEDADE, carregarCheias: async () => CHEIAS, agora: () => UM_MES, esperar: async () => {} });
+  const { corpo } = await p.responder('fontes', {});
+  assert.equal(corpo.fontes.site.coletadoEm.slice(0, 10), '2026-11-11');
+  assert.ok(corpo.fontes.site.coletadoEm <= new Date(UM_MES).toISOString());
 });

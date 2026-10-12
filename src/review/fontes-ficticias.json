@@ -22,56 +22,56 @@
      "estado": "ok",
      "motivo": null,
      "codigo": null,
-     "coletadoEm": "2026-10-11T09:05:05.760Z",
+     "coletadoEm": "2026-10-14T09:05:05.760Z",
      "tentadoEm": null
     },
     "robots": {
      "estado": "ok",
      "motivo": null,
      "codigo": null,
-     "coletadoEm": "2026-10-11T09:05:05.760Z",
+     "coletadoEm": "2026-10-14T09:05:05.760Z",
      "tentadoEm": null
     },
     "sitemap": {
      "estado": "ok",
      "motivo": null,
      "codigo": null,
-     "coletadoEm": "2026-10-11T09:05:05.760Z",
+     "coletadoEm": "2026-10-14T09:05:05.760Z",
      "tentadoEm": null
     },
     "wordpress": {
      "estado": "ok",
      "motivo": null,
      "codigo": null,
-     "coletadoEm": "2026-10-11T09:05:05.760Z",
+     "coletadoEm": "2026-10-14T09:05:05.760Z",
      "tentadoEm": null
     },
     "dns": {
      "estado": "ok",
      "motivo": null,
      "codigo": null,
-     "coletadoEm": "2026-10-11T09:05:05.760Z",
+     "coletadoEm": "2026-10-14T09:05:05.760Z",
      "tentadoEm": null
     },
     "versoes": {
      "estado": "ok",
      "motivo": null,
      "codigo": null,
-     "coletadoEm": "2026-10-11T09:05:05.760Z",
+     "coletadoEm": "2026-10-14T09:05:05.760Z",
      "tentadoEm": null
     },
     "crux": {
      "estado": "ok",
      "motivo": null,
      "codigo": null,
-     "coletadoEm": "2026-10-11T09:05:05.760Z",
+     "coletadoEm": "2026-10-14T09:05:05.760Z",
      "tentadoEm": null
     },
     "pagespeed": {
      "estado": "ok",
      "motivo": null,
      "codigo": null,
-     "coletadoEm": "2026-10-11T09:05:05.760Z",
+     "coletadoEm": "2026-10-14T09:05:05.760Z",
      "tentadoEm": null
     }
    },
@@ -1867,11 +1867,6 @@
      },
      "semanas": [
       {
-       "semana": "2026-08-10",
-       "celular": null,
-       "computador": null
-      },
-      {
        "semana": "2026-08-17",
        "celular": {
         "lcp_ms": 3300,
@@ -2017,6 +2012,11 @@
          "ate": "2026-10-03"
         }
        }
+      },
+      {
+       "semana": "2026-10-05",
+       "celular": null,
+       "computador": null
       }
      ]
     },
@@ -2404,7 +2404,7 @@
      {
       "codigo": "cache_miss",
       "nivel": "info",
-      "texto": "A página inicial veio sem cache (x-cache MISS)."
+      "texto": "A página inicial veio montada na hora, sem a cópia pronta do cache, e por isso mais lenta. É normal logo depois de limpar o cache; se repetir todo dia, o cache não está guardando a página."
      },
      {
       "codigo": "desatualizado",
@@ -2439,8 +2439,8 @@
     ]
    },
    "avisos": [],
-   "coletadoEm": "2026-10-11T09:05:05.800Z",
-   "ultimaBoaEm": "2026-10-11T09:05:05.800Z",
+   "coletadoEm": "2026-10-14T09:05:05.800Z",
+   "ultimaBoaEm": "2026-10-14T09:05:05.800Z",
    "configurado": true,
    "opcionais": [
     {
@@ -2450,19 +2450,19 @@
    ],
    "conexao": null,
    "conexaoDesconhecida": false,
-   "iniciadoEm": "2026-10-11T09:05:00.040Z",
+   "iniciadoEm": "2026-10-14T09:05:00.040Z",
    "andando": false,
    "ultimas": [
     {
-     "inicio": "2026-10-11T09:05:00.040Z",
-     "fim": "2026-10-11T09:05:05.880Z",
+     "inicio": "2026-10-14T09:05:00.040Z",
+     "fim": "2026-10-14T09:05:05.880Z",
      "estado": "ok",
      "chamadas": 39,
      "erro": null
     },
     {
-     "inicio": "2026-10-10T09:05:00.040Z",
-     "fim": "2026-10-10T09:05:05.880Z",
+     "inicio": "2026-10-13T09:05:00.040Z",
+     "fim": "2026-10-13T09:05:05.880Z",
      "estado": "ok",
      "chamadas": 39,
      "erro": null
@@ -2481,37 +2481,37 @@
      "motivo": "O Google ainda não aprovou o acesso à API do Perfil da Empresa (cota 0 por minuto). GA4 e Search Console seguem funcionando.",
      "codigo": null,
      "coletadoEm": null,
-     "tentadoEm": "2026-10-11T09:11:05.000Z"
+     "tentadoEm": "2026-10-14T09:11:05.000Z"
     },
     "ga4": {
      "estado": "ok",
      "motivo": null,
      "codigo": null,
-     "coletadoEm": "2026-10-11T09:11:02.400Z",
+     "coletadoEm": "2026-10-14T09:11:02.400Z",
      "tentadoEm": null
     },
     "search_console": {
      "estado": "ok",
      "motivo": null,
      "codigo": null,
-     "coletadoEm": "2026-10-11T09:11:04.960Z",
+     "coletadoEm": "2026-10-14T09:11:04.960Z",
      "tentadoEm": null
     }
    },
    "dados": {
     "versao": 1,
     "periodo": {
-     "inicio": "2026-08-10",
-     "fim": "2026-10-10",
+     "inicio": "2026-08-17",
+     "fim": "2026-10-13",
      "semanas": [
-      "2026-08-10",
       "2026-08-17",
       "2026-08-24",
       "2026-08-31",
       "2026-09-07",
       "2026-09-14",
       "2026-09-21",
-      "2026-09-28"
+      "2026-09-28",
+      "2026-10-05"
      ]
     },
     "ga4": {
@@ -2549,19 +2549,6 @@
      "eventos_chave_desde": "2026-08-26",
      "vinculo_ads": false,
      "semanas": [
-      {
-       "semana": "2026-08-10",
-       "usuarios": 90,
-       "novos": 69,
-       "usuarios_totais": 83,
-       "sessoes": 69,
-       "sessoes_engajadas": 118,
-       "taxa_engajamento": 0.6123,
-       "visualizacoes": 118,
-       "eventos": 83,
-       "eventos_chave": null,
-       "tempo_engajamento_s": 75.5
-      },
       {
        "semana": "2026-08-17",
        "usuarios": 97,
@@ -2639,107 +2626,22 @@
        "eventos": 93,
        "eventos_chave": 86,
        "tempo_engajamento_s": 75.5
+      },
+      {
+       "semana": "2026-10-05",
+       "usuarios": 87,
+       "novos": 66,
+       "usuarios_totais": 80,
+       "sessoes": 66,
+       "sessoes_engajadas": 115,
+       "taxa_engajamento": 0.6123,
+       "visualizacoes": 115,
+       "eventos": 80,
+       "eventos_chave": 73,
+       "tempo_engajamento_s": 75.5
       }
      ],
      "dias": [
-      {
-       "data": "2026-08-10",
-       "registrou": true,
-       "usuarios": 90,
-       "novos": 69,
-       "sessoes": 69,
-       "sessoes_engajadas": 118,
-       "visualizacoes": 118,
-       "eventos": 83,
-       "taxa_engajamento": 0.6123,
-       "duracao_media_s": 75.5,
-       "taxa_rejeicao": 0.6123,
-       "eventos_chave": null
-      },
-      {
-       "data": "2026-08-11",
-       "registrou": true,
-       "usuarios": 91,
-       "novos": 70,
-       "sessoes": 70,
-       "sessoes_engajadas": 119,
-       "visualizacoes": 119,
-       "eventos": 84,
-       "taxa_engajamento": 0.6123,
-       "duracao_media_s": 75.5,
-       "taxa_rejeicao": 0.6123,
-       "eventos_chave": null
-      },
-      {
-       "data": "2026-08-12",
-       "registrou": true,
-       "usuarios": 92,
-       "novos": 71,
-       "sessoes": 71,
-       "sessoes_engajadas": 120,
-       "visualizacoes": 120,
-       "eventos": 85,
-       "taxa_engajamento": 0.6123,
-       "duracao_media_s": 75.5,
-       "taxa_rejeicao": 0.6123,
-       "eventos_chave": null
-      },
-      {
-       "data": "2026-08-13",
-       "registrou": true,
-       "usuarios": 93,
-       "novos": 72,
-       "sessoes": 72,
-       "sessoes_engajadas": 121,
-       "visualizacoes": 121,
-       "eventos": 86,
-       "taxa_engajamento": 0.6123,
-       "duracao_media_s": 75.5,
-       "taxa_rejeicao": 0.6123,
-       "eventos_chave": null
-      },
-      {
-       "data": "2026-08-14",
-       "registrou": true,
-       "usuarios": 94,
-       "novos": 73,
-       "sessoes": 73,
-       "sessoes_engajadas": 122,
-       "visualizacoes": 122,
-       "eventos": 87,
-       "taxa_engajamento": 0.6123,
-       "duracao_media_s": 75.5,
-       "taxa_rejeicao": 0.6123,
-       "eventos_chave": null
-      },
-      {
-       "data": "2026-08-15",
-       "registrou": true,
-       "usuarios": 95,
-       "novos": 74,
-       "sessoes": 74,
-       "sessoes_engajadas": 123,
-       "visualizacoes": 123,
-       "eventos": 88,
-       "taxa_engajamento": 0.6123,
-       "duracao_media_s": 75.5,
-       "taxa_rejeicao": 0.6123,
-       "eventos_chave": null
-      },
-      {
-       "data": "2026-08-16",
-       "registrou": true,
-       "usuarios": 96,
-       "novos": 75,
-       "sessoes": 75,
-       "sessoes_engajadas": 124,
-       "visualizacoes": 124,
-       "eventos": 89,
-       "taxa_engajamento": 0.6123,
-       "duracao_media_s": 75.5,
-       "taxa_rejeicao": 0.6123,
-       "eventos_chave": null
-      },
       {
        "data": "2026-08-17",
        "registrou": true,
@@ -3509,27 +3411,51 @@
        "duracao_media_s": 75.5,
        "taxa_rejeicao": 0.6123,
        "eventos_chave": 69
+      },
+      {
+       "data": "2026-10-11",
+       "registrou": true,
+       "usuarios": 84,
+       "novos": 63,
+       "sessoes": 63,
+       "sessoes_engajadas": 112,
+       "visualizacoes": 112,
+       "eventos": 77,
+       "taxa_engajamento": 0.6123,
+       "duracao_media_s": 75.5,
+       "taxa_rejeicao": 0.6123,
+       "eventos_chave": 70
+      },
+      {
+       "data": "2026-10-12",
+       "registrou": true,
+       "usuarios": 85,
+       "novos": 64,
+       "sessoes": 64,
+       "sessoes_engajadas": 113,
+       "visualizacoes": 113,
+       "eventos": 78,
+       "taxa_engajamento": 0.6123,
+       "duracao_media_s": 75.5,
+       "taxa_rejeicao": 0.6123,
+       "eventos_chave": 71
+      },
+      {
+       "data": "2026-10-13",
+       "registrou": true,
+       "usuarios": 86,
+       "novos": 65,
+       "sessoes": 65,
+       "sessoes_engajadas": 114,
+       "visualizacoes": 114,
+       "eventos": 79,
+       "taxa_engajamento": 0.6123,
+       "duracao_media_s": 75.5,
+       "taxa_rejeicao": 0.6123,
+       "eventos_chave": 72
       }
      ],
      "canais": [
-      {
-       "semana": "2026-08-10",
-       "canal": "Organic Search",
-       "sessoes": 30,
-       "sessoes_engajadas": 79,
-       "usuarios": 51,
-       "novos": 30,
-       "eventos_chave": null
-      },
-      {
-       "semana": "2026-08-10",
-       "canal": "Direct",
-       "sessoes": 296,
-       "sessoes_engajadas": 345,
-       "usuarios": 317,
-       "novos": 296,
-       "eventos_chave": null
-      },
       {
        "semana": "2026-08-17",
        "canal": "Organic Search",
@@ -3655,27 +3581,27 @@
        "usuarios": 314,
        "novos": 293,
        "eventos_chave": 300
+      },
+      {
+       "semana": "2026-10-12",
+       "canal": "Organic Search",
+       "sessoes": 25,
+       "sessoes_engajadas": 74,
+       "usuarios": 46,
+       "novos": 25,
+       "eventos_chave": 32
+      },
+      {
+       "semana": "2026-10-12",
+       "canal": "Direct",
+       "sessoes": 291,
+       "sessoes_engajadas": 340,
+       "usuarios": 312,
+       "novos": 291,
+       "eventos_chave": 298
       }
      ],
      "origens": [
-      {
-       "semana": "2026-08-10",
-       "origem_midia": "google / organic",
-       "sessoes": 180,
-       "sessoes_engajadas": 229,
-       "usuarios": 201,
-       "novos": 180,
-       "eventos_chave": null
-      },
-      {
-       "semana": "2026-08-10",
-       "origem_midia": "(direct) / (none)",
-       "sessoes": 33,
-       "sessoes_engajadas": 82,
-       "usuarios": 54,
-       "novos": 33,
-       "eventos_chave": null
-      },
       {
        "semana": "2026-08-17",
        "origem_midia": "google / organic",
@@ -3801,29 +3727,27 @@
        "usuarios": 51,
        "novos": 30,
        "eventos_chave": 37
+      },
+      {
+       "semana": "2026-10-12",
+       "origem_midia": "google / organic",
+       "sessoes": 175,
+       "sessoes_engajadas": 224,
+       "usuarios": 196,
+       "novos": 175,
+       "eventos_chave": 182
+      },
+      {
+       "semana": "2026-10-12",
+       "origem_midia": "(direct) / (none)",
+       "sessoes": 28,
+       "sessoes_engajadas": 77,
+       "usuarios": 49,
+       "novos": 28,
+       "eventos_chave": 35
       }
      ],
      "campanhas": [
-      {
-       "semana": "2026-08-10",
-       "campanha": "(organic)",
-       "origem_midia": "google / organic",
-       "sessoes": 124,
-       "sessoes_engajadas": 173,
-       "usuarios": 145,
-       "novos": 124,
-       "eventos_chave": null
-      },
-      {
-       "semana": "2026-08-10",
-       "campanha": "(organic)",
-       "origem_midia": "(direct) / (none)",
-       "sessoes": 477,
-       "sessoes_engajadas": 26,
-       "usuarios": 498,
-       "novos": 477,
-       "eventos_chave": null
-      },
       {
        "semana": "2026-08-17",
        "campanha": "(organic)",
@@ -3963,25 +3887,29 @@
        "usuarios": 495,
        "novos": 474,
        "eventos_chave": 481
+      },
+      {
+       "semana": "2026-10-12",
+       "campanha": "(organic)",
+       "origem_midia": "google / organic",
+       "sessoes": 119,
+       "sessoes_engajadas": 168,
+       "usuarios": 140,
+       "novos": 119,
+       "eventos_chave": 126
+      },
+      {
+       "semana": "2026-10-12",
+       "campanha": "(organic)",
+       "origem_midia": "(direct) / (none)",
+       "sessoes": 472,
+       "sessoes_engajadas": 21,
+       "usuarios": 493,
+       "novos": 472,
+       "eventos_chave": 479
       }
      ],
      "novos_recorrentes": [
-      {
-       "semana": "2026-08-10",
-       "tipo": "new",
-       "usuarios": 44,
-       "sessoes": 23,
-       "sessoes_engajadas": 72,
-       "eventos_chave": null
-      },
-      {
-       "semana": "2026-08-10",
-       "tipo": "returning",
-       "usuarios": 204,
-       "sessoes": 183,
-       "sessoes_engajadas": 232,
-       "eventos_chave": null
-      },
       {
        "semana": "2026-08-17",
        "tipo": "new",
@@ -4093,25 +4021,25 @@
        "sessoes": 180,
        "sessoes_engajadas": 229,
        "eventos_chave": 187
+      },
+      {
+       "semana": "2026-10-12",
+       "tipo": "new",
+       "usuarios": 39,
+       "sessoes": 518,
+       "sessoes_engajadas": 67,
+       "eventos_chave": 25
+      },
+      {
+       "semana": "2026-10-12",
+       "tipo": "returning",
+       "usuarios": 199,
+       "sessoes": 178,
+       "sessoes_engajadas": 227,
+       "eventos_chave": 185
       }
      ],
      "aparelhos": [
-      {
-       "semana": "2026-08-10",
-       "aparelho": "mobile",
-       "usuarios": 346,
-       "sessoes": 325,
-       "sessoes_engajadas": 374,
-       "eventos_chave": null
-      },
-      {
-       "semana": "2026-08-10",
-       "aparelho": "desktop",
-       "usuarios": 476,
-       "sessoes": 455,
-       "sessoes_engajadas": 504,
-       "eventos_chave": null
-      },
       {
        "semana": "2026-08-17",
        "aparelho": "mobile",
@@ -4223,6 +4151,22 @@
        "sessoes": 452,
        "sessoes_engajadas": 501,
        "eventos_chave": 459
+      },
+      {
+       "semana": "2026-10-12",
+       "aparelho": "mobile",
+       "usuarios": 341,
+       "sessoes": 320,
+       "sessoes_engajadas": 369,
+       "eventos_chave": 327
+      },
+      {
+       "semana": "2026-10-12",
+       "aparelho": "desktop",
+       "usuarios": 471,
+       "sessoes": 450,
+       "sessoes_engajadas": 499,
+       "eventos_chave": 457
       }
      ],
      "paginas": [
@@ -4278,48 +4222,6 @@
       }
      ],
      "eventos_chave_dia": [
-      {
-       "data": "2026-08-10",
-       "evento": "generate_lead",
-       "eventos_chave": 44,
-       "eventos": 51
-      },
-      {
-       "data": "2026-08-11",
-       "evento": "generate_lead",
-       "eventos_chave": 45,
-       "eventos": 52
-      },
-      {
-       "data": "2026-08-12",
-       "evento": "generate_lead",
-       "eventos_chave": 46,
-       "eventos": 53
-      },
-      {
-       "data": "2026-08-13",
-       "evento": "generate_lead",
-       "eventos_chave": 47,
-       "eventos": 54
-      },
-      {
-       "data": "2026-08-14",
-       "evento": "generate_lead",
-       "eventos_chave": 48,
-       "eventos": 55
-      },
-      {
-       "data": "2026-08-15",
-       "evento": "generate_lead",
-       "eventos_chave": 49,
-       "eventos": 56
-      },
-      {
-       "data": "2026-08-16",
-       "evento": "generate_lead",
-       "eventos_chave": 50,
-       "eventos": 57
-      },
       {
        "data": "2026-08-17",
        "evento": "generate_lead",
@@ -4601,51 +4503,27 @@
        "evento": "generate_lead",
        "eventos_chave": 37,
        "eventos": 44
+      },
+      {
+       "data": "2026-10-11",
+       "evento": "generate_lead",
+       "eventos_chave": 38,
+       "eventos": 45
+      },
+      {
+       "data": "2026-10-12",
+       "evento": "generate_lead",
+       "eventos_chave": 39,
+       "eventos": 46
+      },
+      {
+       "data": "2026-10-13",
+       "evento": "generate_lead",
+       "eventos_chave": 40,
+       "eventos": 47
       }
      ],
      "cliques_saida": [
-      {
-       "data": "2026-08-10",
-       "dominio": "wa.me",
-       "link": "https://wa.me/5531900000000",
-       "cliques": 184
-      },
-      {
-       "data": "2026-08-11",
-       "dominio": "wa.me",
-       "link": "https://wa.me/5531900000000",
-       "cliques": 185
-      },
-      {
-       "data": "2026-08-12",
-       "dominio": "wa.me",
-       "link": "https://wa.me/5531900000000",
-       "cliques": 186
-      },
-      {
-       "data": "2026-08-13",
-       "dominio": "wa.me",
-       "link": "https://wa.me/5531900000000",
-       "cliques": 187
-      },
-      {
-       "data": "2026-08-14",
-       "dominio": "wa.me",
-       "link": "https://wa.me/5531900000000",
-       "cliques": 188
-      },
-      {
-       "data": "2026-08-15",
-       "dominio": "wa.me",
-       "link": "https://wa.me/5531900000000",
-       "cliques": 189
-      },
-      {
-       "data": "2026-08-16",
-       "dominio": "wa.me",
-       "link": "https://wa.me/5531900000000",
-       "cliques": 190
-      },
       {
        "data": "2026-08-17",
        "dominio": "wa.me",
@@ -4927,6 +4805,24 @@
        "dominio": "wa.me",
        "link": "https://wa.me/5531900000000",
        "cliques": 177
+      },
+      {
+       "data": "2026-10-11",
+       "dominio": "wa.me",
+       "link": "https://wa.me/5531900000000",
+       "cliques": 178
+      },
+      {
+       "data": "2026-10-12",
+       "dominio": "wa.me",
+       "link": "https://wa.me/5531900000000",
+       "cliques": 179
+      },
+      {
+       "data": "2026-10-13",
+       "dominio": "wa.me",
+       "link": "https://wa.me/5531900000000",
+       "cliques": 180
       }
      ],
      "whatsapp_medido": true,
@@ -4952,16 +4848,8 @@
       "permissao": "siteOwner"
      },
      "fuso": "America/Los_Angeles",
-     "primeiro_dia_incompleto": "2026-10-09",
+     "primeiro_dia_incompleto": "2026-10-12",
      "semanas": [
-      {
-       "semana": "2026-08-10",
-       "fechada": true,
-       "cliques": 116,
-       "impressoes": 4504,
-       "ctr": 0.025,
-       "posicao": 14.2
-      },
       {
        "semana": "2026-08-17",
        "fechada": true,
@@ -5017,65 +4905,17 @@
        "impressoes": 4514,
        "ctr": 0.025,
        "posicao": 14.2
+      },
+      {
+       "semana": "2026-10-05",
+       "fechada": true,
+       "cliques": 113,
+       "impressoes": 4501,
+       "ctr": 0.025,
+       "posicao": 14.2
       }
      ],
      "dias": [
-      {
-       "data": "2026-08-10",
-       "provisorio": false,
-       "cliques": 16,
-       "impressoes": 304,
-       "ctr": 0.02,
-       "posicao": 15.5
-      },
-      {
-       "data": "2026-08-11",
-       "provisorio": false,
-       "cliques": 17,
-       "impressoes": 305,
-       "ctr": 0.02,
-       "posicao": 15.5
-      },
-      {
-       "data": "2026-08-12",
-       "provisorio": false,
-       "cliques": 18,
-       "impressoes": 306,
-       "ctr": 0.02,
-       "posicao": 15.5
-      },
-      {
-       "data": "2026-08-13",
-       "provisorio": false,
-       "cliques": 19,
-       "impressoes": 307,
-       "ctr": 0.02,
-       "posicao": 15.5
-      },
-      {
-       "data": "2026-08-14",
-       "provisorio": false,
-       "cliques": 0,
-       "impressoes": 308,
-       "ctr": 0.02,
-       "posicao": 15.5
-      },
-      {
-       "data": "2026-08-15",
-       "provisorio": false,
-       "cliques": 1,
-       "impressoes": 309,
-       "ctr": 0.02,
-       "posicao": 15.5
-      },
-      {
-       "data": "2026-08-16",
-       "provisorio": false,
-       "cliques": 2,
-       "impressoes": 310,
-       "ctr": 0.02,
-       "posicao": 15.5
-      },
       {
        "data": "2026-08-17",
        "provisorio": false,
@@ -5502,7 +5342,7 @@
       },
       {
        "data": "2026-10-09",
-       "provisorio": true,
+       "provisorio": false,
        "cliques": 17,
        "impressoes": 305,
        "ctr": 0.02,
@@ -5510,6 +5350,30 @@
       },
       {
        "data": "2026-10-10",
+       "provisorio": false,
+       "cliques": 9,
+       "impressoes": 297,
+       "ctr": 0.02,
+       "posicao": 15.5
+      },
+      {
+       "data": "2026-10-11",
+       "provisorio": false,
+       "cliques": 10,
+       "impressoes": 298,
+       "ctr": 0.02,
+       "posicao": 15.5
+      },
+      {
+       "data": "2026-10-12",
+       "provisorio": true,
+       "cliques": 11,
+       "impressoes": 299,
+       "ctr": 0.02,
+       "posicao": 15.5
+      },
+      {
+       "data": "2026-10-13",
        "provisorio": true,
        "cliques": null,
        "impressoes": null,
@@ -5517,7 +5381,7 @@
        "posicao": null
       },
       {
-       "data": "2026-10-11",
+       "data": "2026-10-14",
        "provisorio": true,
        "cliques": null,
        "impressoes": null,
@@ -5536,8 +5400,8 @@
      ],
      "tipos": {
       "web": {
-       "cliques": 116,
-       "impressoes": 4504,
+       "cliques": 123,
+       "impressoes": 4511,
        "ctr": 0.025,
        "posicao": 14.2
       },
@@ -5638,8 +5502,8 @@
        "impressoes": 400
       },
       "anonimas": {
-       "cliques": 56,
-       "impressoes": 3704
+       "cliques": 63,
+       "impressoes": 3711
       }
      },
      "cortados": [],
@@ -5717,8 +5581,8 @@
    "avisos": [
     "Search Console: há sitemap com erro ou pendente (o Google não conseguiu ler)."
    ],
-   "coletadoEm": "2026-10-11T09:11:05.000Z",
-   "ultimaBoaEm": "2026-10-11T09:11:05.000Z",
+   "coletadoEm": "2026-10-14T09:11:05.000Z",
+   "ultimaBoaEm": "2026-10-14T09:11:05.000Z",
    "configurado": true,
    "opcionais": [],
    "conexao": {
@@ -5730,25 +5594,25 @@
      "https://www.googleapis.com/auth/webmasters.readonly",
      "https://www.googleapis.com/auth/business.manage"
     ],
-    "expiraEm": "2026-10-11T10:10:59.120Z",
+    "expiraEm": "2026-10-14T10:10:59.120Z",
     "refreshExpiraEm": null
    },
    "conexaoDesconhecida": false,
-   "iniciadoEm": "2026-10-11T09:11:00.040Z",
+   "iniciadoEm": "2026-10-14T09:11:00.040Z",
    "andando": false,
    "ultimas": [
     {
-     "inicio": "2026-10-11T09:11:00.040Z",
-     "fim": "2026-10-11T09:11:05.080Z",
+     "inicio": "2026-10-14T09:11:00.040Z",
+     "fim": "2026-10-14T09:11:05.080Z",
      "estado": "parcial",
      "chamadas": 38,
      "erro": null
     },
     {
-     "inicio": "2026-10-10T09:11:00.040Z",
-     "fim": "2026-10-10T09:11:05.320Z",
+     "inicio": "2026-10-13T09:11:00.040Z",
+     "fim": "2026-10-13T09:11:05.200Z",
      "estado": "parcial",
-     "chamadas": 40,
+     "chamadas": 39,
      "erro": null
     }
    ]
@@ -5764,42 +5628,38 @@
      "estado": "ok",
      "motivo": null,
      "codigo": null,
-     "coletadoEm": "2026-10-11T09:17:07.800Z",
+     "coletadoEm": "2026-10-14T09:17:07.800Z",
      "tentadoEm": null
     },
     "instagram": {
      "estado": "ok",
      "motivo": null,
      "codigo": null,
-     "coletadoEm": "2026-10-11T09:17:07.640Z",
+     "coletadoEm": "2026-10-14T09:17:07.640Z",
      "tentadoEm": null
     },
     "anuncios": {
      "estado": "ok",
      "motivo": null,
      "codigo": null,
-     "coletadoEm": "2026-10-11T09:17:05.360Z",
+     "coletadoEm": "2026-10-14T09:17:05.360Z",
      "tentadoEm": null
     },
     "pixel": {
      "estado": "ok",
      "motivo": null,
      "codigo": null,
-     "coletadoEm": "2026-10-11T09:17:06.120Z",
+     "coletadoEm": "2026-10-14T09:17:06.120Z",
      "tentadoEm": null
     }
    },
    "dados": {
     "versao_api": "v26.0",
     "janela": {
-     "hoje": "2026-10-11",
-     "ultimo_domingo": "2026-10-04",
-     "publicacoes_desde": "2026-07-13",
+     "hoje": "2026-10-14",
+     "ultimo_domingo": "2026-10-11",
+     "publicacoes_desde": "2026-07-16",
      "semanas": [
-      {
-       "semana": "2026-08-10",
-       "fim": "2026-08-16"
-      },
       {
        "semana": "2026-08-17",
        "fim": "2026-08-23"
@@ -5827,6 +5687,10 @@
       {
        "semana": "2026-09-28",
        "fim": "2026-10-04"
+      },
+      {
+       "semana": "2026-10-05",
+       "fim": "2026-10-11"
       }
      ]
     },
@@ -5850,97 +5714,6 @@
      "nota": 4.8,
      "check_ins": 310,
      "por_dia": [
-      {
-       "dia": "2026-08-10",
-       "visualizacoes": null,
-       "engajamento": null,
-       "cliques_acao": null,
-       "visitas_perfil": null,
-       "novos_seguidores": null,
-       "deixaram_de_seguir": null,
-       "seguidores_liquidos": null,
-       "video_visualizacoes": null,
-       "video_tempo_ms": null,
-       "reacoes": null
-      },
-      {
-       "dia": "2026-08-11",
-       "visualizacoes": null,
-       "engajamento": null,
-       "cliques_acao": null,
-       "visitas_perfil": null,
-       "novos_seguidores": null,
-       "deixaram_de_seguir": null,
-       "seguidores_liquidos": null,
-       "video_visualizacoes": null,
-       "video_tempo_ms": null,
-       "reacoes": null
-      },
-      {
-       "dia": "2026-08-12",
-       "visualizacoes": null,
-       "engajamento": null,
-       "cliques_acao": null,
-       "visitas_perfil": null,
-       "novos_seguidores": null,
-       "deixaram_de_seguir": null,
-       "seguidores_liquidos": null,
-       "video_visualizacoes": null,
-       "video_tempo_ms": null,
-       "reacoes": null
-      },
-      {
-       "dia": "2026-08-13",
-       "visualizacoes": null,
-       "engajamento": null,
-       "cliques_acao": null,
-       "visitas_perfil": null,
-       "novos_seguidores": null,
-       "deixaram_de_seguir": null,
-       "seguidores_liquidos": null,
-       "video_visualizacoes": null,
-       "video_tempo_ms": null,
-       "reacoes": null
-      },
-      {
-       "dia": "2026-08-14",
-       "visualizacoes": null,
-       "engajamento": null,
-       "cliques_acao": null,
-       "visitas_perfil": null,
-       "novos_seguidores": null,
-       "deixaram_de_seguir": null,
-       "seguidores_liquidos": null,
-       "video_visualizacoes": null,
-       "video_tempo_ms": null,
-       "reacoes": null
-      },
-      {
-       "dia": "2026-08-15",
-       "visualizacoes": null,
-       "engajamento": null,
-       "cliques_acao": null,
-       "visitas_perfil": null,
-       "novos_seguidores": null,
-       "deixaram_de_seguir": null,
-       "seguidores_liquidos": null,
-       "video_visualizacoes": null,
-       "video_tempo_ms": null,
-       "reacoes": null
-      },
-      {
-       "dia": "2026-08-16",
-       "visualizacoes": null,
-       "engajamento": null,
-       "cliques_acao": null,
-       "visitas_perfil": null,
-       "novos_seguidores": null,
-       "deixaram_de_seguir": null,
-       "seguidores_liquidos": null,
-       "video_visualizacoes": null,
-       "video_tempo_ms": null,
-       "reacoes": null
-      },
       {
        "dia": "2026-08-17",
        "visualizacoes": 100,
@@ -6703,22 +6476,118 @@
         "like": 3,
         "love": 1
        }
+      },
+      {
+       "dia": "2026-10-05",
+       "visualizacoes": 149,
+       "engajamento": 14,
+       "cliques_acao": 1,
+       "visitas_perfil": 5,
+       "novos_seguidores": 2,
+       "deixaram_de_seguir": 1,
+       "seguidores_liquidos": 4149,
+       "video_visualizacoes": 7,
+       "video_tempo_ms": 5000,
+       "reacoes": {}
+      },
+      {
+       "dia": "2026-10-06",
+       "visualizacoes": 150,
+       "engajamento": 10,
+       "cliques_acao": 2,
+       "visitas_perfil": 5,
+       "novos_seguidores": 2,
+       "deixaram_de_seguir": 1,
+       "seguidores_liquidos": 4150,
+       "video_visualizacoes": 7,
+       "video_tempo_ms": 5000,
+       "reacoes": {
+        "like": 3,
+        "love": 1
+       }
+      },
+      {
+       "dia": "2026-10-07",
+       "visualizacoes": 151,
+       "engajamento": 11,
+       "cliques_acao": 0,
+       "visitas_perfil": 5,
+       "novos_seguidores": 2,
+       "deixaram_de_seguir": 1,
+       "seguidores_liquidos": 4151,
+       "video_visualizacoes": 7,
+       "video_tempo_ms": 5000,
+       "reacoes": {
+        "like": 3,
+        "love": 1
+       }
+      },
+      {
+       "dia": "2026-10-08",
+       "visualizacoes": 152,
+       "engajamento": 12,
+       "cliques_acao": 1,
+       "visitas_perfil": 5,
+       "novos_seguidores": 2,
+       "deixaram_de_seguir": 1,
+       "seguidores_liquidos": 4152,
+       "video_visualizacoes": 7,
+       "video_tempo_ms": 5000,
+       "reacoes": {
+        "like": 3,
+        "love": 1
+       }
+      },
+      {
+       "dia": "2026-10-09",
+       "visualizacoes": 153,
+       "engajamento": 13,
+       "cliques_acao": 2,
+       "visitas_perfil": 5,
+       "novos_seguidores": 2,
+       "deixaram_de_seguir": 1,
+       "seguidores_liquidos": 4153,
+       "video_visualizacoes": 7,
+       "video_tempo_ms": 5000,
+       "reacoes": {
+        "like": 3,
+        "love": 1
+       }
+      },
+      {
+       "dia": "2026-10-10",
+       "visualizacoes": 154,
+       "engajamento": 14,
+       "cliques_acao": 0,
+       "visitas_perfil": 5,
+       "novos_seguidores": 2,
+       "deixaram_de_seguir": 1,
+       "seguidores_liquidos": 4154,
+       "video_visualizacoes": 7,
+       "video_tempo_ms": 5000,
+       "reacoes": {
+        "like": 3,
+        "love": 1
+       }
+      },
+      {
+       "dia": "2026-10-11",
+       "visualizacoes": 155,
+       "engajamento": 10,
+       "cliques_acao": 1,
+       "visitas_perfil": 5,
+       "novos_seguidores": 2,
+       "deixaram_de_seguir": 1,
+       "seguidores_liquidos": 4155,
+       "video_visualizacoes": 7,
+       "video_tempo_ms": 5000,
+       "reacoes": {
+        "like": 3,
+        "love": 1
+       }
       }
      ],
      "por_semana": [
-      {
-       "semana": "2026-08-10",
-       "fim": "2026-08-16",
-       "dias_com_dado": 0,
-       "alcance": null,
-       "visualizacoes": null,
-       "engajamento": null,
-       "cliques_acao": null,
-       "visitas_perfil": null,
-       "novos_seguidores": null,
-       "deixaram_de_seguir": null,
-       "video_visualizacoes": null
-      },
       {
        "semana": "2026-08-17",
        "fim": "2026-08-23",
@@ -6805,6 +6674,19 @@
        "visualizacoes": null,
        "engajamento": 85,
        "cliques_acao": 6,
+       "visitas_perfil": 35,
+       "novos_seguidores": 14,
+       "deixaram_de_seguir": 7,
+       "video_visualizacoes": 49
+      },
+      {
+       "semana": "2026-10-05",
+       "fim": "2026-10-11",
+       "dias_com_dado": 7,
+       "alcance": 555,
+       "visualizacoes": 1064,
+       "engajamento": 84,
+       "cliques_acao": 7,
        "visitas_perfil": 35,
        "novos_seguidores": 14,
        "deixaram_de_seguir": 7,
@@ -6901,26 +6783,6 @@
      "foto": "https://scontent.exemplo/perfil.jpg",
      "por_semana": [
       {
-       "semana": "2026-08-10",
-       "fim": "2026-08-16",
-       "madura": true,
-       "alcance": 2240,
-       "visualizacoes": 9100,
-       "contas_engajadas": 160,
-       "interacoes": 410,
-       "curtidas": 300,
-       "comentarios": 40,
-       "compartilhamentos": 25,
-       "salvamentos": 30,
-       "respostas": 6,
-       "repostagens": 9,
-       "toques_links": 18,
-       "seguir_deixar": {
-        "FOLLOWER": 25,
-        "NON_FOLLOWER": 4
-       }
-      },
-      {
        "semana": "2026-08-17",
        "fim": "2026-08-23",
        "madura": true,
@@ -7059,10 +6921,30 @@
         "FOLLOWER": 25,
         "NON_FOLLOWER": 4
        }
+      },
+      {
+       "semana": "2026-10-05",
+       "fim": "2026-10-11",
+       "madura": true,
+       "alcance": 2240,
+       "visualizacoes": 9100,
+       "contas_engajadas": 160,
+       "interacoes": 410,
+       "curtidas": 300,
+       "comentarios": 40,
+       "compartilhamentos": 25,
+       "salvamentos": 30,
+       "respostas": 6,
+       "repostagens": 9,
+       "toques_links": 18,
+       "seguir_deixar": {
+        "FOLLOWER": 25,
+        "NON_FOLLOWER": 4
+       }
       }
      ],
      "quebras": {
-      "semana": "2026-09-28",
+      "semana": "2026-10-05",
       "alcance_por_tipo": {
        "CAROUSEL_CONTAINER": 100,
        "POST": 124
@@ -7333,8 +7215,8 @@
     },
     "anuncios": {
      "periodo": {
-      "inicio": "2026-08-10",
-      "fim": "2026-10-11"
+      "inicio": "2026-08-17",
+      "fim": "2026-10-14"
      },
      "contas": [
       {
@@ -7689,7 +7571,7 @@
           }
          ],
          "custo_por_resultado": null,
-         "fechada": false
+         "fechada": true
         },
         {
          "semana": "2026-10-12",
@@ -7979,8 +7861,8 @@
     },
     "pixel": {
      "periodo": {
-      "inicio": "2026-10-05",
-      "fim": "2026-10-10"
+      "inicio": "2026-10-08",
+      "fim": "2026-10-13"
      },
      "pixels": [
       {
@@ -8059,8 +7941,8 @@
     "Página: os Reels do Facebook ficaram fora (a Meta pede permissão de escrita para listá-los).",
     "Página: a Meta recusou os seguidores por cidade; esse número fica vazio."
    ],
-   "coletadoEm": "2026-10-11T09:17:07.880Z",
-   "ultimaBoaEm": "2026-10-11T09:17:07.880Z",
+   "coletadoEm": "2026-10-14T09:17:07.880Z",
+   "ultimaBoaEm": "2026-10-14T09:17:07.880Z",
    "configurado": true,
    "opcionais": [
     {
@@ -8070,19 +7952,19 @@
    ],
    "conexao": null,
    "conexaoDesconhecida": false,
-   "iniciadoEm": "2026-10-11T09:17:00.040Z",
+   "iniciadoEm": "2026-10-14T09:17:00.040Z",
    "andando": false,
    "ultimas": [
     {
-     "inicio": "2026-10-11T09:17:00.040Z",
-     "fim": "2026-10-11T09:17:07.960Z",
+     "inicio": "2026-10-14T09:17:00.040Z",
+     "fim": "2026-10-14T09:17:07.960Z",
      "estado": "ok",
      "chamadas": 61,
      "erro": null
     },
     {
-     "inicio": "2026-10-10T09:17:00.040Z",
-     "fim": "2026-10-10T09:17:00.800Z",
+     "inicio": "2026-10-13T09:17:00.040Z",
+     "fim": "2026-10-13T09:17:00.800Z",
      "estado": "erro",
      "chamadas": 3,
      "erro": null
@@ -8101,12 +7983,12 @@
      "motivo": "O projeto do Google Cloud ainda não tem o nível Explorer da Google Ads API. Peça em Google Ads API Overview. O nível também cai depois de 90 dias sem uso.",
      "codigo": "projeto_sem_aprovacao",
      "coletadoEm": null,
-     "tentadoEm": "2026-10-11T09:23:00.480Z"
+     "tentadoEm": "2026-10-14T09:23:00.480Z"
     }
    },
    "dados": {},
    "avisos": [],
-   "coletadoEm": "2026-10-11T09:23:00.480Z",
+   "coletadoEm": "2026-10-14T09:23:00.480Z",
    "ultimaBoaEm": null,
    "configurado": true,
    "opcionais": [
@@ -8121,19 +8003,19 @@
    ],
    "conexao": null,
    "conexaoDesconhecida": false,
-   "iniciadoEm": "2026-10-11T09:23:00.040Z",
+   "iniciadoEm": "2026-10-14T09:23:00.040Z",
    "andando": false,
    "ultimas": [
     {
-     "inicio": "2026-10-11T09:23:00.040Z",
-     "fim": "2026-10-11T09:23:00.560Z",
+     "inicio": "2026-10-14T09:23:00.040Z",
+     "fim": "2026-10-14T09:23:00.600Z",
      "estado": "aguardando_aprovacao",
      "chamadas": 3,
      "erro": null
     },
     {
-     "inicio": "2026-10-10T09:23:00.040Z",
-     "fim": "2026-10-10T09:23:00.560Z",
+     "inicio": "2026-10-13T09:23:00.040Z",
+     "fim": "2026-10-13T09:23:00.600Z",
      "estado": "aguardando_aprovacao",
      "chamadas": 3,
      "erro": null
@@ -8149,25 +8031,25 @@
    "partes": {},
    "dados": {},
    "avisos": [],
-   "coletadoEm": "2026-10-11T09:29:00.080Z",
+   "coletadoEm": "2026-10-14T09:29:00.080Z",
    "ultimaBoaEm": null,
    "configurado": false,
    "opcionais": [],
    "conexao": null,
    "conexaoDesconhecida": false,
-   "iniciadoEm": "2026-10-11T09:29:00.040Z",
+   "iniciadoEm": "2026-10-14T09:29:00.040Z",
    "andando": false,
    "ultimas": [
     {
-     "inicio": "2026-10-11T09:29:00.040Z",
-     "fim": "2026-10-11T09:29:00.160Z",
+     "inicio": "2026-10-14T09:29:00.040Z",
+     "fim": "2026-10-14T09:29:00.160Z",
      "estado": "falta_configurar",
      "chamadas": 0,
      "erro": null
     },
     {
-     "inicio": "2026-10-10T09:29:00.040Z",
-     "fim": "2026-10-10T09:29:00.160Z",
+     "inicio": "2026-10-13T09:29:00.040Z",
+     "fim": "2026-10-13T09:29:00.160Z",
      "estado": "falta_configurar",
      "chamadas": 0,
      "erro": null
@@ -8183,25 +8065,25 @@
    "partes": {},
    "dados": {},
    "avisos": [],
-   "coletadoEm": "2026-10-11T09:35:00.080Z",
+   "coletadoEm": "2026-10-14T09:35:00.080Z",
    "ultimaBoaEm": null,
    "configurado": true,
    "opcionais": [],
    "conexao": null,
    "conexaoDesconhecida": false,
-   "iniciadoEm": "2026-10-11T09:35:00.040Z",
+   "iniciadoEm": "2026-10-14T09:35:00.040Z",
    "andando": false,
    "ultimas": [
     {
-     "inicio": "2026-10-11T09:35:00.040Z",
-     "fim": "2026-10-11T09:35:00.160Z",
+     "inicio": "2026-10-14T09:35:00.040Z",
+     "fim": "2026-10-14T09:35:00.160Z",
      "estado": "falta_conectar",
      "chamadas": 0,
      "erro": null
     },
     {
-     "inicio": "2026-10-10T09:35:00.040Z",
-     "fim": "2026-10-10T09:35:00.160Z",
+     "inicio": "2026-10-13T09:35:00.040Z",
+     "fim": "2026-10-13T09:35:00.160Z",
      "estado": "falta_conectar",
      "chamadas": 0,
      "erro": null

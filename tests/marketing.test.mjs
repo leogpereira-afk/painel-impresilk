@@ -88,6 +88,13 @@ test('o caso ruim: o mesmo post colado de dois jeitos vira o MESMO link (o CSV n
  // Parâmetro que muda a página fica (o site usa ?page_id=).
  assert.equal(normalizarLink('https://impresilk.com.br/?page_id=144&fbclid=1'),'https://impresilk.com.br/?page_id=144');
  assert.throws(()=>normalizarLink('javascript:alert(1)'),/http/);
+ // Pinterest (12/10/2026): o Pin copiado no Brasil (br.) e o que a API manda (www.) são o mesmo.
+ const pin='https://www.pinterest.com/pin/123456789';
+ for(const l of ['https://br.pinterest.com/pin/123456789/','http://pinterest.com.br/pin/123456789/?utm_source=x','https://pinterest.pt/pin/123456789','https://www.pinterest.co.uk/pin/123456789/#x','https://www.pinterest.com/pin/123456789/'])
+  assert.equal(normalizarLink(l),pin,l);
+ assert.equal(normalizarLink('https://ads.pinterest.com/advertiser/1/'),'https://ads.pinterest.com/advertiser/1','ads. não é o site do país');
+ assert.equal(normalizarLink('https://pin.it/AbC12'),'https://pin.it/AbC12');
+ assert.equal(normalizarLink('https://br.pinterest.example.com/pin/1'),'https://br.pinterest.example.com/pin/1');
  assert.throws(()=>normalizarLink('ftp://x.com/a'),/http/);
  assert.throws(()=>normalizarLink('https://localhost/a'),/http/);
  assert.equal(normalizarLink(''),null);

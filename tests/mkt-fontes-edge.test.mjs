@@ -19,7 +19,7 @@ import { fileURLToPath } from 'node:url';
 import { FONTES, SECRETS_PADRAO, SECRETS_OPCIONAIS_PADRAO, TRAVA_COLETA_MS, nomeDeSecretValido } from '../supabase/functions/_shared/mkt-fontes/info.mjs';
 import { conferirState, AVISO_DESCONECTAR_GOOGLE, PROVEDORES, MOTIVOS } from '../supabase/functions/_shared/mkt-oauth.mjs';
 import {
-  juntarRetrato, limparSegredos, segredosDosValores, prepararSemanas, anotarDiario, anotarComTrava, hostPublico, extrasDoCtx, ESPERA_MAXIMA_MS,
+  juntarRetrato, DIAS_GUARDA_PARTE, limparSegredos, segredosDosValores, prepararSemanas, anotarDiario, anotarComTrava, hostPublico, extrasDoCtx, ESPERA_MAXIMA_MS,
   criarBuscador, regraDeHosts, conferirUrl, normalizarResultado,
 } from '../supabase/functions/_shared/mkt-fontes/coletora.mjs';
 
@@ -784,6 +784,28 @@ test('o caso ruim (junção): coleta que falhou inteira não apaga nada; coleta 
   assert.equal(ok.partes.a.coletado_em, 'T1');
   const parcial = juntarRetrato({ partes: { a: { estado: 'ok', coletado_em: 'T0' } }, dados: { a: { n: 1, lista: [1] } } }, { estado: 'parcial', partes: { a: { estado: 'parcial' } }, dados: { a: { n: 3 } }, avisos: [] }, 'T1');
   assert.deepEqual(parcial.dados.a, { n: 3, lista: [1] }, 'parte parcial junta campo a campo');
+});
+
+test('o caso ruim (prazo da parte): fonte que só falha não guarda o último retrato para sempre', () => {
+  // O token do LinkedIn venceu há mais de um ano e o cron segue rodando e falhando todo dia.
+  const ant = {
+    conta: 'X', ultima_boa_em: '2025-10-01T09:29:00.000Z',
+    partes: { paginas: { estado: 'ok', coletado_em: '2025-10-01T09:29:00.000Z' }, posts: { estado: 'ok', coletado_em: '2025-11-01T09:29:00.000Z' } },
+    dados: { paginas: { seguidores: 10 }, posts: { itens: [1] }, conta: { nome: 'X' } },
+  };
+  const agora = '2026-10-12T09:29:00.000Z';
+  const r = juntarRetrato(ant, { estado: 'erro', conta: null, partes: { paginas: { estado: 'erro', motivo: 'reconectar' } }, dados: {}, avisos: [] }, agora);
+  assert.equal(r.dados.paginas, undefined, 'parte com a última coleta boa de mais de 1 ano sai');
+  assert.equal(r.partes.paginas.coletado_em, null);
+  assert.equal(r.partes.paginas.motivo, 'reconectar');
+  assert.deepEqual(r.dados.posts, { itens: [1] }, 'a de menos de 1 ano fica');
+  assert.equal(r.partes.posts.coletado_em, '2025-11-01T09:29:00.000Z');
+  assert.equal(r.dados.conta, undefined, 'dado sem parte vence com a última coleta boa da fonte');
+  // Dado novo desta execução nunca vence, nem com a parte antiga.
+  const r2 = juntarRetrato(ant, { estado: 'parcial', partes: { paginas: { estado: 'parcial' } }, dados: { paginas: { alcance: 3 } }, avisos: [] }, agora);
+  assert.deepEqual(r2.dados.paginas, { seguidores: 10, alcance: 3 });
+  assert.equal(r2.partes.paginas.coletado_em, agora);
+  assert.equal(DIAS_GUARDA_PARTE, 365);
 });
 
 test('o caso ruim (faxina): chave secreta, valor de secret, token na URL e chave privada somem; o resto fica', () => {

@@ -59,7 +59,8 @@ async function novaMemoria() {
  *  fontes} como a memória pediu) e respondido pela prévia, com o relógio de
  *  mentira dela. `segurar` deixa a próxima resposta presa até o teste soltar. */
 function servidor({ papel = 'gestao', cenarios = [], token = 'cracha-ana' } = {}) {
-  const relogio = { t: Date.parse('2026-10-11T15:00:00.000Z') };
+  // O dia dos dados fictícios (DIA_DOS_DADOS): a âncora da prévia não anda.
+  const relogio = { t: Date.parse('2026-10-14T15:00:00.000Z') };
   const previa = criarFontesDaPrevia({
     carregar: async () => VARIEDADE, carregarCheias: async () => CHEIAS, papel, cenarios: new Set(cenarios),
     agora: () => relogio.t, esperar: async (ms) => { relogio.t += ms; },
@@ -211,7 +212,7 @@ test('a confirmação da conexão (guardarFonte) entra na memória: a faixa e o 
   const s = servidor();
   const m = await novaMemoria();
   await m.lerFontes({ leve: true });
-  const pin = { ...m.useFontesMarketing({ leve: true }).retrato.porFonte.pinterest, conexao: { conectadoEm: '2026-10-11T15:00:00.000Z', conectadoPor: 'demo', conta: null, escopos: [], expiraEm: null, refreshExpiraEm: null } };
+  const pin = { ...m.useFontesMarketing({ leve: true }).retrato.porFonte.pinterest, conexao: { conectadoEm: '2026-10-14T15:00:00.000Z', conectadoPor: 'demo', conta: null, escopos: [], expiraEm: null, refreshExpiraEm: null } };
   m.guardarFonte(pin);
   assert.deepEqual(m.useFontesMarketing({ leve: true }).retrato.porFonte.pinterest.conexao, pin.conexao);
   assert.equal(s.pedidos.length, 1);

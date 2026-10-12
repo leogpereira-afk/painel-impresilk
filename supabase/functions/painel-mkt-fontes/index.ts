@@ -376,6 +376,16 @@ async function coletar(fonte: string, quem: string | null) {
   try {
     const anterior = await lerCache(chaveDaFonte(fonte));
     const retrato: any = juntarRetrato(anterior, novo, agoraIso);
+    // O prazo de guarda do dado pessoal que o conector acumula (os leads do
+    // Google Ads, 12 meses) corre em toda execução, até na que falhou: a
+    // juntarRetrato mantém a parte antiga quando a nova não veio.
+    if (typeof conector?.podarGuardado === 'function' && retrato.dados) {
+      try {
+        retrato.dados = conector.podarGuardado(retrato.dados, hojeSP());
+      } catch (e) {
+        erros.push(`prazo de guarda não aplicado (${descrever(e)})`);
+      }
+    }
     retrato.chamadas = chamadas;
     // Os NOMES dos secrets que o conector declarou (nunca o valor): é por
     // eles que a porta da tela diz se a fonte está configurada. Os
