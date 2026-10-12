@@ -518,9 +518,26 @@ export function classificarErro(e) {
   else if (codigo === 100) tipo = 'invalido';
   else if (e?.codigo === 'tempo' || e?.name === 'AbortError' || e?.name === 'TimeoutError') tipo = 'tempo';
   else tipo = 'falha';
-  return { tipo, status, codigo, subcodigo };
+  return { tipo, status, codigo, subcodigo, mensagem: mensagemDaMeta(g) };
 }
-const descreverCodigo = (info) => (info.codigo ? `código ${info.codigo}` : info.status ? `HTTP ${info.status}` : 'sem resposta');
+/** A mensagem que a Meta manda junto com o erro ("(#100) Param start_time
+ *  must be..."): é ela que diz QUAL parâmetro ou métrica foi recusado, e o
+ *  código sozinho (100) não diz (12/10/2026: o Pixel e as visualizações do
+ *  Instagram foram recusados com "código 100" e nada mais no diário). Vai só
+ *  para o diário: curta, numa linha, e sem nada com cara de token. */
+export function mensagemDaMeta(g) {
+  const m = typeof g?.message === 'string' ? g.message : typeof g?.error_user_msg === 'string' ? g.error_user_msg : '';
+  const limpa = m
+    .replace(/EAA[A-Za-z0-9]{10,}/g, '[token]')
+    .replace(/(access_token|appsecret_proof)=[^&\s]+/gi, '$1=[token]')
+    .replace(/\s+/g, ' ')
+    .trim();
+  return limpa ? limpa.slice(0, 160) : null;
+}
+export const descreverCodigo = (info) => {
+  const base = info.codigo ? `código ${info.codigo}${info.subcodigo ? `/${info.subcodigo}` : ''}` : info.status ? `HTTP ${info.status}` : 'sem resposta';
+  return info.mensagem ? `${base}: ${info.mensagem}` : base;
+};
 const fatal = (e) => e instanceof SemTempo || (e instanceof ErroMeta && (e.info.tipo === 'token' || e.info.tipo === 'limite'));
 
 // ------------------------------------------------------------------- URL --
@@ -1130,6 +1147,8 @@ export async function coletar(ctx) {
   const cli = criarCliente(ctx, String(ctx.env?.('META_APP_SECRET') ?? '').trim() || null);
   const situacao = Object.fromEntries(PARTES.map((p) => [p, { oks: 0, falhas: [], em: null }]));
   const recusadas = Object.fromEntries(PARTES.map((p) => [p, new Set()]));
+  // O erro da primeira recusa de cada métrica, para o diário dizer o porquê.
+  const motivosRecusa = Object.fromEntries(PARTES.map((p) => [p, new Map()]));
   const dados = { versao_api: VERSAO_GRAPH, janela: { hoje, ultimo_domingo: ultimoDomingo, publicacoes_desde: desde, semanas: janela } };
   let tokenMorto = false;
   let semTempo = false;
@@ -1212,6 +1231,10 @@ export async function coletar(ctx) {
    *  guardada por grupo: o mesmo nome pode valer num tipo e não no outro. */
   async function insights(parte, id, metricas, params, tok, rotulo, grupo) {
     const rec = recusadas[parte];
+    const recusar = (m, info) => {
+      rec.add(`${grupo}|${m}`);
+      if (!motivosRecusa[parte].has(m)) motivosRecusa[parte].set(m, info);
+    };
     const pedir = metricas.filter((m) => !rec.has(`${grupo}|${m}`));
     if (!pedir.length) return {};
     const chamar = async (ms) => lerInsights(await cli.get(`/${id}/insights`, { metric: ms.join(','), ...params }, tok, rotulo));
@@ -1219,13 +1242,13 @@ export async function coletar(ctx) {
       return await chamar(pedir);
     } catch (e) {
       if (!(e instanceof ErroMeta) || e.info.tipo !== 'invalido') throw e;
-      if (pedir.length === 1) { rec.add(`${grupo}|${pedir[0]}`); return {}; }
+      if (pedir.length === 1) { recusar(pedir[0], e.info); return {}; }
       const fora = {};
       for (const m of pedir) {
         try {
           Object.assign(fora, await chamar([m]));
         } catch (e2) {
-          if (e2 instanceof ErroMeta && e2.info.tipo === 'invalido') { rec.add(`${grupo}|${m}`); continue; }
+          if (e2 instanceof ErroMeta && e2.info.tipo === 'invalido') { recusar(m, e2.info); continue; }
           throw e2;
         }
       }
@@ -1713,7 +1736,7 @@ export async function coletar(ctx) {
     if (!nomes.length) continue;
     // O nome da API fica no diário (é por ele que se acha a métrica na
     // documentação); o aviso leva o nome para gente.
-    log(`meta ${p}: métricas recusadas ${nomes.join(', ')}`);
+    log(`meta ${p}: métricas recusadas ${nomes.map((n) => (motivosRecusa[p].has(n) ? `${n} (${descreverCodigo(motivosRecusa[p].get(n))})` : n)).join(', ')}`);
     avisar(avisoDeMetricasRecusadas(ROTULO[p], nomes));
   }
 

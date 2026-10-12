@@ -274,6 +274,8 @@ test('métrica que a Meta tirou do ar: null e aviso, nunca zero; as outras do lo
   assert.equal(r.avisos.some((a) => /page_|_unique|\bviews\b/.test(a)), false, 'nome da API não vai para o aviso');
   assert.ok(logs.some((l) => /page_post_engagements/.test(l) && /page_follows_city/.test(l)), logs.join(' | '));
   assert.ok(logs.some((l) => /instagram: métricas recusadas views/.test(l)));
+  // 12/10/2026: o diário leva também a mensagem da Meta, que diz o porquê.
+  assert.ok(logs.some((l) => l.includes('métricas recusadas views (código 100: (#100) The value must be a valid insights metric)')), logs.join(' | '));
   // Métrica que esta lista não conhece vira "uma das métricas", nunca o nome cru.
   assert.equal(meta.avisoDeMetricasRecusadas('Pixel', ['metrica_nova_da_meta']), 'Pixel: a Meta recusou uma das métricas; esse número fica vazio.');
   // Instagram: o lote da 1ª semana cai, a busca da culpada acontece uma vez,
@@ -688,7 +690,7 @@ test('erros da Meta: cada código no seu tipo', () => {
   assert.equal(meta.classificarErro(erroFonte('http', 400, fx('erro-token'))).tipo, 'token', 'a Graph manda 190 com HTTP 400');
   assert.equal(meta.classificarErro(erroFonte('rede', null, null)).tipo, 'falha');
   assert.equal(t(null, 500), 'falha');
-  assert.deepEqual(meta.classificarErro({ status: 400, corpo: fx('erro-token') }), { tipo: 'token', status: 400, codigo: 190, subcodigo: 463 });
+  assert.deepEqual(meta.classificarErro({ status: 400, corpo: fx('erro-token') }), { tipo: 'token', status: 400, codigo: 190, subcodigo: 463, mensagem: 'Error validating access token: Session has expired.' });
 });
 
 test('datas: o dia do end_time da Meta, a semana fechada e a meia-noite de São Paulo', () => {
@@ -771,4 +773,20 @@ test('interface do conector e texto sem travessão no arquivo inteiro', () => {
   assert.match(fonte, /\* -+ FORMATO/);
   // O caso ruim do detector: ele pega travessão de verdade.
   assert.equal(TRAVESSAO.test('a — b'), true);
+});
+
+test('a mensagem do erro da Meta vai para o diário: curta, numa linha e sem token', () => {
+  const info = meta.classificarErro({ status: 400, corpo: { error: { code: 100, error_subcode: 2108006, message: '(#100) Param start_time\n must be within the last 7 days' } } });
+  assert.deepEqual([info.tipo, info.codigo, info.subcodigo, info.mensagem], ['invalido', 100, 2108006, '(#100) Param start_time must be within the last 7 days']);
+  assert.equal(meta.descreverCodigo(info), 'código 100/2108006: (#100) Param start_time must be within the last 7 days');
+  // Nada com cara de token passa, nem no texto nem num endereço citado.
+  const m = meta.mensagemDaMeta({ message: 'Invalid OAuth EAAGm0PX4ZCpsBAABCDEFGHIJKLMNOP for https://graph.facebook.com/x?access_token=EAAxyz123&appsecret_proof=abc&fields=id' });
+  assert.equal(/EAA[A-Za-z0-9]{6}|abc&/.test(m), false, m);
+  assert.ok(m.includes('access_token=[token]') && m.includes('appsecret_proof=[token]'), m);
+  assert.equal(meta.mensagemDaMeta({ message: 'x'.repeat(400) }).length, 160);
+  assert.equal(meta.mensagemDaMeta({}), null);
+  assert.equal(meta.mensagemDaMeta(null), null);
+  // Sem mensagem, o diário fica como antes.
+  assert.equal(meta.descreverCodigo({ codigo: 100 }), 'código 100');
+  assert.equal(meta.descreverCodigo({ status: 500 }), 'HTTP 500');
 });

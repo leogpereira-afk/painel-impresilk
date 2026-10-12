@@ -1,5 +1,9 @@
 # Vez do Painel Impresilk
 
+## Trabalho atual · Consertos da coleta da Meta
+
+Agente: claude. Autorização de Léo nesta conversa, em 12/10/2026: "corrigir meta". Ramo `claude/meta-consertos-20261012`, clone isolado em /tmp. Escopo: as recusas da primeira coleta real da Meta (estatísticas do Pixel e visualizações do Instagram, as duas com "código 100"). Passo 1: o diário passa a guardar a mensagem da Meta junto com o código (curta, sem token), para achar a causa. Passo 2: o conserto. Sem mudança de banco nem de registros.
+
 ## Trabalho atual · Testes de banco na CI
 
 Agente: claude. Autorização de Léo nesta conversa, em 12/10/2026: "testar o github automatico" (a CI passar a testar o banco de verdade). Ramo `claude/ci-banco-20261012`, clone isolado em /tmp. Escopo: `@electric-sql/pglite` 0.5.8 (exata, de 26/08/2026, sem dependências) no devDependencies, para o `npm ci` da CI instalar; `tests/banco-na-ci.test.mjs` falha na CI (CI=true) se o PGlite faltar, em vez de os testes de banco pularem calados. Sem mudança de código do Painel, de servidor ou de banco.
