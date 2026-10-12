@@ -173,6 +173,11 @@ function corpoPagina(p, hoje) {
     : null;
   const paises = mapaEmBarras(p.seguidores_por_pais, (k) => nomeDoPais(k));
   const cidades = mapaEmBarras(p.seguidores_por_cidade);
+  // A Meta só dá país e cidade dos seguidores a partir de 100 (a Página da
+  // Impresilk tinha 41 em 12/10/2026): sem isso a tela dizia "não mandou nesta
+  // coleta", como se fosse falha.
+  const nSeg = medida(p.seguidores);
+  const poucosSeguidores = nSeg !== null && nSeg < 100 ? `A Meta só mostra de onde são os seguidores a partir de 100 (a Página tem ${formatar('int', nSeg)}).` : null;
   const posts = Array.isArray(p.posts) ? recentesPrimeiro(p.posts, 'criado_em') : null;
   const colData = col('data', 'Data', 'dia');
   const colPost = col('titulo', 'Post', 'texto', { valor: (x) => x.titulo || (x.link ? 'abrir o post' : null), link: (x) => x.link, max: 120 });
@@ -276,8 +281,8 @@ function corpoPagina(p, hoje) {
         col('video_tempo_ms', 'Tempo de vídeo', 'durms'),
         col('reacoes', 'Reações', 'texto', { valor: (x) => (objeto(x.reacoes) ? porTipo(x.reacoes, REACOES_FB, 'outras reações') ?? 'nenhuma' : null) }),
       ], { hoje, limite: 14, unidade: ['dia', 'dias'] }),
-      secao('paises', 'Seguidores por país', [paises ? blocoBarras(paises, { total: somaDisponivel(paises.map((x) => x.valor)) }) : blocoTexto('A Meta não mandou nesta coleta.')], { resumo: paises ? plural(paises.length, 'país', 'países') : 'não medido' }),
-      secao('cidades', 'Seguidores por cidade', [cidades ? blocoBarras(cidades.slice(0, 15)) : blocoTexto('A Meta não mandou nesta coleta (ela pode ter recusado a métrica).')], { resumo: cidades ? plural(cidades.length, 'cidade', 'cidades') : 'não medido' }),
+      secao('paises', 'Seguidores por país', [paises ? blocoBarras(paises, { total: somaDisponivel(paises.map((x) => x.valor)) }) : blocoTexto(poucosSeguidores ?? 'A Meta não mandou nesta coleta.')], { resumo: paises ? plural(paises.length, 'país', 'países') : poucosSeguidores ? 'menos de 100 seguidores' : 'não medido' }),
+      secao('cidades', 'Seguidores por cidade', [cidades ? blocoBarras(cidades.slice(0, 15)) : blocoTexto(poucosSeguidores ?? 'A Meta não mandou nesta coleta (ela pode ter recusado a métrica).')], { resumo: cidades ? plural(cidades.length, 'cidade', 'cidades') : poucosSeguidores ? 'menos de 100 seguidores' : 'não medido' }),
       secao('sobre', 'Sobre a Página', [
         blocoPares([
           { rotulo: 'Página', valor: p.nome },
@@ -369,7 +374,12 @@ function corpoConta(c, periodo, hoje) {
   // amanhã (a Meta pode mandar, pelo fuso da conta) aparece na tabela, com a
   // situação "ainda não começou", e fica fora das somas (regra 5).
   const { ate: semanas, depois: futuras } = separarPorHoje(todas, 'semana', hoje);
-  const soma = (k) => somaDisponivel(semanas.map((s) => s[k]));
+  // Sem entrega no período (12/10/2026): a Meta não devolve linha de semana
+  // sem anúncio rodando, e a lista vem vazia. Com a leitura feita (a lista é
+  // lista, e não null), isso é a medida "nada rodou": gasto R$ 0,00, e não
+  // "não medido", que fazia parecer falha da coleta.
+  const semEntrega = Array.isArray(c.por_semana) && todas.length === 0;
+  const soma = (k) => { const v = somaDisponivel(semanas.map((s) => s[k])); return v === null && semEntrega ? 0 : v; };
   const gasto = soma('gasto'), impressoes = soma('impressoes'), cliques = soma('cliques'), leads = soma('leads');
   const { atual, anterior } = ultimasDuas(semanas, 'semana', (s) => s.fechada !== false);
   const comparar = (campo) => (anterior ? anterior[campo] : undefined);
@@ -412,7 +422,12 @@ function corpoConta(c, periodo, hoje) {
         numero({ id: 'conversas', rotulo: 'Conversas', valor: soma('conversas') }),
         numero({ id: 'primeiras_respostas', rotulo: 'Primeiras respostas', valor: soma('primeiras_respostas'), titulo: 'Conversas em que a pessoa respondeu a primeira mensagem.' }),
         numero({ id: 'cpl', rotulo: 'Custo por lead', tipo: 'moeda', moeda, valor: razao(gasto, leads) }),
-      ], `Período ${rotuloPeriodo(periodo?.inicio, periodo?.fim, hoje) ?? 'da coleta'}`),
+      ], `Período ${rotuloPeriodo(periodo?.inicio, periodo?.fim, hoje) ?? 'da coleta'}${semEntrega ? ': nenhum anúncio rodou' : ''}`),
+      // A conta que não está ativa (pagamento pendente, desativada) não roda
+      // anúncio novo: o aviso diz isso antes dos números.
+      blocoAvisos(medida(c.situacao_codigo) !== null && medida(c.situacao_codigo) !== 1
+        ? [{ nivel: 'alerta', texto: `A conta de anúncios está com a situação "${texto(c.situacao, 60) ?? 'não ativa'}": anúncio novo só roda depois de resolver no Gerenciador de Anúncios.` }]
+        : []),
       atual
         ? blocoNumeros([
           numero({ id: 's-gasto', rotulo: 'Gasto', tipo: 'moeda', moeda, valor: atual.gasto, anterior: comparar('gasto'), subirE: 'neutro' }),
@@ -466,7 +481,7 @@ function corpoConta(c, periodo, hoje) {
         col('primeiras_respostas', 'Primeiras respostas', 'int'),
         col('resultados', 'Resultados', 'texto', { valor: (x) => textoResultados(x.resultados), numerico: true }),
         col('custo_por_resultado', 'Custo por resultado', 'texto', { valor: (x) => textoCustoPorResultado(x.custo_por_resultado, moeda), numerico: true }),
-      ], { moeda, hoje, unidade: ['semana', 'semanas'] }),
+      ], { moeda, hoje, unidade: ['semana', 'semanas'], vazio: 'Nenhum anúncio rodou no período.' }),
       secaoTabela('plataformas', 'Por plataforma', Array.isArray(c.por_plataforma) ? plataformas : null, [
         col('plataforma', 'Plataforma', 'texto', { valor: (x) => traduzir(PLATAFORMA, x.plataforma, 'outra plataforma') }),
         col('gasto', 'Gasto', 'moeda'),
@@ -480,7 +495,7 @@ function corpoConta(c, periodo, hoje) {
         col('leads', 'Leads', 'int'),
         col('conversas', 'Conversas', 'int'),
         col('primeiras_respostas', 'Primeiras respostas', 'int'),
-      ], { moeda, unidade: ['plataforma', 'plataformas'], nota: 'Somadas nas semanas do período (o alcance não soma e fica de fora). CTR, CPC e CPM são contas do Painel com essas somas.' }),
+      ], { moeda, unidade: ['plataforma', 'plataformas'], vazio: 'Nenhum anúncio rodou no período.', nota: 'Somadas nas semanas do período (o alcance não soma e fica de fora). CTR, CPC e CPM são contas do Painel com essas somas.' }),
       secaoTabela('dias', 'Por dia', Array.isArray(c.por_dia) ? recentesPrimeiro(c.por_dia, 'dia') : null, [
         col('dia', 'Dia', 'dia'),
         col('gasto', 'Gasto', 'moeda'),
@@ -496,7 +511,7 @@ function corpoConta(c, periodo, hoje) {
         col('leads', 'Leads', 'int'),
         col('conversas', 'Conversas', 'int'),
         col('primeiras_respostas', 'Primeiras respostas', 'int'),
-      ], { moeda, hoje, limite: 14, unidade: ['dia', 'dias'] }),
+      ], { moeda, hoje, limite: 14, unidade: ['dia', 'dias'], vazio: 'Nenhum anúncio rodou no período.' }),
       secaoTabela('campanhas_dia', 'Campanhas por dia', Array.isArray(c.campanhas_por_dia) ? recentesPrimeiro(c.campanhas_por_dia, 'dia') : null, [
         col('dia', 'Dia', 'dia'),
         col('campanha', 'Campanha', 'texto', { valor: (x) => nomeDaCampanha.get(String(x.campanha_id)) ?? x.campanha_id, max: 100 }),
@@ -571,6 +586,18 @@ export function quadrosAnunciosMeta(l, { hoje } = {}) {
 
 /* ----------------------------------------------------------- o Pixel -- */
 
+/** A situação do Pixel pelo último disparo, e não só pela marca de
+ *  "indisponível" da Meta (12/10/2026: um conjunto de dados que nunca
+ *  disparou aparecia como "recebendo"). Mais de 7 dias sem disparo é parado. */
+export function situacaoDoPixel(px, hoje) {
+  if (px?.indisponivel === true) return 'indisponível';
+  const ms = Date.parse(String(px?.ultimo_disparo ?? '').replace(/([+-]\d{2})(\d{2})$/, '$1:$2'));
+  if (!Number.isFinite(ms)) return px?.indisponivel === false ? 'nunca disparou' : null;
+  const ref = Date.parse(`${hoje ?? new Date().toISOString().slice(0, 10)}T12:00:00-03:00`);
+  const dias = Math.floor((ref - ms) / 86400000);
+  return dias > 7 ? `parado há ${dias} dias` : 'recebendo';
+}
+
 function corpoPixel(px, periodo, hoje) {
   const total = objeto(px.eventos_total) ? Object.entries(px.eventos_total).map(([evento, n]) => ({ evento, n })) : null;
   const dias = Array.isArray(px.eventos_por_dia) ? px.eventos_por_dia.filter(objeto) : null;
@@ -583,7 +610,7 @@ function corpoPixel(px, periodo, hoje) {
         numero({ id: 'eventos', rotulo: 'Eventos recebidos', valor: total ? somaDisponivel(total.map((x) => x.n)) : null }),
         numero({ id: 'tipos', rotulo: 'Tipos de evento', valor: total ? total.length : null }),
         numero({ id: 'ultimo', rotulo: 'Último disparo', tipo: 'instante', valor: px.ultimo_disparo, hoje }),
-        numero({ id: 'situacao', rotulo: 'Situação', tipo: 'texto', valor: px.indisponivel === true ? 'indisponível' : px.indisponivel === false ? 'recebendo' : null }),
+        numero({ id: 'situacao', rotulo: 'Situação', tipo: 'texto', valor: situacaoDoPixel(px, hoje) }),
       ], `Período ${rotuloPeriodo(periodo?.inicio, periodo?.fim, hoje) ?? 'da coleta'}`),
       blocoGrafico(dias, { x: 'dia', y: (d) => (objeto(d.eventos) ? somaDisponivel(Object.values(d.eventos)) : null), titulo: 'Eventos por dia', unidade: 'eventos', hoje }),
       px.indisponivel === true ? blocoAvisos([{ nivel: 'alerta', texto: 'A Meta marcou este Pixel como indisponível.' }]) : null,

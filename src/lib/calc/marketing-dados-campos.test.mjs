@@ -16,7 +16,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { AUSENTE, NAO_MEDIDO, celula, formatar, juntar, textoDoMapa, textoParcela, textoPerdida } from './marketing-dados.js';
 import { diasDasCampanhas, linhasDaParcela, linhasDeDisplay, linhasDeVideo, quadrosGoogleAds } from './marketing-dados-ads.js';
-import { acoesDaLinha, acoesDoPeriodo, quadrosAnunciosMeta, quadrosPaginaFacebook, textoCustoPorResultado, textoResultados } from './marketing-dados-meta.js';
+import { acoesDaLinha, acoesDoPeriodo, quadrosAnunciosMeta, quadrosPaginaFacebook, quadrosPixelMeta, situacaoDoPixel, textoCustoPorResultado, textoResultados } from './marketing-dados-meta.js';
 import { chavesDoConsentimento, enderecoRelativo, quadrosSite, resumoDasPaginas, situacaoDaConferencia } from './marketing-dados-site.js';
 import { dataDoGoogle, quadrosGa4, quadrosPerfilEmpresa, quadrosSearchConsole, valoresDoAtributo } from './marketing-dados-google.js';
 import { quadrosLinkedin, quadrosPinterest, textoExtras } from './marketing-dados-social.js';
@@ -410,4 +410,58 @@ test('as duas prévias montam todos os quadros sem texto quebrado, e o lixo no l
   }
   assert.equal(textoDoMapa({ a: null, b: 'x' }), null);
   assert.equal(juntar(['', null, 'a']), 'a');
+});
+
+/* --------------------------------------- a Meta da Impresilk (12/10/2026) */
+
+test('o caso ruim: anúncios sem entrega no período mostram zero e dizem que nada rodou, e não "não medido"', () => {
+  // A conta real da Impresilk: 16 campanhas pausadas, nada rodou em 8 semanas.
+  // A Meta não devolve semana sem entrega; a lista vem vazia.
+  const l = ligacao(CHEIAS, 'facebook', 'meta', 'anuncios');
+  Object.assign(l.dados.contas[0], { por_semana: [], por_dia: [], por_plataforma: [], campanhas_por_dia: [], situacao: 'pagamento pendente', situacao_codigo: 3 });
+  const [q] = quadrosAnunciosMeta(l, ctx);
+  const nums = q.topo.find((b) => b.tipo === 'numeros');
+  assert.match(nums.titulo, /: nenhum anúncio rodou$/);
+  const v = (id) => sem(nums.itens.find((n) => n.id === id).texto);
+  assert.deepEqual([v('gasto'), v('impressoes'), v('cliques'), v('leads')], ['R$ 0,00', '0', '0', '0']);
+  assert.equal(sem(q.destaque), 'R$ 0,00 no período');
+  const avisos = q.topo.find((b) => b?.tipo === 'avisos');
+  assert.ok(avisos && avisos.itens[0].texto.includes('"pagamento pendente"'), JSON.stringify(q.topo.map((b) => b?.tipo)));
+  assert.ok(textos(q).includes('Nenhum anúncio rodou no período.'));
+  // Sem a leitura das semanas (null), continua "não medido": aí é falta de leitura, e não zero.
+  const l2 = ligacao(CHEIAS, 'facebook', 'meta', 'anuncios');
+  Object.assign(l2.dados.contas[0], { por_semana: null, situacao_codigo: 1 });
+  const [q2] = quadrosAnunciosMeta(l2, ctx);
+  const nums2 = q2.topo.find((b) => b.tipo === 'numeros');
+  assert.equal(nums2.itens.find((n) => n.id === 'gasto').texto, NAO_MEDIDO);
+  assert.equal(q2.topo.some((b) => b?.tipo === 'avisos'), false, 'conta ativa: sem aviso');
+});
+
+test('Pixel: a situação vem do último disparo; o conjunto de dados que nunca disparou não aparece "recebendo"', () => {
+  const hoje = '2026-10-12';
+  assert.equal(situacaoDoPixel({ indisponivel: false, ultimo_disparo: '2026-10-11T22:10:00+0000' }, hoje), 'recebendo');
+  assert.equal(situacaoDoPixel({ indisponivel: false, ultimo_disparo: '2026-09-20T10:00:00+0000' }, hoje), 'parado há 22 dias');
+  assert.equal(situacaoDoPixel({ indisponivel: false, ultimo_disparo: null }, hoje), 'nunca disparou');
+  assert.equal(situacaoDoPixel({ indisponivel: true, ultimo_disparo: '2026-10-11T22:10:00+0000' }, hoje), 'indisponível');
+  assert.equal(situacaoDoPixel({}, hoje), null);
+  const l = ligacao(CHEIAS, 'facebook', 'meta', 'pixel');
+  l.dados.pixels[0] = { ...l.dados.pixels[0], indisponivel: false, ultimo_disparo: null };
+  const [q] = quadrosPixelMeta(l, { hoje });
+  const nums = q.topo.find((b) => b.tipo === 'numeros');
+  assert.equal(nums.itens.find((n) => n.id === 'situacao').texto, 'nunca disparou');
+});
+
+test('Página com menos de 100 seguidores: país e cidade explicam o limite da Meta, e não "não mandou"', () => {
+  const l = ligacao(CHEIAS, 'facebook', 'meta', 'pagina');
+  Object.assign(l.dados, { seguidores: 41, seguidores_por_pais: null, seguidores_por_cidade: null });
+  const [q] = quadrosPaginaFacebook(l, ctx);
+  const s = (id) => q.secoes.find((x) => x.id === id);
+  assert.equal(s('paises').resumo, 'menos de 100 seguidores');
+  assert.equal(s('cidades').resumo, 'menos de 100 seguidores');
+  assert.ok(s('paises').blocos[0].texto.includes('a partir de 100 (a Página tem 41)'), s('paises').blocos[0].texto);
+  // Com 100 ou mais e sem o dado, é falta da coleta: continua "não medido".
+  const l2 = ligacao(CHEIAS, 'facebook', 'meta', 'pagina');
+  Object.assign(l2.dados, { seguidores: 5000, seguidores_por_pais: null });
+  const [q2] = quadrosPaginaFacebook(l2, ctx);
+  assert.equal(q2.secoes.find((x) => x.id === 'paises').resumo, 'não medido');
 });

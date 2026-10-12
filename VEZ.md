@@ -1,5 +1,9 @@
 # Vez do Painel Impresilk
 
+## Trabalho atual · A Meta a fundo
+
+Agente: claude. Autorização de Léo nesta conversa, em 12/10/2026: "vai a fundo no meta" e "vamos resolver". Ramo `claude/meta-fundo-20261012`, clone isolado em /tmp. Auditoria campo a campo da coleta real da Meta: os números da Página (41 seguidores, zeros reais), do Instagram e das campanhas (todas pausadas desde 02/2025) conferem. Consertos de tela: anúncios sem entrega no período mostram R$ 0,00 e "nenhum anúncio rodou" (antes "não medido"), com alerta quando a conta não está ativa (hoje "pagamento pendente"); a situação do Pixel vem do último disparo ("nunca disparou", "parado há N dias"); país e cidade dos seguidores da Página explicam o limite de 100 seguidores da Meta. Verificação local: 627 e 1.252 testes aprovados, lint sem erros, build aprovado. As estatísticas do Pixel (negadas pela Meta) seguem em pesquisa. Sem mudança de banco nem de registros.
+
 ## Trabalho atual · Consertos da coleta da Meta
 
 Agente: claude. Autorização de Léo nesta conversa, em 12/10/2026: "corrigir meta". Ramo `claude/meta-consertos-20261012`, clone isolado em /tmp. Escopo: as recusas da primeira coleta real da Meta (estatísticas do Pixel e visualizações do Instagram, as duas com "código 100"). Passo 1: o diário passa a guardar a mensagem da Meta junto com o código (curta, sem token), para achar a causa. Passo 2: o conserto. Sem mudança de banco nem de registros.
