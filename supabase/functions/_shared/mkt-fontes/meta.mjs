@@ -224,7 +224,7 @@ export const MOTIVOS = Object.freeze({
   sem_conta_de_anuncios: 'Nenhuma conta de anúncios apareceu para o usuário do sistema.',
   pixel_nao_atribuido: 'A Meta não mostrou o Pixel ao usuário do sistema. Atribua o conjunto de dados a ele no Gerenciador de Negócios.',
   estatisticas_recusadas: 'A Meta não entregou as estatísticas de eventos do Pixel desta vez.',
-  estatisticas_negadas: 'A Meta negou ao usuário do sistema as estatísticas de eventos do Pixel, mesmo com o conjunto de dados atribuído. O último disparo e a qualidade vieram; os eventos por dia ficam vazios.',
+  estatisticas_negadas: 'A Meta negou ao usuário do sistema as estatísticas de eventos do Pixel. Gere o token de novo com a permissão de gerenciar anúncios (veja Como ligar). O último disparo e a qualidade vieram; os eventos por dia ficam vazios.',
   sem_dado: 'Nenhum dado desta parte veio nesta coleta.',
 });
 /** A parte no formato do contrato: { estado, motivo (frase), codigo, coletado_em }. */
@@ -1504,9 +1504,11 @@ export async function coletar(ctx) {
     const janelaPx = { start_time: unixInicioSP(inicio), end_time: unixInicioSP(hoje) };
     const pixels = [];
     let semEstatistica = false;
-    // A Meta negou as estatísticas ("(#100) Permission Denied", 12/10/2026,
-    // com o Pixel atribuído com acesso total e o token com ads_read). Vem
-    // como código 100, que o resto da coleta trata como parâmetro inválido.
+    // A Meta negou as estatísticas ("(#100) Permission Denied", 12/10/2026)
+    // com o Pixel atribuído com acesso total e o token com ads_read e
+    // business_management. A causa, achada no teste do mesmo dia: o /stats
+    // exige ads_management no token (a documentação não diz). Vem como
+    // código 100, que o resto da coleta trata como parâmetro inválido.
     // Negou uma vez, as outras consultas de estatística (deste e dos outros
     // Pixels) não são feitas: dariam a mesma recusa e gastariam chamadas.
     let statsNegadas = false;
@@ -1534,7 +1536,7 @@ export async function coletar(ctx) {
           log(`meta pixel: estatísticas por ${nome} (${e instanceof ErroMeta ? descreverCodigo(e.info) : 'falha'})`);
           if (negou(e)) {
             statsNegadas = true;
-            avisar('Pixel: a Meta negou ao usuário do sistema as estatísticas de eventos (por evento, origem e página); o último disparo e a qualidade vieram.');
+            avisar('Pixel: a Meta negou ao usuário do sistema as estatísticas de eventos (por evento, origem e página): o token precisa da permissão de gerenciar anúncios (veja Como ligar). O último disparo e a qualidade vieram.');
             return null;
           }
           avisar(`Pixel: a Meta não entregou as estatísticas por ${nome}.`);

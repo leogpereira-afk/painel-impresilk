@@ -1,5 +1,9 @@
 # Vez do Painel Impresilk
 
+## Trabalho atual · Token da Meta com gerenciar anúncios
+
+Agente: claude. Pedido de Léo nesta conversa, em 12/10/2026: "fazer tudo pra mim" na Meta. Ramo `claude/meta-token-20261012`, clone isolado em /tmp. O Léo gerou o token do painel-coletor de novo com ads_management, e a coleta real das 11:27 UTC trouxe as estatísticas do Pixel (59 eventos em 6 dias) e a Meta inteira "ok", sem aviso: a causa da negação era essa permissão. Mudança: o Como ligar passa a pedir as nove permissões, com o porquê, e o aviso de estatísticas negadas diz o que fazer. Verificação local: 627 e 1.252 testes aprovados, lint sem erros, build aprovado. Sem mudança de banco nem de registros (os links dos canais Instagram e Facebook foram cadastrados pela tela, a pedido do Léo).
+
 ## Trabalho atual · A Meta a fundo
 
 Agente: claude. Autorização de Léo nesta conversa, em 12/10/2026: "vai a fundo no meta" e "vamos resolver". Ramo `claude/meta-fundo-20261012`, clone isolado em /tmp. Auditoria campo a campo da coleta real da Meta: os números da Página (41 seguidores, zeros reais), do Instagram e das campanhas (todas pausadas desde 02/2025) conferem. Consertos de tela: anúncios sem entrega no período mostram R$ 0,00 e "nenhum anúncio rodou" (antes "não medido"), com alerta quando a conta não está ativa (hoje "pagamento pendente"); a situação do Pixel vem do último disparo ("nunca disparou", "parado há N dias"); país e cidade dos seguidores da Página explicam o limite de 100 seguidores da Meta. Verificação local: 627 e 1.252 testes aprovados, lint sem erros, build aprovado. As estatísticas do Pixel (negadas pela Meta) seguem em pesquisa. Sem mudança de banco nem de registros.

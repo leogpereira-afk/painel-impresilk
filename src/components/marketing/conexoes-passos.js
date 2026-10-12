@@ -173,9 +173,9 @@ export const PASSOS = Object.freeze({
         passos: Object.freeze([
           'Em https://business.facebook.com, Configurações, Usuários, Usuários do sistema, clique em Adicionar. Nome: painel-coletor. Função: Funcionário (basta para ler). Clique em Criar usuário do sistema.',
           'Com o painel-coletor escolhido, clique em Atribuir ativos. Página: Acesso parcial, com Conteúdo e Insights ligados (não precisa de Controle total). Instagram: também Conteúdo e Insights. Conta de anúncios: ver desempenho. Pixel (conjunto de dados): ver. E o app Painel Impresilk. Salve.',
-          'Ainda no painel-coletor, clique em Gerar token. Escolha o app Painel Impresilk, validade Nunca, e marque estas permissões: pages_show_list, pages_read_engagement, pages_read_user_content, read_insights, instagram_basic, instagram_manage_insights, ads_read e business_management. Clique em Gerar e confirme o código de dois fatores. O token aparece UMA vez: copie.',
+          'Ainda no painel-coletor, clique em Gerar token. Escolha o app Painel Impresilk, validade Nunca, e marque estas permissões: pages_show_list, pages_read_engagement, pages_read_user_content, read_insights, instagram_basic, instagram_manage_insights, ads_read, business_management e ads_management. Sem ads_management a Meta nega as estatísticas de eventos do Pixel; como o painel-coletor só tem Ver desempenho na conta de anúncios, ele continua sem poder mexer em campanha. Clique em Gerar e confirme o código de dois fatores. O token aparece UMA vez: copie.',
           'Se o portfólio não deixar escolher Nunca, use 60 dias; aí, antes de vencer, gere outro token e troque o valor no Supabase.',
-          'Opcional: em https://developers.facebook.com/tools/debug/accesstoken cole o token e clique em Depurar. Deve mostrar Expira: Nunca e as oito permissões. Feche a aba depois.',
+          'Opcional: em https://developers.facebook.com/tools/debug/accesstoken cole o token e clique em Depurar. Deve mostrar Expira: Nunca e as nove permissões. Feche a aba depois.',
         ]),
       }),
       Object.freeze({
