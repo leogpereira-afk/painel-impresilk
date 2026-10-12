@@ -1,4 +1,7 @@
 import JanelaFormulario from "../components/JanelaFormulario.jsx";
+import PesquisaLicitacoes from "../components/PesquisaLicitacoes.jsx";
+import {obterPesquisaLicitacoes} from "../services/licitacoes.js";
+import {criarLeituraLicitacoes} from "../lib/licitacoes-leitura.mjs";
 // Licitacoes: os editais em que a Impresilk vai (ou pode) entrar, com O DIA da
 // sessao na cara -- o valor da tela e ninguem perder prazo. Ordena pelo que
 // vence primeiro, avisa "HOJE"/"amanha" e guarda o edital em PDF.
@@ -161,6 +164,9 @@ function Linha({ it, baixarEdital, editar, remover }) {
 }
 
 export default function Licitacoes() {
+  const [pesquisa,setPesquisa]=useState({dados:null,carregando:true,erro:null});
+  const leituraPesquisa=useMemo(()=>criarLeituraLicitacoes({consultar:obterPesquisaLicitacoes,receber:setPesquisa}),[]);
+  useEffect(()=>{void leituraPesquisa.atualizar();return leituraPesquisa.cancelar;},[leituraPesquisa]);
   const [itens, setItens] = useState(null);
   const [erro, setErro] = useState(null);
   const [aviso, setAviso] = useState(null);
@@ -350,18 +356,22 @@ export default function Licitacoes() {
     return (
       <div className="space-y-6">
         <PageTitle titulo="Licitações" descricao="Editais, prazos e sessões." />
+        <PesquisaLicitacoes {...pesquisa} aoAtualizar={leituraPesquisa.atualizar}/>
         <ErroModulo mensagem={erro} aoTentar={() => window.location.reload()}/>
       </div>
     );
   }
-  if (itens === null) return <CarregandoModulo />;
+  if (itens === null) return <div className="space-y-6"><PageTitle titulo="Licitações" descricao="Pesquise oportunidades e acompanhe os editais da equipe."/><PesquisaLicitacoes {...pesquisa} aoAtualizar={leituraPesquisa.atualizar}/><CarregandoModulo/></div>;
 
   return (
     <div className="space-y-8">
       <PageTitle
         titulo="Licitações"
-        descricao="Acompanhe editais, próximas sessões e resultados. Os prazos mais próximos aparecem primeiro."
+        descricao="Pesquise oportunidades no acervo do BotImpresilk e acompanhe os editais da equipe."
       />
+
+      <PesquisaLicitacoes {...pesquisa} aoAtualizar={leituraPesquisa.atualizar}/>
+      <SectionTitle titulo="Acompanhamento da equipe" sub="Editais cadastrados, responsáveis, sessões e resultados. As oportunidades pesquisadas não entram aqui automaticamente."/>
 
       <div className="grid gap-3 sm:grid-cols-3">
         <StatCard
