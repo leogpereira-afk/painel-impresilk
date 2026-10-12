@@ -4,6 +4,8 @@
 
 Agente: claude. Autorização de Léo nesta conversa, em 12/10/2026: "corrigir meta". Ramo `claude/meta-consertos-20261012`, clone isolado em /tmp. Escopo: as recusas da primeira coleta real da Meta (estatísticas do Pixel e visualizações do Instagram, as duas com "código 100"). Passo 1: o diário passa a guardar a mensagem da Meta junto com o código (curta, sem token), para achar a causa. Passo 2: o conserto. Sem mudança de banco nem de registros.
 
+Passo 1 publicado (`5414aab`) e lido no diário real: o Pixel volta "(#100) Permission Denied" e as visualizações do Instagram, "breakdown[0] must be one of ... follow_type ...". Passo 2: a divisão das visualizações por seguidor passa a pedir follow_type (o nome que a API aceita; a documentação diz follower_type); divisão recusada ganha aviso próprio (antes dizia que as visualizações tinham ficado vazias, e as da semana tinham vindo); estatísticas do Pixel negadas viram o código estatisticas_negadas, com uma chamada só e aviso claro. Verificação local: 624 e 1.252 testes aprovados, lint sem erros, build aprovado.
+
 ## Trabalho atual · Testes de banco na CI
 
 Agente: claude. Autorização de Léo nesta conversa, em 12/10/2026: "testar o github automatico" (a CI passar a testar o banco de verdade). Ramo `claude/ci-banco-20261012`, clone isolado em /tmp. Escopo: `@electric-sql/pglite` 0.5.8 (exata, de 26/08/2026, sem dependências) no devDependencies, para o `npm ci` da CI instalar; `tests/banco-na-ci.test.mjs` falha na CI (CI=true) se o PGlite faltar, em vez de os testes de banco pularem calados. Sem mudança de código do Painel, de servidor ou de banco.

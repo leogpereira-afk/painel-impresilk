@@ -9,7 +9,7 @@
     "breakdowns": [
      {
       "dimension_keys": [
-       "follower_type"
+       "follow_type"
       ],
       "results": [
        {

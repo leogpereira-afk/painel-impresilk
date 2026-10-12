@@ -669,6 +669,7 @@ const MOTIVOS_DE_PARTE = Object.freeze({
   sem_tarefa_insights: 'Falta a tarefa de Insights na Página.',
   sem_tarefa_conteudo: 'Falta a tarefa de Conteúdo na Página.',
   estatisticas_recusadas: 'A Meta recusou as estatísticas do Pixel.',
+  estatisticas_negadas: 'A Meta negou as estatísticas do Pixel ao usuário do sistema.',
   // google_ads.mjs (status de consulta e os códigos do AVISO)
   parada: 'A coleta parou antes desta parte.',
   falhou: 'Esta parte falhou nesta coleta.',

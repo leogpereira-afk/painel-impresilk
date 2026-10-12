@@ -54,7 +54,12 @@ function rotaPadrao(u) {
     case `/${IG}/insights`:
       if (q.breakdown === 'media_product_type') return fx('ig-insights-quebra');
       if (q.breakdown === 'follow_type' && metricas.includes('follows_and_unfollows')) return fx('ig-seguir');
-      if (['follow_type', 'follower_type', 'contact_button_type'].includes(q.breakdown)) return filtrar(fx('ig-quebras'), metricas);
+      // A lista que a API v26.0 aceita (12/10/2026). follower_type, o nome da
+      // documentação para as visualizações, é recusado com esta mensagem.
+      if (q.breakdown && !['country', 'city', 'age', 'gender', 'follow_type', 'media_product_type', 'contact_button_type'].includes(q.breakdown)) {
+        throw new ErroHttp(400, { error: { message: '(#100) breakdown[0] must be one of the following values: country, city, age, gender, follow_type, media_product_type, contact_button_type', type: 'OAuthException', code: 100 } });
+      }
+      if (['follow_type', 'contact_button_type'].includes(q.breakdown)) return filtrar(fx('ig-quebras'), metricas);
       if (['age', 'city', 'country', 'gender'].includes(q.breakdown)) return { data: fx('ig-demografia')[q.breakdown].filter((d) => metricas.includes(d.name)) };
       if (q.metric_type === 'time_series') return fx('ig-serie');
       return filtrar(fx('ig-insights-semana'), metricas);
@@ -275,7 +280,7 @@ test('métrica que a Meta tirou do ar: null e aviso, nunca zero; as outras do lo
   assert.ok(logs.some((l) => /page_post_engagements/.test(l) && /page_follows_city/.test(l)), logs.join(' | '));
   assert.ok(logs.some((l) => /instagram: métricas recusadas views/.test(l)));
   // 12/10/2026: o diário leva também a mensagem da Meta, que diz o porquê.
-  assert.ok(logs.some((l) => l.includes('métricas recusadas views (código 100: (#100) The value must be a valid insights metric)')), logs.join(' | '));
+  assert.ok(logs.some((l) => l.includes('métricas recusadas views em conta (código 100: (#100) The value must be a valid insights metric)')), logs.join(' | '));
   // Métrica que esta lista não conhece vira "uma das métricas", nunca o nome cru.
   assert.equal(meta.avisoDeMetricasRecusadas('Pixel', ['metrica_nova_da_meta']), 'Pixel: a Meta recusou uma das métricas; esse número fica vazio.');
   // Instagram: o lote da 1ª semana cai, a busca da culpada acontece uma vez,
@@ -789,4 +794,55 @@ test('a mensagem do erro da Meta vai para o diário: curta, numa linha e sem tok
   // Sem mensagem, o diário fica como antes.
   assert.equal(meta.descreverCodigo({ codigo: 100 }), 'código 100');
   assert.equal(meta.descreverCodigo({ status: 500 }), 'HTTP 500');
+});
+
+test('o caso ruim (12/10): as visualizações por seguidor pedem follow_type, o nome que a API aceita', async () => {
+  // Com follower_type (o nome da documentação) a Meta respondia "breakdown[0]
+  // must be one of ...", e o aviso dizia que as visualizações tinham ficado
+  // vazias, mas as da semana tinham vindo.
+  const { ctx, pedidos } = montar();
+  const r = await meta.coletar(ctx);
+  const ig = r.dados.instagram;
+  assert.deepEqual(ig.quebras.visualizacoes_por_seguidor, { FOLLOWER: 5100, NON_FOLLOWER: 4000 });
+  assert.deepEqual(ig.quebras.alcance_por_seguidor, { FOLLOWER: 1200, NON_FOLLOWER: 1040 });
+  const quebras = pedidos.map((p) => new URL(p.url).searchParams.get('breakdown')).filter(Boolean);
+  assert.equal(quebras.includes('follower_type'), false);
+  assert.equal(r.avisos.some((a) => /visualiza/.test(a)), false, r.avisos.join(' | '));
+});
+
+test('divisão recusada não diz que o número sumiu: o aviso fala da divisão, e o número da semana fica', async () => {
+  const { ctx, logs } = montar({
+    rota: (u) => {
+      const q = u.searchParams;
+      if (caminho(u.href) === `/${IG}/insights` && q.get('breakdown') === 'follow_type' && metricasDe(u.href).includes('views')) throw erroMeta('erro-metrica');
+      return undefined;
+    },
+  });
+  const r = await meta.coletar(ctx);
+  assert.ok(r.avisos.includes('Instagram: a Meta recusou a divisão das visualizações; esse quadro fica vazio.'), r.avisos.join(' | '));
+  assert.equal(r.avisos.some((a) => /recusou as visualizações/.test(a)), false);
+  assert.ok(r.dados.instagram.por_semana.some((s) => s.visualizacoes != null), 'as visualizações da semana vieram');
+  assert.equal(r.dados.instagram.quebras.visualizacoes_por_seguidor, null);
+  assert.ok(logs.some((l) => l.includes('views em conta:follow_type (código 100')), logs.join(' | '));
+  assert.equal(meta.avisoDeDivisoesRecusadas('Instagram', ['reach', 'views']), 'Instagram: a Meta recusou a divisão do alcance e das visualizações; esses quadros ficam vazios.');
+});
+
+test('o caso ruim (12/10): Pixel com as estatísticas negadas ("(#100) Permission Denied"): uma chamada só, aviso claro, o resto do Pixel vem', async () => {
+  const { ctx, pedidos, logs } = montar({
+    rota: (u) => {
+      if (caminho(u.href) === `/${PIX}/stats`) throw new ErroHttp(400, { error: { message: '(#100) Permission Denied', type: 'OAuthException', code: 100 } });
+      return undefined;
+    },
+  });
+  const r = await meta.coletar(ctx);
+  assert.deepEqual([r.partes.pixel.estado, r.partes.pixel.codigo], ['parcial', 'estatisticas_negadas']);
+  assert.match(r.partes.pixel.motivo, /negou ao usuário do sistema/);
+  assert.equal(pedidos.filter((x) => caminho(x.url) === `/${PIX}/stats`).length, 1, 'negou uma vez, não pede origem nem página');
+  const p = r.dados.pixel.pixels[0];
+  assert.equal(p.ultimo_disparo, '2026-10-11T22:10:00+0000');
+  assert.ok(Array.isArray(p.qualidade) && p.qualidade.length > 0, 'a qualidade veio');
+  assert.deepEqual([p.eventos_por_dia, p.por_origem, p.urls], [null, null, null]);
+  assert.equal(r.avisos.filter((a) => a.startsWith('Pixel: a Meta negou')).length, 1);
+  assert.ok(logs.some((l) => l.includes('Permission Denied')), logs.join(' | '));
+  semTravessao(r);
 });

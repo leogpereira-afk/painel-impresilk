@@ -45,7 +45,8 @@
  *   ressalva). Códigos: sem_token, token_invalido, prazo, sem_permissao,
  *   limite_de_chamadas, falha_provedor, falha_interna, pagina_nao_atribuida,
  *   instagram_nao_ligado, sem_tarefa_insights, sem_tarefa_conteudo,
- *   sem_conta_de_anuncios, pixel_nao_atribuido, estatisticas_recusadas, sem_dado.
+ *   sem_conta_de_anuncios, pixel_nao_atribuido, estatisticas_recusadas,
+ *   estatisticas_negadas, sem_dado.
  *
  * dados = {
  *   versao_api: 'v26.0',
@@ -223,6 +224,7 @@ export const MOTIVOS = Object.freeze({
   sem_conta_de_anuncios: 'Nenhuma conta de anúncios apareceu para o usuário do sistema.',
   pixel_nao_atribuido: 'A Meta não mostrou o Pixel ao usuário do sistema. Atribua o conjunto de dados a ele no Gerenciador de Negócios.',
   estatisticas_recusadas: 'A Meta não entregou as estatísticas de eventos do Pixel desta vez.',
+  estatisticas_negadas: 'A Meta negou ao usuário do sistema as estatísticas de eventos do Pixel, mesmo com o conjunto de dados atribuído. O último disparo e a qualidade vieram; os eventos por dia ficam vazios.',
   sem_dado: 'Nenhum dado desta parte veio nesta coleta.',
 });
 /** A parte no formato do contrato: { estado, motivo (frase), codigo, coletado_em }. */
@@ -334,6 +336,16 @@ const emLista = (xs) => {
 };
 /** A frase do aviso de métricas recusadas de uma parte: os nomes legíveis,
  *  nunca o nome da API. */
+/** A frase de quando só a DIVISÃO de uma métrica foi recusada (por tipo, por
+ *  seguidor, por botão): o número da métrica veio, e dizer que ele "fica
+ *  vazio" era falso (12/10/2026: as visualizações do Instagram chegaram, e o
+ *  aviso dizia que não). */
+export function avisoDeDivisoesRecusadas(rotulo, nomesDaApi) {
+  const de = (s) => s.replace(/^as /, 'das ').replace(/^os /, 'dos ').replace(/^a /, 'da ').replace(/^o /, 'do ').replace(/^uma /, 'de uma ');
+  const nomes = [...new Set(nomesDaApi)].map((m) => de(NOME_METRICA[m] ?? 'uma das métricas'));
+  const uma = nomes.length === 1;
+  return `${rotulo}: a Meta recusou a divisão ${emLista(nomes)}; ${uma ? 'esse quadro fica vazio' : 'esses quadros ficam vazios'}.`;
+}
 export function avisoDeMetricasRecusadas(rotulo, nomesDaApi) {
   const nomes = [...new Set(nomesDaApi)].map((m) => NOME_METRICA[m] ?? 'uma das métricas');
   const uma = nomes.length === 1;
@@ -1233,7 +1245,7 @@ export async function coletar(ctx) {
     const rec = recusadas[parte];
     const recusar = (m, info) => {
       rec.add(`${grupo}|${m}`);
-      if (!motivosRecusa[parte].has(m)) motivosRecusa[parte].set(m, info);
+      if (!motivosRecusa[parte].has(`${grupo}|${m}`)) motivosRecusa[parte].set(`${grupo}|${m}`, info);
     };
     const pedir = metricas.filter((m) => !rec.has(`${grupo}|${m}`));
     if (!pedir.length) return {};
@@ -1369,7 +1381,11 @@ export async function coletar(ctx) {
       const wq = [...janela].reverse().find((w) => hoje >= somarDias(w.fim, 3)) ?? janela[janela.length - 1];
       const pq = { period: 'day', metric_type: 'total_value', since: unixInicioSP(wq.semana), until: unixInicioSP(somarDias(wq.semana, 7)) };
       const porTipo = await insights('instagram', ig.id, ['reach', 'views'], { ...pq, breakdown: 'media_product_type' }, token, rotulo, 'conta:media_product_type');
-      const porSeguidor = await insights('instagram', ig.id, ['views'], { ...pq, breakdown: 'follower_type' }, token, rotulo, 'conta:follower_type');
+      // A documentação chama a divisão das visualizações de follower_type, mas
+      // a API (v26.0, 12/10/2026) só aceita follow_type: "breakdown[0] must be
+      // one of the following values: country, city, age, gender, follow_type,
+      // media_product_type, contact_button_type".
+      const porSeguidor = await insights('instagram', ig.id, ['views'], { ...pq, breakdown: 'follow_type' }, token, rotulo, 'conta:follow_type');
       const alcanceSeguidor = await insights('instagram', ig.id, ['reach'], { ...pq, breakdown: 'follow_type' }, token, rotulo, 'conta:follow_type');
       const botoes = await insights('instagram', ig.id, ['profile_links_taps'], { ...pq, breakdown: 'contact_button_type' }, token, rotulo, 'conta:contact_button_type');
       const q = (ins, m, dim) => {
@@ -1379,7 +1395,7 @@ export async function coletar(ctx) {
       conta.quebras = {
         semana: wq.semana,
         alcance_por_tipo: q(porTipo, 'reach', 'media_product_type'), visualizacoes_por_tipo: q(porTipo, 'views', 'media_product_type'),
-        alcance_por_seguidor: q(alcanceSeguidor, 'reach', 'follow_type'), visualizacoes_por_seguidor: q(porSeguidor, 'views', 'follower_type'),
+        alcance_por_seguidor: q(alcanceSeguidor, 'reach', 'follow_type'), visualizacoes_por_seguidor: q(porSeguidor, 'views', 'follow_type'),
         // Toques por botão: soma inclusive UNDEFINED (a lista oficial tem).
         toques_por_botao: q(botoes, 'profile_links_taps', 'contact_button_type'),
       };
@@ -1488,6 +1504,13 @@ export async function coletar(ctx) {
     const janelaPx = { start_time: unixInicioSP(inicio), end_time: unixInicioSP(hoje) };
     const pixels = [];
     let semEstatistica = false;
+    // A Meta negou as estatísticas ("(#100) Permission Denied", 12/10/2026,
+    // com o Pixel atribuído com acesso total e o token com ads_read). Vem
+    // como código 100, que o resto da coleta trata como parâmetro inválido.
+    // Negou uma vez, as outras consultas de estatística (deste e dos outros
+    // Pixels) não são feitas: dariam a mesma recusa e gastariam chamadas.
+    let statsNegadas = false;
+    const negou = (e) => e instanceof ErroMeta && (e.info.tipo === 'permissao' || (e.info.codigo === 100 && /permission/i.test(e.info.mensagem ?? '')));
     for (const id of [...ids].slice(0, LIMITES.pixels)) {
       let no;
       try {
@@ -1500,6 +1523,7 @@ export async function coletar(ctx) {
       }
       const px = { ...no, id: no.id ?? id, eventos_por_dia: null, eventos_total: null, por_origem: null, urls: null, qualidade: null };
       const stats = async (agregacao, nome) => {
+        if (statsNegadas) return null;
         try {
           const r = await cli.todas(`/${id}/stats`, { aggregation: agregacao, ...janelaPx }, token, 'meta:pixel:stats', LIMITES.paginasPixel);
           const s = lerStatsPixel(r.itens);
@@ -1508,6 +1532,11 @@ export async function coletar(ctx) {
         } catch (e) {
           if (fatal(e)) throw e;
           log(`meta pixel: estatísticas por ${nome} (${e instanceof ErroMeta ? descreverCodigo(e.info) : 'falha'})`);
+          if (negou(e)) {
+            statsNegadas = true;
+            avisar('Pixel: a Meta negou ao usuário do sistema as estatísticas de eventos (por evento, origem e página); o último disparo e a qualidade vieram.');
+            return null;
+          }
           avisar(`Pixel: a Meta não entregou as estatísticas por ${nome}.`);
           return null;
         }
@@ -1532,7 +1561,7 @@ export async function coletar(ctx) {
       pixels.push(px);
     }
     if (!pixels.length) throw new Falta('falta_conectar', 'pixel_nao_atribuido', 'Pixel: a Meta não mostrou o Pixel ao usuário do sistema. No Gerenciador de Negócios, atribua o conjunto de dados a ele (Acesso parcial, Usar conjunto de dados de eventos).');
-    if (semEstatistica) marcar('pixel', 'parcial', 'estatisticas_recusadas');
+    if (semEstatistica) marcar('pixel', 'parcial', statsNegadas ? 'estatisticas_negadas' : 'estatisticas_recusadas');
     dados.pixel = { periodo: { inicio, fim: somarDias(hoje, -1) }, pixels };
   });
 
@@ -1732,12 +1761,17 @@ export async function coletar(ctx) {
   });
 
   for (const p of PARTES) {
-    const nomes = [...new Set([...recusadas[p]].map((k) => k.split('|')[1]))];
-    if (!nomes.length) continue;
-    // O nome da API fica no diário (é por ele que se acha a métrica na
-    // documentação); o aviso leva o nome para gente.
-    log(`meta ${p}: métricas recusadas ${nomes.map((n) => (motivosRecusa[p].has(n) ? `${n} (${descreverCodigo(motivosRecusa[p].get(n))})` : n)).join(', ')}`);
-    avisar(avisoDeMetricasRecusadas(ROTULO[p], nomes));
+    const chaves = [...recusadas[p]].map((k) => { const i = k.lastIndexOf('|'); return { grupo: k.slice(0, i), metrica: k.slice(i + 1) }; });
+    if (!chaves.length) continue;
+    // O nome da API e o grupo ficam no diário (é por eles que se acha a
+    // métrica na documentação), com a mensagem da Meta; o aviso leva o nome
+    // para gente. Grupo com ":" é uma divisão (conta:follow_type): recusada
+    // só ela, o número da métrica veio.
+    log(`meta ${p}: métricas recusadas ${chaves.map(({ grupo, metrica }) => `${metrica} em ${grupo}${motivosRecusa[p].has(`${grupo}|${metrica}`) ? ` (${descreverCodigo(motivosRecusa[p].get(`${grupo}|${metrica}`))})` : ''}`).join(', ')}`);
+    const inteiras = [...new Set(chaves.filter((c) => !c.grupo.includes(':')).map((c) => c.metrica))];
+    const divisoes = [...new Set(chaves.filter((c) => c.grupo.includes(':') && !inteiras.includes(c.metrica)).map((c) => c.metrica))];
+    if (inteiras.length) avisar(avisoDeMetricasRecusadas(ROTULO[p], inteiras));
+    if (divisoes.length) avisar(avisoDeDivisoesRecusadas(ROTULO[p], divisoes));
   }
 
   let estado;
