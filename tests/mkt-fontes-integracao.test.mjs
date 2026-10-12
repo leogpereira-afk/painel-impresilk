@@ -22,7 +22,8 @@
 // resposta ou a URL; e o que a porta da tela (painel-marketing) entrega a cada
 // papel.
 //
-// Sem o PGlite (a CI não instala), o banco vira um de mentira que só anota as
+// Sem o PGlite (desde 12/10/2026 ele está no devDependencies, e a CI roda com
+// ele; tests/banco-na-ci.test.mjs trava a falta), o banco vira um de mentira que só anota as
 // RPCs e responde no formato da migração. Tudo roda do mesmo jeito; o que só
 // o banco de verdade sabe dizer (linha recusada pela regra da migração, a
 // segunda coleta não regravar nada) fica conferido quando o PGlite existe.

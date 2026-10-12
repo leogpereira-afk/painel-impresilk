@@ -1,11 +1,12 @@
 /* A MIGRACAO DAS SENHAS (20260926a_senha_em_todos.sql) num Postgres de
  * verdade: PGlite, em memoria. Nao encosta no Supabase.
  *
- * Precisa do pacote @electric-sql/pglite. O Painel nao o tem como dependencia;
- * aponte para uma instalacao que exista na maquina:
+ * Precisa do pacote @electric-sql/pglite, que desde 12/10/2026 esta no
+ * devDependencies do Painel (o npm ci da CI instala). Fora disso, PGLITE_PATH
+ * ainda aponta para outra instalacao:
  *   PGLITE_PATH=/caminho/para/@electric-sql/pglite/dist/index.js node --test tests/
- * (neste Mac: ~/Projetos/metodo-vof/node_modules/@electric-sql/pglite/dist/index.js)
- * Sem ele, os testes PULAM dizendo o motivo: nao passam calados.
+ * Sem ele, os testes PULAM dizendo o motivo; na CI, a falta derruba o
+ * tests/banco-na-ci.test.mjs.
  *
  * As tabelas abaixo sao o MINIMO do schema de producao que a migracao toca,
  * com os privilegios padrao que o Supabase da a anon e authenticated em toda

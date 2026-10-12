@@ -1,5 +1,11 @@
 # Vez do Painel Impresilk
 
+## Trabalho atual · Testes de banco na CI
+
+Agente: claude. Autorização de Léo nesta conversa, em 12/10/2026: "testar o github automatico" (a CI passar a testar o banco de verdade). Ramo `claude/ci-banco-20261012`, clone isolado em /tmp. Escopo: `@electric-sql/pglite` 0.5.8 (exata, de 26/08/2026, sem dependências) no devDependencies, para o `npm ci` da CI instalar; `tests/banco-na-ci.test.mjs` falha na CI (CI=true) se o PGlite faltar, em vez de os testes de banco pularem calados. Sem mudança de código do Painel, de servidor ou de banco.
+
+Estado: verificação local como a CI (npm ci limpo, CI=true, TZ=UTC): 1.248 testes aprovados, nenhum pulado. Os 10 arquivos de banco têm 89 testes: sem o pacote, 84 pulavam; com ele, os 89 passam. A trava foi conferida nos dois sentidos (sem o pacote, falha com CI=true e pula fora da CI). Publicação em andamento.
+
 ## Trabalho atual · Sobras do Centro de Comando do Marketing
 
 Agente: claude. Autorização de Léo nesta conversa, em 12/10/2026: "Sim, pega a vez" (aplicar e publicar as sobras do Marketing) e "12 meses" para a guarda dos leads do Google Ads. Ramo `claude/marketing-sobras-20261012`, clone isolado em /tmp. Escopo: leads do Google Ads guardados por 12 meses, contados do dia do formulário; parte do retrato de uma fonte sem coleta boa há mais de 1 ano sai do cache (o caso do token do LinkedIn vencido); o "hoje" da tela de Marketing vem do servidor; aviso de cache do conector do site em linguagem de gente; link do Pinterest de cada país (br.pinterest.com) igual ao que a API manda; campanha de leads pausada no Pinterest não grava lead 0 nas semanas seguintes; dados fictícios da prévia sem data no futuro e ancorados na semana de hoje. Sem migração e sem alteração de registros reais (conferido antes: nenhuma publicação do Pinterest no banco). Os trabalhos do Codex abaixo permanecem intactos.
