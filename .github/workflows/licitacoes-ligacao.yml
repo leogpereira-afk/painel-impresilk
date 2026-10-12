@@ -1,0 +1,160 @@
+# Credencial exclusiva da leitura do relatório público de licitações.
+# Não usa a credencial do proprietário, nem concede acesso ao ERP ou ao RH.
+# Cada disparo manual gera uma nova chave e substitui somente esta chave nos
+# dois destinos fixos. Não publica functions nem altera dados de licitações.
+name: Ligar leitura de Licitações ao BotImpresilk
+
+on:
+  workflow_dispatch:
+
+permissions: {}
+
+# Compartilha a fila das functions para não trocar a chave durante um deploy.
+concurrency:
+  group: functions-supabase
+  cancel-in-progress: false
+
+jobs:
+  ligar:
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment: publicar-functions
+    timeout-minutes: 5
+    steps:
+      - name: Configurar e conferir somente a credencial de leitura
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import hashlib
+          import hmac
+          import json
+          import os
+          import secrets
+          import ssl
+          import sys
+          import urllib.error
+          import urllib.request
+
+          DESTINATIONS = ("heveemylixartyijxewh", "reoghclxripktzpdwhiy")
+          SECRET_NAME = "LICITACOES_PAINEL_TOKEN"
+          MAX_RESPONSE_BYTES = 2 * 1024 * 1024
+          TIMEOUT_SECONDS = 25
+
+          class SafeFailure(Exception):
+              pass
+
+          class NoRedirect(urllib.request.HTTPRedirectHandler):
+              def redirect_request(self, req, fp, code, msg, headers, newurl):
+                  raise SafeFailure("Redirecionamento recusado pela configuração de segurança.")
+
+          def main():
+              admin_token = os.environ.get("SUPABASE_ACCESS_TOKEN", "").strip()
+              if not admin_token:
+                  raise SafeFailure("Falta SUPABASE_ACCESS_TOKEN no environment publicar-functions.")
+
+              # HTTPS com validação de certificado, sem proxies ou redirects.
+              opener = urllib.request.build_opener(
+                  urllib.request.ProxyHandler({}),
+                  urllib.request.HTTPSHandler(context=ssl.create_default_context()),
+                  NoRedirect(),
+              )
+              confirmed = []
+              post_accepted = []
+              post_attempted = None
+
+              def request(method, ref, payload=None):
+                  if ref not in DESTINATIONS or method not in ("GET", "POST"):
+                      raise SafeFailure("Destino ou operação não autorizado pelo workflow.")
+                  data = None if payload is None else json.dumps(payload).encode("utf-8")
+                  req = urllib.request.Request(
+                      f"https://api.supabase.com/v1/projects/{ref}/secrets",
+                      data=data,
+                      method=method,
+                      headers={
+                          "Authorization": f"Bearer {admin_token}",
+                          "Content-Type": "application/json",
+                          "Accept": "application/json",
+                          "User-Agent": "impresilk-licitacoes-ligacao/1",
+                      },
+                  )
+                  try:
+                      with opener.open(req, timeout=TIMEOUT_SECONDS) as response:
+                          expected_status = 200 if method == "GET" else 201
+                          if response.status != expected_status:
+                              raise SafeFailure(f"{method} em {ref}: HTTP inesperado {response.status}.")
+                          raw = response.read(MAX_RESPONSE_BYTES + 1)
+                  except urllib.error.HTTPError as error:
+                      # Nunca imprimir corpo, headers, credenciais ou repr(error).
+                      raise SafeFailure(f"{method} em {ref}: HTTP {error.code}.") from None
+                  except (urllib.error.URLError, TimeoutError, OSError):
+                      raise SafeFailure(f"{method} em {ref}: falha de conexão ou tempo esgotado.") from None
+                  if len(raw) > MAX_RESPONSE_BYTES:
+                      raise SafeFailure(f"{method} em {ref}: resposta excede o limite permitido.")
+                  if method == "POST":
+                      return None
+                  try:
+                      value = json.loads(raw)
+                  except (ValueError, UnicodeError):
+                      raise SafeFailure(f"GET em {ref}: resposta JSON inválida.") from None
+                  if not isinstance(value, list) or any(
+                      not isinstance(item, dict)
+                      or not isinstance(item.get("name"), str)
+                      or not isinstance(item.get("value"), str)
+                      for item in value
+                  ):
+                      raise SafeFailure(f"GET em {ref}: formato de resposta inválido.")
+                  return value
+
+              try:
+                  # Ambos precisam permitir a consulta ANTES de qualquer POST.
+                  # O GET comprova leitura; escrita é confirmada pelo POST e GET.
+                  for ref in DESTINATIONS:
+                      request("GET", ref)
+                  print("Consulta de permissões concluída nos dois destinos; nenhuma gravação até aqui.")
+
+                  read_token = secrets.token_urlsafe(48)
+                  # Comando nativo do runner: a chave nunca vira variável de saída,
+                  # arquivo, artefato ou diagnóstico visível no log.
+                  print(f"::add-mask::{read_token}", flush=True)
+                  expected_digest = hashlib.sha256(read_token.encode("utf-8")).hexdigest()
+
+                  for ref in DESTINATIONS:
+                      post_attempted = ref
+                      request("POST", ref, [{"name": SECRET_NAME, "value": read_token}])
+                      post_accepted.append(ref)
+                      returned = request("GET", ref)
+                      selected = [item["value"] for item in returned if item["name"] == SECRET_NAME]
+                      if len(selected) != 1:
+                          raise SafeFailure(f"Verificação em {ref}: chave dedicada ausente ou duplicada.")
+                      stored = selected[0].encode("utf-8")
+                      same_value = hmac.compare_digest(stored, read_token.encode("utf-8"))
+                      same_digest = hmac.compare_digest(stored.lower(), expected_digest.encode("ascii"))
+                      if not (same_value or same_digest):
+                          raise SafeFailure(f"Verificação em {ref}: valor da chave dedicada não corresponde ao gerado.")
+                      confirmed.append(ref)
+                      post_attempted = None
+                      print(f"Gravação e leitura conferidas: {ref}.")
+
+                  print("Credencial de leitura configurada e conferida nos dois destinos; validar a leitura do relatório no painel.")
+              except SafeFailure:
+                  if not confirmed:
+                      print("Nenhuma gravação confirmada.")
+                  if post_accepted:
+                      print("POST aceito nos destinos: " + ", ".join(post_accepted) + ".")
+                  if post_attempted:
+                      print(f"POST tentado em {post_attempted}: resultado incerto; conferir o estado antes de repetir.")
+                  print("A conexão completa não foi confirmada; não houve repetição automática nem alteração de outras chaves.")
+                  raise
+
+          try:
+              main()
+          except SafeFailure as error:
+              print(f"::error::{error}")
+              sys.exit(1)
+          except Exception:
+              # Evita que um traceback inesperado revele qualquer dado recebido.
+              print("::error::Falha inesperada. A conexão completa não foi confirmada; conferir os destinos antes de repetir.")
+              sys.exit(1)
+          PY

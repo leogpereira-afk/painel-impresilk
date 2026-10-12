@@ -23,6 +23,7 @@ const financeiroDasOS = (pedidos: Set<string>, ids: string[]) => financeiroDasOS
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { verificarJwt, crachaRevogado } from "../_shared/cripto.ts";
+import { consultarPesquisaLicitacoes } from "../_shared/licitacoes-pesquisa.mjs";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -50,7 +51,7 @@ const json = (corpo: unknown, status = 200) =>
    tela de Permutas abriria vazia para todo mundo que nao e direcao -- e o store
    trata 403 como "fonte negada", em SILENCIO, entao o defeito nao apareceria
    como erro: apareceria como cliente nenhum na lista. */
-async function exigirSessao(req: Request, modulo: string | string[]) {
+async function exigirSessao(req: Request, modulo: string | string[], estrito = false) {
   if (!JWT_SECRET) {
     console.error("painel-dados: PAINEL_JWT_SECRET ausente -- recusando tudo (fail-closed)");
     return { resposta: json({ erro: "Login nao configurado no servidor." }, 503) };
@@ -62,7 +63,7 @@ async function exigirSessao(req: Request, modulo: string | string[]) {
      `null`, e o `g.resposta` de cada ramo estourava TypeError -- fechava a
      porta (o 500 nao entrega dado), mas o navegador ficava preso numa tela de
      erro generico com um cracha que ja nao vale, sem nunca voltar ao login. */
-  if (s && await crachaRevogado(sb, "painel", s)) {
+  if (s && await crachaRevogado(sb, "painel", s, estrito)) {
     return { resposta: json({ erro: "Seu acesso foi encerrado.", semSessao: true }, 401) };
   }
   if (!s) return { resposta: json({ erro: "Entre no sistema.", semSessao: true }, 401) };
@@ -130,6 +131,27 @@ Deno.serve(async (req: Request) => {
 
   try {
     switch (modulo) {
+      case "licitacoes": {
+        const g = await exigirSessao(req, "licitacoes", true);
+        if (g.resposta) return g.resposta;
+        if (req.method !== "GET") return json({ erro: "Esta consulta aceita somente GET." }, 405);
+        // A fonte é o mesmo acervo público do BotImpresilk, em outro projeto.
+        // O segredo dedicado nunca vai ao navegador; nenhuma consulta ao ERP,
+        // escrita ou pesquisa nova é feita por esta leitura.
+        let pesquisa, falha;
+        try {
+          pesquisa = await consultarPesquisaLicitacoes({ token: Deno.env.get("LICITACOES_PAINEL_TOKEN") ?? "" });
+        } catch (e) {
+          falha = e;
+        }
+        // Revogação durante a consulta também impede a entrega. A conferência
+        // estrita evita reutilizar o cache de revogação de sessenta segundos.
+        const atual = await exigirSessao(req, "licitacoes", true);
+        if (atual.resposta) return atual.resposta;
+        if (falha) return json({ erro: (falha as Error).message }, 503);
+        return new Response(JSON.stringify(pesquisa), { headers: { ...CORS, "content-type": "application/json", "cache-control": "no-store" } });
+      }
+
       case "contas-atrasadas": {
         const g = await exigirSessao(req, "contas-atrasadas");
         if (g.resposta) return g.resposta;
