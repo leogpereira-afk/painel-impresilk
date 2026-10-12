@@ -134,6 +134,17 @@ export default function CentralResumo() {
           {plural(pendencias.length, "pendência", "pendências")} de vínculo com o RH.
         </Aviso>
       )}
+      {/* A conta cujo ID nao confere com a ficha do RH ligada (auditoria de
+          12/10/2026, P1). A mesma regra da aba Pessoas (temIdDiferenteDaFicha). */}
+      {numeros.idDiferente > 0 && (
+        <Aviso tom="aviso" acao={(
+          <Link to="/acessos?visao=pessoas&recorte=id" className="btn-ghost h-10">Ver na aba Pessoas</Link>
+        )}>
+          {numeros.idDiferente === 1
+            ? "1 conta com o ID da conta diferente da ficha do RH."
+            : `${numeros.idDiferente} contas com o ID da conta diferente da ficha do RH.`}
+        </Aviso>
+      )}
 
       <section aria-labelledby="vg-sistemas">
         <SectionTitle

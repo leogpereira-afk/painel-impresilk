@@ -73,3 +73,60 @@ export function idPessoaDaFicha(ficha, cadastros) {
   }
   return { idPessoa: gravado };
 }
+
+/* A LEITURA ESTREITA DOS CADASTROS, para a conferencia da conta (listar e
+ * "Atualizar pela ficha"). So o ID gravado e o CPF viajam do banco ate a
+ * function; nada disso desce para a tela. `idPessoa` vem como JSON
+ * (registro->idPessoa) e nao como texto: numero gravado no lugar do texto tem
+ * de continuar "fora do formato", como na regua acima. */
+export const SELECT_CADASTROS_DO_ID = "id, colecao, idPessoa:registro->idPessoa, cpf:registro->>cpf";
+export const cadastroDaLeitura = (r) => ({
+  colecao: String(r?.colecao ?? ""),
+  id: String(r?.id ?? ""),
+  registro: { idPessoa: r?.idPessoa ?? null, cpf: r?.cpf ?? "" },
+});
+
+/* O PORQUE, NA LINGUA DA TELA (com acento: e o texto que a direcao le no
+   cartao da conta e no erro do botao). Uma fonte so para a tela e a function. */
+export const MOTIVO_CONTA_NAO_ATUALIZA = {
+  "fora-do-formato": "o ID gravado na ficha está fora do formato (6 dígitos)",
+  "id-de-outra-pessoa": "o ID gravado na ficha já é de outra pessoa no RH",
+  "id-em-outra-conta": "outra conta desta tela já usa o ID da ficha",
+};
+
+/**
+ * A CONTA CONFERE COM A FICHA LIGADA? (auditoria de 12/10/2026, P1)
+ *
+ * O admin do RH trocou o ID gravado numa ficha e a conta da Central ficou com o
+ * antigo ate alguem salvar a conta de novo -- e nada na tela mostrava. Aqui a
+ * conta e comparada com o que a amarracao daria HOJE (a mesma regua de
+ * `idPessoaDaFicha`), pela ficha ligada (`colaborador_id`), e nao pelo nome.
+ *
+ * @param {{id?: string, colaborador_id?: string, id_pessoa?: string|null}} conta
+ * @param {{colecao: string, id: string, registro: object}[]} cadastros fichas e contratos vivos
+ * @param {{id?: string, id_pessoa?: string|null}[]} outrasContas as contas da Central
+ * @returns {null | {diferente: boolean, podeAtualizar: boolean, idPessoa?: string, motivo?: string}}
+ *   null quando nao ha ficha ligada viva para comparar. `idPessoa` (o que a
+ *   conta passa a ter) so vem quando `podeAtualizar`; e da function, nao da tela.
+ */
+export function idDaContaPelaFicha(conta, cadastros, outrasContas = []) {
+  const fichaId = String(conta?.colaborador_id ?? "").trim();
+  if (!fichaId) return null;
+  const lista = Array.isArray(cadastros) ? cadastros : [];
+  const ficha = lista.find((o) => o && o.colecao === "colaboradores" && String(o.id) === fichaId);
+  if (!ficha) return null;
+  const { idPessoa, motivo } = idPessoaDaFicha(ficha, lista);
+  const atual = String(conta?.id_pessoa ?? "");
+  if (idPessoa && atual !== idPessoa) {
+    // O indice unico de acesso_conta.id_pessoa recusaria; e duas contas com o
+    // mesmo ID sao duas pessoas no mesmo cracha do PCP. Nao atualiza.
+    const emOutra = (Array.isArray(outrasContas) ? outrasContas : []).some((o) =>
+      o && String(o.id) !== String(conta?.id ?? "") && String(o.id_pessoa ?? "") === idPessoa);
+    if (emOutra) return { diferente: true, podeAtualizar: false, motivo: "id-em-outra-conta" };
+    return { diferente: true, podeAtualizar: true, idPessoa, ...(motivo ? { motivo } : {}) };
+  }
+  // A conta ja tem o que a regua daria, mas o gravado na ficha foi recusado
+  // (fora do formato ou de outra pessoa): a diferenca e real e se corrige no RH.
+  if (motivo) return { diferente: true, podeAtualizar: false, motivo };
+  return { diferente: false, podeAtualizar: false };
+}

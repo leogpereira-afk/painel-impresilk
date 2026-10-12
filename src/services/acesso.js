@@ -43,6 +43,10 @@ export const lerAcessos = () => chamar("listar").then(dados => ({
 }));
 export const salvarConta = (conta) => chamar("salvarConta", { conta }).then((r) => r.conta);
 
+// "Atualizar pela ficha": a conta volta a ter o ID que a ficha do RH ligada a
+// ela da hoje. O servidor confere de novo e recusa ID que e de outra pessoa.
+export const atualizarIdPelaFicha = (usuario) => chamar("atualizarIdPelaFicha", { usuario });
+
 // `criar` e PEDIDO EXPLICITO. Sem ele, gravar papel numa linha cujo login nao
 // existe no sistema devolve 409 em vez de inventar uma conta com aquele nome --
 // que era como nascia a sosia (`leonardo` no PCP ao lado do `leo` de verdade).

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {estadoDoPapel,temPendencia,temSenhaProvisoria,contarAcessos,situacaoEntrada} from './acesso-state.mjs';
+import {estadoDoPapel,temPendencia,temSenhaProvisoria,temIdDiferenteDaFicha,contarAcessos,situacaoEntrada} from './acesso-state.mjs';
 import {agruparEntradas,elencoRh} from '../../supabase/functions/_shared/acesso-leitura.mjs';
 
 test('contagem inclui conta existente sem módulos e coincide com filtro',()=>{
@@ -31,4 +31,14 @@ test('histórico fora de ordem preserva último sucesso e última falha',()=>{
 });
 test('elenco usa os campos projetados do RH',()=>{
  assert.deepEqual(elencoRh([{nome:'Pessoa exemplo',situacao:'ativo'},{nome:' ',situacao:'inativo'}]),[{nome:'Pessoa exemplo',como:'cadastro',detalhe:''}]);
+});
+test('ID da conta diferente da ficha do RH: conta só o que o servidor marcou, e sem ficha não conta',()=>{
+ const marcada={papeis:[],idFicha:{diferente:true,podeAtualizar:false,motivo:'id-de-outra-pessoa'}};
+ const confere={papeis:[],idFicha:{diferente:false,podeAtualizar:false}};
+ const semFicha={papeis:[],idFicha:null};
+ assert.equal(temIdDiferenteDaFicha(marcada),true);
+ assert.equal(temIdDiferenteDaFicha(confere),false);
+ assert.equal(temIdDiferenteDaFicha(semFicha),false);
+ assert.equal(temIdDiferenteDaFicha({papeis:[]}),false,'resposta antiga, sem o campo');
+ assert.equal(contarAcessos({contas:[marcada,confere,semFicha]}).idDiferente,1);
 });

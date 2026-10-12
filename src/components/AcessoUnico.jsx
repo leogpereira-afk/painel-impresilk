@@ -31,9 +31,12 @@ import {
 } from "lucide-react";
 import {
   lerAcessos, salvarConta, salvarPapel, removerPapel,
-  criarPessoa, definirSenha, desativar, apontarLogin, senhaDoSistema,
+  criarPessoa, definirSenha, desativar, apontarLogin, senhaDoSistema, atualizarIdPelaFicha,
 } from "../services/acesso.js";
-import { estadoDoPapel, temPendencia, temSenhaProvisoria, contarAcessos, situacaoEntrada } from "../lib/acesso-state.mjs";
+import {
+  estadoDoPapel, temPendencia, temSenhaProvisoria, temIdDiferenteDaFicha, contarAcessos, situacaoEntrada,
+} from "../lib/acesso-state.mjs";
+import { MOTIVO_CONTA_NAO_ATUALIZA } from "../../supabase/functions/_shared/id-pessoa-acesso.mjs";
 import { contasDoSistema, seloDoSistema, ehExterna } from "../lib/acesso-sistema.mjs";
 import {
   previsaoDaSenha, resultadoDaSenha, mancheteDaSenha, avisoDeTroca, quantosReceberam, provisoriaNoSistema,
@@ -816,6 +819,25 @@ function Conta({ c, sistemas, soltas, acoes, aoMudar, aoAvisar, aoSenha, aoDefin
 
   const nome = c.nome || c.usuario;
   const ehFuncao = c.tipo === "funcao";
+  const [atualizandoId, setAtualizandoId] = useState(false);
+
+  /* "ATUALIZAR PELA FICHA" (auditoria de 12/10/2026, P1): a conta volta a ter
+     o ID que a ficha do RH ligada a ela da hoje. Quem confere e grava e o
+     servidor, com a regua da amarracao; a tela so pede. */
+  const atualizarId = async () => {
+    setAtualizandoId(true);
+    try {
+      const r = await atualizarIdPelaFicha(c.usuario);
+      aoAvisar({
+        tom: "ok",
+        texto: r?.mudou
+          ? `O ID da conta de ${nome} foi atualizado pela ficha do RH.`
+          : `O ID da conta de ${nome} já confere com a ficha do RH.`,
+      });
+      await aoMudar();
+    } catch (err) { aoAvisar({ tom: "erro", texto: err.message }); }
+    finally { setAtualizandoId(false); }
+  };
 
   const editar = () => {
     // `ativo` viaja junto: sem ele o servidor recebe undefined, assume true e
@@ -962,7 +984,10 @@ function Conta({ c, sistemas, soltas, acoes, aoMudar, aoAvisar, aoSenha, aoDefin
   // quem ja tivesse aberto, ou seja, para ninguem. Conta tambem o Painel que
   // existe e nao abre nada: e a mesma "pendencia" do recorte e da Visao geral.
   const pendentes = c.papeis.filter(temPendencia).length;
+  const idDiferente = temIdDiferenteDaFicha(c);
   const selo = pendentes ? { tom: "bad", texto: `${pendentes} com pendência` }
+    // A mesma regra da contagem e do recorte (temIdDiferenteDaFicha).
+    : idDiferente ? { tom: "bad", texto: "ID diferente da ficha" }
     : c.ativo === false ? { tom: "neutral", texto: "desativada" }
       // A mesma regra da contagem e do recorte (temSenhaProvisoria).
       : temSenhaProvisoria(c) ? { tom: "warn", texto: "senha provisória" }
@@ -1008,6 +1033,28 @@ function Conta({ c, sistemas, soltas, acoes, aoMudar, aoAvisar, aoSenha, aoDefin
             {" · "}{c.colaborador ? `Ficha no RH: ${c.colaborador}` : "sem ficha no RH"}
             {ehFuncao ? " · Porta compartilhada" : ""}
           </p>
+          {/* O ID NAO APARECE, so a diferenca: quem conserta e o servidor. */}
+          {idDiferente && (
+            <Aviso tom="aviso" acao={c.idFicha.podeAtualizar ? (
+              <button type="button" className="btn-outline h-10" disabled={atualizandoId} onClick={atualizarId}>
+                <RefreshCw size={16} aria-hidden="true" className={atualizandoId ? "animate-spin" : ""} />
+                {atualizandoId ? "Atualizando…" : "Atualizar pela ficha"}
+              </button>
+            ) : null}>
+              <p className="font-medium">ID da conta diferente da ficha do RH.</p>
+              {c.idFicha.podeAtualizar ? (
+                <p>
+                  A conta guarda um ID que a ficha ligada a ela não dá mais (por exemplo, o ID foi trocado no RH).
+                  {c.idFicha.motivo ? ` Atenção: ${MOTIVO_CONTA_NAO_ATUALIZA[c.idFicha.motivo] || "a ficha tem um ID que não pode ser copiado"}; a conta fica com o ID calculado pelo CPF.` : ""}
+                </p>
+              ) : (
+                <p>
+                  Não dá para atualizar por aqui: {MOTIVO_CONTA_NAO_ATUALIZA[c.idFicha.motivo] || "a ficha não dá um ID para copiar"}.
+                  {" "}Corrija no RH e atualize esta tela.
+                </p>
+              )}
+            </Aviso>
+          )}
 
           <div className="flex flex-wrap items-start gap-2">
             {/* A CONTA DA DIRECAO se troca em Minha conta: e ela a dona do
@@ -1616,7 +1663,7 @@ function BarraVerificacao({ carregando, verificadoEm, aoAtualizar }) {
   );
 }
 
-const RECORTES_PESSOA = new Set(["fora", "temporaria", "porta"]);
+const RECORTES_PESSOA = new Set(["fora", "temporaria", "porta", "id"]);
 
 export default function AcessoUnico({
   aoAvisar, lente = "sistema", sistemaInicial = "", recorteInicial = "", pessoaInicial = "", usuarioDaSessao = "",
@@ -1808,6 +1855,7 @@ export default function AcessoUnico({
          tela existe para acabar. */
       if (recorte === "fora") return c.papeis.some((p) => temPendencia(p));
       if (recorte === "temporaria") return temSenhaProvisoria(c);
+      if (recorte === "id") return temIdDiferenteDaFicha(c);
       return true;
     });
   }, [dados, busca, recorte]);
@@ -1946,6 +1994,7 @@ export default function AcessoUnico({
     },
   ];
   const pendencias = dados.pendencias || [];
+  const comIdDiferente = dados.contas.filter(temIdDiferenteDaFicha);
   const verPessoa = (usuario) => {
     setRecorte("todas");
     setBusca(usuario);
@@ -1973,6 +2022,17 @@ export default function AcessoUnico({
           </ul>
         </details>
       )}
+      {/* JUNTO DAS PENDENCIAS DE VINCULO: a conta cujo ID nao confere com a
+          ficha do RH ligada a ela (auditoria de 12/10/2026, P1). */}
+      {comIdDiferente.length > 0 && recorte !== "id" && (
+        <Aviso tom="aviso" acao={(
+          <button type="button" className="btn-ghost h-10" onClick={() => { setBusca(""); setRecorte("id"); }}>Ver quais</button>
+        )}>
+          {comIdDiferente.length === 1
+            ? "1 conta com o ID da conta diferente da ficha do RH."
+            : `${comIdDiferente.length} contas com o ID da conta diferente da ficha do RH.`}
+        </Aviso>
+      )}
 
       {recorte === "porta" ? (
         <FalhasDeEntrada dados={dados} aoVerPessoa={verPessoa} aoVerTodas={() => setRecorte("todas")} />
@@ -1995,7 +2055,7 @@ export default function AcessoUnico({
           <div className={`flex flex-wrap items-center justify-between gap-2 ${recorte === "todas" ? "area-esconde-estreito" : ""}`}>
             {recorte !== "todas" ? (
               <p className="flex flex-wrap items-center gap-2 text-sm text-slate-600">
-                Mostrando só pessoas com {recorte === "fora" ? "pendência" : "senha provisória"}.
+                Mostrando só pessoas com {recorte === "fora" ? "pendência" : recorte === "id" ? "o ID da conta diferente da ficha do RH" : "senha provisória"}.
                 <button type="button" className="btn-ghost h-10" onClick={() => setRecorte("todas")}>Ver todas</button>
               </p>
             ) : <span className="area-esconde-estreito" />}

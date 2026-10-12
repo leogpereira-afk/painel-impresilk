@@ -19,6 +19,11 @@ export const temPendencia = p => ['fantasma', 'vazia'].includes(estadoDoPapel(p)
 export const temSenhaProvisoria = c => c?.ativo !== false &&
   (c?.trocar_senha === true || (c?.papeis || []).some(p => estadoDoPapel(p).chave === 'temporaria'));
 
+/* O ID DA CONTA DIFERENTE DA FICHA DO RH (auditoria de 12/10/2026, P1). Quem
+   decide e o servidor (painel-acesso, `idFicha`), com a regua da amarracao;
+   aqui so se le. A contagem, o recorte, o selo e o aviso usam ESTA regra. */
+export const temIdDiferenteDaFicha = c => c?.idFicha?.diferente === true;
+
 export function contarAcessos(dados) {
   const contas = dados.contas || [];
   const papeis = contas.flatMap(c => c.papeis || []);
@@ -32,6 +37,7 @@ export function contarAcessos(dados) {
     pessoasFora: contas.filter(c => c.papeis.some(temPendencia)).length,
     soltas: Object.values(dados.soltas || {}).reduce((n, xs) => n + xs.length, 0),
     naPorta: (dados.naPorta || []).length,
+    idDiferente: contas.filter(temIdDiferenteDaFicha).length,
   };
 }
 

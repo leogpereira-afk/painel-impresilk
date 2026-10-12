@@ -14,8 +14,9 @@ const conta = (usuario,nome,papeis,tipo='pessoa',extra={}) => ({usuario,nome,tip
 const initial = {
   sistemas, contas:[
     conta('ana.exemplo','Ana · demonstração',[{...papel('painel','ana.exemplo'),vendedor_id:'ANA EXEMPLO'},papel('compras','ana.exemplo',true)],'pessoa',{trocar_senha:true}),
-    conta('bruno.exemplo','Bruno · demonstração',[papel('painel','bruno.exemplo',false,[]),papel('pcp','bruno.exemplo',true)]),
-    conta('carla.exemplo','Carla · demonstração',[papel('rh','carla.exemplo'),papel('brief','carla.exemplo'),papel('dre','carla.exemplo')]),
+    conta('bruno.exemplo','Bruno · demonstração',[papel('painel','bruno.exemplo',false,[]),papel('pcp','bruno.exemplo',true)],'pessoa',{idFicha:{diferente:true,podeAtualizar:false,motivo:'id-de-outra-pessoa'}}),
+    // ID da conta diferente da ficha do RH (auditoria de 12/10/2026, P1): Carla atualiza pela ficha; Bruno nao (o ID gravado e de outra pessoa).
+    conta('carla.exemplo','Carla · demonstração',[papel('rh','carla.exemplo'),papel('brief','carla.exemplo'),papel('dre','carla.exemplo')],'pessoa',{idFicha:{diferente:true,podeAtualizar:true}}),
     conta('diego.exemplo','Diego · demonstração',[papel('painel','diego.exemplo',false,['agenda','orcamentos']),fantasma('pcp','diego'),papel('compras','diego.exemplo')]),
     conta('elisa.exemplo','Elisa · demonstração',[desligado('rh','elisa.exemplo')],'pessoa',{ativo:false}),
     conta('equipe.exemplo','Equipe · demonstração',[papel('pops','equipe.exemplo')],'funcao'),

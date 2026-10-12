@@ -35,7 +35,10 @@ import {
 } from "../_shared/senha-lojas.ts";
 import { senhaPedida, pedidoEmLote, motivoSeguro, falhaDeCredencial } from "../_shared/senha-regra.ts";
 import { recusaCerta } from "../_shared/troca-senha.ts";
-import { idPessoaDaFicha, MOTIVO_ID_NAO_COPIADO } from "../_shared/id-pessoa-acesso.mjs";
+import {
+  idPessoaDaFicha, MOTIVO_ID_NAO_COPIADO, idDaContaPelaFicha, MOTIVO_CONTA_NAO_ATUALIZA,
+  SELECT_CADASTROS_DO_ID, cadastroDaLeitura,
+} from "../_shared/id-pessoa-acesso.mjs";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -427,6 +430,23 @@ async function amarrarNaFicha(nomeColaborador: string) {
   };
 }
 
+/* AS FICHAS E OS CONTRATOS VIVOS, SO COM O ID GRAVADO E O CPF, para conferir
+   a conta contra a ficha ligada (idDaContaPelaFicha). Leitura estreita de
+   proposito: a ficha inteira tem salario e endereco, e nada disso serve aqui. */
+async function cadastrosDoId() {
+  const { data } = await lerConsulta(sb.from("registros")
+    .select(SELECT_CADASTROS_DO_ID)
+    .in("colecao", ["colaboradores", "freelancers"]).eq("apagado", false));
+  return (data ?? []).map(cadastroDaLeitura);
+}
+
+/* O QUE A TELA RECEBE DA CONFERENCIA: se difere, se o botao pode atualizar e o
+   porque. O ID que a ficha daria NAO desce: quem conserta e a function. */
+function idFichaParaTela(r: any) {
+  if (!r) return null;
+  return { diferente: r.diferente, podeAtualizar: r.podeAtualizar, ...(r.motivo ? { motivo: r.motivo } : {}) };
+}
+
 /**
  * O ALVO PARA ESCREVER — que NAO e o mesmo de ler, e confundir os dois foi o
  * defeito mais caro de 18/08/2026.
@@ -538,6 +558,12 @@ Deno.serve(async (req: Request) => {
           (colabs ?? []).map((r: any) => [String(r.id), String(r.nome ?? "").trim()]),
         );
 
+        /* O ID DA CONTA CONFERE COM A FICHA LIGADA? (auditoria de 12/10/2026,
+           P1). O admin do RH trocou o ID de uma ficha e a conta ficou com o
+           antigo, sem nada na tela mostrar. A conferencia e a regua da
+           amarracao (_shared/id-pessoa-acesso.mjs), pela ficha ligada. */
+        const doId = await cadastrosDoId();
+
         // A VERDADE, perguntada aos sistemas. Sem isto a tela so repetia a
         // tabela consolidada -- e era ela que estava mentindo.
         const real = await estadoReal();
@@ -548,6 +574,7 @@ Deno.serve(async (req: Request) => {
           ...c,
           // O nome ATUAL da ficha, nao a copia congelada no dia da amarracao.
           colaborador: nomeDaFicha.get(String(c.colaborador_id ?? "")) || c.colaborador,
+          idFicha: idFichaParaTela(idDaContaPelaFicha(c, doId, contas ?? [])),
           papeis: (papeis ?? []).filter((p: any) => p.conta_id === c.id).map((p: any) => {
             const login = alvoNoSistema(c, p.sistema, p);
             const chave = normalizar(login);
@@ -800,6 +827,51 @@ Deno.serve(async (req: Request) => {
           .upsert(linha, { onConflict: "usuario" }).select().single();
         if (error) throw new Error(error.message);
         return resposta({ ok: true, conta: data });
+      }
+
+      // ------------------------------------------------ atualizar pela ficha
+      /* "ATUALIZAR PELA FICHA": a conta volta a ter o ID que a ficha ligada da
+         hoje (auditoria de 12/10/2026, P1). Antes o unico caminho era abrir
+         "Editar nome e ficha do RH" e salvar sem mudar nada -- e ninguem sabia
+         que precisava, porque a diferenca nao aparecia.
+         A mesma regua da amarracao (idPessoaDaFicha): ID gravado que e de outra
+         pessoa no RH, ou fora do formato, NAO e copiado. Pela ficha LIGADA
+         (colaborador_id), nao pelo nome: com homonimo, o nome escolheria.
+         So muda `id_pessoa`; nome, ficha, tipo e ativo ficam como estao. */
+      case "atualizarIdPelaFicha": {
+        const id = await contaPorUsuario(corpo.usuario);
+        if (!id) return resposta({ erro: "Conta não encontrada." }, 404);
+        const { data: conta } = await lerConsulta(sb.from("acesso_conta")
+          .select("id, colaborador_id, id_pessoa").eq("id", id).single());
+        if (!texto(conta?.colaborador_id, 120)) {
+          return resposta({ erro: "Esta conta não está ligada a uma ficha do RH." }, 409);
+        }
+        const { data: outras } = await lerConsulta(sb.from("acesso_conta")
+          .select("id, id_pessoa").neq("id", id).not("id_pessoa", "is", null));
+        const r = idDaContaPelaFicha(conta, await cadastrosDoId(), outras ?? []);
+        if (!r) return resposta({ erro: "A ficha ligada a esta conta não foi encontrada no RH." }, 404);
+        if (!r.diferente) return resposta({ ok: true, mudou: false });
+        if (!r.podeAtualizar || !r.idPessoa) {
+          const porque = (MOTIVO_CONTA_NAO_ATUALIZA as Record<string, string>)[r.motivo ?? ""] ?? "a ficha não dá um ID para copiar";
+          return resposta({ erro: `Não atualizei: ${porque}. Corrija no RH.`, motivo: r.motivo ?? "" }, 409);
+        }
+        /* SO SE A CONTA AINDA E A QUE FOI CONFERIDA: mesma ficha e mesmo ID de
+           antes. Se outra aba mexeu no meio, zero linhas e a tela pede para
+           atualizar, em vez de gravar por cima. */
+        let gravar = sb.from("acesso_conta")
+          .update({ id_pessoa: r.idPessoa, atualizado_em: new Date().toISOString() })
+          .eq("id", id).eq("colaborador_id", conta.colaborador_id);
+        gravar = conta.id_pessoa == null ? gravar.is("id_pessoa", null) : gravar.eq("id_pessoa", conta.id_pessoa);
+        const { data: feitas, error } = await gravar.select("id");
+        if (error) {
+          // 23505: o indice unico de id_pessoa (outra conta pegou o ID no meio).
+          if ((error as any).code === "23505") {
+            return resposta({ erro: `Não atualizei: ${MOTIVO_CONTA_NAO_ATUALIZA["id-em-outra-conta"]}.` }, 409);
+          }
+          throw new Error(error.message);
+        }
+        if (!feitas?.length) return resposta({ erro: "A conta mudou enquanto isso. Atualize a tela e confira de novo." }, 409);
+        return resposta({ ok: true, mudou: true });
       }
 
       // ---------------------------------------------------------------- criar
