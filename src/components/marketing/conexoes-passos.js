@@ -215,6 +215,7 @@ export const PASSOS = Object.freeze({
         titulo: 'No Google Ads',
         passos: Object.freeze([
           'Em https://ads.google.com, como administrador: Administrador, Acesso e segurança, aba Usuários, botão +. Cole o e-mail da conta de serviço, escolha Somente leitura e clique em Adicionar conta. (Conta de serviço não aceita o nível Somente e-mail.)',
+          'Com Somente leitura, o quadro de leads de formulário fica sem dado: o Google só entrega os contatos dos formulários a acesso Padrão ou Administrador, e esses dois também deixam alterar campanhas e orçamento.',
           'Se a conta do Google Ads da Impresilk fica debaixo de uma conta de agência (MCC), anote o ID da conta da Impresilk e o da agência (os números de 10 dígitos no alto da tela de cada uma): o passo opcional no Supabase, mais abaixo, usa os dois.',
         ]),
       }),

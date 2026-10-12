@@ -1,0 +1,21 @@
+{
+ "error": {
+  "code": 403,
+  "message": "The caller does not have permission",
+  "status": "PERMISSION_DENIED",
+  "details": [
+   {
+    "@type": "type.googleapis.com/google.ads.googleads.v25.errors.GoogleAdsFailure",
+    "errors": [
+     {
+      "errorCode": {
+       "authorizationError": "ACTION_NOT_PERMITTED"
+      },
+      "message": "User doesn't have permission to perform this action."
+     }
+    ],
+    "requestId": "req-ficticio-erro"
+   }
+  ]
+ }
+}

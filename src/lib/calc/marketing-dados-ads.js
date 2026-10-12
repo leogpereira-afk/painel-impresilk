@@ -422,7 +422,7 @@ function corpoAds(d, l, hoje) {
       col('siteDaLoja', 'Site da loja', 'num2'),
       col('cliquesInvalidos', 'Cliques inválidos', 'int'),
       col('taxaCliquesInvalidos', 'Taxa de cliques inválidos', 'fracao'),
-    ], { unidade: ['semana', 'semanas'], nota: 'As conversões mudam por dias depois do clique: as semanas são refeitas a cada coleta. Leads e conversas da semana seguem a régua de "Sobre a conta". Toques para ligar, pedidos de rota e site da loja são conversões dessas ações.' }),
+    ], { unidade: ['semana', 'semanas'], nota: 'As conversões mudam por dias depois do clique: as semanas são refeitas a cada coleta. Leads e conversas da semana seguem a régua de "Sobre a conta". Toques para ligar, pedidos de rota e site da loja contam esses toques no Perfil da Empresa depois de um clique ou de uma exibição do anúncio.' }),
     tabelaDaParte('grupos', 'grupos', 'Grupos de anúncios', objeto(d.grupos) ? ordenar(d.grupos.lista, 'gasto') : null, [
       col('nome', 'Grupo', 'texto', { max: 100 }),
       col('campanha', 'Campanha', 'texto', { max: 80 }),

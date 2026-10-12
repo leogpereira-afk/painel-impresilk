@@ -51,8 +51,9 @@
  *    texto; codigo é o código curto do mesmo caso (nunca para mostrar). Os
  *    dois vêm juntos, ou nenhum (parte ok). Códigos do quadro: falhou,
  *    sem_tempo, grande_demais, limite_segundo, sem_resposta, recusada,
- *    parada (a frase diz por que a coleta parou). Na parte "conta", quando a
- *    coleta nem passou da porta (a parte leva o MESMO estado da fonte, e a
+ *    sem_permissao (o acesso Somente leitura não alcança o quadro; os leads,
+ *    por exemplo), parada (a frase diz por que a coleta parou). Na parte
+ *    "conta", quando a coleta nem passou da porta (a parte leva o MESMO estado da fonte, e a
  *    frase não se repete em "avisos"): sem_secret, json_invalido, chave_formato,
  *    chave_recusada, token_recusado, token_pedido_invalido, token_sem_valor,
  *    api_desativada, projeto_sem_aprovacao, sem_contas, sem_acesso_na_conta,
@@ -105,6 +106,10 @@
  *      ligacoes, contatos, cliquesInvalidos, taxaCliquesInvalidos,
  *      ligacoesPeloAnuncio, rotas, siteDaLoja}],
  *      As 8 fechadas e a semana corrente (fechada false, até ontem).
+ *      ligacoesPeloAnuncio, rotas e siteDaLoja: toques em ligar, em rota e
+ *      no site da empresa, em qualquer superfície do local (o Perfil da
+ *      Empresa vinculado), depois de um clique OU de uma impressão do
+ *      anúncio (métricas location_asset, somadas dos dias da semana).
  *    regras: {leads: 'categorias' | 'total' | null,
  *             conversas: 'ligacoes_e_contato' | 'ligacoes' | 'contato' | null},
  *    totais: {impressoes, cliques, interacoes, gasto, conversoes,
@@ -422,19 +427,23 @@ export function lerAparelhos(linhas) {
     (l) => ({ aparelho: l.segments?.device ?? null, rede: l.segments?.adNetworkType ?? null }), ['interacoes', ...METRICAS]).sort(porPeso);
 }
 
-/** Cliques inválidos e conversões de local, por semana (consultas opcionais). */
+/** Cliques inválidos e conversões de local, por semana (consultas opcionais).
+ *  Os cliques inválidos vêm por semana; as conversões de local vêm por DIA
+ *  (as métricas de local do recurso só aceitam segments.date) e são somadas
+ *  na segunda-feira da semana delas. */
 export function lerExtrasSemana(linhas) {
   const mapa = new Map();
   for (const l of linhas) {
-    const s = l.segments?.week;
+    const s = l.segments?.week ?? (l.segments?.date ? segundaDaSemana(l.segments.date) : null);
     if (!s) continue;
     const m = l.metrics ?? {}, atual = mapa.get(s) ?? {};
     const pega = (campo, valor) => { if (valor != null) atual[campo] = valor; };
+    const soma = (campo, valor) => { if (valor != null) atual[campo] = arred((atual[campo] ?? 0) + valor, 2); };
     pega('cliquesInvalidos', num(m.invalidClicks));
     pega('taxaCliquesInvalidos', num(m.invalidClickRate));
-    pega('ligacoesPeloAnuncio', dec(m.allConversionsFromClickToCall));
-    pega('rotas', dec(m.allConversionsFromDirections));
-    pega('siteDaLoja', dec(m.allConversionsFromStoreWebsite));
+    soma('ligacoesPeloAnuncio', dec(m.allConversionsFromLocationAssetClickToCall));
+    soma('rotas', dec(m.allConversionsFromLocationAssetDirections));
+    soma('siteDaLoja', dec(m.allConversionsFromLocationAssetWebsite));
     mapa.set(s, atual);
   }
   return mapa;
@@ -995,7 +1004,11 @@ export function consultas(p, extra = {}) {
     dias: `SELECT segments.date, metrics.impressions, metrics.clicks, metrics.interactions, metrics.cost_micros, metrics.conversions, metrics.conversions_value, metrics.all_conversions FROM customer WHERE ${entre}`,
     aparelhos: `SELECT segments.device, segments.ad_network_type, metrics.interactions, ${base} FROM customer WHERE ${entre}`,
     cliquesInvalidos: `SELECT segments.week, metrics.invalid_clicks, metrics.invalid_click_rate FROM customer WHERE ${entre}`,
-    conversoesLocais: `SELECT segments.week, metrics.all_conversions_from_click_to_call, metrics.all_conversions_from_directions, metrics.all_conversions_from_store_website FROM customer WHERE ${entre}`,
+    // As métricas de local por recurso (location_asset), por dia: só aceitam
+    // segments.date. As antigas (all_conversions_from_click_to_call...) eram
+    // dos feeds, que o Google desligou, e a API as recusa
+    // (PROHIBITED_METRIC_IN_SELECT_OR_WHERE_CLAUSE na coleta real de 12/10).
+    conversoesLocais: `SELECT segments.date, metrics.all_conversions_from_location_asset_click_to_call, metrics.all_conversions_from_location_asset_directions, metrics.all_conversions_from_location_asset_website FROM customer WHERE ${entre}`,
     campanhasLista: "SELECT campaign.id, campaign.name, campaign.status, campaign.primary_status, campaign.primary_status_reasons, campaign.serving_status, campaign.advertising_channel_type, campaign.advertising_channel_sub_type, campaign.bidding_strategy_type, campaign.start_date_time, campaign.end_date_time, campaign.optimization_score, campaign_budget.amount_micros, campaign_budget.period, campaign_budget.delivery_method, campaign_budget.recommended_budget_amount_micros FROM campaign WHERE campaign.status != 'REMOVED'",
     campanhasListaReserva: "SELECT campaign.id, campaign.name, campaign.status, campaign.advertising_channel_type, campaign_budget.amount_micros FROM campaign WHERE campaign.status != 'REMOVED'",
     campanhasDias: `SELECT campaign.id, campaign.name, campaign.status, campaign.advertising_channel_type, segments.date, metrics.impressions, metrics.clicks, metrics.interactions, metrics.cost_micros, metrics.conversions, metrics.conversions_value, metrics.all_conversions FROM campaign WHERE ${entre}`,
@@ -1207,11 +1220,23 @@ export const MOTIVOS = Object.freeze({
   limite_segundo: 'O Google Ads pediu para ir mais devagar (limite por segundo, que passa sozinho); este quadro fica para a próxima coleta.',
   sem_resposta: 'O Google Ads não respondeu a este quadro; a próxima coleta tenta de novo.',
   recusada: 'A API recusou a consulta deste quadro (um campo que ela não aceita); ele fica sem dado.',
+  sem_permissao: 'O acesso do Painel à conta do Google Ads não alcança este quadro; ele fica sem dado.',
   parada: 'A coleta parou antes deste quadro; o que estava na tela continua.',
 });
 /** A frase de um código: o MOTIVOS, ou o AVISO da porta (credencial, acesso,
  *  cota...). Nunca o código cru. */
 export const fraseDoMotivo = (codigo) => MOTIVOS[codigo] ?? AVISO[codigo] ?? AVISO.outro;
+
+// Sem permissão num quadro só, quando a causa é conhecida: os leads dos
+// formulários só saem para acesso Padrão ou Administrador (ajuda do Google
+// Ads, "Baixar leads"), e a conta de serviço do Painel é Somente leitura
+// (ACTION_NOT_PERMITTED na coleta real de 12/10).
+export const SEM_PERMISSAO = Object.freeze({
+  leads: {
+    motivo: 'O Google só entrega os contatos dos formulários a quem tem acesso Padrão ou Administrador na conta, e a conta de serviço do Painel é Somente leitura; este quadro fica sem dado.',
+    aviso: 'Os leads de formulário ficaram sem dado: o Google só os entrega a acesso Padrão ou Administrador, e a conta de serviço do Painel é Somente leitura.',
+  },
+});
 
 // -------------------------------------------------------------- a coleta --
 
@@ -1303,8 +1328,9 @@ class Coleta {
     const e = classificarErro(resp);
     // Depois que uma consulta já deu certo com a mesma credencial na mesma
     // conta, um 403 de permissão é daquela consulta (um campo que o papel
-    // Somente leitura não vê), não da conexão: vira recusa e a coleta segue,
-    // em vez de pintar "falta conectar" numa coleta que trouxe quase tudo.
+    // Somente leitura não vê), não da conexão: vira sem_permissao e a coleta
+    // segue, em vez de pintar "falta conectar" numa coleta que trouxe quase
+    // tudo. Não é "recusada": não há campo errado para consertar.
     const soDaConsulta = this.algumOk && (e.tipo === 'permissao' || e.tipo === 'conexao');
     if (PARA.has(e.tipo) && !soDaConsulta) { this.parada = e; this.status[nome] = 'parada'; return; }
     if (e.tipo === 'transitorio' || e.tipo === 'limite_segundo') {
@@ -1319,6 +1345,12 @@ class Coleta {
       return;
     }
     this.transitorios = 0;
+    if (soDaConsulta) {
+      this.status[nome] = 'sem_permissao';
+      this.ctx.log?.(`google_ads: ${nome} sem permissão${e.codigo ? ` (${e.codigo})` : ''}`);
+      this.avisar(SEM_PERMISSAO[nome]?.aviso ?? `O acesso do Painel à conta do Google Ads não alcança ${rotulo}; esses números ficaram sem dado.`);
+      return;
+    }
     this.status[nome] = 'recusada';
     this.ctx.log?.(`google_ads: ${nome} recusada${e.codigo ? ` (${e.codigo})` : ''}`);
     this.avisar(`A API recusou a consulta de ${rotulo}; esses números ficaram sem dado.`);
@@ -1334,7 +1366,9 @@ class Coleta {
     const codigo = nomes.map((n) => this.status[n]).find((s) => s && s !== 'ok') ?? (this.parada ? 'parada' : 'falhou');
     // Parada: a frase diz por que a coleta parou (cota, credencial, acesso),
     // que é o que o Léo precisa saber para destravar.
-    const motivo = codigo === 'parada' && this.parada ? AVISO[codigoAviso(this.parada)] ?? MOTIVOS.parada : fraseDoMotivo(codigo);
+    const motivo = codigo === 'parada' && this.parada ? AVISO[codigoAviso(this.parada)] ?? MOTIVOS.parada
+      : codigo === 'sem_permissao' ? SEM_PERMISSAO[nome]?.motivo ?? MOTIVOS.sem_permissao
+      : fraseDoMotivo(codigo);
     this.partes[nome] = { estado: 'erro', motivo, codigo, coletado_em: null };
   }
 }

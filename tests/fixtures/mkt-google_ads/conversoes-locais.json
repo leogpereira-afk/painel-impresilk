@@ -1,0 +1,26 @@
+{
+ "results": [
+  {
+   "customer": {"resourceName": "customers/1234567890"},
+   "segments": {"date": "2026-09-28"},
+   "metrics": {"allConversionsFromLocationAssetClickToCall": 1.5, "allConversionsFromLocationAssetDirections": 2.0, "allConversionsFromLocationAssetWebsite": 0.25}
+  },
+  {
+   "customer": {"resourceName": "customers/1234567890"},
+   "segments": {"date": "2026-09-30"},
+   "metrics": {"allConversionsFromLocationAssetClickToCall": 2.0, "allConversionsFromLocationAssetWebsite": 1.0}
+  },
+  {
+   "customer": {"resourceName": "customers/1234567890"},
+   "segments": {"date": "2026-10-04"},
+   "metrics": {"allConversionsFromLocationAssetDirections": 1.0, "allConversionsFromLocationAssetWebsite": 0.1}
+  },
+  {
+   "customer": {"resourceName": "customers/1234567890"},
+   "segments": {"date": "2026-10-06"},
+   "metrics": {"allConversionsFromLocationAssetClickToCall": 3.0}
+  }
+ ],
+ "fieldMask": "segments.date,metrics.allConversionsFromLocationAssetClickToCall,metrics.allConversionsFromLocationAssetDirections,metrics.allConversionsFromLocationAssetWebsite",
+ "requestId": "req-ficticio-locais"
+}

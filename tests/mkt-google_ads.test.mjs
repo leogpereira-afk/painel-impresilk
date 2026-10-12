@@ -89,7 +89,7 @@ test('o caso ruim: o motivo da parte chega à tela como frase, e o código vai e
   }
  }
  assert.ok(vistos>=10,String(vistos));
- for(const c of ['falhou','sem_tempo','grande_demais','limite_segundo','sem_resposta','recusada','parada','sem_secret','json_invalido','chave_formato','chave_recusada','token_recusado','token_pedido_invalido','token_sem_valor','api_desativada','projeto_sem_aprovacao','sem_contas','sem_acesso_na_conta','id_cliente_invalido','conta_desativada','sem_conta_comum','cota','permissao','outro'])assert.ok(frase(G.fraseDoMotivo(c)),c);
+ for(const c of ['falhou','sem_tempo','grande_demais','limite_segundo','sem_resposta','recusada','sem_permissao','parada','sem_secret','json_invalido','chave_formato','chave_recusada','token_recusado','token_pedido_invalido','token_sem_valor','api_desativada','projeto_sem_aprovacao','sem_contas','sem_acesso_na_conta','id_cliente_invalido','conta_desativada','sem_conta_comum','cota','permissao','outro'])assert.ok(frase(G.fraseDoMotivo(c)),c);
 });
 
 test('o caso ruim: JSON errado vira falta_configurar, sem chamada e sem repetir o que foi colado', async()=>{
@@ -147,7 +147,10 @@ test('o caso ruim: 401 no meio vira reconectar e nada mais é pedido', async()=>
 
 test('o caso ruim: 403 de permissão numa consulta só, depois de outras darem certo, não vira "falta conectar"', async()=>{
  const t=montar({rotas:{chamadas:erro(403,'erro-sem-acesso')}}),r=await t.rodar();
- assert.equal(r.estado,'parcial');assert.deepEqual(r.partes.chamadas,{estado:'erro',motivo:G.MOTIVOS.recusada,codigo:'recusada',coletado_em:null});
+ // Sem permissão, não "recusada": não há campo errado para consertar.
+ assert.equal(r.estado,'parcial');assert.deepEqual(r.partes.chamadas,{estado:'erro',motivo:G.MOTIVOS.sem_permissao,codigo:'sem_permissao',coletado_em:null});
+ assert.ok(r.avisos.includes('O acesso do Painel à conta do Google Ads não alcança detalhe das ligações; esses números ficaram sem dado.'),r.avisos.join(' | '));
+ assert.ok(t.logs.some((l)=>/chamadas sem permissão \(sem_acesso_na_conta\)/.test(l)),t.logs.join(' | '));
  assert.ok(nomes(t).includes('alteracoes'),'a coleta seguiu');assert.equal(r.partes.paginas.estado,'ok');
  // Na PRIMEIRA consulta da coleta, a mesma recusa é da conexão: para ali.
  const t2=montar({rotas:{semanas:erro(403,'erro-sem-acesso')}}),r2=await t2.rodar();
@@ -594,4 +597,43 @@ test('o caso ruim (guarda de 12 meses): lead de mais de um ano sai, na coleta e 
  assert.equal(G.podarGuardado(semVelho,HOJE),semVelho);
  assert.equal(G.podarGuardado({resumo:{}},HOJE).resumo !== undefined,true);
  assert.equal(G.podarGuardado(null,HOJE),null);
+});
+
+test('leads com ACTION_NOT_PERMITTED (a conta de serviço é Somente leitura): sem_permissao com a causa, não "um campo que ela não aceita"', async()=>{
+ // A coleta real de 12/10: o Google só entrega os leads a acesso Padrão ou Administrador.
+ const t=montar({rotas:{leads:erro(403,'erro-acao-nao-permitida')}}),r=await t.rodar();
+ assert.equal(r.estado,'parcial');assert.ok(nomes(t).includes('alteracoes'),'a coleta seguiu');
+ assert.deepEqual(r.partes.leads,{estado:'erro',motivo:G.SEM_PERMISSAO.leads.motivo,codigo:'sem_permissao',coletado_em:null});
+ assert.match(r.partes.leads.motivo,/Padrão ou Administrador/);assert.match(r.partes.leads.motivo,/Somente leitura/);
+ assert.doesNotMatch(r.partes.leads.motivo,/campo/);
+ assert.ok(r.avisos.includes(G.SEM_PERMISSAO.leads.aviso),r.avisos.join(' | '));
+ assert.equal(r.avisos.some((a)=>/recusou a consulta de leads/.test(a)),false);
+ assert.equal(r.avisos.some((a)=>/ACTION_NOT_PERMITTED|[A-Z]{3,}_[A-Z]{3,}/.test(a)),false,'o nome do erro só vai para o diário');
+ assert.ok(t.logs.some((l)=>/leads sem permissão \(ACTION_NOT_PERMITTED\)/.test(l)),t.logs.join(' | '));
+ assert.equal(t.chamadas.filter((c)=>c.nome.startsWith('leads')).length,1,'sem reserva: a reserva pede o mesmo recurso');
+ assert.equal(r.dados.leads,undefined,'a coletora mantém os leads guardados');
+ for(const f of [G.SEM_PERMISSAO.leads.motivo,G.SEM_PERMISSAO.leads.aviso,G.MOTIVOS.sem_permissao])assert.equal(TRAVESSAO.test(f),false,f);
+ // Na primeira consulta da coleta, o mesmo 403 ainda é da conexão.
+ const t2=montar({rotas:{semanas:erro(403,'erro-acao-nao-permitida')}}),r2=await t2.rodar();
+ assert.equal(r2.estado,'falta_conectar');assert.equal(nomes(t2).at(-1),'semanas');
+});
+
+test('conversões de local: as métricas location_asset por dia, somadas na segunda-feira da semana (as antigas dos feeds a API recusa)', async()=>{
+ const t=montar({rotas:{conversoes_locais:fx('conversoes-locais')}}),r=await t.rodar();
+ const q=t.chamadas.find((c)=>c.nome==='conversoes_locais').query;
+ assert.match(q,/^SELECT segments\.date, /);assert.doesNotMatch(q,/segments\.week/);
+ assert.match(q,/metrics\.all_conversions_from_location_asset_click_to_call/);
+ assert.match(q,/metrics\.all_conversions_from_location_asset_directions/);
+ assert.match(q,/metrics\.all_conversions_from_location_asset_website/);
+ assert.doesNotMatch(q,/all_conversions_from_(click_to_call|directions|store_website)\b/,'as métricas dos feeds voltam PROHIBITED_METRIC');
+ const w=(s)=>r.dados.resumo.semanas.find((x)=>x.semana===s);
+ // 28/09 + 30/09 + 04/10 (domingo, ainda da semana de 28/09).
+ assert.deepEqual([w('2026-09-28').ligacoesPeloAnuncio,w('2026-09-28').rotas,w('2026-09-28').siteDaLoja],[3.5,3,1.35]);
+ // 06/10 cai na semana corrente; métrica que não veio fica null, não 0.
+ assert.deepEqual([w('2026-10-05').ligacoesPeloAnuncio,w('2026-10-05').rotas,w('2026-10-05').siteDaLoja],[3,null,null]);
+ assert.deepEqual([w('2026-09-21').ligacoesPeloAnuncio,w('2026-09-21').rotas],[null,null],'semana sem linha: sem dado');
+ assert.equal(r.partes.resumo.estado,'ok');
+ // Junto com os cliques inválidos, que vêm por semana.
+ const m=G.lerExtrasSemana([{segments:{week:'2026-09-28'},metrics:{invalidClicks:'4',invalidClickRate:0.02}},...fx('conversoes-locais').results]);
+ assert.deepEqual(m.get('2026-09-28'),{cliquesInvalidos:4,taxaCliquesInvalidos:0.02,ligacoesPeloAnuncio:3.5,rotas:3,siteDaLoja:1.35});
 });

@@ -1,5 +1,11 @@
 # Vez do Painel Impresilk
 
+## Trabalho atual · Consertos da coleta do Google Ads
+
+Agente: claude. Pedido de Léo nesta conversa, em 12/10/2026: "corrigir google ads". Ramo `claude/google-ads-consertos-20261012`, clone isolado em /tmp. Escopo: as duas recusas da coleta real do Google Ads lidas no diário. (1) Conversões de local: a API recusa as métricas antigas dos feeds (PROHIBITED_METRIC_IN_SELECT_OR_WHERE_CLAUSE); a consulta passa a pedir as métricas de local por recurso (location_asset), que só aceitam segments.date, somadas na segunda-feira da semana. (2) Leads de formulário: ACTION_NOT_PERMITTED, porque o Google só entrega os leads a acesso Padrão ou Administrador e a conta de serviço é Somente leitura; o quadro deixa de dizer "um campo que ela não aceita" e ganha o código sem_permissao, com a causa, e o Como ligar avisa disso. Sem mudança de banco nem de registros; o acesso da conta de serviço continua Somente leitura (decisão do Léo, não do código).
+
+Estado: verificação local concluída. 627 testes de cálculo e 1.254 de tests/ aprovados, lint sem erros (o aviso anterior em Agenda), build aprovado.
+
 ## Trabalho atual · Token da Meta com gerenciar anúncios
 
 Agente: claude. Pedido de Léo nesta conversa, em 12/10/2026: "fazer tudo pra mim" na Meta. Ramo `claude/meta-token-20261012`, clone isolado em /tmp. O Léo gerou o token do painel-coletor de novo com ads_management, e a coleta real das 11:27 UTC trouxe as estatísticas do Pixel (59 eventos em 6 dias) e a Meta inteira "ok", sem aviso: a causa da negação era essa permissão. Mudança: o Como ligar passa a pedir as nove permissões, com o porquê, e o aviso de estatísticas negadas diz o que fazer. Verificação local: 627 e 1.252 testes aprovados, lint sem erros, build aprovado. Sem mudança de banco nem de registros (os links dos canais Instagram e Facebook foram cadastrados pela tela, a pedido do Léo).
