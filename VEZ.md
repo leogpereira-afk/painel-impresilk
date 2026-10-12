@@ -4,7 +4,9 @@
 
 Agente: claude. Autorização de Léo nesta conversa, em 12/10/2026: "testar o github automatico" (a CI passar a testar o banco de verdade). Ramo `claude/ci-banco-20261012`, clone isolado em /tmp. Escopo: `@electric-sql/pglite` 0.5.8 (exata, de 26/08/2026, sem dependências) no devDependencies, para o `npm ci` da CI instalar; `tests/banco-na-ci.test.mjs` falha na CI (CI=true) se o PGlite faltar, em vez de os testes de banco pularem calados. Sem mudança de código do Painel, de servidor ou de banco.
 
-Estado: verificação local como a CI (npm ci limpo, CI=true, TZ=UTC): 1.248 testes aprovados, nenhum pulado. Os 10 arquivos de banco têm 89 testes: sem o pacote, 84 pulavam; com ele, os 89 passam. A trava foi conferida nos dois sentidos (sem o pacote, falha com CI=true e pula fora da CI). Publicação em andamento.
+Estado: verificação local como a CI (npm ci limpo, CI=true, TZ=UTC): 1.248 testes aprovados, nenhum pulado. Os 10 arquivos de banco têm 89 testes: sem o pacote, 84 pulavam; com ele, os 89 passam. A trava foi conferida nos dois sentidos (sem o pacote, falha com CI=true e pula fora da CI).
+
+Conferido na CI em 12/10/2026: commit `d8d87d3`, Pages 38200228870 com sucesso (build e deploy). No registro da etapa "Regressões da auditoria": 1.248 testes aprovados, 0 pulados, a trava `banco-na-ci` aprovada e os testes de PostgreSQL rodando. Trabalho concluído: fim da vez do Claude, e o Léo decide quem segue.
 
 ## Trabalho atual · Sobras do Centro de Comando do Marketing
 
