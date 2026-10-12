@@ -16,6 +16,7 @@
 //   dia, somarDias, interno, equipe, duracao, prazo, agendaCompleta, status,
 //   diasAgenda, encerradaERP .... instalacao/operacao.js
 //   canceladaPCP ............... instalacao/operacao.js, `cancelamentoDe` (a parte manual)
+//   canceladaNoERP ............. operacao.js, `cancelamentoDe` (a parte do ERP, a baixa CANCELADO)
 //   diasCasa ................... instalacao/casa.js:29-34
 //   ordemHora, rotuloHora ...... instalacao/app.js, funcoes `ordemHora` e `rotuloHora`
 //   rotuloStatus ............... instalacao/app.js, `STATUS_LABEL`, `STATUS_LABEL_INT`
@@ -97,7 +98,15 @@ export function agendaCompleta(o: OS): boolean {
   );
 }
 
+/* CANCELADA E ESTADO FINAL (item 19 da fila do PCP de 11/10/2026, onda
+   operacao; o mesmo OPERACAO.status do PCP): a O.S. cancelada a mao no PCP
+   (canceladaPCP) ou no ERP (a baixa CANCELADO) sai do funil como a
+   finalizada. Antes ela continuava "Confirmada" ou "Agendada" aqui. */
+export function canceladaNoERP(o: OS): boolean {
+  return encerradaERP(o) && /cancel/i.test(`${o?.baixaAutoERP?.status ?? ""} ${o?.finalizadoPor ?? ""}`);
+}
 export function status(o: OS): string {
+  if (canceladaPCP(o) || canceladaNoERP(o)) return "cancelada";
   if (o?.finalizadaEm) return "finalizada";
   if (!o?.liberadoPCP) return "aguardando_producao";
   if (interno(o) || !agendaCompleta(o)) return "apto";
@@ -177,6 +186,7 @@ const ROTULO_STATUS: Record<string, string> = {
   confirmada: "Confirmada",
   em_andamento: "Em andamento",
   finalizada: "Finalizada",
+  cancelada: "Cancelada",
 };
 const ROTULO_STATUS_INTERNO: Record<string, string> = {
   aguardando_producao: "Aguardando produção",
