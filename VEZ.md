@@ -6,6 +6,8 @@ Agente: claude. Pedido de Léo nesta conversa, em 12/10/2026: "corrigir google a
 
 Estado: verificação local concluída. 627 testes de cálculo e 1.254 de tests/ aprovados, lint sem erros (o aviso anterior em Agenda), build aprovado.
 
+Publicado e conferido em 12/10/2026: código `8328055`, Functions 38247540219 e Pages 38247540323 com sucesso. Coleta real do Google Ads às 12:15 UTC (Atualizar agora, pela tela): as conversões de local não foram recusadas (antes PROHIBITED_METRIC), e os leads vêm como sem_permissao (ACTION_NOT_PERMITTED), com a frase da causa na parte e no aviso. A conta não teve anúncio no ar nas 8 semanas (impressões vazias), por isso as conversões de local ficam sem dado, que é real. O texto novo do Como ligar e a nota da tabela por semana estão nos arquivos que o Pages serve. A linha do Google Ads continua "parcial" por causa dos leads, enquanto a conta de serviço for Somente leitura. Trabalho concluído: fim da vez do Claude, e o Léo decide quem segue.
+
 ## Trabalho atual · Token da Meta com gerenciar anúncios
 
 Agente: claude. Pedido de Léo nesta conversa, em 12/10/2026: "fazer tudo pra mim" na Meta. Ramo `claude/meta-token-20261012`, clone isolado em /tmp. O Léo gerou o token do painel-coletor de novo com ads_management, e a coleta real das 11:27 UTC trouxe as estatísticas do Pixel (59 eventos em 6 dias) e a Meta inteira "ok", sem aviso: a causa da negação era essa permissão. Mudança: o Como ligar passa a pedir as nove permissões, com o porquê, e o aviso de estatísticas negadas diz o que fazer. Verificação local: 627 e 1.252 testes aprovados, lint sem erros, build aprovado. Sem mudança de banco nem de registros (os links dos canais Instagram e Facebook foram cadastrados pela tela, a pedido do Léo).
