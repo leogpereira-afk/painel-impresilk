@@ -18,6 +18,7 @@ import {ClienteComercial,PedidoComercial} from '../components/comercial/Consulta
 import ProdutosComerciais,{FichaProduto} from '../components/comercial/ProdutosComerciais.jsx';
 import RelacionamentoComercial from '../components/comercial/RelacionamentoComercial.jsx';
 import PosVendaComercial from '../components/comercial/PosVendaComercial.jsx';
+import Silk from '../components/Silk.jsx';
 import RotinaComercial from '../components/comercial/RotinaComercial.jsx';
 import {validadeOrcamento,diasSemContato,filtrarOrcamentos,FILTROS_ORCAMENTOS,filtrarFilaPrioridades} from '../lib/calc/apresentacaoComercial.js';
 import {BRIEFING_CAMPOS,MOTIVOS_PERDA} from '../../supabase/functions/_shared/relacionamento-comercial.mjs';
@@ -107,7 +108,7 @@ function ComercialTela({sessao}){
  const calendario=['calendario-empresa','agenda','reunioes'].find(m=>podeAbrir(m,sessao));
  const retornoComercial={origemComercial:true,filtrosComercial:params.toString()};
  return <div className="comercial">
- <header className="com-header"><div><p className="com-eyebrow">SEU ESPAÇO DE VENDAS</p><h1>Comercial</h1><p className="com-muted">Bons negócios começam com um bom atendimento.</p></div><div className="com-header-actions sem-impressao"><button className="btn-outline" onClick={()=>setRevisao(n=>n+1)} disabled={carregando}><RefreshCw size={16}/><span>Atualizar</span></button><button className="btn-primary" onClick={()=>setModal({tipo:'novo'})}><Plus size={18}/>Novo orçamento</button></div></header>
+ <header className="com-header"><div className="silk-com-title"><Silk portrait decorative/><div><p className="com-eyebrow">SEU ESPAÇO DE VENDAS</p><h1>Comercial</h1><p className="com-muted">Bons negócios começam com um bom atendimento.</p></div></div><div className="com-header-actions sem-impressao"><button className="btn-outline" onClick={()=>setRevisao(n=>n+1)} disabled={carregando}><RefreshCw size={16}/><span>Atualizar</span></button><button className="btn-primary" onClick={()=>setModal({tipo:'novo'})}><Plus size={18}/>Novo orçamento</button></div></header>
  <nav className="com-shortcuts sem-impressao" aria-label="Atalhos da rotina comercial">
  {calendario&&<Link className="com-shortcut com-shortcut-calendar" state={retornoComercial} to={`/${calendario}?mes=${filtro.de.slice(0,7)}`}><CalendarDays size={18} aria-hidden="true"/><span>Calendário</span><ChevronRight size={14} aria-hidden="true"/></Link>}
  {podeAbrir('compromissos',sessao)&&<Link className="com-shortcut com-shortcut-appointments" state={retornoComercial} to="/compromissos"><CalendarCheck size={18} aria-hidden="true"/><span>Compromissos</span><ChevronRight size={14} aria-hidden="true"/></Link>}

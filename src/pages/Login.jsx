@@ -7,6 +7,7 @@ import { LogIn, User, Eye, EyeOff, AlertTriangle } from "lucide-react";
 import { login, motivoSaida } from "../lib/sessao.js";
 import logoColor from "../assets/brand/logo-color.png";
 import logoWhite from "../assets/brand/logo-white.png";
+import Silk from "../components/Silk.jsx";
 import "../components/login-revisado.css";
 
 export default function Login({ aoEntrar }) {
@@ -66,7 +67,8 @@ export default function Login({ aoEntrar }) {
         {/* max-w impede a logo de esticar na coluna larga: `w-auto` sozinho
             deixa a imagem assumir a largura do flex e ela borra. */}
         <img src={logoWhite} alt="Impresilk" className="h-9 w-auto max-w-[190px] object-contain" />
-        <div>
+        <div className="silk-login-scene">
+          <div>
           <h1 className="max-w-md font-display text-4xl font-bold leading-tight tracking-tight">
             Sua equipe conectada.
             Sua gestão organizada.
@@ -74,6 +76,9 @@ export default function Login({ aoEntrar }) {
           <p className="mt-4 max-w-md leading-relaxed text-white/70">
             Entre no Painel para acompanhar a operação e encontrar os sistemas da Impresilk. Cada pessoa acessa as áreas liberadas para seu trabalho.
           </p>
+          <p className="silk-login-name">Silk, o mascote da Impresilk.</p>
+          </div>
+          <Silk/>
         </div>
         <p className="text-sm text-white/50">Impresilk Soluções Visuais · Montes Claros/MG</p>
       </div>
@@ -85,9 +90,9 @@ export default function Login({ aoEntrar }) {
             <img src={logoColor} alt="Impresilk" className="mx-auto h-9 w-auto dark:hidden" />
             <img src={logoWhite} alt="Impresilk" className="mx-auto hidden h-9 w-auto dark:block" />
 
-            <h2 className="mt-6 font-display text-xl font-semibold text-slate-900">
+            <div className="silk-login-mobile"><Silk portrait decorative/><h2 className="font-display text-xl font-semibold text-slate-900">
               Acessar o painel
-            </h2>
+            </h2></div>
             <p className="mt-1 text-sm text-slate-500">Bem-vindo. Entre com seu usuário e sua senha.</p>
             {import.meta.env.MODE === "review" && <div className="login-demo"><strong>Prévia local</strong><p>Conheça o percurso sem usar suas credenciais.</p><button className="btn-outline" type="button" onClick={()=>aoEntrar?.({demonstracao:true})}>Explorar demonstração</button></div>}
 

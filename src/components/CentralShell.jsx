@@ -7,6 +7,7 @@ import {destinoPatrimonio} from '../lib/calc/navegacao-patrimonio.js';
 import {MODULOS} from '../lib/modulos.js';
 import logo from '../assets/brand/logo-color.png';
 import logoWhite from '../assets/brand/logo-white.png';
+import Silk from './Silk.jsx';
 import './central-shell.css';
 
 const EMOJIS_MODULOS = {compromissos:'📅',agenda:'🗓️','calendario-empresa':'📅','contas-atrasadas':'💰',orcamentos:'📋',bancos:'🏦',marketing:'📣',licitacoes:'⚖️',glossario:'📖',manutencoes:'🛠️',patrimonio:'🏠',permutas:'🤝',campanhas:'🎯',documentos:'📁'};
@@ -57,7 +58,7 @@ export default function CentralShell({children,sessao,aoSair,controles}) {
     {menu&&<button aria-label="Fechar menu" className="review-scrim sem-impressao" onClick={()=>setMenu(false)}/>}
     <aside ref={lateralRef} id="menu-painel" className={`review-sidebar sem-impressao ${menu?'open':''}`}>
       {menu && <button className="btn-ghost" onClick={()=>setMenu(false)} aria-label="Fechar navegação"><X size={22}/></button>}
-      <Link to="/" className="review-brand"><img src={logo} alt="Impresilk" className="dark:hidden"/><img src={logoWhite} alt="Impresilk" className="hidden dark:block"/></Link>
+      <Link to="/" className="review-brand silk-brand" aria-label="Impresilk · Início"><div className="silk-brand-logo"><img src={logo} alt="Impresilk" className="dark:hidden"/><img src={logoWhite} alt="Impresilk" className="hidden dark:block"/></div><Silk portrait/></Link>
       <details className="review-gestao" open>
         <summary>PAINEL DE GESTÃO <ChevronRight size={15} aria-hidden="true"/></summary>
       <nav aria-label="Navegação principal">

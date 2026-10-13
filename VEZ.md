@@ -1,5 +1,17 @@
 # Vez do Painel Impresilk
 
+## Trabalho atual · Silk, mascote da Impresilk
+
+Agente: codex. Pedido de Léo em 13/10/2026: escolher e renderizar o Silk da referência fornecida e encaixá-lo no site como rosto da marca. O trabalho anterior do Claude está publicado e conferido, com a vez encerrada. Novo trabalho em clone fora do iCloud, `/tmp/painel-silk-20261013`, ramo `codex/silk-mascote-20261013`, a partir da main `db625c7`.
+
+Escopo: imagem transparente da pose acenando, componente visual compartilhado e integração compacta na entrada, no Início, na navegação e no cabeçalho Comercial. Logo, fluxos, permissões, fontes e registros preservados. Sem chat fictício, servidor, banco, mensagens ou dados reais em arquivo.
+
+Verificação local anterior à autorização: 48 regressões de entrada, permissões, navegação Comercial e alertas da Home aprovadas, sem falhas nem ignorados; builds de produção e revisão aprovados; lint sem erros (um aviso anterior em Agenda). Chrome conferiu entrada, Home, Comercial, tema escuro, gaveta e 390 px sem transbordamento; nenhum erro JavaScript. Revisão independente corrigiu a cascata da saudação e a cor da legenda no celular. Os testes com imports visuais simulados foram adaptados para Silk/WebP sem remover asserções.
+
+Publicação autorizada por Léo nesta conversa em 13/10/2026: “pode publicar”, após conferir a prévia concreta. Escopo somente da imagem e das telas descritas; sem servidor, banco, migração ou alterações de registros. Publicação em preparação, com a suíte completa da CI, revisão independente final e verificação oficial antes de declarar concluída. Preservar os demais trabalhos.
+
+Pré-publicação aprovada: 1.315 testes da auditoria e 643 de cálculo/acesso, sem falhas nem ignorados; 15 conferências do Pages, compilação com BASE_PATH oficial e lint sem erros (um aviso anterior em Agenda). Fonte externa de permissões conferida contra a equipe-auth oficial atual. Revisão independente final aprovada. A main `db625c7` permanece preservada; somente as telas e o mascote serão enviados.
+
 ## Trabalho atual · Patrimônio: pessoas pelo ID da empresa e bem nas fichas de máquinas e carros
 
 Agente: claude. Pedido de Léo nesta conversa, em 13/10/2026: "tenho que conseguir vincular o que esta ai, em maquinas e nos setores ou carros ou em estrutura um seletor" e "armario tem que seguir o id da empresa qq vincular que for pessoas tem que ser id e nos seletores aparecer so funcionarios ativs tem aparecido pessoas que nao sao ativas". A vez anterior (link do WhatsApp) já estava publicada e conferida. Ramo `claude/vinculos-pessoas-20261013` (PR 17), worktree isolado em ~/Projetos/painel-vinculos-20261013.

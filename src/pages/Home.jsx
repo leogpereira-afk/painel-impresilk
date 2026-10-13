@@ -13,6 +13,7 @@ import { meusSistemas } from "../lib/entradaUnica.js";
 import MissaoValores from "../components/MissaoValores.jsx";
 import logoColor from "../assets/brand/logo-color.png";
 import logoWhite from "../assets/brand/logo-white.png";
+import Silk from "../components/Silk.jsx";
 
 function saudacao() {
   const h = new Date().getHours();
@@ -166,14 +167,16 @@ export default function Home({ sessao = getSessao() } = {}) {
   return (
     <div className="mx-auto w-full max-w-6xl px-2 pb-10 pt-3">
         <section className="min-w-0" aria-label="Identidade da empresa">
-          <div className="flex flex-col items-center gap-3 border-b border-slate-200/80 pb-5 text-center">
-            <img src={logoColor} alt="Impresilk" className="h-10 w-auto shrink-0 dark:hidden" />
-            <img src={logoWhite} alt="Impresilk" className="hidden h-10 w-auto shrink-0 dark:block" />
-            <div className="min-w-0">
+          <div className="silk-home">
+            <Silk/>
+            <div className="silk-home-copy">
+              <img src={logoColor} alt="Impresilk" className="silk-home-logo dark:hidden" />
+              <img src={logoWhite} alt="Impresilk" className="silk-home-logo hidden dark:block" />
               <h1 className="font-display text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">
                 {saudacao()}{primeiroNome ? `, ${primeiroNome}!` : "!"}
               </h1>
               <p className="text-sm leading-snug text-slate-500 sm:text-base">{FRASES[frase]}</p>
+              <p className="silk-introduction">Silk, o mascote da Impresilk.</p>
             </div>
           </div>
           <div className="mt-7">

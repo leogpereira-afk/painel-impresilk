@@ -1,0 +1,36 @@
+.silk{display:block;flex-shrink:0;pointer-events:none;user-select:none}
+.silk-body{aspect-ratio:2/3}
+.silk-body img{display:block;width:100%;height:100%;object-fit:contain}
+.silk-portrait{position:relative;width:48px;height:48px;overflow:hidden;border-radius:50%;background:var(--bg)}
+.silk-portrait img{position:absolute;display:block;width:190%;max-width:none;height:auto;left:-45%;top:-3%}
+/* A logo oficial permanece inteira; o mascote não herda seu limite de altura. */
+.review-brand.silk-brand{display:flex;align-items:center;gap:10px;min-height:64px}
+.silk-brand-logo{flex:1;min-width:0}
+.review-brand .silk{margin:0;font:inherit;letter-spacing:normal}
+.review-brand .silk-brand-logo img{max-width:100%;max-height:54px}
+.review-brand .silk-portrait img{width:190%;height:auto;max-width:none;max-height:none}
+.silk-home{display:flex;align-items:center;justify-content:center;gap:24px;border-bottom:1px solid var(--hairline);padding-bottom:16px;text-align:left}
+.silk-home .silk-body{width:84px}
+.silk-home-copy{min-width:0;max-width:600px}
+.silk-home-logo{height:32px;width:auto;max-width:160px;object-fit:contain;margin-bottom:10px}
+.silk-introduction{margin-top:5px;font-size:12px;color:#60677c}
+html.dark .silk-introduction{color:#a5abc2}
+.silk-login-scene{display:grid;grid-template-columns:minmax(0,1fr) 40%;align-items:center;gap:20px;margin-block:24px}
+.silk-login-scene .silk-body{width:100%;max-width:230px;justify-self:center}
+.login-revisado .silk-login-scene h1{font-size:clamp(28px,2.7vw,40px);line-height:1.18;letter-spacing:-.7px}
+.silk-login-name{margin-top:10px;font-size:13px;color:#fff}
+.silk-login-mobile{display:flex;align-items:center;gap:12px;margin-top:24px}
+.silk-login-mobile .silk-portrait{width:44px;height:44px}
+.silk-com-title{display:flex;align-items:center;gap:14px;min-width:0}
+.silk-com-title .silk-portrait{width:64px;height:64px}
+@media(min-width:1024px){.silk-login-mobile .silk{display:none}}
+@media(max-width:640px){
+  .silk-home{gap:12px;justify-content:flex-start;padding-bottom:12px}
+  .silk-home .silk-body{width:56px}
+  .silk-home-logo{height:26px;margin-bottom:8px;max-width:130px}
+  .review-content .silk-home-copy h1{font-size:22px}
+  .silk-introduction{font-size:11px}
+  .silk-com-title{gap:10px}
+  .silk-com-title .silk-portrait{width:48px;height:48px}
+}
+@media print{.silk,.silk-introduction,.silk-login-name{display:none!important}}

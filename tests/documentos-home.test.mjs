@@ -38,7 +38,7 @@ function tela(caminho) {
   listarDocumentos,api:{listarDocumentos},calcDocumentos,alertasDocumentosLegados,
   ymdLocal:()=> '2026-10-11',statusBackup:async()=>null,lerCargaAlarme:async()=>null,
   meusSistemas:()=>[],sessionStorage:{getItem:()=>null,setItem:()=>{}},logoColor:'logo',logoWhite:'logo'};
- for(const nome of ['AlertTriangle','ChevronDown','ChevronRight','Card','MeusSistemas','MissaoValores','FileCheck2','Car','ShieldCheck','Wrench','PessoasRHProvider','CarregandoModulo','ErroModulo'])contexto[nome]=componente(nome);
+ for(const nome of ['AlertTriangle','ChevronDown','ChevronRight','Card','MeusSistemas','MissaoValores','Silk','FileCheck2','Car','ShieldCheck','Wrench','PessoasRHProvider','CarregandoModulo','ErroModulo'])contexto[nome]=componente(nome);
  vm.runInNewContext(js,contexto);
  return {pedidos,render(atual,{efeitos=true}={}){sessao=atual;cursor=0;const arvore=contexto.module.exports.default({sessao});if(efeitos)this.efeitos();return arvore;},efeitos(){for(const fn of pendentes.splice(0))fn();}};
 }

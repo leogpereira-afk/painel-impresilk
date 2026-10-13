@@ -27,7 +27,7 @@ async function renderizar(sessao,caminho='/comercial?de=2026-09-01&ate=2026-09-3
    stdin:{contents:entrada,resolveDir:SRC,loader:'jsx',sourcefile:'comercial-navigation-entry.jsx'},
    bundle:true,format:'esm',platform:'neutral',write:false,logLevel:'silent',jsx:'automatic',
    mainFields:['module','main'],conditions:['browser','import','default'],
-   loader:{'.css':'empty','.png':'empty','.ttf':'empty'},
+   loader:{'.css':'empty','.png':'empty','.webp':'empty','.ttf':'empty'},
    define:{'import.meta.env':'{"MODE":"test"}','process.env.NODE_ENV':'"production"'},
   });
   tela=await import('data:text/javascript;base64,'+Buffer.from(saida.outputFiles[0].text).toString('base64'));
