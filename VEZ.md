@@ -40,8 +40,17 @@ Estado:
   - 38 entram no seletor pela régua oficial; eram 39 pela antiga.
   - Controles só com nome digitado: 23 armários, 7 camas, 5 celulares, 19 ramais e 1 caixa.
 - **Setores:** na mesma conversa, pela tela e com autorização do Léo, quatro bens trocaram de setor no Patrimônio, com a etiqueta mantida. Laser CO2, seccionadora e router CNC foram para Corte de chapas e usinagem; o laser fibra foi para Metalurgia.
-- **Publicação:** não publicado, falta a autorização. O servidor (`painel-config` e `painel-ativos`) vai antes da tela.
-- **Vez:** continua do Claude até a publicação. O Léo decide quem segue.
+- **Publicado e conferido em 13/10/2026** ("pode", Léo):
+  - merge `67a4b74` (PR 17);
+  - Functions 38437154197 com sucesso: `painel-config` v154 e `painel-ativos` v135, publicadas às 17:15 UTC;
+  - Pages 38437154171 com sucesso.
+- **No ar, conferido pela tela sem gravar nada:**
+  - **Tela publicada:** o arquivo `Patrimonio-L4n9ZYQq.js` traz "Vincular pelo ID do RH", "Usar sugestão", "sem ID do RH" e o seletor "Bem do inventário".
+  - **Seletor de pessoa:** 38 pessoas, todas com o ID. Ninguém fora do quadro.
+  - **Armários:** o aviso "23 cadastros estão só com o nome digitado", e os ligados mostram o ID.
+  - **"Vincular pelo ID":** 23 linhas, nenhuma marcada. 15 com sugestão, 4 com mais de uma pessoa e 4 sem pessoa.
+  - **Carros:** o seletor obrigatório lista VEC-001 a VEC-009 entre os 41 bens sem ficha.
+- **Vez:** trabalho concluído, fim da vez do Claude. O Léo decide quem segue.
 
 ## Trabalho atual · Link do WhatsApp dos canais do Marketing
 
