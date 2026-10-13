@@ -32,7 +32,7 @@
 .pat-control-person>svg { color:var(--pat-muted); flex-shrink:0; }
 .pat-control-available { display:inline-flex; padding:3px 8px; border:1px solid #cee6d8; background:#edf8f1; color:#276346; font-size:11px; border-radius:6px; }
 .pat-control-note { display:block; margin-bottom:5px; }
-.pat-control-person>span { display:flex; flex-wrap:wrap; align-items:baseline; gap:2px 8px; min-width:0; }
+.pat-control-person>span,.pat-control-pessoa-id { display:inline-flex; flex-wrap:wrap; align-items:baseline; gap:2px 8px; min-width:0; }
 .pat-control-id { font-size:11px; font-weight:600; color:var(--pat-muted,#69758a); font-variant-numeric:tabular-nums; }
 .pat-control-sem-id { display:inline-flex; padding:2px 7px; border:1px solid #f0d7a8; background:#fff7e6; color:#8a5a00; font-size:11px; font-weight:600; border-radius:6px; }
 .pat-control-pendente { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:10px 16px; margin:0 0 14px; padding:12px 14px; border:1px solid #f0d7a8; background:#fff7e6; color:#5c3d00; border-radius:10px; font-size:13px; }

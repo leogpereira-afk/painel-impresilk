@@ -25,11 +25,13 @@ function PessoasRHRemotasProvider({children}) {
  return <Contexto.Provider value={valor}>{children}</Contexto.Provider>;
 }
 export const usePessoasRH=()=>useContext(Contexto);
-// Nome e ID da empresa sempre do RH. Se a ficha sumiu (unificada ou recriada), o ID
-// da empresa gravado no vínculo acha a ficha viva da mesma pessoa.
+// Nome e ID da empresa sempre do RH, só para exibir. Se a ficha sumiu (unificada
+// ou recriada), o ID da empresa gravado no vínculo acha o nome da mesma pessoa,
+// mas o `<campo>Id` gravado não muda: trocar a ficha aqui faria o servidor tratar
+// a gravação seguinte como vínculo novo (recusa se a pessoa saiu, histórico falso).
 export function comNomeRH(registro,pessoas,campo='responsavel') {
  const pessoa=pessoaDoVinculo(pessoas,registro?.[campo+'Id'],registro?.[campo+'IdPessoa']);
- return pessoa?{...registro,[campo+'Id']:pessoa.id,[campo]:pessoa.nome,[campo+'IdPessoa']:pessoa.idPessoa||''}:registro;
+ return pessoa?{...registro,[campo]:pessoa.nome,[campo+'IdPessoa']:pessoa.idPessoa||''}:registro;
 }
 
 // Só funcionários ativos no RH (a régua oficial vem do servidor em `disponivel`).

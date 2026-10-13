@@ -23,6 +23,16 @@ export function semIdDoRH(mapa,tipo) {
  return Object.entries(mapa||{}).map(([id,r])=>({...r,id})).filter(r=>r.tipo===tipo&&nomeSemId(r))
   .sort((a,b)=>String(a.numero).localeCompare(String(b.numero),'pt-BR',{numeric:true})||a.id.localeCompare(b.id));
 }
+// O que "Vincular pelo ID" manda ao servidor: o cadastro como está, com a pessoa
+// escolhida no RH, ou, no ramal sem local, o nome digitado movido para o local.
+// Setor, aparelho, plano e operadora o servidor mantém (campo ausente fica como estava).
+export function camposVinculoPessoa(r,pessoa) {
+ const base={tipo:r.tipo,numero:r.numero,modelo:r.modelo||'',telefone:r.telefone||'',observacao:r.observacao||''};
+ if(!pessoa)return {...base,pessoaId:'',pessoa:'',local:r.tipo==='ramais'&&!String(r.local||'').trim()?String(r.pessoa||'').trim():String(r.local||'')};
+ // Linha ou ramal com pessoa não fica "disponível", como no formulário.
+ const ocupa=['ramais','celulares'].includes(r.tipo)&&r.status==='disponivel'?{status:'ativo'}:{};
+ return {...base,pessoaId:pessoa.id,pessoa:pessoa.nome,local:String(r.local||''),...ocupa};
+}
 export function textoAtualizacao(r) {
  if(!r?.atualizadoEm || !Number.isFinite(Date.parse(r.atualizadoEm)))return 'Sem registro de atualização';
  return `Atualizado em ${new Date(r.atualizadoEm).toLocaleString('pt-BR',{timeZone:'America/Sao_Paulo'})} por ${r.atualizadoPorNome||r.atualizadoPor||'autor não informado'}`;

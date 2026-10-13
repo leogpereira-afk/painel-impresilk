@@ -8,12 +8,14 @@ const pessoas = [
   {id: 'ficha-lia-1', nome: 'Lia Exemplo', idPessoa: '333333', apelido: 'lia', disponivel: true},
   {id: 'ficha-lia-2', nome: 'Lia Outra Exemplo', idPessoa: '444444', apelido: 'liaoutra', disponivel: false},
   {id: 'ficha-saiu', nome: 'Otto Exemplo', idPessoa: '555555', apelido: 'otto', disponivel: false},
+  {id: 'ficha-apagada-1', nome: 'Rui Exemplo', idPessoa: '', apagada: true, disponivel: false},
+  {id: 'ficha-viva-rui', nome: 'Rui Outro Exemplo', idPessoa: '666666', disponivel: true},
   {id: 'ficha-sem-id', nome: 'Pessoa Sem Id', idPessoa: '', disponivel: true},
 ];
 
 test('rótulo mostra o ID da empresa ao lado do nome, e só quando o ID é válido', () => {
   assert.equal(rotuloPessoa(pessoas[0]), 'Caio Exemplo Souza · ID 111111');
-  assert.equal(rotuloPessoa(pessoas[5]), 'Pessoa Sem Id');
+  assert.equal(rotuloPessoa(pessoas.find(p => p.id === 'ficha-sem-id')), 'Pessoa Sem Id');
   assert.equal(rotuloPessoa({nome: 'X', idPessoa: '12345'}), 'X');
   assert.equal(rotuloPessoa(null), '');
 });
@@ -27,16 +29,19 @@ test('vínculo acha pela ficha e, se a ficha sumiu, pelo ID da empresa sem ambig
   assert.equal(pessoaDoVinculo(repetido, 'ficha-apagada', '222222'), null);
 });
 
-test('sugestão: nome completo, começo do nome ou apelido, uma ficha só e ativa', () => {
+test('sugestão: nome completo ou começo do nome, uma ficha só e ativa', () => {
   assert.equal(sugerirPessoa('Caio', pessoas).pessoa.id, 'ficha-caio');
   assert.equal(sugerirPessoa('  caio exemplo ', pessoas).pessoa.id, 'ficha-caio');
-  assert.equal(sugerirPessoa('Zeca', pessoas).pessoa.id, 'ficha-ze');
+  // Apelido (que é o login) não vai para a tela e não sugere ninguém.
+  assert.equal(sugerirPessoa('Zeca', pessoas).pessoa, null);
   assert.equal(sugerirPessoa('JOSÉ EXEMPLO LIMA', pessoas).pessoa.id, 'ficha-ze');
 });
 
 test('sem sugestão quando o nome é ambíguo (contando quem saiu), de quem saiu ou desconhecido', () => {
   assert.deepEqual(sugerirPessoa('Lia', pessoas), {pessoa: null, motivo: 'varias', quantas: 2});
   assert.deepEqual(sugerirPessoa('Otto', pessoas), {pessoa: null, motivo: 'fora'});
+  // O xará com a ficha apagada no RH também deixa o nome ambíguo.
+  assert.deepEqual(sugerirPessoa('Rui', pessoas), {pessoa: null, motivo: 'varias', quantas: 2});
   assert.deepEqual(sugerirPessoa('Recepção', pessoas), {pessoa: null, motivo: 'nenhuma'});
   assert.deepEqual(sugerirPessoa('', pessoas), {pessoa: null, motivo: 'vazio'});
   // Pedaço do meio ou do fim do nome não sugere ninguém.

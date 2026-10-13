@@ -11,10 +11,10 @@ import {inventarioPermitido,ativoPermitido,temPermissao} from '../../supabase/fu
 import {getSessao} from '../lib/sessao.js';
 import {prepararInfra,infraPermitida} from '../../supabase/functions/_shared/patrimonio-infra.mjs';
 const pessoasPatrimonioDemo=[
- {id:'rh-demo-ana-1',nome:'Ana Exemplo',idPessoa:'900001',apelido:'ana',disponivel:true},
- {id:'rh-demo-ana-2',nome:'Ana Exemplo',idPessoa:'900002',apelido:'anaexemplo',disponivel:true},
- {id:'rh-demo-bruno',nome:'Bruno Exemplo Atualizado',idPessoa:'900003',apelido:'bruno',disponivel:true},
- {id:'rh-demo-inativo',nome:'Colaborador desligado · exemplo',idPessoa:'900004',apelido:'',disponivel:false},
+ {id:'rh-demo-ana-1',nome:'Ana Exemplo',idPessoa:'900001',disponivel:true},
+ {id:'rh-demo-ana-2',nome:'Ana Exemplo',idPessoa:'900002',disponivel:true},
+ {id:'rh-demo-bruno',nome:'Bruno Exemplo Atualizado',idPessoa:'900003',disponivel:true},
+ {id:'rh-demo-inativo',nome:'Colaborador desligado · exemplo',idPessoa:'900004',disponivel:false},
 ];
 // Respostas fictícias, carregadas apenas na compilação review. Estrutura pode
 // e os controles podem ser editados SOMENTE nesta memória; recarregar restaura os exemplos.
@@ -89,6 +89,7 @@ configs.patrimonio_controles['12212212-1221-4221-8221-122122122129']={tipo:'celu
 // um ambíguo e um que é lugar, não pessoa. E um armário já ligado pelo ID.
 for(const [id,numero,pessoa] of [['armario-nome-1','07','Bruno'],['armario-nome-2','08','Ana'],['armario-nome-3','10','Recepção']])
  configs.patrimonio_controles[id]={tipo:'armarios',numero,pessoa,pessoaId:'',observacao:'',atualizadoEm:'2026-10-05T12:00:00Z',atualizadoPorNome:'Conta de demonstração'};
+configs.patrimonio_controles['ramal-nome-local']={tipo:'ramais',numero:'205',telefone:'',pessoa:'Recepção',pessoaId:'',local:'',setorId:'ex1',status:'ativo',aparelhoId:'',observacao:'',atualizadoEm:'2026-10-05T12:00:00Z',atualizadoPorNome:'Conta de demonstração'};
 configs.patrimonio_controles['armario-ligado']={tipo:'armarios',numero:'09',pessoa:'Bruno Exemplo Atualizado',pessoaId:'rh-demo-bruno',pessoaIdPessoa:'900003',observacao:'',atualizadoEm:'2026-10-05T12:00:00Z',atualizadoPorNome:'Conta de demonstração'};
 Object.assign(configs.patrimonio,{
  ex2:{nomeGenerico:'Veiculo',descricaoTecnica:'Utilitário exemplo',setorSigla:'PRO',codigo:'PRO-010',valor:50000,situacao:'uso',dataAquisicao:'2025-03-01'},

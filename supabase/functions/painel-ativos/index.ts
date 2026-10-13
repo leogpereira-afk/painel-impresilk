@@ -726,6 +726,14 @@ Deno.serve(async (req: Request) => {
           if(falhaOrigem) throw falhaOrigem;
           const idsBem=[...new Set([corpo.bemId,a.bemId,...(origens||[]).map((r:any)=>r.id)].filter(Boolean))];
           if(idsBem.length>1) return resposta({erro:'Vínculos de inventário divergentes. Confira antes de salvar.'},409);
+          // Ligar a um bem que já existe: ele tem de estar no inventário e não baixado. Sem
+          // esta conferência, um bem retirado com o formulário aberto renasceria só com o
+          // vínculo e etiqueta nova, e o original não voltaria mais da lixeira.
+          if(corpo.bemId && corpo.bemId!==a.bemId && !(origens||[]).some((r:any)=>r.id===corpo.bemId)){
+            const {data:bem,error:falhaBem}=await sb.from('painel_registros').select('registro').eq('colecao','patrimonio').eq('id',corpo.bemId).maybeSingle();
+            if(falhaBem) throw falhaBem;
+            if(!bem || (bem.registro as any)?.situacao==='baixado') return resposta({erro:'Este bem não está mais no inventário ou foi baixado. Atualize a lista e escolha de novo.'},409);
+          }
           const {data,error}=await sb.rpc('painel_equipamento_gravar',{p_id:id,p_ativo:limpo,p_anterior:ant?.registro || null,p_bem_id:idsBem[0] || crypto.randomUUID(),p_bem_patch:patch,p_por:quem});
           if(error) throw Object.assign(new Error(error.message),{code:error.code});
           return resposta({ok:true,item:ativoPermitido(data.item,sessao)});

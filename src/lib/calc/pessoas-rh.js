@@ -25,14 +25,15 @@ export function pessoaDoVinculo(pessoas = [], id = '', idPessoa = '') {
 }
 
 // Nome digitado antes do vínculo pelo RH. Sugere a pessoa só quando UMA ficha
-// combina, contando quem saiu (o xará desligado deixa o nome ambíguo), e só se
-// ela estiver ativa. A sugestão nunca grava sozinha: alguém confirma na tela.
+// combina pelo nome completo ou pelo começo dele, contando quem saiu e as fichas
+// apagadas (o xará que saiu deixa o nome ambíguo), e só se ela estiver ativa.
+// A sugestão nunca grava sozinha: alguém escolhe "Usar sugestão" linha a linha.
 export function sugerirPessoa(nomeAntigo, pessoas = []) {
   const alvo = normalizar(nomeAntigo);
   if (!alvo) return {pessoa: null, motivo: 'vazio'};
   const achadas = pessoas.filter(p => {
-    const nome = normalizar(p.nome), apelido = normalizar(p.apelido);
-    return nome === alvo || apelido === alvo || nome.startsWith(alvo + ' ');
+    const nome = normalizar(p.nome);
+    return nome === alvo || nome.startsWith(alvo + ' ');
   });
   if (!achadas.length) return {pessoa: null, motivo: 'nenhuma'};
   if (achadas.length > 1) return {pessoa: null, motivo: 'varias', quantas: achadas.length};

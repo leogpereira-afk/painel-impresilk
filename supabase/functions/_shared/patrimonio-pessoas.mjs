@@ -1,9 +1,13 @@
-// Projeção fechada do RH: nenhum documento, salário ou contato é consultado.
+// Projeção fechada do RH: nenhum documento, salário, contato ou login é consultado.
 //
 // "Disponível" é a régua oficial do RH, a mesma das Reuniões: situação marcada
-// "conta como ativo" no cadastro de situações, ou direção, e sem data de
-// desligamento. A régua antiga (só "não inativo") deixava passar quem o RH não
-// conta como ativo, como o afastado. Ficha apagada é cópia unificada, não pessoa.
+// "conta como ativo" no cadastro de situações (situação apagada não conta), ou
+// direção, e sem data de desligamento. A régua antiga (só "não inativo") deixava
+// passar quem o RH não conta como ativo, como o afastado.
+//
+// Ficha apagada (cópia unificada ou cadastro apagado no RH) vem marcada `apagada`
+// e nunca disponível: serve só para mostrar vínculo antigo e para a conta de
+// homônimos da sugestão por nome, em que um xará apagado também deixa o nome ambíguo.
 //
 // `idPessoa` é o ID da empresa (6 dígitos, o mesmo do crachá e do PCP). O vínculo
 // continua apontando para a ficha (`id`), e grava junto o ID da empresa.
@@ -11,26 +15,26 @@ export async function lerPessoasPatrimonio(sb) {
   const contaComoAtivo = new Set();
   for (let de = 0; ; de += 1000) {
     const {data,error} = await sb.from('registros')
-      .select('id, conta:registro->>contaComoAtivo')
+      .select('id, apagado, conta:registro->>contaComoAtivo')
       .eq('colecao','status').order('id').range(de,de+999);
     if (error) throw Object.assign(new Error('Não foi possível consultar as situações do RH. Tente novamente.'),{status:503});
-    for (const s of data || []) if (String(s.conta)==='true') contaComoAtivo.add(String(s.id));
+    for (const s of data || []) if (String(s.conta)==='true' && s.apagado!==true && s.apagado!=='true') contaComoAtivo.add(String(s.id));
     if ((data || []).length<1000) break;
   }
   const pessoas = new Map();
   for (let de = 0; ; de += 1000) {
     const {data,error} = await sb.from('registros')
-      .select('id, apagado, pid:registro->>id, nome:registro->>nome, idPessoa:registro->>idPessoa, apelido:registro->>apelido, statusId:registro->>statusId, direcao:registro->>ehDirecao, saiu:registro->>dataDesligamento')
+      .select('id, apagado, pid:registro->>id, nome:registro->>nome, idPessoa:registro->>idPessoa, statusId:registro->>statusId, direcao:registro->>ehDirecao, saiu:registro->>dataDesligamento')
       .eq('colecao','colaboradores').order('id').range(de,de+999);
     if (error) throw Object.assign(new Error('Não foi possível consultar os colaboradores do RH. Tente novamente.'),{status:503});
     for (const r of data || []) {
-      if (r.apagado===true || r.apagado==='true') continue;
       const id=String(r.pid || r.id || '').trim(), nome=String(r.nome || '').trim();
       if (!id || !nome) continue;
       if (pessoas.has(id)) throw Object.assign(new Error('Há IDs repetidos no cadastro do RH. Confira o cadastro antes de vincular.'),{status:422});
+      const apagada=r.apagado===true || r.apagado==='true';
       const idPessoa=String(r.idPessoa || '').trim();
       const ativo=contaComoAtivo.has(String(r.statusId)) || r.statusId==='direcao' || String(r.direcao)==='true';
-      pessoas.set(id,{id,nome,idPessoa:/^\d{6}$/.test(idPessoa)?idPessoa:'',apelido:String(r.apelido || '').trim(),disponivel:ativo&&!String(r.saiu || '').trim()});
+      pessoas.set(id,{id,nome,idPessoa:/^\d{6}$/.test(idPessoa)?idPessoa:'',apagada,disponivel:!apagada&&ativo&&!String(r.saiu || '').trim()});
     }
     if ((data || []).length<1000) break;
   }

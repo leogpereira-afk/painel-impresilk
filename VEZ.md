@@ -2,15 +2,46 @@
 
 ## Trabalho atual · Patrimônio: pessoas pelo ID da empresa e bem nas fichas de máquinas e carros
 
-Agente: claude. Pedido de Léo nesta conversa, em 13/10/2026: "tenho que conseguir vincular o que esta ai, em maquinas e nos setores ou carros ou em estrutura um seletor" e "armario tem que seguir o id da empresa qq vincular que for pessoas tem que ser id e nos seletores aparecer so funcionarios ativos". A vez anterior (link do WhatsApp) já estava publicada e conferida. Ramo `claude/vinculos-pessoas-20261013`, worktree isolado em ~/Projetos/painel-vinculos-20261013. Escopo:
+Agente: claude. Pedido de Léo nesta conversa, em 13/10/2026: "tenho que conseguir vincular o que esta ai, em maquinas e nos setores ou carros ou em estrutura um seletor" e "armario tem que seguir o id da empresa qq vincular que for pessoas tem que ser id e nos seletores aparecer so funcionarios ativs tem aparecido pessoas que nao sao ativas". A vez anterior (link do WhatsApp) já estava publicada e conferida. Ramo `claude/vinculos-pessoas-20261013` (PR 17), worktree isolado em ~/Projetos/painel-vinculos-20261013.
 
-1. **Pessoas** (`_shared/patrimonio-pessoas.mjs`): o seletor segue a régua oficial do RH, a mesma das Reuniões (situação com "conta como ativo" ou direção, sem data de desligamento; ficha apagada fica fora) e traz o ID da empresa (`idPessoa`, 6 dígitos) e o apelido. Todo vínculo validado pelo servidor grava junto `<campo>IdPessoa`, vindo do RH e nunca do pedido (controles, movimentos das caixas, fichas físicas, máquinas e carros, documentos). O vínculo continua apontando para a ficha, então o saldo das caixas e os históricos não mudam de chave.
-2. **Tela de pessoas**: o seletor mostra "Nome · ID" e só funcionários ativos; quem já estava ligado e saiu aparece só na própria ficha, marcado. Os controles (armários, camas, celulares, ramais e caixas) mostram o ID ao lado do nome, marcam "sem ID do RH" o nome digitado e ganham "Vincular pelo ID": a sugestão só aparece quando uma única ficha combina (contando quem saiu) e ela está ativa, e nada grava sem o clique em salvar.
-3. **Máquinas e Carros** ganham o seletor "Bem do inventário", que a Estrutura já tinha. Bem que já existe só se liga: patch vazio, sem trocar nome, descrição, observação, setor ou valor do bem. Etiqueta nova só quando escolhida. Ficha sem vínculo exige a escolha: antes, salvar com a permissão do inventário criava etiqueta nova calada.
+Escopo:
+1. **Pessoas** (`_shared/patrimonio-pessoas.mjs`):
+   - O seletor segue a régua oficial do RH, a mesma das Reuniões: situação com "conta como ativo" (situação apagada não conta) ou direção, e sem data de desligamento.
+   - Ficha apagada vem marcada e nunca disponível. Serve só para mostrar vínculo antigo e para contar homônimos.
+   - A lista traz o ID da empresa (`idPessoa`, 6 dígitos). O apelido, que é o login, não vai para a tela.
+   - Os vínculos validados pelo servidor gravam junto `<campo>IdPessoa`, vindo do RH e nunca do pedido. Vale para os controles (armários, camas, caixas, ramais, celulares), os movimentos das caixas, as fichas físicas, máquinas e carros e o responsável dos controles de documentos. Os titulares de documentos ficaram de fora.
+   - O vínculo continua apontando para a ficha, então o saldo das caixas e os históricos não mudam de chave.
+2. **Tela de pessoas**:
+   - O seletor mostra "Nome · ID" e só funcionários ativos. Quem já estava ligado e saiu aparece só na própria ficha, marcado.
+   - Armários, camas, caixas, ramais e celulares mostram o ID ao lado do nome e marcam com "sem ID do RH" o nome digitado.
+   - Essas telas ganham "Vincular pelo ID" (componente compartilhado). Toda linha abre em "Deixar como está". A sugestão aparece só quando uma única ficha combina pelo nome (contando quem saiu e as apagadas) e ela está ativa, e só entra com "Usar sugestão", linha a linha. No ramal sem local, o nome digitado pode ir para o local.
+   - O nome achado pelo ID da empresa, quando a ficha sumiu, é só exibição: a ficha gravada não muda.
+3. **Máquinas e Carros** ganham o seletor "Bem do inventário", que a Estrutura já tinha:
+   - Bem que já existe só se liga: patch vazio. O servidor recusa bem retirado ou baixado.
+   - Etiqueta nova só quando escolhida.
+   - Ficha sem vínculo exige a escolha. Antes, salvar com a permissão do inventário criava etiqueta nova calada.
+   - Editar ficha já ligada leva ao bem só a aquisição preenchida (setor, nota, data, valor). Antes, trocava o nome do bem pelo da ficha e apagava a observação do inventário.
 
 Sem migração nem alteração de registros: os nomes digitados viram vínculo pelo ID na tela, quando alguém confirma. Nada publicado.
 
-Estado: verificação local como a CI concluída (Node 20, TZ=UTC, CI=true, `npm ci` limpo): 1.314 testes de tests/ e 635 de cálculo aprovados, test:acessos aprovado, lint sem erros (o aviso anterior em Agenda), as 15 conferências aprovadas (conferir-sistemas contra o vida-leo atual), build com BASE_PATH e build da prévia aprovados. Prévia conferida no navegador com dados fictícios (desktop e 375 px, sem rolagem lateral): "Vincular pelo ID" grava e mostra o ID; o carro liga a um bem existente e o bem mantém nome e setor. SELECT só de contagem em 13/10/2026: 98 fichas no RH, 38 entram no seletor pela régua oficial (39 pela antiga). Controles só com nome digitado: 23 armários, 7 camas, 5 celulares, 19 ramais e 1 caixa. Na mesma conversa, pela tela e com autorização do Léo, quatro bens trocaram de setor no Patrimônio, com a etiqueta mantida: laser CO2, seccionadora e router CNC para Corte de chapas e usinagem; laser fibra para Metalurgia. Não publicado: falta autorização. Servidor (`painel-config` e `painel-ativos`) antes da tela. A vez continua do Claude até a publicação; o Léo decide quem segue.
+Estado:
+- **Revisão:** uma revisão independente do primeiro commit achou o patch do bem na edição, a sugestão já marcada em lote, a troca de ficha na tela, ramais e celulares sem a janela, a situação apagada, o bem retirado e o apelido exposto. Todos foram corrigidos com teste.
+- **Verificação local, como a CI, depois das correções** (Node 20, TZ=UTC, CI=true, `npm ci` limpo):
+  - 1.315 testes de tests/ e 636 de cálculo aprovados;
+  - test:acessos e as 15 conferências aprovados (conferir-sistemas contra o vida-leo atual);
+  - lint sem erros (fica o aviso anterior em Agenda);
+  - build com BASE_PATH e build da prévia aprovados.
+- **Prévia conferida no navegador com dados fictícios** (desktop e 375 px, sem rolagem lateral):
+  - "Vincular pelo ID" abre sem nada marcado e "Usar sugestão" preenche só a linha;
+  - o ramal leva o nome para o local;
+  - o carro liga a um bem existente e o bem mantém nome e setor.
+- **Contagem (SELECT só de contagem em 13/10/2026):**
+  - 98 fichas no RH: 57 vivas, todas com o ID gravado.
+  - 38 entram no seletor pela régua oficial; eram 39 pela antiga.
+  - Controles só com nome digitado: 23 armários, 7 camas, 5 celulares, 19 ramais e 1 caixa.
+- **Setores:** na mesma conversa, pela tela e com autorização do Léo, quatro bens trocaram de setor no Patrimônio, com a etiqueta mantida. Laser CO2, seccionadora e router CNC foram para Corte de chapas e usinagem; o laser fibra foi para Metalurgia.
+- **Publicação:** não publicado, falta a autorização. O servidor (`painel-config` e `painel-ativos`) vai antes da tela.
+- **Vez:** continua do Claude até a publicação. O Léo decide quem segue.
 
 ## Trabalho atual · Link do WhatsApp dos canais do Marketing
 

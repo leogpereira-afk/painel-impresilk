@@ -1,6 +1,6 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {listarControles,resumirControles,temResponsavel,textoAtualizacao,nomeSemId,semIdDoRH} from './controles-patrimonio.js';
+import {listarControles,resumirControles,temResponsavel,textoAtualizacao,nomeSemId,semIdDoRH,camposVinculoPessoa} from './controles-patrimonio.js';
 import {prepararControle,carimbarPatrimonio} from '../../../supabase/functions/_shared/patrimonio-controles.mjs';
 const sessao={sub:'ana',nome:'Ana Exemplo'},agora='2026-10-05T13:00:00.000Z';
 const base={tipo:'armarios',numero:'001',pessoa:'João',observacao:'',versaoAnterior:null};
@@ -97,4 +97,17 @@ test('ID da empresa acompanha a pessoa do cadastro e não fica grudado quando a 
  const outra=prepararControle({...base,pessoa:'Bruno',pessoaId:'ficha-bruno',versaoAnterior:ligado.atualizadoEm},ligado,sessao,'2026-10-05T16:00:00.000Z');
  assert.equal(outra.pessoaIdPessoa,'');
  assert.equal(prepararControle({...base,pessoaId:'ficha-ana',pessoaIdPessoa:'12'},null,sessao,agora).pessoaIdPessoa,'');
+});
+
+test('"Vincular pelo ID" manda o cadastro como está, com a pessoa do RH; ramal sem local pode virar local', () => {
+ const pessoa={id:'ficha-ana',nome:'Ana Exemplo',idPessoa:'123456',disponivel:true};
+ const armario={tipo:'armarios',numero:'05',pessoa:'Ana',observacao:'chave extra',atualizadoEm:'x'};
+ assert.deepEqual(camposVinculoPessoa(armario,pessoa),{tipo:'armarios',numero:'05',modelo:'',telefone:'',observacao:'chave extra',pessoaId:'ficha-ana',pessoa:'Ana Exemplo',local:''});
+ const linha={tipo:'celulares',numero:'(38) 90000-0000',modelo:'Aparelho',pessoa:'Ana',status:'disponivel',setorId:'s1',aparelhoId:'a1'};
+ const enviado=camposVinculoPessoa(linha,pessoa);
+ assert.equal(enviado.status,'ativo');assert.equal(enviado.modelo,'Aparelho');
+ // Setor e aparelho não vão no corpo: o servidor mantém o que já estava.
+ assert.equal('setorId' in enviado,false);assert.equal('aparelhoId' in enviado,false);
+ assert.deepEqual(camposVinculoPessoa({tipo:'ramais',numero:'201',telefone:'(38) 3000-0000',pessoa:'Recepção'},null),{tipo:'ramais',numero:'201',modelo:'',telefone:'(38) 3000-0000',observacao:'',pessoaId:'',pessoa:'',local:'Recepção'});
+ assert.equal(camposVinculoPessoa({tipo:'ramais',numero:'202',pessoa:'Recepção',local:'Balcão'},null).local,'Balcão');
 });

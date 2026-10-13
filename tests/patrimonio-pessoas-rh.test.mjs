@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {lerPessoasPatrimonio,validarVinculoPessoa,prepararPessoasControle} from '../supabase/functions/_shared/patrimonio-pessoas.mjs';
 import {aplicarOperacaoCaixa,quantidadeEmUso} from '../supabase/functions/_shared/patrimonio-caixas.mjs';
 const pessoas=[{id:'rh-1',nome:'Ana Exemplo',idPessoa:'111111',disponivel:true},{id:'rh-2',nome:'Ana Exemplo',idPessoa:'222222',disponivel:true},{id:'rh-3',nome:'Bruno Exemplo',idPessoa:'333333',disponivel:false}];
-const SITUACOES=[{id:'ativo',conta:'true'},{id:'experiencia',conta:'true'},{id:'freelancer',conta:'true'},{id:'afastado',conta:'false'},{id:'inativo',conta:'false'},{id:'direcao',conta:'false'}];
+const SITUACOES=[{id:'ativo',conta:'true'},{id:'experiencia',conta:'true'},{id:'freelancer',conta:'true'},{id:'afastado',conta:'false'},{id:'inativo',conta:'false'},{id:'direcao',conta:'false'},{id:'situacao-apagada',conta:'true',apagado:true}];
 // Banco falso do RH: confere a projeção fechada e serve as duas coleções que a régua lê.
 function bancoRH({status=SITUACOES,colaboradores=[],falhaEm=null}={}) {
  const chamadas=[];
@@ -20,23 +20,25 @@ test('RH é consultado com projeção fechada, paginação e ID da empresa',asyn
  const sb=bancoRH({colaboradores:rows});
  const lista=await lerPessoasPatrimonio(sb);assert.equal(lista.length,1001);
  assert.deepEqual(sb.chamadas.map(c=>c.colecao),['status','colaboradores','colaboradores']);
- assert.deepEqual(lista.find(p=>p.id==='rh-0'),{id:'rh-0',nome:'Pessoa 0',idPessoa:'100000',apelido:'',disponivel:false});
+ assert.deepEqual(lista.find(p=>p.id==='rh-0'),{id:'rh-0',nome:'Pessoa 0',idPessoa:'100000',apagada:false,disponivel:false});
  assert.equal(lista.find(p=>p.id==='rh-1').disponivel,false);assert.equal(lista.find(p=>p.id==='rh-2').disponivel,true);
- assert(!JSON.stringify(lista).includes('não expor'));assert.deepEqual(Object.keys(lista[0]).sort(),['apelido','disponivel','id','idPessoa','nome']);
+ assert(!JSON.stringify(lista).includes('não expor'));assert.deepEqual(Object.keys(lista[0]).sort(),['apagada','disponivel','id','idPessoa','nome']);
+ assert(!sb.chamadas.some(c=>/apelido|login|cpf/i.test(c.cols)));
 });
-test('régua oficial do RH: conta como ativo ou direção, sem desligamento; apagada não é pessoa',async()=>{
+test('régua oficial do RH: conta como ativo ou direção, sem desligamento; apagada vem marcada e nunca disponível',async()=>{
  const linha=(pid,extra)=>({id:'l-'+pid,apagado:false,pid,nome:'Pessoa '+pid,idPessoa:'',...extra});
  const lista=await lerPessoasPatrimonio(bancoRH({colaboradores:[
-  linha('ativo',{statusId:'ativo',idPessoa:'123456',apelido:' apelido '}),linha('experiencia',{statusId:'experiencia'}),
+  linha('ativo',{statusId:'ativo',idPessoa:'123456',apelido:'nao-vai'}),linha('experiencia',{statusId:'experiencia'}),
   linha('freelancer',{statusId:'freelancer'}),linha('afastado',{statusId:'afastado'}),linha('inativo',{statusId:'inativo'}),
   linha('direcao',{statusId:'direcao'}),linha('dir-marca',{statusId:'afastado',direcao:'true'}),
   linha('saiu',{statusId:'ativo',saiu:'2026-09-30'}),linha('saiu-branco',{statusId:'ativo',saiu:'  '}),
-  linha('sem-situacao',{statusId:'desconhecida'}),linha('apagada',{statusId:'ativo',apagado:true}),
+  linha('sem-situacao',{statusId:'desconhecida'}),linha('apagada',{statusId:'ativo',apagado:true}),linha('situacao-apagada',{statusId:'situacao-apagada'}),
   linha('id-curto',{statusId:'ativo',idPessoa:'12345'}),
  ]}));
  const disp=Object.fromEntries(lista.map(p=>[p.id,p.disponivel]));
- assert.deepEqual(disp,{ativo:true,experiencia:true,freelancer:true,afastado:false,inativo:false,direcao:true,'dir-marca':true,saiu:false,'saiu-branco':true,'sem-situacao':false,'id-curto':true});
- assert.equal(lista.find(p=>p.id==='ativo').idPessoa,'123456');assert.equal(lista.find(p=>p.id==='ativo').apelido,'apelido');
+ assert.deepEqual(disp,{ativo:true,experiencia:true,freelancer:true,afastado:false,inativo:false,direcao:true,'dir-marca':true,saiu:false,'saiu-branco':true,'sem-situacao':false,apagada:false,'situacao-apagada':false,'id-curto':true});
+ assert.equal(lista.find(p=>p.id==='ativo').idPessoa,'123456');assert.equal(lista.find(p=>p.id==='apagada').apagada,true);
+ assert(!JSON.stringify(lista).includes('nao-vai'));
  assert.equal(lista.find(p=>p.id==='id-curto').idPessoa,'');
 });
 test('falha do RH não vira lista vazia, nem nas situações nem nos colaboradores',async()=>{

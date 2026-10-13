@@ -116,3 +116,20 @@ test('falha no banco não se apresenta como lista vazia e campos malformados nã
   assert.equal(r.body.itens[0].nome, '');assert.equal(r.body.itens[0].responsavel, '');
   assert.deepEqual(r.body.itens[0].especificacao, { placa: '', marcaModelo: '', ano: '' });
 });
+
+test('ligar ficha a bem que já existe: bem retirado ou baixado é recusado antes de gravar; bem em uso segue com patch vazio', async () => {
+  const sessao = { sub: 'gestor', perms: ['*'] };
+  const linhas = [registro('car1', 'veiculo'), { id: 'bem-baixado', colecao: 'patrimonio', registro: { codigo: 'VEC-009', situacao: 'baixado' } },
+    { id: 'bem-ok', colecao: 'patrimonio', registro: { codigo: 'VEC-003', nomeGenerico: 'Veiculo', situacao: 'uso' } }];
+  const pedido = bemId => ({ action: 'salvar', item: { id: 'car1', tipo: 'veiculo', nome: 'Carro de exemplo' }, patrimonio: {}, bemId });
+  for (const bemId of ['bem-retirado', 'bem-baixado']) {
+    const a = ambiente({ sessao, linhas });
+    const r = await a.chamar(pedido(bemId));
+    assert.equal(r.status, 409);assert.match(r.body.erro, /não está mais no inventário ou foi baixado/);
+    assert.equal(a.gravacoes.length, 0);
+  }
+  const a = ambiente({ sessao, linhas });
+  await a.chamar(pedido('bem-ok'));
+  assert.equal(a.gravacoes.length, 1);assert.equal(a.gravacoes[0].nome, 'painel_equipamento_gravar');
+  assert.equal(a.gravacoes[0].args.p_bem_id, 'bem-ok');assert.equal(JSON.stringify(a.gravacoes[0].args.p_bem_patch), '{}');
+});

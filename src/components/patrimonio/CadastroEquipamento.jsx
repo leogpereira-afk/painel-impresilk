@@ -298,7 +298,7 @@ function FormItem({ inicial, salvando, aoSalvar, aoFechar, setores, bensLivres =
                   {bensLivres.map((b) => <option key={b.id} value={b.id}>{b.codigo || 'Etiqueta pendente'} · {b.nomeGenerico || 'Bem'}{b.descricaoTecnica ? ` · ${b.descricaoTecnica}` : ''}</option>)}
                 </optgroup>}
               </select>
-              <small className="text-xs text-slate-500">{plano.acao === 'ligar' ? 'Só liga a ficha ao bem: a etiqueta, o setor, a nota e o valor continuam os do inventário.' : plano.acao === 'novo' ? 'Cria um bem novo, com etiqueta nova. Use só para equipamento que ainda não está no inventário.' : 'Confira antes se o equipamento já tem etiqueta no inventário.'}</small>
+              <small className="text-xs text-slate-500">{plano.acao === 'ligar' ? 'Só liga a ficha ao bem: nome, setor, nota e valor continuam os do inventário. Bem sem etiqueta ganha a próxima do setor.' : plano.acao === 'novo' ? 'Cria um bem novo, com etiqueta nova. Use só para equipamento que ainda não está no inventário.' : 'Confira antes se o equipamento já tem etiqueta no inventário.'}</small>
             </>)}
           </div>
           {(plano.acao === 'manter' || plano.acao === 'novo') && <><div>
@@ -370,13 +370,19 @@ export default function CadastroEquipamento({inicial,setores=[],bensLivres=[],be
       // e ativos", eu salvo a ficha aqui meia hora depois e gravo o valor
       // velho por cima. A proteção do servidor só funciona com o campo
       // ausente de verdade -- reenviar o cache da tela a anula.
+      // Aquisição que a pessoa preencheu: é o único dado que a ficha leva ao bem já ligado.
+      // Nome, descrição e observação do bem são do inventário: a ficha só os escreve
+      // quando o bem nasce dela (etiqueta nova). Antes, editar a ficha trocava o tipo
+      // do bem ("Laser") pelo nome da ficha e apagava a observação do inventário.
+      const aquisicao={};
+      if(f.setorSigla) aquisicao.setorSigla=f.setorSigla;
+      if(f.nf) aquisicao.nf=f.nf;
+      if(f.dataAquisicao) aquisicao.dataAquisicao=f.dataAquisicao;
+      if(paraNumero(f.valor)>0) aquisicao.valor=paraNumero(f.valor);
       const doBem={nomeGenerico:f.nome,descricaoTecnica:[f.categoria,identificacaoDe(f)].filter(Boolean).join(' · '),observacao:f.observacao || ''};
       if(!f.id) Object.assign(doBem,{setorSigla:f.setorSigla || '',nf:f.nf || '',dataAquisicao:f.dataAquisicao || '',valor:paraNumero(f.valor),situacao:'uso'});
       else {
-        if(f.setorSigla) doBem.setorSigla=f.setorSigla;
-        if(f.nf) doBem.nf=f.nf;
-        if(f.dataAquisicao) doBem.dataAquisicao=f.dataAquisicao;
-        if(paraNumero(f.valor)>0) doBem.valor=paraNumero(f.valor);
+        Object.assign(doBem,aquisicao);
       }
       const item={
         id:f.id || undefined,cadastroId:f.cadastroId,tipo:f.tipo,nome:f.nome,categoria:f.categoria,responsavel:f.responsavel,responsavelId:f.responsavelId||'',
@@ -388,7 +394,8 @@ export default function CadastroEquipamento({inicial,setores=[],bensLivres=[],be
       const plano=planoVinculoBem({escolha:f.bemEscolha,bemAtual:bemAtual?.id});
       const salvo=!podeAbrir('inventario-valores')||plano.acao==='nenhum'?await salvarAtivo(item)
         :plano.acao==='ligar'?await salvarEquipamento(item,{},plano.bemId)
-        :await salvarEquipamento(item,doBem,plano.acao==='manter'?plano.bemId:undefined);
+        :plano.acao==='manter'?await salvarEquipamento(item,aquisicao,plano.bemId)
+        :await salvarEquipamento(item,doBem,undefined);
 
       await aoConcluir(salvo);
     } catch (e) {
