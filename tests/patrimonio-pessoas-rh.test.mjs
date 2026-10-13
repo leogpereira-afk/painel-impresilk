@@ -2,38 +2,66 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {lerPessoasPatrimonio,validarVinculoPessoa,prepararPessoasControle} from '../supabase/functions/_shared/patrimonio-pessoas.mjs';
 import {aplicarOperacaoCaixa,quantidadeEmUso} from '../supabase/functions/_shared/patrimonio-caixas.mjs';
-const pessoas=[{id:'rh-1',nome:'Ana Exemplo',disponivel:true},{id:'rh-2',nome:'Ana Exemplo',disponivel:true},{id:'rh-3',nome:'Bruno Exemplo',disponivel:false}];
-
-test('RH é consultado com projeção fechada, paginação e ID oficial',async()=>{
+const pessoas=[{id:'rh-1',nome:'Ana Exemplo',idPessoa:'111111',disponivel:true},{id:'rh-2',nome:'Ana Exemplo',idPessoa:'222222',disponivel:true},{id:'rh-3',nome:'Bruno Exemplo',idPessoa:'333333',disponivel:false}];
+const SITUACOES=[{id:'ativo',conta:'true'},{id:'experiencia',conta:'true'},{id:'freelancer',conta:'true'},{id:'afastado',conta:'false'},{id:'inativo',conta:'false'},{id:'direcao',conta:'false'},{id:'situacao-apagada',conta:'true',apagado:true}];
+// Banco falso do RH: confere a projeção fechada e serve as duas coleções que a régua lê.
+function bancoRH({status=SITUACOES,colaboradores=[],falhaEm=null}={}) {
  const chamadas=[];
- const rows=Array.from({length:1001},(_,i)=>({id:'linha-'+i,pid:'rh-'+i,nome:'Pessoa '+i,statusId:i===0?'inativo':'ativo',saiu:i===1?'2026-01-01':null,salario:123,cpf:'não expor'}));
- const sb={from(tabela){assert.equal(tabela,'registros');let cols;const q={select(c){cols=c;assert(!c.includes('salario'));assert(!c.includes('cpf'));assert(!c.includes('*'));return q;},eq(k,v){assert.equal(k,'colecao');assert.equal(v,'colaboradores');return q;},order(){return q;},async range(de,ate){chamadas.push({de,ate,cols});return{data:rows.slice(de,ate+1),error:null};}};return q;}};
- const lista=await lerPessoasPatrimonio(sb);assert.equal(lista.length,1001);assert.equal(chamadas.length,2);
- assert.deepEqual(lista.find(p=>p.id==='rh-0'),{id:'rh-0',nome:'Pessoa 0',disponivel:false});
- assert(!JSON.stringify(lista).includes('não expor'));assert.deepEqual(Object.keys(lista[0]).sort(),['disponivel','id','nome']);
+ return {chamadas,from(tabela){assert.equal(tabela,'registros');let cols,colecao;const q={
+  select(c){cols=c;assert(!c.includes('salario'));assert(!c.includes('cpf'));assert(!c.includes('*'));return q;},
+  eq(k,v){assert.equal(k,'colecao');colecao=v;return q;},order(){return q;},
+  async range(de,ate){chamadas.push({colecao,de,ate,cols});if(falhaEm===colecao)return{data:null,error:{message:'banco fora'}};
+   const linhas=colecao==='status'?status:colecao==='colaboradores'?colaboradores:assert.fail('coleção inesperada '+colecao);
+   return{data:linhas.slice(de,ate+1),error:null};}};return q;}};
+}
+
+test('RH é consultado com projeção fechada, paginação e ID da empresa',async()=>{
+ const rows=Array.from({length:1001},(_,i)=>({id:'linha-'+i,apagado:false,pid:'rh-'+i,nome:'Pessoa '+i,idPessoa:String(100000+i),statusId:i===0?'inativo':'ativo',saiu:i===1?'2026-01-01':null,salario:123,cpf:'não expor'}));
+ const sb=bancoRH({colaboradores:rows});
+ const lista=await lerPessoasPatrimonio(sb);assert.equal(lista.length,1001);
+ assert.deepEqual(sb.chamadas.map(c=>c.colecao),['status','colaboradores','colaboradores']);
+ assert.deepEqual(lista.find(p=>p.id==='rh-0'),{id:'rh-0',nome:'Pessoa 0',idPessoa:'100000',apagada:false,disponivel:false});
+ assert.equal(lista.find(p=>p.id==='rh-1').disponivel,false);assert.equal(lista.find(p=>p.id==='rh-2').disponivel,true);
+ assert(!JSON.stringify(lista).includes('não expor'));assert.deepEqual(Object.keys(lista[0]).sort(),['apagada','disponivel','id','idPessoa','nome']);
+ assert(!sb.chamadas.some(c=>/apelido|login|cpf/i.test(c.cols)));
 });
-test('falha do RH não vira lista vazia',async()=>{
- const q={select(){return q;},eq(){return q;},order(){return q;},range:async()=>({error:{message:'banco fora'},data:null})};
- await assert.rejects(lerPessoasPatrimonio({from:()=>q}),/consultar/);
+test('régua oficial do RH: conta como ativo ou direção, sem desligamento; apagada vem marcada e nunca disponível',async()=>{
+ const linha=(pid,extra)=>({id:'l-'+pid,apagado:false,pid,nome:'Pessoa '+pid,idPessoa:'',...extra});
+ const lista=await lerPessoasPatrimonio(bancoRH({colaboradores:[
+  linha('ativo',{statusId:'ativo',idPessoa:'123456',apelido:'nao-vai'}),linha('experiencia',{statusId:'experiencia'}),
+  linha('freelancer',{statusId:'freelancer'}),linha('afastado',{statusId:'afastado'}),linha('inativo',{statusId:'inativo'}),
+  linha('direcao',{statusId:'direcao'}),linha('dir-marca',{statusId:'afastado',direcao:'true'}),
+  linha('saiu',{statusId:'ativo',saiu:'2026-09-30'}),linha('saiu-branco',{statusId:'ativo',saiu:'  '}),
+  linha('sem-situacao',{statusId:'desconhecida'}),linha('apagada',{statusId:'ativo',apagado:true}),linha('situacao-apagada',{statusId:'situacao-apagada'}),
+  linha('id-curto',{statusId:'ativo',idPessoa:'12345'}),
+ ]}));
+ const disp=Object.fromEntries(lista.map(p=>[p.id,p.disponivel]));
+ assert.deepEqual(disp,{ativo:true,experiencia:true,freelancer:true,afastado:false,inativo:false,direcao:true,'dir-marca':true,saiu:false,'saiu-branco':true,'sem-situacao':false,apagada:false,'situacao-apagada':false,'id-curto':true});
+ assert.equal(lista.find(p=>p.id==='ativo').idPessoa,'123456');assert.equal(lista.find(p=>p.id==='apagada').apagada,true);
+ assert(!JSON.stringify(lista).includes('nao-vai'));
+ assert.equal(lista.find(p=>p.id==='id-curto').idPessoa,'');
+});
+test('falha do RH não vira lista vazia, nem nas situações nem nos colaboradores',async()=>{
+ await assert.rejects(lerPessoasPatrimonio(bancoRH({falhaEm:'status'})),/situações/);
+ await assert.rejects(lerPessoasPatrimonio(bancoRH({falhaEm:'colaboradores'})),/colaboradores/);
 });
 test('IDs oficiais duplicados impedem vínculo e não são unidos por nome',async()=>{
- const q={select(){return q;},eq(){return q;},order(){return q;},range:async()=>({error:null,data:[{id:'linha-1',pid:'repetido',nome:'Ana Exemplo'},{id:'linha-2',pid:'repetido',nome:'Bruno Exemplo'}]})};
- await assert.rejects(lerPessoasPatrimonio({from:()=>q}),/IDs repetidos/);
+ await assert.rejects(lerPessoasPatrimonio(bancoRH({colaboradores:[{id:'linha-1',pid:'repetido',nome:'Ana Exemplo',statusId:'ativo'},{id:'linha-2',pid:'repetido',nome:'Bruno Exemplo',statusId:'ativo'}]})),/IDs repetidos/);
 });
 test('vínculos usam IDs, rejeitam nomes livres e nomes forjados viram nome oficial',()=>{
  assert.throws(()=>validarVinculoPessoa({pessoa:'Ana Exemplo'},null,pessoas),/RH/);
  assert.throws(()=>validarVinculoPessoa({pessoaId:'não-existe'},null,pessoas),/RH/);
  assert.throws(()=>validarVinculoPessoa({pessoaId:'rh-3'},null,pessoas),/RH/);
- assert.deepEqual(validarVinculoPessoa({pessoaId:'rh-2',pessoa:'forjado'},null,pessoas),{pessoaId:'rh-2',pessoa:'Ana Exemplo'});
- assert.deepEqual(validarVinculoPessoa({responsavelId:'rh-1'},null,pessoas,'responsavel'),{responsavelId:'rh-1',responsavel:'Ana Exemplo'});
+ assert.deepEqual(validarVinculoPessoa({pessoaId:'rh-2',pessoa:'forjado',pessoaIdPessoa:'999999'},null,pessoas),{pessoaId:'rh-2',pessoa:'Ana Exemplo',pessoaIdPessoa:'222222'});
+ assert.deepEqual(validarVinculoPessoa({responsavelId:'rh-1'},null,pessoas,'responsavel'),{responsavelId:'rh-1',responsavel:'Ana Exemplo',responsavelIdPessoa:'111111'});
 });
 test('legados e desligados existentes são preservados, sem associação por nome',()=>{
  const antes={pessoa:'Recepção / Ana',telefone:'123'};
- assert.deepEqual(validarVinculoPessoa({pessoa:antes.pessoa},antes,pessoas),{pessoaId:'',pessoa:antes.pessoa});
+ assert.deepEqual(validarVinculoPessoa({pessoa:antes.pessoa},antes,pessoas),{pessoaId:'',pessoa:antes.pessoa,pessoaIdPessoa:''});
  assert.throws(()=>validarVinculoPessoa({pessoa:'Outra pessoa'},antes,pessoas),/RH/);
- assert.deepEqual(validarVinculoPessoa({pessoaId:'rh-3'},{pessoaId:'rh-3',pessoa:'Nome antigo'},pessoas),{pessoaId:'rh-3',pessoa:'Bruno Exemplo'});
- assert.deepEqual(validarVinculoPessoa({pessoaId:'removido'},{pessoaId:'removido',pessoa:'Histórico'},pessoas),{pessoaId:'removido',pessoa:'Histórico'});
- assert.deepEqual(validarVinculoPessoa({pessoaId:'',pessoa:''},antes,pessoas),{pessoaId:'',pessoa:''});
+ assert.deepEqual(validarVinculoPessoa({pessoaId:'rh-3'},{pessoaId:'rh-3',pessoa:'Nome antigo'},pessoas),{pessoaId:'rh-3',pessoa:'Bruno Exemplo',pessoaIdPessoa:'333333'});
+ assert.deepEqual(validarVinculoPessoa({pessoaId:'removido'},{pessoaId:'removido',pessoa:'Histórico',pessoaIdPessoa:'444444'},pessoas),{pessoaId:'removido',pessoa:'Histórico',pessoaIdPessoa:'444444'});
+ assert.deepEqual(validarVinculoPessoa({pessoaId:'',pessoa:''},antes,pessoas),{pessoaId:'',pessoa:'',pessoaIdPessoa:''});
 });
 test('homônimos e mudança de nome não misturam saldos de ferramentas',()=>{
  const agora='2026-10-11T14:00:00Z',sessao={sub:'operador',nome:'Operador'},base={tipo:'ferramentas',numero:'1',pessoa:'',pessoaId:'',acervo:[{id:'i',nome:'Alicate',quantidade:5}],movimentacoes:[],avaliacoes:[]};

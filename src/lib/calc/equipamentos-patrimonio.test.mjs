@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { vinculoDoEquipamento, projetarEquipamentos, filtrarEquipamentos } from './equipamentos-patrimonio.js';
+import { vinculoDoEquipamento, projetarEquipamentos, filtrarEquipamentos, bensParaFicha, planoVinculoBem } from './equipamentos-patrimonio.js';
 
 test('vínculo usa origemAtivoId ou bemId existente; nome e padrão de ID não associam registros', () => {
   const ativo = { id: 'v1', tipo: 'veiculo', nome: 'Carro' };
@@ -44,4 +44,27 @@ test('equipamento sem ficha continua visível e pesquisa considera placa, série
   assert.equal(filtrarEquipamentos(itens, { tipo: 'veiculo', busca: 'abc1d23 pcp-005', vinculo: 'vinculado' }).length, 1);
   assert.equal(filtrarEquipamentos(itens, { tipo: 'maquina', vinculo: 'vinculado' }).length, 0);
   assert.equal(filtrarEquipamentos(itens, { tipo: 'maquina', busca: 'Entrega' }).length, 0);
+});
+
+test('seletor do bem: só bens ativos sem outra ficha, pela origem ou pelo bemId de outro cadastro', () => {
+  const bens = [
+    { id: 'b-livre', codigo: 'VEC-003' },
+    { id: 'b-origem-outra', codigo: 'VEC-001', origemAtivoId: 'ficha-outra' },
+    { id: 'b-origem-minha', codigo: 'VEC-002', origemAtivoId: 'ficha-minha' },
+    { id: 'b-ligado', codigo: 'IMP-005' },
+    { id: 'b-baixado', codigo: 'VEC-009', situacao: 'baixado' },
+    { id: 'b-sem-etiqueta' },
+  ];
+  const ativos = [{ id: 'ficha-terceira', bemId: 'b-ligado' }, { id: 'ficha-minha', bemId: 'b-origem-minha' }];
+  assert.deepEqual(bensParaFicha(bens, ativos, 'ficha-minha').map(b => b.id), ['b-origem-minha', 'b-livre', 'b-sem-etiqueta']);
+  assert.deepEqual(bensParaFicha(bens, ativos, 'ficha-nova').map(b => b.id), ['b-livre', 'b-sem-etiqueta']);
+});
+
+test('plano do vínculo: ficha ligada mantém, bem existente só liga, etiqueta nova só quando escolhida', () => {
+  assert.deepEqual(planoVinculoBem({ escolha: 'b-livre', bemAtual: 'b-atual' }), { acao: 'manter', bemId: 'b-atual' });
+  assert.deepEqual(planoVinculoBem({ escolha: 'b-livre' }), { acao: 'ligar', bemId: 'b-livre' });
+  assert.deepEqual(planoVinculoBem({ escolha: '__novo__' }), { acao: 'novo', bemId: undefined });
+  assert.deepEqual(planoVinculoBem({ escolha: '__nenhum__' }), { acao: 'nenhum', bemId: undefined });
+  // Sem escolha não cria etiqueta: o formulário exige a escolha e, se ela faltar, nada vai ao inventário.
+  assert.deepEqual(planoVinculoBem({}), { acao: 'nenhum', bemId: undefined });
 });

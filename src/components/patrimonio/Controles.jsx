@@ -4,7 +4,8 @@ import {Plus, Pencil, Trash2, Printer, Search, RefreshCw, ChevronLeft, ChevronRi
 import {lerControles,salvarControle,removerControle} from '../../services/patrimonio.js';
 import JanelaFormulario from '../JanelaFormulario.jsx';
 import AcervoCaixa, {ResumoConferenciaCaixa} from './AcervoCaixa.jsx';
-import {CONTROLES, listarControles, resumirControles, temResponsavel, textoAtualizacao} from '../../lib/calc/controles-patrimonio.js';
+import {CONTROLES, listarControles, resumirControles, temResponsavel, textoAtualizacao, nomeSemId} from '../../lib/calc/controles-patrimonio.js';
+import VincularPeloId from './VincularPeloId.jsx';
 import './controles.css';
 
 const ICONES={celulares:Smartphone,ramais:Phone,armarios:Archive,ferramentas:Wrench,camas:BedDouble};
@@ -86,7 +87,7 @@ export default function ControlesPatrimonio({tipo}) {
   </div>
   <header className="pat-report-title"><span>IMPRESILK · PATRIMÔNIO</span><h1>{meta.titulo}</h1><p>{relatorio.itens.length} registros · Emitido em {relatorio.em}</p><p>Filtro: {relatorio.filtro}{relatorio.busca?` · Busca: ${relatorio.busca}`:''}</p></header>
   <table className="pat-table pat-controles-table"><thead><tr><th>{tituloNumero}</th>{tipo==='celulares'&&<th>Modelo</th>}{tipo==='ramais'&&<th>Telefone</th>}<th>{meta.pessoa}</th>{tipo==='ferramentas'&&<th>Última / próxima conferência</th>}<th>Observações</th><th>Última atualização</th></tr></thead>
-   <tbody>{relatorio.itens.map(r=><tr key={r.id}><td>{r.numero}</td>{tipo==='celulares'&&<td>{r.modelo}</td>}{tipo==='ramais'&&<td>{r.telefone||'—'}</td>}<td>{[r.local,r.pessoa].filter(Boolean).join(' · ')||semResponsavel}</td>{tipo==='ferramentas'&&<td><ResumoConferenciaCaixa registro={r}/></td>}<td>{r.observacao||'—'}</td><td>{textoAtualizacao(r)}</td></tr>)}</tbody>
+   <tbody>{relatorio.itens.map(r=><tr key={r.id}><td>{r.numero}</td>{tipo==='celulares'&&<td>{r.modelo}</td>}{tipo==='ramais'&&<td>{r.telefone||'—'}</td>}<td>{[r.local,r.pessoa].filter(Boolean).join(' · ')||semResponsavel}{r.pessoaIdPessoa?` · ID ${r.pessoaIdPessoa}`:''}{nomeSemId(r)?' · sem ID do RH':''}</td>{tipo==='ferramentas'&&<td><ResumoConferenciaCaixa registro={r}/></td>}<td>{r.observacao||'—'}</td><td>{textoAtualizacao(r)}</td></tr>)}</tbody>
   </table>
  </div>;
 
@@ -110,12 +111,13 @@ export default function ControlesPatrimonio({tipo}) {
   <div className="pat-control-result" aria-live="polite"><span>{mapa===null?'Preparando cadastros…':`${lista.length} ${lista.length===1?'cadastro encontrado':'cadastros encontrados'}`}{comFiltro&&' neste filtro'}</span>{comFiltro&&<button type="button" onClick={limparFiltros}>Limpar filtros</button>}</div>
   {erro&&!form&&<p className="pat-notice is-error" role="alert">{erro}<button className="btn-ghost" onClick={carregar}>Tentar novamente</button></p>}
   {mensagem&&<p role="status" className="pat-control-feedback"><Check size={16}/>{mensagem}</p>}
+  <VincularPeloId controles={mapa} tipo={tipo} pessoas={pessoas} tituloNumero={tituloNumero} singular={meta.singular} desabilitado={ocupado} aoGravar={(novo,feitos)=>{setMapa(novo);setMensagem(`${feitos} ${feitos===1?'vínculo gravado':'vínculos gravados'} pelo ID do RH.`);}}/>
   {mapa===null?<p role="status">{carregando?'Carregando cadastros…':'Cadastros indisponíveis.'}</p>:!lista.length?<div className="pat-empty"><Icone size={30}/><h3>{comFiltro?'Nenhum cadastro encontrado':'Tudo começa pelo primeiro cadastro'}</h3><p>{comFiltro?'Experimente outro número, nome ou situação.':`Organize ${meta.titulo.toLowerCase()} e acompanhe quem está responsável por cada um.`}</p>{comFiltro?<button className="btn-outline" onClick={limparFiltros}>Ver todos os cadastros</button>:<button className="btn-outline" disabled={ocupado} onClick={()=>abrir()}><Plus size={16}/>{meta.novo}</button>}</div>:<>
    <div className="pat-table-wrap"><table className="pat-table pat-controles-table"><thead><tr><th>{tituloNumero}</th>{tipo==='celulares'&&<th>Modelo</th>}{tipo==='ramais'&&<th>Telefone</th>}<th>{meta.pessoa}</th>{tipo==='ferramentas'&&<th>Última / próxima conferência</th>}<th>Observação / atualização</th><th className="sem-impressao">Ações</th></tr></thead>
     <tbody>{recorte.map(r=><tr key={r.id}>
      <td data-label={tituloNumero}>{tipo==='ferramentas'?<button className="pat-caixa-open" onClick={()=>setCaixaId(r.id)} aria-label={`Abrir acervo da caixa ${r.numero}`}><strong className="pat-control-number">{r.numero}</strong><small>{(r.acervo||[]).filter(i=>!i.arquivado).length} tipos de itens</small></button>:<strong className="pat-control-number">{r.numero}</strong>}</td>
      {tipo==='celulares'&&<td data-label="Modelo">{r.modelo}</td>}{tipo==='ramais'&&<td data-label="Telefone">{r.telefone||'—'}</td>}
-     <td data-label={meta.pessoa}>{temResponsavel(r)?<span className="pat-control-person"><UserCheck size={15} aria-hidden="true"/>{[r.local,r.pessoa].filter(Boolean).join(' · ')}</span>:<span className="pat-control-available">{semResponsavel}</span>}</td>
+     <td data-label={meta.pessoa}>{temResponsavel(r)?<span className="pat-control-person"><UserCheck size={15} aria-hidden="true"/><span>{[r.local,r.pessoa].filter(Boolean).join(' · ')}{r.pessoaIdPessoa&&<small className="pat-control-id">ID {r.pessoaIdPessoa}</small>}{nomeSemId(r)&&<small className="pat-control-sem-id">sem ID do RH</small>}</span></span>:<span className="pat-control-available">{semResponsavel}</span>}</td>
      {tipo==='ferramentas'&&<td data-label="Última / próxima conferência"><ResumoConferenciaCaixa registro={r}/></td>}
      <td data-label="Observação / atualização">{r.observacao&&<span className="pat-control-note">{r.observacao}</span>}<AtualizacaoPatrimonio registro={r}/></td>
      <td data-label="Ações"><div className="pat-actions">{tipo==='ferramentas'&&<button className="btn-outline" disabled={ocupado} onClick={()=>setCaixaId(r.id)} aria-label={`Abrir acervo da caixa ${r.numero}`}><Package size={16}/>Acervo</button>}<button className="btn-ghost" disabled={ocupado} onClick={()=>abrir(r)} aria-label={`Editar ${meta.singular} ${r.numero}`}><Pencil size={16}/>Editar</button><button className="btn-ghost pat-control-remove" disabled={ocupado} onClick={()=>remover(r)} aria-label={`Remover ${meta.singular} ${r.numero}`} title="Remover cadastro"><Trash2 size={16}/></button></div></td>

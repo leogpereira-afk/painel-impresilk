@@ -11,10 +11,10 @@ import {inventarioPermitido,ativoPermitido,temPermissao} from '../../supabase/fu
 import {getSessao} from '../lib/sessao.js';
 import {prepararInfra,infraPermitida} from '../../supabase/functions/_shared/patrimonio-infra.mjs';
 const pessoasPatrimonioDemo=[
- {id:'rh-demo-ana-1',nome:'Ana Exemplo',disponivel:true},
- {id:'rh-demo-ana-2',nome:'Ana Exemplo',disponivel:true},
- {id:'rh-demo-bruno',nome:'Bruno Exemplo Atualizado',disponivel:true},
- {id:'rh-demo-inativo',nome:'Colaborador desligado · exemplo',disponivel:false},
+ {id:'rh-demo-ana-1',nome:'Ana Exemplo',idPessoa:'900001',disponivel:true},
+ {id:'rh-demo-ana-2',nome:'Ana Exemplo',idPessoa:'900002',disponivel:true},
+ {id:'rh-demo-bruno',nome:'Bruno Exemplo Atualizado',idPessoa:'900003',disponivel:true},
+ {id:'rh-demo-inativo',nome:'Colaborador desligado · exemplo',idPessoa:'900004',disponivel:false},
 ];
 // Respostas fictícias, carregadas apenas na compilação review. Estrutura pode
 // e os controles podem ser editados SOMENTE nesta memória; recarregar restaura os exemplos.
@@ -85,6 +85,16 @@ configs.patrimonio_infra={
 Object.assign(configs.patrimonio_controles['controle-celulares'],{setorId:'ex1',status:'ativo',planoId:infraDemoIds.plano});
 Object.assign(configs.patrimonio_controles['controle-ramais'],{status:'ativo'});
 configs.patrimonio_controles['12212212-1221-4221-8221-122122122129']={tipo:'celulares',numero:'(38) 99999-0002',modelo:'',pessoaId:'',aparelhoId:'',setorId:'',status:'disponivel',planoId:infraDemoIds.plano,atualizadoEm:versaoInfra};
+// Nomes digitados antes do vínculo pelo RH (todos fictícios): um com sugestão única,
+// um ambíguo e um que é lugar, não pessoa. E um armário já ligado pelo ID.
+for(const [id,numero,pessoa] of [['armario-nome-1','07','Bruno'],['armario-nome-2','08','Ana'],['armario-nome-3','10','Recepção']])
+ configs.patrimonio_controles[id]={tipo:'armarios',numero,pessoa,pessoaId:'',observacao:'',atualizadoEm:'2026-10-05T12:00:00Z',atualizadoPorNome:'Conta de demonstração'};
+configs.patrimonio_controles['ramal-nome-local']={tipo:'ramais',numero:'205',telefone:'',pessoa:'Recepção',pessoaId:'',local:'',setorId:'ex1',status:'ativo',aparelhoId:'',observacao:'',atualizadoEm:'2026-10-05T12:00:00Z',atualizadoPorNome:'Conta de demonstração'};
+configs.patrimonio_controles['armario-ligado']={tipo:'armarios',numero:'09',pessoa:'Bruno Exemplo Atualizado',pessoaId:'rh-demo-bruno',pessoaIdPessoa:'900003',observacao:'',atualizadoEm:'2026-10-05T12:00:00Z',atualizadoPorNome:'Conta de demonstração'};
+Object.assign(configs.patrimonio,{
+ ex2:{nomeGenerico:'Veiculo',descricaoTecnica:'Utilitário exemplo',setorSigla:'PRO',codigo:'PRO-010',valor:50000,situacao:'uso',dataAquisicao:'2025-03-01'},
+ ex3:{nomeGenerico:'Laser',descricaoTecnica:'Laser de demonstração',setorSigla:'PRO',codigo:'PRO-011',valor:30000,situacao:'uso',dataAquisicao:'2025-04-01'},
+});
 equipamentosDemo.push(
  {id:infraDemoIds.energia,tipo:'predial',categoria:'Padrão de energia',nome:'Entrada de energia · exemplo',especificacao:{local:'Entrada técnica',endereco:'Endereço fictício',unidadeConsumidora:'UC-DEMO-01',tensao:'220/380 V',potencia:'75 kW',tecnicoId:infraDemoIds.tecnico,situacao:'uso'},atualizadoEm:versaoInfra},
  {id:infraDemoIds.solar,tipo:'predial',categoria:'Usina fotovoltaica',nome:'Usina solar · exemplo',especificacao:{local:'Cobertura de demonstração',potenciaInstalada:'25 kWp',placas:'50 módulos · exemplo',inversores:'2 inversores · exemplo',unidadesConsumidoras:[infraDemoIds.energia],tecnicoId:infraDemoIds.tecnico,situacao:'uso'},atualizadoEm:versaoInfra},
@@ -125,6 +135,26 @@ function salvarEstruturaPreview(corpo){
  const salvo={id,tipo:'predial',nome,categoria,identificacao:limpar(item.identificacao),...pessoa,observacao:limpar(item.observacao,2000),bemId:anterior?.bemId||'',especificacao:Object.fromEntries(['local','marcaModelo','quantidade','instalacao'].map(campo=>[campo,campo==='quantidade' && quantidade?String(Number(quantidade)):limpar(item.especificacao?.[campo],120)])),atualizadoEm,atualizadoPor:'Conta de demonstração'};
  if(indice>=0)estruturasDemo[indice]=salvo;else estruturasDemo.push(salvo);
  return {item:structuredClone(salvo)};
+}
+// Máquina e carro na prévia: a mesma regra do painel_equipamento_gravar, só em memória.
+function salvarEquipamentoPreview(corpo){
+ const it=corpo.item,id=it.id||it.cadastroId,indice=equipamentosDemo.findIndex(a=>a.id===id),ant=equipamentosDemo[indice]||null;
+ const falhar=(m,status=409)=>{throw Object.assign(new Error(m),{status});};
+ const item={...(ant||{}),...it,...validarVinculoPessoa(it,ant,pessoasPatrimonioDemo,'responsavel'),id,atualizadoEm:new Date().toISOString(),atualizadoPor:'Conta de demonstração'};
+ delete item.cadastroId;
+ if(corpo.patrimonio){
+  const origens=Object.entries(configs.patrimonio).filter(([,b])=>b.origemAtivoId===id).map(([k])=>k);
+  const ids=[...new Set([corpo.bemId,ant?.bemId,...origens].filter(Boolean))];
+  if(ids.length>1)falhar('Vínculos de inventário divergentes. Confira antes de salvar.');
+  const bemId=ids[0]||'bem-'+crypto.randomUUID().slice(0,8),bem=configs.patrimonio[bemId];
+  if(bem?.origemAtivoId&&bem.origemAtivoId!==id)falhar('Bem já vinculado a outro equipamento.');
+  if(equipamentosDemo.some(a=>a.id!==id&&a.bemId===bemId))falhar('Vínculo de inventário já utilizado.');
+  const novo={...(bem||{}),...corpo.patrimonio,origemAtivoId:id};
+  if(!novo.codigo){const sigla=novo.setorSigla||'GER';novo.codigo=`${sigla}-${String(Object.values(configs.patrimonio).filter(b=>String(b.codigo||'').startsWith(sigla+'-')).length+1).padStart(3,'0')}`;}
+  configs.patrimonio[bemId]=novo;item.bemId=bemId;
+ }
+ if(indice>=0)equipamentosDemo[indice]=item;else equipamentosDemo.push(item);
+ return structuredClone(item);
 }
 export async function respostaPreview(url,opcoes={}){
  const u=new URL(url,location.origin), corpo=opcoes.body ? JSON.parse(opcoes.body) : {};
@@ -182,6 +212,10 @@ export async function respostaPreview(url,opcoes={}){
      dados={valor:Object.fromEntries(GLOSSARIO.map((t,i)=>[`demo-${i}`,{...t,ordem:i}]))};
    }else {let valor=structuredClone(configs[corpo.chave]||{});if(corpo.chave==='patrimonio')valor=inventarioPermitido(valor,sessao);if(corpo.chave==='manutencoes'&&!temPermissao(sessao,'seguranca'))valor=Object.fromEntries(Object.entries(valor).filter(([,r])=>!equipamentosDemo.some(i=>i.tipo==='seguranca'&&i.id===r.ativoId)));dados={valor};}
  }else if(endpoint==='painel-ativos' && corpo.action==='listarPatrimonio') dados={itens:structuredClone([...equipamentosDemo,...estruturasDemo].filter(i=>i.tipo==='seguranca'?temPermissao(sessao,'seguranca'):temPermissao(sessao,'patrimonio')||temPermissao(sessao,'inventario-valores')).map(i=>ativoPermitido(i,sessao)))};
+ else if(endpoint==='painel-ativos' && corpo.action==='listar') dados={itens:structuredClone(equipamentosDemo.filter(i=>['veiculo','maquina'].includes(i.tipo)))};
+ else if(endpoint==='painel-ativos' && corpo.action==='salvar' && ['veiculo','maquina'].includes(corpo.item?.tipo)){
+  try{dados={item:salvarEquipamentoPreview(corpo)};}catch(e){return erroPreview(e.message,e.status||422);}
+ }
  else if(endpoint==='painel-ativos' && corpo.action==='salvarFisico'){
   try{
    const it=corpo.item,id=it.id||it.cadastroId,indice=equipamentosDemo.findIndex(a=>a.id===id),ant=equipamentosDemo[indice];
