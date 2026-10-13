@@ -45,3 +45,22 @@ export function filtrarEquipamentos(itens, { tipo, busca = '', vinculo = 'todos'
     && termos.every(termo => normalizar([item.nome, item.identificacao, item.modelo, item.ano, item.setor,
       item.setorSigla, item.responsavel, item.codigo].join(' ')).includes(termo)));
 }
+
+// Bens que uma ficha de máquina ou carro pode escolher: os ativos que não estão
+// ligados a outra ficha, nem pela origem do bem nem pelo bemId de outro cadastro.
+export function bensParaFicha(bens = [], ativos = [], fichaId = '') {
+  const ligados = new Set(ativos.filter(a => a?.bemId && a.id !== fichaId).map(a => a.bemId));
+  return bens.filter(b => b?.id && b.situacao !== 'baixado' && !(b.origemAtivoId && b.origemAtivoId !== fichaId) && !ligados.has(b.id))
+    .sort((a, b) => (texto(a.codigo) ? 0 : 1) - (texto(b.codigo) ? 0 : 1)
+      || texto(a.codigo).localeCompare(texto(b.codigo), 'pt-BR', { numeric: true }) || a.id.localeCompare(b.id));
+}
+
+// O que o formulário manda ao servidor conforme a escolha do bem.
+// Ficha já ligada segue como antes (a ficha atualiza nome e descrição do bem).
+// Bem que já existe só se liga: patch vazio, sem trocar nome, descrição ou observação do inventário.
+export function planoVinculoBem({ escolha = '', bemAtual = '' } = {}) {
+  if (bemAtual) return { acao: 'manter', bemId: bemAtual };
+  if (escolha === '__novo__') return { acao: 'novo', bemId: undefined };
+  if (!escolha || escolha === '__nenhum__') return { acao: 'nenhum', bemId: undefined };
+  return { acao: 'ligar', bemId: escolha };
+}

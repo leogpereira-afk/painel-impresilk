@@ -36,7 +36,12 @@ export function prepararControle(campos, anterior, sessao, agora, referencias={}
   // Duas gravações no mesmo milissegundo também precisam de versões diferentes.
   const anteriorMs=Date.parse(anterior?.atualizadoEm),agoraMs=Date.parse(agora);
   const atualizadoEm=Number.isFinite(anteriorMs)&&anteriorMs>=agoraMs?new Date(anteriorMs+1).toISOString():agora;
-  return {...(anterior||{}),tipo,numero,numeroChave:numero.replace(/\D/g,'').replace(/^0+(?=\d)/,''),modelo,telefone,pessoaId:texto('pessoaId',180),local:tipo==='ramais'?texto('local',120):String(anterior?.local||''),pessoa:texto('pessoa',180),observacao:texto('observacao',1000),
+  // ID da empresa da pessoa (6 dígitos): quem preenche é prepararPessoasControle, a partir do RH.
+  // Sem pessoa, ou com outra pessoa sem o ID novo, o ID antigo não fica grudado no cadastro.
+  const pessoaIdFinal=texto('pessoaId',180);
+  const empresa=Object.hasOwn(campos,'pessoaIdPessoa')?campos.pessoaIdPessoa:(pessoaIdFinal===String(anterior?.pessoaId||'')?anterior?.pessoaIdPessoa:'');
+  const pessoaIdPessoa=pessoaIdFinal&&/^\d{6}$/.test(String(empresa||''))?String(empresa):'';
+  return {...(anterior||{}),tipo,numero,numeroChave:numero.replace(/\D/g,'').replace(/^0+(?=\d)/,''),modelo,telefone,pessoaId:pessoaIdFinal,pessoaIdPessoa,local:tipo==='ramais'?texto('local',120):String(anterior?.local||''),pessoa:texto('pessoa',180),observacao:texto('observacao',1000),
     criadoEm:anterior?.criadoEm || agora,criadoPor:anterior?.criadoPor || String(sessao.sub),
     atualizadoEm,atualizadoPor:String(sessao.sub),atualizadoPorNome:String(sessao.nome || sessao.sub),...caixa,...ramal};
 }

@@ -4,6 +4,7 @@ import {Camera,Plus,RefreshCw,Search,ShieldCheck,Wrench,Pencil,ArrowUpRight} fro
 import JanelaFormulario from '../JanelaFormulario.jsx';
 import FotosPatrimonio from '../FotosPatrimonio.jsx';
 import PessoaRH,{usePessoasRH,comNomeRH} from './PessoasRH.jsx';
+import {rotuloPessoa as rotuloPessoaRH} from '../../lib/calc/pessoas-rh.js';
 import {podeAbrir} from '../../lib/sessao.js';
 import {listarEquipamentosPatrimonio} from '../../services/ativos.js';
 import {lerManutencoes} from '../../services/manutencoes.js';
@@ -25,12 +26,12 @@ const STATUS={uso:'Em uso',reserva:'Reserva',conserto:'Em conserto',baixado:'Bai
 const hoje=()=>new Date().toLocaleDateString('en-CA',{timeZone:'America/Sao_Paulo'});
 const novaFicha=categoria=>({cadastroId:crypto.randomUUID(),tipo:'seguranca',categoria,nome:'',identificacao:'',responsavelId:'',especificacao:{local:'',marcaModelo:'',fabricante:'',modelo:'',numeroSerie:'',setorId:'',situacao:'uso'}});
 const editarFicha=(item,podeInventario,bens)=>({id:item.id,tipo:'seguranca',categoria:item.categoria,nome:item.nome||'',identificacao:item.identificacao||'',responsavelId:item.responsavelId||'',...(podeInventario?{bemId:idBemParaEdicao(item,bens)}:{}),especificacao:{...item.especificacao},atualizadoEm:item.atualizadoEm||''});
-const rotuloPessoa=(pessoas,id)=>pessoas.find(p=>p.id===id)?.nome||(id?'Pessoa do RH indisponível':'Pessoa pendente');
+const rotuloPessoa=(pessoas,id)=>{const p=pessoas.find(x=>x.id===id);return p?rotuloPessoaRH(p):(id?'Pessoa do RH indisponível':'Pessoa pendente');};
 const dataBR=v=>v?new Date(`${v.slice(0,10)}T12:00:00`).toLocaleDateString('pt-BR'):'Não informada';
 const erroTexto=e=>e?.message||'Não foi possível concluir.';
 const legendaItem=item=>item.identificacao||item.especificacao?.numeroSerie||'Sem identificação';
 
-function PessoaLista({pessoas,valor,aoMudar,incluirInativos=false,disabled=false}) {return <select className="input" value={valor||''} disabled={disabled} onChange={e=>aoMudar(e.target.value)}><option value="">Selecione no RH</option>{valor&&!pessoas.some(p=>p.id===valor)&&<option value={valor}>Pessoa vinculada · indisponível no RH</option>}{pessoas.filter(p=>incluirInativos||p.disponivel||p.id===valor).map(p=><option key={p.id} value={p.id}>{p.nome}{p.disponivel?'':' · fora do quadro'}</option>)}</select>}
+function PessoaLista({pessoas,valor,aoMudar,incluirInativos=false,disabled=false}) {return <select className="input" value={valor||''} disabled={disabled} onChange={e=>aoMudar(e.target.value)}><option value="">Selecione no RH</option>{valor&&!pessoas.some(p=>p.id===valor)&&<option value={valor}>Pessoa vinculada · indisponível no RH</option>}{pessoas.filter(p=>incluirInativos||p.disponivel||p.id===valor).map(p=><option key={p.id} value={p.id}>{rotuloPessoaRH(p)}{p.disponivel?'':' · fora do quadro'}</option>)}</select>}
 function Campo({titulo,valor,aoMudar,tipo='text',opcoes,placeholder='',obrigatorio=false}) {return <label>{titulo}{opcoes?<select className="input" value={valor||''} onChange={e=>aoMudar(e.target.value)} required={obrigatorio}><option value="">Selecione</option>{opcoes.map(([v,n])=><option key={v} value={v}>{n}</option>)}</select>:<input className="input" type={tipo} value={valor||''} onChange={e=>aoMudar(e.target.value)} placeholder={placeholder} required={obrigatorio} maxLength={180}/>}</label>}
 
 function ListaRegistros({titulo,lista,campos,aoMudar,pessoas,zonas=[]}) {

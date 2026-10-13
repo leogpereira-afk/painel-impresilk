@@ -5,6 +5,7 @@ import {podeAbrir} from '../../lib/sessao.js';
 import {salvarAtivo,salvarEquipamento} from '../../services/ativos.js';
 import {FAMILIAS,CATEGORIAS_POR_FAMILIA,ESPEC_CAMPOS,UNIDADE_PADRAO} from '../../lib/calc/manutencoes.js';
 import {paraNumero,paraCampo} from '../../lib/format.js';
+import {planoVinculoBem} from '../../lib/calc/equipamentos-patrimonio.js';
 import {Card,SectionTitle} from '../ui.jsx';
 const ICONE_FAMILIA={veiculo:Car,maquina:Cog,predial:Building2};
 const ITEM_VAZIO = {
@@ -46,8 +47,16 @@ const EXEMPLO_NOME = {
   predial: "ex: Ar condicionado da produção",
 };
 
-function FormItem({ inicial, salvando, aoSalvar, aoFechar, setores }) {
+function FormItem({ inicial, salvando, aoSalvar, aoFechar, setores, bensLivres = [], bemAtual = null }) {
   const [f, setF] = useState(inicial);
+  // Ficha sem vínculo: quem cuida do inventário escolhe o bem (que já existe, etiqueta
+  // nova ou nenhum). Sem a escolha, salvar criava etiqueta nova calada e repetia o bem.
+  const plano = planoVinculoBem({ escolha: f.bemEscolha, bemAtual: bemAtual?.id });
+  const escolherBem = (e) => {
+    const escolha = e.target.value, bem = bensLivres.find((b) => b.id === escolha);
+    setF((v) => ({ ...v, bemEscolha: escolha,
+      ...(!v.id && bem && !String(v.nome || '').trim() ? { nome: bem.descricaoTecnica || bem.nomeGenerico || '' } : {}) }));
+  };
   const trocar = (campo) => (e) => setF((v) => ({ ...v, [campo]: e.target.value }));
   const trocarEspec = (campo, maiusculo) => (e) => {
     const v = maiusculo ? e.target.value.toUpperCase() : e.target.value;
@@ -276,7 +285,23 @@ function FormItem({ inicial, salvando, aoSalvar, aoFechar, setores }) {
           {podeAbrir('inventario-valores') && <><div className="sm:col-span-2 mt-1 border-t pt-3" style={{ borderColor: "var(--hairline)" }}>
             <p className="label">Aquisição e inventário <span className="font-normal text-slate-400">— preenchimento opcional</span></p>
           </div>
-          <div>
+          <div className="sm:col-span-2">
+            <label className="label" htmlFor="i-bem">Bem do inventário</label>
+            {bemAtual ? (
+              <p className="text-sm text-slate-600">Vinculado a <b>{bemAtual.codigo || 'etiqueta pendente'}</b> · {bemAtual.nomeGenerico || 'Bem'}{bemAtual.descricaoTecnica ? ` · ${bemAtual.descricaoTecnica}` : ''}.</p>
+            ) : (<>
+              <select id="i-bem" className="input" required value={f.bemEscolha || ""} onChange={escolherBem}>
+                <option value="" disabled>Escolha: bem que já existe, etiqueta nova ou sem vínculo</option>
+                <option value="__nenhum__">Sem vínculo com o inventário</option>
+                <option value="__novo__">Criar etiqueta nova no inventário</option>
+                {bensLivres.length > 0 && <optgroup label="Bens do inventário sem ficha">
+                  {bensLivres.map((b) => <option key={b.id} value={b.id}>{b.codigo || 'Etiqueta pendente'} · {b.nomeGenerico || 'Bem'}{b.descricaoTecnica ? ` · ${b.descricaoTecnica}` : ''}</option>)}
+                </optgroup>}
+              </select>
+              <small className="text-xs text-slate-500">{plano.acao === 'ligar' ? 'Só liga a ficha ao bem: a etiqueta, o setor, a nota e o valor continuam os do inventário.' : plano.acao === 'novo' ? 'Cria um bem novo, com etiqueta nova. Use só para equipamento que ainda não está no inventário.' : 'Confira antes se o equipamento já tem etiqueta no inventário.'}</small>
+            </>)}
+          </div>
+          {(plano.acao === 'manter' || plano.acao === 'novo') && <><div>
             <label className="label" htmlFor="i-setor">Setor</label>
             <select id="i-setor" className="input" value={f.setorSigla || ""} onChange={trocar("setorSigla")}>
               <option value="">onde fica...</option>
@@ -299,7 +324,7 @@ function FormItem({ inicial, salvando, aoSalvar, aoFechar, setores }) {
             <label className="label" htmlFor="i-valor">Valor pago (R$)</label>
             <input id="i-valor" className="input" inputMode="decimal" placeholder="ex: 78.500,00"
               value={f.valor || ""} onChange={trocar("valor")} />
-          </div></>}
+          </div></>}</>}
         </div>
 
         {novo && f.tipo === "veiculo" && (
@@ -329,9 +354,9 @@ function FormItem({ inicial, salvando, aoSalvar, aoFechar, setores }) {
 }
 
 
-export default function CadastroEquipamento({inicial,setores=[],aoConcluir,aoFechar}) {
+export default function CadastroEquipamento({inicial,setores=[],bensLivres=[],bemAtual=null,aoConcluir,aoFechar}) {
  const [salvando,setSalvando]=useState(false),[erro,setErro]=useState('');
- const ficha={...ITEM_VAZIO,...inicial,especificacao:{...inicial.especificacao},medidorAtual:paraCampo(inicial.medidorAtual),medidorProximo:paraCampo(inicial.medidorProximo)};
+ const ficha={...ITEM_VAZIO,...inicial,especificacao:{...inicial.especificacao},medidorAtual:paraCampo(inicial.medidorAtual),medidorProximo:paraCampo(inicial.medidorProximo),bemEscolha:''};
   async function gravar(f) {
     if (!FAMILIAS[f.tipo]) return setErro("Escolha o tipo do equipamento.");
     setSalvando(true);
@@ -353,12 +378,17 @@ export default function CadastroEquipamento({inicial,setores=[],aoConcluir,aoFec
         if(f.dataAquisicao) doBem.dataAquisicao=f.dataAquisicao;
         if(paraNumero(f.valor)>0) doBem.valor=paraNumero(f.valor);
       }
-      const salvarFicha=podeAbrir('inventario-valores')?salvarEquipamento:salvarAtivo;
-      const salvo=await salvarFicha({
+      const item={
         id:f.id || undefined,cadastroId:f.cadastroId,tipo:f.tipo,nome:f.nome,categoria:f.categoria,responsavel:f.responsavel,responsavelId:f.responsavelId||'',
         identificacao:identificacaoDe(f),observacao:f.observacao,especificacao:f.especificacao || {},
         unidadeMedidor:UNIDADE_PADRAO[f.tipo] || '',medidorAtual:paraNumero(f.medidorAtual),medidorProximo:paraNumero(f.medidorProximo),
-      },doBem,f.bemId);
+      };
+      // Sem a permissão do inventário, ou "sem vínculo": só a ficha. Bem que já existe:
+      // só liga (patch vazio). Etiqueta nova ou ficha já ligada: como antes.
+      const plano=planoVinculoBem({escolha:f.bemEscolha,bemAtual:bemAtual?.id});
+      const salvo=!podeAbrir('inventario-valores')||plano.acao==='nenhum'?await salvarAtivo(item)
+        :plano.acao==='ligar'?await salvarEquipamento(item,{},plano.bemId)
+        :await salvarEquipamento(item,doBem,plano.acao==='manter'?plano.bemId:undefined);
 
       await aoConcluir(salvo);
     } catch (e) {
@@ -368,5 +398,5 @@ export default function CadastroEquipamento({inicial,setores=[],aoConcluir,aoFec
     }
   }
 
- return <div>{erro&&<p className="pat-notice is-error" role="alert">{erro}</p>}<FormItem inicial={ficha} setores={setores} salvando={salvando} aoSalvar={gravar} aoFechar={aoFechar}/></div>;
+ return <div>{erro&&<p className="pat-notice is-error" role="alert">{erro}</p>}<FormItem inicial={ficha} setores={setores} bensLivres={bensLivres} bemAtual={bemAtual} salvando={salvando} aoSalvar={gravar} aoFechar={aoFechar}/></div>;
 }

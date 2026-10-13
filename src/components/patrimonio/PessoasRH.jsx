@@ -1,5 +1,6 @@
 import {createContext,useCallback,useContext,useEffect,useMemo,useState,useId,useRef} from 'react';
 import {lerPessoasPatrimonio} from '../../services/patrimonio.js';
+import {rotuloPessoa,pessoaDoVinculo,sugerirPessoa,MOTIVO_SEM_SUGESTAO} from '../../lib/calc/pessoas-rh.js';
 
 const Contexto=createContext({pessoas:[],carregando:true,erro:''});
 export function PessoasRHProvider({children,pessoasFornecidas}) {
@@ -24,16 +25,22 @@ function PessoasRHRemotasProvider({children}) {
  return <Contexto.Provider value={valor}>{children}</Contexto.Provider>;
 }
 export const usePessoasRH=()=>useContext(Contexto);
+// Nome e ID da empresa sempre do RH. Se a ficha sumiu (unificada ou recriada), o ID
+// da empresa gravado no vínculo acha a ficha viva da mesma pessoa.
 export function comNomeRH(registro,pessoas,campo='responsavel') {
- const id=registro?.[campo+'Id'];
- const pessoa=id?pessoas.find(p=>p.id===id):null;
- return pessoa?{...registro,[campo]:pessoa.nome}:registro;
+ const pessoa=pessoaDoVinculo(pessoas,registro?.[campo+'Id'],registro?.[campo+'IdPessoa']);
+ return pessoa?{...registro,[campo+'Id']:pessoa.id,[campo]:pessoa.nome,[campo+'IdPessoa']:pessoa.idPessoa||''}:registro;
 }
 
+// Só funcionários ativos no RH (a régua oficial vem do servidor em `disponivel`).
+// Quem já estava ligado e saiu aparece só na própria ficha, marcado.
 export default function PessoaRH({rotulo='Responsável',valor='',nome='',aoMudar,obrigatorio=false}) {
  const {pessoas,carregando,erro,carregar}=usePessoasRH(),id=useId();
- const existe=pessoas.some(p=>p.id===valor),legado=!valor&&!!nome;
+ const atual=valor?pessoas.find(p=>p.id===valor):null,legado=!valor&&!!nome;
  const selecionado=legado?'__legado__':valor;
+ const sugestao=legado&&!carregando&&!erro?sugerirPessoa(nome,pessoas):null;
+ // Sem ID da empresa, o homônimo ainda precisa de algo que o diferencie.
+ const textoOpcao=p=>rotuloPessoa(p)+(!p.idPessoa&&pessoas.filter(o=>o.nome===p.nome).length>1?' · ficha '+p.id:'');
  return <div className="pat-person-rh">
   <label className="label" htmlFor={id}>{rotulo}</label>
   <select className="input" id={id} value={selecionado} required={obrigatorio} disabled={carregando||!!erro} onChange={e=>{
@@ -42,10 +49,12 @@ export default function PessoaRH({rotulo='Responsável',valor='',nome='',aoMudar
    aoMudar(escolhido?.id||'',escolhido?.nome||'');
   }}>
    <option value="">{carregando?'Consultando RH…':'Sem pessoa vinculada'}</option>
-   {legado&&<option value="__legado__" disabled>{nome} · cadastro antigo, vincule ao RH</option>}
-   {valor&&!existe&&<option value={valor}>{nome||'Pessoa vinculada'} · indisponível no RH</option>}
-   {pessoas.filter(p=>p.disponivel||p.id===valor).map(p=><option key={p.id} value={p.id}>{p.nome}{!p.disponivel?' · fora do quadro':''}{pessoas.filter(o=>o.nome===p.nome).length>1?' · ID '+p.id:''}</option>)}
+   {legado&&<option value="__legado__" disabled>{nome} · nome digitado, sem ID do RH</option>}
+   {valor&&!atual&&<option value={valor}>{nome||'Pessoa vinculada'} · indisponível no RH</option>}
+   {pessoas.filter(p=>p.disponivel||p.id===valor).map(p=><option key={p.id} value={p.id}>{textoOpcao(p)}{!p.disponivel?' · fora do quadro':''}</option>)}
   </select>
-  {erro?<small role="alert">{erro} <button type="button" className="btn-ghost" onClick={carregar}>Tentar novamente</button></small>:<small>{legado?'Escolha o colaborador para confirmar o vínculo.':'Pessoas cadastradas no RH.'}</small>}
+  {erro?<small role="alert">{erro} <button type="button" className="btn-ghost" onClick={carregar}>Tentar novamente</button></small>
+   :legado?<small>{sugestao?.pessoa?<>Sugestão pelo nome: <strong>{rotuloPessoa(sugestao.pessoa)}</strong> <button type="button" className="btn-ghost" onClick={()=>aoMudar(sugestao.pessoa.id,sugestao.pessoa.nome)}>Usar</button></>:(MOTIVO_SEM_SUGESTAO[sugestao?.motivo]||'Escolha a pessoa no RH para gravar pelo ID.')}</small>
+   :<small>{atual&&!atual.disponivel?'Esta pessoa não está ativa no RH. Troque por quem está com o item.':'Só funcionários ativos no RH, com o ID da empresa.'}</small>}
  </div>;
 }

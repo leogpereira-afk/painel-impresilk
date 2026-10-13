@@ -100,6 +100,8 @@ export function aplicarOperacaoCaixa(anterior, operacao, sessao, agora) {
     const total = quantidade(operacao.quantidade, 'quantidade', 1);
     const pessoa = texto(operacao.pessoa, 'pessoa', 180, true);
     const pessoaId=texto(operacao.pessoaId,'ID da pessoa',180);
+    // ID da empresa (6 dígitos) vem do RH via prepararPessoasControle; o saldo continua pela ficha.
+    const pessoaIdPessoa=/^\d{6}$/.test(String(operacao.pessoaIdPessoa||''))?String(operacao.pessoaIdPessoa):'';
     const referencia={pessoa,pessoaId};
     const data = dia(operacao.data, 'data', hoje);
     const ultimaMovimentacao = maiorData(movimentacoes.filter(movimento => movimento.itemId === item.id));
@@ -111,7 +113,7 @@ export function aplicarOperacaoCaixa(anterior, operacao, sessao, agora) {
     conferirLimite(movimentacoes, 'movimentacoes');
     const movimento = {
       id: crypto.randomUUID(), tipo: operacao.tipo, itemId: item.id, itemNome: item.nome,
-      quantidade: total, pessoa, pessoaId, data,
+      quantidade: total, pessoa, pessoaId, pessoaIdPessoa, data,
       estado: estado(operacao.estado), observacao: texto(operacao.observacao, 'observação', 1000), ...autoria,
     };
     return { ...resultado, movimentacoes: [...movimentacoes, movimento] };

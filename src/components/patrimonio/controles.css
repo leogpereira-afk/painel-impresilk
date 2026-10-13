@@ -32,6 +32,17 @@
 .pat-control-person>svg { color:var(--pat-muted); flex-shrink:0; }
 .pat-control-available { display:inline-flex; padding:3px 8px; border:1px solid #cee6d8; background:#edf8f1; color:#276346; font-size:11px; border-radius:6px; }
 .pat-control-note { display:block; margin-bottom:5px; }
+.pat-control-person>span { display:flex; flex-wrap:wrap; align-items:baseline; gap:2px 8px; min-width:0; }
+.pat-control-id { font-size:11px; font-weight:600; color:var(--pat-muted,#69758a); font-variant-numeric:tabular-nums; }
+.pat-control-sem-id { display:inline-flex; padding:2px 7px; border:1px solid #f0d7a8; background:#fff7e6; color:#8a5a00; font-size:11px; font-weight:600; border-radius:6px; }
+.pat-control-pendente { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:10px 16px; margin:0 0 14px; padding:12px 14px; border:1px solid #f0d7a8; background:#fff7e6; color:#5c3d00; border-radius:10px; font-size:13px; }
+.pat-control-pendente button { flex-shrink:0; }
+.pat-control-vinculos .pat-control-form-help { font-size:13px; line-height:1.6; color:var(--pat-muted,#69758a); margin:0 0 14px; }
+.pat-control-vinculos td small { display:block; margin-top:4px; font-size:11px; color:var(--pat-muted,#69758a); }
+.pat-control-vinculos td small.pat-control-erro { color:#a73333; }
+.pat-control-vinculos select { width:100%; min-width:260px; max-width:100%; }
+.pat-control-vinculos td:last-child { width:55%; }
+.pat-control-vinculos .pat-form-footer { margin-top:16px; }
 .pat-controles-polished .pat-updated { margin:0; font-size:10px; line-height:1.6; }
 .pat-controles-polished .pat-control-remove { color:var(--pat-muted); }
 .pat-controles-polished .pat-control-remove:hover { color:#a73333; background:#fff0ef; }
@@ -50,6 +61,8 @@
 .dark .pat-control-summary button[aria-pressed=true] strong { color:#172033; }
 .dark .pat-control-available,.dark .pat-control-feedback { color:#abe0bf; border-color:#37634a; background:#1e382d; }
 .dark .pat-controles-polished .pat-control-remove:hover { color:#f3b6b0; background:#492d32; }
+.dark .pat-control-sem-id,.dark .pat-control-pendente { color:#f3d39a; border-color:#6b5228; background:#3a2f1a; }
+.dark .pat-control-vinculos td small.pat-control-erro { color:#f3b6b0; }
 @media screen and (max-width:900px) {
  .pat-control-tools { align-items:stretch; }
  .pat-control-summary { flex:1; }

@@ -14,8 +14,14 @@ export function resumirControles(mapa,tipo) {
 }
 export function listarControles(mapa,tipo,busca='',situacao='todos') {
  const termos=normalizar(busca).split(/\s+/).filter(Boolean);
- return Object.entries(mapa||{}).map(([id,r])=>({...r,id})).filter(r=>r.tipo===tipo&&(situacao==='atribuidos'?temResponsavel(r):situacao==='disponiveis'?!temResponsavel(r):true)&&termos.every(t=>normalizar([r.numero,r.modelo,r.telefone,r.local,r.pessoa,r.observacao].join(' ')).includes(t)))
+ return Object.entries(mapa||{}).map(([id,r])=>({...r,id})).filter(r=>r.tipo===tipo&&(situacao==='atribuidos'?temResponsavel(r):situacao==='disponiveis'?!temResponsavel(r):true)&&termos.every(t=>normalizar([r.numero,r.modelo,r.telefone,r.local,r.pessoa,r.pessoaIdPessoa,r.observacao].join(' ')).includes(t)))
  .sort((a,b)=>String(a.numero).localeCompare(String(b.numero),'pt-BR',{numeric:true})||a.id.localeCompare(b.id));
+}
+// Nome digitado antes do vínculo pelo RH: tem pessoa escrita e nenhuma ficha ligada.
+export const nomeSemId = r => Boolean(String(r?.pessoa || '').trim()) && !String(r?.pessoaId || '').trim();
+export function semIdDoRH(mapa,tipo) {
+ return Object.entries(mapa||{}).map(([id,r])=>({...r,id})).filter(r=>r.tipo===tipo&&nomeSemId(r))
+  .sort((a,b)=>String(a.numero).localeCompare(String(b.numero),'pt-BR',{numeric:true})||a.id.localeCompare(b.id));
 }
 export function textoAtualizacao(r) {
  if(!r?.atualizadoEm || !Number.isFinite(Date.parse(r.atualizadoEm)))return 'Sem registro de atualização';

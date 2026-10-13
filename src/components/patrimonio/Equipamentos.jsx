@@ -4,7 +4,7 @@ import { Link,useSearchParams } from 'react-router-dom';
 import { Car, Cog, Search, X, Printer, RefreshCw, ChevronLeft, ChevronRight, ArrowUpRight, Link2, Plus, Pencil } from 'lucide-react';
 import { listarEquipamentosPatrimonio,listarAtivos } from '../../services/ativos.js';
 import { podeAbrir } from '../../lib/sessao.js';
-import { projetarEquipamentos, filtrarEquipamentos } from '../../lib/calc/equipamentos-patrimonio.js';
+import { projetarEquipamentos, filtrarEquipamentos, vinculoDoEquipamento, bensParaFicha } from '../../lib/calc/equipamentos-patrimonio.js';
 import { textoAtualizacao } from '../../lib/calc/controles-patrimonio.js';
 import {caminhoManutencao} from '../../lib/calc/navegacao-patrimonio.js';
 import CadastroEquipamento from './CadastroEquipamento.jsx';
@@ -83,7 +83,7 @@ export default function EquipamentosPatrimonio({ tipo, bens = [], setores = [], 
         {gerenciar && <button className="btn-primary" onClick={novo} disabled={carregando}><Plus size={17}/>Cadastrar {meta.singular}</button>}
       </div>
     </div>
-    {form&&<CadastroEquipamento key={form.id||form.cadastroId} inicial={form} setores={setores} aoFechar={fecharFormulario} aoConcluir={async()=>{fecharFormulario();await carregar();}}/>}
+    {form&&<CadastroEquipamento key={form.id||form.cadastroId} inicial={form} setores={setores} bensLivres={bensParaFicha(bens,ativos||[],form.id||form.cadastroId)} bemAtual={form.id?vinculoDoEquipamento(form,bens).bem:null} aoFechar={fecharFormulario} aoConcluir={async()=>{fecharFormulario();await carregar();}}/>}
     <p className="pat-equip-shared"><Link2 size={16} aria-hidden="true"/><span><strong>Um cadastro por equipamento.</strong> Cadastre e atualize os dados aqui. Em Manutenções, registre os serviços e consulte o histórico.</span></p>
     <div className="pat-equip-tools">
       <div className="pat-search"><Search size={18} aria-hidden="true"/><input className="input" aria-label={`Buscar ${meta.titulo.toLowerCase()}`} placeholder={tipo === 'veiculo' ? 'Nome, placa, modelo, setor ou responsável…' : 'Nome, série, modelo, setor ou responsável…'} value={busca} onChange={e => { setBusca(e.target.value);setPagina(1); }}/>{busca && <button type="button" aria-label="Limpar busca" onClick={() => { setBusca('');setPagina(1); }}><X size={16}/></button>}</div>
