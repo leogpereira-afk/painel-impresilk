@@ -748,6 +748,13 @@ Deno.serve(async (req: Request) => {
           if (chave === "marketing" && Object.values(patch).some((v: any) => v && typeof v === "object" && v.tipo === "acao")) {
             return resposta({ erro: "As ações do Marketing mudaram de lugar. Recarregue a página para continuar." }, 409);
           }
+          // Classificação do bem, independente de setor e de vínculo técnico.
+          // Validar o lote inteiro antes da primeira gravação.
+          if (chave === "patrimonio" && Object.values(patch).some((v: any) =>
+              v && Object.hasOwn(v, "areaPatrimonio") &&
+              !["", "maquinas", "carros", "estrutura"].includes(v.areaPatrimonio))) {
+            return resposta({erro:"Escolha Máquinas, Carros, Estrutura ou Somente no inventário."},422);
+          }
           const barradoPlanilha = barraEscritaDePlanilha(chave);
           if (barradoPlanilha) return barradoPlanilha;
           for (const [id, campos] of Object.entries(patch)) {

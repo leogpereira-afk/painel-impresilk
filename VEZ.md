@@ -1,5 +1,13 @@
 # Vez do Painel Impresilk
 
+## Trabalho atual · Área do bem sem ficha adicional
+
+Agente: codex. Pedido de Léo em 14/10/2026: exibir o bem em Máquinas, Carros ou Estrutura sem cadastrar outra ficha. Ramo `codex/area-bem-sem-ficha-20261014`, clone isolado fora do iCloud, baseado na main `29c46ad`. Trabalho anterior publicado e encerrado.
+
+Escopo: classificação opcional no próprio bem, exibição nas áreas autorizadas, preservação do setor, etiqueta, vínculos técnicos e históricos. Validar a classificação no servidor, sem migração ou duplicação de registros. Testes com dados fictícios. Publicação autorizada por Léo com “subir” em 14/10/2026.
+
+Estado: publicação em duas etapas. Este ramo publica somente a validação do servidor e seus testes; a tela permanece na versão anterior até conferir o servidor. Implementação completa verificada localmente. 1.399 testes gerais e 653 de cálculo/acesso aprovados, sem falhas ou ignorados. Build com BASE_PATH oficial aprovado; lint sem erros (aviso anterior em Agenda). Imports, 72 classes compiladas e proteção de fotos conferidos. Teste de área inválida falha na versão anterior e passa na corrigida. Navegador com dados fictícios confirmou salvar área, mover entre Máquinas/Carros/Estrutura sem duplicar, preservar setor e etiqueta e abrir o mesmo bem. Desktop e celular de 390 px sem transbordamento ou erro JavaScript. Nenhum dado real foi gravado. Publicar painel-config antes da tela, conforme autorização de Léo.
+
 ## Trabalho atual · Aviso de erro à vista nas janelas de formulário
 
 Agente: claude. Pedido de Léo em 14/10/2026, depois do vínculo pela ficha do bem publicado e conferido: "finalizar o detalhe se e simples" (no celular, a recusa de vínculo dentro do formulário da ficha aparecia no topo do formulário, fora da vista depois de Salvar). Ramo `claude/aviso-na-vista-20261014`, a partir da main `a397cf7`.

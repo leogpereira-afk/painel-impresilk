@@ -107,3 +107,30 @@ test('get do patrimônio: histórico do bem mascara a ficha de Segurança e tira
  assert.deepEqual([comSeguranca[1].nome,comSeguranca[1].ativoId],['Câmera do cofre','cam-1']);
  assert.doesNotMatch(JSON.stringify(comSeguranca),/login-secreto/);
 });
+
+test('área do bem: salvar, ler, trocar e limpar sem ficha; preserva setor, etiqueta e histórico',async()=>{
+ const original={codigo:'PRO-900',setorSigla:'PRO',nomeGenerico:'Bem fictício',historico:[{acao:'cadastro',em:'2026-01-01'}]};
+ const a=ambiente(['inventario-valores'],[L('patrimonio','bem-area',original)]);
+ for(const area of ['maquinas','carros','estrutura','']){
+  const r=await a.chamar({action:'merge',chave:'patrimonio',patch:{'bem-area':{areaPatrimonio:area}}});
+  assert.equal(r.status,200,JSON.stringify(r.body));
+  assert.equal(r.body.valor['bem-area'].areaPatrimonio,area);
+  const b=a.achar('patrimonio','bem-area').registro;
+  assert.equal(b.codigo,original.codigo);assert.equal(b.setorSigla,original.setorSigla);
+  assert.deepEqual(b.historico,original.historico);
+  assert.equal(a.linhas.filter(x=>x.colecao==='patrimonio').length,1);
+  assert.equal(a.linhas.filter(x=>x.colecao==='ativo').length,0);
+  const leitura=await a.chamar({action:'get',chave:'patrimonio'});
+  assert.equal(leitura.body.valor['bem-area'].areaPatrimonio,area);
+ }
+});
+test('área inválida recusa o lote antes de gravar; operação continua exigindo Inventário e valores',async()=>{
+ for(const area of ['telefone',null,{},['maquinas'],true]){
+  const a=ambiente(['inventario-valores'],[L('patrimonio','bem-area',{codigo:'PRO-900'})]);
+  const r=await a.chamar({action:'merge',chave:'patrimonio',patch:{'bem-area':{areaPatrimonio:'maquinas'},'outro':{areaPatrimonio:area}}});
+  assert.equal(r.status,422,JSON.stringify(r.body));assert.equal(a.gravacoes.length,0);
+ }
+ const a=ambiente(['patrimonio'],[L('patrimonio','bem-area',{codigo:'PRO-900'})]);
+ assert.equal((await a.chamar({action:'merge',chave:'patrimonio',patch:{'bem-area':{areaPatrimonio:'carros'}}})).status,403);
+ assert.equal(a.gravacoes.length,0);
+});
