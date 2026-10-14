@@ -6,9 +6,11 @@ Agente: codex. Pedido de Léo em 14/10/2026: “colocar logo da impresilk centra
 
 Escopo: centralizar a logo oficial acima da saudação, frase e legenda da Home, mantendo Silk ao lado e os tamanhos e arquivos da marca existentes. Ajuste exclusivo de apresentação, sem alteração de dados, navegação, permissões, servidor ou trabalho de Patrimônio. Após publicar e conferir, devolver a vez anterior ao Claude.
 
-Estado: implementação e verificação da publicação autorizada em andamento.
+Estado: publicado e conferido. Passagem temporária encerrada; a vez retorna ao trabalho de Patrimônio do Claude registrado abaixo, com seu conteúdo e escopo preservados.
 
 Pré-publicação: 41 regressões da Home, entrada e navegação aprovadas, sem falhas ou ignorados; build com BASE_PATH oficial, conferência das classes compiladas e lint sem erros (um aviso anterior em Agenda). Revisão independente aprovada. Navegador confirmou centralização da logo e do texto em desktop e 390 px, alternância de uma única logo clara/escura, alturas preservadas de 32/26 px, sem transbordamento ou erro JavaScript. Somente duas declarações CSS alteradas.
+
+**Publicado e conferido em 14/10/2026:** código `b853425`; Pages `38615826118`, build e deploy com sucesso. CI aprovou 1.315 regressões da auditoria, 636 cálculos e 7 acessos, sem falhas nem ignorados. HTML e 116 assets oficiais idênticos ao build validado (117/117), incluindo o CSS de centralização. Home conferida na prévia com dados fictícios, em desktop/celular e claro/escuro; não havia sessão autenticada na aba oficial. Ajuste concluído, sem alteração de dados, servidor ou arquivo de Patrimônio.
 
 ## Trabalho atual · Silk refinado e rosto solto
 

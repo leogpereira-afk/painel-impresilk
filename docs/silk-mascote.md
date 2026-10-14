@@ -44,6 +44,8 @@ Publicado e conferido em 14/10/2026: código `b38b431`; Pages `38610007010`, bui
 
 ## Logo centralizada na saudação · 14/10/2026
 
-Pedido complementar e publicação autorizados por Léo com “Sim, ajustar e publicar”, após passagem temporária da vez. A Home centraliza a logo oficial acima do bloco da saudação, frase e legenda. Silk permanece ao lado; imagens, dimensões e versões clara/escura são preservadas. Alteração somente de alinhamento em `silk.css`; sem alteração de dados ou servidor. Verificação e publicação em andamento.
+Pedido complementar e publicação autorizados por Léo com “Sim, ajustar e publicar”, após passagem temporária da vez. A Home centraliza a logo oficial acima do bloco da saudação, frase e legenda. Silk permanece ao lado; imagens, dimensões e versões clara/escura são preservadas. Alteração somente de alinhamento em `silk.css`; sem alteração de dados ou servidor.
 
 Verificação local: 41 regressões da Home/entrada/navegação aprovadas, sem falhas ou ignorados; build oficial, classes compiladas e lint sem erros (um aviso anterior em Agenda). Revisão independente aprovada. Prévia conferida em desktop e 390 px, centralização com ambas as versões da logo, uma única versão visível por tema, alturas de 32/26 px preservadas e sem transbordamento ou erro JavaScript.
+
+Publicado e conferido em 14/10/2026: código `b853425`; Pages `38615826118`, build e deploy com sucesso. CI aprovou 1.315 regressões da auditoria, 636 cálculos e 7 acessos, sem falhas nem ignorados. HTML e 116 assets oficiais idênticos ao build validado (117/117), incluindo o CSS de alinhamento. Home conferida na prévia com dados fictícios, pois a aba oficial não estava autenticada. Passagem temporária encerrada e vez devolvida ao trabalho de Patrimônio do Claude.
