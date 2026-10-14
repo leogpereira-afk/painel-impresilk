@@ -1,5 +1,5 @@
 import {previaReclassificacao} from '../_shared/patrimonio-migracao.mjs';
-import {ativoPermitido,exigeInventario,temPermissao,FAMILIAS_EQUIPAMENTO} from '../_shared/patrimonio-acesso.mjs';
+import {ativoPermitido,bemPermitido,exigeInventario,temPermissao,FAMILIAS_EQUIPAMENTO,familiaVinculo,fichaAceitaBem,fichaBaixada,podeMexerNoVinculo,rotuloFichaVinculo,rotuloBemVinculo,eventoVinculo,eventoPublicoVinculo,comEventoVinculo,erroVinculo} from '../_shared/patrimonio-acesso.mjs';
 import {lerPessoasPatrimonio,validarVinculoPessoa} from '../_shared/patrimonio-pessoas.mjs';
 import {prepararFisico} from '../_shared/patrimonio-fisico.mjs';
 import {atenderDocumentos} from '../_shared/documentos-handler.mjs';
@@ -349,6 +349,29 @@ Deno.serve(async (req: Request) => {
   try {
     let equipeRH: Promise<any[]> | undefined;
     const pessoasRH=()=>equipeRH ||= lerPessoasPatrimonio(sb);
+    // ── Vínculo do bem do inventário com a ficha de cima (PLANO-VINCULO.md).
+    // Fonte única: ativo.bemId. bem.origemAtivoId é legado e espelho de Carros
+    // e Máquinas; o bem descobre a ficha pelos dois. Só select/eq/maybeSingle
+    // nestas leituras: é o que todas as portas de gravação já usam.
+    const falhaVinculo=(codigo:string,...args:any[])=>{const {corpo:c,status}=erroVinculo(codigo,...args);return resposta(c,status);};
+    const lerRegistro=async(colecao:string,id:string)=>{
+      const {data,error}=await sb.from('painel_registros').select('registro').eq('colecao',colecao).eq('id',id).maybeSingle();
+      if(error)throw error;
+      return (data?.registro as any)||null;
+    };
+    const idsOnde=async(colecao:string,campo:string,valor:string)=>{
+      const {data,error}=await sb.from('painel_registros').select('id').eq('colecao',colecao).eq('registro->>'+campo,valor);
+      if(error)throw error;
+      return (data||[]).map((r:any)=>String(r.id));
+    };
+    // Versão sempre sobe, mesmo no mesmo milissegundo: serve de atualizadoEm e
+    // de hora do evento, que assim fica depois de tudo o que veio antes.
+    const versaoNova=(...anteriores:unknown[])=>new Date(Math.max(Date.now(),...anteriores.map(a=>(Date.parse(String(a||''))||0)+1))).toISOString();
+    const rotuloDaFicha=async(fichaId:string)=>{
+      const ficha=fichaId?await lerRegistro('ativo',fichaId):null;
+      return rotuloFichaVinculo(ficha,sessao,{retirada:!ficha});
+    };
+    const rotuloDoBem=async(id:string)=>rotuloBemVinculo(await lerRegistro('patrimonio',id),id);
     switch (corpo.action) {
       case 'listarDocumentos':
       case 'salvarControle':
@@ -390,7 +413,183 @@ Deno.serve(async (req: Request) => {
           }
           if ((data ?? []).length < PASSO) break;
         }
-        return resposta({ ok: true, itens });
+        // Quem tem Inventário e valores e não tem Segurança precisa saber que o
+        // bem está ligado a uma ficha de Segurança, sem ver a ficha: só o par de
+        // ids. Nas outras sessões nenhuma consulta a mais é feita.
+        const vinculosOcultos: { ativoId: string; bemId: string }[] = [];
+        if (temPermissao(sessao, "inventario-valores") && !temPermissao(sessao, "seguranca")) {
+          const textoId = (valor: unknown) => typeof valor === "string" || (typeof valor === "number" && Number.isFinite(valor))
+            ? String(valor).trim().slice(0, 180) : "";
+          for (let de = 0; ; de += PASSO) {
+            const { data, error } = await sb.from("painel_registros").select("id,registro")
+              .eq("colecao", "ativo").eq("registro->>tipo", "seguranca").order("id").range(de, de + PASSO - 1);
+            if (error) throw new Error(error.message);
+            for (const linha of data ?? []) {
+              const ativoId = textoId(linha.id);
+              if (ativoId && linha.registro?.tipo === "seguranca") vinculosOcultos.push({ ativoId, bemId: textoId(linha.registro?.bemId) });
+            }
+            if ((data ?? []).length < PASSO) break;
+          }
+        }
+        return resposta({ ok: true, itens, vinculosOcultos });
+      }
+
+      // Ligar pela ficha do bem (ou depois de salvar a Estrutura): uma gravação
+      // só, na ficha, conferida pela regra adiada painel_ativo_bem_direto_integro.
+      // O bem não é gravado. Toda recusa acontece antes de qualquer gravação.
+      case "vincularFicha":
+      case "desvincularFicha": {
+        const ligar = corpo.action === "vincularFicha";
+        const ID_VINCULO = /^[A-Za-z0-9_-]{1,180}$/;
+        const { bemId, ativoId, versaoFicha, versaoBem } = corpo;
+        if (typeof bemId !== "string" || !ID_VINCULO.test(bemId) || typeof ativoId !== "string" || !ID_VINCULO.test(ativoId)) return falhaVinculo("idInvalido");
+        if (typeof versaoFicha !== "string" || typeof versaoBem !== "string") return falhaVinculo("versaoInvalida");
+        const tela = corpo.origem === "bem" || corpo.origem === "ficha" ? corpo.origem : undefined;
+        if (!temPermissao(sessao, "inventario-valores")) return falhaVinculo("semInventario");
+        const ficha = await lerRegistro("ativo", ativoId);
+        if (ligar) {
+          if (!ficha) return falhaVinculo(await lerRegistro("ativo_lixeira", ativoId) ? "fichaRetirada" : "fichaNaoEncontrada");
+          if (!fichaAceitaBem(ficha)) return falhaVinculo("fichaNaoLiga");
+          if (!podeMexerNoVinculo(sessao, ficha)) return falhaVinculo("semPermissaoFamilia", ficha);
+          const bem = await lerRegistro("patrimonio", bemId);
+          if (!bem) return falhaVinculo(await lerRegistro("registro_lixeira", "patrimonio:" + bemId) ? "bemExcluido" : "bemNaoEncontrado");
+          const outrosBensDaFicha = (await idsOnde("patrimonio", "origemAtivoId", ativoId)).filter(id => id !== bemId);
+          const outrasFichasDoBem = (await idsOnde("ativo", "bemId", bemId)).filter(id => id !== ativoId);
+          const direto = String(ficha.bemId || ""), inverso = String(bem.origemAtivoId || "");
+          // Duplo clique ou resposta perdida: o par já está ligado e nenhum dos
+          // dois tem outra ligação. Nada é gravado.
+          if ((direto === bemId || inverso === ativoId) && [bemId, ""].includes(direto) && [ativoId, ""].includes(inverso)
+            && !outrosBensDaFicha.length && !outrasFichasDoBem.length) {
+            return resposta({ ok: true, jaLigado: true, ficha: equipamentoParaPatrimonio(ativoId, ficha) });
+          }
+          if (fichaBaixada(ficha)) return falhaVinculo("fichaBaixada");
+          if (bem.situacao === "baixado") return falhaVinculo("bemBaixado");
+          if (versaoFicha !== (ficha.atualizadoEm || "")) return falhaVinculo("fichaMudou");
+          if (versaoBem !== (bem.atualizadoEm || "")) return falhaVinculo("bemMudou");
+          // Daqui em diante o par não está ligado: qualquer outra ligação de um dos
+          // dois recusa, com o nome do que está do outro lado.
+          const outroBem = direto && direto !== bemId ? direto : outrosBensDaFicha[0];
+          if (outroBem) return falhaVinculo("fichaJaLigada", await rotuloDoBem(outroBem));
+          const outraFicha = inverso && inverso !== ativoId ? inverso : outrasFichasDoBem[0];
+          if (outraFicha) return falhaVinculo("bemJaLigado", await rotuloDaFicha(outraFicha));
+          const agora = versaoNova(ficha.atualizadoEm, bem.atualizadoEm);
+          const evento = eventoVinculo({ acao: "vinculado", ficha, ativoId, bemId, bemCodigo: bem.codigo, sessao, via: "vincularFicha", lado: "ficha", tela, agora });
+          const novo = { ...ficha, bemId, historicoVinculo: comEventoVinculo(ficha.historicoVinculo, evento), atualizadoEm: agora, atualizadoPor: quem };
+          const { data, error } = await sb.rpc("painel_registro_gravar", { p_colecao: "ativo", p_id: ativoId, p_registro: novo, p_anterior: ficha });
+          if (error) {
+            if (["40001", "23503"].includes(error.code)) return falhaVinculo("corrida");
+            throw Object.assign(new Error(error.message), { code: error.code });
+          }
+          return resposta({ ok: true, ficha: equipamentoParaPatrimonio(ativoId, data || novo), evento: eventoPublicoVinculo(evento) });
+        }
+
+        // Desfazer exatamente o par, onde houver: e1 no bem (origemAtivoId), e2 na
+        // ficha ativa (bemId), e3 na cópia da ficha retirada. A ordem é imposta
+        // pela regra do banco: limpar ativo.bemId com o bem ainda apontando para a
+        // ficha é recusado. Então: W1 no bem, W2 na ficha (sempre, para subir a
+        // versão), W3 na lixeira. Falhou W2 ou W3, o bem volta como estava.
+        const retirada = ficha ? null : await lerRegistro("ativo_lixeira", ativoId);
+        const qualFicha = ficha || retirada;
+        if (qualFicha && !familiaVinculo(qualFicha)) return falhaVinculo("fichaNaoLiga");
+        if (qualFicha && !podeMexerNoVinculo(sessao, qualFicha)) return falhaVinculo("semPermissaoFamilia", qualFicha);
+        const bem = await lerRegistro("patrimonio", bemId);
+        const e1 = !!bem && bem.origemAtivoId === ativoId;
+        const e2 = !!ficha && ficha.bemId === bemId;
+        const e3 = !!retirada && retirada.bemId === bemId;
+        if (!e1 && !e2 && !e3) {
+          return resposta({ ok: true, jaDesfeito: true, ficha: ficha ? equipamentoParaPatrimonio(ativoId, ficha) : null, bem: bem ? bemPermitido({ ...bem, id: bemId }, sessao) : null });
+        }
+        if (e1 && versaoBem !== (bem.atualizadoEm || "")) return falhaVinculo("bemMudou");
+        if (ficha && versaoFicha !== (ficha.atualizadoEm || "")) return falhaVinculo("fichaMudou");
+        if (e2) {
+          const outro = (await idsOnde("patrimonio", "origemAtivoId", ativoId)).find(id => id !== bemId);
+          if (outro) return falhaVinculo("outroBemNaFicha", await rotuloDoBem(outro));
+        }
+        const agora = versaoNova(ficha?.atualizadoEm, bem?.atualizadoEm);
+        const evento = eventoVinculo({ acao: "desvinculado", ficha: qualFicha, ativoId, bemId, bemCodigo: bem?.codigo, sessao, via: "desvincularFicha",
+          lado: e1 && (e2 || e3) ? "ambos" : e1 ? "bem" : "ficha", tela, agora });
+        const gravar = (colecao: string, id: string, registro: any, anterior: any) =>
+          sb.rpc("painel_registro_gravar", { p_colecao: colecao, p_id: id, p_registro: registro, p_anterior: anterior });
+        let bemGravado: any = null;
+        if (e1) {
+          const { origemAtivoId: _desfeito, ...semOrigem } = bem;
+          const novoBem = { ...semOrigem, historico: comEventoVinculo(bem.historico, evento), atualizadoEm: agora,
+            atualizadoPor: String(sessao.sub || ""), atualizadoPorNome: String(sessao.nome || sessao.sub || "") };
+          const { data, error } = await gravar("patrimonio", bemId, novoBem, bem);
+          if (error) {
+            if (["40001", "23503"].includes(error.code)) return falhaVinculo("corrida");
+            throw Object.assign(new Error(error.message), { code: error.code });
+          }
+          bemGravado = data || novoBem;
+        }
+        let fichaGravada: any = null, falhou: any = null;
+        if (ficha) {
+          const novaFicha = { ...ficha, ...(e2 ? { bemId: "" } : {}), historicoVinculo: comEventoVinculo(ficha.historicoVinculo, evento),
+            atualizadoEm: agora, atualizadoPor: quem };
+          const { data, error } = await gravar("ativo", ativoId, novaFicha, ficha);
+          if (error) falhou = error; else fichaGravada = data || novaFicha;
+        } else if (e3) {
+          const { bemId: _desfeito, ...semBem } = retirada;
+          const { error } = await gravar("ativo_lixeira", ativoId, { ...semBem, historicoVinculo: comEventoVinculo(retirada.historicoVinculo, evento) }, retirada);
+          if (error) falhou = error;
+        }
+        if (falhou) {
+          if (bemGravado) {
+            // Devolve o bem ao que era. Se até isso falhar, sobra a ficha ainda
+            // com bemId e o bem sem origem: um vínculo válido só pela ficha, que
+            // um novo Desfazer resolve com uma gravação.
+            const { error: falhaVolta } = await gravar("patrimonio", bemId, bem, bemGravado);
+            if (falhaVolta) {
+              console.error("[painel-ativos] vínculo desfeito só no bem:", falhou, falhaVolta);
+              return falhaVinculo("parcial");
+            }
+            return falhaVinculo("corrida");
+          }
+          if (["40001", "23503"].includes(falhou.code)) return falhaVinculo("corrida");
+          throw Object.assign(new Error(falhou.message), { code: falhou.code });
+        }
+        return resposta({ ok: true, ficha: fichaGravada ? equipamentoParaPatrimonio(ativoId, fichaGravada) : null,
+          bem: bemGravado ? bemPermitido({ ...bemGravado, id: bemId }, sessao) : null, evento: eventoPublicoVinculo(evento) });
+      }
+
+      // Histórico do vínculo para a ficha do bem: o que ficou no bem mais o que
+      // ficou nas fichas (ativas e retiradas). O mesmo evento grava o mesmo id
+      // nos dois lados, então aparece uma vez só. O login nunca desce.
+      case "historicoVinculo": {
+        const bemId = corpo.bemId;
+        if (typeof bemId !== "string" || !/^[A-Za-z0-9_-]{1,180}$/.test(bemId)) return falhaVinculo("idInvalido");
+        if (!temPermissao(sessao, "inventario-valores")) return falhaVinculo("semInventario");
+        const bem = await lerRegistro("patrimonio", bemId);
+        if (!bem) return falhaVinculo("bemNaoEncontrado");
+        const ehEvento = (e: any) => e && typeof e === "object" && typeof e.id === "string" && e.id && ["vinculado", "desvinculado"].includes(e.acao);
+        // Cada lista já vem em ordem de gravação: no empate de hora, vale a posição.
+        const eventos: any[] = (Array.isArray(bem.historico) ? bem.historico : []).filter(ehEvento);
+        for (const colecao of ["ativo", "ativo_lixeira"]) {
+          for (let de = 0; ; de += 1000) {
+            const { data, error } = await sb.from("painel_registros").select("id,registro").eq("colecao", colecao).order("id").range(de, de + 999);
+            if (error) throw error;
+            for (const linha of data ?? []) {
+              const lista = linha.registro?.historicoVinculo;
+              if (Array.isArray(lista)) eventos.push(...lista.filter((e: any) => ehEvento(e) && e.bemId === bemId));
+            }
+            if ((data ?? []).length < 1000) break;
+          }
+        }
+        const vistos = new Set<string>();
+        const veSeguranca = temPermissao(sessao, "seguranca");
+        const txt = (v: unknown, max = 180) => typeof v === "string" ? v.slice(0, max) : "";
+        const saida = eventos
+          .map((e, posicao) => ({ e, posicao }))
+          .filter(({ e }) => !vistos.has(e.id) && vistos.add(e.id))
+          .sort((a, b) => txt(b.e.em, 40).localeCompare(txt(a.e.em, 40)) || b.posicao - a.posicao)
+          .slice(0, 100)
+          .map(({ e }) => {
+            const oculta = e.familia === "seguranca" && !veSeguranca;
+            return { id: txt(e.id, 80), acao: e.acao, ativoId: oculta ? "" : txt(e.ativoId), familia: txt(e.familia, 40),
+              nome: oculta ? "Ficha de Segurança" : txt(e.nome), bemCodigo: txt(e.bemCodigo, 60), porNome: txt(e.porNome),
+              em: txt(e.em, 40), via: txt(e.via, 40), tela: txt(e.tela, 10), motivo: txt(e.motivo, 300) };
+          });
+        return resposta({ ok: true, eventos: saida });
       }
 
       case "salvarFisico": {
@@ -437,12 +636,35 @@ Deno.serve(async (req: Request) => {
           if(error)throw Object.assign(new Error('Não foi possível conferir o vínculo existente.'),{status:503});
           if((origens||[]).some((r:any)=>r.id!==it.bemId))return resposta({erro:'Este equipamento já tem vínculo no inventário. Confira a ficha do bem antes de trocar ou limpar o vínculo.'},409);
         }
+        // Pelo formulário, o bemId só LIGA: de vazio para um bem livre e não
+        // baixado, numa ficha que aceita bem e não está baixada. Trocar de um bem
+        // para outro é Desfazer e ligar de novo. Limpar segue aceito quando nenhum
+        // bem aponta para a ficha (tela antiga), com evento no histórico.
+        let mudouVinculo:{acao:string,bemId:string,bemCodigo:string}|null=null;
+        if(Object.hasOwn(it,'bemId')&&(it.bemId||'')!==(anterior?.bemId||'')){
+          if(anterior?.bemId&&it.bemId)return falhaVinculo('trocaPeloFormulario');
+          if(it.bemId){
+            if(!fichaAceitaBem({...(anterior||{}),tipo,categoria:anterior?.categoria??it.categoria}))return falhaVinculo('fichaNaoLiga');
+            const bem=await lerRegistro('patrimonio',it.bemId);
+            if(!bem)return falhaVinculo('bemNaoEncontrado');
+            // Tela antiga em cache manda o bemId do vínculo legado só pelo bem em
+            // toda edição: esse par já existe, então a baixa não recusa a gravação.
+            const legado=bem.origemAtivoId===id;
+            if(bem.situacao==='baixado'&&!legado)return falhaVinculo('bemBaixado');
+            const outraFicha=bem.origemAtivoId&&bem.origemAtivoId!==id?bem.origemAtivoId:(await idsOnde('ativo','bemId',it.bemId)).find(x=>x!==id);
+            if(outraFicha)return falhaVinculo('bemJaLigado',await rotuloDaFicha(outraFicha));
+            if(ficha.situacao==='baixado'&&!legado)return falhaVinculo('fichaBaixada');
+            mudouVinculo={acao:'vinculado',bemId:it.bemId,bemCodigo:String(bem.codigo||'')};
+          } else mudouVinculo={acao:'desvinculado',bemId:anterior.bemId,bemCodigo:String((await lerRegistro('patrimonio',anterior.bemId))?.codigo||'')};
+        }
         if(Object.hasOwn(it,'bemId')&&it.bemId){const {data,error}=await sb.from('painel_registros').select('registro').eq('colecao','patrimonio').eq('id',it.bemId).maybeSingle();if(error)throw error;refs.bem=!!data&&(!data.registro?.origemAtivoId||data.registro.origemAtivoId===id);}
         let campos;
         try{campos=prepararFisico(it,anterior,refs);Object.assign(campos,validarVinculoPessoa(it,anterior,refs.pessoas,'responsavel'));}
         catch(e){return resposta({erro:(e as Error).message},(e as any).status||422);}
         const agora=new Date(Math.max(Date.now(),(Date.parse(anterior?.atualizadoEm||'')||0)+1)).toISOString();
-        const novo={...(anterior||{}),...campos,...(Object.hasOwn(it,'bemId')?{bemId:it.bemId}:{}),id,criadoEm:anterior?.criadoEm||agora,atualizadoEm:agora,atualizadoPor:quem};
+        const novo:any={...(anterior||{}),...campos,...(Object.hasOwn(it,'bemId')?{bemId:it.bemId}:{}),id,criadoEm:anterior?.criadoEm||agora,atualizadoEm:agora,atualizadoPor:quem};
+        // O evento vai na mesma gravação que muda o vínculo: nada fica pela metade.
+        if(mudouVinculo)novo.historicoVinculo=comEventoVinculo(anterior?.historicoVinculo,eventoVinculo({...mudouVinculo,ficha:novo,ativoId:id,sessao,via:'salvarFisico',lado:'ficha',tela:'ficha',agora}));
         const {data,error}=await sb.rpc('painel_registro_gravar',{p_colecao:'ativo',p_id:id,p_registro:novo,p_anterior:anterior});
         if(error)throw Object.assign(new Error(error.message),{code:error.code});
         return resposta({ok:true,item:equipamentoParaPatrimonio(id,data)});
@@ -516,6 +738,7 @@ Deno.serve(async (req: Request) => {
           if (retirado) return resposta({ erro: "Este cadastro foi retirado. Reabra a tela para cadastrar outro item." }, 409);
         }
         let campos;
+        let mudouVinculo:{acao:string,bemId:string,bemCodigo:string}|null=null;
         try {
           if(telefonia) {
             if(!String(it.nome||'').trim() || String(it.nome).length>180 || !['Telefone','Central telefônica'].includes(it.categoria)) throw new Error('Informe o nome e escolha Telefone ou Central telefônica.');
@@ -527,14 +750,22 @@ Deno.serve(async (req: Request) => {
               if(falhaOrigem) throw Object.assign(new Error('Não foi possível conferir o vínculo existente.'),{status:503});
               if((origens||[]).some((r:any)=>r.id!==it.bemId)) throw Object.assign(new Error('Este aparelho já tem vínculo no inventário. Confira a ficha do bem antes de trocar o vínculo.'),{status:409});
 
+              // Mesma regra do salvarFisico: o formulário só liga a bem livre e
+              // não baixado; trocar é Desfazer e ligar de novo.
+              if(anterior?.bemId && it.bemId) return falhaVinculo('trocaPeloFormulario');
               if(it.bemId) {
                 const {data:bem,error}=await sb.from('painel_registros').select('registro').eq('colecao','patrimonio').eq('id',it.bemId).maybeSingle();
                 if(error) throw Object.assign(new Error('Não foi possível conferir o inventário.'),{status:503});
-                if(!bem || (bem.registro.origemAtivoId && bem.registro.origemAtivoId!==id)) throw Object.assign(new Error('Bem inexistente ou vinculado a outro equipamento.'),{status:409});
+                if(!bem) return falhaVinculo('bemNaoEncontrado');
+                const legado=bem.registro?.origemAtivoId===id;
+                if(bem.registro?.situacao==='baixado' && !legado) return falhaVinculo('bemBaixado');
                 const {data:ligados,error:falha}=await sb.from('painel_registros').select('id').eq('colecao','ativo').eq('registro->>bemId',it.bemId);
                 if(falha) throw Object.assign(new Error('Não foi possível conferir os vínculos.'),{status:503});
-                if((ligados||[]).some((r:any)=>r.id!==id)) throw Object.assign(new Error('Este bem já está vinculado a outro equipamento.'),{status:409});
-              }
+                const outraFicha=bem.registro?.origemAtivoId && bem.registro.origemAtivoId!==id ? bem.registro.origemAtivoId : (ligados||[]).map((r:any)=>String(r.id)).find((x:string)=>x!==id);
+                if(outraFicha) return falhaVinculo('bemJaLigado',await rotuloDaFicha(outraFicha));
+                if(campos.especificacao?.situacao==='baixado' && !legado) return falhaVinculo('fichaBaixada');
+                mudouVinculo={acao:'vinculado',bemId:it.bemId,bemCodigo:String(bem.registro?.codigo||'')};
+              } else mudouVinculo={acao:'desvinculado',bemId:anterior.bemId,bemCodigo:String((await lerRegistro('patrimonio',anterior.bemId))?.codigo||'')};
               campos.bemId=String(it.bemId||'');
             }
           } else campos=camposEstrutura(it, anterior || {});
@@ -543,8 +774,9 @@ Deno.serve(async (req: Request) => {
         catch (e) { return resposta({ erro: (e as Error).message }, (e as any).status || 422); }
         // Versão sempre muda, mesmo em duas gravações no mesmo milissegundo.
         const agora = new Date(Math.max(Date.now(), (Date.parse(anterior?.atualizadoEm || "") || 0) + 1)).toISOString();
-        const novo = { ...(anterior || {}), ...campos, id, tipo: tipoFicha,
+        const novo: any = { ...(anterior || {}), ...campos, id, tipo: tipoFicha,
           atualizadoEm: agora, atualizadoPor: quem, criadoEm: anterior?.criadoEm || agora };
+        if (mudouVinculo) novo.historicoVinculo = comEventoVinculo(anterior?.historicoVinculo, eventoVinculo({ ...mudouVinculo, ficha: novo, ativoId: id, sessao, via: "salvarTelefonia", lado: "ficha", tela: "ficha", agora }));
         const { data, error } = await sb.rpc("painel_registro_gravar", {
           p_colecao: "ativo", p_id: id, p_registro: novo, p_anterior: anterior || null,
         });
@@ -658,7 +890,7 @@ Deno.serve(async (req: Request) => {
             checklist:(Array.isArray(x.checklist)?x.checklist:[]).slice(0,30).map((c:any,i:number)=>({id:String(c.id || i).slice(0,80),texto:String(c.texto || "").slice(0,300),feito:c.feito===true})).filter((c:any)=>c.texto.trim()) };
         };
         const limpo = {
-          ...Object.fromEntries(['titularId','ativoIds','origem','origemTipo','pessoalHistorico','semVencimento','alertaDias','estado','orgaoEmissor','estabelecimento','contato','assistencia','linkOficial','fornecedor','fabricante','compra','tipoGarantia','condicoes','cobertura','obrigacaoPagamento','pagamentoSituacao','acionamentos','versoes','anexos'].filter(k=>Object.hasOwn(a,k)).map(k=>[k,a[k]])),
+          ...Object.fromEntries(['titularId','ativoIds','origem','origemTipo','pessoalHistorico','semVencimento','alertaDias','estado','orgaoEmissor','estabelecimento','contato','assistencia','linkOficial','fornecedor','fabricante','compra','tipoGarantia','condicoes','cobertura','obrigacaoPagamento','pagamentoSituacao','acionamentos','versoes','anexos','historicoVinculo'].filter(k=>Object.hasOwn(a,k)).map(k=>[k,a[k]])),
           ...(a.bemId ? {bemId:a.bemId} : {}),
           ...(a.arquivoIncendio ? {arquivoIncendio:a.arquivoIncendio} : {}),
           id, tipo,
@@ -720,6 +952,9 @@ Deno.serve(async (req: Request) => {
         if(corpo.patrimonio) {
           exigeInventario(sessao);
           if(!sessao.master && !perms.includes('*') && !perms.includes('manutencoes')) return resposta({erro:'Sem acesso a Manutenções.'},403);
+          // A tela manda a versão na edição: um formulário aberto antes de um
+          // Desfazer não pode religar calado. Sem versão, segue como antes.
+          if(ant?.registro && Object.hasOwn(corpo,'versao') && corpo.versao!==(a.atualizadoEm||'')) return falhaVinculo('cmVersao');
           const permitidos=['nomeGenerico','descricaoTecnica','observacao','setorSigla','nf','dataAquisicao','valor','situacao'];
           const patch=Object.fromEntries(Object.entries(corpo.patrimonio).filter(([k])=>permitidos.includes(k)));
           const {data:origens,error:falhaOrigem}=await sb.from('painel_registros').select('id').eq('colecao','patrimonio').eq('registro->>origemAtivoId',id);
@@ -729,12 +964,19 @@ Deno.serve(async (req: Request) => {
           // Ligar a um bem que já existe: ele tem de estar no inventário e não baixado. Sem
           // esta conferência, um bem retirado com o formulário aberto renasceria só com o
           // vínculo e etiqueta nova, e o original não voltaria mais da lixeira.
+          let bemEscolhido:any=null;
           if(corpo.bemId && corpo.bemId!==a.bemId && !(origens||[]).some((r:any)=>r.id===corpo.bemId)){
             const {data:bem,error:falhaBem}=await sb.from('painel_registros').select('registro').eq('colecao','patrimonio').eq('id',corpo.bemId).maybeSingle();
             if(falhaBem) throw falhaBem;
             if(!bem || (bem.registro as any)?.situacao==='baixado') return resposta({erro:'Este bem não está mais no inventário ou foi baixado. Atualize a lista e escolha de novo.'},409);
+            bemEscolhido=bem.registro;
           }
-          const {data,error}=await sb.rpc('painel_equipamento_gravar',{p_id:id,p_ativo:limpo,p_anterior:ant?.registro || null,p_bem_id:idsBem[0] || crypto.randomUUID(),p_bem_patch:patch,p_por:quem});
+          // O bem final é calculado uma vez só e serve ao evento e à gravação. O
+          // `crypto` só é avaliado quando não há bem nenhum, como antes.
+          const bemFinal=idsBem[0] || crypto.randomUUID();
+          if(!a.bemId && !(origens||[]).length)
+            (limpo as any).historicoVinculo=comEventoVinculo(a.historicoVinculo,eventoVinculo({acao:'vinculado',ficha:limpo,ativoId:id,bemId:bemFinal,bemCodigo:bemEscolhido?.codigo,sessao,via:'salvar',lado:'ambos',tela:'ficha',agora:limpo.atualizadoEm}));
+          const {data,error}=await sb.rpc('painel_equipamento_gravar',{p_id:id,p_ativo:limpo,p_anterior:ant?.registro || null,p_bem_id:bemFinal,p_bem_patch:patch,p_por:quem});
           if(error) throw Object.assign(new Error(error.message),{code:error.code});
           return resposta({ok:true,item:ativoPermitido(data.item,sessao)});
         }
@@ -754,6 +996,12 @@ Deno.serve(async (req: Request) => {
         if(['documento','seguro','garantia'].includes(tipoRemover))return await atenderDocumentos({sb,sessao,corpo:{...corpo,action:'removerControle'},resposta,quem,pessoasRH,bytesParaB64,bucket:BUCKET});
         if(corpo.bemId) exigeInventario(sessao);
         if(corpo.bemId && !sessao.master && !perms.includes('*') && !perms.includes('manutencoes')) return resposta({erro:'Sem acesso a Manutenções.'},403);
+        // A retirada baixa o bem informado: ele tem de ser o vínculo atual da
+        // ficha, dos dois lados possíveis, e nunca um bem qualquer.
+        if(corpo.bemId){
+          const bemPedido=String(corpo.bemId);
+          if(bemPedido!==String((await registroDoId(id))?.bemId||'') && (await lerRegistro('patrimonio',bemPedido))?.origemAtivoId!==id) return falhaVinculo('removerVinculoMudou');
+        }
         const {error}=await sb.rpc('painel_ativo_retirar',{p_id:id,p_bem_id:corpo.bemId || null,p_por:quem});
         if(error) throw Object.assign(new Error(error.message),{code:error.code});
         return resposta({ ok: true, lixeira: true });
@@ -777,9 +1025,27 @@ Deno.serve(async (req: Request) => {
         if(!await podeRegistro(reg))return resposta({erro:'Sem acesso a este documento.'},403);
         delete reg._apagadoEm;
         { const b = await barraGravar(reg?.tipo); if (b) return b; }
-        const {error}=await sb.rpc('painel_ativo_restaurar',{p_id:id,p_anterior:lix.registro});
+        // A ficha voltaria apontando para um bem excluído ou já ligado a outra
+        // ficha: a cópia da lixeira é regravada sem o vínculo (com evento) e a
+        // restauração usa essa cópia. Bem livre: volta ligada, como antes.
+        let anteriorLixeira:any=lix.registro, vinculoDesfeito='';
+        const bemDaFicha=typeof reg.bemId==='string'?reg.bemId:'';
+        if(bemDaFicha){
+          const bem=await lerRegistro('patrimonio',bemDaFicha);
+          const outraFicha=(await idsOnde('ativo','bemId',bemDaFicha)).find(x=>x!==id);
+          if(!bem || outraFicha || (bem.origemAtivoId && bem.origemAtivoId!==id)){
+            const {bemId:_solto,...semBem}=lix.registro as any;
+            const evento=eventoVinculo({acao:'desvinculado',ficha:reg,ativoId:id,bemId:bemDaFicha,bemCodigo:bem?.codigo,sessao,via:'restaurar',lado:'ficha',
+              motivo:'restaurada sem o bem, que foi excluído ou ligado a outra ficha',agora:new Date().toISOString()});
+            const novaLixeira={...semBem,historicoVinculo:comEventoVinculo((lix.registro as any).historicoVinculo,evento)};
+            const {error}=await sb.rpc('painel_registro_gravar',{p_colecao:'ativo_lixeira',p_id:id,p_registro:novaLixeira,p_anterior:lix.registro});
+            if(error)throw Object.assign(new Error(error.message),{code:error.code});
+            anteriorLixeira=novaLixeira;vinculoDesfeito=bemDaFicha;
+          }
+        }
+        const {error}=await sb.rpc('painel_ativo_restaurar',{p_id:id,p_anterior:anteriorLixeira});
         if(error)throw Object.assign(new Error(error.message),{code:error.code});
-        return resposta({ ok: true });
+        return resposta(vinculoDesfeito ? { ok: true, vinculoDesfeito: true, bemId: vinculoDesfeito } : { ok: true });
       }
 
       case "guardarArquivo": {
