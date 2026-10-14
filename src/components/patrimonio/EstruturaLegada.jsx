@@ -4,6 +4,10 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Building2, Plus, Pencil, Printer, Search, X, RefreshCw, ChevronLeft, ChevronRight, MapPin, UserRound, Wrench, Link2, Check } from 'lucide-react';
 import JanelaFormulario from '../JanelaFormulario.jsx';
+import BemDaFicha,{mandaBemId,trocarNaLista} from './BemDaFicha.jsx';
+import FocoFicha,{useFocoFicha} from './FocoFicha.jsx';
+import { vincularFicha } from '../../services/vinculo-patrimonio.js';
+import { fichaAceitaBem } from '../../lib/calc/vinculo-patrimonio.js';
 import { listarEquipamentosPatrimonio, salvarEstrutura } from '../../services/ativos.js';
 import { lerManutencoes } from '../../services/manutencoes.js';
 import { podeAbrir } from '../../lib/sessao.js';
@@ -22,10 +26,12 @@ const assinaturaFicha = item => JSON.stringify([
   Number(item.especificacao?.quantidade),
 ]);
 
+// Itens também lista as fichas de incêndio; o AVCB é documento e não se liga a bem.
+const aceitaBem = form => fichaAceitaBem({ tipo: 'predial', categoria: form.categoria });
 const ehEletrico = item => filtrarGrupoEstrutura([item], 'eletrica').length > 0;
 const ehHidraulico = item => filtrarGrupoEstrutura([item], 'hidraulica').length > 0;
 const pertenceSecao = (item, modo) => modo === 'eletrica' ? ehEletrico(item) : modo === 'hidraulica' ? ehHidraulico(item) : !ehEletrico(item) && !ehHidraulico(item);
-export default function EstruturaLegada({ bens = [], setores = [], aoVerBem, modo = 'outros' }) {
+export default function EstruturaLegada({ bens = [], setores = [], aoVerBem, aoMudarVinculo, modo = 'outros' }) {
   const {pessoas}=usePessoasRH();
   const grupo = modo === 'hidraulica' ? 'hidraulica' : modo === 'eletrica' ? 'eletrica' : 'todos';
   const [ledger, setLedger] = useState(null), [erroLedger, setErroLedger] = useState('');
@@ -35,6 +41,10 @@ export default function EstruturaLegada({ bens = [], setores = [], aoVerBem, mod
   const [busca, setBusca] = useState(''), [categoria, setCategoria] = useState('todos'), [pagina, setPagina] = useState(1);
   const [form, setForm] = useState(null), [salvando, setSalvando] = useState(false), [erroForm, setErroForm] = useState('');
   const [conflito, setConflito] = useState(false), [relatorio, setRelatorio] = useState(null);
+  // O bem escolhido fica fora do formulário: salvarEstrutura não leva bemId, e o
+  // vínculo é gravado depois, por vincularFicha, só quando a ficha está livre.
+  const [bemEscolhido, setBemEscolhido] = useState(''), [erroVinculo, setErroVinculo] = useState('');
+  const podeInventario = podeAbrir('inventario-valores');
   const pedido = useRef(0), formulario = useRef(0), podeManutencao = podeAbrir('manutencoes');
   const carregar = useCallback(async () => {
     const numero = ++pedido.current;
@@ -52,14 +62,16 @@ export default function EstruturaLegada({ bens = [], setores = [], aoVerBem, mod
   }, [podeManutencao]);
   useEffect(() => { if (podeManutencao) carregarLedger();else { setLedger(null);setErroLedger(''); }const ref = pedidoLedger;return () => {ref.current++;}; }, [podeManutencao, carregarLedger]);
   const itens = useMemo(() => prepararEstrutura((ativos || []).map(i=>comNomeRH(i,pessoas)), bens, setores).filter(i => pertenceSecao(i, modo)), [ativos, bens, setores,pessoas,modo]);
-  const lista = useMemo(() => filtrarEstrutura(filtrarGrupoEstrutura(itens, grupo), { busca, categoria }), [itens, busca, categoria, grupo]);
+  const foco = useFocoFicha(itens);
+  const lista = useMemo(() => filtrarEstrutura(filtrarGrupoEstrutura(itens, grupo), { busca, categoria }).filter(i => !foco.id || i.id === foco.id), [itens, busca, categoria, grupo, foco.id]);
   const historico = useMemo(() => ledger === null ? null : historicoEstrutura(ledger, filtrarGrupoEstrutura(itens, grupo)), [ledger, itens, grupo]);
   const categorias = useMemo(() => [...new Set([...CATEGORIAS_ESTRUTURA, ...itens.map(i => i.categoria)])].filter(c => c && pertenceSecao({categoria:c}, modo)), [itens,modo]);
   const paginas = Math.max(1, Math.ceil(lista.length / POR_PAGINA)), atual = Math.min(pagina, paginas);
   const recorte = lista.slice((atual - 1) * POR_PAGINA, atual * POR_PAGINA);
   const filtrado = !!busca.trim() || categoria !== 'todos';
   const limpar = () => { setBusca('');setCategoria('todos');setPagina(1); };
-  const abrir = item => { formulario.current++;setForm(item ? fichaDe(item) : fichaVazia(modo));setErroForm('');setConflito(false);setMensagem(''); };
+  const abrir = item => { formulario.current++;setForm(item ? fichaDe(item) : fichaVazia(modo));setBemEscolhido('');setErroForm('');setConflito(false);setMensagem('');setErroVinculo(''); };
+  const desfeito = r => { if (r?.ficha) { setAtivos(ant => trocarNaLista(ant || [], r.ficha));setForm(f => f && f.id === r.ficha.id ? { ...f, atualizadoEm: r.ficha.atualizadoEm } : f); } aoMudarVinculo?.(); };
   const fechar = () => { if (!salvando) { formulario.current++;setForm(null);setErroForm('');setConflito(false); } };
   const campo = nome => e => { formulario.current++;setForm(f => ({ ...f, [nome]: e.target.value })); };
   const especificacao = nome => e => { formulario.current++;setForm(f => ({ ...f, especificacao: { ...f.especificacao, [nome]: e.target.value } })); };
@@ -70,7 +82,8 @@ export default function EstruturaLegada({ bens = [], setores = [], aoVerBem, mod
     const quantidade = Number(form.especificacao.quantidade);
     if (!Number.isInteger(quantidade) || quantidade < 1 || quantidade > 1000000) { setErroForm('Informe uma quantidade inteira maior que zero.');return; }
     const geracao = formulario.current;
-    setSalvando(true);setErroForm('');
+    const ligar = podeInventario && bemEscolhido && aceitaBem(form) && mandaBemId((ativos || []).find(i => i.id === form.id) || null, bens) ? bemEscolhido : '';
+    setSalvando(true);setErroForm('');setErroVinculo('');
     try {
       const { atualizadoEm, ...dados } = form;
       const salvo = await salvarEstrutura(dados, dados.id ? (atualizadoEm ?? '') : null);
@@ -90,6 +103,13 @@ export default function EstruturaLegada({ bens = [], setores = [], aoVerBem, mod
       }
       formulario.current++;
       setForm(null);setMensagem('Item salvo. Ficha e manutenções usam este mesmo cadastro.');
+      if (ligar) {
+        try {
+          const r = await vincularFicha({ bemId: ligar, ativoId: salvo.id, versaoFicha: salvo.atualizadoEm || '', versaoBem: bens.find(b => b.id === ligar)?.atualizadoEm || '', origem: 'ficha' });
+          if (r?.ficha) setAtivos(ant => trocarNaLista(ant || [], r.ficha));
+          setMensagem('Item salvo e ligado ao bem do inventário.');aoMudarVinculo?.();
+        } catch (erroLigar) { setErroVinculo(`Ficha salva, mas o vínculo com o bem não foi feito: ${erroLigar.message}`); }
+      }
     } catch (e) { if (geracao === formulario.current) { setErroForm(e.message);if (e.status === 409) setConflito(true); } }
     finally { setSalvando(false); }
   }
@@ -121,6 +141,8 @@ export default function EstruturaLegada({ bens = [], setores = [], aoVerBem, mod
     <div className="pat-estrutura-count" aria-live="polite"><span>{ativos === null ? 'Consultando estrutura…' : `${lista.length} de ${itens.length} cadastros`}{filtrado && ' neste filtro'}</span>{filtrado && <button className="btn-ghost" onClick={limpar}>Limpar filtros</button>}</div>
     {erro && <p className="pat-notice is-error" role="alert">{erro}<button className="btn-ghost" onClick={carregar}>Tentar novamente</button></p>}
     {mensagem && <p className="pat-estrutura-success" role="status"><Check size={17}/>{mensagem}</p>}
+    {erroVinculo && <p className="pat-notice is-error" role="alert">{erroVinculo}</p>}
+    <FocoFicha foco={foco}/>
     {ativos === null ? <p role="status">{carregando ? 'Carregando itens…' : 'Estrutura indisponível.'}</p> : !lista.length ? <div className="pat-empty"><Building2 size={30}/><h3>{filtrado ? 'Nenhum item neste filtro' : 'Organize a estrutura da empresa'}</h3><p>{filtrado ? 'Tente outro nome, local ou categoria.' : 'Comece pelos equipamentos e instalações. Registre o local para encontrar cada item com facilidade.'}</p><button className="btn-outline" onClick={filtrado ? limpar : () => abrir()}>{filtrado ? 'Ver todos' : 'Cadastrar primeiro item'}</button></div> : <>
       <div className="pat-estrutura-cards">{recorte.map(item => <article key={item.id} className="pat-estrutura-card">
         <div className="pat-estrutura-card-heading"><div><strong className="pat-estrutura-name">{item.nome}</strong><span className="pat-estrutura-category">{item.categoria}</span></div><span className="pat-estrutura-detail"><MapPin size={14}/>{item.local || 'Local não informado'}</span></div>
@@ -143,6 +165,7 @@ export default function EstruturaLegada({ bens = [], setores = [], aoVerBem, mod
           <label htmlFor="estrutura-modelo">Marca / modelo<input className="input" id="estrutura-modelo" value={form.especificacao.marcaModelo || ''} onChange={especificacao('marcaModelo')} maxLength={120} placeholder="Ex.: Marca, modelo, capacidade"/></label>
           <label htmlFor="estrutura-quantidade">Quantidade<input className="input" id="estrutura-quantidade" type="number" min="1" max="1000000" step="1" value={form.especificacao.quantidade} onChange={especificacao('quantidade')} required/></label>
           <label htmlFor="estrutura-instalacao">Data da instalação<input className="input" id="estrutura-instalacao" type="date" value={form.especificacao.instalacao || ''} onChange={especificacao('instalacao')}/></label>
+          {podeInventario && aceitaBem(form) && <BemDaFicha classe="pat-estrutura-wide" ficha={(ativos || []).find(i => i.id === form.id) || null} valor={bemEscolhido} aoMudar={setBemEscolhido} bens={bens} fichas={ativos || []} aoVerBem={aoVerBem ? b => { fechar();aoVerBem(b); } : undefined} aoDesfeito={desfeito}/>}
           <label className="pat-estrutura-wide" htmlFor="estrutura-observacao">Observações<textarea className="input" id="estrutura-observacao" rows={3} value={form.observacao} onChange={campo('observacao')} maxLength={2000} placeholder="Capacidade, tensão, cuidados ou outras informações úteis"/></label>
         </div></fieldset>
         <p className="pat-estrutura-hint">Para acompanhar cada equipamento separadamente, cadastre uma ficha por item. Use quantidade quando os itens forem iguais e estiverem no mesmo local.</p>

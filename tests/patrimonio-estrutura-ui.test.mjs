@@ -28,6 +28,10 @@ function ambiente({ permissao = true, ler = async () => ({}), listar = async () 
     listarEquipamentosPatrimonio: () => listar(), salvarEstrutura: (dado, versao) => salvar(clone(dado), versao),
     lerManutencoes: () => ler(), podeAbrir: () => permissao, textoAtualizacao: x => x.atualizadoEm || '', dataLonga: x => x,
     crypto: { randomUUID: () => '671f0a1d-0fbe-4b90-9ad8-3cbd81e8a7e0' }, window: { confirm: () => true }, console,
+    // Nomes do vínculo com o inventário (BemDaFicha e Abrir ficha); sem bem escolhido, nada muda no salvar.
+    BemDaFicha: 'BemDaFicha', FocoFicha: 'FocoFicha', useFocoFicha: () => ({ id: '', pedido: '', limpar() {} }),
+    mandaBemId: () => true, fichaAceitaBem: () => true, trocarNaLista: (lista, ficha) => ficha ? [...(lista || []).filter(i => i.id !== ficha.id), ficha] : lista,
+    vincularFicha: async () => { throw new Error('vincularFicha não deveria ser chamado sem bem escolhido'); },
   });
   vm.runInContext(codigo, ctx);
   function render() { indice = 0; arvore = ctx.Componente({}); if (!montado) { montado = true; for (const efeito of efeitos) efeito(); } return arvore; }

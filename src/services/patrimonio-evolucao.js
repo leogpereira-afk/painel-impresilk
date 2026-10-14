@@ -4,7 +4,8 @@ import {API} from '../lib/api.js';
 async function chamar(funcao,action,dados={}){
   const resp=await comCracha(`${API}/${funcao}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action,...dados})});
   const body=await resp.json().catch(()=>null);
-  if(!resp.ok)throw Object.assign(new Error(body?.erro||mensagemDoStatus(resp.status)),{status:resp.status});
+  // recusaVinculo: o servidor recusou o vínculo, não houve outra gravação (BemDaFicha.jsx).
+  if(!resp.ok)throw Object.assign(new Error(body?.erro||mensagemDoStatus(resp.status)),{status:resp.status,recusaVinculo:body?.recusaVinculo===true});
   return body;
 }
 export const salvarFisico=(item,versao=null)=>chamar('painel-ativos','salvarFisico',{item,versao}).then(r=>r.item);

@@ -1,6 +1,6 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {filtrarInventario, pendenciasBem, bensParaImpressao} from './inventario.js';
+import {filtrarInventario, pendenciasBem, bensParaImpressao, FILTROS_INICIAIS} from './inventario.js';
 const setores=[{sigla:'PRO',nome:'Produção'},{sigla:'ADM',nome:'Administração'}];
 const bens=[
  {id:'a',codigo:'PRO-2',nomeGenerico:'Impressora',descricaoTecnica:'Laser X10',setorSigla:'PRO',situacao:'uso',valor:12000,nf:'123',responsavel:'José',dataAquisicao:'2026-01-01'},
@@ -23,3 +23,13 @@ test('justificativa da NF resolve documentação, mas espaços não resolvem',()
 test('foto desconhecida não é tratada como ausência',()=>{assert.equal(pendenciasBem(bens[0],setores,null).some(p=>p.id==='foto'),false);assert.equal(pendenciasBem(bens[0],setores,{}).some(p=>p.id==='foto'),true);});
 test('filtro de pendências inclui foto, valor e setor, sem baixados',()=>{assert.deepEqual(filtrar({pendencia:'foto'}),['d']);assert.deepEqual(filtrar({pendencia:'valor'}),['d']);assert.deepEqual(filtrar({pendencia:'todas'}),['d']);});
 test('relatório usa apenas seleção visível ou todo o recorte, independente da paginação',()=>{assert.deepEqual(bensParaImpressao(bens,['a','inexistente']).map(b=>b.id),['a']);assert.equal(bensParaImpressao(bens,[]).length,4);assert.equal(bensParaImpressao(bens,['inexistente']).length,4);});
+test('vínculo a conferir vira pendência; sem ficha só filtra, nunca pendência',()=>{
+ const vinculos={a:{estado:'a-conferir'},b:{estado:'sem-ficha'},d:{estado:'ligado'}};
+ assert.deepEqual(pendenciasBem(bens[0],setores,fotos,vinculos).map(p=>p.id),['vinculo']);
+ assert.equal(pendenciasBem(bens[1],setores,fotos,vinculos).some(p=>p.id==='vinculo'),false);
+ assert.equal(pendenciasBem(bens[0],setores,fotos).some(p=>p.id==='vinculo'),false);
+ assert.deepEqual(filtrarInventario(bens,setores,fotos,{vinculo:'sem-ficha'},vinculos).map(b=>b.id),['b']);
+ assert.deepEqual(filtrarInventario(bens,setores,fotos,{vinculo:'sem-ficha'}).map(b=>b.id),[]);
+ assert.deepEqual(filtrarInventario(bens,setores,fotos,{pendencia:'vinculo'},vinculos).map(b=>b.id),['a']);
+ assert.equal(FILTROS_INICIAIS.vinculo,'');
+});

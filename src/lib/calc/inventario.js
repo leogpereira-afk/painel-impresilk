@@ -1,9 +1,10 @@
 // Mesmas regras para cartões, filtros e relatórios do patrimônio.
-export const FILTROS_INICIAIS = { busca: '', setor: '', tipo: '', situacao: 'ativos', pendencia: '', ordem: 'codigo' };
+export const FILTROS_INICIAIS = { busca: '', setor: '', tipo: '', situacao: 'ativos', pendencia: '', ordem: 'codigo', vinculo: '' };
 export const normalizarBusca = valor => String(valor || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
 export const temTexto = valor => Boolean(String(valor || '').trim());
 
-export function pendenciasBem(bem, setores, fotos) {
+// `vinculos` (vinculosDosBens) fica nulo enquanto as fichas não carregam, como as fotos.
+export function pendenciasBem(bem, setores, fotos, vinculos = null) {
   return [
     !temTexto(bem.codigo) && ['etiqueta', 'Etiqueta'],
     !setores.some(s => s.sigla === bem.setorSigla) && ['setor', 'Setor'],
@@ -11,10 +12,11 @@ export function pendenciasBem(bem, setores, fotos) {
     !temTexto(bem.nf) && !temTexto(bem.motivoSemNota) && ['documento', 'Nota ou justificativa'],
     !(Number(bem.valor) > 0) && ['valor', 'Valor de aquisição'],
     fotos !== null && !fotos[bem.id] && ['foto', 'Foto'],
+    vinculos?.[bem.id]?.estado === 'a-conferir' && ['vinculo', 'Vínculo a conferir'],
   ].filter(Boolean).map(([id, nome]) => ({ id, nome }));
 }
 
-export function filtrarInventario(bens, setores, fotos, filtros) {
+export function filtrarInventario(bens, setores, fotos, filtros, vinculos = null) {
   const f = { ...FILTROS_INICIAIS, ...filtros };
   const termos = normalizarBusca(f.busca).trim().split(/\s+/).filter(Boolean);
   return bens.filter(b => {
@@ -24,7 +26,8 @@ export function filtrarInventario(bens, setores, fotos, filtros) {
       && (!f.setor || (f.setor === '__sem_setor' ? !setor : b.setorSigla === f.setor))
       && (!f.tipo || b.nomeGenerico === f.tipo)
       && termos.every(t => texto.includes(t))
-      && (!f.pendencia || pendenciasBem(b, setores, fotos).some(p => f.pendencia === 'todas' || p.id === f.pendencia));
+      && (f.vinculo !== 'sem-ficha' || vinculos?.[b.id]?.estado === 'sem-ficha')
+      && (!f.pendencia || pendenciasBem(b, setores, fotos, vinculos).some(p => f.pendencia === 'todas' || p.id === f.pendencia));
   }).sort((a, b) => {
     const codigo = () => String(a.codigo || '').localeCompare(String(b.codigo || ''), 'pt-BR', { numeric: true });
     if (f.ordem === 'valor') return b.valor - a.valor || codigo();
@@ -41,8 +44,9 @@ export function bensParaImpressao(visiveis, selecionados) {
 }
 
 // A fila prioriza identificação, localização e responsável, antes de foto.
-export function ordenarPendencias(bens, setores, fotos) {
+// Vínculo a conferir pesa como documentação e valor (3).
+export function ordenarPendencias(bens, setores, fotos, vinculos = null) {
   const essenciais = new Set(['etiqueta', 'setor', 'responsavel']);
-  const peso = bem => pendenciasBem(bem, setores, fotos).reduce((n, p) => n + (essenciais.has(p.id) ? 10 : p.id === 'foto' ? 1 : 3), 0);
+  const peso = bem => pendenciasBem(bem, setores, fotos, vinculos).reduce((n, p) => n + (essenciais.has(p.id) ? 10 : p.id === 'foto' ? 1 : 3), 0);
   return [...bens].sort((a, b) => peso(b) - peso(a) || (Number(b.valor) || 0) - (Number(a.valor) || 0) || String(a.id).localeCompare(String(b.id)));
 }

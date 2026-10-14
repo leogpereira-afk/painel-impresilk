@@ -13,3 +13,7 @@ test('documentação precede foto; fotos não carregadas não criam prioridade f
  assert.equal(ordenarPendencias(bens,setores,{nota:1})[0].id,'nota');
  assert.equal(ordenarPendencias(bens,setores,null)[0].id,'nota');
 });
+test('vínculo a conferir pesa como documentação, antes de foto',()=>{
+ const bens=[{...base,id:'foto'},{...base,id:'vinculo'}];
+ assert.equal(ordenarPendencias(bens,setores,{vinculo:1},{vinculo:{estado:'a-conferir'}})[0].id,'vinculo');
+});
