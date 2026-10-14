@@ -1,5 +1,9 @@
 // Contrato de saída fechado: nenhum campo financeiro, documento ou campo
 // futuro passa para a consulta operacional sem a permissão de inventário.
+// Regras do vínculo bem ↔ ficha moram em módulo próprio; daqui elas saem
+// junto, para as functions e os testes que já espalham este módulo.
+export * from './patrimonio-vinculo.mjs';
+import {eventoPublicoVinculo} from './patrimonio-vinculo.mjs';
 export const INVENTARIO = 'inventario-valores';
 export const SEGURANCA = 'seguranca';
 export function temPermissao(sessao, modulo) {
@@ -7,8 +11,16 @@ export function temPermissao(sessao, modulo) {
 }
 export const FAMILIAS_EQUIPAMENTO = ['veiculo', 'maquina', 'predial', 'informatica', 'seguranca'];
 const CAMPOS_VINCULO = ['id', 'codigo', 'situacao', 'origemAtivoId', 'setorSigla'];
+// O Desfazer pelo bem grava o evento inteiro em bem.historico. Para a tela ele
+// sai como no historicoVinculo: sem o login e, a quem não tem Segurança, sem o
+// nome e o id da ficha de Segurança. O registro gravado não muda.
+function historicoPermitido(historico, sessao) {
+  const veSeguranca = temPermissao(sessao, SEGURANCA);
+  return historico.map(e => !['vinculado', 'desvinculado'].includes(e?.acao) ? e
+    : { ...eventoPublicoVinculo(e), ...(e.familia === 'seguranca' && !veSeguranca ? { nome: 'Ficha de Segurança', ativoId: '' } : {}) });
+}
 export function bemPermitido(bem, sessao) {
-  if (temPermissao(sessao, INVENTARIO)) return bem;
+  if (temPermissao(sessao, INVENTARIO)) return Array.isArray(bem?.historico) ? { ...bem, historico: historicoPermitido(bem.historico, sessao) } : bem;
   return Object.fromEntries(CAMPOS_VINCULO.filter(k => Object.hasOwn(bem || {}, k)).map(k => [k, bem[k]]));
 }
 export function inventarioPermitido(mapa, sessao) {

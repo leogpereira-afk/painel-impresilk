@@ -1,5 +1,5 @@
 import {lerEquipeCompromissos, enriquecerCompromissosRH, prepararCompromissoRH, autorCompromissoRH} from '../_shared/compromissos-rh.mjs';
-import {inventarioPermitido} from '../_shared/patrimonio-acesso.mjs';
+import {inventarioPermitido,rotuloFichaVinculo,erroVinculo} from '../_shared/patrimonio-acesso.mjs';
 import {lerPessoasPatrimonio, validarVinculoPessoa, prepararPessoasControle} from '../_shared/patrimonio-pessoas.mjs';
 import {contextoComercial} from '../_shared/comercial-contexto.ts';
 import {gestorComercial} from '../_shared/comercial.mjs';
@@ -390,6 +390,28 @@ Deno.serve(async (req: Request) => {
     };
     let equipeRH: Promise<any[]> | undefined;
     const pessoasRH=()=>equipeRH ||= lerPessoasPatrimonio(sb);
+    // Bem do inventário ligado a uma ficha de cima (PLANO-VINCULO.md): pelo bem
+    // (origemAtivoId, legado e espelho de Carros e Máquinas) ou pela ficha ativa
+    // (bemId, a fonte de todo vínculo novo). Devolve a recusa pronta, ou null.
+    const fichaLigadaAoBem=async(bemId:string,soFicha=false)=>{
+      let fichaId='';
+      if(!soFicha){
+        const {data:bem,error}=await sb.from('painel_registros').select('registro').eq('colecao','patrimonio').eq('id',bemId).maybeSingle();
+        if(error)throw Object.assign(new Error(error.message),{code:error.code});
+        fichaId=String((bem?.registro as any)?.origemAtivoId||'');
+      }
+      if(!fichaId){
+        const {data:fichas,error}=await sb.from('painel_registros').select('id').eq('colecao','ativo').eq('registro->>bemId',bemId).limit(1);
+        if(error)throw Object.assign(new Error(error.message),{code:error.code});
+        fichaId=String(fichas?.[0]?.id||'');
+      }
+      if(!fichaId)return null;
+      const {data:ativa,error}=await sb.from('painel_registros').select('registro').eq('colecao','ativo').eq('id',fichaId).maybeSingle();
+      if(error)throw Object.assign(new Error(error.message),{code:error.code});
+      const ficha=ativa?.registro||null;
+      const {corpo:recusa,status}=erroVinculo('excluirLigado',rotuloFichaVinculo(ficha,sessao,{retirada:!ficha}));
+      return resposta(recusa,status);
+    };
     switch (corpo.action) {
       case "pessoasCompromissos": {
         if(!sessao)return resposta({erro:'Entre no sistema.',semSessao:true},401);
@@ -786,6 +808,10 @@ Deno.serve(async (req: Request) => {
             // e hora. Sem isto, qualquer pessoa reescreveria a conversa inteira
             // -- inclusive apagando o que a colega escreveu.
             const { historico: _naoVemDoCliente, ...camposLimpos } = (campos as any) ?? {};
+            // O vínculo do bem com a ficha de cima também não vem daqui: ele é
+            // gravado só pelas ações de vínculo do painel-ativos, que conferem
+            // ficha, permissão e o outro lado. O valor gravado fica como está.
+            if (chave === "patrimonio") delete (camposLimpos as any).origemAtivoId;
             /* `pagosPatch` funde MES a MES dentro do campo `pagos` (null tira o
                mes). Mandar o mapa inteiro -- como a primeira versao fazia --
                reabria a corrida que este arquivo fechou para registros: o
@@ -1148,6 +1174,11 @@ Deno.serve(async (req: Request) => {
           const { data: fotos, error } = await sb.from("painel_registros").select("id").eq("colecao", "patrimonio_foto").eq("registro->>bemId", id).limit(1);
           if (error) throw Object.assign(new Error(error.message), { code: error.code });
           if (fotos?.length) return resposta({ erro: "Este equipamento tem fotos. Para preservar o histórico, marque como Baixado; para apagar, remova as fotos primeiro." }, 409);
+          // Bem ligado a uma ficha de cima não sai: a ficha ficaria apontando para
+          // o nada. Vale para os dois lados (origemAtivoId no bem e bemId na ficha
+          // ativa). Ficha na lixeira não impede: a restauração dela trata.
+          const recusaLigado = await fichaLigadaAoBem(id);
+          if (recusaLigado) return recusaLigado;
         }
         {
           const barrado2 = barraApagar(chave);
@@ -1160,6 +1191,17 @@ Deno.serve(async (req: Request) => {
         // Referências e bytes dos anexos permanecem recuperáveis.
         const { error } = await sb.rpc("painel_registro_retirar",{p_colecao:chave,p_id:id,p_por:sessao.sub});
         if (error) throw Object.assign(new Error(error.message), { code: error.code });
+        if (chave === "patrimonio") {
+          // Alguém pode ter ligado uma ficha entre a conferência e a retirada (a
+          // regra do banco não olha a retirada do bem). Confere de novo e, se
+          // achar, devolve o bem da lixeira.
+          const recusaLigado = await fichaLigadaAoBem(id, true);
+          if (recusaLigado) {
+            const { error: falhaVolta } = await sb.rpc("painel_registro_recuperar", { p_lixeira_id: "patrimonio:" + id });
+            if (falhaVolta) throw Object.assign(new Error(falhaVolta.message), { code: falhaVolta.code });
+            return recusaLigado;
+          }
+        }
         return resposta({ ok: true });
       }
 
