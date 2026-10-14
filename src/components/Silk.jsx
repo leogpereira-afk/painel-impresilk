@@ -6,8 +6,8 @@ import './silk.css';
 export default function Silk({portrait = false, decorative = false, className = ''}) {
   return <span className={`silk ${portrait ? 'silk-portrait' : 'silk-body'} ${className}`} aria-hidden={decorative || undefined}>
     <img src={portrait ? silkCompacto : silk}
-      alt={decorative ? '' : 'Silk, mascote da Impresilk, acenando'}
-      width={portrait ? 256 : 768} height={portrait ? 384 : 1152}
+      alt={decorative ? '' : 'Silk, mascote da Impresilk'}
+      width={portrait ? 256 : 768} height={portrait ? 256 : 1152}
       decoding="async" draggable="false"/>
   </span>;
 }

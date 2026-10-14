@@ -1,5 +1,15 @@
 # Vez do Painel Impresilk
 
+## Trabalho atual · Silk refinado e rosto solto
+
+Agente: codex. Léo aprovou o refinamento visual em 14/10/2026 e autorizou “pode subir o rosto pode ser solto sem ser na bolinha ficou muito bom”. Após consultar a vez registrada do Claude, confirmou: “Sim, passar a vez para o Silk”. Passagem temporária para publicar somente este ajuste visual, preservando integralmente o trabalho de Patrimônio registrado abaixo. Ramo `codex/silk-refinado-20261014`, clone isolado fora do iCloud, baseado na main `76540c2`.
+
+Escopo: atualizar o corpo inteiro pela arte refinada aprovada e usar retrato transparente sem círculo, fundo ou recorte artificial nos espaços pequenos. Pedido complementar de Léo em 14/10: no topo do menu, mostrar apenas o rosto, maior e centralizado no espaço da logo. Rosto de 88 px nesse local, com o atalho do Início preservado. Arquivos originais da logo, fluxos, permissões, servidor e registros preservados. Não alterar ou publicar o trabalho de Patrimônio do Claude.
+
+Estado: implementação e verificação da publicação autorizada em andamento. A passagem é temporária para o Silk; após concluir, o trabalho do Claude mantém seu escopo e sua vez anterior, conforme autorizado pelo dono.
+
+Pré-publicação: 684 testes de cálculo, acesso e apresentação aprovados, sem falhas ou ignorados; após o ajuste complementar do menu, as 41 regressões de apresentação foram repetidas e aprovadas. Build oficial e lint aprovados (um aviso anterior em Agenda); 15 verificadores aprovados e classes reconferidas após o novo build. Revisão independente aprovada. Navegador conferiu entrada, Home, Comercial, temas claro/escuro e gaveta de 390 px; rosto do menu único, 88×88 px e centralizado, sem transbordamento ou erro JavaScript. Fonte externa de permissões atualizada da equipe-auth oficial. Sem gravação de dados reais.
+
 ## Trabalho atual · Patrimônio: vínculo pela ficha do bem e acesso do almoxarifado
 
 Agente: claude. Pedido de Léo em 14/10/2026: "raphael do almoxarifado tem que ter acesso a tudo do patrimonio igual esse bens e pendencias e tem que ter como vincular aos setores la de cima tipo carros maquinas ou em estrutura pela ficha favor avaliar". Avaliação só de leitura entregue nesta conversa. Decisões de Léo na mesma conversa: "Sim, pode pegar" (a vez sai do Codex, cujo trabalho do Silk está publicado e conferido), caminho completo, o Raphael pode ver valores em R$ e quem edita o Patrimônio pode desfazer vínculo de carro ou máquina. Ramo `claude/vinculo-ficha-bem-20261014`, clone isolado em /tmp, a partir da main `3c156a5`.

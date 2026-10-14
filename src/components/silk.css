@@ -1,14 +1,13 @@
 .silk{display:block;flex-shrink:0;pointer-events:none;user-select:none}
 .silk-body{aspect-ratio:2/3}
 .silk-body img{display:block;width:100%;height:100%;object-fit:contain}
-.silk-portrait{position:relative;width:48px;height:48px;overflow:hidden;border-radius:50%;background:var(--bg)}
-.silk-portrait img{position:absolute;display:block;width:190%;max-width:none;height:auto;left:-45%;top:-3%}
-/* A logo oficial permanece inteira; o mascote não herda seu limite de altura. */
-.review-brand.silk-brand{display:flex;align-items:center;gap:10px;min-height:64px}
-.silk-brand-logo{flex:1;min-width:0}
+.silk-portrait{width:48px;height:48px}
+.silk-portrait img{display:block;width:100%;height:100%;object-fit:contain}
+/* O rosto ocupa o espaço da marca no menu, inteiro e centralizado. */
+.review-brand.silk-brand{display:flex;align-items:center;justify-content:center;min-height:88px;padding:0 10px 10px}
 .review-brand .silk{margin:0;font:inherit;letter-spacing:normal}
-.review-brand .silk-brand-logo img{max-width:100%;max-height:54px}
-.review-brand .silk-portrait img{width:190%;height:auto;max-width:none;max-height:none}
+.review-brand .silk-portrait{width:88px;height:88px}
+.review-brand .silk-portrait img{width:100%;height:100%;max-width:none;max-height:none;object-fit:contain}
 .silk-home{display:flex;align-items:center;justify-content:center;gap:24px;border-bottom:1px solid var(--hairline);padding-bottom:16px;text-align:left}
 .silk-home .silk-body{width:84px}
 .silk-home-copy{min-width:0;max-width:600px}

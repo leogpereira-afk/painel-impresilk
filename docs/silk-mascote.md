@@ -29,3 +29,13 @@ Léo confirmou “pode publicar” em 13/10/2026 após a prévia. Nova revisão 
 Verificação final antes do envio: 1.315 testes da auditoria e 643 de cálculo/acesso aprovados, sem falhas nem ignorados; 15 verificadores oficiais, build e lint sem erros (um aviso anterior em Agenda). A lista de permissões externa foi obtida da equipe-auth oficial atual. Nenhuma mudança de dados nesta publicação.
 
 Publicado e conferido em 13/10/2026: código `396d2a1`, Pages `38452103563`, build e deploy com sucesso. Comparação do HTML e 116 assets oficiais: 117/117 idênticos ao build validado. Entrada oficial em desktop e 390 px conferida no navegador, imagens carregadas com proporção correta, sem transbordamento ou erros JavaScript. Home, Comercial, navegação e tema escuro conferidos em prévia; não havia sessão autenticada na entrada oficial. Publicação visual concluída, sem alteração de dados, servidor, permissões ou credenciais.
+
+## Refinamento e rosto solto · 14/10/2026
+
+Léo aprovou a nova arte de corpo inteiro e sua compatibilidade com a logomarca, e autorizou publicar o rosto sem a moldura circular. Confirmou a passagem temporária da vez para esse ajuste, preservando o trabalho do Patrimônio do Claude.
+
+Corpo inteiro: expressão mais acolhedora, sobrancelhas suaves, textura e iluminação refinadas; pose, uniforme marinho e plumagem nas cores da marca preservados. Retrato: cabeça transparente própria, com o boné e as penas inteiros; sem ombros, círculo, fundo, ampliação ou corte artificial. Dimensões reservadas de 256×256 no retrato e 768×1152 no corpo. Pedido complementar de Léo: o topo do menu apresenta apenas o rosto, centralizado e maior (88 px), ocupando o espaço da marca e mantendo o atalho do Início. Entrada e Home conservam o corpo inteiro. Arquivos da logo oficial permanecem originais, separados dos bordados ilustrados do mascote.
+
+Imagens preparadas com image_gen a partir da arte aprovada. PNGs mestres preservados no workspace do dono; o site utiliza apenas WebPs leves. Sem mudança de servidor, banco, permissões, dados ou funcionalidades. Publicação autorizada em preparação; confirmar a versão oficial antes de declarar concluída.
+
+Verificação local: 684 testes aprovados, zero falhas/ignorados; 41 regressões de apresentação repetidas após o pedido complementar do menu. Build com BASE_PATH oficial e lint sem erros (um aviso anterior em Agenda). Quinze verificadores aprovados; classes reconferidas após o novo build. Revisão independente aprovada. Prévia no navegador confirmou corpo na entrada e Home, rosto no Comercial e menu, temas claro/escuro e gaveta em 390 px, sem transbordamento nem erro JavaScript. O menu contém uma imagem de 88×88 px, com centro alinhado ao centro do espaço da marca; atalho e navegação preservados.
