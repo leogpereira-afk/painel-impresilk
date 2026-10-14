@@ -4,6 +4,9 @@
 
 Agente: codex. Publicação autorizada por Léo com “subir” em 14/10/2026. Implementação local afd9c7f verificada: 2.056 testes conferidos, build e lint sem erros, simulação de cadastro e vínculo preservando etiquetas. Publicar primeiro o servidor aceitando a área Ferramentas & Outros; depois a tela unificada, busca de fichas e destaque de pendências. Estado: servidor publicado primeiro no commit faf640a. painel-config v160 ACTIVE, código de entrada idêntico ao validado, incluindo a área outros. Segunda etapa: publicação da tela no ramo codex/patrimonio-fluxo-publicar-20261014. Nenhum dado real alterado.
 
+**Publicado e conferido em 14/10/2026:** servidor primeiro, commit `faf640a`, Functions `38640970545` aprovado; `painel-config` v160 ACTIVE com arquivo de entrada idêntico ao código validado. Tela depois, commit `2fe4e1c`, Pages `38641124708`, build e deploy aprovados. CI: 1.401 regressões, 646 cálculos e 7 acessos aprovados, sem falhas; 66 testes focados repetidos antes da publicação. HTML e 116 assets oficiais idênticos ao build validado (117/117). Fluxos de cadastro, busca, vínculo e apresentação conferidos na prévia com dados fictícios. Nenhum registro real alterado para teste. Trabalho concluído, publicado e conferido; vez encerrada, Léo decide quem segue.
+
+
 ## Trabalho atual · Área do bem sem ficha adicional
 
 Agente: codex. Pedido de Léo em 14/10/2026: exibir o bem em Máquinas, Carros ou Estrutura sem cadastrar outra ficha. Ramo `codex/area-bem-sem-ficha-20261014`, clone isolado fora do iCloud, baseado na main `29c46ad`. Trabalho anterior publicado e encerrado.
