@@ -22,7 +22,7 @@ const texto = no => Array.isArray(no) ? no.map(texto).join('') : no && typeof no
 const json = valor => valor === undefined ? valor : JSON.parse(JSON.stringify(valor));
 const marcas = nomes => Object.fromEntries(nomes.map(n => [n, n]));
 const ICONES = ['Plus', 'Search', 'Printer', 'Building2', 'Boxes', 'Wallet', 'AlertTriangle', 'Camera', 'LayoutGrid', 'List', 'ArrowUpRight', 'Pencil', 'Trash2', 'RefreshCw', 'Tag', 'ChevronLeft', 'ChevronRight', 'X', 'Phone', 'Archive', 'Wrench', 'BedDouble', 'Car', 'Cog', 'Shield', 'FireExtinguisher', 'Link2'];
-const COMPONENTES = ['Telefonia', 'SegurancaPatrimonio', 'Incendio', 'PessoasRHProvider', 'HistoricoBem', 'VinculoDoBem', 'CarregandoModulo', 'ErroModulo', 'AvisoAtualizacao', 'JanelaFormulario', 'FotosPatrimonio', 'FormBem', 'FormSetor', 'ControlesPatrimonio', 'AtualizacaoPatrimonio', 'VinculosSetor', 'EquipamentosPatrimonio', 'EstruturaPatrimonio'];
+const COMPONENTES = ['AreaDoBem', 'BensDaArea', 'Telefonia', 'SegurancaPatrimonio', 'Incendio', 'PessoasRHProvider', 'HistoricoBem', 'VinculoDoBem', 'CarregandoModulo', 'ErroModulo', 'AvisoAtualizacao', 'JanelaFormulario', 'FotosPatrimonio', 'FormBem', 'FormSetor', 'ControlesPatrimonio', 'AtualizacaoPatrimonio', 'VinculosSetor', 'EquipamentosPatrimonio', 'EstruturaPatrimonio'];
 
 const bem = (codigo, nomeGenerico, extra = {}) => ({ codigo, nomeGenerico, setorSigla: 'PRO', situacao: 'uso', valor: 100, responsavel: 'Pessoa fictícia', atualizadoEm: 'v-' + codigo, ...extra });
 const BENS = {
@@ -41,7 +41,7 @@ const FICHAS = {
   vinculosOcultos: [{ ativoId: 'cam-1', bemId: 'bem-3' }],
 };
 
-function pagina({ aba = 'estrutura', confirmar = true, remover } = {}) {
+function pagina({ aba = 'estrutura', confirmar = true, remover, salvar, permissao = () => true } = {}) {
   const estados = [], efeitos = [], raf = [], chamadas = { abas: [], confirm: [], remover: [] };
   let indice = 0, montado = false, abaAtual = aba;
   const navegar = (chave, opcoes) => { chamadas.abas.push({ chave, opcoes }); return [abaAtual, v => { abaAtual = v; }]; };
@@ -51,13 +51,13 @@ function pagina({ aba = 'estrutura', confirmar = true, remover } = {}) {
     useRef(inicial) { const n = indice++; return estados[n] ||= { current: inicial }; },
     useMemo: fn => fn(), useCallback: fn => fn, useEffect: fn => { if (!montado) efeitos.push(fn); },
     ...marcas(ICONES), ...marcas(COMPONENTES),
-    usePessoasRH: () => ({ pessoas: [] }), comNomeRH: r => r, podeAbrir: () => true,
+    usePessoasRH: () => ({ pessoas: [] }), comNomeRH: r => r, podeAbrir: permissao,
     abasPatrimonio, abaPatrimonioAtual, secaoEstruturaInicial, vinculosDosBens, rotuloLigadoA, rotuloVinculoServidor,
     calcPatrimonio, SETORES_PADRAO, SITUACOES, idadeEmAnos, FILTROS_INICIAIS, filtrarInventario, pendenciasBem, bensParaImpressao, ordenarPendencias,
     moedaCheia, numero, dataLonga, ymdLocal, paraNumero, paraCampo, CONTROLES,
     useAbaNavegavel: () => navegar('aba', undefined), useParamNavegavel: (chave, _padrao, _permitidas, opcoes) => navegar(chave, opcoes),
     lerFichasDoPatrimonio: async () => structuredClone(FICHAS), lerBens: async () => structuredClone(BENS), lerSetores: async () => ({ s1: { sigla: 'PRO', nome: 'Produção' } }),
-    salvarBem: async () => ({}), salvarSetor: async () => ({}), removerSetor: async () => ({}), semearSetores: async () => ({}),
+    salvarBem: salvar || (async () => ({})), salvarSetor: async () => ({}), removerSetor: async () => ({}), semearSetores: async () => ({}),
     removerBem: async id => { chamadas.remover.push(id); if (remover) return remover(id); return {}; },
     resumoFotos: async () => ({}), listarFotos: async () => [],
     requestAnimationFrame: cb => { raf.push(cb); return raf.length; },
@@ -150,4 +150,27 @@ test('trocar de aba ou de subaba tira o ?item= do Abrir ficha', async () => {
     }
   }
   assert.match(ler('../src/components/patrimonio/Seguranca.jsx'), /useParamNavegavel\('seguranca',.*\{limpar:\['item'\]\}\)/);
+});
+
+
+test('área salva no mesmo bem, atualiza a lista e não chama o vínculo técnico', async () => {
+ const chamadas=[];
+ const p=await pagina({aba:'maquinas',salvar:async(id,dados)=>{chamadas.push({id,dados:json(dados)});return {...BENS,[id]:{...BENS[id],...dados}};}}).iniciar();
+ p.abrirBem('bem-2','EquipamentosPatrimonio');
+ const bloco=p.tipo('AreaDoBem');
+ await bloco.props.aoSalvar(bloco.props.bem,'maquinas');
+ assert.deepEqual(chamadas,[{id:'bem-2',dados:{areaPatrimonio:'maquinas'}}]);
+ assert.equal(p.tipo('BensDaArea').props.bens.find(b=>b.id==='bem-2').areaPatrimonio,'maquinas');
+ assert.equal(p.tipo('AreaDoBem').props.bem.setorSigla,'PRO');
+});
+test('área não confirmada pelo servidor mostra erro, sem alterar a lista local',async()=>{
+ const p=await pagina({aba:'maquinas'}).iniciar();
+ p.abrirBem('bem-2','EquipamentosPatrimonio');
+ const bloco=p.tipo('AreaDoBem');await bloco.props.aoSalvar(bloco.props.bem,'maquinas');
+ assert.match(texto(p.alerta()),/servidor não confirmou/);
+ assert.equal(p.tipo('AreaDoBem').props.bem.areaPatrimonio,undefined);
+});
+test('lista simples dos bens não aparece sem permissão de inventário',async()=>{
+ const p=await pagina({aba:'maquinas',permissao:modulo=>modulo!=='inventario-valores'}).iniciar();
+ assert.equal(p.tipo('BensDaArea'),undefined);
 });

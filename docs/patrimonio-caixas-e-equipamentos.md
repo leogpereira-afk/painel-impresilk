@@ -25,3 +25,11 @@ Vínculos com o inventário são reconhecidos por IDs registrados (`origemAtivoI
 ## Conferência
 
 Testes abrangem saldo, devolução por pessoa, histórico, conferência completa, datas, autoria, conflito de gravação e limites, além da autorização e projeção restrita dos equipamentos. A prévia local usa exemplos fictícios e bloqueia gravações no servidor.
+
+## Área do bem sem ficha técnica
+
+O campo opcional `patrimonio.areaPatrimonio` aceita `maquinas`, `carros`, `estrutura` ou vazio (somente inventário). É uma classificação do próprio bem, independente de `setorSigla`. A gravação usa o mesmo ID, não cria `ativo`, não muda etiqueta nem vínculos ou históricos. O servidor recusa áreas inválidas antes de gravar o lote.
+
+Nas abas, quem tem Inventário e valores vê a lista de bens ativos classificados e sem ficha ligada. Bens com ficha, vínculo oculto/conflitante ou sem conferência de vínculos não são duplicados nessa lista. Fichas existentes continuam nas listas técnicas e seus históricos de manutenção mantêm o ID original. Baixados continuam no inventário. O filtro e a paginação da lista de bens são independentes da lista de fichas técnicas.
+
+Salvar área na janela do bem confirma o retorno do servidor antes de atualizar a lista local. A escolha também está no formulário de criação/edição do bem. Nenhuma migração ou reclassificação automática de registros existentes. Servidor deve ser publicado antes da tela.

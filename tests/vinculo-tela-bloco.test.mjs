@@ -118,7 +118,7 @@ test('sem ficha: tipos permitidos, fichas livres e não baixadas, corpo exato do
   const bens = [bem('b1'), bem('b9'), bem('b8', { origemAtivoId: 'origem' })];
   const semSeguranca = ['patrimonio', 'inventario-valores', 'manutencoes'];
   const a = ambiente({ bemAtual: bens[0], bens, fichas, perms: semSeguranca });
-  assert.match(a.texto(), /Este bem ainda não está ligado a uma ficha de equipamento\./);
+  assert.match(a.texto(), /A ficha técnica é opcional\./);
   assert.match(a.texto(), /Aparecem só fichas livres e que não estão baixadas\./);
   assert.deepEqual(a.opcoes('Tipo de ficha').map(o => o[1]), ['Escolha o tipo', 'Carro', 'Máquina', 'Estrutura', 'Celulares e Ramais', 'Prevenção contra incêndio']);
   assert.equal(a.select('Ficha').props.disabled, true);

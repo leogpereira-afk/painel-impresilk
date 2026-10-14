@@ -64,3 +64,14 @@
 .pat-vinculo-historico>button{font-weight:650;font-size:13px;color:var(--pat-blue)}.pat-vinculo-historico ol{display:grid;gap:6px;margin-top:8px;font-size:13px}.pat-vinculo-historico li{overflow-wrap:anywhere}
 .pat-bem-ficha{grid-column:1/-1;display:grid;gap:8px;min-width:0}.pat-bem-ficha label{display:grid;gap:5px;min-width:0}.pat-bem-ficha .input{width:100%;min-width:0}.pat-bem-ficha p{overflow-wrap:anywhere}.pat-bem-ficha-titulo{font-size:12px;font-weight:650;color:var(--pat-muted)}.pat-foco-ficha{justify-content:space-between}
 @media(max-width:600px){.pat-vinculo{padding:12px}.pat-vinculo-form{grid-template-columns:1fr}.pat-vinculo-form>.btn-primary{justify-self:stretch;width:100%;justify-content:center}.pat-vinculo-linha .pat-actions{width:100%}.pat-linked.is-alert{max-width:100%}}
+
+/* Área simples do mesmo bem: nenhuma ficha ou valor duplicado. */
+.pat-area-bens{border:1px solid var(--pat-line);border-radius:16px;padding:18px;margin-bottom:18px;background:var(--pat-surface)}
+.pat-area-bens .pat-list-heading{margin-bottom:12px}
+.pat-area-lista{list-style:none;margin:12px 0 0;padding:0}
+.pat-area-lista li{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 0;border-bottom:1px solid var(--pat-line)}
+.pat-area-lista li:last-child{border-bottom:0}
+.pat-area-lista li>div{min-width:0;overflow-wrap:anywhere}
+.pat-area-lista span,.pat-area-lista small{display:block;color:var(--pat-muted);font-size:.85rem}
+.pat-area-lista button{flex-shrink:0}
+@media(max-width:480px){.pat-area-bens{padding:12px}.pat-area-lista li{align-items:flex-start;flex-wrap:wrap}}

@@ -223,6 +223,18 @@ export async function respostaPreview(url,opcoes={}){
  else if(endpoint==='painel-config' && corpo.action==='salvarConferencia'){
   try{const item=prepararConferencia(corpo.dados,configs.patrimonio_seguranca_checklists[corpo.id],equipamentosDemo.filter(i=>i.tipo==='seguranca'&&i.categoria==='Câmera'&&i.especificacao?.situacao!=='baixado').map(i=>i.id),sessao,new Date().toISOString());configs.patrimonio_seguranca_checklists[corpo.id]=item;dados={item};}catch(e){return erroPreview(e.message,e.status||422);}
  }
+ // Classificação em memória de um bem fictício existente; não habilita
+ // gravação genérica nem chamadas à produção pela prévia.
+ else if(endpoint==='painel-config' && corpo.action==='merge' && corpo.chave==='patrimonio'){
+  if(!temPermissao(sessao,'inventario-valores'))return erroPreview('Esta operação exige Inventário e valores.',403);
+  const entradas=Object.entries(corpo.patch||{});
+  if(!entradas.length||entradas.some(([id,c])=>!configs.patrimonio[id]||!c||Object.keys(c).length!==1||!Object.hasOwn(c,'areaPatrimonio')))
+   return erroPreview('Prévia: somente a área de bens fictícios existentes pode ser alterada.',409);
+  if(entradas.some(([,c])=>!['','maquinas','carros','estrutura'].includes(c.areaPatrimonio)))
+   return erroPreview('Escolha Máquinas, Carros, Estrutura ou Somente no inventário.',422);
+  for(const [id,c] of entradas)configs.patrimonio[id]={...configs.patrimonio[id],areaPatrimonio:c.areaPatrimonio};
+  dados={valor:inventarioPermitido(structuredClone(configs.patrimonio),sessao)};
+ }
  else if(endpoint==='painel-config' && corpo.action==='merge' && corpo.chave==='patrimonio_controles'){
    try{
      const proximo=structuredClone(configs.patrimonio_controles);

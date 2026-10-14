@@ -1,3 +1,4 @@
+import {CampoAreaBem} from './AreaDoBem.jsx';
 import PessoaRH from './PessoasRH.jsx';
 import {useState} from "react";
 import {SectionTitle} from "../ui.jsx";
@@ -66,6 +67,8 @@ export function FormBem({ inicial, setores, salvando, aoSalvar, aoFechar }) {
               ))}
             </select>
           </div>
+
+          <CampoAreaBem valor={f.areaPatrimonio} aoMudar={areaPatrimonio=>setF(v=>({...v,areaPatrimonio}))}/>
 
           <div className="sm:col-span-2">
             <label className="label" htmlFor="b-descricao">Descrição técnica</label>

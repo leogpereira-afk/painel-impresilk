@@ -71,7 +71,7 @@ export default function VinculoDoBem({bem,vinculo,fichas=[],bens=[],setores=[],a
    <ul className="pat-vinculo-ligacoes">{vinculo.ligacoes.map(l=><li key={l.ativoId} className="pat-vinculo-linha"><p><strong>{rotuloLigadoA(l)}</strong></p>{acoes(l)}</li>)}</ul></>;
   if(bem.situacao==='baixado')return <p>Bem baixado: não pode ser ligado a uma ficha.</p>;
   const abaFamilia=FAMILIAS_VINCULO.find(f=>f.id===familia)?.aba;
-  return <><p>Este bem ainda não está ligado a uma ficha de equipamento.</p>
+  return <><p>A ficha técnica é opcional. Para mostrar o bem em uma aba, use “Área do patrimônio” acima.</p>
    {!familias.length?<p className="pat-vinculo-aviso">Ligar a uma ficha exige, além de Inventário e valores, a permissão da aba da ficha: Patrimônio, Patrimônio · Manutenções ou Segurança.</p>:<div className="pat-vinculo-form">
     <label>Tipo de ficha<select className="input" value={familia} disabled={ocupado} onChange={e=>{setFamilia(e.target.value);setFichaId('');setAviso(null);}}><option value="">Escolha o tipo</option>{familias.map(f=><option key={f.id} value={f.id}>{f.rotulo}</option>)}</select></label>
     <label>Ficha<select className="input" value={fichaId} disabled={!familia||ocupado} onChange={e=>setFichaId(e.target.value)}><option value="">Escolha a ficha</option>{livres.map(f=><option key={f.id} value={f.id}>{rotuloFicha(f)}</option>)}</select>{familia&&!livres.length&&<small>Nenhuma ficha livre deste tipo. Cadastre a ficha na aba {abaFamilia} ou desfaça um vínculo antigo.</small>}</label>

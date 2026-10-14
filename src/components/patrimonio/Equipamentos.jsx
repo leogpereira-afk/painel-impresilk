@@ -76,7 +76,7 @@ export default function EquipamentosPatrimonio({ tipo, bens = [], setores = [], 
 
   return <section className="pat-equipamentos" aria-label={meta.titulo}>
     <div className="pat-list-heading">
-      <div className="pat-equip-title"><span aria-hidden="true"><Icone size={23}/></span><div><h2>{meta.titulo}</h2><p>Ficha, responsável e manutenção de cada equipamento.</p></div></div>
+      <div className="pat-equip-title"><span aria-hidden="true"><Icone size={23}/></span><div><h2>{meta.titulo} · fichas técnicas</h2><p>Detalhes técnicos, responsável e manutenção dos equipamentos com ficha.</p></div></div>
       <div className="pat-actions">
         <button className="btn-ghost" onClick={carregar} disabled={carregando} aria-label={`Atualizar ${meta.titulo.toLowerCase()}`} title="Atualizar cadastros"><RefreshCw size={17}/></button>
         <button className="btn-outline" onClick={abrirRelatorio} disabled={!lista.length || carregando || !!erro}><Printer size={17}/>Salvar PDF</button>

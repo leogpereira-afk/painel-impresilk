@@ -1,3 +1,4 @@
+import AreaDoBem, {BensDaArea} from '../components/patrimonio/AreaDoBem.jsx';
 import Telefonia from '../components/patrimonio/Telefonia.jsx';
 import SegurancaPatrimonio from '../components/patrimonio/Seguranca.jsx';
 import Incendio from '../components/patrimonio/Incendio.jsx';
@@ -27,7 +28,7 @@ import {useParamNavegavel} from '../hooks/useParamNavegavel.js';
 import {CONTROLES} from '../lib/calc/controles-patrimonio.js';
 import './patrimonio.css';
 
-const VAZIO = {id:'', codigo:'', setorSigla:'', nomeGenerico:'', descricaoTecnica:'', nf:'', dataAquisicao:'', valor:'', situacao:'uso', observacao:'', responsavel:'', motivoSemNota:''};
+const VAZIO = {id:'', codigo:'', setorSigla:'', areaPatrimonio:'', nomeGenerico:'', descricaoTecnica:'', nf:'', dataAquisicao:'', valor:'', situacao:'uso', observacao:'', responsavel:'', motivoSemNota:''};
 const SETOR_VAZIO = {id:'', numero:'', sigla:'', nome:'', area:''};
 const POR_PAGINA = 12;
 const ABAS = [['estrutura','Estrutura',Building2],['telefonia','Celulares e Ramais',Phone],['seguranca','Segurança',Shield],['incendio','Prevenção contra incêndio',FireExtinguisher],['armarios','Armários',Archive],['ferramentas','Caixas de ferramentas',Wrench],['camas','Camas',BedDouble],['carros','Carros',Car],['maquinas','Máquinas',Cog],['setores','Setores',Building2],['inventario','Inventário',Boxes]];
@@ -163,7 +164,7 @@ function PatrimonioConteudo() {
     setSalvando(true);setMsg(null);
     try {
       const id=f.id||idNovo.current;
-      const dados={...(f.codigo?{codigo:f.codigo}:{}),setorSigla:f.setorSigla,nomeGenerico:f.nomeGenerico.trim(),descricaoTecnica:f.descricaoTecnica.trim(),nf:f.nf.trim(),motivoSemNota:String(f.motivoSemNota||'').trim(),responsavel:String(f.responsavel||'').trim(),responsavelId:f.responsavelId||'',dataAquisicao:f.dataAquisicao,valor:paraNumero(f.valor),situacao:f.situacao,observacao:f.observacao.trim()};
+      const dados={...(f.codigo?{codigo:f.codigo}:{}),setorSigla:f.setorSigla,areaPatrimonio:f.areaPatrimonio||'',nomeGenerico:f.nomeGenerico.trim(),descricaoTecnica:f.descricaoTecnica.trim(),nf:f.nf.trim(),motivoSemNota:String(f.motivoSemNota||'').trim(),responsavel:String(f.responsavel||'').trim(),responsavelId:f.responsavelId||'',dataAquisicao:f.dataAquisicao,valor:paraNumero(f.valor),situacao:f.situacao,observacao:f.observacao.trim()};
       const novo=await salvarBem(id,dados);setBens(novo);setJanela({tipo:'detalhe',bem:{...novo[id],id}});
       setMsg({texto:f.id?'Alterações salvas.':`Bem cadastrado. A etiqueta é ${novo[id]?.codigo||'gerada pelo servidor'}. Você já pode adicionar as fotos.`});
     }catch(e){setMsg({erro:true,texto:e.message});}finally{setSalvando(false);}
@@ -206,6 +207,15 @@ function PatrimonioConteudo() {
     const contexto=[selecionadosVisiveis.length?'Bens selecionados':'Recorte do inventário',filtros.busca&&`Busca: ${filtros.busca}`,filtros.setor&&(vm.setores.find(s=>s.sigla===filtros.setor)?.nome||'Sem setor'),filtros.tipo,filtros.situacao==='ativos'?'Bens ativos':filtros.situacao==='todos'?'Inclui baixados':SITUACOES[filtros.situacao]?.rotulo,filtros.pendencia&&`Pendência: ${filtros.pendencia}`,filtros.vinculo==='sem-ficha'&&'Bens sem ficha ligada'].filter(Boolean).join(' · ');
     setImpressao({tipo,bens:lista,contexto});
   };
+  async function salvarAreaBem(bem,areaPatrimonio) {
+    setSalvando(true);setMsg(null);
+    try {
+      const novo=await salvarBem(bem.id,{areaPatrimonio});
+      if(novo[bem.id]?.areaPatrimonio!==areaPatrimonio)throw new Error('O servidor não confirmou a área. Atualize e tente novamente.');
+      setBens(novo);setMsg({texto:'Área do patrimônio salva.'});
+    } catch(e) {setMsg({erro:true,texto:e.message});}
+    finally {setSalvando(false);}
+  }
   async function vincularBem(bem,setor) {
     if(!bem)return false;setSalvando(true);setMsg(null);
     try{setBens(await salvarBem(bem.id,{setorSigla:setor.sigla}));setMsg({texto:'Bem vinculado ao setor.'});return true;}
@@ -232,6 +242,7 @@ function PatrimonioConteudo() {
     <nav className="pat-tabs" aria-label="Visões do patrimônio">{abasVisiveis.map(([id,nome,Icone])=><button key={id} aria-current={(aba===id||(id==='inventario'&&aba==='pendencias'))?'page':undefined} onClick={()=>{setAba(id);setMsg(null);}}><Icone size={16} aria-hidden="true"/>{nome}{id==='pendencias'&&<span>{pendentes.length}</span>}</button>)}</nav>
 
     {veInventario&&['inventario','pendencias'].includes(aba)&&<nav className="pat-tabs" aria-label="Visões do inventário"><button aria-current={aba==='inventario'?'page':undefined} onClick={()=>setAba('inventario')}>Bens</button><button aria-current={aba==='pendencias'?'page':undefined} onClick={()=>setAba('pendencias')}>Pendências · {pendentes.length}</button></nav>}
+    {veInventario&&['carros','maquinas','estrutura'].includes(aba)&&<BensDaArea key={aba} area={aba} bens={vm.bens} setores={vm.setores} vinculos={vinculos} erro={erroFichas} aoTentar={carregarFichas} aoVerBem={verDetalhe}/>}
     {aba==='telefonia'&&<Telefonia key={`${aba}-${revisaoAbas}`} bens={vm.bens} setores={vm.setores} secaoInicial={abaEscolhida==='celulares'?'celulares':'ramais'} aoVerBem={veInventario?verDetalhe:undefined} aoMudarVinculo={recarregarVinculos}/>}
     {aba==='seguranca'&&<SegurancaPatrimonio key={`${aba}-${revisaoAbas}`} bens={vm.bens} setores={vm.setores} aoVerBem={veInventario?verDetalhe:undefined} aoMudarVinculo={recarregarVinculos}/>}
     {aba==='incendio'&&<Incendio key={`${aba}-${revisaoAbas}`} bens={vm.bens} setores={vm.setores} aoVerBem={veInventario?verDetalhe:undefined} aoMudarVinculo={recarregarVinculos}/>}
@@ -265,7 +276,7 @@ function PatrimonioConteudo() {
       {janela.tipo==='vinculos'&&<VinculosSetor setor={janela.setor} bens={vm.bens} setores={vm.setores} salvando={salvando} aoVincular={vincularBem}/>}
       {janela.tipo==='bem'&&<FormBem key={janela.bem.id||'novo'} inicial={janela.bem} setores={vm.setores} salvando={salvando} aoSalvar={gravarBem} aoFechar={fechar}/>}
       {janela.tipo==='setor'&&<FormSetor key={janela.setor.id||'novo'} inicial={janela.setor} salvando={salvando} aoSalvar={gravarSetor} aoFechar={fechar}/>}
-      {detalhe&&<div className="pat-detail"><div className="pat-detail-heading"><div><span className="pat-detail-code"><Tag size={17}/>{detalhe.codigo||'Etiqueta não informada'}</span><Situacao bem={detalhe}/></div><button className="btn-primary" disabled={fotoOcupada} onClick={()=>abrirBem(detalhe)}><Pencil size={16}/>Editar ficha</button></div><p className="pat-detail-description">{detalhe.descricaoTecnica||'Descrição técnica não informada.'}</p><dl className="pat-facts">{[['Setor',nomeSetor(detalhe,vm.setores)],['Valor de aquisição',detalhe.valor>0?moedaCheia(detalhe.valor):'Não informado'],['Aquisição',detalhe.dataAquisicao?`${dataLonga(detalhe.dataAquisicao)}${idadeEmAnos(detalhe.dataAquisicao,hoje)!==null?` · ${idadeEmAnos(detalhe.dataAquisicao,hoje)} ano(s)`:''}`:'Data não informada'],['Nota fiscal',detalhe.nf||detalhe.motivoSemNota||'Não informada'],['Responsável pelo cadastro',detalhe.responsavel||'Não informado'],['Observações',detalhe.observacao||'Nenhuma observação']].map(([t,v])=><div key={t}><dt>{t}</dt><dd>{v}</dd></div>)}</dl><VinculoDoBem key={`vinculo-${detalhe.id}`} bem={detalhe} vinculo={vinculos?.[detalhe.id]} fichas={fichas?.itens||[]} bens={vm.bens} setores={vm.setores} abasPermitidas={permitidas} carregando={fichas===null&&!erroFichas} erro={erroFichas} aoTentar={carregarFichas} aoAtualizar={recarregarVinculos} aoMudou={aoMudouVinculo} aoAbrirFicha={()=>{setJanela(null);setMsg(null);}}/><HistoricoBem key={detalhe.id} bem={detalhe} fichaId={fichaDoHistorico(detalhe)}/><FotosPatrimonio bemId={detalhe.id} nome={detalhe.nomeGenerico} aoAlterar={carregarFotos} aoOcupado={setFotoOcupada}/><div className="pat-detail-footer"><button className="btn-outline" disabled={salvando||fotoOcupada} onClick={()=>{setJanela(null);setImpressao({tipo:'etiquetas',bens:[detalhe]});}}><Printer size={16}/>Imprimir etiqueta</button><button className="btn-ghost" disabled={salvando||fotoOcupada} onClick={()=>apagarBem(detalhe)}><Trash2 size={16}/>Excluir cadastro</button></div><p className="pat-footnote">Vendeu ou descartou? Em “Editar ficha”, altere a situação para “Baixado” e registre o motivo nas observações.</p></div>}
+      {detalhe&&<div className="pat-detail"><div className="pat-detail-heading"><div><span className="pat-detail-code"><Tag size={17}/>{detalhe.codigo||'Etiqueta não informada'}</span><Situacao bem={detalhe}/></div><button className="btn-primary" disabled={fotoOcupada} onClick={()=>abrirBem(detalhe)}><Pencil size={16}/>Editar ficha</button></div><p className="pat-detail-description">{detalhe.descricaoTecnica||'Descrição técnica não informada.'}</p><dl className="pat-facts">{[['Setor',nomeSetor(detalhe,vm.setores)],['Valor de aquisição',detalhe.valor>0?moedaCheia(detalhe.valor):'Não informado'],['Aquisição',detalhe.dataAquisicao?`${dataLonga(detalhe.dataAquisicao)}${idadeEmAnos(detalhe.dataAquisicao,hoje)!==null?` · ${idadeEmAnos(detalhe.dataAquisicao,hoje)} ano(s)`:''}`:'Data não informada'],['Nota fiscal',detalhe.nf||detalhe.motivoSemNota||'Não informada'],['Responsável pelo cadastro',detalhe.responsavel||'Não informado'],['Observações',detalhe.observacao||'Nenhuma observação']].map(([t,v])=><div key={t}><dt>{t}</dt><dd>{v}</dd></div>)}</dl><AreaDoBem key={`area-${detalhe.id}-${detalhe.areaPatrimonio||''}`} bem={detalhe} salvando={salvando||fotoOcupada} aoSalvar={salvarAreaBem}/><VinculoDoBem key={`vinculo-${detalhe.id}`} bem={detalhe} vinculo={vinculos?.[detalhe.id]} fichas={fichas?.itens||[]} bens={vm.bens} setores={vm.setores} abasPermitidas={permitidas} carregando={fichas===null&&!erroFichas} erro={erroFichas} aoTentar={carregarFichas} aoAtualizar={recarregarVinculos} aoMudou={aoMudouVinculo} aoAbrirFicha={()=>{setJanela(null);setMsg(null);}}/><HistoricoBem key={detalhe.id} bem={detalhe} fichaId={fichaDoHistorico(detalhe)}/><FotosPatrimonio bemId={detalhe.id} nome={detalhe.nomeGenerico} aoAlterar={carregarFotos} aoOcupado={setFotoOcupada}/><div className="pat-detail-footer"><button className="btn-outline" disabled={salvando||fotoOcupada} onClick={()=>{setJanela(null);setImpressao({tipo:'etiquetas',bens:[detalhe]});}}><Printer size={16}/>Imprimir etiqueta</button><button className="btn-ghost" disabled={salvando||fotoOcupada} onClick={()=>apagarBem(detalhe)}><Trash2 size={16}/>Excluir cadastro</button></div><p className="pat-footnote">Vendeu ou descartou? Em “Editar ficha”, altere a situação para “Baixado” e registre o motivo nas observações.</p></div>}
     </JanelaFormulario>}
   </div>;
 }
