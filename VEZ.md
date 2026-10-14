@@ -1,5 +1,15 @@
 # Vez do Painel Impresilk
 
+## Trabalho atual · Logo centralizada na saudação
+
+Agente: codex. Pedido de Léo em 14/10/2026: “colocar logo da impresilk centralizado na frase”. Após consultar a vez do Claude, Léo autorizou retomar temporariamente a vez apenas para esse ajuste, preservando Patrimônio, com “Sim, ajustar e publicar”. Ramo `codex/logo-saudacao-centralizada-20261014`, clone isolado fora do iCloud, baseado na main `5732dd0`.
+
+Escopo: centralizar a logo oficial acima da saudação, frase e legenda da Home, mantendo Silk ao lado e os tamanhos e arquivos da marca existentes. Ajuste exclusivo de apresentação, sem alteração de dados, navegação, permissões, servidor ou trabalho de Patrimônio. Após publicar e conferir, devolver a vez anterior ao Claude.
+
+Estado: implementação e verificação da publicação autorizada em andamento.
+
+Pré-publicação: 41 regressões da Home, entrada e navegação aprovadas, sem falhas ou ignorados; build com BASE_PATH oficial, conferência das classes compiladas e lint sem erros (um aviso anterior em Agenda). Revisão independente aprovada. Navegador confirmou centralização da logo e do texto em desktop e 390 px, alternância de uma única logo clara/escura, alturas preservadas de 32/26 px, sem transbordamento ou erro JavaScript. Somente duas declarações CSS alteradas.
+
 ## Trabalho atual · Silk refinado e rosto solto
 
 Agente: codex. Léo aprovou o refinamento visual em 14/10/2026 e autorizou “pode subir o rosto pode ser solto sem ser na bolinha ficou muito bom”. Após consultar a vez registrada do Claude, confirmou: “Sim, passar a vez para o Silk”. Passagem temporária para publicar somente este ajuste visual, preservando integralmente o trabalho de Patrimônio registrado abaixo. Ramo `codex/silk-refinado-20261014`, clone isolado fora do iCloud, baseado na main `76540c2`.
