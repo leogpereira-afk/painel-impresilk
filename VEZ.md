@@ -6,9 +6,11 @@ Agente: codex. Léo aprovou o refinamento visual em 14/10/2026 e autorizou “po
 
 Escopo: atualizar o corpo inteiro pela arte refinada aprovada e usar retrato transparente sem círculo, fundo ou recorte artificial nos espaços pequenos. Pedido complementar de Léo em 14/10: no topo do menu, mostrar apenas o rosto, maior e centralizado no espaço da logo. Rosto de 88 px nesse local, com o atalho do Início preservado. Arquivos originais da logo, fluxos, permissões, servidor e registros preservados. Não alterar ou publicar o trabalho de Patrimônio do Claude.
 
-Estado: implementação e verificação da publicação autorizada em andamento. A passagem é temporária para o Silk; após concluir, o trabalho do Claude mantém seu escopo e sua vez anterior, conforme autorizado pelo dono.
+Estado: publicado e conferido. Passagem temporária do Silk encerrada; a vez retorna ao Claude para o trabalho de Patrimônio registrado abaixo, conforme autorizado pelo dono. Seu conteúdo e escopo permanecem íntegros.
 
 Pré-publicação: 684 testes de cálculo, acesso e apresentação aprovados, sem falhas ou ignorados; após o ajuste complementar do menu, as 41 regressões de apresentação foram repetidas e aprovadas. Build oficial e lint aprovados (um aviso anterior em Agenda); 15 verificadores aprovados e classes reconferidas após o novo build. Revisão independente aprovada. Navegador conferiu entrada, Home, Comercial, temas claro/escuro e gaveta de 390 px; rosto do menu único, 88×88 px e centralizado, sem transbordamento ou erro JavaScript. Fonte externa de permissões atualizada da equipe-auth oficial. Sem gravação de dados reais.
+
+**Publicado e conferido em 14/10/2026:** código `b38b431`; Pages `38610007010`, build e deploy com sucesso. CI: 1.315 regressões da auditoria, 636 cálculos e 7 acessos aprovados, sem falhas nem ignorados. HTML e 116 assets oficiais idênticos ao build validado (117/117). Entrada oficial em desktop e 390 px conferida, imagens carregadas nas dimensões corretas e sem transbordamento ou erros JavaScript. Menu, Home, Comercial, temas e gaveta de 390×600 conferidos na prévia; não havia sessão autenticada na entrada oficial. Alteração limitada aos sete arquivos do Silk, sem mudança de dados ou servidor.
 
 ## Trabalho atual · Patrimônio: vínculo pela ficha do bem e acesso do almoxarifado
 
