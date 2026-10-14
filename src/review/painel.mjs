@@ -230,7 +230,7 @@ export async function respostaPreview(url,opcoes={}){
   const entradas=Object.entries(corpo.patch||{});
   if(!entradas.length||entradas.some(([id,c])=>!configs.patrimonio[id]||!c||Object.keys(c).length!==1||!Object.hasOwn(c,'areaPatrimonio')))
    return erroPreview('Prévia: somente a área de bens fictícios existentes pode ser alterada.',409);
-  if(entradas.some(([,c])=>!['','maquinas','carros','estrutura'].includes(c.areaPatrimonio)))
+  if(entradas.some(([,c])=>!['','maquinas','carros','estrutura','outros'].includes(c.areaPatrimonio)))
    return erroPreview('Escolha Máquinas, Carros, Estrutura ou Somente no inventário.',422);
   for(const [id,c] of entradas)configs.patrimonio[id]={...configs.patrimonio[id],areaPatrimonio:c.areaPatrimonio};
   dados={valor:inventarioPermitido(structuredClone(configs.patrimonio),sessao)};

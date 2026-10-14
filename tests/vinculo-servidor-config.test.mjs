@@ -111,7 +111,7 @@ test('get do patrimônio: histórico do bem mascara a ficha de Segurança e tira
 test('área do bem: salvar, ler, trocar e limpar sem ficha; preserva setor, etiqueta e histórico',async()=>{
  const original={codigo:'PRO-900',setorSigla:'PRO',nomeGenerico:'Bem fictício',historico:[{acao:'cadastro',em:'2026-01-01'}]};
  const a=ambiente(['inventario-valores'],[L('patrimonio','bem-area',original)]);
- for(const area of ['maquinas','carros','estrutura','']){
+ for(const area of ['maquinas','carros','estrutura','outros','']){
   const r=await a.chamar({action:'merge',chave:'patrimonio',patch:{'bem-area':{areaPatrimonio:area}}});
   assert.equal(r.status,200,JSON.stringify(r.body));
   assert.equal(r.body.valor['bem-area'].areaPatrimonio,area);

@@ -160,3 +160,12 @@ export function vinculoDaFicha(ficha, bens = []) {
   const bem = direto || origem[0] || null;
   return bem ? { estado: 'ligado', bem, bemIds } : { estado: 'livre', bem: null, bemIds };
 }
+
+export function opcoesVinculo(fichas=[],bens=[],familia='',busca='') {
+  const norm=v=>texto(v).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
+  const termos=norm(busca).split(/\s+/).filter(Boolean);
+  return unicas(fichas).filter(f=>(!familia||familiaVinculo(f)===familia)&&fichaAceitaBem(f))
+    .filter(f=>termos.every(t=>norm([f.nome,f.identificacao,...Object.values(f.especificacao||{})].join(' ')).includes(t)))
+    .map(f=>({ficha:f,motivo:fichaBaixada(f)?'Ficha baixada':texto(f.bemId)||bens.some(b=>texto(b.origemAtivoId)===f.id)?'Já vinculada a um bem':''}))
+    .sort((a,b)=>Number(!!a.motivo)-Number(!!b.motivo)||texto(a.ficha.nome).localeCompare(texto(b.ficha.nome),'pt-BR'));
+}

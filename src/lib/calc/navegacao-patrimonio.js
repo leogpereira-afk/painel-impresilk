@@ -57,8 +57,8 @@ export function recortarManutencoes(itens = [], mapa = {}, item = '') {
 }
 
 export function abasPatrimonio(pode) {
-  return ['estrutura','telefonia','seguranca','incendio','armarios','ferramentas','camas','carros','maquinas','setores','inventario'].filter(id =>
-    id === 'inventario' ? pode('inventario-valores') : id === 'seguranca' ? pode('seguranca') : pode('patrimonio'));
+  return ['estrutura','telefonia','seguranca','incendio','armarios','ferramentas','camas','carros','maquinas','outros','setores','inventario'].filter(id =>
+    id === 'outros' ? pode('patrimonio')&&pode('inventario-valores') : id === 'inventario' ? pode('inventario-valores') : id === 'seguranca' ? pode('seguranca') : pode('patrimonio'));
 }
 
 // Endereços antigos continuam abrindo o mesmo conteúdo dentro da entrada atual.

@@ -2,7 +2,7 @@
 
 ## Trabalho atual · Cadastro e listas unificados
 
-Agente: codex. Publicação autorizada por Léo com “subir” em 14/10/2026. Implementação local afd9c7f verificada: 2.056 testes conferidos, build e lint sem erros, simulação de cadastro e vínculo preservando etiquetas. Publicar primeiro o servidor aceitando a área Ferramentas & Outros; depois a tela unificada, busca de fichas e destaque de pendências. Estado: primeira etapa, somente servidor. Nenhum dado real alterado.
+Agente: codex. Publicação autorizada por Léo com “subir” em 14/10/2026. Implementação local afd9c7f verificada: 2.056 testes conferidos, build e lint sem erros, simulação de cadastro e vínculo preservando etiquetas. Publicar primeiro o servidor aceitando a área Ferramentas & Outros; depois a tela unificada, busca de fichas e destaque de pendências. Estado: servidor publicado primeiro no commit faf640a. painel-config v160 ACTIVE, código de entrada idêntico ao validado, incluindo a área outros. Segunda etapa: publicação da tela no ramo codex/patrimonio-fluxo-publicar-20261014. Nenhum dado real alterado.
 
 ## Trabalho atual · Área do bem sem ficha adicional
 

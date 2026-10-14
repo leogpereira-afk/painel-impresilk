@@ -75,3 +75,9 @@
 .pat-area-lista span,.pat-area-lista small{display:block;color:var(--pat-muted);font-size:.85rem}
 .pat-area-lista button{flex-shrink:0}
 @media(max-width:480px){.pat-area-bens{padding:12px}.pat-area-lista li{align-items:flex-start;flex-wrap:wrap}}
+
+.pat-pending-list article.is-editing-pending{background:var(--pat-soft);box-shadow:inset 4px 0 #c18c2f}
+.pat-field-pending{color:#6b470b;background:#fff5dc!important;border:1px solid #d2a34c!important;border-radius:10px;padding:12px}
+.pat-field-pending .label,.pat-field-pending dt,.pat-fill-hint{color:#6b470b}
+.pat-fill-hint{display:block;font-size:.75rem;font-weight:700;margin-bottom:5px}
+.pat-vinculo-form h4{grid-column:1/-1;margin:8px 0}

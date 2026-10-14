@@ -4,8 +4,11 @@ import {useState} from "react";
 import {SectionTitle} from "../ui.jsx";
 import {SITUACOES,NOMES_GENERICOS} from "../../lib/calc/patrimonio.js";
 import {paraNumero,paraCampo,ymdLocal} from "../../lib/format.js";
-export function FormBem({ inicial, setores, salvando, aoSalvar, aoFechar }) {
+export function FormBem({ inicial, setores, salvando, aoSalvar, aoFechar, destacarPendencias=false }) {
   const [f, setF] = useState(inicial);
+  const pendente = campo => destacarPendencias && (campo==='setor'?!setores.some(s=>s.sigla===f.setorSigla):campo==='documento'?!String(f.nf||f.motivoSemNota||'').trim():campo==='responsavel'?!String(f.responsavel||'').trim():campo==='valor'?!(paraNumero(f.valor)>0):false);
+  const marca = campo => pendente(campo)?'pat-field-pending':'';
+  const aviso = campo => pendente(campo)?<small className="pat-fill-hint">Preencher</small>:null;
   const trocar = (campo) => (e) => setF((v) => ({ ...v, [campo]: e.target.value }));
   return (
     <div className="pat-form">
@@ -26,7 +29,7 @@ export function FormBem({ inicial, setores, salvando, aoSalvar, aoFechar }) {
         }}
       >
         <fieldset disabled={salvando} className="grid gap-4 sm:grid-cols-2"><legend className="pat-form-section">Identificação e localização</legend>
-          <div>
+          <div className={marca("setor")}>{aviso("setor")}
             <label className="label" htmlFor="b-setor">Setor</label>
             <select id="b-setor" className="input" value={f.setorSigla} onChange={trocar("setorSigla")} required>
               <option value="">escolha o setor</option>
@@ -85,11 +88,11 @@ export function FormBem({ inicial, setores, salvando, aoSalvar, aoFechar }) {
           </div>
 
         </fieldset><fieldset disabled={salvando} className="grid gap-4 sm:grid-cols-2"><legend className="pat-form-section">Compra e documentação</legend>
-          <div>
+          <div className={marca("documento")}>{aviso("documento")}
             <label className="label" htmlFor="b-nf">Nota fiscal</label>
             <input id="b-nf" className="input" placeholder="número da NF" value={f.nf} onChange={trocar("nf")} />
             {!f.nf && <label className="label mt-3">Motivo da ausência da nota<input className="input mt-1" value={f.motivoSemNota || ''} onChange={trocar('motivoSemNota')} placeholder="Ex.: documento ainda não localizado"/></label>}
-          </div><div><PessoaRH rotulo="Responsável pelo cadastro" valor={f.responsavelId||''} nome={f.responsavel||''} aoMudar={(responsavelId,responsavel)=>setF(v=>({...v,responsavelId,responsavel}))}/>
+          </div><div className={marca("responsavel")}>{aviso("responsavel")}<PessoaRH rotulo="Responsável pelo cadastro" valor={f.responsavelId||''} nome={f.responsavel||''} aoMudar={(responsavelId,responsavel)=>setF(v=>({...v,responsavelId,responsavel}))}/>
           </div>
 
           <div>
@@ -97,7 +100,7 @@ export function FormBem({ inicial, setores, salvando, aoSalvar, aoFechar }) {
             <input id="b-data" type="date" max={ymdLocal(new Date())} className="input" value={f.dataAquisicao} onChange={trocar("dataAquisicao")} />
           </div>
 
-          <div>
+          <div className={marca("valor")}>{aviso("valor")}
             {/* Texto, nao type=number: 1.250,00 num campo numerico vira lixo. */}
             <label className="label" htmlFor="b-valor">Valor pago (R$)</label>
             <input

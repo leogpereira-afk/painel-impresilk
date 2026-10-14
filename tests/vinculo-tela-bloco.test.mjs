@@ -7,7 +7,7 @@ import { readFileSync } from 'node:fs';
 import { transformSync } from 'esbuild';
 import vm from 'node:vm';
 import * as calc from '../src/lib/calc/vinculo-patrimonio.js';
-import { caminhoFichaVinculada } from '../src/lib/calc/navegacao-patrimonio.js';
+import { caminhoFichaVinculada, caminhoCadastroPatrimonio } from '../src/lib/calc/navegacao-patrimonio.js';
 
 const fonte = readFileSync(new URL('../src/components/patrimonio/VinculoDoBem.jsx', import.meta.url), 'utf8')
   .replace(/^import .*;\s*$/gm, '').replace('export default function VinculoDoBem', 'function VinculoDoBem');
@@ -26,7 +26,7 @@ function ambiente({ bemAtual, fichas = [], bens = [bemAtual], ocultos = [], perm
     useState(inicial) { const n = indice++; if (!(n in estados)) estados[n] = typeof inicial === 'function' ? inicial() : inicial; return [estados[n], valor => { estados[n] = typeof valor === 'function' ? valor(estados[n]) : valor; }]; },
     useRef(inicial) { const n = indice++; return estados[n] ||= { current: inicial }; },
     ...Object.fromEntries(['Link', 'Link2', 'Unlink', 'AlertTriangle', 'ArrowUpRight', 'RefreshCw'].map(n => [n, n])),
-    ...calc, caminhoFichaVinculada, URLSearchParams,
+    ...calc, caminhoFichaVinculada, caminhoCadastroPatrimonio, URLSearchParams, CadastroEquipamento:"CadastroEquipamento", crypto:{randomUUID:()=>"ficha-nova"},
     podeAbrir: modulo => perms.includes('*') || perms.includes(modulo),
     vincularFicha: async dados => { chamadas.vincular.push(json(dados)); return vincular ? vincular(dados) : { ok: true, ficha: { ...fichas.find(f => f.id === dados.ativoId), bemId: dados.bemId } }; },
     desvincularFicha: async dados => { chamadas.desfazer.push(json(dados)); return desfazer ? desfazer(dados) : { ok: true, ficha: null, bem: null }; },
@@ -119,12 +119,13 @@ test('sem ficha: tipos permitidos, fichas livres e não baixadas, corpo exato do
   const semSeguranca = ['patrimonio', 'inventario-valores', 'manutencoes'];
   const a = ambiente({ bemAtual: bens[0], bens, fichas, perms: semSeguranca });
   assert.match(a.texto(), /A ficha técnica é opcional\./);
-  assert.match(a.texto(), /Aparecem só fichas livres e que não estão baixadas\./);
-  assert.deepEqual(a.opcoes('Tipo de ficha').map(o => o[1]), ['Escolha o tipo', 'Carro', 'Máquina', 'Estrutura', 'Celulares e Ramais', 'Prevenção contra incêndio']);
-  assert.equal(a.select('Ficha').props.disabled, true);
+  assert.match(a.texto(), /Fichas já vinculadas ou baixadas não podem receber outro bem\./);
+  assert.deepEqual(a.opcoes('Tipo de ficha').map(o => o[1]), ['Todos os tipos', 'Carro', 'Máquina', 'Estrutura', 'Celulares e Ramais', 'Prevenção contra incêndio']);
+  assert.equal(a.select('Ficha').props.disabled, false);
   assert.equal(a.botoes('Confirmar vínculo')[0].props.disabled, true);
   a.escolher('Tipo de ficha', 'maquina');
-  assert.deepEqual(a.opcoes('Ficha'), [['', 'Escolha a ficha'], ['livre', 'Laser · S-1']]);
+  assert.equal(a.opcoes('Ficha').length,5);
+  assert.ok(a.todos().filter(n=>n.type==='option'&&['baixada','ligada','origem'].includes(n.props.value)).every(n=>n.props.disabled));
   a.escolher('Ficha', 'livre');
   await a.clicar('Confirmar vínculo');
   assert.deepEqual(a.chamadas.vincular, [{ bemId: 'b1', ativoId: 'livre', versaoFicha: 'v-livre', versaoBem: 'vb-b1', origem: 'bem' }]);
@@ -132,7 +133,7 @@ test('sem ficha: tipos permitidos, fichas livres e não baixadas, corpo exato do
   assert.equal(a.chamadas.mudou[0].ficha.bemId, 'b1');
   const vazio = ambiente({ bemAtual: bens[0], bens, fichas, perms: semSeguranca });
   vazio.escolher('Tipo de ficha', 'incendio');
-  assert.match(vazio.texto(), /Nenhuma ficha livre deste tipo\. Cadastre a ficha na aba Prevenção contra incêndio ou desfaça um vínculo antigo\./);
+  assert.match(vazio.texto(), /Nenhuma ficha livre deste tipo\./);
 });
 
 test('sem família permitida e bem baixado', () => {
@@ -227,7 +228,7 @@ test('depois do 409 e do Atualizar, a ficha que saiu da lista não deixa o Confi
   assert.match(a.texto(), /Esta ficha mudou\. Atualize antes de continuar\./);
   fichas[0].bemId = 'b9';
   await a.clicar('Atualizar');
-  assert.deepEqual(a.opcoes('Ficha'), [['', 'Escolha a ficha']]);
+  assert.ok(a.todos().find(n=>n.type==='option'&&n.props.value==='livre').props.disabled);
   assert.equal(a.botoes('Confirmar vínculo')[0].props.disabled, true);
 });
 
@@ -237,4 +238,16 @@ test('histórico de manutenção: ficha que não aparece aqui não vira "ainda n
   assert.match(h.texto(), /Os serviços ficam na ficha ligada a este bem, que não aparece aqui\. Confira o bloco Ligado a\./);
   assert.doesNotMatch(h.texto(), /ainda não está ligado/);
   assert.equal(h.todos().some(n => n.type === 'Link'), false);
+});
+
+test('busca em todos os tipos e abertura técnica reaproveitam bem sem gravação antecipada',async()=>{
+ const b=bem('b1',{areaPatrimonio:'maquinas',descricaoTecnica:'Laser fictício'});
+ const a=ambiente({bemAtual:b,fichas:[ficha('f','veiculo','',{especificacao:{placa:'ABC-0001'}})]});
+ assert.ok(a.opcoes('Ficha').some(([id])=>id==='f'));
+ const input=a.todos().find(n=>n.type==='input');input.props.onChange({target:{value:'ABC-0001'}});
+ assert.ok(a.opcoes('Ficha').some(([id])=>id==='f'));
+ await a.clicar('Completar dados técnicos');
+ const form=a.todos().find(n=>n.type==='CadastroEquipamento');
+ assert.equal(form.props.inicial.bemEscolha,'b1');assert.equal(form.props.inicial.tipoFixo,true);
+ assert.equal(form.props.inicial.nome,'Laser fictício');assert.equal(a.chamadas.vincular.length,0);
 });

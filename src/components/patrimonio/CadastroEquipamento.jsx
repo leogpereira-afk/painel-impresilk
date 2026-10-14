@@ -75,7 +75,7 @@ function FormItem({ inicial, salvando, aoSalvar, aoFechar, setores, bensLivres =
   return (
     <Card>
       <SectionTitle
-        titulo={f.id ? `Editar ${meta.singular.toLowerCase()}` : "Novo item"}
+        titulo={f.tipoFixo ? "Completar dados técnicos" : f.id ? `Editar ${meta.singular.toLowerCase()}` : "Novo item"}
         sub={
           f.id
             ? "O que você mudar aqui vale também na tela Documentos e ativos — é o mesmo cadastro."
@@ -94,7 +94,7 @@ function FormItem({ inicial, salvando, aoSalvar, aoFechar, setores, bensLivres =
           aoSalvar(f);
         }}
       >
-        {novo ? (
+        {novo && !f.tipoFixo ? (
           <div>
             <span className="label">O que é</span>
             <div className="grid gap-2 sm:grid-cols-3">
@@ -137,8 +137,7 @@ function FormItem({ inicial, salvando, aoSalvar, aoFechar, setores, bensLivres =
           </div>
         ) : (
           <p className="rounded-lg bg-slate-50 px-3 py-2 text-sm text-slate-600">
-            Tipo: <b>{meta.singular}</b> — não dá para trocar depois de cadastrado. Se errou, retire e
-            cadastre de novo.
+            Tipo: <b>{meta.singular}</b>. {f.tipoFixo?"Os dados serão ligados ao bem selecionado, mantendo sua etiqueta.":"O tipo permanece o do cadastro original."}
           </p>
         )}
 
@@ -293,7 +292,7 @@ function FormItem({ inicial, salvando, aoSalvar, aoFechar, setores, bensLivres =
               <div className="flex flex-wrap items-center gap-2"><p className="text-sm text-slate-600">Vinculado a <b>{bemAtual.codigo || 'etiqueta pendente'}</b> · {bemAtual.nomeGenerico || 'Bem'}{bemAtual.descricaoTecnica ? ` · ${bemAtual.descricaoTecnica}` : ''}.</p>
                 {f.id && aoDesfazer && <button type="button" className="btn-outline" disabled={salvando} onClick={aoDesfazer}><Unlink size={15}/>Desfazer vínculo</button>}</div>
             ) : (<>
-              <select id="i-bem" className="input" required value={f.bemEscolha || ""} onChange={escolherBem}>
+              <select id="i-bem" className="input" disabled={!!f.tipoFixo} required value={f.bemEscolha || ""} onChange={escolherBem}>
                 <option value="" disabled>Escolha: bem que já existe, etiqueta nova ou sem vínculo</option>
                 <option value="__nenhum__">Sem vínculo com o inventário</option>
                 <option value="__novo__">Criar etiqueta nova no inventário</option>
@@ -359,7 +358,7 @@ function FormItem({ inicial, salvando, aoSalvar, aoFechar, setores, bensLivres =
 
 export default function CadastroEquipamento({inicial,setores=[],bensLivres=[],bemAtual=null,aoConcluir,aoFechar,aoDesvincular}) {
  const [salvando,setSalvando]=useState(false),[erro,setErro]=useState('');
- const ficha={...ITEM_VAZIO,...inicial,especificacao:{...inicial.especificacao},medidorAtual:paraCampo(inicial.medidorAtual),medidorProximo:paraCampo(inicial.medidorProximo),bemEscolha:''};
+ const ficha={...ITEM_VAZIO,...inicial,especificacao:{...inicial.especificacao},medidorAtual:paraCampo(inicial.medidorAtual),medidorProximo:paraCampo(inicial.medidorProximo),bemEscolha:inicial.bemEscolha||''};
   async function gravar(f) {
     if (!FAMILIAS[f.tipo]) return setErro("Escolha o tipo do equipamento.");
     setSalvando(true);

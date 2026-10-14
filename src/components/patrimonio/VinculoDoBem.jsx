@@ -1,9 +1,12 @@
+import CadastroEquipamento from './CadastroEquipamento.jsx';
+import {caminhoCadastroPatrimonio} from '../../lib/calc/navegacao-patrimonio.js';
+import {opcoesVinculo} from '../../lib/calc/vinculo-patrimonio.js';
 import {useRef,useState} from 'react';
 import {Link} from 'react-router-dom';
 import {Link2,Unlink,AlertTriangle,ArrowUpRight,RefreshCw} from 'lucide-react';
 import {podeAbrir} from '../../lib/sessao.js';
 import {caminhoFichaVinculada} from '../../lib/calc/navegacao-patrimonio.js';
-import {FAMILIAS_VINCULO,ROTULO_FAMILIA_VINCULO,ROTULO_MODULO_VINCULO,familiaVinculo,moduloDoVinculo,podeVincularFamilia,fichasLivresParaBem,rotuloFicha,rotuloLigadoA,setorDivergente} from '../../lib/calc/vinculo-patrimonio.js';
+import {FAMILIAS_VINCULO,ROTULO_FAMILIA_VINCULO,ROTULO_MODULO_VINCULO,familiaVinculo,moduloDoVinculo,podeVincularFamilia,rotuloFicha,rotuloLigadoA,setorDivergente} from '../../lib/calc/vinculo-patrimonio.js';
 import {vincularFicha,desvincularFicha,lerHistoricoVinculo} from '../../services/vinculo-patrimonio.js';
 
 const DESFEITO='Vínculo desfeito. O bem e a ficha continuam cadastrados.';
@@ -15,6 +18,7 @@ const abaDoCaminho=caminho=>new URLSearchParams(caminho.split('?')[1]||'').get('
 // propósito: o bem grava pelo painel-config e o vínculo pelo painel-ativos, e
 // um "Salvar" com as duas gravações não seria atômico.
 export default function VinculoDoBem({bem,vinculo,fichas=[],bens=[],setores=[],abasPermitidas=[],carregando=false,erro='',aoTentar,aoAtualizar,aoMudou,aoAbrirFicha}) {
+ const [busca,setBusca]=useState(''),[novaFicha,setNovaFicha]=useState(null);
  const [familia,setFamilia]=useState(''),[fichaId,setFichaId]=useState(''),[ocupado,setOcupado]=useState(false),[aviso,setAviso]=useState(null);
  const [historicoAberto,setHistoricoAberto]=useState(false),[eventos,setEventos]=useState(null),[erroHistorico,setErroHistorico]=useState('');
  const pedidoHistorico=useRef(0);
@@ -28,7 +32,10 @@ export default function VinculoDoBem({bem,vinculo,fichas=[],bens=[],setores=[],a
  const depois=r=>{aoMudou?.({ficha:r?.ficha||null,bem:r?.bem||null});if(historicoAberto)carregarHistorico();};
  const falhou=e=>setAviso({erro:true,texto:e.message,atualizar:e.status===409||e.parcial===true});
  const familias=FAMILIAS_VINCULO.filter(f=>podeVincularFamilia(f.id,podeAbrir));
- const livres=familia?fichasLivresParaBem(fichas,bens,familia):[];
+ const opcoes=opcoesVinculo(fichas,bens,familia,busca).filter(o=>podeVincularFamilia(familiaVinculo(o.ficha),podeAbrir));
+ const livres=opcoes.filter(o=>!o.motivo).map(o=>o.ficha);
+ const tipoNovo=familia==='carro'?'veiculo':familia==='maquina'?'maquina':familia?null:bem.areaPatrimonio==='carros'?'veiculo':bem.areaPatrimonio==='maquinas'?'maquina':null;
+ function criarFicha(){setNovaFicha({cadastroId:crypto.randomUUID(),tipo:tipoNovo,tipoFixo:true,nome:bem.descricaoTecnica||bem.nomeGenerico||'',bemEscolha:bem.id,responsavel:bem.responsavel||'',responsavelId:bem.responsavelId||'',especificacao:{setor:setores.find(s=>s.sigla===bem.setorSigla)?.nome||bem.setorSigla||''}});}
  async function ligar(){
   const ficha=livres.find(f=>f.id===fichaId);if(!ficha||ocupado)return;
   setOcupado(true);setAviso(null);
@@ -71,13 +78,15 @@ export default function VinculoDoBem({bem,vinculo,fichas=[],bens=[],setores=[],a
    <ul className="pat-vinculo-ligacoes">{vinculo.ligacoes.map(l=><li key={l.ativoId} className="pat-vinculo-linha"><p><strong>{rotuloLigadoA(l)}</strong></p>{acoes(l)}</li>)}</ul></>;
   if(bem.situacao==='baixado')return <p>Bem baixado: não pode ser ligado a uma ficha.</p>;
   const abaFamilia=FAMILIAS_VINCULO.find(f=>f.id===familia)?.aba;
-  return <><p>A ficha técnica é opcional. Para mostrar o bem em uma aba, use “Área do patrimônio” acima.</p>
-   {!familias.length?<p className="pat-vinculo-aviso">Ligar a uma ficha exige, além de Inventário e valores, a permissão da aba da ficha: Patrimônio, Patrimônio · Manutenções ou Segurança.</p>:<div className="pat-vinculo-form">
-    <label>Tipo de ficha<select className="input" value={familia} disabled={ocupado} onChange={e=>{setFamilia(e.target.value);setFichaId('');setAviso(null);}}><option value="">Escolha o tipo</option>{familias.map(f=><option key={f.id} value={f.id}>{f.rotulo}</option>)}</select></label>
-    <label>Ficha<select className="input" value={fichaId} disabled={!familia||ocupado} onChange={e=>setFichaId(e.target.value)}><option value="">Escolha a ficha</option>{livres.map(f=><option key={f.id} value={f.id}>{rotuloFicha(f)}</option>)}</select>{familia&&!livres.length&&<small>Nenhuma ficha livre deste tipo. Cadastre a ficha na aba {abaFamilia} ou desfaça um vínculo antigo.</small>}</label>
-    <small>Aparecem só fichas livres e que não estão baixadas.</small>
+  return <>{novaFicha?<CadastroEquipamento key={novaFicha.cadastroId} inicial={novaFicha} setores={setores} bensLivres={[bem]} aoFechar={()=>setNovaFicha(null)} aoConcluir={async()=>{setNovaFicha(null);aoAtualizar?.();setAviso({texto:'Dados técnicos salvos. Atualizando o vínculo do bem.'});}}/>:<div className="pat-actions">{tipoNovo&&podeVincularFamilia(tipoNovo==='veiculo'?'carro':'maquina',podeAbrir)&&<button type="button" className="btn-outline" onClick={criarFicha}>Completar dados técnicos</button>}</div>}<p>A ficha técnica é opcional. Para mostrar o bem em uma aba, use “Área do patrimônio” acima.</p>
+   {!novaFicha&&(!familias.length?<p className="pat-vinculo-aviso">Ligar a uma ficha exige, além de Inventário e valores, a permissão da aba da ficha: Patrimônio, Patrimônio · Manutenções ou Segurança.</p>:<div className="pat-vinculo-form"><h4>Vincular cadastro existente</h4><label>Buscar ficha<input className="input" placeholder="Nome, modelo, série ou placa…" value={busca} onChange={e=>{setBusca(e.target.value);setFichaId('');}}/></label>
+    <label>Tipo de ficha<select className="input" value={familia} disabled={ocupado} onChange={e=>{setFamilia(e.target.value);setFichaId('');setAviso(null);}}><option value="">Todos os tipos</option>{familias.map(f=><option key={f.id} value={f.id}>{f.rotulo}</option>)}</select></label>
+    <label>Ficha<select className="input" value={fichaId} disabled={ocupado} onChange={e=>setFichaId(e.target.value)}><option value="">Escolha a ficha</option>{opcoes.map(({ficha:f,motivo})=><option key={f.id} value={f.id} disabled={!!motivo}>{rotuloFicha(f)}{motivo?` — ${motivo}`:' — Disponível'}</option>)}</select>{familia&&!livres.length&&<small>Nenhuma ficha livre deste tipo. As fichas ocupadas aparecem desabilitadas. Confira o vínculo existente antes de desfazê-lo.</small>}</label>
+    <small>{livres.length} disponível(is) neste recorte. Fichas já vinculadas ou baixadas não podem receber outro bem.</small>
+    {!opcoes.length&&<p>Nenhum cadastro encontrado. Limpe a busca ou confira outro tipo de ficha.</p>}
+    {familia&&!tipoNovo&&<Link className="btn-outline" to={caminhoCadastroPatrimonio({familia:familia==='estrutura'?'predial':familia==='telefonia'?'informatica':familia==='incendio'?'predial':familia,categoria:familia==='telefonia'?'Celular':familia==='incendio'?'Extintor':''})} onClick={()=>aoAbrirFicha?.()}>Abrir cadastros de {abaFamilia}</Link>}
     <button type="button" className="btn-primary" disabled={!livres.some(f=>f.id===fichaId)||ocupado} onClick={ligar}>{ocupado?'Ligando…':'Confirmar vínculo'}</button>
-   </div>}</>;
+   </div>)}</>;
  }
  return <section className="pat-vinculo" aria-label="Ligado a">
   <h3>{vinculo?.estado==='a-conferir'&&!erro?'Vínculo a conferir':'Ligado a'}</h3>

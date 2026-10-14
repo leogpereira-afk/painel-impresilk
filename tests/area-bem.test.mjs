@@ -1,10 +1,10 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {bensDaArea} from '../src/lib/calc/area-bem.js';
+import {bensDaArea,equipamentosComBens} from '../src/lib/calc/area-bem.js';
 import {vinculosDosBens} from '../src/lib/calc/vinculo-patrimonio.js';
 const bem={id:'bem-teste',areaPatrimonio:'maquinas',nomeGenerico:'Impressora fictícia',setorSigla:'PRO',codigo:'PRO-900',situacao:'uso'};
 test('bem aparece em Máquinas sem criar ou possuir ficha; mudar área usa o mesmo ID',()=>{
- for(const area of ['maquinas','carros','estrutura']){
+ for(const area of ['maquinas','carros','estrutura','outros']){
   const b={...bem,areaPatrimonio:area},v=vinculosDosBens([b],[]);
   assert.deepEqual(bensDaArea([b],area,v),[b]);
   assert.equal(bensDaArea([b],area==='maquinas'?'carros':'maquinas',v).length,0);
@@ -25,4 +25,14 @@ test('baixado fica no inventário, busca inclui setor com e sem acentos, nenhuma
  assert.equal(bensDaArea([{...bem,situacao:'baixado'}],'maquinas',v).length,0);
  assert.equal(bensDaArea([{...bem,areaPatrimonio:''}],'maquinas',v).length,0);
  assert.equal(bensDaArea([bem],'__proto__',v).length,0);
+});
+
+test('lista única inclui bem sem ficha, mantém ficha existente e não duplica ou expõe vínculo oculto',()=>{
+ const b={...bem},outro={...bem,id:'outro'};
+ const ficha={id:'f',tipo:'maquina',nome:'Outra máquina',bem:outro};
+ const v=vinculosDosBens([b,outro],[{id:'f',tipo:'maquina',bemId:outro.id}]);
+ const lista=equipamentosComBens([ficha],[b,outro],[],v,'maquina');
+ assert.equal(lista.length,2);assert.equal(lista.find(e=>e.somenteBem).bem.id,b.id);
+ assert.equal(equipamentosComBens([ficha],[b,outro],[],null,'maquina').length,1);
+ assert.equal(equipamentosComBens([], [b], [],vinculosDosBens([b],[],[{ativoId:'s',bemId:b.id}]),'maquina').length,0);
 });

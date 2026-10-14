@@ -75,7 +75,7 @@ test('prévia é só leitura e usa apenas categorias exatas; identidade e origem
  assert.equal(previaReclassificacao([registro('ativo','id',{tipo:'seguranca',categoria:'Alarme'})]).length,0);
 });
 test('chips seguem a ordem e a primeira permissão permitida, sem promoção de acesso',()=>{
- assert.deepEqual(abasPatrimonio(()=>true),['estrutura','telefonia','seguranca','incendio','armarios','ferramentas','camas','carros','maquinas','setores','inventario']);
+ assert.deepEqual(abasPatrimonio(()=>true),['estrutura','telefonia','seguranca','incendio','armarios','ferramentas','camas','carros','maquinas','outros','setores','inventario']);
  assert.deepEqual(abasPatrimonio(p=>p==='seguranca'),['seguranca']);assert.deepEqual(abasPatrimonio(p=>p==='inventario-valores'),['inventario']);assert.equal(abasPatrimonio(p=>p==='patrimonio')[0],'estrutura');
  assert.equal(abaPatrimonioAtual('computadores'),'estrutura');assert.equal(secaoEstruturaInicial('computadores'),'computadores');
  assert.equal(abaPatrimonioAtual('ramais'),'telefonia');assert.equal(abaPatrimonioAtual('celulares'),'telefonia');

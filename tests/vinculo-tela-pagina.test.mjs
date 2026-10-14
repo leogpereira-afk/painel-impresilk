@@ -160,7 +160,7 @@ test('área salva no mesmo bem, atualiza a lista e não chama o vínculo técnic
  const bloco=p.tipo('AreaDoBem');
  await bloco.props.aoSalvar(bloco.props.bem,'maquinas');
  assert.deepEqual(chamadas,[{id:'bem-2',dados:{areaPatrimonio:'maquinas'}}]);
- assert.equal(p.tipo('BensDaArea').props.bens.find(b=>b.id==='bem-2').areaPatrimonio,'maquinas');
+ assert.equal(p.tipo('EquipamentosPatrimonio').props.bens.find(b=>b.id==='bem-2').areaPatrimonio,'maquinas');
  assert.equal(p.tipo('AreaDoBem').props.bem.setorSigla,'PRO');
 });
 test('área não confirmada pelo servidor mostra erro, sem alterar a lista local',async()=>{
@@ -173,4 +173,19 @@ test('área não confirmada pelo servidor mostra erro, sem alterar a lista local
 test('lista simples dos bens não aparece sem permissão de inventário',async()=>{
  const p=await pagina({aba:'maquinas',permissao:modulo=>modulo!=='inventario-valores'}).iniciar();
  assert.equal(p.tipo('BensDaArea'),undefined);
+});
+
+test('Ferramentas & Outros disponível e novo bem já classificado',async()=>{
+ const p=await pagina({aba:'outros'}).iniciar();
+ assert.equal(p.tipo('BensDaArea').props.area,'outros');
+ await p.clicar('Novo bem');assert.equal(p.tipo('FormBem').props.inicial.areaPatrimonio,'outros');
+});
+
+// A ficha técnica criada no diálogo precisa renovar também a tabela da aba.
+test('atualizar vínculo após cadastro técnico renova a lista da área',async()=>{
+ const p=await pagina({aba:'maquinas'}).iniciar();
+ p.abrirBem('bem-2','EquipamentosPatrimonio');
+ const antes=p.tipo('EquipamentosPatrimonio').props.key;
+ await p.tipo('VinculoDoBem').props.aoAtualizar();
+ assert.notEqual(p.tipo('EquipamentosPatrimonio').props.key,antes);
 });

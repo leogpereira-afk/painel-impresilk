@@ -1,3 +1,4 @@
+import {equipamentosComBens} from '../src/lib/calc/area-bem.js';
 // Campo "Bem do inventário" nas fichas de cima (BemDaFicha.jsx, FormFisico,
 // Computadores e Estrutura › Itens), renderizado num vm como em
 // tests/patrimonio-estrutura-ui.test.mjs. Hooks e rede simulados; cálculos reais.
@@ -31,7 +32,7 @@ function ambiente(arquivos, injetar = {}) {
     useState(inicial) { const n = indice++; if (!(n in estados)) estados[n] = typeof inicial === 'function' ? inicial() : inicial; return [estados[n], valor => { estados[n] = typeof valor === 'function' ? valor(estados[n]) : valor; }]; },
     useRef(inicial) { const n = indice++; return estados[n] ||= { current: inicial }; },
     useCallback: fn => fn, useMemo: fn => fn(), useEffect: fn => { if (!montado) efeitos.push(fn); },
-    ...vinculo, ...equipamentos, ...informatica, ...estrutura, caminhoManutencao,
+    equipamentosComBens, ...vinculo, ...equipamentos, ...informatica, ...estrutura, caminhoManutencao,
     podeAbrir: () => true, usePessoasRH: () => ({ pessoas: [] }), comNomeRH: r => r,
     useFocoFicha: () => ({ id: '', pedido: '', limpar() {} }),
     crypto: { randomUUID: () => '671f0a1d-0fbe-4b90-9ad8-3cbd81e8a7e0' }, URLSearchParams, structuredClone, console,
