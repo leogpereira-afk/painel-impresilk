@@ -1,5 +1,9 @@
 # Vez do Painel Impresilk
 
+## Trabalho atual · Cadastro e listas unificados
+
+Agente: codex. Publicação autorizada por Léo com “subir” em 14/10/2026. Implementação local afd9c7f verificada: 2.056 testes conferidos, build e lint sem erros, simulação de cadastro e vínculo preservando etiquetas. Publicar primeiro o servidor aceitando a área Ferramentas & Outros; depois a tela unificada, busca de fichas e destaque de pendências. Estado: primeira etapa, somente servidor. Nenhum dado real alterado.
+
 ## Trabalho atual · Área do bem sem ficha adicional
 
 Agente: codex. Pedido de Léo em 14/10/2026: exibir o bem em Máquinas, Carros ou Estrutura sem cadastrar outra ficha. Ramo `codex/area-bem-sem-ficha-20261014`, clone isolado fora do iCloud, baseado na main `29c46ad`. Trabalho anterior publicado e encerrado.

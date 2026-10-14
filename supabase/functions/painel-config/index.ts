@@ -752,8 +752,8 @@ Deno.serve(async (req: Request) => {
           // Validar o lote inteiro antes da primeira gravação.
           if (chave === "patrimonio" && Object.values(patch).some((v: any) =>
               v && Object.hasOwn(v, "areaPatrimonio") &&
-              !["", "maquinas", "carros", "estrutura"].includes(v.areaPatrimonio))) {
-            return resposta({erro:"Escolha Máquinas, Carros, Estrutura ou Somente no inventário."},422);
+              !["", "maquinas", "carros", "estrutura", "outros"].includes(v.areaPatrimonio))) {
+            return resposta({erro:"Escolha Máquinas, Carros, Estrutura, Ferramentas & Outros ou Somente no inventário."},422);
           }
           const barradoPlanilha = barraEscritaDePlanilha(chave);
           if (barradoPlanilha) return barradoPlanilha;
