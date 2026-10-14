@@ -1,5 +1,16 @@
 # Vez do Painel Impresilk
 
+## Trabalho atual · Patrimônio: vínculo pela ficha do bem e acesso do almoxarifado
+
+Agente: claude. Pedido de Léo em 14/10/2026: "raphael do almoxarifado tem que ter acesso a tudo do patrimonio igual esse bens e pendencias e tem que ter como vincular aos setores la de cima tipo carros maquinas ou em estrutura pela ficha favor avaliar". Avaliação só de leitura entregue nesta conversa. Decisões de Léo na mesma conversa: "Sim, pode pegar" (a vez sai do Codex, cujo trabalho do Silk está publicado e conferido), caminho completo, o Raphael pode ver valores em R$ e quem edita o Patrimônio pode desfazer vínculo de carro ou máquina. Ramo `claude/vinculo-ficha-bem-20261014`, clone isolado em /tmp, a partir da main `3c156a5`.
+
+Escopo:
+1. Acesso do Raphael: feito pelo próprio Léo na tela de acessos (Patrimônio, Inventário e valores, Patrimônio · Manutenções e, se quiser, Segurança). Nenhuma concessão de acesso por agente.
+2. Ficha do bem (Completar ficha, Bens e Pendências) com o bloco "Ligado a": ligar a Carro, Máquina, Estrutura, Celulares e Ramais, Segurança ou Prevenção contra incêndio; desfazer com confirmação; abrir a ficha ligada; atalho "Sem ficha ligada".
+3. Correções achadas na avaliação: histórico de manutenção pelo vínculo real, exclusão de bem ligado, gravação comum do bem sem conferir o vínculo, bem baixado nas fichas de informática, telefonia, segurança e incêndio, Estrutura › Itens e Hidráulica sem o campo, desfazer em Carros e Máquinas.
+
+Sem dados reais em arquivo, sem concessão de acesso, sem alteração de registros. Migração só se for indispensável e com autorização específica. Nada publicado; publicação só com autorização de Léo, servidor antes da tela.
+
 ## Trabalho atual · Silk, mascote da Impresilk
 
 Agente: codex. Pedido de Léo em 13/10/2026: escolher e renderizar o Silk da referência fornecida e encaixá-lo no site como rosto da marca. O trabalho anterior do Claude está publicado e conferido, com a vez encerrada. Novo trabalho em clone fora do iCloud, `/tmp/painel-silk-20261013`, ramo `codex/silk-mascote-20261013`, a partir da main `db625c7`.
