@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { caminhoCadastroPatrimonio, caminhoManutencao, redirecionarManutencoes, destinoPatrimonio, recortarManutencoes, abasPatrimonio, abaPatrimonioAtual, secaoEstruturaInicial } from './navegacao-patrimonio.js';
+import { caminhoCadastroPatrimonio, caminhoFichaVinculada, caminhoManutencao, redirecionarManutencoes, destinoPatrimonio, recortarManutencoes, abasPatrimonio, abaPatrimonioAtual, secaoEstruturaInicial } from './navegacao-patrimonio.js';
 import { calcManutencoes, agruparGastos, CATEGORIAS_POR_FAMILIA } from './manutencoes.js';
 
 test('acesso unificado mantém usuários com apenas manutenção e não concede inventário', () => {
@@ -68,4 +68,28 @@ test('indicadores e histórico mensal concordam no recorte, inclusive de equipam
     assert.equal(vm.kpis.gastoAno,total);
     assert.equal(agruparGastos(vm.lancamentos,itens).anos[0].total,total);
   }
+});
+
+test('Abrir ficha do bem leva à aba e subaba certas, só para consulta (item=)',()=>{
+  for(const [ficha,aba,param,secao] of [
+    [{id:'c',tipo:'veiculo'},'carros'],[{id:'m',tipo:'maquina'},'maquinas'],
+    [{id:'p',tipo:'informatica',categoria:'Computador'},'estrutura','estrutura','computadores'],
+    [{id:'r',tipo:'informatica',categoria:'Central telefônica'},'telefonia','telefonia','ramais'],
+    [{id:'k',tipo:'informatica',categoria:'Celular'},'telefonia','telefonia','celulares'],
+    [{id:'a',tipo:'predial',categoria:'Ar-condicionado'},'estrutura','estrutura','outros'],
+    [{id:'h',tipo:'predial',categoria:'Caixa-d’água'},'estrutura','estrutura','hidraulica'],
+    [{id:'t',tipo:'predial',categoria:'Transformador'},'estrutura','estrutura','eletrica'],
+    [{id:'x',tipo:'predial',categoria:'Extintor'},'incendio'],
+    [{id:'l',tipo:'predial',categoria:'Iluminação de emergência'},'incendio'],
+    [{id:'s',tipo:'seguranca',categoria:'Chave'},'seguranca','seguranca','chaves'],
+  ]){
+    const url=new URL(caminhoFichaVinculada(ficha),'https://example.com');
+    assert.equal(url.searchParams.get('aba'),aba,ficha.id);
+    assert.equal(url.searchParams.get('item'),ficha.id);
+    assert.equal(url.searchParams.has('ficha'),false);
+    if(param)assert.equal(url.searchParams.get(param),secao);
+    if(aba==='incendio')assert.equal(url.searchParams.has('estrutura'),false);
+  }
+  // Sem `ver`, Manutenções continua pedindo a edição pela ficha=.
+  assert.equal(new URL(caminhoCadastroPatrimonio({familia:'predial',categoria:'Extintor',item:'x'}),'https://example.com').searchParams.get('ficha'),'x');
 });

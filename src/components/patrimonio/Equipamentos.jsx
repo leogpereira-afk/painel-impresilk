@@ -19,13 +19,13 @@ const rotuloVinculo = item => item.vinculo === 'conflito' ? 'Vínculo a conferir
   : item.bem ? (item.codigo || 'Ficha vinculada') : 'Sem vínculo no inventário';
 
 
-export default function EquipamentosPatrimonio({ tipo, bens = [], setores = [], aoVerBem }) {
+export default function EquipamentosPatrimonio({ tipo, bens = [], setores = [], aoVerBem, aoMudarVinculo }) {
   const [params,setParams]=useSearchParams();
   const [form,setForm]=useState(null);
   const meta = TIPOS[tipo], Icone = meta.icone;
   const {pessoas}=usePessoasRH();
   const [ativos, setAtivos] = useState(null), [erro, setErro] = useState('');
-  const [carregando, setCarregando] = useState(false), [busca, setBusca] = useState('');
+  const [carregando, setCarregando] = useState(false), [busca, setBusca] = useState(''), [mensagem, setMensagem] = useState('');
   const [vinculo, setVinculo] = useState('todos'), [pagina, setPagina] = useState(1), [relatorio, setRelatorio] = useState(null);
   const pedido = useRef(0);
   const gerenciar = podeAbrir('manutencoes');
@@ -83,13 +83,14 @@ export default function EquipamentosPatrimonio({ tipo, bens = [], setores = [], 
         {gerenciar && <button className="btn-primary" onClick={novo} disabled={carregando}><Plus size={17}/>Cadastrar {meta.singular}</button>}
       </div>
     </div>
-    {form&&<CadastroEquipamento key={form.id||form.cadastroId} inicial={form} setores={setores} bensLivres={bensParaFicha(bens,ativos||[],form.id||form.cadastroId)} bemAtual={form.id?vinculoDoEquipamento(form,bens).bem:null} aoFechar={fecharFormulario} aoConcluir={async()=>{fecharFormulario();await carregar();}}/>}
+    {form&&<CadastroEquipamento key={form.id||form.cadastroId} inicial={form} setores={setores} bensLivres={bensParaFicha(bens,ativos||[],form.id||form.cadastroId)} bemAtual={form.id?vinculoDoEquipamento(form,bens).bem:null} aoFechar={fecharFormulario} aoConcluir={async()=>{fecharFormulario();setMensagem('');await carregar();aoMudarVinculo?.();}} aoDesvincular={async()=>{fecharFormulario();await carregar();aoMudarVinculo?.();setMensagem('Vínculo desfeito. O bem e a ficha continuam cadastrados.');}}/>}
     <p className="pat-equip-shared"><Link2 size={16} aria-hidden="true"/><span><strong>Um cadastro por equipamento.</strong> Cadastre e atualize os dados aqui. Em Manutenções, registre os serviços e consulte o histórico.</span></p>
     <div className="pat-equip-tools">
       <div className="pat-search"><Search size={18} aria-hidden="true"/><input className="input" aria-label={`Buscar ${meta.titulo.toLowerCase()}`} placeholder={tipo === 'veiculo' ? 'Nome, placa, modelo, setor ou responsável…' : 'Nome, série, modelo, setor ou responsável…'} value={busca} onChange={e => { setBusca(e.target.value);setPagina(1); }}/>{busca && <button type="button" aria-label="Limpar busca" onClick={() => { setBusca('');setPagina(1); }}><X size={16}/></button>}</div>
       <label>Vínculo com o inventário<select className="input" value={vinculo} onChange={e => { setVinculo(e.target.value);setPagina(1); }}><option value="todos">Todos</option><option value="vinculado">Com ficha no inventário</option><option value="sem-vinculo">Sem vínculo confirmado</option></select></label>
     </div>
     <div className="pat-equip-count" aria-live="polite"><span>{ativos === null ? 'Consultando a base compartilhada…' : `${lista.length} de ${todos.length} ${todos.length === 1 ? meta.singular : meta.titulo.toLowerCase()}`}</span>{comFiltro && <button type="button" onClick={limpar}>Limpar filtros</button>}</div>
+    {mensagem && <p className="pat-notice" role="status">{mensagem}</p>}
     {erro && <p className="pat-notice is-error" role="alert">{erro}<button className="btn-ghost" onClick={carregar} disabled={carregando}>Tentar novamente</button></p>}
     {ativos === null ? <p role="status">{carregando ? 'Carregando equipamentos…' : 'Não foi possível consultar os equipamentos.'}</p> : !lista.length ? <div className="pat-empty"><Icone size={28}/><h3>{comFiltro ? 'Nenhum equipamento encontrado' : `Nenhum ${meta.singular} cadastrado`}</h3><p>{comFiltro ? 'Tente outro nome, identificação ou filtro.' : `Os registros de ${meta.titulo.toLowerCase()} aparecerão aqui após o cadastro.`}</p>{comFiltro && <button className="btn-outline" onClick={limpar}>Ver todos</button>}</div> : <>
       <div className="pat-table-wrap"><table className="pat-table pat-equip-table"><thead><tr><th>Equipamento</th><th>{meta.identificacao} / modelo</th><th>Setor</th><th>Responsável</th><th>Inventário</th>{gerenciar && <th>Manutenção</th>}</tr></thead>

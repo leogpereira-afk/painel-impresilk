@@ -7,9 +7,10 @@ import {validarVinculoPessoa,prepararPessoasControle} from '../../supabase/funct
 import {prepararControle} from '../../supabase/functions/_shared/patrimonio-controles.mjs';
 import {prepararFisico,prepararConferencia} from '../../supabase/functions/_shared/patrimonio-fisico.mjs';
 import {vencimentosIncendio} from '../../supabase/functions/_shared/patrimonio-incendio.mjs';
-import {inventarioPermitido,ativoPermitido,temPermissao} from '../../supabase/functions/_shared/patrimonio-acesso.mjs';
+import {inventarioPermitido,bemPermitido,ativoPermitido,temPermissao} from '../../supabase/functions/_shared/patrimonio-acesso.mjs';
 import {getSessao} from '../lib/sessao.js';
 import {prepararInfra,infraPermitida} from '../../supabase/functions/_shared/patrimonio-infra.mjs';
+import {criarVinculoPrevia,projetarFicha} from './vinculo.mjs';
 const pessoasPatrimonioDemo=[
  {id:'rh-demo-ana-1',nome:'Ana Exemplo',idPessoa:'900001',disponivel:true},
  {id:'rh-demo-ana-2',nome:'Ana Exemplo',idPessoa:'900002',disponivel:true},
@@ -101,6 +102,29 @@ equipamentosDemo.push(
  {id:infraDemoIds.transformador,tipo:'predial',categoria:'Transformador',nome:'Transformador · exemplo',identificacao:'TR-DEMO-01',especificacao:{local:'Área técnica',kva:'112.5',tecnicoId:infraDemoIds.tecnico,situacao:'uso'},atualizadoEm:versaoInfra},
  {id:infraDemoIds.servidor,tipo:'informatica',categoria:'Servidor',nome:'Servidor de demonstração',responsavelId:'rh-demo-bruno',especificacao:{local:'Sala técnica',setorId:'ex1',fabricante:'Fabricante de exemplo',modelo:'Servidor de exemplo',processador:'Processador de demonstração',memoria:'64 GB',armazenamento:'2 TB',rede:'Rede local de exemplo',enderecoIP:'192.0.2.10',backup:'Cópia diária de demonstração, sem credenciais',tecnicoId:infraDemoIds.tecnico,situacao:'uso'},atualizadoEm:versaoInfra}
 );
+// Vínculo bem ↔ ficha (tudo fictício), com os quatro estados do bloco Ligado a:
+// sem ficha (ex2, ex3), ligado só pela ficha (luminária), ligado pelos dois lados
+// (computador e celular) e a conferir (compressor cuja ficha foi retirada). A
+// câmera mostra a ficha oculta para quem não tem Segurança.
+configs.setores.ex2={sigla:'ADM',nome:'Administração',area:'Escritório'};
+Object.assign(configs.patrimonio,{
+ 'bem-luz-demo':{codigo:'ADM-001',nomeGenerico:'Luminária de emergência',descricaoTecnica:'Ligada só pela ficha · exemplo',valor:300,nf:'NF-FICTICIA-LUZ',situacao:'uso',setorSigla:'ADM',responsavel:'Ana Exemplo'},
+ 'bem-conferir-demo':{codigo:'PRO-005',nomeGenerico:'Compressor',descricaoTecnica:'Ficha retirada · exemplo',origemAtivoId:'retirado-demo',valor:2000,nf:'NF-FICTICIA-CMP',situacao:'uso',setorSigla:'PRO',responsavel:'Bruno Exemplo'},
+ 'bem-camera-demo':{codigo:'PRO-006',nomeGenerico:'Câmera',descricaoTecnica:'Ligada a uma ficha de Segurança · exemplo',valor:400,nf:'NF-FICTICIA-CAM',situacao:'uso',setorSigla:'PRO',responsavel:'Ana Exemplo'},
+ 'bem-baixado-demo':{codigo:'PRO-007',nomeGenerico:'Monitor antigo',descricaoTecnica:'Baixado · exemplo',valor:0,situacao:'baixado',setorSigla:'PRO'},
+});
+Object.assign(equipamentosDemo.find(i=>i.id==='luz-demo'),{bemId:'bem-luz-demo'});
+equipamentosDemo.find(i=>i.id==='luz-demo').especificacao.setorId='ex1';
+Object.assign(equipamentosDemo.find(i=>i.id==='camera-demo'),{bemId:'bem-camera-demo'});
+equipamentosDemo.find(i=>i.id==='pc-demo').historicoVinculo=[{id:'evento-demo-pc',acao:'vinculado',bemId:'bem-pc-demo',ativoId:'pc-demo',familia:'estrutura',nome:'Computador da produção · exemplo',bemCodigo:'PRO-002',lado:'ambos',via:'salvarFisico',por:'demo',porNome:'Conta de demonstração',em:'2026-10-05T12:00:00.000Z'}];
+equipamentosDemo.push({id:'pc-baixado-demo',tipo:'informatica',categoria:'Computador',nome:'Computador baixado · exemplo',especificacao:{marcaModelo:'Modelo antigo de exemplo',situacao:'baixado'},atualizadoEm:'2026-10-05T12:00:00Z',atualizadoPor:'Conta de demonstração'});
+const fichasDemo=()=>[...equipamentosDemo,...estruturasDemo];
+const vinculoPrevia=criarVinculoPrevia({
+ fichas:fichasDemo,
+ gravarFicha:registro=>{for(const lista of [equipamentosDemo,estruturasDemo]){const i=lista.findIndex(f=>f.id===registro.id);if(i>=0){lista[i]=registro;return;}}equipamentosDemo.push(registro);},
+ bens:configs.patrimonio,
+ lixeiraFichas:new Map([['retirado-demo',{id:'retirado-demo',tipo:'maquina',nome:'Máquina retirada · exemplo',bemId:'',especificacao:{}}]]),
+});
 const contratosInfraDemo=new Map();
 configs.manutencoes['pc-servico-demo']={ativoId:'pc-demo',data:'2026-10-01',valor:350,descricao:'Manutenção exemplo do computador',fornecedor:'Prestador de exemplo'};
 configs.manutencoes['camera-servico-demo']={ativoId:'camera-demo',data:'2026-10-01',valor:75,descricao:'Conferência do enquadramento · exemplo',fornecedor:'Prestador de exemplo'};
@@ -111,7 +135,9 @@ const estruturasDemo = [
  {id:'predial-agua-demo',nome:'Caixa d’água principal · exemplo',categoria:'Caixa-d’água',identificacao:'CX-DEMO-01',responsavel:'Ana Exemplo',especificacao:{local:'Cobertura de demonstração',marcaModelo:'Reservatório exemplo · 1.000 L',quantidade:'1',instalacao:'2024-02-20'}},
  {id:'predial-portao-demo',nome:'Portão de acesso · exemplo',categoria:'Portão',identificacao:'PT-DEMO-01',responsavel:'Bruno Exemplo',especificacao:{local:'Entrada de demonstração',marcaModelo:'Portão deslizante exemplo',quantidade:'1',instalacao:'2024-03-12'}},
 ].map(item=>({...item,tipo:'predial',bemId:'',observacao:'Dados inteiramente fictícios para revisão local.',atualizadoEm:'2026-10-05T12:00:00Z',atualizadoPor:'Conta de demonstração'}));
-const erroPreview = (erro,status=400) => new Response(JSON.stringify({erro}),{status,headers:{'Content-Type':'application/json'}});
+const erroPreview = (erro,status=400,extra={}) => new Response(JSON.stringify({erro,...extra}),{status,headers:{'Content-Type':'application/json'}});
+// Recusa do vínculo vai marcada, como no painel-ativos (erroVinculo).
+const erroVinculoPreview = e => erroPreview(e.message,e.status||422,e.recusaVinculo?{recusaVinculo:true}:{});
 function salvarEstruturaPreview(corpo){
  const item=corpo.item;
  if(!item || typeof item!=='object' || Array.isArray(item))return erroPreview('Informe a estrutura.');
@@ -140,6 +166,7 @@ function salvarEstruturaPreview(corpo){
 function salvarEquipamentoPreview(corpo){
  const it=corpo.item,id=it.id||it.cadastroId,indice=equipamentosDemo.findIndex(a=>a.id===id),ant=equipamentosDemo[indice]||null;
  const falhar=(m,status=409)=>{throw Object.assign(new Error(m),{status});};
+ if(corpo.patrimonio&&ant&&corpo.versao!==undefined&&corpo.versao!==(ant.atualizadoEm||''))falhar('Esta ficha mudou. Recarregue antes de salvar.');
  const item={...(ant||{}),...it,...validarVinculoPessoa(it,ant,pessoasPatrimonioDemo,'responsavel'),id,atualizadoEm:new Date().toISOString(),atualizadoPor:'Conta de demonstração'};
  delete item.cadastroId;
  if(corpo.patrimonio){
@@ -211,7 +238,11 @@ export async function respostaPreview(url,opcoes={}){
      const {GLOSSARIO}=await import('../data/glossario.js');
      dados={valor:Object.fromEntries(GLOSSARIO.map((t,i)=>[`demo-${i}`,{...t,ordem:i}]))};
    }else {let valor=structuredClone(configs[corpo.chave]||{});if(corpo.chave==='patrimonio')valor=inventarioPermitido(valor,sessao);if(corpo.chave==='manutencoes'&&!temPermissao(sessao,'seguranca'))valor=Object.fromEntries(Object.entries(valor).filter(([,r])=>!equipamentosDemo.some(i=>i.tipo==='seguranca'&&i.id===r.ativoId)));dados={valor};}
- }else if(endpoint==='painel-ativos' && corpo.action==='listarPatrimonio') dados={itens:structuredClone([...equipamentosDemo,...estruturasDemo].filter(i=>i.tipo==='seguranca'?temPermissao(sessao,'seguranca'):temPermissao(sessao,'patrimonio')||temPermissao(sessao,'inventario-valores')).map(i=>ativoPermitido(i,sessao)))};
+ }else if(endpoint==='painel-ativos' && corpo.action==='listarPatrimonio') dados={itens:fichasDemo().filter(i=>i.tipo==='seguranca'?temPermissao(sessao,'seguranca'):temPermissao(sessao,'patrimonio')||temPermissao(sessao,'inventario-valores')).map(i=>ativoPermitido(projetarFicha(i),sessao)),vinculosOcultos:vinculoPrevia.ocultos(sessao)};
+ else if(endpoint==='painel-ativos' && ['vincularFicha','desvincularFicha','historicoVinculo'].includes(corpo.action)){
+  try{dados=corpo.action==='vincularFicha'?vinculoPrevia.vincular(corpo,sessao):corpo.action==='desvincularFicha'?vinculoPrevia.desvincular(corpo,sessao):vinculoPrevia.historico(corpo,sessao);if(dados.bem)dados.bem=bemPermitido(dados.bem,sessao);}
+  catch(e){return erroVinculoPreview(e);}
+ }
  else if(endpoint==='painel-ativos' && corpo.action==='listar') dados={itens:structuredClone(equipamentosDemo.filter(i=>['veiculo','maquina'].includes(i.tipo)))};
  else if(endpoint==='painel-ativos' && corpo.action==='salvar' && ['veiculo','maquina'].includes(corpo.item?.tipo)){
   try{dados={item:salvarEquipamentoPreview(corpo)};}catch(e){return erroPreview(e.message,e.status||422);}
@@ -222,9 +253,10 @@ export async function respostaPreview(url,opcoes={}){
    if(it.id&&(!ant||corpo.versao!==ant.atualizadoEm))return erroPreview('Este cadastro mudou. Atualize.',409);
    const fisico=prepararFisico(it,ant,{inventario:temPermissao(sessao,'inventario-valores'),bem:configs.patrimonio[it.bemId],setor:configs.setores[it.especificacao?.setorId],setorId:it.especificacao?.setorId,gravador:equipamentosDemo.find(a=>a.id===it.especificacao?.gravadorId),gravadorId:it.especificacao?.gravadorId,pessoas:pessoasPatrimonioDemo,tecnico:configs.patrimonio_infra[it.especificacao?.tecnicoId]?.tipo==='contato',unidadesConsumidoras:equipamentosDemo.filter(a=>a.categoria==='Padrão de energia'&&it.especificacao?.unidadesConsumidoras?.includes(a.id)).map(a=>a.id)});
    const responsavel=validarVinculoPessoa(it,ant,pessoasPatrimonioDemo,'responsavel');
-   const item={...ant,...fisico,...responsavel,id,bemId:it.bemId??ant?.bemId??'',atualizadoEm:new Date().toISOString(),atualizadoPor:sessao.nome};
-   if(indice>=0)equipamentosDemo[indice]=item;else equipamentosDemo.push(item);dados={item:structuredClone(item)};
-  }catch(e){return erroPreview(e.message,e.status||422);}
+   const vinculo=vinculoPrevia.conferirFormulario(it,ant,sessao,'salvarFisico');
+   const item={...ant,...fisico,...responsavel,...vinculo,id,bemId:it.bemId??ant?.bemId??'',atualizadoEm:new Date().toISOString(),atualizadoPor:sessao.nome};
+   if(indice>=0)equipamentosDemo[indice]=item;else equipamentosDemo.push(item);dados={item:projetarFicha(item)};
+  }catch(e){return erroVinculoPreview(e);}
  }
  else if(endpoint==='painel-ativos'&&corpo.action==='guardarArquivoIncendio'){
   const i=equipamentosDemo.find(a=>a.id===corpo.id);if(!i)return erroPreview('Item não encontrado.',404);i.arquivoIncendio={nome:corpo.nome,mime:corpo.mime};dados={arquivoIncendio:i.arquivoIncendio};
@@ -236,9 +268,10 @@ export async function respostaPreview(url,opcoes={}){
  else if(endpoint==='painel-ativos' && corpo.action==='salvarTelefonia'){
   const i=corpo.item,id=i.id||i.cadastroId,anterior=equipamentosDemo.find(a=>a.id===id);
   if(i.id && corpo.versao!==(anterior?.atualizadoEm||''))return erroPreview('Ficha alterada. Atualize.',409);
-  const item={...anterior,...i,id,tipo:'informatica',atualizadoEm:new Date().toISOString()};
+  let vinculo;try{vinculo=vinculoPrevia.conferirFormulario(i,anterior,sessao,'salvarTelefonia');}catch(e){return erroVinculoPreview(e);}
+  const item={...anterior,...i,...vinculo,id,tipo:'informatica',atualizadoEm:new Date().toISOString()};
   const ix=equipamentosDemo.findIndex(a=>a.id===id);if(ix>=0)equipamentosDemo[ix]=item;else equipamentosDemo.push(item);
-  dados={item};
+  dados={item:projetarFicha(item)};
  }
  else if(endpoint==='painel-config' && corpo.action==='removerId' && corpo.chave==='patrimonio_controles'){delete configs.patrimonio_controles[corpo.id];dados={};}
  else if(endpoint==='painel-ativos' && ['listar','lixeira'].includes(corpo.action)) dados={itens:corpo.action==='lixeira'?[]:[

@@ -1,11 +1,13 @@
 import {useState} from 'react';
-import {X,Car,Cog,Wrench,Building2} from 'lucide-react';
+import {X,Car,Cog,Wrench,Building2,Unlink} from 'lucide-react';
 import PessoaRH from './PessoasRH.jsx';
 import {podeAbrir} from '../../lib/sessao.js';
 import {salvarAtivo,salvarEquipamento} from '../../services/ativos.js';
 import {FAMILIAS,CATEGORIAS_POR_FAMILIA,ESPEC_CAMPOS,UNIDADE_PADRAO} from '../../lib/calc/manutencoes.js';
 import {paraNumero,paraCampo} from '../../lib/format.js';
 import {planoVinculoBem} from '../../lib/calc/equipamentos-patrimonio.js';
+import {ROTULO_FAMILIA_VINCULO,familiaVinculo} from '../../lib/calc/vinculo-patrimonio.js';
+import {desvincularFicha} from '../../services/vinculo-patrimonio.js';
 import {Card,SectionTitle} from '../ui.jsx';
 const ICONE_FAMILIA={veiculo:Car,maquina:Cog,predial:Building2};
 const ITEM_VAZIO = {
@@ -47,7 +49,7 @@ const EXEMPLO_NOME = {
   predial: "ex: Ar condicionado da produção",
 };
 
-function FormItem({ inicial, salvando, aoSalvar, aoFechar, setores, bensLivres = [], bemAtual = null }) {
+function FormItem({ inicial, salvando, aoSalvar, aoFechar, setores, bensLivres = [], bemAtual = null, aoDesfazer }) {
   const [f, setF] = useState(inicial);
   // Ficha sem vínculo: quem cuida do inventário escolhe o bem (que já existe, etiqueta
   // nova ou nenhum). Sem a escolha, salvar criava etiqueta nova calada e repetia o bem.
@@ -288,7 +290,8 @@ function FormItem({ inicial, salvando, aoSalvar, aoFechar, setores, bensLivres =
           <div className="sm:col-span-2">
             <label className="label" htmlFor="i-bem">Bem do inventário</label>
             {bemAtual ? (
-              <p className="text-sm text-slate-600">Vinculado a <b>{bemAtual.codigo || 'etiqueta pendente'}</b> · {bemAtual.nomeGenerico || 'Bem'}{bemAtual.descricaoTecnica ? ` · ${bemAtual.descricaoTecnica}` : ''}.</p>
+              <div className="flex flex-wrap items-center gap-2"><p className="text-sm text-slate-600">Vinculado a <b>{bemAtual.codigo || 'etiqueta pendente'}</b> · {bemAtual.nomeGenerico || 'Bem'}{bemAtual.descricaoTecnica ? ` · ${bemAtual.descricaoTecnica}` : ''}.</p>
+                {f.id && aoDesfazer && <button type="button" className="btn-outline" disabled={salvando} onClick={aoDesfazer}><Unlink size={15}/>Desfazer vínculo</button>}</div>
             ) : (<>
               <select id="i-bem" className="input" required value={f.bemEscolha || ""} onChange={escolherBem}>
                 <option value="" disabled>Escolha: bem que já existe, etiqueta nova ou sem vínculo</option>
@@ -354,7 +357,7 @@ function FormItem({ inicial, salvando, aoSalvar, aoFechar, setores, bensLivres =
 }
 
 
-export default function CadastroEquipamento({inicial,setores=[],bensLivres=[],bemAtual=null,aoConcluir,aoFechar}) {
+export default function CadastroEquipamento({inicial,setores=[],bensLivres=[],bemAtual=null,aoConcluir,aoFechar,aoDesvincular}) {
  const [salvando,setSalvando]=useState(false),[erro,setErro]=useState('');
  const ficha={...ITEM_VAZIO,...inicial,especificacao:{...inicial.especificacao},medidorAtual:paraCampo(inicial.medidorAtual),medidorProximo:paraCampo(inicial.medidorProximo),bemEscolha:''};
   async function gravar(f) {
@@ -392,10 +395,12 @@ export default function CadastroEquipamento({inicial,setores=[],bensLivres=[],be
       // Sem a permissão do inventário, ou "sem vínculo": só a ficha. Bem que já existe:
       // só liga (patch vazio). Etiqueta nova ou ficha já ligada: como antes.
       const plano=planoVinculoBem({escolha:f.bemEscolha,bemAtual:bemAtual?.id});
+      // Na edição, a versão lida: um Desfazer feito em outra tela dá 409 em vez de religar calado.
+      const versao=f.id?(inicial.atualizadoEm||''):undefined;
       const salvo=!podeAbrir('inventario-valores')||plano.acao==='nenhum'?await salvarAtivo(item)
-        :plano.acao==='ligar'?await salvarEquipamento(item,{},plano.bemId)
-        :plano.acao==='manter'?await salvarEquipamento(item,aquisicao,plano.bemId)
-        :await salvarEquipamento(item,doBem,undefined);
+        :plano.acao==='ligar'?await salvarEquipamento(item,{},plano.bemId,versao)
+        :plano.acao==='manter'?await salvarEquipamento(item,aquisicao,plano.bemId,versao)
+        :await salvarEquipamento(item,doBem,undefined,versao);
 
       await aoConcluir(salvo);
     } catch (e) {
@@ -405,5 +410,15 @@ export default function CadastroEquipamento({inicial,setores=[],bensLivres=[],be
     }
   }
 
- return <div>{erro&&<p className="pat-notice is-error" role="alert">{erro}</p>}<FormItem inicial={ficha} setores={setores} bensLivres={bensLivres} bemAtual={bemAtual} salvando={salvando} aoSalvar={gravar} aoFechar={aoFechar}/></div>;
+ // Quem edita Carros e Máquinas (Manutenções) com Inventário e valores também desfaz.
+ async function desfazer() {
+  if(!bemAtual||!inicial.id||salvando)return;
+  if(!window.confirm(`Desfazer o vínculo entre ${ROTULO_FAMILIA_VINCULO[familiaVinculo(inicial)]||'Ficha'} · ${inicial.nome||'Sem nome'} e o bem ${bemAtual.codigo||bemAtual.nomeGenerico||'sem etiqueta'}?\n\nO bem e a ficha continuam cadastrados, e o histórico de manutenção continua na ficha.`))return;
+  setSalvando(true);setErro('');
+  try{
+   const r=await desvincularFicha({bemId:bemAtual.id,ativoId:inicial.id,versaoFicha:inicial.atualizadoEm||'',versaoBem:bemAtual.atualizadoEm||'',origem:'ficha'});
+   await aoDesvincular?.(r);
+  }catch(e){setErro(e.message);}finally{setSalvando(false);}
+ }
+ return <div>{erro&&<p className="pat-notice is-error" role="alert">{erro}</p>}<FormItem inicial={ficha} setores={setores} bensLivres={bensLivres} bemAtual={bemAtual} salvando={salvando} aoSalvar={gravar} aoFechar={aoFechar} aoDesfazer={podeAbrir('inventario-valores')&&podeAbrir('manutencoes')?desfazer:undefined}/></div>;
 }

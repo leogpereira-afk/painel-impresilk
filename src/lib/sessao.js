@@ -62,6 +62,9 @@ export function getSessao() {
     if (perfil === 'comercial-beatriz') return {usuario:'beatriz-exemplo',nome:'Beatriz Exemplo · simulação',master:false,vendedorId:'102',permissoes:['orcamentos','compromissos','calendario-empresa']};
     if (perfil === 'empresa') return { usuario:'demo',nome:'Consulta empresarial · simulação',master:false,permissoes:['documentos','patrimonio','calendario-empresa'] };
     if (perfil === 'sem-valores') return { usuario:'demo',nome:'Consulta sem valores · simulação',master:false,permissoes:['documentos','documentos-pessoais','patrimonio','calendario-empresa'] };
+    // As quatro marcações do almoxarifado e a mesma conta sem Segurança (ficha oculta).
+    if (perfil === 'almoxarifado') return { usuario:'demo',nome:'Almoxarifado · simulação',master:false,permissoes:['patrimonio','inventario-valores','manutencoes','seguranca'] };
+    if (perfil === 'almoxarifado-sem-seguranca') return { usuario:'demo',nome:'Almoxarifado sem Segurança · simulação',master:false,permissoes:['patrimonio','inventario-valores','manutencoes'] };
     return {usuario:"demo",nome:"Conta de demonstração",master:true,permissoes:["*"]};
   }
   try {

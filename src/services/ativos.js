@@ -13,7 +13,8 @@ async function chamar(action, dados = {}) {
     body: JSON.stringify({ action, ...dados }),
   });
   const corpo = await resp.json().catch(() => null);
-  if (!resp.ok) throw Object.assign(new Error(corpo?.erro || mensagemDoStatus(resp.status)), { status: resp.status });
+  // recusaVinculo: o servidor recusou o vínculo, não houve outra gravação (BemDaFicha.jsx).
+  if (!resp.ok) throw Object.assign(new Error(corpo?.erro || mensagemDoStatus(resp.status)), { status: resp.status, recusaVinculo: corpo?.recusaVinculo === true });
   return corpo;
 }
 
@@ -24,7 +25,8 @@ export const listarEquipamentosPatrimonio = () => chamar("listarPatrimonio").the
 export const salvarEstrutura = (item, versao = null) => chamar("salvarEstrutura", { item, versao }).then(r => r.item);
 export const salvarAtivo = (item) => chamar("salvar", { item }).then((r) => r.item);
 export const removerAtivo = (id, bemId) => chamar("remover", { id, bemId });
-export const salvarEquipamento = (item, patrimonio, bemId) => chamar("salvar",{item,patrimonio,bemId}).then(r=>r.item);
+// Na edição, `versao` é o atualizadoEm lido; o servidor recusa se a ficha mudou.
+export const salvarEquipamento = (item, patrimonio, bemId, versao) => chamar("salvar",{item,patrimonio,bemId,versao}).then(r=>r.item);
 // A lixeira de 30 dias: o servidor guarda o apagado e purga sozinho.
 export const listarLixeira = () => chamar("lixeira").then((r) => r.itens || []);
 export const restaurarAtivo = (id) => chamar("restaurar", { id });

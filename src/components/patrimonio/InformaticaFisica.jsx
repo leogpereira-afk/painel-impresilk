@@ -6,6 +6,7 @@ import {SITUACOES_INFORMATICA,manutencoesDoAtivo,alertaManutencao} from '../../l
 import {vinculoDoEquipamento} from '../../lib/calc/equipamentos-patrimonio.js';
 import PessoaRH from './PessoasRH.jsx';
 import JanelaFormulario from '../JanelaFormulario.jsx';
+import BemDaFicha from './BemDaFicha.jsx';
 
 export function BemExplicito({item,bens=[]}) {
  const {bem,vinculo}=vinculoDoEquipamento(item,bens);
@@ -22,7 +23,7 @@ export function HistoricoInformatica({item,mapa,erro,bens=[],limite=null,mostrar
 }
 export function LinksManutencao({item}) {return podeAbrir('manutencoes')?<div className="info-actions"><Link className="btn-outline" to={caminhoManutencao({item:item.id,familia:'informatica',aba:'historico'})}>Ver histórico</Link><Link className="btn-outline" to={caminhoManutencao({item:item.id,familia:'informatica',lancar:true})}>Lançar manutenção</Link></div>:null;}
 const CAMPO_COMUM=[['local','Local'],['fabricante','Fabricante'],['modelo','Modelo'],['marcaModelo','Marca e modelo'],['numeroSerie','Número de série']];
-export function FormFisico({item,setItem,bens=[],setores=[],categorias=[],titulo,aoSalvar,aoFechar,erro='',conflito=false,ocupado=false,extras=[],children}) {
+export function FormFisico({item,setItem,bens=[],setores=[],categorias=[],titulo,aoSalvar,aoFechar,erro='',conflito=false,ocupado=false,extras=[],fichaSalva=null,fichas=[],aoVerBem,aoDesfeito,children}) {
  const e=item.especificacao||{};
  const campo=(nome)=>ev=>setItem(v=>({...v,[nome]:ev.target.value}));
  const detalhe=(nome)=>ev=>setItem(v=>({...v,especificacao:{...v.especificacao,[nome]:ev.target.value}}));
@@ -36,6 +37,6 @@ export function FormFisico({item,setItem,bens=[],setores=[],categorias=[],titulo
  <label>Setor<select className="input" value={e.setorId||''} onChange={detalhe('setorId')}><option value="">Setor pendente</option>{e.setorId&&!setores.some(s=>s.id===e.setorId)&&<option value={e.setorId}>Setor antigo a conferir</option>}{setores.map(s=><option key={s.id} value={s.id}>{s.nome}</option>)}</select></label>
  <label>Situação<select className="input" value={e.situacao||''} onChange={detalhe('situacao')}><option value="">Pendente</option>{Object.entries(SITUACOES_INFORMATICA).map(([id,nome])=><option key={id} value={id}>{nome}</option>)}</select></label>
  <PessoaRH rotulo="Responsável no RH" valor={item.responsavelId||''} nome={item.responsavel||''} aoMudar={(responsavelId,responsavel)=>setItem(v=>({...v,responsavelId,responsavel}))}/>
- {podeAbrir('inventario-valores')&&<label>Bem do inventário<select className="input" value={item.bemId||''} onChange={campo('bemId')}><option value="">Sem vínculo</option>{item.bemId&&!bens.some(b=>b.id===item.bemId)&&<option value={item.bemId}>Vínculo anterior a conferir</option>}{bens.map(b=><option key={b.id} value={b.id}>{b.codigo||'Etiqueta pendente'} · {b.nomeGenerico||'Bem'}</option>)}</select></label>}
+ {podeAbrir('inventario-valores')&&<BemDaFicha ficha={fichaSalva} valor={item.bemId||''} aoMudar={id=>setItem(v=>({...v,bemId:id}))} bens={bens} fichas={fichas} aoVerBem={aoVerBem} aoDesfeito={aoDesfeito}/>}
  </fieldset><div className="info-actions"><button className="btn-primary" disabled={ocupado||conflito}>{ocupado?'Salvando…':'Salvar ficha'}</button><button type="button" className="btn-ghost" onClick={aoFechar} disabled={ocupado}>Cancelar</button></div></form></JanelaFormulario>;
 }
