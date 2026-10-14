@@ -41,7 +41,12 @@ Estado em 14/10/2026:
 - **Revisão adversarial** (servidor, tela e navegador, com refutação): 13 achados confirmados, todos corrigidos com teste vermelho-verde, entre eles nome de ficha de Segurança no histórico do bem para quem não tem a permissão, lista que não atualizava depois do vínculo e a linha "Ligado a" alargando a página no celular.
 - **Verificação local como a CI** (Node 20, TZ=UTC, CI=true): 1.385 testes de tests/, 646 de cálculo e 7 de acessos aprovados, sem ignorados; lint sem erros (o aviso anterior em Agenda); conferir-portas, papel, 404, realizado, acessos, gestão, fotos, crm, ações do Mubisys, preparação de licitação, restauro e imports aprovados; build com BASE_PATH, conferir-classes e build da prévia aprovados. Prévia conferida no navegador com dados fictícios (desktop e 375 px, sem rolagem lateral): ligar, desfazer com confirmação, histórico e "Ligado a" nos cartões.
 - **Fica para depois:** no celular, a recusa de vínculo dentro dos formulários de ficha aparece no topo do formulário, fora da vista depois de Salvar, como os demais erros desses formulários.
-- Publicação autorizada por Léo nesta conversa em 14/10/2026: "ok". O token de publicar as functions só vale na main, então o servidor sobe num commit próprio na main (compatível com a tela atual) e a tela num segundo commit, depois de o servidor estar conferido. A vez continua do Claude até a publicação conferida.
+- **Publicado e conferido em 14/10/2026** (autorização de Léo: "ok" e "voce faz tudo"; as junções foram feitas por Léo no GitHub, porque a trava do Claude Code não deixa o agente juntar na main):
+  - servidor primeiro: PR 20, merge `1b70a78`; Functions `38621031697` com sucesso, `painel-ativos` v139 e `painel-config` v158 ACTIVE às 19:07 e 19:08 UTC, antes da tela;
+  - tela: PR 19, merge `8b2f9de`; Pages `38621072424`, build e deploy com sucesso (o Pages do merge anterior foi cancelado pela fila);
+  - a main publicada é idêntica à árvore verificada localmente (`01ab220`), e o HTML e os recursos oficiais são idênticos ao build da main com BASE_PATH (119 de 119);
+  - nenhuma migração, concessão de acesso ou alteração de registros. O acesso do Raphael fica com Léo, na tela de acessos.
+- Trabalho concluído; a vez fica encerrada e o Léo decide quem segue.
 
 ## Trabalho atual · Silk, mascote da Impresilk
 
