@@ -1,5 +1,13 @@
 # Vez do Painel Impresilk
 
+## Trabalho atual · Aviso de erro à vista nas janelas de formulário
+
+Agente: claude. Pedido de Léo em 14/10/2026, depois do vínculo pela ficha do bem publicado e conferido: "finalizar o detalhe se e simples" (no celular, a recusa de vínculo dentro do formulário da ficha aparecia no topo do formulário, fora da vista depois de Salvar). Ramo `claude/aviso-na-vista-20261014`, a partir da main `a397cf7`.
+
+Escopo: só tela. A `JanelaFormulario` (22 formulários, todas as fichas do Patrimônio) observa a própria janela e, quando surge ou muda um aviso `role="alert"` com texto que está fora da vista, rola até ele (`scrollIntoView({block:'center'})`). Vale para a recusa de vínculo e para "Outra alteração foi salva". Aviso já à vista e mensagens de sucesso (`role="status"`) não mexem na rolagem. Sem servidor, banco, permissões ou dados.
+
+Estado: verificação local como a CI (Node 20, TZ=UTC, CI=true): 1.389 testes de tests/ (4 novos em tests/aviso-na-vista.test.mjs), 646 de cálculo e 7 de acessos aprovados, sem ignorados; lint sem erros (o aviso anterior em Agenda); conferências, build com BASE_PATH, conferir-classes e build da prévia aprovados. Prévia com dados fictícios a 390 px, recusa do servidor depois de Salvar numa ficha de computador: na main o aviso ficava 1.277 px acima da tela; com a correção, entre 110 e 182 px, à vista, sem rolagem lateral nem erro de JavaScript. Não publicado: Léo junta o PR no GitHub (a trava do Claude Code não deixa o agente juntar na main); depois confiro o Pages e encerro a vez.
+
 ## Trabalho atual · Logo centralizada na saudação
 
 Agente: codex. Pedido de Léo em 14/10/2026: “colocar logo da impresilk centralizado na frase”. Após consultar a vez do Claude, Léo autorizou retomar temporariamente a vez apenas para esse ajuste, preservando Patrimônio, com “Sim, ajustar e publicar”. Ramo `codex/logo-saudacao-centralizada-20261014`, clone isolado fora do iCloud, baseado na main `5732dd0`.
