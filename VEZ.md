@@ -1,5 +1,13 @@
 # Vez do Painel Impresilk
 
+## Trabalho atual · Prospecção e Pós-venda separados
+
+Agente: codex. Pedido de Léo em 15/10/2026: separar Prospecção de Pós-venda, usando as O.S. entregues e vinculando vendedor, ação e prazo para controle da direção. Desenho aprovado com “sim ele tem que sempre falar o que ele fez pode fazer”. Clone isolado `/tmp/painel-pos-venda-20261015`, ramo `codex/comercial-pos-venda-20261015`, a partir da main `8a9372a`. Trabalho anterior publicado e encerrado.
+
+Escopo: duas abas, consulta automática das entregas comprovadas no PCP, vínculo original com vendedor e cliente, planejamento e registro de atendimento com relato obrigatório do que foi feito, resultado, prazo e histórico. Reutilizar ações e agenda existentes; preservar filtros, carteiras, IDs e registros. Testes e prévia com dados fictícios. Sem alteração de dados reais, concessão de acesso, mensagens ou migração.
+
+Estado: publicação em execução, servidor antes da tela. Implementação conferida em 15/10/2026: 1.444 regressões e 653 testes de cálculo/acesso aprovados, zero falhas e zero ignorados; build oficial aprovado; lint dos arquivos alterados limpo (lint geral apenas com o aviso anterior em Agenda); 15 verificadores aprovados e classes repetidas após o build final. Revisão independente encerrou os achados de vínculo e responsável. Navegador conferiu ações, reagendamento, relato obrigatório, conclusão/histórico e contadores atualizados, fonte antiga fora do período e 390 px. Sem dados reais alterados, mensagens, concessão de acesso ou migração. Publicação autorizada por Léo com “subir” em 15/10/2026, após a prévia com Fazer ação e Registrar e finalizar. Publicar e conferir servidor antes da tela; sem migração, concessão de acesso ou alteração de dados reais. Ajuste adicional solicitado pelo dono: Fazer ação, Registrar e continuar e Registrar e finalizar; 103 testes relacionados, build e lint aprovados; revisão independente sem bloqueadores e prévia conferida nos dois caminhos, incluindo bloqueio sem relato. Detalhes em docs/comercial-pos-venda.md. Demais trabalhos preservados.
+
 ## Trabalho atual · Cadastro e listas unificados
 
 Agente: codex. Publicação autorizada por Léo com “subir” em 14/10/2026. Implementação local afd9c7f verificada: 2.056 testes conferidos, build e lint sem erros, simulação de cadastro e vínculo preservando etiquetas. Publicar primeiro o servidor aceitando a área Ferramentas & Outros; depois a tela unificada, busca de fichas e destaque de pendências. Estado: servidor publicado primeiro no commit faf640a. painel-config v160 ACTIVE, código de entrada idêntico ao validado, incluindo a área outros. Segunda etapa: publicação da tela no ramo codex/patrimonio-fluxo-publicar-20261014. Nenhum dado real alterado.

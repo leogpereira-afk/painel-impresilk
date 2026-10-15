@@ -221,7 +221,7 @@ export function validarAcao(b,escopo,base,autor,agora) {
  if(!escopo.gestor&&!escopo.ids.includes(vendedorId))throw Object.assign(new Error('Responsável fora do seu acesso.'),{status:403});
  if(!(base.vendedores||[]).some(v=>String(v.id)===vendedorId))throw Object.assign(new Error('Escolha uma vendedora do Mubisys.'),{status:400});
  const orcamentoId=String(b.orcamentoId||'');
- const {c,o,...contexto}=contextoDaAcao(b,base);
+ const {c,o,...contexto}=contextoDaAcao({...b,vendedorId},base);
  if(!['pendente','concluida'].includes(b.status||'pendente'))throw Object.assign(new Error('Situação inválida.'),{status:400});
  const contato=validarContato(b,base.acaoAnterior||{},autor,agora),data=contato.data||b.data;
  const descricao=b.descricao||contato.esperaJustificada&&`Revisar espera: ${contato.justificativaEspera}`.slice(0,500);

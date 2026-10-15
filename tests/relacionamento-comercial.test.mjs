@@ -5,7 +5,7 @@ import {resumirRelacionamento,clienteBasico,alertasComerciais} from '../supabase
 
 const hoje='2026-10-08',agora=hoje+'T12:00:00Z';
 const escopo={gestor:false,ids:['1'],vendedorId:'1'};
-const base={vendedores:[{id:'1',nome:'Ana'}],clientes:[{id:'c1',nome:'Loja A',documento:'11222333000181'}],clientesConsulta:[{id:'c2',nome:'Loja B',documento:'19131243000197',responsavel:'Outra consultora'}],orcamentos:[{id:'o1',clienteId:'c1',valor:1200}],vendasCliente:[{id:'v1',numero:'10',clienteId:'c1',data:'2023-02-01',tipo:'Normal',valor:500,elegivelPosVenda:true,entregaRealEm:'2023-02-10T12:00:00Z'}],cadastroCompleto:true};
+const base={vendedores:[{id:'1',nome:'Ana'}],clientes:[{id:'c1',nome:'Loja A',documento:'11222333000181'}],clientesConsulta:[{id:'c2',nome:'Loja B',documento:'19131243000197',responsavel:'Outra consultora'}],orcamentos:[{id:'o1',clienteId:'c1',valor:1200}],vendasCliente:[{id:'v1',numero:'10',clienteId:'c1',vendedorId:'1',data:'2023-02-01',tipo:'Normal',valor:500,elegivelPosVenda:true,entregaRealEm:'2023-02-10T12:00:00Z'}],cadastroCompleto:true};
 const entrada={id:'acao-1',vendedorId:'1',clienteId:'c1',descricao:'Confirmar resultado da instalação',data:hoje,status:'pendente'};
 const validar=b=>validarAcao({...entrada,...b},escopo,base,'Ana',agora);
 

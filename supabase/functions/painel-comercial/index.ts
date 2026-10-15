@@ -1,7 +1,7 @@
 import {createClient} from 'https://esm.sh/@supabase/supabase-js@2.45.0';
 import {verificarJwt,crachaRevogado} from '../_shared/cripto.ts';
 import {consultarClientes} from '../_shared/consulta-clientes.mjs';
-import {clienteBasico} from '../_shared/relacionamento-comercial.mjs';
+import {clienteBasico,vendedorOriginalPosVenda} from '../_shared/relacionamento-comercial.mjs';
 import {contextoComercial} from '../_shared/comercial-contexto.ts';
 import {mesclarOrdensComerciais,janelasHistoricas} from '../_shared/carteira-historica.mjs';
 import {consultarFinanceiroComercial,detalharVendasCliente,paginarVendasCliente,projetarVendaCliente,timelineContatosCliente,pedidosPosVendaPendentes} from '../_shared/comercial-consultas.ts';
@@ -54,9 +54,19 @@ Deno.serve(async(req:Request)=>{
    const consultadoEm=new Date().toISOString(),candidatos=ctx.vendasHistoricasAutorizadas||[];
    const pagina=paginarVendasCliente(candidatos,b.pagina??1,b.tamanho??20),ids=new Set(pagina.vendas.map((o:any)=>o.id)),daPagina=candidatos.filter((o:any)=>ids.has(String(o.id)));
    const detalhadas=await detalharVendasCliente(sb,daPagina,fontes.ordens?.valor||[],escopo,null,hoje);
-   const operacoes=await consultarOperacoesComerciais(sb,detalhadas,consultadoEm),vendas=enriquecerVendasOperacao(detalhadas,operacoes),acoes=(await carregarAcoes()).map((a:any)=>a.registro);
-   const resultado=pedidosPosVendaPendentes(vendas,acoes),indisponiveis=vendas.filter((o:any)=>o.operacao?.estado==='indisponivel').length,semVinculo=vendas.filter((o:any)=>o.operacao?.estado==='sem_vinculo').length;
-   return json({...resultado,paginacao:{...pagina.paginacao,criterio:'Candidatos comerciais autorizados, independentemente do mês das vendas.'},cobertura:{totalCandidatos:pagina.paginacao.total,candidatosNaPagina:daPagina.length,verificadosNaPagina:detalhadas.length,elegiveisNaPagina:resultado.elegiveisNaPagina,pendentesNaPagina:resultado.pendentesNaPagina,operacaoIndisponivel:indisponiveis,semVinculo,completa:!indisponiveis&&!semVinculo&&detalhadas.length===daPagina.length,criterio:'Entrega efetiva comprovada no PCP; pós-venda concluído exige contato confirmado. A paginação conta candidatos, não um total definitivo de pós-vendas.'},coberturaHistorica,fontes:{vendas:{fonte:'Histórico comercial do Painel',atualizadoEm:coberturaHistorica?.atualizadoEm||null},operacao:{fonte:'PCP',consultadoEm}},consultadoEm});
+   const operacoes=await consultarOperacoesComerciais(sb,detalhadas,consultadoEm),vendas=enriquecerVendasOperacao(detalhadas,operacoes);
+   const porOrdem=new Map(vendas.map((o:any)=>[String(o.id),o]));
+   // Só as O.S. autorizadas desta página podem localizar ações divergentes.
+   // A vendedora recebe apenas um impedimento; os dados da outra carteira
+   // continuam restritos. A direção pode conferir e corrigir o vínculo legado.
+   const registros=porOrdem.size?await todas(()=>sb.from('painel_registros').select('id,registro').eq('colecao','comercial_acoes').eq('registro->>tipoAcao','pos_venda').in('registro->>ordemId',[...porOrdem.keys()]).order('id')):[];
+   const acoes=registros.map((r:any)=>{
+    const a=r.registro,o:any=porOrdem.get(String(a.ordemId)),visivel=escopo.gestor||escopo.ids?.includes(String(a.vendedorId)),vendedorOriginal=vendedorOriginalPosVenda(o,catalogo.vendedores||[]);
+    if(!visivel||String(a.clienteId)!==String(o.clienteId))return {tipoAcao:'pos_venda',ordemId:String(o.id),clienteId:String(o.clienteId),acaoOculta:true,vinculoPosVendaDivergente:true};
+    return {...a,vinculoPosVendaDivergente:!vendedorOriginal||String(a.vendedorId)!==vendedorOriginal};
+   });
+   const resultado=pedidosPosVendaPendentes(vendas,acoes,{incluirConcluidos:b.incluirConcluidos===true}),indisponiveis=vendas.filter((o:any)=>o.operacao?.estado==='indisponivel').length,semVinculo=vendas.filter((o:any)=>o.operacao?.estado==='sem_vinculo').length;
+   return json({...resultado,incluiConcluidos:b.incluirConcluidos===true,paginacao:{...pagina.paginacao,criterio:'Candidatos comerciais autorizados, independentemente do mês das vendas.'},cobertura:{totalCandidatos:pagina.paginacao.total,candidatosNaPagina:daPagina.length,verificadosNaPagina:detalhadas.length,elegiveisNaPagina:resultado.elegiveisNaPagina,pendentesNaPagina:resultado.pendentesNaPagina,concluidosNaPagina:resultado.concluidosNaPagina,operacaoIndisponivel:indisponiveis,semVinculo,completa:!indisponiveis&&!semVinculo&&detalhadas.length===daPagina.length,criterio:'Entrega efetiva comprovada no PCP; pós-venda concluído exige contato confirmado com resultado e relato do atendimento. A paginação conta candidatos, não um total definitivo de pós-vendas.'},coberturaHistorica,fontes:{vendas:{fonte:'Histórico comercial do Painel',atualizadoEm:coberturaHistorica?.atualizadoEm||null},operacao:{fonte:'PCP',consultadoEm}},consultadoEm});
   }
   if(b.action==='contextoRelacionamento'){
    if(!fontes.crm_clientes?.valor?.completo)return json({erro:'O cadastro de clientes ainda não foi sincronizado por completo.'},503);
@@ -79,11 +89,29 @@ Deno.serve(async(req:Request)=>{
   }
   if(b.action==='salvarAcao'){
    const anterior=anteriorAcao;if(anterior && !escopo.gestor&&!escopo.ids.includes(anterior.registro.vendedorId))return json({erro:'Esta ação pertence a outra vendedora.'},403);
-   const entrada={...anterior?.registro,...b.acao,...(b.acao?.confirmarContato===true?{resultado:b.acao.resultado??'',resultadoContato:b.acao.resultadoContato??null,nota:b.acao.nota??'',motivoPerda:b.acao.motivoPerda??'',observacaoPerda:b.acao.observacaoPerda??''}: {})};
+   if(anterior?.registro?.tipoAcao==='pos_venda'){
+    const alterouVinculo=['tipoAcao','clienteId','ordemId'].some(k=>Object.hasOwn(b.acao||{},k)&&String(b.acao[k]??'')!==String(anterior.registro[k]??''));
+    if(alterouVinculo)return json({erro:'O vínculo de pós-venda preserva o tipo, o cliente e a O.S. original. Edite o atendimento nesta ação.'},400);
+   }else if(anterior&&b.acao?.tipoAcao==='pos_venda')return json({erro:'Crie o pós-venda a partir da O.S. entregue.'},400);
+   const entrada={...anterior?.registro,...b.acao,...(b.acao?.confirmarContato===true?{resultado:b.acao.resultado??'',resultadoContato:b.acao.resultadoContato??null,relatoAtendimento:b.acao.relatoAtendimento??'',nota:b.acao.nota??'',motivoPerda:b.acao.motivoPerda??'',observacaoPerda:b.acao.observacaoPerda??''}: {})};
    const a=validarAcao(entrada,escopo,{acaoAnterior:anterior?.registro||{},vendedores:catalogo.vendedores,orcamentos,clientes,vendasCliente:ctx.vendasCliente||[],clientesConsulta:Object.values(fontes.crm_clientes?.valor?.clientes||{}).map(clienteBasico),cadastroCompleto:fontes.crm_clientes?.valor?.completo===true},String(sessao.nome||sessao.sub),new Date().toISOString());
    if(anterior?.registro?.compromissoId)a.compromissoId=anterior.registro.compromissoId;
-   const {data,error}=await sb.rpc('painel_comercial_salvar_acao',{p_id:a.id,p_vendedor:a.vendedorId,p_registro:a,p_versao:b.versao??null,p_autor:String(sessao.sub),p_autorizados:escopo.gestor?null:escopo.ids});
-   if(error)return json({erro:'A atividade mudou em outro acesso. Atualize antes de salvar.'},409);return json({acao:data});
+   const novoPosVenda=!anterior&&a.tipoAcao==='pos_venda',conflitoPosVenda='Já existe uma ação de pós-venda para este pedido. Atualize e abra a ação existente para registrar o atendimento.';
+   if(novoPosVenda){
+    // Validar cliente, carteira e entrega vem antes desta consulta. Todas as
+    // criações para a mesma O.S. disputam o mesmo ID e a trava/versionamento
+    // já existentes na RPC; nunca reaproveitamos o registro silenciosamente.
+    const hash=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(a.ordemId));
+    a.id='pv-'+Array.from(new Uint8Array(hash)).map(n=>n.toString(16).padStart(2,'0')).join('').slice(0,48);
+    const [{data:canonica,error:erroCanonica},legadas]=await Promise.all([
+     sb.from('painel_registros').select('id').eq('colecao','comercial_acoes').eq('id',a.id).maybeSingle(),
+     todas(()=>sb.from('painel_registros').select('id,status:registro->>status').eq('colecao','comercial_acoes').eq('registro->>tipoAcao','pos_venda').eq('registro->>ordemId',a.ordemId).order('id')),
+    ]);
+    if(erroCanonica)throw Object.assign(new Error('Não foi possível conferir a ação de pós-venda existente.'),{status:503});
+    if(canonica||legadas.some((x:any)=>x.status!=='concluida'))return json({erro:conflitoPosVenda},409);
+   }
+   const {data,error}=await sb.rpc('painel_comercial_salvar_acao',{p_id:a.id,p_vendedor:a.vendedorId,p_registro:a,p_versao:novoPosVenda?null:b.versao??null,p_autor:String(sessao.sub),p_autorizados:escopo.gestor?null:escopo.ids});
+   if(error)return json({erro:novoPosVenda?conflitoPosVenda:'A atividade mudou em outro acesso. Atualize antes de salvar.'},409);return json({acao:data});
   }
   if(b.action!=='painel')return json({erro:'Ação inválida.'},400);
   if(!fontes.orcamentos || !fontes.crm_clientes?.valor?.completo)return json({erro:'As fontes de orçamentos e clientes ainda não estão disponíveis.'},503);

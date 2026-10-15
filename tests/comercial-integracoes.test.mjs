@@ -1,6 +1,7 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
+import {createHash} from 'node:crypto';
 import {fileURLToPath} from 'node:url';
 import vm from 'node:vm';
 import {buildSync} from 'esbuild';
@@ -41,7 +42,7 @@ function ambiente(){
   select(campos){selecao=campos;consultas.push({tabela,campos});return q;},eq(k,v){linhas=linhas.filter(o=>campo(o,k)===v);return q;},in(k,vs){linhas=linhas.filter(o=>vs.includes(campo(o,k)));return q;},gte(k,v){linhas=linhas.filter(o=>campo(o,k)>=v);return q;},lte(k,v){linhas=linhas.filter(o=>campo(o,k)<=v);return q;},order(){linhas=[...linhas].sort((a,b)=>String(a.id).localeCompare(String(b.id)));return q;},range(a,b){inicio=a;fim=b;return q;},
   maybeSingle(){return Promise.resolve(falha===tabela?{error:{message:'ERRO-PRIVADO'}}:{data:linhas[0]?projetar(linhas[0],selecao):null});},then(resolve,reject){return Promise.resolve(falha===tabela?{error:{message:'ERRO-PRIVADO'}}:{data:linhas.slice(inicio,fim+1).map(o=>projetar(o,selecao))}).then(resolve,reject);},
  };return q;},async rpc(nome,p){gravacoes.push({nome,p});if(nome==='painel_comercial_salvar_acao'){const old=banco.painel_registros.find(r=>r.colecao==='comercial_acoes'&&r.id===p.p_id);if((old?.registro.versao??null)!==p.p_versao)return {error:{}};const registro={...p.p_registro,versao:(old?.registro.versao||0)+1};if(old)old.registro=registro;else banco.painel_registros.push({colecao:'comercial_acoes',id:p.p_id,registro});return {data:registro};}return {data:{}};}};
- const contexto={createClient:()=>sb,verificarJwt:async()=>sessao,crachaRevogado:async()=>false,Deno:{env:{get:()=> 'ficticio'},serve:fn=>handler=fn},Request,Response,URL,crypto,console:{error(){}}};
+ const contexto={createClient:()=>sb,verificarJwt:async()=>sessao,crachaRevogado:async()=>false,Deno:{env:{get:()=> 'ficticio'},serve:fn=>handler=fn},Request,Response,URL,crypto,TextEncoder,console:{error(){}}};
  vm.runInNewContext(comercial,contexto);vm.runInNewContext(agenda,{...contexto,Deno:{...contexto.Deno,serve:fn=>handlerAgenda=fn}});
  const call=async(fn,b)=>{const r=await fn(new Request('https://test.invalid',{method:'POST',headers:{authorization:'Bearer ficticio'},body:JSON.stringify(b)}));return {status:r.status,...await r.json()};};
  return {banco,consultas,gravacoes,sessao:s=>sessao=s,falha:t=>falha=t,call:b=>call(handler,{filtro:{de:mes+'-01',ate:dia},...b}),agenda:b=>call(handlerAgenda,{action:'comercial',...b})};
@@ -122,7 +123,100 @@ test('consulta de pós-venda inclui entrega histórica fora do período e reutil
  const pos={colecao:'comercial_acoes',id:'pos-original',registro:{id:'pos-original',tipoAcao:'pos_venda',vendedorId:'v1',clienteId:'c1',ordemId:'erp-original',descricao:'Consultar satisfação',data:dia,status:'pendente',versao:2}};a.banco.painel_registros.push(pos);
  r=await a.call({action:'consultarPosVenda'});assert.equal(r.pedidos[0].acaoPosVenda.id,'pos-original');assert.equal(r.pedidos[0].acaoPosVenda.versao,2);assert.equal(r.pedidos[0].posVendaEstado,'em_acompanhamento');assert.equal(a.gravacoes.length,0);
  pos.registro.status='concluida';r=await a.call({action:'consultarPosVenda'});assert.equal(r.pedidos[0].posVendaEstado,'a_conferir');
- Object.assign(pos.registro,{contatoEm:dia+'T12:00:00Z',contatos:[{em:dia+'T12:00:00Z',resultado:'Cliente satisfeito'}]});r=await a.call({action:'consultarPosVenda'});assert.equal(r.pedidos.length,0);assert.equal(r.cobertura.elegiveisNaPagina,1);
+ Object.assign(pos.registro,{contatoEm:dia+'T12:00:00Z',contatos:[{em:dia+'T12:00:00Z',resultado:'Cliente satisfeito'}]});r=await a.call({action:'consultarPosVenda'});assert.equal(r.pedidos[0].posVendaEstado,'a_conferir');
+ Object.assign(pos.registro.contatos[0],{concluida:true,resultadoContato:'aprovou',relatoAtendimento:'Conferi o retorno após a instalação.'});r=await a.call({action:'consultarPosVenda'});assert.equal(r.pedidos.length,0);assert.equal(r.cobertura.elegiveisNaPagina,1);
+});
+
+test('pós-venda inclui concluídos sob pedido, mantém contagem da página e projeta o relato seguro',async()=>{
+ const a=ambiente(),em=dia+'T12:00:00Z';a.banco.painel_registros.push({colecao:'comercial_acoes',id:'pos-concluida',registro:{id:'pos-concluida',tipoAcao:'pos_venda',vendedorId:'v1',vendedorNome:'Ana Exemplo',clienteId:'c1',cliente:'Loja fictícia A',ordemId:'erp-original',ordemNumero:'111',descricao:'Conferir retorno',data:dia,status:'concluida',versao:4,fase:'em_andamento',canal:'ligacao',prioridade:'alta',objetivo:'Conferir satisfação',resultado:'Cliente satisfeito',contatoEm:em,relatoAtendimento:'Ouvi a cliente e conferi a instalação.',campoPrivado:'SEGREDO-ACAO',contatos:[{em,autor:'Ana Exemplo',resultadoContato:'aprovou',resultado:'Cliente satisfeito',relatoAtendimento:'Ouvi a cliente e conferi a instalação.',nota:'Sem pendências',concluida:true,campoPrivado:'SEGREDO-CONTATO'}]}});
+ let r=await a.call({action:'consultarPosVenda'});assert.deepEqual(r.pedidos,[]);assert.equal(r.pendentesNaPagina,0);assert.equal(r.concluidosNaPagina,1);assert.equal(r.incluiConcluidos,false);
+ r=await a.call({action:'consultarPosVenda',incluirConcluidos:true});assert.equal(r.status,200);assert.equal(r.incluiConcluidos,true);assert.equal(r.pedidos.length,1);assert.equal(r.pedidos[0].posVendaPendente,false);assert.equal(r.pedidos[0].posVendaEstado,'concluido');assert.equal(r.cobertura.concluidosNaPagina,1);assert.equal(r.cobertura.pendentesNaPagina,0);
+ const acao=r.pedidos[0].acaoPosVenda;assert.equal(acao.id,'pos-concluida');assert.equal(acao.versao,4);assert.equal(acao.vendedorId,'v1');assert.equal(acao.clienteId,'c1');assert.equal(acao.ordemId,'erp-original');assert.equal(acao.fase,'em_andamento');assert.equal(acao.canal,'ligacao');assert.equal(acao.prioridade,'alta');assert.equal(acao.objetivo,'Conferir satisfação');assert.equal(acao.relatoAtendimento,'Ouvi a cliente e conferi a instalação.');
+ assert.deepEqual(r.pedidos[0].ultimaInteracao,{em,autor:'Ana Exemplo',resultadoContato:'aprovou',resultado:'Cliente satisfeito',relatoAtendimento:'Ouvi a cliente e conferi a instalação.',nota:'Sem pendências'});assert.deepEqual(acao.ultimaInteracao,r.pedidos[0].ultimaInteracao);assert.doesNotMatch(JSON.stringify(r),/SEGREDO|campoPrivado|PCP-NOTA|PCP-ANEXO|999999/);
+});
+
+test('ação aberta de pós-venda prevalece sobre conclusão anterior e a última interação permanece visível',async()=>{
+ const a=ambiente(),em=dia+'T11:00:00Z';a.banco.painel_registros.push({colecao:'comercial_acoes',id:'pos-antiga',registro:{id:'pos-antiga',tipoAcao:'pos_venda',vendedorId:'v1',clienteId:'c1',ordemId:'erp-original',data:dia,status:'concluida',contatoEm:em,contatos:[{em,autor:'Ana Exemplo',resultadoContato:'aprovou',resultado:'Primeiro retorno',relatoAtendimento:'Conferi a entrega.',concluida:true}]}},{colecao:'comercial_acoes',id:'pos-aberta',registro:{id:'pos-aberta',tipoAcao:'pos_venda',vendedorId:'v1',clienteId:'c1',ordemId:'erp-original',data:dia,descricao:'Conferir ajuste solicitado',status:'pendente',versao:2}});
+ const r=await a.call({action:'consultarPosVenda',incluirConcluidos:true});assert.equal(r.pedidos.length,1);assert.equal(r.pedidos[0].posVendaEstado,'em_acompanhamento');assert.equal(r.pedidos[0].posVendaPendente,true);assert.equal(r.pedidos[0].acaoPosVenda.id,'pos-aberta');assert.equal(r.pedidos[0].ultimaInteracao.relatoAtendimento,'Conferi a entrega.');assert.equal(r.pendentesNaPagina,1);assert.equal(r.concluidosNaPagina,0);
+});
+
+test('conclusão de pós-venda incoerente e contato posterior aberto permanecem a conferir',async()=>{
+ const a=ambiente(),em=dia+'T11:00:00Z',posterior=dia+'T12:00:00Z',acao={id:'pos-incoerente',tipoAcao:'pos_venda',vendedorId:'v1',clienteId:'c1',ordemId:'erp-original',data:dia,status:'concluida',contatoEm:em,contatos:[{em,resultadoContato:'aprovou',resultado:'Entrega conferida',relatoAtendimento:'Conferi os acabamentos.',concluida:true},{em:posterior,resultadoContato:'aguarda_informacao',resultado:'Falta conferir ajuste',relatoAtendimento:'Cliente pediu um ajuste.',concluida:false}]};a.banco.painel_registros.push({colecao:'comercial_acoes',id:acao.id,registro:acao});
+ let r=await a.call({action:'consultarPosVenda',incluirConcluidos:true});assert.equal(r.pedidos[0].posVendaEstado,'a_conferir');assert.equal(r.pedidos[0].ultimaInteracao.em,posterior);
+ acao.contatoEm=posterior;r=await a.call({action:'consultarPosVenda',incluirConcluidos:true});assert.equal(r.pedidos[0].posVendaEstado,'a_conferir');
+ acao.contatos[1].em=em;acao.contatoEm=em;r=await a.call({action:'consultarPosVenda',incluirConcluidos:true});assert.equal(r.pedidos[0].posVendaEstado,'a_conferir');assert.equal(r.pedidos[0].ultimaInteracao.resultado,'Falta conferir ajuste');
+});
+
+test('servidor não reutiliza relato anterior ao confirmar novo contato e não conclui no modo planejar',async()=>{
+ const a=ambiente(),entrada={id:'pos-relato',tipoAcao:'pos_venda',clienteId:'c1',ordemId:'erp-original',objetivo:'Conferir satisfação',descricao:'Ouvir retorno',data:dia,confirmarContato:true,resultadoContato:'avaliando',relatoAtendimento:'Perguntei sobre os acabamentos.'};
+ let r=await a.call({action:'salvarAcao',acao:entrada});assert.equal(r.status,200);assert.equal(r.acao.contatos[0].relatoAtendimento,'Perguntei sobre os acabamentos.');entrada.id=r.acao.id;const em=r.acao.contatoEm;
+ r=await a.call({action:'salvarAcao',acao:{id:entrada.id,confirmarContato:true,resultadoContato:'aprovou'},versao:1});assert.equal(r.status,400);assert.equal(a.banco.painel_registros.find(x=>x.id===entrada.id).registro.contatos.length,1);
+ r=await a.call({action:'salvarAcao',acao:{id:entrada.id,status:'concluida',resultado:'Cliente satisfeito'},versao:1});assert.equal(r.status,400);
+ r=await a.call({action:'salvarAcao',acao:{id:entrada.id,confirmarContato:false,descricao:'Reagendar retorno',relatoAtendimento:'FORJADO',contatoEm:'FORJADO'},versao:1});assert.equal(r.status,200);assert.equal(r.acao.relatoAtendimento,'Perguntei sobre os acabamentos.');assert.equal(r.acao.contatoEm,em);
+ r=await a.call({action:'salvarAcao',acao:{id:entrada.id,status:'concluida',confirmarContato:true,resultadoContato:'aprovou',relatoAtendimento:'Recebi o retorno e confirmei a entrega sem pendências.'},versao:2});assert.equal(r.status,200);assert.equal(r.acao.status,'concluida');assert.equal(r.acao.contatos.length,2);assert.equal(r.acao.contatos[1].concluida,true);
+ const contexto=await a.call({action:'contextoRelacionamento',clienteId:'c1'});assert.equal(contexto.timelineContatos.find(c=>c.acaoId===entrada.id).relatoAtendimento,'Recebi o retorno e confirmei a entrega sem pendências.');
+});
+
+test('criações concorrentes de pós-venda com IDs distintos gravam uma única ação e nunca anexam o segundo contato',async()=>{
+ const a=ambiente(),acao={tipoAcao:'pos_venda',clienteId:'c1',ordemId:'erp-original',objetivo:'Conferir satisfação',descricao:'Ouvir retorno',data:dia,confirmarContato:true,resultadoContato:'avaliando'};
+ const antes=structuredClone(a.banco.painel_registros),respostas=await Promise.all([a.call({action:'salvarAcao',acao:{...acao,id:'id-primeiro-acesso',relatoAtendimento:'Ouvi o primeiro retorno.'}}),a.call({action:'salvarAcao',acao:{...acao,id:'id-segundo-acesso',relatoAtendimento:'Ouvi o segundo retorno.'}})]);
+ assert.deepEqual(respostas.map(r=>r.status).sort(),[200,409]);const salvas=a.banco.painel_registros.filter(x=>x.registro.tipoAcao==='pos_venda');assert.equal(salvas.length,1);assert.equal(salvas[0].registro.contatos.length,1);assert.equal(salvas[0].registro.versao,1);
+ assert.equal(salvas[0].id,'pv-'+createHash('sha256').update('erp-original').digest('hex').slice(0,48));assert.equal(salvas[0].registro.id,salvas[0].id);assert.deepEqual(a.banco.painel_registros.filter(x=>x.registro.tipoAcao!=='pos_venda'),antes);
+ const salva=structuredClone(salvas[0]);const repetida=await a.call({action:'salvarAcao',acao:{...acao,id:'mais-um-id',relatoAtendimento:'Não pode entrar no histórico.'}});assert.equal(repetida.status,409);assert.match(repetida.erro,/existente|já existe/i);assert.deepEqual(structuredClone(salvas[0]),salva);
+ const editada=await a.call({action:'salvarAcao',acao:{id:salva.id,descricao:'Próximo retorno'},versao:1});assert.equal(editada.status,200);assert.equal(editada.acao.id,salva.id);assert.equal(editada.acao.versao,2);assert.equal(editada.acao.contatos.length,1);
+});
+
+test('pós-venda novo respeita ação legada ativa e conflito fora da carteira sem expor seu ID',async()=>{
+ for(const id of ['legado-oculto-ficticio','pv-'+createHash('sha256').update('erp-original').digest('hex').slice(0,48)]){
+  const a=ambiente(),legado={colecao:'comercial_acoes',id,registro:{id,tipoAcao:'pos_venda',clienteId:'c1',ordemId:'erp-original',vendedorId:'v2',data:dia,status:'pendente',versao:7,descricao:'SEGREDO-OUTRA-CARTEIRA',contatos:[{em:dia+'T12:00:00Z',relatoAtendimento:'SEGREDO-OUTRA-CARTEIRA'}]}};a.banco.painel_registros.push(legado);const antes=structuredClone(legado);
+  const r=await a.call({action:'salvarAcao',acao:{id:'novo-aleatorio',tipoAcao:'pos_venda',clienteId:'c1',ordemId:'erp-original',objetivo:'Conferir satisfação',descricao:'Ouvir retorno',data:dia,confirmarContato:true,resultadoContato:'avaliando',relatoAtendimento:'Não pode entrar no registro da outra pessoa.'}});assert.equal(r.status,409);assert.doesNotMatch(JSON.stringify(r),/SEGREDO|legado-oculto|pv-/);assert.deepEqual(legado,antes);assert.equal(a.gravacoes.length,0);
+ }
+});
+
+test('criação de pós-venda valida acesso e entrega antes de qualquer gravação e outros tipos preservam seus IDs',async()=>{
+ const a=ambiente(),acao={id:'id-entrada',tipoAcao:'pos_venda',clienteId:'c1',ordemId:'erp-original',objetivo:'Conferir satisfação',descricao:'Ouvir retorno',data:dia};a.banco.pcp_registros[0].registro.finalizadaEm=null;
+ assert.equal((await a.call({action:'salvarAcao',acao})).status,400);assert.equal(a.gravacoes.length,0);
+ assert.equal((await a.call({action:'salvarAcao',acao:{...acao,clienteId:'c2',ordemId:'erp-outra'}})).status,403);assert.equal(a.gravacoes.length,0);
+ const normal=await a.call({action:'salvarAcao',acao:{...acao,tipoAcao:'relacionamento',ordemId:''}});assert.equal(normal.status,200);assert.equal(normal.acao.id,'id-entrada');
+});
+
+test('vínculo de pós-venda persistido preserva tipo, cliente e O.S. sem ocupar o ID canônico de outro pedido',async()=>{
+ for(const alteracao of [{ordemId:'segunda-os-ficticia'},{tipoAcao:'relacionamento'},{clienteId:'c2'},{tipoAcao:null},{ordemId:''}]){
+  const a=ambiente();a.banco.painel_ordens.push({...a.banco.painel_ordens[0],id:'segunda-os-ficticia',numero:'333'});a.banco.pcp_registros.push({...a.banco.pcp_registros[0],id:'pcp-segunda-ficticia',registro:{...a.banco.pcp_registros[0].registro,numero:'333'}});
+  const salvo=await a.call({action:'salvarAcao',acao:{id:'novo-id-ficticio',tipoAcao:'pos_venda',clienteId:'c1',ordemId:'erp-original',objetivo:'Conferir satisfação',descricao:'Ouvir retorno',data:dia}});assert.equal(salvo.status,200);
+  const antes=structuredClone(a.banco.painel_registros),gravacoes=a.gravacoes.length;
+  const r=await a.call({action:'salvarAcao',acao:{id:salvo.acao.id,...alteracao},versao:1});assert.equal(r.status,400);assert.match(r.erro,/O\.S\. original|vínculo original/i);assert.deepEqual(structuredClone(a.banco.painel_registros),antes);assert.equal(a.gravacoes.length,gravacoes);
+ }
+});
+
+test('ação persistida de outro tipo não se converte em pós-venda para contornar a criação canônica',async()=>{
+ const a=ambiente(),antes=structuredClone(a.banco.painel_registros);
+ const r=await a.call({action:'salvarAcao',acao:{id:'acao-original',tipoAcao:'pos_venda',ordemId:'erp-original',objetivo:'Conferir satisfação',confirmarContato:true,resultadoContato:'avaliando',relatoAtendimento:'Conferi os acabamentos.'},versao:3});assert.equal(r.status,400);assert.match(r.erro,/Crie o pós-venda a partir da O\.S\. entregue/i);assert.deepEqual(structuredClone(a.banco.painel_registros),antes);assert.equal(a.gravacoes.length,0);
+});
+
+test('pós-venda legado preserva ID em reagendamento, contato, conclusão e reabertura sem transferir a O.S.',async()=>{
+ const a=ambiente(),legado={id:'pos-legado-ficticio',tipoAcao:'pos_venda',vendedorId:'v1',clienteId:'c1',ordemId:'erp-original',objetivo:'Conferir satisfação',descricao:'Ouvir retorno',data:dia,status:'concluida',resultado:'Retorno antigo',versao:1};a.banco.painel_registros.push({colecao:'comercial_acoes',id:legado.id,registro:legado});
+ let r=await a.call({action:'salvarAcao',acao:{id:legado.id,descricao:'Descrição corrigida'},versao:1});assert.equal(r.status,200);assert.equal(r.acao.id,legado.id);assert.deepEqual(r.acao.contatos,[]);
+ r=await a.call({action:'salvarAcao',acao:{id:legado.id,status:'pendente',data:dia,descricao:'Reabrir acompanhamento'},versao:2});assert.equal(r.status,200);assert.equal(r.acao.status,'pendente');
+ r=await a.call({action:'salvarAcao',acao:{id:legado.id,status:'concluida',confirmarContato:true,resultadoContato:'aprovou',relatoAtendimento:'Ouvi o cliente e confirmei os acabamentos.'},versao:3});assert.equal(r.status,200);assert.equal(r.acao.contatos.length,1);
+ a.sessao({sub:'gestor-ficticio',master:true});r=await a.call({action:'salvarAcao',acao:{id:legado.id,vendedorId:'v2'},versao:4});assert.equal(r.status,400);assert.match(r.erro,/vendedor original/i);assert.equal(a.banco.painel_registros.find(x=>x.id===legado.id).registro.versao,4);
+});
+
+test('direção não cria nem confirma pós-venda para vendedor diferente da O.S. e o vendedor original funciona por nome único',async()=>{
+ const a=ambiente();a.sessao({sub:'gestor-ficticio',master:true});delete a.banco.painel_ordens[0].comercial.vendedorId;
+ const entrada={id:'pos-novo-ficticio',tipoAcao:'pos_venda',vendedorId:'v2',clienteId:'c1',ordemId:'erp-original',objetivo:'Conferir satisfação',descricao:'Ouvir retorno',data:dia};
+ let r=await a.call({action:'salvarAcao',acao:entrada});assert.equal(r.status,400);assert.match(r.erro,/vendedor original/i);assert.equal(a.gravacoes.length,0);
+ r=await a.call({action:'salvarAcao',acao:{...entrada,vendedorId:'v1'}});assert.equal(r.status,200);assert.equal(r.acao.vendedorId,'v1');const antes=structuredClone(a.banco.painel_registros);
+ r=await a.call({action:'salvarAcao',acao:{id:r.acao.id,vendedorId:'v2',confirmarContato:true,resultadoContato:'avaliando',relatoAtendimento:'Não pode transferir este atendimento.'},versao:1});assert.equal(r.status,400);assert.deepEqual(structuredClone(a.banco.painel_registros),antes);
+});
+
+test('legado com vendedor divergente fica a conferir sem expor contato oculto e direção corrige o responsável original',async()=>{
+ const a=ambiente(),legado={id:'legado-pos-vendedor-divergente',tipoAcao:'pos_venda',vendedorId:'v2',clienteId:'c1',ordemId:'erp-original',objetivo:'Conferir satisfação',descricao:'SEGREDO-VINCULO-DIVERGENTE',data:dia,status:'pendente',versao:5,contatos:[{em:dia+'T12:00:00Z',autor:'Bia Exemplo',resultado:'SEGREDO-CONTATO-DIVERGENTE',relatoAtendimento:'SEGREDO-CONTATO-DIVERGENTE'}]};a.banco.painel_registros.push({colecao:'comercial_acoes',id:legado.id,registro:legado});
+ let r=await a.call({action:'consultarPosVenda',incluirConcluidos:true});assert.equal(r.pedidos[0].posVendaEstado,'a_conferir');assert.equal(r.pedidos[0].posVendaBloqueado,true);assert.equal(r.pedidos[0].acaoPosVenda,null);assert.equal(r.pedidos[0].ultimaInteracao,null);assert.doesNotMatch(JSON.stringify(r),/SEGREDO|legado-pos-vendedor-divergente|Bia Exemplo/);
+ a.sessao({sub:'gestor-ficticio',master:true});r=await a.call({action:'consultarPosVenda',incluirConcluidos:true,filtro:{de:mes+'-01',ate:dia,vendedor:'v1'}});assert.equal(r.pedidos[0].posVendaEstado,'a_conferir');assert.equal(r.pedidos[0].acaoPosVenda.id,legado.id);assert.equal(r.pedidos[0].acaoPosVenda.vendedorId,'v2');assert.equal(r.pedidos[0].posVendaBloqueado,false);
+ r=await a.call({action:'salvarAcao',acao:{id:legado.id,vendedorId:'v1'},versao:5});assert.equal(r.status,200);assert.equal(r.acao.id,legado.id);assert.equal(r.acao.vendedorId,'v1');assert.equal(r.acao.contatos[0].relatoAtendimento,'SEGREDO-CONTATO-DIVERGENTE');assert.equal(r.acao.versao,6);
+ a.sessao({sub:'ana-exemplo',nome:'Ana Exemplo',perms:['orcamentos']});r=await a.call({action:'consultarPosVenda',incluirConcluidos:true});assert.equal(r.pedidos[0].posVendaEstado,'em_acompanhamento');assert.equal(r.pedidos[0].acaoPosVenda.id,legado.id);assert.equal(r.pedidos[0].posVendaBloqueado,false);
+ a.sessao({sub:'bia-exemplo',nome:'Bia Exemplo',perms:['orcamentos']});r=await a.call({action:'salvarAcao',acao:{id:legado.id,confirmarContato:true,resultadoContato:'avaliando',relatoAtendimento:'Não pode ler atendimento corrigido.'},versao:6});assert.equal(r.status,403);
 });
 test('paginação de pós-venda conta candidatos e mostra cobertura incompleta sem inventar entrega',async()=>{
  const a=ambiente();a.banco.painel_ordens.push({...a.banco.painel_ordens[0],id:'pedido-sem-operacao',numero:'333',data:'2025-01-03'});
