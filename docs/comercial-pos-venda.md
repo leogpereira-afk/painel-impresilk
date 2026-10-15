@@ -1,6 +1,6 @@
 # Prospecção e Pós-venda separados
 
-Entrega local em 15/10/2026, a partir da main 8a9372a. Autorização de implementação: “sim ele tem que sempre falar o que ele fez pode fazer”. Publicação autorizada por Léo com “subir” em 15/10/2026, após a entrega dos botões Fazer ação e Registrar e finalizar.
+Entrega publicada em 15/10/2026, a partir da main 8a9372a. Autorização de implementação: “sim ele tem que sempre falar o que ele fez pode fazer”. Publicação autorizada por Léo com “subir” em 15/10/2026, após a entrega dos botões Fazer ação e Registrar e finalizar.
 
 ## Funcionamento
 
@@ -42,4 +42,4 @@ Publicação autorizada: publicar painel-comercial com as dependências comparti
 
 ## Publicação autorizada em 15/10/2026
 
-Servidor publicado antes da tela no commit 9b03e4b; Functions 38813524617 aprovado. As sete funções afetadas estão ACTIVE: painel-comercial 59, painel-agenda 84, painel-config 161, painel-dados 155, painel-ativos 142, painel-marketing 49 e painel-mkt-fontes 42. Todos os 114 arquivos dos pacotes publicados são idênticos ao código validado. Tela em liberação; confirmar Pages e arquivos oficiais antes de encerrar. Não houve migração, mudança de credencial, concessão de acesso, mensagem ou gravação de teste em produção.
+Servidor publicado antes da tela no commit 9b03e4b; Functions 38813524617 aprovado. As sete funções afetadas estão ACTIVE: painel-comercial 59, painel-agenda 84, painel-config 161, painel-dados 155, painel-ativos 142, painel-marketing 49 e painel-mkt-fontes 42. Todos os 114 arquivos dos pacotes publicados são idênticos ao código validado. Tela publicada no commit 9b6446a; Pages 38813736887 com build e deploy aprovados. HTML, 404 e 117 assets oficiais idênticos ao build validado (119/119). Chrome com sessão real da direção conferiu Prospecção e Pós-venda, entregas, Fazer ação, responsável original da O.S., formulário e botões Registrar e continuar e Registrar e finalizar habilitados. O formulário foi cancelado sem salvar; sem erros JavaScript. O histórico amplo continua por etapas, com contagens parciais explícitas até encerrar a consulta. Não houve teste de escrita com conta real nem sessão real de vendedora restrita. Não houve migração, mudança de credencial, concessão de acesso, mensagem ou gravação de teste em produção.
