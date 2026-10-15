@@ -24,7 +24,7 @@ import {validadeOrcamento,diasSemContato,filtrarOrcamentos,FILTROS_ORCAMENTOS,fi
 import {BRIEFING_CAMPOS,MOTIVOS_PERDA} from '../../supabase/functions/_shared/relacionamento-comercial.mjs';
 import './comercial.css';
 import '../components/comercial/comercial-relacionamento.css';
-const ABAS=[['painel','Meu painel'],['orcamentos','Orçamentos'],['relacionamento','Prospecção e pós-venda'],['vendas','Minhas vendas'],['clientes','Meus clientes'],['produtos','Produtos e soluções'],['metas','Minhas metas']];
+const ABAS=[['painel','Meu painel'],['orcamentos','Orçamentos'],['prospeccao','Prospecção'],['pos_venda','Pós-venda'],['vendas','Minhas vendas'],['clientes','Meus clientes'],['produtos','Produtos e soluções'],['metas','Minhas metas']];
 const IconeBrief=iconeDoSistema(doSistema('brief'));
 const brl=c=>c==null?'Não disponível':(c/100).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
 const valor=v=>v==null?null:Math.round(v*100);
@@ -75,11 +75,12 @@ function ComercialTela({sessao}){
  const fimMes=new Date(Number(hoje.slice(0,4)),Number(hoje.slice(5,7)),0).getDate();
  const filtro=useMemo(()=>({de:params.get('de')||hoje.slice(0,7)+'-01',ate:params.get('ate')||hoje.slice(0,7)+'-'+fimMes,vendedor:params.get('vendedor')||'',equipe:params.get('equipe')||'',comparacao:params.get('comparacao')||'equivalente'}),[params,hoje,fimMes]);
  const [filtrosAbertos,setFiltrosAbertos]=useState(false);
- const chave=JSON.stringify(filtro),aba=ABAS.some(a=>a[0]===params.get('aba'))?params.get('aba'):'painel';
+ const chave=JSON.stringify(filtro),abaSolicitada=params.get('aba'),aba=abaSolicitada==='relacionamento'?(params.get('relacao_tipo')==='pos_venda'||params.get('pos_venda')==='1'?'pos_venda':'prospeccao'):ABAS.some(a=>a[0]===abaSolicitada)?abaSolicitada:'painel';
  const [carga,setCarga]=useState(null),[erro,setErro]=useState(''),[carregando,setCarregando]=useState(true),[revisao,setRevisao]=useState(0),[modal,setModal]=useState(null);
  const dados=carga?.chave===chave?carga.dados:null,r=dados?.relatorio;
  const financeiro=useMemo(()=>resumoFinanceiroComercial(r?.vendas||[],dados?.financeiro,hoje),[r,dados,hoje]);
  const alterar=patch=>{const p=new URLSearchParams(params);Object.entries(patch).forEach(([k,v])=>v?p.set(k,v):p.delete(k));setParams(p);setModal(null);};
+ useEffect(()=>{if(abaSolicitada==='relacionamento'){const p=new URLSearchParams(params);p.set('aba',aba);setParams(p,{replace:true});}},[abaSolicitada,aba,params,setParams]);
  useEffect(()=>{const ctl=new AbortController();setCarregando(true);setErro('');chamarComercial('painel',{filtro:JSON.parse(chave)},ctl.signal).then(d=>{if(!ctl.signal.aborted)setCarga({chave,dados:d});}).catch(e=>{if(!ctl.signal.aborted)setErro(e.message);}).finally(()=>{if(!ctl.signal.aborted)setCarregando(false);});return()=>ctl.abort();},[chave,revisao]);
  const busca=params.get(`busca_${aba}`)||'',situacao=params.get(`situacao_${aba}`)||'';
  const setBusca=v=>{const p=new URLSearchParams(params);v?p.set(`busca_${aba}`,v):p.delete(`busca_${aba}`);setParams(p,{replace:true});};
@@ -137,7 +138,8 @@ function ComercialTela({sessao}){
  <ComercialDicas compacto onAbrir={()=>setModal({tipo:'dicas'})}/>
  </aside></div>
  </>}
- {aba==='relacionamento'&&<><RelacionamentoComercial dados={dados} resumo={r} abrirCliente={abrirCliente} abrirAcao={abrirAcao}/><PosVendaComercial filtro={filtro} abrirPedido={abrirPedido} abrirAcao={abrirAcao}/></>}
+ {aba==='prospeccao'&&<RelacionamentoComercial dados={dados} resumo={r} abrirCliente={abrirCliente} abrirAcao={abrirAcao}/>}
+ {aba==='pos_venda'&&<PosVendaComercial filtro={filtro} abrirPedido={abrirPedido} abrirAcao={abrirAcao} dados={dados} revisao={revisao}/>}
  {aba==='orcamentos'&&<OrcamentosComerciais r={r} filtro={filtro} dados={dados} modo={params.get('visaoOrc')||'trabalho'} alterar={alterar} busca={busca} setBusca={setBusca} situacao={situacao} setSituacao={setSituacao} filtrar={filtrar} abrirOrc={abrirOrc} fase={params.get('fase_orcamentos')||''} setFase={v=>alterar({fase_orcamentos:v})}/>}
    {aba==='vendas'&&<div className="com-vendas">
    <div className="com-kpis">{[['Venda líquida',brl(r.valor),'O.S. normais por data de cadastro'],['Pedidos',r.pedidos,'Um registro por ID de O.S.'],['Ticket médio',brl(r.ticket),`${brl(r.valor)} ÷ ${r.pedidos} pedidos`]].map(([l,v,criterio])=><button key={l} className="com-kpi" onClick={()=>detalhe(`${l} · registros do cálculo`,r.vendas,'vendas')}><span>{l}<ArrowUpRight size={14}/></span><strong>{v}</strong><small>{criterio}</small></button>)}</div>

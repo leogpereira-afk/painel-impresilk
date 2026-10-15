@@ -1,6 +1,6 @@
 import {useState} from 'react';
 import {useSearchParams} from 'react-router-dom';
-import {Plus,Search,Target,HeartHandshake,RotateCcw,ArrowUpRight,CalendarDays} from 'lucide-react';
+import {Plus,Search,Target,RotateCcw,ArrowUpRight,CalendarDays} from 'lucide-react';
 import {TIPOS_ACAO,FASES_ACAO,resumirRelacionamento,situacaoRelacionamento} from '../../../supabase/functions/_shared/relacionamento-comercial.mjs';
 import {clienteCorresponde} from '../../../supabase/functions/_shared/consulta-clientes.mjs';
 const data=d=>d?d.slice(0,10).split('-').reverse().join('/'):'Sem data';
@@ -8,10 +8,10 @@ const normal=v=>String(v||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').tr
 const propostasDe=c=>(c.orcamentos||c.propostas||[]).filter(o=>o.situacao==='aberto');
 export default function RelacionamentoComercial({dados,abrirAcao,abrirCliente,resumo}){
  const [params,setParams]=useSearchParams(),[limite,setLimite]=useState(12),[limiteClientes,setLimiteClientes]=useState(6);
- const busca=params.get('relacao_busca')||'',tipo=['prospeccao','pos_venda','relacionamento','reativacao'].includes(params.get('relacao_tipo'))?params.get('relacao_tipo'):'';
+ const busca=params.get('relacao_busca')||'',tipo=['prospeccao','relacionamento','reativacao'].includes(params.get('relacao_tipo'))?params.get('relacao_tipo'):'';
  const situacao=['abertas','hoje','atrasadas','programadas','concluidas','todas'].includes(params.get('relacao_situacao'))?params.get('relacao_situacao'):'abertas';
  const lista=['reativacao','frequencia','propostas'].includes(params.get('relacao_lista'))?params.get('relacao_lista'):'reativacao';
- const r=resumo||dados.relatorio,hoje=r.hoje,acoes=resumirRelacionamento(dados.base.acoes,{busca,tipo,situacao},hoje);
+ const r=resumo||dados.relatorio,hoje=r.hoje,acoes=resumirRelacionamento(dados.base.acoes.filter(a=>a.tipoAcao!=='pos_venda'),{busca,tipo,situacao},hoje);
  function alterar(chave,valor){setParams(atuais=>{const p=new URLSearchParams(atuais);valor?p.set(chave,valor):p.delete(chave);return p;},{replace:true});setLimite(12);setLimiteClientes(6);}
  const clientes=r.clientes||[],buscarCliente=c=>clienteCorresponde(c,busca);
  const reativacoes=[...new Map([...(r.sugestoesReativacao||[]),...clientes.filter(c=>c.reativacao?.acaoExistenteId)].map(c=>[String(c.id),c])).values()].filter(buscarCliente);
@@ -28,12 +28,11 @@ export default function RelacionamentoComercial({dados,abrirAcao,abrirCliente,re
   const vendedorId=dados.escopo.vendedorId||params.get('vendedor')||p?.vendedorErpId||p?.responsavelId||(porNome.length===1?String(porNome[0].id):'');
   return {nova:{clienteId:String(c.id),cliente:c.nome,vendedorId,vendedorNome:c.responsavel,tipoAcao:lista==='reativacao'?'reativacao':lista==='propostas'?'acompanhamento':'relacionamento',orcamentoId:lista==='propostas'?String(p.id):'',objetivo:lista==='reativacao'?'Conferir nova necessidade do cliente':'Planejar o próximo atendimento',descricao:lista==='propostas'?`Combinar o próximo passo do orçamento #${p.numero||p.id}`:'Conferir a próxima necessidade do cliente'}};
  }
- const tipos=[['prospeccao','Conquistar cliente',Target],['pos_venda','Pós-venda após entrega',HeartHandshake],['relacionamento','Planejar estratégia',ArrowUpRight],['reativacao','Reativar cliente',RotateCcw]];
+ const tipos=[['prospeccao','Conquistar cliente',Target],['relacionamento','Planejar estratégia',ArrowUpRight],['reativacao','Reativar cliente',RotateCcw]];
  const rotulos={hoje:'Hoje',atrasadas:'Atrasada',programadas:'Programada',concluidas:'Concluída'};
- return <section className="com-relationship" aria-label="Prospecção e pós-venda">
-  <div className="com-section-head"><div><p className="com-eyebrow">CONQUISTAR · CUIDAR · DESENVOLVER</p><h2>Prospecção e pós-venda</h2><p className="com-muted">Uma ação para cada cliente, venda ou oportunidade. O mês filtra vendas; as ações permanecem aqui até a conclusão.</p></div><button className="btn-primary" onClick={()=>abrirAcao({tipoAcao:'prospeccao'})}><Plus size={17}/>Nova ação</button></div>
+ return <section className="com-relationship" aria-label="Prospecção">
+  <div className="com-section-head"><div><h2>Prospecção</h2><p className="com-muted">Novos clientes, reativação e estratégia. As ações permanecem aqui até a conclusão.</p></div><button className="btn-primary" onClick={()=>abrirAcao({tipoAcao:'prospeccao'})}><Plus size={17}/>Nova ação</button></div>
   <div className="com-intentions">{tipos.map(([id,nome,Icone])=><button key={id} className={`com-intention ${id}`} onClick={()=>abrirAcao({tipoAcao:id})}><Icone size={19}/><span>{nome}</span><Plus size={15}/></button>)}</div>
-  <p className="com-muted">Pós-venda requer entrega ou instalação efetiva comprovada. <button className="com-link" onClick={()=>abrirAcao({tipoAcao:'acompanhamento'})}>Acompanhar pedido em andamento</button></p>
   <div className="com-relationship-tools"><label className="com-relationship-search"><Search size={17}/><input type="search" aria-label="Buscar cliente, CNPJ ou estratégia" placeholder="Cliente, CNPJ ou estratégia" value={busca} onChange={e=>{alterar('relacao_busca',e.target.value);}}/></label><label>Tipo<select value={tipo} onChange={e=>{alterar('relacao_tipo',e.target.value);}}><option value="">Todos os tipos</option>{tipos.map(([id])=><option key={id} value={id}>{TIPOS_ACAO[id]}</option>)}</select></label></div>
   <div className="com-priority-filters" role="group" aria-label="Situação das ações">{[['abertas','Abertas',acoes.abertas],['hoje','Hoje',acoes.hoje],['atrasadas','Atrasadas',acoes.atrasadas],['concluidas','Concluídas',acoes.concluidas],['todas','Todas',acoes.abertas+acoes.concluidas]].map(([id,n,q])=><button key={id} aria-pressed={situacao===id} onClick={()=>{alterar('relacao_situacao',id);}}>{n}<span>{q}</span></button>)}</div>
   <div className="com-relationship-grid">{acoes.itens.slice(0,limite).map(a=>{const estado=situacaoRelacionamento(a,hoje);return <article className={`com-action-card is-${estado}`} key={a.id}>
