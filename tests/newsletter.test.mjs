@@ -38,3 +38,29 @@ test('CSV lida com aspas, duplicados e entradas pendentes sem inventar autoriza�
  assert.equal(r.validos.length,1);assert.equal(r.erros.length,2);assert.equal(r.validos[0].dados.situacao,'pendente');assert.equal(r.validos[0].dados.autorizacao,'');
  assert.throws(()=>lerContatosNewsletter('nome;email\n"não fecha;a@example.com'),/Aspas/);
 });
+
+import {lerEmailsColados} from '../src/lib/calc/newsletter-csv.js';
+test('colar emails aceita separadores, normaliza e recusa repetidos sem ativar contatos',()=>{
+ const r=lerEmailsColados('A@example.com; b@example.com\na@example.com, inválido',[L]);
+ assert.equal(r.validos.length,2);assert.equal(r.erros.length,2);
+ assert.equal(r.validos[0].dados.email,'a@example.com');
+ assert.equal(r.validos[0].dados.situacao,'pendente');
+ assert.deepEqual(r.validos[0].dados.listas,[L]);
+ assert.throws(()=>lerEmailsColados('  '),/pelo menos/);
+ assert.throws(()=>lerEmailsColados(Array(501).fill('a@example.com').join('\n')),/500/);
+});
+test('contato preserva registro da saída e limita o texto no servidor',()=>{
+ const d={email:'a@example.com',situacao:'descadastrado',motivoSaida:'Pedido recebido pelo atendimento'};
+ assert.equal(prepararNewsletter('contato',d).motivoSaida,d.motivoSaida);
+ assert.throws(()=>prepararNewsletter('contato',{...d,motivoSaida:'x'.repeat(501)}),/saída/);
+});
+
+test('rascunho Locaweb preserva configuração sem armazenar senha nem declarar conexão',()=>{
+ const base={nome:'Exemplo',email:'teste@example.com'};
+ const vazio=prepararNewsletter('remetente',base); assert.equal(vazio.provedor,'locaweb'); assert.equal(vazio.smtpPorta,null);
+ const r=prepararNewsletter('remetente',{...base,smtpHost:'smtp.example.com',smtpPorta:'587',smtpSeguranca:'starttls',smtpUsuario:'teste@example.com',senha:'NAO-SALVAR',conectado:true});
+ assert.equal(r.smtpPorta,587);assert.equal(r.smtpSeguranca,'starttls');assert.equal(r.senha,undefined);assert.equal(r.conectado,undefined);
+ assert.throws(()=>prepararNewsletter('remetente',{...base,smtpPorta:65536}),/porta/);
+ assert.throws(()=>prepararNewsletter('remetente',{...base,smtpHost:'https://user:pass@example.com'}),/servidor/);
+ assert.throws(()=>prepararNewsletter('remetente',{...base,smtpSeguranca:'sem'}),/segurança/);
+});

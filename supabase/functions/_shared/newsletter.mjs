@@ -24,13 +24,19 @@ function link(v) {
 export function prepararNewsletter(tipo, entrada) {
   if (!TIPOS_NEWSLETTER.includes(tipo) || !entrada || typeof entrada !== 'object' || Array.isArray(entrada)) throw new ErroNewsletter('Cadastro inválido.');
   if (tipo === 'lista') return { nome: texto(entrada.nome, 100, 'o nome da lista', true), descricao: texto(entrada.descricao, 400, 'a descrição') };
-  if (tipo === 'remetente') return { nome: texto(entrada.nome, 100, 'o nome do remetente', true), email: email(entrada.email), responderPara: email(entrada.responderPara, true) };
+  if (tipo === 'remetente') {
+    const smtpHost = texto(entrada.smtpHost, 253, 'o servidor SMTP').toLowerCase();
+    if (smtpHost && !/^(?=.{1,253}$)[a-z0-9](?:[a-z0-9.-]*[a-z0-9])?$/.test(smtpHost)) throw new ErroNewsletter('Informe somente o nome do servidor SMTP, sem URL ou credenciais.');
+    const smtpPorta = entrada.smtpPorta == null || entrada.smtpPorta === '' ? null : Number(entrada.smtpPorta);
+    if (smtpPorta !== null && (!Number.isInteger(smtpPorta) || smtpPorta < 1 || smtpPorta > 65535)) throw new ErroNewsletter('Confira a porta SMTP.');
+    return { nome: texto(entrada.nome, 100, 'o nome do remetente', true), email: email(entrada.email), responderPara: email(entrada.responderPara, true), provedor: 'locaweb', smtpHost, smtpPorta, smtpSeguranca: opcao(entrada.smtpSeguranca || '', ['', 'tls', 'starttls'], 'a segurança SMTP'), smtpUsuario: texto(entrada.smtpUsuario, 254, 'o usuário SMTP') };
+  }
   if (tipo === 'contato') {
     const situacao = opcao(entrada.situacao || 'pendente', ['pendente', 'inscrito', 'descadastrado', 'bloqueado'], 'a situação');
     const origem = texto(entrada.origem, 300, 'a origem');
     const autorizacao = texto(entrada.autorizacao, 500, 'a autorização');
     if (situacao === 'inscrito' && (!origem || !autorizacao)) throw new ErroNewsletter('Para ativar, registre a origem e a autorização para receber.');
-    return { nome: texto(entrada.nome, 150, 'o nome'), email: email(entrada.email), empresa: texto(entrada.empresa, 150, 'a empresa'), listas: ids(entrada.listas || []), situacao, origem, autorizacao };
+    return { nome: texto(entrada.nome, 150, 'o nome'), email: email(entrada.email), empresa: texto(entrada.empresa, 150, 'a empresa'), listas: ids(entrada.listas || []), situacao, origem, autorizacao, motivoSaida: texto(entrada.motivoSaida, 500, 'o registro da saída') };
   }
   const situacao = opcao(entrada.situacao || 'rascunho', ['rascunho', 'revisao', 'pronta', 'arquivada'], 'a situação');
   const conteudo = texto(entrada.conteudo, 30000, 'o conteúdo');

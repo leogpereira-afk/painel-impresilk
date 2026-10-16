@@ -39,3 +39,19 @@
 .nl-metricas {display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin:12px 0;}
 .nl-metricas div {display:grid;padding:8px;background:var(--bg);border-radius:8px;overflow-wrap:anywhere;}.nl-metricas small {text-transform:capitalize;}
 @media(max-width:639px){.nl-topo {align-items:flex-start;}.nl-linha {flex-wrap:wrap;}.nl-identidade {flex-basis:65%;}.nl-linha .nl-acoes {width:100%;justify-content:flex-end;}.nl-filtros>* {flex:1;}.nl-metricas {grid-template-columns:repeat(2,minmax(0,1fr));}}
+.nl-conexao,.nl-secao-titulo {display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;}
+.nl-conexao {border:1px solid var(--hairline);border-left:3px solid #d97706;border-radius:10px;padding:8px 12px;background:var(--surface);font-size:12px;}
+.nl-conexao>span {display:flex;align-items:center;gap:6px;flex-wrap:wrap;}
+.nl-secao-titulo h3,.nl-config h3,.nl-resumo-envio h3 {font-size:16px;font-weight:700;display:flex;align-items:center;gap:6px;}
+.nl-segmentos {display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:8px;}
+.nl-segmento {border:1px solid var(--hairline);border-radius:12px;background:var(--surface);padding:10px 12px;text-align:left;display:grid;gap:4px;}
+.nl-segmento>button:first-child {text-align:left;display:grid;gap:4px;min-height:44px;width:100%;}
+.nl-segmento span {font-size:12px;color:var(--muted);}
+.nl-segmento.selecionado {border-color:#6366f1;background:color-mix(in srgb,var(--surface) 94%,#6366f1);box-shadow:inset 3px 0 #6366f1;}
+.nl-estados {display:flex;gap:6px;flex-wrap:wrap;}.nl-estados button {display:flex;align-items:center;gap:6px;min-height:44px;}
+.nl-config {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;}.nl-config .nl-caixa {display:grid;align-content:start;gap:12px;}
+.nl-config p,.nl-config li {font-size:13px;}.nl-config ul {list-style:disc;padding-left:18px;display:grid;gap:6px;}
+.nl-config dl,.nl-resumo-envio dl {display:grid;grid-template-columns:120px 1fr;gap:8px;font-size:13px;}.nl-config dt,.nl-resumo-envio dt {color:var(--muted);}.nl-config dd,.nl-resumo-envio dd {overflow-wrap:anywhere;}
+.nl-resumo-envio {display:grid;gap:12px;padding:14px;border:1px solid var(--hairline);border-radius:12px;background:var(--bg);}
+.gaveta:has(.nl-form) {width:min(720px,100vw);max-width:100vw;}
+@media(max-width:639px){.nl-config {grid-template-columns:1fr;}.nl-segmentos {grid-template-columns:1fr 1fr;}.nl-segmento {padding:8px;}.nl-segmento strong {font-size:13px;}}

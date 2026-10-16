@@ -20,3 +20,16 @@ export function lerContatosNewsletter(texto, listas = []) {
  }catch(e){erros.push({linha:r.linha,motivo:e.message});}}
  return {validos,erros};
 }
+
+export function lerEmailsColados(texto, listas = []) {
+ const emails=String(texto).split(/[\s;,]+/).filter(Boolean);
+ if(!emails.length) throw Error('Cole pelo menos um e-mail.');
+ if(emails.length>500) throw Error('Adicione até 500 e-mails por vez.');
+ const vistos=new Set(),validos=[],erros=[];
+ emails.forEach((email,i)=>{try{
+  const dados=prepararNewsletter('contato',{email,listas,situacao:'pendente',origem:'Lista de e-mails colada no painel'});
+  if(vistos.has(dados.email))throw Error('E-mail repetido na lista.');
+  vistos.add(dados.email);validos.push({linha:i+1,dados});
+ }catch(e){erros.push({linha:i+1,motivo:e.message});}});
+ return {validos,erros};
+}

@@ -1,5 +1,9 @@
 # Vez do Painel Impresilk
 
+## Trabalho atual · Newsletter operacional
+
+Agente: codex. Revisão solicitada em 16/10/2026: listas visíveis, composição da mensagem, configuração, revisão de envio, descadastrados e histórico. Reutilizar UUIDs, contatos, versões e permissões existentes. Locaweb confirmada; configuração será feita depois pelo dono; não realizar disparos. Implementação local no ramo codex/newsletter-fluxo-20261016. Publicação autorizada pelo dono: subir tudo. Servidor painel-marketing v54 ACTIVE, 12/12 arquivos conferidos antes da tela.
+
 ## Trabalho atual · Marketing com canais visíveis
 
 Agente: codex. Pedido de Léo em 15/10/2026: auditar e modernizar o layout e fluxo de Marketing, com Newsletter no topo e canais estáticos em duas fileiras. Clone /tmp/painel-marketing-layout-20261015, ramo codex/marketing-layout-20261015, base 2fa6187. Revisão local de navegação e estados vazios, ampliada por autorização “implementar” para Newsletter com Edições, Público e Resultados. Banco privado novo, revisões, segmentos, contatos, importação CSV, remetente e métricas manuais; validação e autorização no painel-marketing. Sem migração aplicada, dados reais, envio ou publicação. Provedor ainda não definido. Publicação autorizada pelo dono com “subir”. Estrutura nova aplicada sem alterar registros existentes; RLS e privilégios conferidos. Servidor painel-marketing v51 ACTIVE, 12/12 arquivos idênticos à versão validada. Publicação da tela em andamento. Detalhes e limites em docs/newsletter-entrega.md.
@@ -390,3 +394,7 @@ Sem publicação nesta etapa. Servidor deve ser publicado antes da interface. N�
 Simplificação adicional solicitada: Pendentes, Atrasados e Concluídos à vista; demais situações em Mais, com seleção e contador visíveis após escolher. Filtros por vendedor preservados. Somente revisão local.
 
 Modernização local concluída: 194 testes pertinentes aprovados; build e lint aprovados. Navegação, subabas, registro/cancelamento e 390 px conferidos com dados fictícios. Não publicada. Ver docs/comercial-modernizacao.md.
+
+Revisão operacional local: docs/newsletter-revisao-operacional-20261016.md. Build e 35 testes passaram; envio depende da definição de serviço/remetente. Não publicado nesta revisão.
+
+Locaweb confirmada pelo dono; configurar depois. Formulário SMTP não secreto preparado e validado; senha desabilitada até integração segura. Sem envio/publicação.
