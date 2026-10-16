@@ -86,7 +86,7 @@ export function textoDoArquivo(bytes) {
    o separador e a quebra de linha são texto, e "" é uma aspa. Cada registro
    guarda a linha do arquivo onde COMEÇA, para o motivo apontar a linha que a
    pessoa enxerga no Excel. */
-function separarRegistros(texto, sep) {
+export function separarRegistros(texto, sep) {
   const registros = [];
   let celulas = [];
   let celula = '';
@@ -132,7 +132,7 @@ function separarRegistros(texto, sep) {
 }
 
 /* Qual separador: o que mais aparece no cabeçalho, fora de aspas. */
-function escolherSeparador(texto) {
+export function escolherSeparador(texto) {
   const fim = texto.indexOf('\n');
   const cabecalho = (fim === -1 ? texto : texto.slice(0, fim)).replace(/"[^"]*"/g, '');
   const pv = (cabecalho.match(/;/g) || []).length;

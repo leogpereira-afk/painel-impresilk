@@ -217,3 +217,8 @@ export const coletarAgoraMarketing = (fonte) =>
     (r) => ({ andando: r.andando === true, fonte: r.andando === true ? null : (r.fonte ?? null) }),
     servidorAntigo,
   );
+
+// Newsletter usa o mesmo crachá e os papéis do Marketing.
+export const listarNewsletter = (tipo, cursor = null) => chamarMarketing('newsletterListar', { tipo, cursor });
+export const salvarNewsletter = (tipo, item, dados) => chamarMarketing('newsletterSalvar', { tipo, id: item.id, versao: item.versao ?? null, dados }).then(r => r.item);
+export const historicoNewsletter = (id) => chamarMarketing('newsletterHistorico', { id });

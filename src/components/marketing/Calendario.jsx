@@ -53,7 +53,7 @@ export default function Calendario({ canal }) {
       {antigo && <p className="mb-3 text-sm text-slate-500">As publicações aparecem só dos últimos 400 dias; as ações aparecem todas.</p>}
 
       {dias.length === 0 ? (
-        <Empty className="gap-3 px-4">
+        <Empty className="mkt-vazio gap-3 px-4">
           <p>Nada neste mês para {canal.nome}.</p>
           {podeGravar && (
             <button type="button" className="btn-outline min-h-11" onClick={() => abrir({ tipo: 'acao', canalId: canal.id })}>

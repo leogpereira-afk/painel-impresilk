@@ -1,5 +1,10 @@
 # Vez do Painel Impresilk
 
+## Trabalho atual · Marketing com canais visíveis
+
+Agente: codex. Pedido de Léo em 15/10/2026: auditar e modernizar o layout e fluxo de Marketing, com Newsletter no topo e canais estáticos em duas fileiras. Clone /tmp/painel-marketing-layout-20261015, ramo codex/marketing-layout-20261015, base 2fa6187. Revisão local de navegação e estados vazios, ampliada por autorização “implementar” para Newsletter com Edições, Público e Resultados. Banco privado novo, revisões, segmentos, contatos, importação CSV, remetente e métricas manuais; validação e autorização no painel-marketing. Sem migração aplicada, dados reais, envio ou publicação. Provedor ainda não definido. Publicação autorizada pelo dono com “subir”. Estrutura nova aplicada sem alterar registros existentes; RLS e privilégios conferidos. Servidor painel-marketing v51 ACTIVE, 12/12 arquivos idênticos à versão validada. Publicação da tela em andamento. Detalhes e limites em docs/newsletter-entrega.md.
+
+
 ## Trabalho atual · Modernização do Comercial
 
 Agente: codex. Autorizado por Léo em 15/10/2026: modernizar mantendo todas as ideias e funções. Clone /tmp/painel-pos-compacto-20261015, ramo codex/pos-venda-compacto-20261015. Navegação agrupada com rotas preservadas, atalhos recolhíveis, apresentação compacta em todas as áreas e ação principal na fila. Preserva ajustes locais de pós-venda. Publicação autorizada por Léo com “pode subir”. Servidor painel-comercial v60 ACTIVE publicado primeiro, com 15/15 arquivos conferidos. Verificação local: 1.448 regressões e 653 testes de cálculo/acesso aprovados; build oficial e verificadores aprovados, lint sem erros (aviso anterior em Agenda). Interface publicada no commit e79e54f. Sem escrita real ou alteração de permissões.

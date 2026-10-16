@@ -51,135 +51,16 @@
   }
 }
 
-/* A FILEIRA DE CHIPS fica presa no topo ao rolar (sticky). Ela precisa de
-   fundo: sem ele, os cartões passam por baixo dos chips e o texto dos dois se
-   mistura. O fundo é o da página (var(--bg)), que o tema escuro já troca. A
-   rolagem é de lado e só na fileira: a PÁGINA nunca rola de lado no celular.
-   Chips de 36px com 4px de respiro em volta: a faixa tem 44px, o toque de
-   44px de cada chip (.alvo-44) cabe nela sem ser cortado pelo overflow, e o
-   anel do foco (2px de linha a 2px do chip) também, inclusive no primeiro
-   chip e no último (com 2px dos lados, o traço de fora do anel era cortado). */
-.mkt-fileira {
-  position: sticky;
-  top: 0;
-  z-index: 20;
-  background: var(--bg);
-}
-.mkt-fileira-caixa {
-  position: relative;
-}
-.mkt-fileira-trilho {
-  /* A largura da seta, num lugar só: dá o scroll-padding (o encaixe e o Tab
-     param o chip fora da seta), o fim do esmaecido e a distância em que o
-     Fileira.jsx põe o chip escolhido (ele lê o scroll-padding). Se os três
-     discordam, o chip aceso para dentro do esmaecido: com a máscara indo até
-     56px e o chip a 44px, os 12px do começo dele (o fio com a cor do canal)
-     ficavam lavados. */
-  --mkt-seta: 44px;
-  overflow-x: auto;
-  overflow-y: hidden;
-  scroll-snap-type: x proximity;
-  scroll-padding-inline: var(--mkt-seta);
-  overscroll-behavior-x: contain;
-  scrollbar-width: none;
-  padding: 4px;
-}
-.mkt-fileira-trilho::-webkit-scrollbar {
-  display: none;
-}
-/* Com mouse, sem encaixe: a roda anda de 100 em 100px, e o encaixe puxava a
-   fileira de volta para o chip anterior a cada volta da roda. No dedo o
-   encaixe continua (o deslize para com um chip inteiro na borda). */
-@media (pointer: fine) {
-  .mkt-fileira-trilho {
-    scroll-snap-type: none;
-  }
-}
-.mkt-fileira-conteudo {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  width: max-content;
-}
-/* Um fio fino entre a Visão geral e cada grupo de canais (digital,
-   contato, offline). O fio é mais escuro que o --hairline: aquele some no
-   fundo cinza da página. */
-.mkt-fileira-grupo {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-.mkt-fileira-grupo::before {
-  content: "";
-  flex: none;
-  width: 1px;
-  height: 20px;
-  margin: 0 3px;
-  background: #c9cbd8;
-}
-html.dark .mkt-fileira-grupo::before {
-  background: rgba(255, 255, 255, 0.2);
-}
-/* O esmaecido: só do lado em que há mais chips, e só na largura da seta
-   (--mkt-seta). Máscara, e não um degradê pintado com a cor do fundo, para
-   valer igual no claro e no escuro. */
-.mkt-fileira-trilho.mais-esq {
-  -webkit-mask-image: linear-gradient(to right, transparent 0, #000 var(--mkt-seta));
-  mask-image: linear-gradient(to right, transparent 0, #000 var(--mkt-seta));
-}
-.mkt-fileira-trilho.mais-dir {
-  -webkit-mask-image: linear-gradient(to left, transparent 0, #000 var(--mkt-seta));
-  mask-image: linear-gradient(to left, transparent 0, #000 var(--mkt-seta));
-}
-.mkt-fileira-trilho.mais-esq.mais-dir {
-  -webkit-mask-image: linear-gradient(to right, transparent 0, #000 var(--mkt-seta), #000 calc(100% - var(--mkt-seta)), transparent 100%);
-  mask-image: linear-gradient(to right, transparent 0, #000 var(--mkt-seta), #000 calc(100% - var(--mkt-seta)), transparent 100%);
-}
-/* As setas: o alvo é o botão inteiro (44px); o círculo de 30px é o desenho,
-   com o fundo do cartão para não sumir em cima do esmaecido. */
-.mkt-fileira-seta {
-  position: absolute;
-  top: 50%;
-  z-index: 1;
-  display: grid;
-  place-items: center;
-  width: 44px;
-  height: 44px;
-  margin-top: -22px;
-  padding: 0;
-  color: #475569;
-}
-.mkt-fileira-seta.esq {
-  left: -6px;
-}
-.mkt-fileira-seta.dir {
-  right: -6px;
-}
-.mkt-fileira-seta > span {
-  display: grid;
-  place-items: center;
-  width: 30px;
-  height: 30px;
-  border: 1px solid var(--hairline);
-  border-radius: 999px;
-  background: var(--surface);
-  box-shadow: 0 1px 6px #18213b26;
-  transition: border-color 0.15s, color 0.15s;
-}
-.mkt-fileira-seta:hover > span {
-  border-color: #9ba1f6;
-  color: #3840e8;
-}
-html.dark .mkt-fileira-seta {
-  color: #d3d9e8;
-}
-html.dark .mkt-fileira-seta > span {
-  box-shadow: 0 1px 6px #00000080;
-}
-html.dark .mkt-fileira-seta:hover > span {
-  border-color: rgba(155, 161, 246, 0.55);
-  color: #c3c7fb;
-}
+/* Navegação estática: nenhum canal escondido atrás de setas. */
+.mkt-fileira { padding: 8px; border: 1px solid var(--hairline); border-radius: 16px; background: var(--surface); }
+.mkt-fileira-conteudo { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.mkt-fileira-grupo { display: contents; }
+.mkt-fileira-conteudo button { width: 100%; min-width: 0; min-height: 44px; height: auto; justify-content: flex-start; border-radius: 10px; }
+.mkt-fileira-conteudo button .tnum { display: none; }
+.mkt-fileira-conteudo button > span:first-of-type { min-width: 0; flex: 1; white-space: normal; overflow: visible; text-overflow: clip; line-height: 1.2; }
+@media (min-width: 640px) { .mkt-fileira-conteudo { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+@media (min-width: 1100px) { .mkt-fileira-conteudo { grid-template-columns: repeat(var(--mkt-colunas), minmax(0, 1fr)); } }
+.mkt-pagina .mkt-vazio { display: flex; flex-wrap: wrap; justify-content: center; gap: 12px; padding: 16px; min-height: 76px; }
 
 /* O BLOCO COMPACTO (Bloco.jsx): o cartão da casa com 12px de borda interna
    (16px dos lados no computador); era 20/24px. */

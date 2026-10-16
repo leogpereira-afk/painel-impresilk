@@ -148,7 +148,7 @@ export default function Resultados({ canal }) {
           }
         />
         {nadaLancado ? (
-          <Empty className="gap-3 px-4">
+          <Empty className="mkt-vazio gap-3 px-4">
             <p>Nenhum número lançado para {canal.nome} nas últimas semanas.</p>
             {podeGravar && (
               <button type="button" className="btn-outline min-h-11" onClick={lancarSemana}>
@@ -190,7 +190,7 @@ export default function Resultados({ canal }) {
                 ))}
               </div>
             ) : (
-              <Empty className="gap-3 px-4">
+              <Empty className="mkt-vazio gap-3 px-4">
                 <p>Nenhuma publicação com {ROTULO_TOP[campo].toLocaleLowerCase('pt-BR')} lançado.</p>
                 {podeGravar && (
                   <button type="button" className="btn-outline min-h-11" onClick={lancarPublicacao}>

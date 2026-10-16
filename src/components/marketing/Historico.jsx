@@ -26,7 +26,7 @@ export default function Historico({ canal }) {
           mais velha não aparece), e fica à vista também no celular. */}
       <TopoBloco subSempre titulo="Histórico" sub="Ações concluídas, passos do playbook feitos e publicações (estas, dos últimos 400 dias)." />
       {itens.length === 0 ? (
-        <Empty className="gap-3 px-4">
+        <Empty className="mkt-vazio gap-3 px-4">
           <p>Nada concluído ainda em {canal.nome}.</p>
           {podeGravar && (
             <button type="button" className="btn-outline min-h-11" onClick={() => abrir({ tipo: 'publicacao', canalId: canal.id })}>

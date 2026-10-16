@@ -1,3 +1,4 @@
+import Newsletter from '../components/marketing/newsletter/Newsletter.jsx';
 /* MARKETING: o Centro de Comando (etapa a2, 11/10/2026).
  *
  * Contrato em docs/marketing/a2-contrato.md, seção 4. O que esta página faz:
@@ -405,6 +406,7 @@ export default function Marketing() {
   if (vista === 'materiais') conteudo = <MateriaisDrive podeGravar={!painel || painel.papel !== 'visualizacao'} />;
   else if (!painel && erro) conteudo = <ErroModulo mensagem={erro} aoTentar={carregar} />;
   else if (!painel) conteudo = <Carregando />;
+  else if (canal?.codigo === 'newsletter') conteudo = <><Newsletter /><details className="card" style={{marginTop:16}}><summary>Publicações e acompanhamento anteriores</summary><CanalAberto key={canal.id} canal={canal} /></details></>;
   else if (canal) conteudo = <CanalAberto key={canal.id} canal={canal} />;
   else conteudo = <VisaoGeral />;
 

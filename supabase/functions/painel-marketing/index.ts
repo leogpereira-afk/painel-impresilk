@@ -1,3 +1,5 @@
+import { atenderNewsletter } from '../_shared/newsletter-handler.mjs';
+import { ErroNewsletter } from '../_shared/newsletter.mjs';
 /* PORTA DO CENTRO DE COMANDO DO MARKETING.
  *
  * Etapa a1 (10/10/2026): as ações do Marketing e a trava de orçamento saem da
@@ -251,6 +253,8 @@ Deno.serve(async (req: Request) => {
     const direcao = ehDirecaoMarketing(s);
     const idPessoaLogin = direcao && b.action !== 'painel' ? null : await idPessoaDoLogin(sb, quem);
     const papel = papelEfetivo(s, direcao || !idPessoaLogin ? null : await papelDaPessoa(sb, idPessoaLogin));
+
+    if (typeof b.action === 'string' && b.action.startsWith('newsletter')) return json(await atenderNewsletter(sb, b, { papel, quem }));
 
     switch (b.action) {
       case "painel": {
@@ -608,7 +612,7 @@ Deno.serve(async (req: Request) => {
         return json({ erro: 'Ação inválida.' }, 400);
     }
   } catch (e) {
-    if (e instanceof ErroMarketing) return json({ erro: e.message }, e.status);
+    if (e instanceof ErroMarketing || e instanceof ErroNewsletter) return json({ erro: e.message }, e.status);
     console.error('painel-marketing', e);
     return json({ erro: 'Não foi possível concluir. Tente novamente.' }, 500);
   }

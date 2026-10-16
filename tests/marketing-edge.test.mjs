@@ -406,3 +406,18 @@ test('ação com canal e responsável por id; canal que sumiu volta 404 dizendo 
  const sumiu=await t.call({action:'salvarAcao',acao:{nome:'Reel',responsavelId:'123456',prazo:'2026-10-20',canalId:CANAL}});
  assert.equal(sumiu.status,404);assert.match(sumiu.erro,/canal não existe/);
 });
+
+// Newsletter passa pela mesma autenticação e pelo papel efetivo do Marketing.
+test('newsletter: autenticação, permissão, papel e bloqueio de envio no endpoint',async()=>{
+ const t=setup();
+ assert.equal((await t.call({action:'newsletterListar',tipo:'contato'},false)).status,401);
+ t.session({sub:'sem',perms:[]});
+ assert.equal((await t.call({action:'newsletterListar',tipo:'contato'})).status,403);
+ t.session(BIA);
+ assert.equal((await t.call({action:'newsletterSalvar',tipo:'lista'})).status,403);
+ t.session(ANA);
+ assert.equal((await t.call({action:'newsletterSalvar',tipo:'remetente'})).status,403);
+ t.session(LEO);
+ assert.equal((await t.call({action:'newsletterEnviar'})).status,409);
+ assert.equal(t.chamadas.length,0);
+});

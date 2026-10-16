@@ -139,7 +139,7 @@ function Implantacao({ canal }) {
         sub={itens.length ? `${feitos} de ${itens.length} ${itens.length === 1 ? 'passo feito' : 'passos feitos'}. O canal sai de implantação pela gestão, em Configurações.` : undefined}
       />
       {itens.length === 0 ? (
-        <Empty className="gap-3 px-4">
+        <Empty className="mkt-vazio gap-3 px-4">
           <p>O canal está em implantação, mas não tem passos de implantação no playbook.</p>
           {ehGestao && (
             <button type="button" className="btn-outline min-h-11" onClick={() => navegar('/configuracoes?secao=marketing')}>
@@ -252,7 +252,7 @@ function FazerDoCanal({ canal }) {
           onAbrir={(l) => abrir({ tipo: l.tipo === 'acao' ? 'acao' : 'item', id: l.id })}
           onSair={sairLinha}
           vazio={
-            <Empty className="gap-3 px-4">
+            <Empty className="mkt-vazio gap-3 px-4">
               <p>{quem === 'minhas' ? 'Nada pendente com o seu nome neste canal.' : 'Nada pendente neste canal.'}</p>
               {podeGravar && (
                 <button type="button" className="btn-outline min-h-11" onClick={novaAcao}>

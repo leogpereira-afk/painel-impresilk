@@ -1,0 +1,12 @@
+import {useState} from 'react';
+import Gaveta from '../../Gaveta.jsx';
+import {Listas} from './Formulario.jsx';
+import {lerContatosNewsletter} from '../../../lib/calc/newsletter-csv.js';
+import {textoDoArquivo} from '../../../lib/calc/marketing-csv.js';
+import {salvarNewsletter} from '../../../services/marketing.js';
+export default function Importar({listas,onFechar,onConcluir}) {
+ const [selecao,setSelecao]=useState([]),[previa,setPrevia]=useState(null),[erro,setErro]=useState(''),[ocupado,setOcupado]=useState(false),[resultado,setResultado]=useState(null);
+ async function ler(e){setErro('');setPrevia(null);setResultado(null);try{const f=e.target.files?.[0];if(!f)return;if(f.size>1024*1024)throw Error('Arquivo maior que 1 MB.');const r=lerContatosNewsletter(textoDoArquivo(await f.arrayBuffer()));setPrevia({...r,validos:r.validos.map(x=>({...x,id:crypto.randomUUID()}))});}catch(e){setErro(e.message);}}
+ async function importar(){setOcupado(true);setErro('');const r={salvos:0,erros:[]};for(const x of previa.validos){try{await salvarNewsletter('contato',{id:x.id},{...x.dados,listas:selecao});r.salvos++;}catch(e){r.erros.push({linha:x.linha,motivo:e.message});}}setResultado(r);setPrevia(null);setOcupado(false);onConcluir();}
+ return <Gaveta aberta titulo="Importar contatos" ocupado={ocupado} onFechar={onFechar} rodape={<><button className="btn-outline" disabled={ocupado} onClick={onFechar}>Fechar</button>{previa && <button className="btn-primary" disabled={ocupado || !previa.validos.length} onClick={importar}>{ocupado?'Importando…':`Importar ${previa.validos.length} contatos`}</button>}</>}><div className="nl-form"><p>CSV com cabeçalho: <strong>nome;email;empresa</strong>. Até 500 linhas. Contatos entram como pendentes; registros existentes não são alterados.</p><input type="file" aria-label="Planilha de contatos" accept=".csv,text/csv" disabled={ocupado} onChange={ler}/><Listas listas={listas} valor={selecao} onChange={setSelecao} disabled={ocupado}/>{erro && <p role="alert">{erro}</p>}{previa && <><p>{previa.validos.length} válidos · {previa.erros.length} recusados. Confira antes de importar.</p>{previa.validos.slice(0,10).map(x=><p key={x.linha}>{x.dados.nome} · {x.dados.email}</p>)}{previa.erros.map(x=><p key={x.linha}>Linha {x.linha}: {x.motivo}</p>)}</>}{resultado && <div role="status"><p>{resultado.salvos} contatos salvos; {resultado.erros.length} não importados.</p>{resultado.erros.map(x=><p key={x.linha}>Linha {x.linha}: {x.motivo}</p>)}</div>}</div></Gaveta>;
+}

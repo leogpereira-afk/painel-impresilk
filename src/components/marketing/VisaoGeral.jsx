@@ -109,7 +109,7 @@ export default function VisaoGeral() {
           onAbrir={abrirLinha}
           onSair={sairLinha}
           vazio={
-            <Empty className="gap-3">
+            <Empty className="mkt-vazio gap-3">
               <p>{quem === 'minhas' ? 'Nada pendente com o seu nome.' : 'Nada pendente. Tudo em dia.'}</p>
               {podeGravar && (
                 <button type="button" className="btn-outline min-h-11" onClick={() => abrir({ tipo: 'acao' })}>

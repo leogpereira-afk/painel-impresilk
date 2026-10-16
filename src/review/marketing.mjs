@@ -1,3 +1,4 @@
+import {respostaNewsletter} from './newsletter.mjs';
 // Porta painel-marketing de mentira, só na compilação review: tudo vive nesta
 // memória e recarregar restaura o exemplo. As regras de campo, a trava de
 // orçamento e o formato de tela são os MESMOS do servidor
@@ -119,7 +120,10 @@ function gravarPublicacao(dados, id = crypto.randomUUID()) {
 // com a quantidade de verdade (com 4 canais tudo cabia, e o Facebook e o
 // Google Meu Negócio sumindo à direita nunca apareceu na prévia). O id segue
 // a ordem (Site 1, Instagram 2, ...), estável entre recargas.
+// Canal adicional fictício para conferir o acesso da Newsletter sem alterar a carga produtiva.
+padrao.canais.push({ ...padrao.canais.find(c => c.codigo === 'email'), codigo: 'newsletter', nome: 'Newsletter', ordem: 95 });
 const ID_CANAL = Object.fromEntries(padrao.canais.map((c) => [c.codigo, `c0000000-0000-4000-8000-${String(c.ordem / 10).padStart(12, '0')}`]));
+ID_CANAL.newsletter = 'c0000000-0000-4000-8000-000000000012';
 for (const c of padrao.canais) gravarCanal(c, ID_CANAL[c.codigo]);
 // Playbook só de Site, Instagram, Pinterest (em implantação) e WhatsApp: com
 // os 11, o Fazer da prévia virava uma lista de dezenas de itens sem prazo. O
@@ -389,6 +393,7 @@ function conferirPapel(acao) {
 
 const responder = (corpo, status = 200) => new Response(JSON.stringify(corpo), { status, headers: { 'Content-Type': 'application/json' } });
 export function respostaMarketing(b) {
+  if(b?.action?.startsWith('newsletter'))return respostaNewsletter(b,PREVIA.papel);
   // As fontes de dados respondem depois de ler o JSON (import sob demanda).
   if (ACOES_FONTES.includes(b?.action)) return fontesDaPrevia.responder(b.action, b).then(({ status, corpo }) => responder(corpo, status));
   try {
