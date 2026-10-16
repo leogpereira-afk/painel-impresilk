@@ -1,5 +1,14 @@
 # Vez do Painel Impresilk
 
+## Trabalho atual · Modernização do Comercial
+
+Agente: codex. Autorizado por Léo em 15/10/2026: modernizar mantendo todas as ideias e funções. Clone /tmp/painel-pos-compacto-20261015, ramo codex/pos-venda-compacto-20261015. Navegação agrupada com rotas preservadas, atalhos recolhíveis, apresentação compacta em todas as áreas e ação principal na fila. Preserva ajustes locais de pós-venda. Publicação autorizada por Léo com “pode subir”. Servidor painel-comercial v60 ACTIVE publicado primeiro, com 15/15 arquivos conferidos. Verificação local: 1.448 regressões e 653 testes de cálculo/acesso aprovados; build oficial e verificadores aprovados, lint sem erros (aviso anterior em Agenda). Interface em publicação. Sem escrita real ou alteração de permissões.
+
+
+## Trabalho atual · Pós-venda compacto
+
+Agente: codex. Pedido do dono em 15/10/2026: reduzir etapas, modernizar e tornar explícito o vínculo com o vendedor. Clone `/tmp/painel-pos-compacto-20261015`, ramo `codex/pos-venda-compacto-20261015`, base 2e4427e. Filtros em chips, lista compacta, detalhes recolhidos e vendedor original visível sem repetição. Preservar vínculo automático, permissões, histórico e cobertura parcial. Implementação e prévia local; sem publicação nem gravação de dados reais.
+
 ## Trabalho atual · Prospecção e Pós-venda separados
 
 Agente: codex. Pedido de Léo em 15/10/2026: separar Prospecção de Pós-venda, usando as O.S. entregues e vinculando vendedor, ação e prazo para controle da direção. Desenho aprovado com “sim ele tem que sempre falar o que ele fez pode fazer”. Clone isolado `/tmp/painel-pos-venda-20261015`, ramo `codex/comercial-pos-venda-20261015`, a partir da main `8a9372a`. Trabalho anterior publicado e encerrado.
@@ -357,3 +366,18 @@ Agente: codex. Pedido de Léo: melhorar o enquadramento das fotos, usando Compro
 Verificação local: reproduzido transbordamento de retrato vertical (23×46 dentro de 23×23; 19×38 dentro de 19×19). Corrigido para 32×32 nos filtros, 24×24 nas linhas e 40×40 nos formulários, com recorte superior, contenção e proporção preservada. Retrato fictício vertical adicionado à prévia. 25 testes pertinentes aprovados; build aprovado; desktop e celular conferidos no navegador. Nenhuma publicação, mudança de foto original ou registro real.
 
 Publicação autorizada por Léo em 11/10/2026: “publicar a correcao das fotos”. Escopo somente visual e retrato fictício da prévia; sem alteração de fotos originais, dados ou servidor.
+
+### Verificação local · Pós-venda compacto
+26 testes relacionados aprovados; build e lint do componente aprovados; diff sem erros. Prévia com dados fictícios conferida em desktop e 390 px, sem overflow. Vendedor original preenchido, filtros, ações e histórico preservados. Alteração pronta para revisão, não publicada; sem dados reais alterados. A falha remota da captura não foi reproduzida nesta revisão visual.
+
+## Chips, recorte e idade da entrega — revisão local 15/10/2026
+
+Confirmado pelo dono: vendas desde 12/10/2026, limite fixo; contador começa na entrega ao cliente. Chips automáticos usam vendedores das O.S. autorizadas, identificados por ID, com contagem na situação e busca selecionadas. O filtro não amplia permissões. A consulta filtra candidatos antes da paginação e do detalhamento PCP; o contexto compacto histórico continua necessário à autorização da carteira. Servidor confirma o recorte e a interface recusa versões antigas que o ignorem.
+
+Idade em dias de calendário de São Paulo; entregue hoje = zero, data futura/ausente/inválida exige conferência. Histórico, vínculo original e finalização preservados. Cabeçalho distingue recorte do pós-venda dos filtros gerais.
+
+Sem publicação nesta etapa. Servidor deve ser publicado antes da interface. Não houve gravação de dados reais.
+
+Simplificação adicional solicitada: Pendentes, Atrasados e Concluídos à vista; demais situações em Mais, com seleção e contador visíveis após escolher. Filtros por vendedor preservados. Somente revisão local.
+
+Modernização local concluída: 194 testes pertinentes aprovados; build e lint aprovados. Navegação, subabas, registro/cancelamento e 390 px conferidos com dados fictícios. Não publicada. Ver docs/comercial-modernizacao.md.

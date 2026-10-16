@@ -50,3 +50,27 @@ test('conclusão mostra a data do atendimento confirmado e não o prazo futuro d
  assert.equal(dataReferenciaPosVenda({posVendaEstado:'em_acompanhamento',acaoPosVenda:{data:'2026-10-20'}}),'2026-10-20');
  assert.equal(dataReferenciaPosVenda({posVendaEstado:'concluido',acaoPosVenda:{data:'2026-10-20'}}),null);
 });
+
+test('chips usam somente vendedores das O.S. recebidas e não misturam homônimos',async()=>{
+ const {vendedoresPosVenda,chaveVendedorPosVenda}=await import('../src/lib/calc/posVendaComercial.js');
+ const xs=[{vendedorId:'a',vendedorNome:'Nome antigo'},{vendedorId:'a'},{vendedorId:'b',vendedorNome:'Consultor exemplo'},{}];
+ const grupos=vendedoresPosVenda(xs,[{id:'a',nome:'Consultor exemplo'},{id:'nao-autorizado',nome:'Não mostrar'}]);
+ assert.equal(grupos.length,3);assert.equal(grupos.find(v=>v.id==='id:a').total,2);
+ assert.equal(grupos.find(v=>v.id==='id:a').nome,'Consultor exemplo');
+ assert.equal(grupos.find(v=>v.id==='id:b').total,1);assert.equal(grupos.some(v=>v.id==='id:nao-autorizado'),false);
+ assert.equal(chaveVendedorPosVenda({}),'sem_vendedor');
+});
+
+test('idade da entrega usa dias de calendário de São Paulo e rejeita datas futuras ou inválidas',async()=>{
+ const {diasDesdeEntrega}=await import('../src/lib/calc/posVendaComercial.js');
+ assert.equal(diasDesdeEntrega('2026-10-12','2026-10-15'),3);
+ assert.equal(diasDesdeEntrega('2026-10-15','2026-10-15'),0);
+ assert.equal(diasDesdeEntrega('2026-10-15T01:00:00Z','2026-10-15'),1);
+ for(const d of [null,'erro','2026-02-31','2026-10-16'])assert.equal(diasDesdeEntrega(d,'2026-10-15'),null);
+});
+test('recorte é enviado em cada página e servidor antigo não pode ignorá-lo',async()=>{
+ const desde='2026-10-12';let chamadas=0;
+ const resposta=b=>({incluiConcluidos:true,pedidos:[],vendasDesde:desde,paginacao:{pagina:b.pagina,paginas:2,total:101,temMais:b.pagina===1},cobertura:{completa:true}});
+ await carregarEntregasPosVenda(async(a,b)=>{chamadas++;assert.equal(b.vendasDesde,desde);return resposta(b);},{vendasDesde:desde});assert.equal(chamadas,2);
+ await assert.rejects(carregarEntregasPosVenda(async(a,b)=>({...resposta(b),vendasDesde:null}),{vendasDesde:desde}),/recorte/);
+});

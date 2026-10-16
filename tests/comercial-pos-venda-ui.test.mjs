@@ -43,7 +43,12 @@ test('navegação separa prospecção e pós-venda e resolve entradas antigas',a
  const {renderizar}=await componentes();
  for(const [query,selecionada] of [['aba=prospeccao','Prospecção'],['aba=pos_venda','Pós-venda'],['aba=relacionamento','Prospecção'],['aba=relacionamento&relacao_tipo=pos_venda','Pós-venda'],['aba=relacionamento&pos_venda=1','Pós-venda']]){
   const html=renderizar(`/comercial?de=2026-09-01&ate=2026-09-30&vendedor=consultora-exemplo&${query}`),nav=html.match(/<nav[^>]*aria-label="Área Comercial"[^>]*>([\s\S]*?)<\/nav>/)?.[1];
-  assert.match(nav,/<button[^>]*>Prospecção<\/button>/);assert.match(nav,/<button[^>]*>Pós-venda<\/button>/);assert.match(nav,new RegExp(`<button[^>]*aria-current="page"[^>]*>${selecionada}<\\/button>`));
+  assert.match(nav,/<button[^>]*>Negociações<\/button>/);assert.match(nav,/<button[^>]*>Pós-venda<\/button>/);
+  assert.match(nav,new RegExp(`<button[^>]*aria-current="page"[^>]*>${selecionada==='Prospecção'?'Negociações':selecionada}<\\/button>`));
+  if(selecionada==='Prospecção'){
+   const sub=html.match(/<nav[^>]*aria-label="Seções da área"[^>]*>([\s\S]*?)<\/nav>/)?.[1];
+   assert.match(sub,/<button[^>]*>Orçamentos<\/button>/);assert.match(sub,/<button[^>]*aria-current="page"[^>]*>Prospecção<\/button>/);
+  }
   assert.match(html,/value="2026-09-01"/);assert.match(html,/value="2026-09-30"/);
  }
 });

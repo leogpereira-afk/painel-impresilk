@@ -43,3 +43,19 @@ Publicação autorizada: publicar painel-comercial com as dependências comparti
 ## Publicação autorizada em 15/10/2026
 
 Servidor publicado antes da tela no commit 9b03e4b; Functions 38813524617 aprovado. As sete funções afetadas estão ACTIVE: painel-comercial 59, painel-agenda 84, painel-config 161, painel-dados 155, painel-ativos 142, painel-marketing 49 e painel-mkt-fontes 42. Todos os 114 arquivos dos pacotes publicados são idênticos ao código validado. Tela publicada no commit 9b6446a; Pages 38813736887 com build e deploy aprovados. HTML, 404 e 117 assets oficiais idênticos ao build validado (119/119). Chrome com sessão real da direção conferiu Prospecção e Pós-venda, entregas, Fazer ação, responsável original da O.S., formulário e botões Registrar e continuar e Registrar e finalizar habilitados. O formulário foi cancelado sem salvar; sem erros JavaScript. O histórico amplo continua por etapas, com contagens parciais explícitas até encerrar a consulta. Não houve teste de escrita com conta real nem sessão real de vendedora restrita. Não houve migração, mudança de credencial, concessão de acesso, mensagem ou gravação de teste em produção.
+
+## Ajuste compacto — revisão local em 15/10/2026
+
+Chips menores, resumo de cobertura em uma linha e explicação expansível. Vendedor da O.S. mostrado uma vez quando coincide com o responsável do pós-venda; divergências permanecem explícitas. O vínculo automático existente foi preservado. Trabalho, relato, resultado e autoria ficam em Detalhes e histórico. Fazer ação permanece à vista; planejamento e finalização continuam em Mais ações. Nenhuma etapa, permissão ou registro foi removido.
+
+Verificação: 26 testes de formulário/vínculo/fila aprovados, build e lint do componente aprovados, diff sem erros. Prévia fictícia conferiu responsável preenchido e bloqueado para alteração, filtros, ações secundárias e histórico expandido. Chrome a 390 px sem transbordamento horizontal. A falha de consulta da captura de produção não foi reproduzida nem declarada corrigida; o alerta e os detalhes continuam disponíveis. Sem publicação ou escrita em produção.
+
+## Chips, recorte e idade da entrega — revisão local 15/10/2026
+
+Confirmado pelo dono: vendas desde 12/10/2026, limite fixo; contador começa na entrega ao cliente. Chips automáticos usam vendedores das O.S. autorizadas, identificados por ID, com contagem na situação e busca selecionadas. O filtro não amplia permissões. A consulta filtra candidatos antes da paginação e do detalhamento PCP; o contexto compacto histórico continua necessário à autorização da carteira. Servidor confirma o recorte e a interface recusa versões antigas que o ignorem.
+
+Idade em dias de calendário de São Paulo; entregue hoje = zero, data futura/ausente/inválida exige conferência. Histórico, vínculo original e finalização preservados. Cabeçalho distingue recorte do pós-venda dos filtros gerais.
+
+Sem publicação nesta etapa. Servidor deve ser publicado antes da interface. Não houve gravação de dados reais.
+
+Simplificação adicional solicitada: Pendentes, Atrasados e Concluídos à vista; demais situações em Mais, com seleção e contador visíveis após escolher. Filtros por vendedor preservados. Somente revisão local.

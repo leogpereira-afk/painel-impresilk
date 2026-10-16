@@ -51,7 +51,9 @@ Deno.serve(async(req:Request)=>{
   }
   const carregarAcoes=()=>todas(()=>{let q=sb.from('painel_registros').select('id,registro').eq('colecao','comercial_acoes').order('id');if(escopo.ids!==null)q=q.in('registro->>vendedorId',escopo.ids);return q;});
   if(b.action==='consultarPosVenda'){
-   const consultadoEm=new Date().toISOString(),candidatos=ctx.vendasHistoricasAutorizadas||[];
+   const vendasDesde=b.vendasDesde??null;
+   if(vendasDesde!==null&&(!dataISO(vendasDesde)||vendasDesde>hoje))return json({erro:'Informe uma data inicial de vendas válida.'},400);
+   const consultadoEm=new Date().toISOString(),candidatos=(ctx.vendasHistoricasAutorizadas||[]).filter((o:any)=>!vendasDesde||String(o.data).slice(0,10)>=vendasDesde);
    const pagina=paginarVendasCliente(candidatos,b.pagina??1,b.tamanho??20),ids=new Set(pagina.vendas.map((o:any)=>o.id)),daPagina=candidatos.filter((o:any)=>ids.has(String(o.id)));
    const detalhadas=await detalharVendasCliente(sb,daPagina,fontes.ordens?.valor||[],escopo,null,hoje);
    const operacoes=await consultarOperacoesComerciais(sb,detalhadas,consultadoEm),vendas=enriquecerVendasOperacao(detalhadas,operacoes);
@@ -66,7 +68,7 @@ Deno.serve(async(req:Request)=>{
     return {...a,vinculoPosVendaDivergente:!vendedorOriginal||String(a.vendedorId)!==vendedorOriginal};
    });
    const resultado=pedidosPosVendaPendentes(vendas,acoes,{incluirConcluidos:b.incluirConcluidos===true}),indisponiveis=vendas.filter((o:any)=>o.operacao?.estado==='indisponivel').length,semVinculo=vendas.filter((o:any)=>o.operacao?.estado==='sem_vinculo').length;
-   return json({...resultado,incluiConcluidos:b.incluirConcluidos===true,paginacao:{...pagina.paginacao,criterio:'Candidatos comerciais autorizados, independentemente do mês das vendas.'},cobertura:{totalCandidatos:pagina.paginacao.total,candidatosNaPagina:daPagina.length,verificadosNaPagina:detalhadas.length,elegiveisNaPagina:resultado.elegiveisNaPagina,pendentesNaPagina:resultado.pendentesNaPagina,concluidosNaPagina:resultado.concluidosNaPagina,operacaoIndisponivel:indisponiveis,semVinculo,completa:!indisponiveis&&!semVinculo&&detalhadas.length===daPagina.length,criterio:'Entrega efetiva comprovada no PCP; pós-venda concluído exige contato confirmado com resultado e relato do atendimento. A paginação conta candidatos, não um total definitivo de pós-vendas.'},coberturaHistorica,fontes:{vendas:{fonte:'Histórico comercial do Painel',atualizadoEm:coberturaHistorica?.atualizadoEm||null},operacao:{fonte:'PCP',consultadoEm}},consultadoEm});
+   return json({...resultado,vendasDesde,incluiConcluidos:b.incluirConcluidos===true,paginacao:{...pagina.paginacao,criterio:vendasDesde?`Vendas autorizadas desde ${vendasDesde}, pela data comercial da O.S.`:'Candidatos comerciais autorizados, independentemente do mês das vendas.'},cobertura:{totalCandidatos:pagina.paginacao.total,candidatosNaPagina:daPagina.length,verificadosNaPagina:detalhadas.length,elegiveisNaPagina:resultado.elegiveisNaPagina,pendentesNaPagina:resultado.pendentesNaPagina,concluidosNaPagina:resultado.concluidosNaPagina,operacaoIndisponivel:indisponiveis,semVinculo,completa:!indisponiveis&&!semVinculo&&detalhadas.length===daPagina.length,criterio:'Entrega efetiva comprovada no PCP; pós-venda concluído exige contato confirmado com resultado e relato do atendimento. A paginação conta candidatos, não um total definitivo de pós-vendas.'},coberturaHistorica,fontes:{vendas:{fonte:'Histórico comercial do Painel',atualizadoEm:coberturaHistorica?.atualizadoEm||null},operacao:{fonte:'PCP',consultadoEm}},consultadoEm});
   }
   if(b.action==='contextoRelacionamento'){
    if(!fontes.crm_clientes?.valor?.completo)return json({erro:'O cadastro de clientes ainda não foi sincronizado por completo.'},503);

@@ -224,3 +224,15 @@ test('paginação de pós-venda conta candidatos e mostra cobertura incompleta s
  r=await a.call({action:'consultarPosVenda',pagina:2,tamanho:1});assert.equal(r.pedidos.length,1);assert.equal(r.pedidos[0].id,'erp-original');assert.equal(r.paginacao.temMais,false);
  a.falha('pcp_registros');r=await a.call({action:'consultarPosVenda'});assert.equal(r.status,200);assert.equal(r.pedidos.length,0);assert.equal(r.cobertura.operacaoIndisponivel,2);assert.equal(r.cobertura.completa,false);assert.equal(a.gravacoes.length,0);
 });
+
+test('recorte do pós-venda filtra data da venda antes da paginação e da consulta PCP',async()=>{
+ const a=ambiente();
+ const r=await a.call({action:'consultarPosVenda',vendasDesde:dia,incluirConcluidos:true});
+ assert.equal(r.status,200);assert.equal(r.vendasDesde,dia);assert.equal(r.paginacao.total,0);assert.equal(r.pedidos.length,0);
+ assert.equal(a.consultas.some(q=>q.tabela==='pcp_registros'),false);
+ a.banco.painel_ordens[0].data=dia;
+ const atual=await a.call({action:'consultarPosVenda',vendasDesde:dia,incluirConcluidos:true});
+ assert.equal(atual.paginacao.total,1);assert.equal(atual.pedidos[0].id,'erp-original');
+ assert.doesNotMatch(JSON.stringify(atual),/SEGREDO-OUTRA-CARTEIRA/);
+ const invalida=await a.call({action:'consultarPosVenda',vendasDesde:'2026-02-31'});assert.equal(invalida.status,400);
+});
