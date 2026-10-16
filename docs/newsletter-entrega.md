@@ -41,3 +41,5 @@ Verificação final: 300 testes de Newsletter/Marketing aprovados com TZ=UTC (pa
 ## Publicação autorizada
 
 O dono autorizou com “subir”. Estrutura criada no Supabase; RLS habilitada e SELECT/EXECUTE negados a anon/authenticated, com acesso de servidor preservado. painel-marketing v51 ACTIVE publicado antes da tela, 12/12 arquivos idênticos à versão validada. Sem envio, contatos reais ou concessão de permissões. Nova verificação local: 33 testes focados, build oficial e verificadores de portas/papel/imports/classes aprovados; lint sem erros (um aviso anterior em Agenda).
+
+**Publicado e conferido:** commit aa8eda3, Pages 38838239958 e Functions 38838239949 aprovados. Versão final painel-marketing v52 ACTIVE, 12/12 arquivos idênticos. Os 121 arquivos públicos conferidos correspondem ao build oficial. Sessão autenticada carregou Edições e Público e abriu Remetente sem erros JavaScript e sem gravar dados reais. A API sem autenticação respondeu 401. Envio continua não conectado. A evidência de tela fica fora do repositório público.
