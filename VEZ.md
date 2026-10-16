@@ -2,7 +2,7 @@
 
 ## Trabalho atual · Correção do vínculo de titular ao RH
 
-Agente: codex. Pedido do dono em 16/10/2026: corrigir ID do RH rejeitado em Novo titular. Clone /tmp/painel-titular-id-rh-20261016, ramo codex/titular-id-rh-20261016. Corrigir validação incompatível no servidor, preservar identificação e permissões; testes fictícios. Sem escrita real, migração ou publicação autorizada nesta etapa.
+Agente: codex. Pedido do dono em 16/10/2026: corrigir ID do RH rejeitado em Novo titular. Clone /tmp/painel-titular-id-rh-20261016, ramo codex/titular-id-rh-20261016. Corrigir validação incompatível no servidor, preservar identificação e permissões; testes fictícios. Publicação autorizada pelo dono com “pode subir”. Sem escrita real ou migração.
 
 ## Trabalho atual · Newsletter operacional
 
