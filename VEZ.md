@@ -4,6 +4,8 @@
 
 Agente: codex. Pedido do dono em 16/10/2026: corrigir ID do RH rejeitado em Novo titular. Clone /tmp/painel-titular-id-rh-20261016, ramo codex/titular-id-rh-20261016. Corrigir validação incompatível no servidor, preservar identificação e permissões; testes fictícios. Publicação autorizada pelo dono com “pode subir”. Sem escrita real ou migração.
 
+**Publicado e conferido em 16/10/2026:** revisão 099c118, painel-ativos v148 ACTIVE, 14/14 arquivos conferidos; job publicar 38949450057 com sucesso. 75 testes passaram. Sem alteração de registros reais; salvamento real não executado. Trabalho publicado e conferido; vez encerrada.
+
 ## Trabalho atual · Newsletter operacional
 
 Agente: codex. Revisão solicitada em 16/10/2026: listas visíveis, composição da mensagem, configuração, revisão de envio, descadastrados e histórico. Reutilizar UUIDs, contatos, versões e permissões existentes. Locaweb confirmada; configuração será feita depois pelo dono; não realizar disparos. Implementação local no ramo codex/newsletter-fluxo-20261016. Publicação autorizada pelo dono: subir tudo. Servidor painel-marketing v54 ACTIVE, 12/12 arquivos conferidos antes da tela.

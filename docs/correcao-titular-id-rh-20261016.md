@@ -6,4 +6,4 @@ Correção: retirar a exigência exclusiva de UUID neste vínculo e reutilizar v
 
 Teste de regressão com dados fictícios: falha antes (422 em vez de 200) e passa após a correção. Cobertura inclui ficha não UUID, nome oficial vindo do RH, rejeição de ID inexistente, pessoa indisponível e número de empresa usado indevidamente como ID da ficha. Suíte relacionada: 75 testes, zero falhas. Diff e sintaxe verificados.
 
-Publicação necessária: função painel-ativos. Não publicada; aguardando autorização específica. Não testar criando titular real automaticamente.
+Publicado em 16/10/2026 após autorização do dono. Revisão 099c118; função painel-ativos v148 ACTIVE, 14/14 arquivos conferidos com a versão local. Job publicar do workflow 38949450057 concluído com sucesso. Os 75 testes passaram novamente antes da publicação. Não foi realizado salvamento de titular real em produção; a verificação produtiva foi do código implantado.
