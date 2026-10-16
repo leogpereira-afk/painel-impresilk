@@ -1,5 +1,5 @@
 import {temPermissao,bemPermitido} from './patrimonio-acesso.mjs';
-import {TIPOS_DOCUMENTO,UUID,ehAVCB,texto,identidade,conferirVersao,novoInstante,autorizadoDocumento,documentoPublico,bemDocumento,prepararControle,arquivoDocumento,snapshotDocumento} from './documentos.mjs';
+import {TIPOS_DOCUMENTO,ehAVCB,texto,identidade,conferirVersao,novoInstante,autorizadoDocumento,documentoPublico,bemDocumento,prepararControle,arquivoDocumento,snapshotDocumento} from './documentos.mjs';
 import {validarVinculoPessoa} from './patrimonio-pessoas.mjs';
 
 // Apenas o handler autenticado chama esta porta com o cliente de serviço.
@@ -113,7 +113,7 @@ export async function atenderDocumentos({sb,sessao,corpo,resposta,quem,pessoasRH
    if(!titularPermitido({tipo}))falha('Sem acesso a Documentos pessoais.',403);if(a)conferirVersao(a,corpo.versao);
    let nome=texto(it.nome??a?.nome,'nome do titular',200,true),pessoaId=texto(it.pessoaId??a?.pessoaId,'pessoa do RH');
    if(tipo==='empresa'&&pessoaId)falha('Empresa não pode receber vínculo de pessoa.');
-   if(pessoaId){if(!UUID.test(pessoaId))falha('ID de pessoa do RH inválido.');nome=validarVinculoPessoa({pessoaId,pessoa:nome},a?{pessoaId:a.pessoaId,pessoa:a.nome}:null,await pessoasRH()).pessoa;}
+   if(pessoaId){nome=validarVinculoPessoa({pessoaId,pessoa:nome},a?{pessoaId:a.pessoaId,pessoa:a.nome}:null,await pessoasRH()).pessoa;}
    const agora=novoInstante(a),novo={id,tipo,nome,pessoaId:tipo==='pessoa'?pessoaId:'',criadoEm:a?.criadoEm||agora,atualizadoEm:agora};
    return resposta({ok:true,item:await gravar('documentos_titulares',id,novo,a)});
   }

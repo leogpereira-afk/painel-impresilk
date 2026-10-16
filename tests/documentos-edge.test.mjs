@@ -29,7 +29,7 @@ function ambiente(perms=['documentos'],rows=[],opcoes={}){
   throw new Error('RPC inesperada '+n);
  },storage:{from(){return {async upload(chave,bytes,opts){uploads.push({chave,opts});assert.equal(opts.upsert,false);if(arquivos.has(chave))return {error:{message:'ocupado'}};arquivos.set(chave,{bytes:new Uint8Array(bytes),type:opts.contentType});return {error:null};},async download(chave){downloads.push(chave);const f=arquivos.get(chave);return {data:f?new Blob([f.bytes],{type:f.type}):null,error:f?null:{message:'ausente'}};},async remove(chaves){for(const chave of chaves)arquivos.delete(chave);return {error:null};}};}}};
  const source=readFileSync(new URL('../supabase/functions/painel-ativos/index.ts',import.meta.url),'utf8').replace(/^import .*;\s*$/gm,'');
- vm.runInNewContext(transformSync(source,{loader:'ts',target:'es2022',format:'esm'}).code,{...acesso,atenderDocumentos,temHistoricoPessoal,validarVinculoPessoa,crypto:webcrypto,atob,btoa,Uint8Array,Deno:{env:{get:()=> 'teste'},serve:f=>handler=f},createClient:()=>sb,verificarJwt:async()=>({sub:'teste',nome:'Teste fictício',perms,master:opcoes.master===true}),crachaRevogado:async()=>false,lerPessoasPatrimonio:async()=>[{id:pessoaRH,nome:'Pessoa fictícia',disponivel:true}],Request,Response,console:{error(){}}});
+ vm.runInNewContext(transformSync(source,{loader:'ts',target:'es2022',format:'esm'}).code,{...acesso,atenderDocumentos,temHistoricoPessoal,validarVinculoPessoa,crypto:webcrypto,atob,btoa,Uint8Array,Deno:{env:{get:()=> 'teste'},serve:f=>handler=f},createClient:()=>sb,verificarJwt:async()=>({sub:'teste',nome:'Teste fictício',perms,master:opcoes.master===true}),crachaRevogado:async()=>false,lerPessoasPatrimonio:async()=>opcoes.pessoasRH??[{id:pessoaRH,nome:'Pessoa fictícia',disponivel:true}],Request,Response,console:{error(){}}});
  return {linhas,escritas,consultas,uploads,downloads,arquivos,async chamar(corpo){const r=await handler(new Request('http://test.invalid',{method:'POST',headers:{authorization:'Bearer teste'},body:JSON.stringify(corpo)}));return {status:r.status,body:await r.json()};}};
 }
 test('listagem exige Documentos e separa controles, AVCB e bens mínimos por origem',async()=>{
@@ -194,4 +194,18 @@ test('titular conserva pessoa retirada do RH sem permitir novo vínculo nem nome
  for(const item of [{cadastroId:novoId,tipo:'pessoa',nome:'Outra pessoa',pessoaId:retirado},{id:pessoa,nome:'Outra pessoa',pessoaId:retirado}]){
   const b=ambiente(['documentos','documentos-pessoais'],[antigo]),antes=structuredClone(b.linhas),ret=await b.chamar({action:'salvarTitular',item,versao:'v1'});assert.equal(ret.status,422);assert.deepEqual(b.linhas,antes);assert.equal(b.escritas.length,0);
  }
+});
+
+// Identificadores fictícios: ficha do RH não é necessariamente um UUID.
+test('titular aceita ficha RH não UUID e não confunde com o ID da empresa',async()=>{
+ const pessoasRH=[{id:'rh-ficha-ficticia',idPessoa:'001234',nome:'Pessoa fictícia',disponivel:true}];
+ const a=ambiente(['documentos','documentos-pessoais'],[],{pessoasRH});
+ const r=await a.chamar({action:'salvarTitular',item:{cadastroId:novoId,tipo:'pessoa',nome:'Nome enviado',pessoaId:'rh-ficha-ficticia'}});
+ assert.equal(r.status,200);assert.equal(r.body.item.pessoaId,'rh-ficha-ficticia');assert.equal(r.body.item.nome,'Pessoa fictícia');
+ for(const pessoaId of ['001234','rh-inexistente']){
+  const b=ambiente(['documentos','documentos-pessoais'],[],{pessoasRH});
+  assert.equal((await b.chamar({action:'salvarTitular',item:{cadastroId:novoId,tipo:'pessoa',nome:'Pessoa fictícia',pessoaId}})).status,422);assert.equal(b.escritas.length,0);
+ }
+ const b=ambiente(['documentos','documentos-pessoais'],[],{pessoasRH:[{...pessoasRH[0],disponivel:false}]});
+ assert.equal((await b.chamar({action:'salvarTitular',item:{cadastroId:novoId,tipo:'pessoa',nome:'Pessoa fictícia',pessoaId:'rh-ficha-ficticia'}})).status,422);assert.equal(b.escritas.length,0);
 });
