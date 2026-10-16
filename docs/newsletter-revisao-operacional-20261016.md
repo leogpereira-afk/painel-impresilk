@@ -26,3 +26,6 @@ A tela atual oferece preparação e gestão, não um serviço de envio concluíd
 
 ## Complemento Locaweb
 O dono confirmou Locaweb e adiou a configuração. Formulário preparado para host, porta, TLS/STARTTLS e usuário SMTP, além de remetente/respostas. Dados não secretos são validados e persistidos no registro existente; senha não é recebida nem armazenada. Não há valores de conexão presumidos. Botões de teste/envio continuam desabilitados até implementação e verificação da integração segura. Nenhuma configuração real ou publicação realizada.
+
+## Publicação autorizada
+Em 16/10/2026 o dono autorizou subir tudo. Commit 55ec5d0, Pages 38885378580 e Functions 38885378551 aprovados. Servidor final v55 com 12/12 arquivos iguais; 121/121 arquivos públicos iguais ao build validado. Configuração da Locaweb permanece para depois, conforme pedido. Sem disparo real.
