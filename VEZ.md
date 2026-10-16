@@ -2,12 +2,14 @@
 
 ## Trabalho atual · Modernização do Comercial
 
-Agente: codex. Autorizado por Léo em 15/10/2026: modernizar mantendo todas as ideias e funções. Clone /tmp/painel-pos-compacto-20261015, ramo codex/pos-venda-compacto-20261015. Navegação agrupada com rotas preservadas, atalhos recolhíveis, apresentação compacta em todas as áreas e ação principal na fila. Preserva ajustes locais de pós-venda. Publicação autorizada por Léo com “pode subir”. Servidor painel-comercial v60 ACTIVE publicado primeiro, com 15/15 arquivos conferidos. Verificação local: 1.448 regressões e 653 testes de cálculo/acesso aprovados; build oficial e verificadores aprovados, lint sem erros (aviso anterior em Agenda). Interface em publicação. Sem escrita real ou alteração de permissões.
+Agente: codex. Autorizado por Léo em 15/10/2026: modernizar mantendo todas as ideias e funções. Clone /tmp/painel-pos-compacto-20261015, ramo codex/pos-venda-compacto-20261015. Navegação agrupada com rotas preservadas, atalhos recolhíveis, apresentação compacta em todas as áreas e ação principal na fila. Preserva ajustes locais de pós-venda. Publicação autorizada por Léo com “pode subir”. Servidor painel-comercial v60 ACTIVE publicado primeiro, com 15/15 arquivos conferidos. Verificação local: 1.448 regressões e 653 testes de cálculo/acesso aprovados; build oficial e verificadores aprovados, lint sem erros (aviso anterior em Agenda). Interface publicada no commit e79e54f. Sem escrita real ou alteração de permissões.
 
 
 ## Trabalho atual · Pós-venda compacto
 
-Agente: codex. Pedido do dono em 15/10/2026: reduzir etapas, modernizar e tornar explícito o vínculo com o vendedor. Clone `/tmp/painel-pos-compacto-20261015`, ramo `codex/pos-venda-compacto-20261015`, base 2e4427e. Filtros em chips, lista compacta, detalhes recolhidos e vendedor original visível sem repetição. Preservar vínculo automático, permissões, histórico e cobertura parcial. Implementação e prévia local; sem publicação nem gravação de dados reais.
+Agente: codex. Pedido do dono em 15/10/2026: reduzir etapas, modernizar e tornar explícito o vínculo com o vendedor. Clone `/tmp/painel-pos-compacto-20261015`, ramo `codex/pos-venda-compacto-20261015`, base 2e4427e. Filtros em chips, lista compacta, detalhes recolhidos e vendedor original visível sem repetição. Preservar vínculo automático, permissões, histórico e cobertura parcial. Publicado junto à modernização; sem gravação de dados reais.
+
+**Publicado e conferido em 15/10/2026:** commit e79e54f; Pages 38829467975 e Functions 38829467942 aprovados. Servidor publicado antes da tela, painel-comercial v61 ACTIVE com 15/15 conteúdos conferidos. Interface: 120/120 arquivos públicos idênticos ao build validado. Chrome autenticado conferiu navegação nova, carregamento, chips de vendedor, recorte fixo, dias desde entrega e atendimento com vendedor original; formulário cancelado sem gravação. Sem erros JavaScript. Cobertura parcial da fonte continua explícita. Trabalho encerrado; Léo decide quem segue.
 
 ## Trabalho atual · Prospecção e Pós-venda separados
 
