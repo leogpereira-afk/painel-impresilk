@@ -2,6 +2,8 @@
 
 ## Trabalho atual · Central Comercial e Dashboard
 
+Publicação autorizada pelo dono em 17/10/2026 com “subir”, incluindo o refinamento posterior do cabeçalho com Silk e fundo azul-escuro conforme referência. Servidor publicado e conferido antes da interface: painel-comercial v69 ACTIVE, 18/18 arquivos iguais; painel-cache v145 ACTIVE, 1/1 arquivo igual. Cabeçalho conferido em desktop e celular, build oficial aprovado. Sem migração ou alteração manual de registros reais. Vez Codex; publicação em andamento.
+
 Revisão V2 autorizada em 17/10/2026: Compromissos integrado mantendo lateral; migração completa de Resultados e Soluções; gráficos analíticos interativos, cores, tabelas responsivas e controles modernos. Continuidade no mesmo clone/ramo, a partir do commit local 6aa7a27. Execução local coordenada; sem publicação ou alteração de registros reais. Desenho e plano em docs/superpowers/specs/2026-10-17-central-comercial-v2.md e docs/superpowers/plans/2026-10-17-central-comercial-v2.md.
 
 **V2 implementada e conferida localmente em 17/10/2026.** Sete entradas na Central, Compromissos pelos dois acessos, Resultados no Dashboard, Soluções no Glossário, nove famílias de gráficos, detalhe com filtros exatos e linhas financeiras recolhíveis. Correções de equipe no legado, clique temporal e títulos financeiros duplicados verificadas. 1.567 testes gerais e 676 de cálculo/acessos aprovados; 35 cenários de navegador sem erro JavaScript; build oficial e 15 verificadores aprovados. Lint sem erros, aviso anterior em Agenda.jsx. Nenhum registro real alterado. Relatório e limites em docs/comercial/entrega-central-comercial-v2.md. Prévia pronta; publicação depende de autorização posterior, com servidor antes da tela. Vez permanece Codex.

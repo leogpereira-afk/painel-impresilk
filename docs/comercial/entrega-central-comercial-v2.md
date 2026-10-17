@@ -50,3 +50,9 @@ Os scripts reproduzíveis ficam em `tests/browser/central-comercial.mjs`, `tests
 Após a revisão da prévia, o período foi retirado do bloco recolhível: Mês, Ano, Todos os anos e Personalizado ficam visíveis, com emojis decorativos e estado acessível. Mês e ano usam seletores claros, setas anterior/próximo e retorno ao período atual. A virada dezembro/janeiro atualiza os dois campos, sem perder a carteira. O modo Todos mostra os anos conhecidos sem prometer cobertura integral. Filtros de vendedor, cliente e produto ficam na área avançada.
 
 Navegação, análises e KPIs receberam ícones e acentos por assunto, com contraste no tema escuro. Verificação deste ajuste: 21 regressões focadas e 18 cenários de navegador aprovados, sem erros JavaScript; build oficial e conferência de classes aprovados. Lint sem erros, com o aviso anterior em Agenda.jsx. Sem alteração dos cálculos, dados reais ou publicação.
+
+## Publicação autorizada e cabeçalho
+
+Autorizada pelo dono em 17/10/2026, incluindo o cabeçalho com Silk, fundo azul-escuro e ações preservadas. Banner conferido em 1440, 390 e 320 px, modo escuro, imagem carregada, título único, Atualizar e Novo orçamento/cancelar, sem gravação real. Build oficial aprovado; lint sem erros e aviso anterior em Agenda.jsx.
+
+Servidor publicado antes da interface: painel-comercial v69 ACTIVE (18/18 arquivos iguais à fonte local) e painel-cache v145 ACTIVE (1/1 arquivo igual). Autenticação própria preservada. Verificação recente de 66 cenários do backend aprovada. Publicação e conferência da interface em andamento.

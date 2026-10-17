@@ -1,0 +1,53 @@
+/* Banner do Comercial: reutiliza o cabeçalho e as ações da visão existente. */
+.com-modern .com-header.com-hero {
+  min-height:154px; padding:21px 26px; margin:0 0 14px; gap:20px;
+  border:1px solid #244d68; border-radius:18px;
+  background:radial-gradient(ellipse at 95% 10%,#24516b66,transparent 58%),linear-gradient(115deg,#173c56,#10263d);
+  color:#fff; box-shadow:0 5px 16px #132c4710;
+}
+.com-modern .com-hero .silk-com-title { gap:20px; flex:1; }
+.com-modern .com-hero .silk-com-title>div { min-width:0; }
+.com-modern .com-header.com-hero .silk-portrait {
+  width:104px; height:104px; max-width:none; max-height:none;
+  filter:drop-shadow(0 5px 7px #06132240);
+}
+.com-modern .com-hero .com-eyebrow {
+  color:#a9d8ee; font-size:10px; line-height:1.5; letter-spacing:1.8px; margin:0 0 6px;
+}
+.com-modern .com-header.com-hero h1 {
+  color:#fff; font-size:32px; font-weight:750; line-height:1.15; letter-spacing:-.7px; margin:0 0 8px;
+}
+.com-modern .com-header.com-hero .com-muted {
+  color:#d4e3ee; font-size:13px; line-height:1.65; margin:0; max-width:42ch;
+}
+.com-modern .com-hero .com-header-actions { flex:none; gap:9px; }
+.com-modern .com-hero .btn-outline,
+.com-modern .com-hero .btn-primary {
+  min-height:44px; padding:10px 14px; border-radius:10px; white-space:nowrap;
+}
+.com-modern .com-hero .btn-outline { color:#fff; background:#ffffff0c; border-color:#ffffff45; }
+.com-modern .com-hero .btn-outline:hover:not(:disabled) { background:#ffffff1f; border-color:#ffffff80; }
+.com-modern .com-hero .btn-primary { background:#fff; border-color:#fff; color:#163a55; }
+.com-modern .com-hero .btn-primary:hover { background:#e9f4fb; border-color:#e9f4fb; }
+.com-modern .com-hero button:focus-visible { outline:3px solid #9fddff; outline-offset:4px; }
+.com-modern .com-hero button:disabled { opacity:.6; cursor:wait; }
+.dark .com-modern .com-header.com-hero { border-color:#365670; box-shadow:none; }
+@media(max-width:900px) {
+  .com-modern .com-header.com-hero { padding:20px; gap:16px; }
+  .com-modern .com-hero .silk-com-title { flex-basis:100%; }
+  .com-modern .com-hero .com-header-actions { margin-left:auto; }
+}
+@media(max-width:600px) {
+  .com-modern .com-header.com-hero { min-height:0; padding:17px 15px; border-radius:14px; gap:16px; }
+  .com-modern .com-hero .silk-com-title { gap:13px; align-items:center; }
+  .com-modern .com-header.com-hero .silk-portrait { width:76px; height:76px; }
+  .com-modern .com-header.com-hero h1 { font-size:26px; margin-bottom:6px; }
+  .com-modern .com-hero .com-eyebrow { font-size:8px; letter-spacing:1.3px; margin-bottom:5px; }
+  .com-modern .com-header.com-hero .com-muted { font-size:12px; line-height:1.5; }
+  .com-modern .com-hero .com-header-actions { width:100%; margin:0; gap:8px; }
+  .com-modern .com-hero .btn-outline,.com-modern .com-hero .btn-primary { padding:10px 11px; font-size:12px; }
+}
+@media print {
+  .com-modern .com-header.com-hero { background:none; color:#183948; border:0; box-shadow:none; min-height:0; padding:0; }
+  .com-modern .com-header.com-hero h1,.com-modern .com-header.com-hero .com-muted,.com-modern .com-hero .com-eyebrow { color:#183948; }
+}
