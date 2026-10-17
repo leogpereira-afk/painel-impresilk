@@ -110,3 +110,5 @@ html.dark .review-sidebar summary:focus-visible{outline-color:#9ba1f6}
 
 /* Volta ao Comercial preservando o recorte usado antes de abrir a agenda. */
 .com-return{display:inline-flex;align-items:center;gap:7px;min-height:42px;margin:0 0 10px;padding:6px 10px;border:1px solid var(--hairline);border-radius:8px;color:var(--text);background:var(--surface);font-size:13px;font-weight:600}
+
+.review-desktop-toggle{display:none;padding:8px;border-radius:8px;min-width:36px;min-height:36px}.review-desktop-toggle:focus-visible{outline:2px solid #3840e8;outline-offset:2px}@media(min-width:901px){.review-desktop-toggle{display:inline-flex;align-items:center;justify-content:center}.review-shell.lateral-recolhida{grid-template-columns:minmax(0,1fr)}.lateral-recolhida .review-sidebar{display:none}}

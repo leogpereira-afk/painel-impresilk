@@ -1,5 +1,11 @@
 # Vez do Painel Impresilk
 
+## Trabalho atual · Brief e Layout separados
+
+Agente: codex. Publicação autorizada pelo dono em 16/10/2026: “vamos subir e analisar novamente”. Atalhos independentes em Módulos do painel e botão para recolher a lateral. Preservar os demais trabalhos; nenhuma mudança de servidor, permissão ou registro. Revisão integrada à main atual, publicação em preparação. As melhorias da auditoria visual permanecem pendentes.
+
+Verificação: 20 casos Brief/Layout aprovados; 1.456 regressões do Painel passaram no ambiente restrito e os dois casos de porta local passaram na repetição autorizada (7/7 no arquivo); 653 testes de cálculos e acessos aprovados. Build oficial, verificadores e lint sem erros; aviso anterior em Agenda. Brief/Layout dc55619 já publicado e cinco arquivos servidos conferidos. Publicação dos atalhos em andamento.
+
 ## Trabalho atual · Correção do vínculo de titular ao RH
 
 Agente: codex. Pedido do dono em 16/10/2026: corrigir ID do RH rejeitado em Novo titular. Clone /tmp/painel-titular-id-rh-20261016, ramo codex/titular-id-rh-20261016. Corrigir validação incompatível no servidor, preservar identificação e permissões; testes fictícios. Publicação autorizada pelo dono com “pode subir”. Sem escrita real ou migração.
