@@ -2,6 +2,8 @@
 
 ## Trabalho atual · Ferramenta I.A
 
+**Publicado e conferido em 17/10/2026:** autorização do dono “publicart”. Código 04c8e92; Pages 39057024261 e Functions 39057024218 aprovados. Login central 857c089; Functions 39057013694 aprovado. Versões finais equipe-auth v90 e painel-auth v167 ACTIVE, 1/1 e 5/5 arquivos iguais. Interface: 143/143 arquivos públicos iguais ao build. Navegador autenticado confirmou item lateral, catálogo e conteúdo publicado, sem erros JavaScript; HTML antigo em cache resolvido ao carregar URL com versão. 682 testes locais, build, lint sem erros e coerência de módulos aprovados; CI completa aprovada. Nenhuma concessão automática de acesso ou alteração de dados reais. Limites externos preservados. Publicado e conferido; vez encerrada.
+
 Agente: codex. Implementação local autorizada em 17/10/2026, coordenação com Designer System autorizada pelo dono. Clone /tmp/painel-ferramenta-ia-20261017, ramo codex/ferramenta-ia-20261017. Sete ferramentas externas Porto Designer, guias e orçamento próprio, rota e permissão específicas. Preservar Design System Silk. Sem publicação ou dados reais. Plano em docs/superpowers/plans/2026-10-17-ferramenta-ia.md. Implementação local verificada: 669 regressões, 13 testes focados, build, lint e coerência dos módulos aprovados; prévia em 4295. Cinco ferramentas incorporadas verificadas; vetorizador e montagem têm acesso externo preferencial por exigência de login no iframe. Publicação aguarda autorização; equipe-auth e painel-auth antes da interface. Relatório em docs/ferramenta-ia/entrega.md.
 
 ## Trabalho atual · Design System Silk

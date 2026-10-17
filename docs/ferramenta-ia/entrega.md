@@ -18,3 +18,6 @@
 
 ## Publicação futura
 Aguardar autorização específica. Atualizar main e revalidar mudanças concorrentes. Publicar primeiro equipe-auth no repositório vida-leo e painel-auth neste repositório; reconhecer a nova permissão antes da interface. Não publicar a interface isoladamente. Conferir CI, arquivos servidos, acesso com permissão e acesso negado sem ela. Conceder acesso aos usuários somente conforme autorização da gestão.
+
+## Publicação concluída
+Autorizada pelo dono e conferida em 17/10/2026. Código 04c8e92, Pages 39057024261 e Functions 39057024218 aprovados. Login central 857c089, Functions 39057013694 aprovado. equipe-auth v90 (1/1 arquivos) e painel-auth v167 (5/5) conferidos. 143/143 arquivos públicos iguais; navegação autenticada, catálogo e console sem erros conferidos. 682 testes locais aprovados. As instruções de publicação futura acima representam a preparação histórica e foram cumpridas.
