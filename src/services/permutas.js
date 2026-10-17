@@ -169,8 +169,8 @@ export const buscarClientes = (termo, desde, ate) =>
    saldos contra o ERP -- sem isto ela mostraria a soma congelada de cada
    permuta e teria de dizer que não conferiu, justo na tela em que a direção
    bate o olho para saber onde ainda há crédito. */
-export const buscarOrdensPorId = (ids) =>
-  !ids?.length ? Promise.resolve([]) : buscar({ ids: ids.join("|") }).then((r) => r.itens || []);
+export const buscarOrdensPorId = (ids, comItens = false) =>
+  !ids?.length ? Promise.resolve([]) : buscar({ ids: ids.join("|"), ...(comItens ? { itens: "1" } : {}) }).then((r) => r.itens || []);
 
 /* As O.S. dos clientes escolhidos (chaves normalizadas), dentro do período.
    `ate` existe porque a campanha ACABA: uma eleição termina em outubro, e a

@@ -1,3 +1,4 @@
+import { projetarCampanhas } from "../_shared/campanhas-planejamento.mjs";
 // ============================================================================
 // painel-agenda — a agenda, SO PARA VER.
 //
@@ -351,6 +352,13 @@ Deno.serve(async (req) => {
 
   try {
     switch (acao) {
+      case 'campanhas': {
+        const g=await exigirSessao(req,'campanhas');
+        if(g.resposta)return g.resposta;
+        const destino=await exigirSessao(req,'calendario-empresa');
+        if(destino.resposta)return destino.resposta;
+        return json({eventos:projetarCampanhas(await lerColecao('painel_registros','campanhas'),mes)});
+      }
       case 'comercial': {
         const origem=await exigirSessao(req,'orcamentos');
         if(origem.resposta)return origem.resposta;

@@ -50,3 +50,8 @@ export const lerAgendaComercial = mes => chamar('comercial', mes).then(r => {
   if (!Array.isArray(r?.eventos) || !Array.isArray(r?.vinculosLegados)) throw new Error('Resposta inválida ao consultar as atividades comerciais.');
   return {eventos:r.eventos,vinculosLegados:r.vinculosLegados,escopo:r.escopo||null,consultadoEm:r.consultadoEm||null};
 });
+
+export const lerAgendaCampanhas = mes => chamar('campanhas',mes).then(r=>{
+  if(!Array.isArray(r?.eventos))throw Error('Resposta inválida ao consultar as ações das campanhas.');
+  return r.eventos;
+});

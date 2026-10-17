@@ -1,3 +1,6 @@
+import CampanhaPlanejamento from "../components/CampanhaPlanejamento.jsx";
+import CampanhaResumoOS from "../components/CampanhaResumoOS.jsx";
+import { useSearchParams } from "react-router-dom";
 import { useAbaNavegavel } from "../hooks/useAbaNavegavel.js";
 import {Link} from 'react-router-dom';
 import {podeAbrir} from '../lib/sessao.js';
@@ -1828,7 +1831,8 @@ export default function Campanhas() {
     const t = setTimeout(() => setAviso((a) => (a?.tom === "ok" ? null : a)), 4000);
     return () => clearTimeout(t);
   }, [aviso]);
-  const [aberta, setAberta] = useState(null);
+  const [parametros] = useSearchParams();
+  const [aberta, setAberta] = useState(() => parametros.get("campanha") || null);
   const [salvando, setSalvando] = useState(false);
 
   const [ordens, setOrdens] = useState([]);
@@ -2830,6 +2834,8 @@ export default function Campanhas() {
 
         <input ref={arquivoRef} type="file" className="hidden" onChange={(e) => anexar(e.target.files?.[0])} />
 
+        <CampanhaPlanejamento key={aberta} campanha={campanha} aoSalvar={planejamento => mexer(aberta,{campos:{planejamento}})} />
+
         <Card className="space-y-4">
           {/* SÓ NO PAPEL: na tela o nome está no campo ao lado, que o
               `@media print` esconde por ser `input` — sem isto o PDF sairia
@@ -3519,7 +3525,7 @@ export default function Campanhas() {
               )}
               <div>
                 {paraEscolherFiltradas.map((o) => (
-                  <LinhaEscolher key={o.id} o={o} aoMarcar={marcarOS} onde="campanha" />
+                  <div key={o.id}><LinhaEscolher o={o} aoMarcar={marcarOS} onde="campanha" /><CampanhaResumoOS id={o.id} /></div>
                 ))}
               </div>
             </>

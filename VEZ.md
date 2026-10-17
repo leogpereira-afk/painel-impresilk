@@ -1,5 +1,11 @@
 # Vez do Painel Impresilk
 
+## Trabalho atual · Planejamento de campanhas e resumo dos produtos
+
+Agente: codex. Escopo aprovado pelo dono em 17/10/2026: resumo antes de selecionar O.S., considerações, estratégia e próximas ações com responsável e datas no calendário interno. Clone /tmp/painel-campanhas-20261017. Implementação e testes locais; publicação autorizada pelo dono em 17/10/2026 com “subir”. Preservar registros e regras de seleção existentes.
+
+Implementado localmente: planejamento recolhível, resumo dos itens sob demanda, validação de datas e ações e projeção no calendário com permissões na origem e no destino. Verificado: 2.114 testes (2 bloqueados por localhost no ambiente restrito, aprovados na repetição do arquivo de 7 casos); build aprovado; lint sem erros, aviso anterior em Agenda.jsx. Fluxo dos componentes conferido em navegador com dados fictícios: salvar, data obrigatória ao vincular, resumo e largura mobile. Sem registros reais alterados. Servidor publicado e conferido: painel-config v168 e painel-agenda v91, arquivos idênticos ao código local. Publicação da interface em andamento.
+
 ## Trabalho atual · Brief e Layout dentro do Painel
 
 Agente: codex. Pedido em 17/10/2026: abrir Brief e Layout na mesma página, mantendo a lateral. Rotas internas e atalhos; sem mudança de servidor, permissões ou registros. Publicação autorizada pelo dono em 17/10/2026 com “subir”. Publicado e conferido em 17/10/2026: código 2f1a0db, Pages 39024299688 aprovado, 121/121 arquivos públicos idênticos ao build. Navegação e acessos: 16 testes aprovados; cálculos: 646; suíte completa aprovada na CI. Lint sem erros, aviso anterior em Agenda. Sessão do navegador solicitou login; conferência visual autenticada permanece pendente. Sem alteração de dados ou servidor. Trabalho publicado e conferido; vez encerrada.
