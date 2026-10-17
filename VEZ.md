@@ -2,6 +2,8 @@
 
 ## Trabalho atual · Design System Silk
 
+**Publicado e conferido em 17/10/2026:** código 5cf86ad; Pages 39055428480 aprovado, 140/140 arquivos públicos iguais ao build validado. Suíte completa, lint, build e verificadores aprovados na CI. Escopo somente visual dos cabeçalhos; nenhuma alteração em App.jsx, modulos.js ou CentralShell.jsx, servidor, dados ou permissões. Educação preservada. Navegador oficial pediu login; portal público conferido visualmente. Trabalho encerrado; vez liberada para a próxima frente.
+
 Agente: codex. Continuidade autorizada em 17/10/2026. Clone isolado /tmp/impresilk-design-20261017, ramo codex/design-system-silk-20261017. Base visual compartilhada, cabeçalhos compactos com variações de azul e movimento breve acessível do Silk. Preservar comportamentos, dados e permissões. Educação permanece com Claude. Publicação autorizada pelo dono em 17/10/2026 com “subir”; em preparação.
 
 ## Trabalho atual · Central Comercial e Dashboard
