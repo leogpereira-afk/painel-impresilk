@@ -78,7 +78,7 @@ test('prévia aplica carteira e permissões de Comercial, Campanhas e financeiro
 
 test('hook review encaminha dashboard e mantém as actions anteriores',async()=>{
  const r=await respostaComercial({action:'dashboard',filtro:{modo:'mes'}},sessao).json();
- assert.equal(r.versao,1);assert.equal(r.catalogo.produtos.length,10);
+ assert.equal(r.versao,2);assert.equal(r.catalogo.produtos.length,10);assert.ok(r.series.diaria.length>0);assert.equal(r.series.diaria.at(-1).ate,r.periodo.ateEfetivo);
  const antigo=await respostaComercial({action:'contextoRelacionamento',clienteId:'c1'},sessao).json();
  assert.equal(antigo.cliente.id,'c1');assert.ok(Array.isArray(antigo.timelineContatos));
 });

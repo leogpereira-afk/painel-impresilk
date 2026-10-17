@@ -33,14 +33,15 @@ const abrir=async(query='',perfil='')=>{
   await page.goto(`${base}/revisao-local.html${perfil?`?perfil=${perfil}`:''}#/comercial/dashboard${query?'?'+query:''}`,{waitUntil:'networkidle'});
   await pronto();
 };
+const filtros=async()=>{const el=principal().locator('.dash-filters');if(await el.getAttribute('open')===null)await el.locator(':scope > summary').click();};
+const ranking=async()=>{const el=principal().locator('.dash-ranking-detail');if(await el.getAttribute('open')===null)await el.locator(':scope > summary').click();};
 const analise=async nome=>{await page.getByRole('navigation',{name:'Análises comerciais',exact:true}).getByRole('button',{name:nome,exact:true}).click();await pronto();};
 const textoKpi=async nome=>principal().locator('.dash-kpi').filter({has:page.locator('span',{hasText:nome})}).locator('strong').innerText();
 const esperaKpi=async(nome,esperado)=>{await page.waitForFunction(({nome,esperado})=>[...document.querySelectorAll('.dash-kpi')].some(k=>k.querySelector('span')?.textContent===nome&&k.querySelector('strong')?.textContent===esperado),{nome,esperado});};
 const semOverflow=async()=>assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1),false,'overflow horizontal de página');
 const topo=async()=>{
   await page.addStyleTag({content:'html,body,*{scroll-behavior:auto!important}'});
-  await page.evaluate(()=>{window.scrollTo({top:0,left:0,behavior:'instant'});for(const el of document.querySelectorAll('body *'))if(el.scrollTop)el.scrollTo({top:0,left:0,behavior:'instant'});});
-  await page.waitForFunction(()=>window.scrollY===0);
+  await page.evaluate(()=>{document.activeElement?.blur();window.scrollTo({top:0,left:0,behavior:'instant'});for(const el of document.querySelectorAll('body *'))if(el.scrollTop)el.scrollTo({top:0,left:0,behavior:'instant'});});
   await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
 };
 const testar=async(nome,fn)=>{try{await fn();aprovados.push(nome);console.log('OK:',nome);}catch(e){falhas.push({nome,erro:e.message});console.log('FALHOU:',nome,e.message);await page.screenshot({path:`${saida}/falha-${falhas.length}.png`,fullPage:false});}};
@@ -61,9 +62,9 @@ try{
   });
 
   await testar('períodos mês, ano e todos os anos conciliam com fixture',async()=>{
-    await analise('Panorama');
+    await analise('Panorama');await filtros();
     for(const modo of ['ano','todos','mes']){
-      await page.getByLabel('Período').selectOption(modo);
+      await page.getByLabel('Período',{exact:true}).selectOption(modo);
       const esperado=await respostaDashboardDemo({action:'dashboard',filtro:{modo,mes,ano}}).json();
       await esperaKpi('Vendas registradas',moeda(esperado.resumo.centavos));
       assert.equal(await textoKpi('Pedidos'),String(esperado.resumo.pedidos));
@@ -71,7 +72,7 @@ try{
   });
 
   await testar('produto e vendedor restringem o recorte e não confundem atrasos',async()=>{
-    await page.getByLabel('Vendedor').selectOption('101');
+    await filtros();await page.getByLabel('Vendedor',{exact:true}).selectOption('101');
     await page.getByLabel('Produto').selectOption('p1');
     const esperado=await respostaDashboardDemo({action:'dashboard',filtro:{modo:'mes',mes,ano,vendedor:'101',produto:'p1'}}).json();
     await esperaKpi('Vendas registradas',moeda(esperado.resumo.centavos));
@@ -84,7 +85,7 @@ try{
   });
 
   await testar('detalhe abre pedidos, captura Tab e devolve foco ao fechar por Escape',async()=>{
-    await analise('Produtos');
+    await analise('Produtos');await ranking();
     const gatilho=principal().locator('table tbody tr').first().getByRole('button').first();
     const nome=await gatilho.innerText();
     await gatilho.click();
@@ -101,12 +102,13 @@ try{
   });
 
   await testar('Curva ABC aceita faixas, classifica clientes e produtos',async()=>{
-    await analise('Curva ABC');
+    await analise('Curva ABC');await filtros();await ranking();
     await page.getByLabel('Faixa A · até (%)').fill('70');
     await page.getByLabel('Faixa B · até (%)').fill('90');
     await pronto();
     assert.ok(await principal().locator('.dash-badge').count()>0);
     await page.getByLabel('Curva de').selectOption('produtos');
+    await pronto();await ranking();
     assert.match(await principal().locator('table caption').innerText(),/produto/i);
     assert.ok(await principal().locator('.dash-badge').count()>0);
   });
@@ -124,14 +126,17 @@ try{
 
   await testar('detalhe mensal preserva período personalizado e vendedor',async()=>{
     const de=`${mes}-10`,ate=`${mes}-15`;
-    await page.getByLabel('Período').selectOption('personalizado');
+    await page.getByLabel('Período',{exact:true}).selectOption('personalizado');
     await page.getByLabel('De',{exact:true}).fill(de);
     await page.getByLabel('Até',{exact:true}).fill(ate);
-    await page.getByLabel('Vendedor').selectOption('101');
+    await filtros();await page.getByLabel('Vendedor',{exact:true}).selectOption('101');
     const esperado=await respostaDashboardDemo({action:'dashboard',filtro:{modo:'personalizado',de,ate,vendedor:'101'}}).json();
     assert.ok(esperado.resumo.pedidos>0,'o fixture precisa ter pedidos nesse recorte');
     await analise('Panorama');await esperaKpi('Vendas registradas',moeda(esperado.resumo.centavos));
-    await principal().locator('.dash-series button').first().click();
+    const grafico=principal().locator('.analytic-chart').filter({has:page.getByRole('heading',{name:'Evolução das vendas',exact:true})});
+    await grafico.getByRole('button',{name:'Mês',exact:true}).click();
+    await grafico.locator('.chart-mark').first().click();
+    await grafico.locator('.chart-inspector').getByRole('button',{name:'Ver registros'}).click();
     const dialog=page.getByRole('dialog');
     await dialog.locator('tbody tr').first().waitFor();
     assert.equal(await dialog.locator('tbody tr').count(),esperado.resumo.pedidos);
@@ -156,6 +161,7 @@ try{
     await topo();
     await page.screenshot({path:`${saida}/panorama-mobile.png`,fullPage:true});
     await page.setViewportSize({width:1440,height:1000});
+    const painelFiltros=principal().locator('.dash-filters');if(await painelFiltros.getAttribute('open')!==null)await painelFiltros.locator(':scope > summary').click();
     await topo();
     await page.screenshot({path:`${saida}/panorama-desktop.png`,fullPage:false});
   });
@@ -172,7 +178,7 @@ try{
 
   await testar('itens repetidos do mesmo produto permanecem visíveis no detalhe',async()=>{
     duplicados=true;await page.reload({waitUntil:'networkidle'});await pronto();
-    await analise('Produtos');
+    await analise('Produtos');await ranking();
     await principal().locator('table tbody tr').first().getByRole('button').first().click();
     const dialog=page.getByRole('dialog');
     const primeira=dialog.locator('tbody tr').first();await primeira.waitFor();
@@ -191,6 +197,7 @@ try{
     assert.equal(await textoKpi('Vendas registradas'),'Não disponível');
     assert.equal(await textoKpi('Pedidos'),'—');
     await analise('Histórico');
+    await principal().getByRole('button',{name:'Tabela',exact:true}).click();
     const total=await principal().locator('.dash-matrix tbody tr').first().locator('td').last().innerText();
     assert.equal(total,'Não disponível','total histórico deve ficar indisponível quando todos os meses são nulos');
   });

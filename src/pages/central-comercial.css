@@ -29,10 +29,24 @@
 .central-comercial .cc-kpi small{color:var(--cc-muted);font-size:11px;line-height:1.5}
 .central-comercial .cc-empty{padding:30px 20px;border:1px solid var(--cc-line);border-radius:var(--cc-radius);background:var(--cc-surface);color:var(--cc-muted)}
 .central-comercial .cc-empty h1{font-size:20px;color:var(--cc-text);margin:10px 0 6px}
-.dark .central-comercial{--cc-muted:#b6c1d2;--cc-accent:#8275ed;--cc-soft:#292740}
+.cc-glossario{display:grid;gap:18px;min-width:0}
+.cc-glossario__header{display:flex;align-items:center;justify-content:space-between;gap:18px;flex-wrap:wrap;padding:10px 0 0}
+.cc-glossario__header h1{margin:3px 0 6px;font-size:26px;font-weight:700;letter-spacing:-.6px;color:var(--cc-text)}
+.cc-glossario__header p:not(.cc-glossario__eyebrow){font-size:14px;color:var(--cc-muted);margin:0}
+.cc-glossario__eyebrow{margin:0;color:var(--cc-accent);font-size:10px;font-weight:700;letter-spacing:1.4px}
+.cc-glossario__busca{display:flex;align-items:center;gap:9px;background:var(--cc-surface);border:1px solid var(--cc-line);border-radius:12px;padding:8px 12px;min-height:46px;flex:1 1 300px;max-width:440px;color:var(--cc-muted)}
+.cc-glossario__busca input{width:100%;min-width:0;border:0;outline:0;background:transparent;color:var(--cc-text);font-size:14px}
+.cc-glossario__busca:focus-within{outline:2px solid var(--cc-accent);outline-offset:2px}
+.cc-glossario__busca button{display:grid;place-items:center;min-height:30px;min-width:30px;border-radius:7px}
+.cc-glossario__nav{display:flex;flex-wrap:wrap;gap:6px;padding:5px;border:1px solid var(--cc-line);border-radius:12px;background:var(--cc-surface);width:fit-content;max-width:100%}
+.cc-glossario__nav a{display:flex;align-items:center;gap:7px;padding:10px 14px;min-height:44px;border-radius:8px;font-size:13px;font-weight:600;color:var(--cc-muted);text-decoration:none}
+.cc-glossario__nav a[aria-current=page]{background:var(--cc-soft);color:var(--cc-accent)}
+.cc-glossario__nav a:focus-visible,.cc-glossario__busca button:focus-visible{outline:2px solid var(--cc-accent);outline-offset:2px}
+.dark .central-comercial{--cc-text:#e8edf6;--cc-muted:#b6c1d2;--cc-accent:#8275ed;--cc-soft:#292740}
 .dark .central-comercial__link[aria-current=page]{background:#5145cd}
 @keyframes cc-loading{to{transform:rotate(360deg)}}
 @media(min-width:1600px){.central-comercial__link{flex:0 1 auto;min-width:130px}}
 @media(max-width:700px){.central-comercial__nav{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));margin-bottom:14px;gap:4px}.central-comercial__link{font-size:12px;padding:9px 5px;white-space:normal;text-align:center;min-height:48px;gap:5px}.central-comercial__link--dashboard{margin-left:0}.central-comercial__link svg{width:15px}.central-comercial .cc-card{padding:12px}.central-comercial .cc-kpi-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.central-comercial .cc-kpi{padding:12px}.central-comercial .cc-kpi strong{font-size:21px}.central-comercial__brief{height:max(540px,calc(100dvh - 270px))}}
 @media(prefers-reduced-motion:reduce){.central-comercial__link{transition:none}.central-comercial__carregando>span{animation:none}}
 @media print{.central-comercial__nav{display:none}.central-comercial .cc-card{break-inside:avoid;border-color:#ddd}.central-comercial .cc-table-wrap{overflow:visible}.central-comercial__conteudo{outline:0}}
+@media(max-width:700px){.cc-glossario__header{gap:12px}.cc-glossario__header h1{font-size:23px}.cc-glossario__busca{max-width:none}.cc-glossario__nav{width:100%}.cc-glossario__nav a{flex:1;padding:9px 7px;justify-content:center;font-size:12px}.central-comercial__link--dashboard{grid-column:1/-1}}

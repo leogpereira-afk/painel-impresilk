@@ -6,7 +6,7 @@ import {fileURLToPath} from 'node:url';
 const require=createRequire(import.meta.url);
 const {build}=createRequire(require.resolve('vite'))('esbuild');
 const SRC=fileURLToPath(new URL('../src/',import.meta.url));
-const paginas=['Comercial','Bancos','Glossario','ContasAtrasadas','FerramentaBrief','DashboardComercial'];
+const paginas=['Comercial','Compromissos','Bancos','GlossarioComercial','ContasAtrasadas','FerramentaBrief','DashboardComercial'];
 let tela;
 async function renderizar(permissoes,caminho){
   if(!tela){
@@ -57,8 +57,17 @@ test('acesso direto a Dashboard ou cobranças sem permissão não monta a págin
 
 test('navegação completa conserva ordem e só monta a ferramenta selecionada',async()=>{
   const html=await renderizar(['*'],'/comercial/dashboard?aba=produtos&ano=2026');
-  assert.deepEqual(links(html),['/comercial','/comercial/bancos','/comercial/glossario','/comercial/contas-atrasadas','/comercial/brief','/comercial/dashboard?aba=produtos&amp;ano=2026']);
+  assert.deepEqual(links(html),['/comercial','/comercial/compromissos','/comercial/bancos','/comercial/glossario','/comercial/contas-atrasadas','/comercial/brief','/comercial/dashboard?aba=produtos&amp;ano=2026']);
   assert.deepEqual([...html.matchAll(/data-tela="([^"]+)"/g)].map(m=>m[1]),['DashboardComercial']);
+});
+
+test('Compromissos usa tela completa e permissão própria, sem abrir dados comerciais',async()=>{
+  const html=await renderizar(['compromissos'],'/comercial/compromissos');
+  assert.deepEqual(links(html),['/comercial/compromissos','/comercial/brief']);
+  assert.deepEqual([...html.matchAll(/data-tela="([^"]+)"/g)].map(m=>m[1]),['Compromissos']);
+  const negada=await renderizar(['orcamentos'],'/comercial/compromissos');
+  assert.match(negada,/Acesso não liberado/);
+  assert.doesNotMatch(negada,/data-tela=/);
 });
 
 test('Brief permanece acessível pela autenticação própria sem montar outra ferramenta',async()=>{

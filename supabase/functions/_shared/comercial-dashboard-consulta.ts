@@ -26,7 +26,9 @@ export async function consultarDashboard(sb:any,sessao:any,corpo:any,hoje:string
  // Validate early without narrowing the all-years option to the old 2-year cap.
  validarFiltroDashboard(filtro,hoje);
  const financeiro=sessao.master===true||(sessao.perms||[]).some((p:string)=>p==='*'||p==='contas-atrasadas');
- const chaves=['comercial_catalogo','comercial_carga_status','ordens','orcamentos','status',...(financeiro&&corpo.action!=='dashboardDetalhe'?['recebiveis']:[])];
+ const detalheFinanceiro=corpo.action==='dashboardDetalhe'&&corpo.dimensao==='atraso';
+ if(detalheFinanceiro&&!financeiro)throw Object.assign(new Error('Seu acesso não inclui Contas atrasadas.'),{status:403});
+ const chaves=['comercial_catalogo','comercial_carga_status','ordens','orcamentos','status',...(financeiro&&(corpo.action!=='dashboardDetalhe'||detalheFinanceiro)?['recebiveis']:[])];
  const [{data:cache,error:cacheError},{data:cfg,error:configError}]=await Promise.all([
   sb.from('painel_cache').select('chave,valor,atualizado_em').in('chave',chaves),
   sb.from('painel_registros').select('registro').eq('colecao','comercial_config').eq('id','regras').maybeSingle(),

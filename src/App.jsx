@@ -34,7 +34,6 @@ const Ativos = lazy(() => import("./pages/Ativos.jsx"));
 const Planilhas = lazy(() => import("./pages/Planilhas.jsx"));
 const Marketing = lazy(() => import("./pages/Marketing.jsx"));
 const Licitacoes = lazy(() => import("./pages/Licitacoes.jsx"));
-const Compromissos = lazy(() => import("./pages/Compromissos.jsx"));
 const Manutencoes = lazy(() => import("./pages/Manutencoes.jsx"));
 const Permutas = lazy(() => import("./pages/Permutas.jsx"));
 const Campanhas = lazy(() => import("./pages/Campanhas.jsx"));
@@ -186,7 +185,7 @@ export default function App() {
           path="/compromissos"
           element={
             <Restrito modulo="compromissos" sessao={sessao}>
-              <Compromissos />
+              <ComercialAntigo />
             </Restrito>
           }
         />

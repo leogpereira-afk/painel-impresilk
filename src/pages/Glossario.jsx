@@ -22,12 +22,14 @@ const normalizar = (s) =>
     .replace(/[̀-ͯ]/g, "")
     .toLowerCase();
 
-export default function Glossario() {
+export default function Glossario({integrada=false,buscaIntegrada,setBuscaIntegrada}) {
   const [modoEdicao,setModoEdicao]=useState(false);
   const [mapa, setMapa] = useState(null);
   const [erro, setErro] = useState(null);
   const [aviso, setAviso] = useState(null);
-  const [busca, setBusca] = useFiltroCentral('Glossario:busca',"");
+  const [buscaLocal, setBuscaLocal] = useFiltroCentral('Glossario:busca',"");
+  const busca=typeof buscaIntegrada==='string'?buscaIntegrada:buscaLocal;
+  const setBusca=setBuscaIntegrada||setBuscaLocal;
   const [filtro, setFiltro] = useFiltroCentral('Glossario:filtro',null); // categoria escolhida
   const [form, setForm] = useState(null);
   const [salvando, setSalvando] = useState(false);
@@ -136,7 +138,7 @@ export default function Glossario() {
   if (erro) {
     return (
       <div className="space-y-6">
-        <PageTitle titulo="Glossário" descricao="Os termos de comunicação visual explicados." />
+        {!integrada&&<PageTitle titulo="Glossário" descricao="Os termos de comunicação visual explicados." />}
         <ErroModulo mensagem={erro} aoTentar={() => window.location.reload()}/>
       </div>
     );
@@ -147,14 +149,14 @@ export default function Glossario() {
 
   return (
     <div className="space-y-6">
-      <PageTitle
+      {!integrada&&<PageTitle
         titulo="Glossário"
         descricao="Consulte materiais, acabamentos e orientações para explicar cada solução ao cliente."
-      />
+      />}
 
-      <button className="btn-outline" aria-pressed={modoEdicao} onClick={()=>setModoEdicao(v=>!v)}>{modoEdicao?"Concluir edição":"Editar glossário"}</button>
       <div className="flex flex-wrap items-center gap-3">
-        <div className="relative min-w-56 flex-1 sm:max-w-md">
+        <button className="btn-outline" aria-pressed={modoEdicao} onClick={()=>setModoEdicao(v=>!v)}>{modoEdicao?"Concluir edição":"Editar glossário"}</button>
+        {!integrada&&<div className="relative min-w-56 flex-1 sm:max-w-md">
           <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
           <input
             className="input pl-9 pr-9"
@@ -173,7 +175,7 @@ export default function Glossario() {
               <X size={14} />
             </button>
           )}
-        </div>
+        </div>}
         <button type="button" className="btn-ghost" onClick={() => abrirForm(null)}>
           <Plus size={15} strokeWidth={2.4} />
           Novo termo

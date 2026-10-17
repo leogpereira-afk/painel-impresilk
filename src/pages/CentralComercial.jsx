@@ -1,25 +1,27 @@
 import {lazy,Suspense,useEffect,useRef} from 'react';
 import {Link,Navigate,useLocation} from 'react-router-dom';
-import {LayoutDashboard,Landmark,BookOpen,Clock3,ClipboardList,ChartNoAxesCombined,LockKeyhole} from 'lucide-react';
+import {LayoutDashboard,CalendarCheck,Landmark,BookOpen,Clock3,ClipboardList,ChartNoAxesCombined,LockKeyhole} from 'lucide-react';
 import {podeAbrir} from '../lib/sessao.js';
-import {secoesComerciais,secaoComercialAtual,destinoSecaoComercial} from '../lib/calc/navegacao-comercial.js';
+import {secoesComerciais,secaoComercialAtual,destinoSecaoComercial,destinoComercialLegado} from '../lib/calc/navegacao-comercial.js';
 import GuardaDeRota from '../components/GuardaDeRota.jsx';
 import {FiltrosCentralContext} from '../hooks/useFiltroCentral.js';
 import './central-comercial.css';
 
 const Comercial=lazy(()=>import('./Comercial.jsx'));
+const Compromissos=lazy(()=>import('./Compromissos.jsx'));
 const Bancos=lazy(()=>import('./Bancos.jsx'));
-const Glossario=lazy(()=>import('./Glossario.jsx'));
+const GlossarioComercial=lazy(()=>import('./GlossarioComercial.jsx'));
 const ContasAtrasadas=lazy(()=>import('./ContasAtrasadas.jsx'));
 const FerramentaBrief=lazy(()=>import('./FerramentaBrief.jsx'));
 const DashboardComercial=lazy(()=>import('./DashboardComercial.jsx'));
-const ICONES={visao:LayoutDashboard,bancos:Landmark,glossario:BookOpen,contas:Clock3,brief:ClipboardList,dashboard:ChartNoAxesCombined};
+const ICONES={visao:LayoutDashboard,compromissos:CalendarCheck,bancos:Landmark,glossario:BookOpen,contas:Clock3,brief:ClipboardList,dashboard:ChartNoAxesCombined};
 
 function TelaAtiva({secao,sessao}) {
   switch(secao.id){
     case 'visao-geral':return <Comercial sessao={sessao} integrada/>;
+    case 'compromissos':return <Compromissos/>;
     case 'bancos':return <Bancos/>;
-    case 'glossario':return <Glossario/>;
+    case 'glossario':return <GlossarioComercial sessao={sessao}/>;
     case 'contas-atrasadas':return <ContasAtrasadas/>;
     case 'brief':return <FerramentaBrief tipo="brief" integrada/>;
     case 'dashboard':return <DashboardComercial sessao={sessao}/>;
@@ -42,13 +44,15 @@ function CentralComercialTela({sessao}) {
   const filtros=useRef(new Map());
   const foco=useRef(null);
   const ultimaSecao=useRef(secao?.id);
+  const destinoLegado=destinoComercialLegado(location.pathname,location.search,location.hash);
   useEffect(()=>{
-    if(!permitida)return;
+    if(!permitida||destinoLegado)return;
     memoria.current[secao.id]={search:location.search,hash:location.hash};
     if(ultimaSecao.current!==secao.id)foco.current?.focus({preventScroll:true});
     ultimaSecao.current=secao.id;
-  },[secao,permitida,location.search,location.hash]);
+  },[secao,permitida,destinoLegado,location.search,location.hash]);
 
+  if(destinoLegado)return <Navigate to={destinoLegado} state={location.state} replace/>;
   // Uma pessoa só com Bancos entra diretamente em Bancos; não ganha Orçamentos.
   if(secao?.id==='visao-geral'&&!permitida)return <Navigate to={secoes[0]?.caminho||'/'} replace/>;
   return <div className="central-comercial">

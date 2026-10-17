@@ -4,6 +4,7 @@ import {consultarClientes} from '../_shared/consulta-clientes.mjs';
 import {clienteBasico,vendedorOriginalPosVenda} from '../_shared/relacionamento-comercial.mjs';
 import {contextoComercial} from '../_shared/comercial-contexto.ts';
 import {consultarDashboard} from '../_shared/comercial-dashboard-consulta.ts';
+import {consultarApoioComercial} from '../_shared/comercial-apoio.mjs';
 import {mesclarOrdensComerciais,janelasHistoricas} from '../_shared/carteira-historica.mjs';
 import {consultarFinanceiroComercial,detalharVendasCliente,paginarVendasCliente,projetarVendaCliente,timelineContatosCliente,pedidosPosVendaPendentes} from '../_shared/comercial-consultas.ts';
 import {consultarOperacoesComerciais,enriquecerVendasOperacao} from '../_shared/comercial-operacao.ts';
@@ -24,6 +25,7 @@ Deno.serve(async(req:Request)=>{
  try{
   const b=await req.json();if(!b||typeof b!=='object')return json({erro:'Solicitação inválida.'},400);const filtro=b.filtro||{},hoje=hojeLocal();
   if(b.action==='dashboard'||b.action==='dashboardDetalhe')return json(await consultarDashboard(sb,sessao,b,hoje));
+  if(b.action==='apoioComercial')return json(await consultarApoioComercial(sb,sessao,filtro));
   const periodo=validarPeriodo(filtro,hoje);
   let anteriorAcao:any=null;
   if(b.action==='salvarAcao'){const {data,error}=await sb.from('painel_registros').select('registro').eq('colecao','comercial_acoes').eq('id',String(b.acao?.id||'')).maybeSingle();if(error)throw error;anteriorAcao=data;}

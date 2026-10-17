@@ -67,7 +67,7 @@ export default function CentralShell({children,sessao,aoSair,controles}) {
       <nav aria-label="Navegação principal">
         <NavLink end to="/" className={({isActive})=>isActive?'selected':''}><span className="review-link-emoji" aria-hidden="true">🏠</span>Início</NavLink>
         {(podeAbrir('calendario-empresa',sessao)||podeAbrir('agenda',sessao)||podeAbrir('reunioes',sessao)||podeAbrir('demandas',sessao))&&<Link to={calendarioDestino} className={noCalendario?'selected':''} aria-current={noCalendario?'page':undefined}><span className="review-link-emoji" aria-hidden="true">📅</span>Calendário</Link>}
-        {podeAbrir('compromissos',sessao)&&<NavLink to="/compromissos" className={({isActive})=>isActive?'selected':''}><span className="review-link-emoji" aria-hidden="true">📅</span>Compromissos</NavLink>}
+        {podeAbrir('compromissos',sessao)&&<Link to="/comercial/compromissos" className={location.pathname==='/comercial/compromissos'?'selected':''} aria-current={location.pathname==='/comercial/compromissos'?'page':undefined}><span className="review-link-emoji" aria-hidden="true">📅</span>Compromissos</Link>}
       </nav>
       </details>
       <div className="review-sidebar-scroll">

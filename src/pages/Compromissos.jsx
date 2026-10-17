@@ -33,6 +33,7 @@ import {
   MessageCircle,
   Paperclip,
 } from "lucide-react";
+import {useFiltroCentral} from '../hooks/useFiltroCentral.js';
 import {
   lerCompromissos,
   salvarCompromisso,
@@ -402,18 +403,18 @@ export default function Compromissos() {
   const [aviso, setAviso] = useState(null);
   const [form, setForm] = useState(null);
   const [salvando, setSalvando] = useState(false);
-  const [dePessoa, setDePessoa] = useState(null); // filtro da direcao
-  const [busca, setBusca] = useState('');
-  const [tipoFiltro, setTipoFiltro] = useState('');
+  const [dePessoa, setDePessoa] = useFiltroCentral('Compromissos:pessoa',null); // filtro da direcao
+  const [busca, setBusca] = useFiltroCentral('Compromissos:busca','');
+  const [tipoFiltro, setTipoFiltro] = useFiltroCentral('Compromissos:tipo','');
   const [transferencia, setTransferencia] = useState(null);
-  const [agendaComercialAberta, setAgendaComercialAberta] = useState(false);
+  const [agendaComercialAberta, setAgendaComercialAberta] = useFiltroCentral('Compromissos:agendaComercial',false);
   const [ocupado, setOcupado] = useState(null);
   const mutacao = useRef(false);
   const [equipe, setEquipe] = useState([]);
   const [erroEquipe, setErroEquipe] = useState(null);
   const [remarcando, setRemarcando] = useState(null);     // id da linha remarcando
   // Os indicadores filtram a lista. Em aberto reúne todos os itens pendentes.
-  const [recorte, setRecorte] = useState("abertos");
+  const [recorte, setRecorte] = useFiltroCentral('Compromissos:recorte',"abertos");
   const [conversaAberta, setConversaAberta] = useState(null); // id da conversa expandida
   const [enviando, setEnviando] = useState(null); // id do recado em envio
   // Item sem dono so acontece em registro antigo (anterior ao carimbo do
@@ -546,7 +547,7 @@ export default function Compromissos() {
         setSalvando(false);
       }
     },
-    [form, dePessoa, setMapa]
+    [form, dePessoa, setMapa, setBusca, setDePessoa, setRecorte, setTipoFiltro]
   );
 
   const executarMutacao = async (c, trabalho, mensagem) => {

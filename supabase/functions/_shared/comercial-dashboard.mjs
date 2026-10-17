@@ -1,4 +1,4 @@
-import {dataISO, dia, dinheiro, normal, pertence, resolverEscopo, metaDoPeriodo, progressoMeta, agruparRevisoes} from './comercial.mjs';
+import {dataISO, dia, dinheiro, normal, pertence, resolverEscopo, metaDoPeriodo, progressoMeta, agruparRevisoes, anteriorEquivalente} from './comercial.mjs';
 import {janelasHistoricas, mesclarOrdensComerciais} from './carteira-historica.mjs';
 import {numerosDeOSComercial} from './vinculo-financeiro-os.mjs';
 
@@ -114,6 +114,7 @@ export function prepararDashboard(base,filtro,hoje,sessao) {
   if(p.cliente&&p.cliente!==clienteId||osCampanha&&!osCampanha.has(String(bruto.id))||!selecionados.length)continue;
   const venda={id:texto(bruto.id),numero:texto(bruto.numero),data,clienteId,cliente:clientesCatalogo.get(clienteId).nome,vendedorId:vendedor.id,vendedor:vendedor.nome,
    empresaConfirmada:!!texto(bruto.empresaNome||bruto.empresa_nome||(typeof bruto.empresa==='string'?bruto.empresa:bruto.empresa?.nome)),centavos:somaSegura(selecionados.map(i=>i.centavos)),totalOS:valor,brutoCentavos:centavos(bruto.valorBruto??bruto.bruto),descontoCentavos:centavos(bruto.desconto),
+   sinalPagoCentavos:centavos(bruto.sinalPago)!==null&&centavos(bruto.sinalPago)>=0?centavos(bruto.sinalPago):null,
    produtos:selecionados,itensCompletos:produtos.every(i=>i.itensCompletos),atualizadoEm:bruto.atualizado_em||null};
   if(venda.empresaConfirmada)vendas.push(venda);else vendasPendentes.push(venda);
  }
@@ -134,8 +135,9 @@ function integridade(ctx,p) {
 function resumir(ctx,p) {
  const vs=ctx.vendas.filter(v=>noPeriodo(v,p)),i=integridade(ctx,p),total=somaSegura(vs.map(v=>v.centavos)),conhecido=i.completo||vs.length>0;
  const brutoCompleto=!ctx.p.produto&&!ctx.p.categoria&&vs.every(v=>v.brutoCentavos!==null&&v.descontoCentavos!==null&&v.brutoCentavos-v.descontoCentavos===v.totalOS);
+ const brutoCentavos=conhecido&&brutoCompleto?somaSegura(vs.map(v=>v.brutoCentavos)):null,descontoCentavos=conhecido&&brutoCompleto?somaSegura(vs.map(v=>v.descontoCentavos)):null;
  return {centavos:conhecido?total:null,pedidos:conhecido?vs.length:null,clientes:conhecido?new Set(vs.filter(v=>v.clienteId!=='__sem_cliente').map(v=>v.clienteId)).size:null,ticketMedio:vs.length?Math.round(total/vs.length):null,
-  brutoCentavos:conhecido&&brutoCompleto?somaSegura(vs.map(v=>v.brutoCentavos)):null,descontoCentavos:conhecido&&brutoCompleto?somaSegura(vs.map(v=>v.descontoCentavos)):null,
+  brutoCentavos,descontoCentavos,descontoPercentual:i.completo&&brutoCentavos>0&&descontoCentavos!==null?descontoCentavos/brutoCentavos*100:null,
   certificadoEmpresa:!i.semEmpresa,empresaConfirmadaCentavos:somaSegura(vs.filter(v=>v.empresaConfirmada).map(v=>v.centavos)),empresaNaoIdentificadaCentavos:somaSegura(ctx.vendasPendentes.filter(v=>noPeriodo(v,p)).map(v=>v.centavos)),empresaNaoIdentificadaPedidos:ctx.vendasPendentes.filter(v=>noPeriodo(v,p)).length,completo:i.completo,estado:i.completo?'completo':vs.length?'parcial':'indisponivel',observadas:vs.length,itensAusentes:vs.filter(v=>!v.itensCompletos).length};
 }
 
@@ -159,39 +161,133 @@ function agrupar(vendas,dimensao,p) {
  for(const [campo,chave] of [['meses','mes'],['anos','ano']]){const periodos=new Map();for(const g of resultado)for(const m of g[campo]){const xs=periodos.get(m[chave])||[];xs.push({g,m});periodos.set(m[chave],xs);}for(const xs of periodos.values()){xs.sort((a,b)=>b.m.centavos-a.m.centavos||a.g.nome.localeCompare(b.g.nome,'pt-BR')||a.g.id.localeCompare(b.g.id));xs.forEach(({m},i)=>m.posicao=i+1);}}
  return resultado;
 }
-function serieMensal(ctx,p) {
- const out=[];let mes=p.de.slice(0,7);const fim=p.ate.slice(0,7);
- while(mes<=fim){const de=mes+'-01'<p.de?p.de:mes+'-01',ate=fimMes(mes)>p.ate?p.ate:fimMes(mes);out.push({mes,...resumir(ctx,{de,ate})});const d=new Date(mes+'-01T12:00:00Z');d.setUTCMonth(d.getUTCMonth()+1);mes=d.toISOString().slice(0,7);}
+const LIMITE_DIAS_SERIE=366;
+function indiceTemporal(ctx,tamanho) {
+ // Build each granularity once per request. Daily charts must not repeatedly
+ // scan the whole history for every day, and invalid dates affect all buckets.
+ ctx.indicesSeries ||= new Map();
+ if(ctx.indicesSeries.has(tamanho))return ctx.indicesSeries.get(tamanho);
+ const grupos=new Map(),globais=[];
+ for(const campo of ['vendas','vendasPendentes','falhas','itensNaoIdentificados'])for(const item of ctx[campo]){
+  // Sales/item rows were already date-validated at prepararDashboard. Only
+  // rejected source rows can still carry an invalid date here.
+  if(campo==='falhas'&&!dataISO(item.data)){globais.push(item);continue;}
+  const chave=item.data.slice(0,tamanho);let grupo=grupos.get(chave);
+  if(!grupo){grupo={vendas:[],vendasPendentes:[],falhas:[],itensNaoIdentificados:[]};grupos.set(chave,grupo);}
+  grupo[campo].push(item);
+ }
+ const indice={grupos,globais};ctx.indicesSeries.set(tamanho,indice);return indice;
+}
+function serieTemporal(ctx,p,tipo) {
+ const tamanho=tipo==='data'?10:tipo==='mes'?7:4,{grupos,globais}=indiceTemporal(ctx,tamanho),out=[];
+ let inicio=p.de,acumulado=0,continuo=true;
+ while(inicio<=p.ate){
+  const chave=inicio.slice(0,tamanho),fim=tipo==='data'?inicio:tipo==='mes'?fimMes(chave):chave+'-12-31',ate=fim>p.ate?p.ate:fim;
+  const grupo=grupos.get(chave)||{vendas:[],vendasPendentes:[],falhas:[],itensNaoIdentificados:[]};
+  const resumo=resumir({...ctx,...grupo,falhas:[...grupo.falhas,...globais]},{de:inicio,ate});
+  continuo=continuo&&resumo.completo&&resumo.centavos!==null;
+  if(continuo)acumulado=somaSegura([acumulado,resumo.centavos]);
+  out.push({[tipo]:chave,de:inicio,ate,...resumo,acumuladoCentavos:continuo?acumulado:null});
+  inicio=deslocar(ate,1);
+ }
  return out;
 }
+function seriesDashboard(ctx,p) {
+ ctx.seriesPorPeriodo ||= new Map();const chave=p.de+'|'+p.ate;
+ if(ctx.seriesPorPeriodo.has(chave))return ctx.seriesPorPeriodo.get(chave);
+ const diariaDisponivel=dias(p.de,p.ate)+1<=LIMITE_DIAS_SERIE;
+ const series={diaria:diariaDisponivel?serieTemporal(ctx,p,'data'):null,mensal:serieTemporal(ctx,p,'mes'),anual:serieTemporal(ctx,p,'ano'),diariaDisponivel,limiteDias:LIMITE_DIAS_SERIE,motivoDiaria:diariaDisponivel?null:`A série diária está disponível para intervalos de até ${LIMITE_DIAS_SERIE} dias. Use mês ou ano neste recorte.`};
+ ctx.seriesPorPeriodo.set(chave,series);return series;
+}
 function comparacao(ctx,periodo,atual) {
- if(!periodo)return {estado:'incompativel',mensagem:'Selecione mês, ano ou intervalo para comparar períodos.',periodo:null,centavos:null,delta:null,percentual:null,completo:false};
+ if(!periodo)return {estado:'incompativel',mensagem:'Selecione mês, ano ou intervalo para comparar períodos.',periodo:null,centavos:null,delta:null,percentual:null,completo:false,comparavel:false,series:null};
  const anterior=resumir(ctx,periodo),completo=anterior.completo&&atual.completo;
- return {periodo,centavos:anterior.centavos,valorAtual:atual.centavos,delta:completo?atual.centavos-anterior.centavos:null,percentual:completo&&anterior.centavos>0?(atual.centavos-anterior.centavos)/anterior.centavos*100:null,completo,estado:completo?'completo':'parcial',criterio:periodo.criterio};
+ return {periodo,centavos:anterior.centavos,valorAtual:atual.centavos,delta:completo?atual.centavos-anterior.centavos:null,percentual:completo&&anterior.centavos>0?(atual.centavos-anterior.centavos)/anterior.centavos*100:null,completo,comparavel:completo,series:seriesDashboard(ctx,periodo),estado:completo?'completo':'parcial',criterio:periodo.criterio};
 }
 
-export function financeiroDashboard(ctx,hoje,permitido) {
+function comparacaoMensalDashboard(ctx,hoje,tipo) {
+ const criterio=tipo==='diasUteis'?'Mesmo número de dias úteis, conforme calendário configurado':'Meses completos consecutivos';
+ const vazio={estado:'incompativel',mensagem:'Selecione um mês completo para esta comparação.',periodo:null,periodoAtual:null,centavos:null,valorAtual:null,delta:null,percentual:null,completo:false,comparavel:false,series:null,criterio,calendarioConfigurado:null,diasUteisAtual:null,diasUteisAnterior:null};
+ if(['todos','ano'].includes(ctx.p.modo)||ctx.p.de.slice(0,7)!==ctx.p.ate.slice(0,7))return vazio;
+ const comparativo=anteriorEquivalente({de:ctx.p.de,ate:ctx.p.ate},hoje,tipo,ctx.base.config?.calendario);
+ if(!comparativo)return vazio;
+ const periodo={de:comparativo.de,ate:comparativo.ate,criterio},periodoAtual={de:comparativo.atualDe,ate:comparativo.atualAte};
+ const periodos={periodo,periodoAtual,calendarioConfigurado:comparativo.calendarioConfigurado??null,diasUteisAtual:comparativo.diasUteisAtual??null,diasUteisAnterior:comparativo.diasUteisAnterior??null};
+ if(comparativo.indisponivel)return {...vazio,...periodos,estado:'indisponivel',mensagem:comparativo.mensagem};
+ const atual=resumir(ctx,periodoAtual),anterior=resumir(ctx,periodo),completo=atual.completo&&anterior.completo;
+ return {...vazio,...periodos,estado:completo?'completo':'parcial',completo,comparavel:completo,
+  valorAtual:atual.completo?atual.centavos:null,centavos:anterior.completo?anterior.centavos:null,
+  delta:completo?atual.centavos-anterior.centavos:null,percentual:completo&&anterior.centavos>0?(atual.centavos-anterior.centavos)/anterior.centavos*100:null,
+  mensagem:completo?null:'Comparação indisponível: falta cobertura completa ou confirmação da empresa em uma das janelas.'};
+}
+
+function serieMeta(ctx,metas) {
+ const periodo={de:ctx.p.de,ate:ctx.p.ate,ateEfetivo:ctx.p.ateEfetivo},criterio='Acumulado real das vendas dos participantes da meta. Meta mensal cadastrada no fim do período, sem rateio diário.';
+ const vazio={estado:metas.estado||'indisponivel',periodo,metaCentavos:null,pontos:[],criterio};
+ if(ctx.p.cliente||ctx.p.produto||ctx.p.categoria||ctx.p.campanha||ctx.p.de!==ctx.p.de.slice(0,7)+'-01'||ctx.p.ate!==fimMes(ctx.p.de.slice(0,7)))return vazio;
+ const participantes=new Set(metas.idsParticipantes||[]);if(!participantes.size)return vazio;
+ const contexto={...ctx,indicesSeries:new Map(),vendas:ctx.vendas.filter(v=>participantes.has(v.vendedorId))};
+ let pontos=serieTemporal(contexto,{de:ctx.p.de,ate:ctx.p.ateEfetivo},'data');
+ if(metas.cobertura?.vinculosCompletos!==true)pontos=pontos.map(p=>({...p,completo:false,estado:p.observadas?'parcial':'indisponivel',acumuladoCentavos:null}));
+ const metaCentavos=metas.cobertura?.metasCompleta&&Number.isSafeInteger(metas.valor)?metas.valor:null;
+ return {...vazio,estado:metas.cobertura?.completa?'disponivel':'parcial',metaCentavos,pontos};
+}
+
+const podeConsultarFinanceiro=sessao=>sessao.master===true||(sessao.perms||[]).some(p=>p==='*'||p==='contas-atrasadas');
+const FAIXAS_ATRASO=['1_7','8_30','31_60','61_90','90_mais'];
+
+// Both the chart and its drill-down run this same attribution pipeline. Raw
+// title descriptions never supply client/seller identity: confirmed O.S. do.
+function apurarFinanceiroDashboard(ctx,hoje,permitido,incluirTitulos=false) {
+ const titulos=[],saida=resumo=>({resumo,titulos});
  const vazio={estado:'indisponivel',vencidoCentavos:null,abertoCentavos:null,indiceAtraso:null,titulos:null,clientes:null,faixas:[],completo:false,formula:'Saldo vencido ÷ saldo em aberto dos títulos sincronizados e vinculados integralmente às vendas selecionadas × 100',escopo:'Posição atual da fonte: vencidos desde 2015 e pendentes até 90 dias após a carga. Somente títulos ligados às O.S. do período de venda; não representa saldo histórico nem parcelas futuras além dessa janela.',atualizadoEm:ctx.base.financeiroEm||null};
- if(!permitido)return {...vazio,estado:'sem_permissao',mensagem:'Seu acesso não inclui Contas atrasadas.'};
- if(ctx.p.produto||ctx.p.categoria)return {...vazio,estado:'filtro_incompativel',mensagem:'Títulos financeiros não possuem vínculo por produto ou categoria; o índice não foi rateado.'};
- if(!Array.isArray(ctx.base.recebiveis))return {...vazio,mensagem:'A fonte de títulos em aberto não está disponível.'};
+ if(!permitido)return saida({...vazio,estado:'sem_permissao',mensagem:'Seu acesso não inclui Contas atrasadas.'});
+ if(ctx.p.produto||ctx.p.categoria)return saida({...vazio,estado:'filtro_incompativel',mensagem:'Títulos financeiros não possuem vínculo por produto ou categoria; o índice não foi rateado.'});
+ if(!Array.isArray(ctx.base.recebiveis))return saida({...vazio,mensagem:'A fonte de títulos em aberto não está disponível.'});
  const porNumero=new Map();for(const o of ctx.ordensGlobais){const n=texto(o.numero);if(n)porNumero.set(n,[...(porNumero.get(n)||[]),o]);}
- const selecionadas=ctx.vendas.filter(v=>noPeriodo(v,{de:ctx.p.de,ate:ctx.p.ateEfetivo})),ids=new Set(selecionadas.map(v=>v.id)),clientes=new Set(),vistos=new Set();
+ const selecionadas=ctx.vendas.filter(v=>noPeriodo(v,{de:ctx.p.de,ate:ctx.p.ateEfetivo})),ids=new Set(selecionadas.map(v=>v.id)),vendasPorId=new Map(selecionadas.map(v=>[v.id,v])),clientes=new Set(),duplicadosContados=new Set();
+ // A repeated title ID has no authoritative occurrence, even if amounts match.
+ // Index the complete source before filtering, so order and scope cannot pick
+ // an arbitrary first record as confirmed. Count uncertainty once per ID.
+ const quantidadePorId=new Map();for(const t of ctx.base.recebiveis){const id=texto(t.id);if(id)quantidadePorId.set(id,(quantidadePorId.get(id)||0)+1);}
  let aberto=0,vencido=0,total=0,totalVencidos=0,incertos=0,semVinculo=0;const faixas=[{id:'1_7',nome:'1 a 7 dias',centavos:0,titulos:0},{id:'8_30',nome:'8 a 30 dias',centavos:0,titulos:0},{id:'31_60',nome:'31 a 60 dias',centavos:0,titulos:0},{id:'61_90',nome:'61 a 90 dias',centavos:0,titulos:0},{id:'90_mais',nome:'Mais de 90 dias',centavos:0,titulos:0}];
  for(const t of ctx.base.recebiveis){
   const numeros=numerosDeOSComercial(t.os),tocou=numeros.some(n=>(porNumero.get(n)||[]).some(o=>ids.has(String(o.id))));
   if(!numeros.length){semVinculo++;continue;}if(!tocou)continue;
-  if(!texto(t.id)||vistos.has(String(t.id))){incertos++;continue;}vistos.add(String(t.id));
+  const tituloId=texto(t.id);if(!tituloId){incertos++;continue;}
+  if(quantidadePorId.get(tituloId)>1){if(!duplicadosContados.has(tituloId)){incertos++;duplicadosContados.add(tituloId);}continue;}
   // Mixed titles are deliberately excluded, instead of distributing a debt to
   // an unconfirmed seller/client or another company by a coincident OS number.
   if(numeros.some(n=>porNumero.get(n)?.length!==1||!ids.has(String(porNumero.get(n)[0].id)))){incertos++;continue;}
   const valor=centavos(t.valor),vencimento=dia(t.vencimento); // normalized valor is the remaining balance, already net of paid amounts
   if(valor===null||valor<0||!dataISO(vencimento)){incertos++;continue;}if(!valor)continue;
-  aberto+=valor;total++;
-  if(vencimento<hoje){totalVencidos++;vencido+=valor;const atraso=dias(vencimento,hoje),f=faixas[atraso<=7?0:atraso<=30?1:atraso<=60?2:atraso<=90?3:4];f.centavos+=valor;f.titulos++;for(const n of numeros){const c=texto(porNumero.get(n)[0].clienteId);if(c)clientes.add(c);}}
+  aberto=somaSegura([aberto,valor]);total++;
+  if(vencimento<hoje){
+   totalVencidos++;vencido=somaSegura([vencido,valor]);const atraso=dias(vencimento,hoje),f=faixas[atraso<=7?0:atraso<=30?1:atraso<=60?2:atraso<=90?3:4];f.centavos=somaSegura([f.centavos,valor]);f.titulos++;
+   for(const n of numeros){const c=texto(porNumero.get(n)[0].clienteId);if(c)clientes.add(c);}
+   if(incluirTitulos){
+    const ordens=numeros.map(n=>vendasPorId.get(String(porNumero.get(n)[0].id))).map(({id,numero,data,clienteId,cliente,vendedorId,vendedor})=>({id,numero,data,clienteId,cliente,vendedorId,vendedor}));
+    const pessoas=[...new Map(ordens.map(o=>[o.clienteId,{id:o.clienteId,nome:o.cliente}])).values()];
+    titulos.push({id:texto(t.id),os:numeros.join(' / '),cliente:pessoas.map(c=>c.nome).join(' · '),clientes:pessoas,ordens,vencimento,centavos:valor,atrasoDias:atraso,faixa:f.id});
+   }
+  }
  }
  const completo=integridade(ctx,{de:ctx.p.de,ate:ctx.p.ateEfetivo}).completo&&!incertos&&!semVinculo&&ctx.base.financeiroFalhou!==true;
- return {...vazio,estado:completo?'disponivel':total?'parcial':'indisponivel',completo,vencidoCentavos:total||completo?vencido:null,abertoCentavos:total||completo?aberto:null,indiceAtraso:completo&&aberto>0?vencido/aberto*100:null,titulos:total||completo?total:null,titulosVencidos:total||completo?totalVencidos:null,clientes:total||completo?clientes.size:null,faixas,titulosAConferir:incertos,titulosSemVinculo:semVinculo,mensagem:!completo?'Índice indisponível: faltam cobertura ou vínculos financeiros confirmados.':aberto===0?'Sem saldo em aberto nos títulos vinculados.':null};
+ return saida({...vazio,estado:completo?'disponivel':total?'parcial':'indisponivel',completo,vencidoCentavos:total||completo?vencido:null,abertoCentavos:total||completo?aberto:null,indiceAtraso:completo&&aberto>0?vencido/aberto*100:null,titulos:total||completo?total:null,titulosVencidos:total||completo?totalVencidos:null,clientes:total||completo?clientes.size:null,faixas,titulosAConferir:incertos,titulosSemVinculo:semVinculo,mensagem:!completo?'Índice indisponível: faltam cobertura ou vínculos financeiros confirmados.':aberto===0?'Sem saldo em aberto nos títulos vinculados.':null});
+}
+
+export function financeiroDashboard(ctx,hoje,permitido) {return apurarFinanceiroDashboard(ctx,hoje,permitido).resumo;}
+
+function detalharAtrasosDashboard(ctx,hoje,faixa,pagina,tamanho) {
+ if(faixa!=='todos'&&!FAIXAS_ATRASO.includes(faixa))throw erro('Faixa de atraso inválida.');
+ const {resumo:financeiro,titulos:todos}=apurarFinanceiroDashboard(ctx,hoje,true,true);
+ const titulos=todos.filter(t=>faixa==='todos'||t.faixa===faixa).sort((a,b)=>a.vencimento.localeCompare(b.vencimento)||a.id.localeCompare(b.id));
+ const total=titulos.length,paginas=Math.max(1,Math.ceil(total/tamanho));if(pagina>paginas)throw erro('Página fora do detalhamento.');
+ const disponivel=financeiro.vencidoCentavos!==null;
+ return {tipo:'atrasos',faixa,periodo:ctx.p,referencia:hoje,criterio:financeiro.escopo,
+  titulos:titulos.slice((pagina-1)*tamanho,pagina*tamanho),resumo:{centavos:disponivel?somaSegura(titulos.map(t=>t.centavos)):null,titulos:disponivel?total:null},
+  paginacao:{pagina,tamanho,total,paginas,temMais:pagina<paginas},
+  cobertura:{estado:financeiro.estado,completo:financeiro.completo,mensagem:financeiro.mensagem,titulosAConferir:financeiro.titulosAConferir??null,titulosSemVinculo:financeiro.titulosSemVinculo??null,atualizadoEm:financeiro.atualizadoEm,escopo:financeiro.escopo}};
 }
 
 function inteligencia(ctx,vendas,rankings,resumo,hoje) {
@@ -219,9 +315,8 @@ function inteligencia(ctx,vendas,rankings,resumo,hoje) {
 
 export function apurarDashboard(base,filtro={},hoje,sessao,opcoes={}) {
  const ctx=prepararDashboard(base,filtro,hoje,sessao),p={de:ctx.p.de,ate:ctx.p.ateEfetivo},resumo=resumir(ctx,p),vendas=ctx.vendas.filter(v=>noPeriodo(v,p));
- const rankings=Object.fromEntries(['produtos','clientes','vendedores'].map(k=>[k,agrupar(vendas,k,ctx.p)])),comparacoes=periodosComparacao(ctx.p),mensal=serieMensal(ctx,p),anual=[];
- for(let ano=Number(p.de.slice(0,4));ano<=Number(p.ate.slice(0,4));ano++){const de=`${ano}-01-01`<p.de?p.de:`${ano}-01-01`,ate=`${ano}-12-31`>p.ate?p.ate:`${ano}-12-31`;anual.push({ano:String(ano),...resumir(ctx,{de,ate})});}
- const podeFinanceiro=sessao.master===true||(sessao.perms||[]).some(p=>p==='*'||p==='contas-atrasadas');
+ const rankings=Object.fromEntries(['produtos','clientes','vendedores'].map(k=>[k,agrupar(vendas,k,ctx.p)])),comparacoes=periodosComparacao(ctx.p),series=seriesDashboard(ctx,p);
+ const podeFinanceiro=podeConsultarFinanceiro(sessao);
  for(const [dimensao,grupos] of Object.entries(rankings)){const anteriores=comparacoes.anterior?agrupar(ctx.vendas.filter(v=>noPeriodo(v,comparacoes.anterior)),dimensao,ctx.p):[],mapa=new Map(anteriores.map(g=>[g.id,g])),comparavel=comparacoes.anterior&&integridade(ctx,comparacoes.anterior).completo&&resumo.completo&&!(dimensao==='produtos'&&(integridade(ctx,comparacoes.anterior).itensAusentes||integridade(ctx,p).itensAusentes));for(const g of grupos){const anterior=mapa.get(g.id)?.centavos??0;g.comparacaoPeriodo={centavosAnterior:comparavel?anterior:null,delta:comparavel?g.centavos-anterior:null,percentual:comparavel&&anterior>0?(g.centavos-anterior)/anterior*100:null,completo:!!comparavel};}}
  const inteligenciaOut=inteligencia(ctx,vendas,rankings,resumo,hoje),limite=500;
  if(comparacoes.anterior&&resumo.completo&&integridade(ctx,comparacoes.anterior).completo&&!integridade(ctx,comparacoes.anterior).itensAusentes&&!integridade(ctx,p).itensAusentes){
@@ -232,9 +327,10 @@ export function apurarDashboard(base,filtro={},hoje,sessao,opcoes={}) {
  inteligenciaOut.quedas={estado:inteligenciaOut.variacaoProdutos.estado,itens:inteligenciaOut.variacaoProdutos.quedas,periodo:comparacoes.anterior};
  let metas={estado:'filtro_incompativel',mensagem:'Metas mensais por vendedor; selecione um mês completo sem filtros de cliente, produto, categoria ou campanha.'};
  if(!ctx.p.cliente&&!ctx.p.produto&&!ctx.p.categoria&&!ctx.p.campanha){const meta=metaDoPeriodo(base.metas,ctx.escopo,base.catalogo,{de:ctx.p.de,ate:ctx.p.ate},base.config||{}),realizado=somaSegura(vendas.filter(v=>meta.idsParticipantes.includes(v.vendedorId)).map(v=>v.centavos));metas=progressoMeta(meta,realizado,{de:ctx.p.de,ate:ctx.p.ate},hoje,base.config?.calendario,{vendasCompleta:resumo.completo,vinculosCompletos:!vendas.some(v=>!meta.vendedoresConhecidos.some(c=>c.id===v.vendedorId))});}
- return {versao:1,periodo:ctx.p,criterio:CRITERIO_DASHBOARD,escopo:{gestor:ctx.escopo.gestor,ids:ctx.escopo.ids,tipoEscopo:ctx.escopo.tipoEscopo},catalogo:ctx.catalogo,resumo,
-  series:{mensal,anual},rankings:Object.fromEntries(Object.entries(rankings).map(([k,xs])=>[k,xs.slice(0,limite)])),rankingsCobertura:Object.fromEntries(Object.entries(rankings).map(([k,xs])=>[k,{total:xs.length,exibidos:Math.min(limite,xs.length),completo:xs.length<=limite}])),
-  comparacoes:{anterior:comparacao(ctx,comparacoes.anterior,resumo),anoAnterior:comparacao(ctx,comparacoes.anoAnterior,resumo)},financeiro:financeiroDashboard(ctx,hoje,podeFinanceiro),inteligencia:inteligenciaOut,
+ metas.serieAcumulada=serieMeta(ctx,metas);
+ return {versao:2,periodo:ctx.p,criterio:CRITERIO_DASHBOARD,escopo:{gestor:ctx.escopo.gestor,ids:ctx.escopo.ids,tipoEscopo:ctx.escopo.tipoEscopo},catalogo:ctx.catalogo,resumo,
+  series,rankings:Object.fromEntries(Object.entries(rankings).map(([k,xs])=>[k,xs.slice(0,limite)])),rankingsCobertura:Object.fromEntries(Object.entries(rankings).map(([k,xs])=>[k,{total:xs.length,exibidos:Math.min(limite,xs.length),completo:xs.length<=limite}])),
+  comparacoes:{anterior:comparacao(ctx,comparacoes.anterior,resumo),anoAnterior:comparacao(ctx,comparacoes.anoAnterior,resumo),diasUteis:comparacaoMensalDashboard(ctx,hoje,'diasUteis'),mesCompleto:comparacaoMensalDashboard(ctx,hoje,'mesCompleto')},financeiro:financeiroDashboard(ctx,hoje,podeFinanceiro),inteligencia:inteligenciaOut,
   abc:{a:ctx.p.abcA,b:ctx.p.abcB,criterio:'Classe pela participação acumulada anterior ao item; o item que cruza o limite permanece na classe iniciada.'},
   cobertura:{estado:resumo.estado,completo:resumo.completo,janelas:ctx.janelas,registrosConsultados:ctx.vendas.length,incompletos:ctx.falhas.length,itensAusentes:resumo.itensAusentes,desde:ctx.janelas[0]?.desde||null,ate:ctx.janelas.at(-1)?.ate||null,
    empresa:{estado:resumo.certificadoEmpresa?'origem_preservada':'base_provisoria',verificacaoPorRegistro:resumo.certificadoEmpresa,semEmpresa:ctx.vendasPendentes.filter(v=>noPeriodo(v,p)).length,confirmadas:vendas.filter(v=>v.empresaConfirmada).length,divergenciasExcluidas:ctx.divergentes.length,mensagem:resumo.certificadoEmpresa?'Somente registros com empresa Impresilk explicitamente preservada na origem.':'Registros sem empresa de origem ficam fora dos totais, rankings e gráficos até confirmação.'}},
@@ -244,8 +340,10 @@ export function apurarDashboard(base,filtro={},hoje,sessao,opcoes={}) {
 }
 
 export function detalharDashboard(base,filtro,hoje,sessao,consulta={}) {
+ if(consulta.dimensao==='atraso'&&!podeConsultarFinanceiro(sessao))throw erro('Seu acesso não inclui Contas atrasadas.',403);
  const ctx=prepararDashboard(base,filtro,hoje,sessao),dimensao=consulta.dimensao||'',id=identificador(consulta.id),pagina=consulta.pagina??1,tamanho=consulta.tamanho??25;
- if(!['','produto','cliente','vendedor'].includes(dimensao)||dimensao&&!id||!Number.isInteger(pagina)||pagina<1||!Number.isInteger(tamanho)||tamanho<1||tamanho>50)throw erro('Detalhamento comercial inválido.');
+ if(!['','produto','cliente','vendedor','atraso'].includes(dimensao)||dimensao&&!id||!Number.isInteger(pagina)||pagina<1||!Number.isInteger(tamanho)||tamanho<1||tamanho>50)throw erro('Detalhamento comercial inválido.');
+ if(dimensao==='atraso')return detalharAtrasosDashboard(ctx,hoje,id,pagina,tamanho);
  const vendas=ctx.vendas.filter(v=>noPeriodo(v,{de:ctx.p.de,ate:ctx.p.ateEfetivo})&&(!dimensao||dimensao==='cliente'&&v.clienteId===id||dimensao==='vendedor'&&v.vendedorId===id||dimensao==='produto'&&v.produtos.some(p=>p.id===id))).sort((a,b)=>b.data.localeCompare(a.data)||a.id.localeCompare(b.id));
  const paginas=Math.max(1,Math.ceil(vendas.length/tamanho));if(pagina>paginas)throw erro('Página fora do detalhamento.');
  return {criterio:CRITERIO_DASHBOARD,periodo:ctx.p,vendas:vendas.slice((pagina-1)*tamanho,pagina*tamanho).map(v=>({...v,...(dimensao==='produto'?{centavos:somaSegura(v.produtos.filter(p=>p.id===id).map(p=>p.centavos))}:{}),produtos:v.produtos.map(p=>({id:p.id,nome:p.nome,categoria:p.categoria,centavos:p.centavos,quantidades:p.quantidades}))})),paginacao:{pagina,tamanho,total:vendas.length,paginas,temMais:pagina<paginas},cobertura:{completo:integridade(ctx,{de:ctx.p.de,ate:ctx.p.ateEfetivo}).completo}};
