@@ -70,3 +70,12 @@ Publicação final da correção: código 31d7d27; Pages 39048175524 e Functions
 Em 17/10/2026 o dono definiu que Impresilk e Universo devem ser tratadas juntas no Comercial. O Dashboard identifica esse consolidado explicitamente e aceita as denominações exatas das duas empresas. Totais, séries, rankings, comparações, metas, funil e detalhe seguem os mesmos filtros de período e carteira. A empresa original permanece no cache; não houve alteração de cadastros ou O.S. no ERP. Empresas externas e registros sem origem confirmada continuam fora dos totais certificados.
 
 81 testes focados aprovados, incluindo soma das duas empresas, exclusão de empresas com nomes semelhantes, carteira de vendedor, séries, ranking, funil e consulta financeira. Build e lint aprovados. Servidor v75 ACTIVE, 18/18 arquivos conferidos antes da tela. A recarga comercial de 2020 a 2026 foi autorizada separadamente, com snapshot privado e plano de recuperação.
+
+
+## Conferência final do consolidado e histórico
+
+Publicado e conferido em 17/10/2026: código ec056dd; Pages 39051088157 e Functions 39051088294 aprovados. Os 141 arquivos públicos correspondem ao build validado. painel-comercial v76 ACTIVE com 18/18 arquivos idênticos; painel-cache v149 ACTIVE com 1/1.
+
+A autorização posterior do dono permitiu atualizar somente o cache comercial de 2020 a 2026. Cópia de recuperação privada, com acesso público bloqueado, preparada antes da carga. Piloto 39050523167 e carga anual sequencial 39050606943 concluídos. Todas as janelas anuais confirmadas. A comparação integral com a cópia anterior não encontrou exclusões, novos registros, alterações de itens ou de valores monetários. A empresa de origem foi preenchida a partir do ERP, sem gravação nas O.S. de origem.
+
+A interface autenticada confirmou o consolidado Impresilk + Universo. Totais e quantidade de pedidos no ano e no histórico reconciliados com consulta independente do cache usando os mesmos critérios. Evolução e destaques presentes, sem erros JavaScript. Inconsistências reais de origem (registro sem empresa e valores negativos) permanecem sinalizadas e fora dos totais certificados; não foram preenchidas por suposição. Os avisos anteriores de recarga não autorizada descrevem etapas anteriores e ficam superados por esta conclusão.
