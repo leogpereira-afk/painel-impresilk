@@ -56,7 +56,7 @@ function empresaDivergente(o) {
  // Legacy projection has no company identifier. Explicit names are checked;
  // absence is exposed as a source limitation rather than invented proof.
  const nome=texto(o.empresaNome||o.empresa_nome||(typeof o.empresa==='string'?o.empresa:o.empresa?.nome));
- return !!nome&&!['impresilk','impresilk comunicacao visual','impresilk comunicacao visual ltda'].includes(normal(nome));
+ return !!nome&&!['impresilk','impresilk comunicacao visual','impresilk comunicacao visual ltda','impresilk c. v. ltda'].includes(normal(nome));
 }
 
 function indexarCatalogo(catalogo){const porId=new Map(),porNome=new Map();for(const item of catalogo){porId.set(String(item.id),item);const nome=normal(item.nome),xs=porNome.get(nome)||[];xs.push(item);porNome.set(nome,xs);}return {porId,porNome};}

@@ -1,7 +1,7 @@
 import {resumoFinanceiroComercial} from './financeiroComercial.js';
 
 const normal=v=>String(v||'').normalize('NFD').replace(/\p{Diacritic}/gu,'').toLowerCase().trim();
-const empresas=new Set(['impresilk','impresilk comunicacao visual','impresilk comunicacao visual ltda']);
+const empresas=new Set(['impresilk','impresilk comunicacao visual','impresilk comunicacao visual ltda','impresilk c. v. ltda']);
 
 // Operational lookups have a shorter date window. A single order lookup uses its
 // own date and preserves seller scope; it never changes the Dashboard's filters.
