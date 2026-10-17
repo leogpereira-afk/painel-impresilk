@@ -1,3 +1,4 @@
+import FerramentaBrief from './pages/FerramentaBrief.jsx';
 import NavegacaoPatrimonio from './components/patrimonio/Navegacao.jsx';
 import {redirecionarManutencoes} from './lib/calc/navegacao-patrimonio.js';
 import CalendarioAbas from './components/CalendarioAbas.jsx';
@@ -179,6 +180,8 @@ export default function App() {
             </Restrito>
           }
         />
+        <Route path="/brief" element={<FerramentaBrief tipo="brief" />} />
+        <Route path="/layout" element={<FerramentaBrief tipo="layout" />} />
         <Route path="/comercial" element={<Restrito modulo="orcamentos" sessao={sessao}><Comercial sessao={sessao} /></Restrito>} />
         <Route path="/orcamentos" element={<Restrito modulo="orcamentos" sessao={sessao}><Comercial sessao={sessao} /></Restrito>} />
         <Route

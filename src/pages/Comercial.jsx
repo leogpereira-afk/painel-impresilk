@@ -5,7 +5,7 @@ import {BotaoPDF} from '../components/ui.jsx';
 import {chamarComercial} from '../services/comercial.js';
 import {ymdLocal} from '../lib/format.js';
 import {podeAbrir} from '../lib/sessao.js';
-import {doSistema,ENDERECO_DIRETO,nomeCompletoSis} from '../lib/sistemas.js';
+import {doSistema,nomeCompletoSis} from '../lib/sistemas.js';
 import {iconeDoSistema} from '../components/iconesDosSistemas.js';
 import ConsultaClientes from '../components/ConsultaClientes.jsx';
 import {clienteCorresponde} from '../../supabase/functions/_shared/consulta-clientes.mjs';
@@ -116,7 +116,7 @@ function ComercialTela({sessao}){
  {calendario&&<Link className="com-shortcut com-shortcut-calendar" state={retornoComercial} to={`/${calendario}?mes=${filtro.de.slice(0,7)}`}><CalendarDays size={18} aria-hidden="true"/><span>Calendário</span><ChevronRight size={14} aria-hidden="true"/></Link>}
  {podeAbrir('compromissos',sessao)&&<Link className="com-shortcut com-shortcut-appointments" state={retornoComercial} to="/compromissos"><CalendarCheck size={18} aria-hidden="true"/><span>Compromissos</span><ChevronRight size={14} aria-hidden="true"/></Link>}
  {podeAbrir('contas-atrasadas',sessao)&&<Link className="com-shortcut com-shortcut-payments" state={retornoComercial} to="/contas-atrasadas"><WalletCards size={18} aria-hidden="true"/><span>Pagamentos atrasados</span><ChevronRight size={14} aria-hidden="true"/></Link>}
- <a className="com-shortcut com-shortcut-brief" href={ENDERECO_DIRETO.brief} target="_blank" rel="noopener noreferrer" aria-label={`${nomeCompletoSis('brief')} (abre em outra aba)`}><IconeBrief size={18} aria-hidden="true"/><span>{nomeCompletoSis('brief')}</span><ArrowUpRight size={14} aria-hidden="true"/></a>
+ <Link className="com-shortcut com-shortcut-brief" to="/brief" aria-label={`${nomeCompletoSis('brief')}`}><IconeBrief size={18} aria-hidden="true"/><span>{nomeCompletoSis('brief')}</span><ArrowUpRight size={14} aria-hidden="true"/></Link>
  <button className="com-shortcut com-shortcut-tips" onClick={()=>setModal({tipo:'dicas'})}><Lightbulb size={18} aria-hidden="true"/><span>Dicas de produtos</span><ChevronRight size={14} aria-hidden="true"/></button>
  </nav></details>
  <nav className="com-tabs sem-impressao" aria-label="Área Comercial">{GRUPOS_COMERCIAL.map(([id,nome,ids])=><button key={id} aria-current={ids.includes(aba)?'page':undefined} onClick={()=>alterar({aba:ids.includes(aba)?aba:id})}>{nome}</button>)}</nav>

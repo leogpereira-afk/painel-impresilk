@@ -1,5 +1,10 @@
 # Vez do Painel Impresilk
 
+## Trabalho atual · Brief e Layout dentro do Painel
+
+Agente: codex. Pedido em 17/10/2026: abrir Brief e Layout na mesma página, mantendo a lateral. Rotas internas e atalhos; sem mudança de servidor, permissões ou registros. Publicação autorizada pelo dono em 17/10/2026 com “subir”. Verificação e publicação em andamento.
+
+
 ## Trabalho atual · Brief e Layout separados
 
 Agente: codex. Publicação autorizada pelo dono em 16/10/2026: “vamos subir e analisar novamente”. Atalhos independentes em Módulos do painel e botão para recolher a lateral. Preservar os demais trabalhos; nenhuma mudança de servidor, permissão ou registro. Revisão integrada à main atual, publicação em preparação. As melhorias da auditoria visual permanecem pendentes.

@@ -1,9 +1,10 @@
+import {Link} from 'react-router-dom';
 import {useEffect,useState} from 'react';
 import {ArrowUpRight,RefreshCw} from 'lucide-react';
 import {chamarComercial} from '../../services/comercial.js';
 import {resumoFinanceiroComercial} from '../../lib/calc/financeiroComercial.js';
 import {numeroWhatsApp} from '../../lib/calc/agendaCompromissos.js';
-import {ENDERECO_DIRETO,nomeCompletoSis} from '../../lib/sistemas.js';
+import {nomeCompletoSis} from '../../lib/sistemas.js';
 import {RESULTADOS_CONTATO} from '../../../supabase/functions/_shared/relacionamento-comercial.mjs';
 import Dialogo from './DialogoComercial.jsx';
 const brl=v=>v==null?'Não disponível':Number(v).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
@@ -43,7 +44,7 @@ export function PedidoComercial({pedido,dados,filtro,fechar,abrirAcao}){
  {op?.estado==='sem_vinculo'&&<p className="com-coverage">Pedido sem vínculo por ID confirmado no PCP. Consulte a operação com o número da O.S.; nenhum prazo foi presumido.</p>}{op?.estado==='indisponivel'&&<p className="com-alert">Andamento indisponível. {op.erro||'Tente novamente ou confira o PCP.'}</p>}
  {op?.cancelada&&<p className="com-alert">Pedido cancelado no PCP. Confira a operação antes de comunicar prazo ou programar pós-venda.</p>}
  {op?.pendencias&&<section className="com-client-summary"><h3>Pendências operacionais</h3>{op.pendencias.estado==='nao_informado'?<p className="com-muted">{op.pendencias.motivo||'Pendências de arte, medição e aprovação não estão disponíveis nesta fonte. Consulte o PCP e o Brief.'}</p>:(op.pendencias.itens||[]).map((x,i)=><p key={i}>{x.descricao||x.nome} {x.responsavel&&`· ${x.responsavel}`}</p>)}</section>}
- <details className="com-form-details"><summary>Checklist de passagem para a operação</summary><p className="com-muted">Confira com o escopo e a versão aprovados. Este roteiro não libera produção nem confirma prazo.</p>{['Escopo aprovado e versão do orçamento','Medidas e quantidades conferidas','Materiais e acabamentos','Arte aprovada e responsável pela aprovação','Endereço e contato no local','Prazo validado pela operação'].map(s=><label className="com-check-row" key={s}><input type="checkbox"/>{s}</label>)}<a className="com-link" href={ENDERECO_DIRETO.brief} target="_blank" rel="noopener noreferrer">Abrir {nomeCompletoSis('brief')} <ArrowUpRight size={14}/></a><p className="com-muted">Use a O.S. #{p.numero} na consulta. O vínculo automático com o Brief ainda não está confirmado.</p></details>
+ <details className="com-form-details"><summary>Checklist de passagem para a operação</summary><p className="com-muted">Confira com o escopo e a versão aprovados. Este roteiro não libera produção nem confirma prazo.</p>{['Escopo aprovado e versão do orçamento','Medidas e quantidades conferidas','Materiais e acabamentos','Arte aprovada e responsável pela aprovação','Endereço e contato no local','Prazo validado pela operação'].map(s=><label className="com-check-row" key={s}><input type="checkbox"/>{s}</label>)}<Link className="com-link" to="/brief">Abrir {nomeCompletoSis('brief')} <ArrowUpRight size={14}/></Link><p className="com-muted">Use a O.S. #{p.numero} na consulta. O vínculo automático com o Brief ainda não está confirmado.</p></details>
  {d&&<section className="com-client-summary"><h3>Recebimento do pedido</h3>{financeiro?<p>Recebido {brl(financeiro.recebido)} · saldo {brl(financeiro.saldo)}</p>:<p className="com-muted">Conciliação a conferir. O valor vendido não comprova recebimento.</p>}</section>}
  {d?.financeiro?.estado==='indisponivel'&&<p className="com-alert">Financeiro indisponível: {d.financeiro.erro||'não foi possível conferir a fonte'}. Recebimento não é presumido pelo valor da venda.</p>}
  <p className="com-source-note">Fonte: {op?.fonte||'PCP'} · atualizado {hora(op?.atualizadoEm)} · consulta {hora(d?.consultadoEm)}. Andamento consultado pelo ID do pedido; financeiro usa títulos conciliados existentes.</p></Dialogo>;

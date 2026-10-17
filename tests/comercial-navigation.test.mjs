@@ -1,5 +1,5 @@
 import {test} from 'node:test';
-import {ENDERECO_DIRETO,nomeCompletoSis} from '../src/lib/sistemas.js';
+import {nomeCompletoSis} from '../src/lib/sistemas.js';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {createRequire} from 'node:module';
@@ -55,28 +55,28 @@ test('direção abre o calendário existente no mês selecionado e a agenda de c
 
 test('vendedora com apenas Comercial não recebe atalhos para módulos sem acesso',async()=>{
  const html=await renderizar(sessao(['orcamentos']));
- assert.deepEqual(atalhosInternos(html),[]);
+ assert.deepEqual(atalhosInternos(html),[{href:'/brief',texto:nomeCompletoSis('brief')}]);
  assert.match(html,/Dicas de produtos/,'orientações de produtos continuam acessíveis dentro do Comercial');
 });
 
 test('calendário encaminha para Produção quando esse é o módulo autorizado',async()=>{
  const links=atalhosInternos(await renderizar(sessao(['orcamentos','agenda'])));
- assert.deepEqual(links,[{href:'/agenda?mes=2026-09',texto:'Calendário'}]);
+ assert.deepEqual(links,[{href:'/agenda?mes=2026-09',texto:'Calendário'},{href:'/brief',texto:nomeCompletoSis('brief')}]);
 });
 
 test('calendário usa Reuniões como alternativa quando é a única agenda autorizada',async()=>{
  const links=atalhosInternos(await renderizar(sessao(['orcamentos','reunioes'])));
- assert.deepEqual(links,[{href:'/reunioes?mes=2026-09',texto:'Calendário'}]);
+ assert.deepEqual(links,[{href:'/reunioes?mes=2026-09',texto:'Calendário'},{href:'/brief',texto:nomeCompletoSis('brief')}]);
 });
 
 test('Compromissos é independente de Calendário e não recebe o ID do vendedor como dono',async()=>{
  const links=atalhosInternos(await renderizar(sessao(['orcamentos','compromissos']),'/comercial?de=2026-10-01&ate=2026-10-31&vendedor=102'));
- assert.deepEqual(links,[{href:'/compromissos',texto:'Compromissos'}]);
+ assert.deepEqual(links,[{href:'/compromissos',texto:'Compromissos'},{href:'/brief',texto:nomeCompletoSis('brief')}]);
 });
 
 test('Pagamentos atrasados reutiliza a cobrança existente somente com permissão',async()=>{
  const links=atalhosInternos(await renderizar(sessao(['orcamentos','contas-atrasadas']),'/comercial?vendedor=102'));
- assert.deepEqual(links,[{href:'/contas-atrasadas',texto:'Pagamentos atrasados'}]);
+ assert.deepEqual(links,[{href:'/contas-atrasadas',texto:'Pagamentos atrasados'},{href:'/brief',texto:nomeCompletoSis('brief')}]);
 });
 
 test('acesso total escolhe um único calendário e respeita o mês dos filtros também na rota antiga',async()=>{
@@ -95,17 +95,17 @@ test('as duas entradas do Comercial fornecem a sessão usada nos atalhos e prese
  }
 });
 
-// O atalho repete o acesso externo já presente na lateral; a autenticação
+// O atalho abre a mesma rota interna da lateral; a autenticação
 // e as permissões do Brief continuam sendo verificadas pelo próprio sistema.
-test('Brief no topo reutiliza nome e endereço direto do cadastro, em todas as abas',async()=>{
+test('Brief no topo reutiliza nome do cadastro e rota interna, em todas as abas',async()=>{
  for(const aba of ['painel','orcamentos','relacionamento','vendas','clientes','produtos','metas']){
   const html=await renderizar(sessao(['orcamentos']),`/comercial?aba=${aba}`);
   const links=atalhos(html).filter(l=>l.texto===nomeCompletoSis('brief'));
-  assert.deepEqual(links,[{href:ENDERECO_DIRETO.brief,texto:nomeCompletoSis('brief')}],aba);
+  assert.deepEqual(links,[{href:'/brief',texto:nomeCompletoSis('brief')}],aba);
   const link=html.match(/<a\b[^>]*class="com-shortcut com-shortcut-brief"[^>]*>/)?.[0];
-  assert.ok(link,'atalho externo existente');
-  assert.match(link,/target="_blank"/);
-  assert.match(link,/rel="noopener noreferrer"/);
-  assert.match(link,/aria-label="Brief de Medição \(abre em outra aba\)"/);
+  assert.ok(link,'atalho interno existente');
+  assert.doesNotMatch(link,/target="_blank"/);
+
+  assert.match(link,/aria-label="Brief de Medição"/);
  }
 });

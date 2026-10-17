@@ -70,8 +70,8 @@ export default function CentralShell({children,sessao,aoSair,controles}) {
       <div className="review-sidebar-scroll">
         <details key={`modulos-${location.pathname}`} open><summary>MÓDULOS DO PAINEL <ChevronRight size={15}/></summary>
           <nav aria-label="Módulos do painel">{modulos.map(m=>{return <NavLink key={m.id} to={m.id==='orcamentos'?'/comercial':m.id==='patrimonio'?destinoPatrimonio((podeAbrir('patrimonio',sessao)||podeAbrir('inventario-valores',sessao)||podeAbrir('seguranca',sessao)),podeAbrir('manutencoes',sessao)):`/${m.id}`} end={false} className={({isActive})=>(isActive || (m.id==='orcamentos'&&location.pathname.startsWith('/orcamentos')))?'selected':''}><span className="review-link-emoji" aria-hidden="true">{EMOJIS_MODULOS[m.id]||"📁"}</span><span>{m.nome}</span></NavLink>;})}
-            <a href="https://leogpereira-afk.github.io/brief-medicao/#/lista" target="_blank" rel="noopener noreferrer"><span className="review-link-emoji" aria-hidden="true">📏</span><span>Brief</span><ArrowUpRight size={15} aria-hidden="true"/></a>
-            <a href="https://leogpereira-afk.github.io/brief-medicao/layout.html" target="_blank" rel="noopener noreferrer"><span className="review-link-emoji" aria-hidden="true">🗂️</span><span>Layout</span><ArrowUpRight size={15} aria-hidden="true"/></a>
+            <NavLink to="/brief"><span className="review-link-emoji" aria-hidden="true">📏</span><span>Brief</span></NavLink>
+            <NavLink to="/layout"><span className="review-link-emoji" aria-hidden="true">🗂️</span><span>Layout</span></NavLink>
           </nav>
         </details>
         {gruposAcesso.map(g=><details key={`${g.nome}-${location.pathname}`} open><summary>{g.nome}<ChevronRight size={15}/></summary><nav aria-label={`Acessos ${g.nome}`}>{g.links.map(s=>{return <a key={s.id} href={s.url} target="_blank" rel="noopener noreferrer"><span className="review-link-emoji" aria-hidden="true">{EMOJIS_SISTEMAS[s.id]||"💻"}</span><span>{s.nomeCompleto || s.nome}</span><ArrowUpRight size={15} aria-hidden="true"/></a>;})}</nav></details>)}
