@@ -2,6 +2,8 @@
 
 ## Trabalho atual · Central Comercial e Dashboard
 
+**Escopo consolidado definido pelo dono em 17/10/2026:** “impresilk e universo é tudo junto”. Dashboard, rankings, séries, funil e consulta financeira passam a consolidar as duas empresas por denominações exatas; origem mantida no cache, empresas externas e carteiras não autorizadas continuam excluídas. 81 testes, build e lint aprovados. Servidor v75 ACTIVE, 18/18 arquivos conferidos antes da interface. Atualização do histórico comercial autorizada segue em execução, com recuperação privada pronta.
+
 **Correspondência do ERP:** carga autorizada revelou a denominação abreviada da Impresilk não reconhecida no filtro de empresa. Adicionada correspondência exata no Dashboard e na consulta financeira, sem aceitar empresas por prefixo. Duas regressões reproduziram a falha antes; 79 testes focados, build e lint aprovados. Servidor v73 ACTIVE, 18/18 arquivos conferidos antes da interface. Histórico em execução sequencial, com cópia privada de recuperação.
 
 **Cache comercial autorizado em 17/10/2026:** dono aprovou atualizar somente o cache de consulta de 2020 a 2026, sem alterar O.S. no Mubisys. Vez Codex no mesmo clone. Recuperação privada preparada no Supabase; carga pequena de confirmação antes do histórico, preservando itens e registros originais. Sem gravação no ERP.

@@ -4,7 +4,7 @@ import {numerosDeOSComercial} from './vinculo-financeiro-os.mjs';
 
 // Pure, shared calculation boundary. All monetary amounts leaving this module
 // are integer cents; quantities remain separated by their explicitly recorded unit.
-export const CRITERIO_DASHBOARD = 'O.S. normal não cancelada, valor líquido na data de cadastro. Venda não equivale a faturamento nem a recebimento.';
+export const CRITERIO_DASHBOARD = 'Impresilk e Universo consolidadas: O.S. normal não cancelada, valor líquido na data de cadastro. Venda não equivale a faturamento nem a recebimento.';
 const erro = (message, status=400) => Object.assign(new Error(message), {status});
 const texto = v => String(v ?? '').trim();
 const dias = (a,b) => Math.round((Date.parse(b+'T12:00:00Z')-Date.parse(a+'T12:00:00Z'))/864e5);
@@ -56,7 +56,7 @@ function empresaDivergente(o) {
  // Legacy projection has no company identifier. Explicit names are checked;
  // absence is exposed as a source limitation rather than invented proof.
  const nome=texto(o.empresaNome||o.empresa_nome||(typeof o.empresa==='string'?o.empresa:o.empresa?.nome));
- return !!nome&&!['impresilk','impresilk comunicacao visual','impresilk comunicacao visual ltda','impresilk c. v. ltda'].includes(normal(nome));
+ return !!nome&&!['impresilk','impresilk comunicacao visual','impresilk comunicacao visual ltda','impresilk c. v. ltda','universo','universo c. v ltda'].includes(normal(nome));
 }
 
 function indexarCatalogo(catalogo){const porId=new Map(),porNome=new Map();for(const item of catalogo){porId.set(String(item.id),item);const nome=normal(item.nome),xs=porNome.get(nome)||[];xs.push(item);porNome.set(nome,xs);}return {porId,porNome};}
@@ -338,10 +338,10 @@ export function apurarDashboard(base,filtro={},hoje,sessao,opcoes={}) {
   comparacoes:{anterior:comparacao(ctx,comparacoes.anterior,resumo),anoAnterior:comparacao(ctx,comparacoes.anoAnterior,resumo),diasUteis:comparacaoMensalDashboard(ctx,hoje,'diasUteis'),mesCompleto:comparacaoMensalDashboard(ctx,hoje,'mesCompleto')},financeiro:financeiroDashboard(ctx,hoje,podeFinanceiro),inteligencia:inteligenciaOut,
   abc:{a:ctx.p.abcA,b:ctx.p.abcB,criterio:'Classe pela participação acumulada anterior ao item; o item que cruza o limite permanece na classe iniciada.'},
   cobertura:{estado:resumo.estado,completo:resumo.completo,janelas:ctx.janelas,registrosConsultados:ctx.vendas.length,incompletos:ctx.falhas.length,itensAusentes:resumo.itensAusentes,desde:ctx.janelas[0]?.desde||null,ate:ctx.janelas.at(-1)?.ate||null,
-   empresa:{estado:resumo.certificadoEmpresa?'origem_preservada':'base_provisoria',verificacaoPorRegistro:resumo.certificadoEmpresa,semEmpresa:ctx.vendasPendentes.filter(v=>noPeriodo(v,p)).length,confirmadas:vendas.filter(v=>v.empresaConfirmada).length,divergenciasExcluidas:ctx.divergentes.length,mensagem:resumo.certificadoEmpresa?'Somente registros com empresa Impresilk explicitamente preservada na origem.':'Registros sem empresa de origem ficam fora dos totais, rankings e gráficos até confirmação.'}},
+   empresa:{estado:resumo.certificadoEmpresa?'origem_preservada':'base_provisoria',verificacaoPorRegistro:resumo.certificadoEmpresa,semEmpresa:ctx.vendasPendentes.filter(v=>noPeriodo(v,p)).length,confirmadas:vendas.filter(v=>v.empresaConfirmada).length,divergenciasExcluidas:ctx.divergentes.length,mensagem:resumo.certificadoEmpresa?'Consolidado Impresilk e Universo, com a empresa de origem preservada em cada registro.':'Registros sem empresa de origem ficam fora dos totais, rankings e gráficos até confirmação.'}},
   metas,
   fontes:{vendas:{fonte:'Mubisys sincronizado em painel_ordens',atualizadoEm:base.atualizadoEm||null,criterio:'Data de cadastro da O.S.'},catalogo:{fonte:'Catálogo comercial sincronizado',atualizadoEm:base.catalogoEm||null},financeiro:{fonte:podeFinanceiro?'Títulos em aberto sincronizados':null,atualizadoEm:podeFinanceiro?base.financeiroEm||null:null}},
-  avisos:[...(!resumo.completo?['Consulta parcial: valores observados não comprovam o total do período.']:[]),...(resumo.itensAusentes?['Há vendas sem itens identificados; confira a linha Itens não disponíveis.']:[]),'Quantidades só são somadas na mesma unidade informada na origem.','Devoluções sem vínculo não são abatidas automaticamente.',...(resumo.certificadoEmpresa?[]:['Registros sem empresa de origem foram separados; não compõem os totais e rankings da Impresilk.'])],consultadoEm:opcoes.consultadoEm||new Date().toISOString()};
+  avisos:[...(!resumo.completo?['Consulta parcial: valores observados não comprovam o total do período.']:[]),...(resumo.itensAusentes?['Há vendas sem itens identificados; confira a linha Itens não disponíveis.']:[]),'Quantidades só são somadas na mesma unidade informada na origem.','Devoluções sem vínculo não são abatidas automaticamente.',...(resumo.certificadoEmpresa?[]:['Registros sem empresa de origem foram separados; não compõem os totais e rankings consolidados de Impresilk e Universo.'])],consultadoEm:opcoes.consultadoEm||new Date().toISOString()};
 }
 
 export function detalharDashboard(base,filtro,hoje,sessao,consulta={}) {

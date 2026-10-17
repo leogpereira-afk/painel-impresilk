@@ -64,3 +64,9 @@ A conferência autenticada identificou um estado de apresentação incorreto: o 
 Verificação: 75 testes focados aprovados, incluindo os seis casos de regressão de ausência, zero real e cobertura parcial; build oficial, lint do componente e diff aprovados. Servidor corrigido publicado antes da interface: painel-comercial v71 ACTIVE e 18/18 arquivos idênticos à fonte validada. A atualização do cache legado continua dependente de autorização específica; nenhum registro real foi alterado.
 
 Publicação final da correção: código 31d7d27; Pages 39048175524 e Functions 39048175529 aprovados. Os 141 arquivos públicos são idênticos ao build. painel-comercial v72 ACTIVE (18/18 arquivos iguais) e painel-cache v147 ACTIVE (1/1 arquivo igual). Chrome autenticado confirmou a evolução indisponível e o realizado da meta como “Não disponível”, sem erros JavaScript. A aba Visão geral foi deixada aberta com o novo cabeçalho. Nenhuma recarga histórica executada.
+
+## Consolidado autorizado de empresas
+
+Em 17/10/2026 o dono definiu que Impresilk e Universo devem ser tratadas juntas no Comercial. O Dashboard identifica esse consolidado explicitamente e aceita as denominações exatas das duas empresas. Totais, séries, rankings, comparações, metas, funil e detalhe seguem os mesmos filtros de período e carteira. A empresa original permanece no cache; não houve alteração de cadastros ou O.S. no ERP. Empresas externas e registros sem origem confirmada continuam fora dos totais certificados.
+
+81 testes focados aprovados, incluindo soma das duas empresas, exclusão de empresas com nomes semelhantes, carteira de vendedor, séries, ranking, funil e consulta financeira. Build e lint aprovados. Servidor v75 ACTIVE, 18/18 arquivos conferidos antes da tela. A recarga comercial de 2020 a 2026 foi autorizada separadamente, com snapshot privado e plano de recuperação.
