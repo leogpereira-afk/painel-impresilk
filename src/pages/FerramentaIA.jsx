@@ -1,0 +1,44 @@
+import {useMemo,useState} from 'react';
+import {ArrowLeft,ArrowUpRight,Search,Maximize2,Minimize2,Download,BookOpen} from 'lucide-react';
+import SilkHeader from '../components/SilkHeader.jsx';
+import {FERRAMENTAS,CAMPOS_ORCAMENTO,calcularOrcamento} from '../lib/ferramentas-ia.mjs';
+import './FerramentaIA.css';
+const moeda=n=>new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(n);
+function Orcamento(){
+ const [valores,setValores]=useState(()=>Object.fromEntries(CAMPOS_ORCAMENTO.map(([id])=>[id,''])));
+ const [tentar,setTentar]=useState(false);
+ const resultado=useMemo(()=>calcularOrcamento(valores),[valores]);
+ const valido=!Object.keys(resultado.erros).length;
+ function baixar(){
+  if(!valido)return;
+  const texto=['ORÇAMENTO DE PRODUÇÃO · IMPRESILK','Simulação local. Não é proposta aprovada.',...CAMPOS_ORCAMENTO.map(([id,nome,un])=>`${nome}: ${valores[id]} ${un}`),`Custo do lote: ${moeda(resultado.custo)}`,`Preço sugerido do lote: ${moeda(resultado.preco)}`,`Preço por peça: ${moeda(resultado.unitario)}`,'Preço = custo / (1 - margem/100). Custos, tempos e tributos devem ser conferidos pelo responsável.'].join('\n');
+  const url=URL.createObjectURL(new Blob([texto],{type:'text/plain;charset=utf-8'}));const a=document.createElement('a');a.href=url;a.download='simulacao-producao-impresilk.txt';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
+ }
+ return <section className="fia-panel"><div className="fia-section-title"><div><span className="fia-eyebrow">PRÓPRIO DA IMPRESILK</span><h2>🧮 Orçamento de produção</h2><p>Do material ao acabamento, com custos e margem separados.</p></div></div>
+ <p className="fia-note">Informe os custos do lote inteiro e a quantidade final de peças. Use zero somente quando o custo realmente não existir. Os dados ficam apenas nesta tela e são perdidos ao sair ou recarregar.</p>
+ <form onSubmit={e=>{e.preventDefault();setTentar(true)}} noValidate><div className="fia-form">{CAMPOS_ORCAMENTO.map(([id,nome,un])=><label key={id} htmlFor={`fia-${id}`}>{nome} <small>{un}</small><input id={`fia-${id}`} type="number" min={id==='quantidade'?1:0} max={id==='margem'?99.99:id==='perda'?100:undefined} step={id==='quantidade'?1:'any'} inputMode="decimal" value={valores[id]} onChange={e=>setValores({...valores,[id]:e.target.value})} aria-invalid={tentar&&!!resultado.erros[id]} aria-describedby={tentar&&resultado.erros[id]?`erro-${id}`:undefined}/>{tentar&&resultado.erros[id]&&<span className="fia-error" id={`erro-${id}`}>{resultado.erros[id]}</span>}</label>)}</div><button className="fia-primary" type="submit">Conferir orçamento</button></form>
+ {valido&&<div className="fia-results" aria-live="polite"><div><small>Custo total do lote</small><strong>{moeda(resultado.custo)}</strong></div><div><small>Preço sugerido do lote</small><strong>{moeda(resultado.preco)}</strong></div><div><small>Preço por peça</small><strong>{moeda(resultado.unitario)}</strong></div><div><small>Resultado estimado do lote</small><strong>{moeda(resultado.resultado)}</strong></div></div>}
+ {valido&&<details className="fia-details"><summary>Ver composição e fórmula</summary><ul><li>Material com reserva: {moeda(resultado.material)}</li><li>Máquina: {moeda(resultado.maquina)}</li><li>Preparação e acabamento: {moeda(resultado.trabalho)}</li><li>Outros custos: {moeda(resultado.terceiros)}</li></ul><p>Preço = custo ÷ (1 − margem ÷ 100). Margem sobre venda é diferente de acrescentar um percentual ao custo. Inclua custos indiretos e tributos aplicáveis nos seus critérios antes de aprovar o orçamento.</p><button onClick={baixar}><Download size={16}/> Baixar memória de cálculo</button></details>}
+ </section>;
+}
+export default function FerramentaIA(){
+ const [busca,setBusca]=useState('');const [categoria,setCategoria]=useState('Todas');
+ const [ativa,setAtiva]=useState(null);const [foco,setFoco]=useState(false);const [abrir,setAbrir]=useState(false);const [checks,setChecks]=useState({});
+ const [aba,setAba]=useState('ferramentas');
+ const normalizar=s=>s.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
+ const lista=FERRAMENTAS.filter(f=>(categoria==='Todas'||f.categoria===categoria)&&normalizar(`${f.nome} ${f.resumo} ${f.formatos}`).includes(normalizar(busca)));
+ function escolher(f){setAtiva(f);setAbrir(false);setFoco(false)}
+ return <div className={`fia ${foco?'fia-focus':''}`}>
+ {!foco&&<><SilkHeader titulo="Ferramenta I.A" contexto="CRIAÇÃO · PRODUÇÃO · IMPRESILK" descricao="Transforme a ideia em projeto, confira a montagem e planeje o custo."/>
+ <nav className="fia-tabs" aria-label="Ferramenta I.A"><button aria-pressed={aba==='ferramentas'} onClick={()=>setAba('ferramentas')}>🧰 Ferramentas</button><button aria-pressed={aba==='orcamento'} onClick={()=>setAba('orcamento')}>🧮 Orçamento Impresilk</button></nav></>}
+ {aba==='orcamento'?<Orcamento/>:ativa?<section className="fia-panel fia-workspace"><div className="fia-workbar"><button onClick={()=>{setAtiva(null);setFoco(false)}}><ArrowLeft size={16}/> Catálogo</button><h2>{ativa.emoji} {ativa.nome}</h2><button aria-pressed={foco} onClick={()=>setFoco(!foco)}>{foco?<Minimize2 size={16}/>:<Maximize2 size={16}/>} {foco?'Sair do foco':'Ampliar área'}</button><a href={ativa.url} target="_blank" rel="noopener noreferrer">Abrir no site <ArrowUpRight size={16}/></a></div>
+ {!foco&&<details className="fia-details" open={!abrir}><summary><BookOpen size={16}/> Guia Impresilk · preparar e conferir</summary><div className="fia-guide"><div><h3>Como usar</h3><ol>{ativa.passos.map(p=><li key={p}>{p}</li>)}</ol></div><div><h3>Conferência do projeto</h3>{ativa.conferir.map((p,i)=><label className="fia-check" key={p}><input type="checkbox" checked={!!checks[`${ativa.id}-${i}`]} onChange={e=>setChecks({...checks,[`${ativa.id}-${i}`]:e.target.checked})}/>{p}</label>)}</div></div><p className="fia-note">{ativa.limite}</p></details>}
+ <p className="fia-external">Ferramenta externa: <a href={ativa.url} target="_blank" rel="noopener noreferrer">Porto Designer</a>. Arquivos inseridos aqui são tratados pelo serviço externo. O Painel não salva os projetos nem acompanha suas exportações.</p>
+ {!abrir?<div className="fia-launch"><span aria-hidden="true">{ativa.emoji}</span><h3>Pronto para trabalhar?</h3><p>{ativa.resumo}</p>{ativa.acessoExterno?<><p>Na conferência, esta ferramenta solicitou login dentro do Painel. Abra no site original para usar sua sessão do fornecedor.</p><a className="fia-primary fia-external-action" href={ativa.url} target="_blank" rel="noopener noreferrer">Abrir {ativa.nome} no site ↗</a><button onClick={()=>setAbrir(true)}>Tentar abrir no Painel</button></>:<button className="fia-primary" onClick={()=>setAbrir(true)}>Abrir {ativa.nome}</button>}</div>:<><iframe key={ativa.id} className="fia-frame" title={`${ativa.nome} — Porto Designer`} src={ativa.url} referrerPolicy="no-referrer" sandbox="allow-scripts allow-same-origin allow-forms allow-downloads allow-popups allow-popups-to-escape-sandbox"/><p className="fia-external">Se a ferramenta não aparecer ou a exportação for bloqueada, use “Abrir no site”. Salve seus arquivos antes de trocar de ferramenta.</p></>}
+ </section>:<><section className="fia-intro"><div><span className="fia-eyebrow">DA IDEIA À PRODUÇÃO</span><h2>Escolha o próximo passo</h2><p>Sete ferramentas do Porto Designer, guias próprios e orçamento ampliado da Impresilk.</p></div><span className="fia-badge">7 ferramentas + orçamento</span></section>
+ <div className="fia-search"><Search size={18}/><input aria-label="Buscar ferramenta" placeholder="Busque por caixa, SVG, letras, custo…" value={busca} onChange={e=>setBusca(e.target.value)}/></div>
+ <div className="fia-categories" aria-label="Categorias">{['Todas','Criação','Preparação','Conferência','Orçamento'].map(c=><button key={c} aria-pressed={categoria===c} onClick={()=>setCategoria(c)}>{c}</button>)}</div>
+ <div className="fia-grid">{lista.map(f=><button className="fia-card" key={f.id} onClick={()=>escolher(f)}><span className="fia-card-icon" aria-hidden="true">{f.emoji}</span><span className="fia-card-body"><small>{f.categoria}</small><strong>{f.nome}</strong><span>{f.resumo}</span><em>{f.formatos}</em>{f.acessoExterno&&<em>Acesso pelo site original</em>}</span><ArrowUpRight size={18}/></button>)}</div>{!lista.length&&<p role="status">Nenhuma ferramenta encontrada. Tente outro termo ou categoria.</p>}
+ <aside className="fia-panel fia-footer"><h3>💡 Um fluxo simples para a equipe</h3><p>Crie a geometria → confira a montagem → distribua na chapa → valide o tempo de corte → calcule a produção.</p><p>Os guias são orientações fixas, sem chat generativo nesta versão. Confirme material, medidas e configuração no software da sua máquina antes de fabricar.</p><a href="https://ferramentascnc.portodesigner.com.br/" target="_blank" rel="noopener noreferrer">Conhecer as ferramentas originais ↗</a></aside></>}
+ </div>;
+}

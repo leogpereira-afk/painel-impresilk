@@ -1,5 +1,9 @@
 # Vez do Painel Impresilk
 
+## Trabalho atual · Ferramenta I.A
+
+Agente: codex. Implementação local autorizada em 17/10/2026, coordenação com Designer System autorizada pelo dono. Clone /tmp/painel-ferramenta-ia-20261017, ramo codex/ferramenta-ia-20261017. Sete ferramentas externas Porto Designer, guias e orçamento próprio, rota e permissão específicas. Preservar Design System Silk. Sem publicação ou dados reais. Plano em docs/superpowers/plans/2026-10-17-ferramenta-ia.md. Implementação local verificada: 669 regressões, 13 testes focados, build, lint e coerência dos módulos aprovados; prévia em 4295. Cinco ferramentas incorporadas verificadas; vetorizador e montagem têm acesso externo preferencial por exigência de login no iframe. Publicação aguarda autorização; equipe-auth e painel-auth antes da interface. Relatório em docs/ferramenta-ia/entrega.md.
+
 ## Trabalho atual · Design System Silk
 
 **Publicado e conferido em 17/10/2026:** código 5cf86ad; Pages 39055428480 aprovado, 140/140 arquivos públicos iguais ao build validado. Suíte completa, lint, build e verificadores aprovados na CI. Escopo somente visual dos cabeçalhos; nenhuma alteração em App.jsx, modulos.js ou CentralShell.jsx, servidor, dados ou permissões. Educação preservada. Navegador oficial pediu login; portal público conferido visualmente. Trabalho encerrado; vez liberada para a próxima frente.

@@ -21,6 +21,7 @@ export const MODULOS = [
   { id: "contas-atrasadas", nome: "Contas Atrasadas", sub: "quem deve e a cobrança" },
   { id: "orcamentos", nome: "Comercial", sub: "resultados, carteira e próximos atendimentos" },
   { id: "bancos", nome: "Bancos e Pix", sub: "contas, CNPJs e chaves de todas as empresas" },
+  { id: "ferramenta-ia", nome: "Ferramenta I.A", sub: "criação, preparação CNC e orçamento de produção" },
   { id: "marketing", nome: "Marketing", sub: "logomarcas, materiais e atalhos do Drive" },
   { id: "licitacoes", nome: "Licitações", sub: "editais, prazos e sessões" },
   { id: "glossario", nome: "Glossário", sub: "os termos de comunicação visual explicados" },

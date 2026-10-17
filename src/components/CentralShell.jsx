@@ -9,7 +9,7 @@ import {destinoCentralComercial,ehRotaComercial} from '../lib/calc/navegacao-com
 import Silk from './Silk.jsx';
 import './central-shell.css';
 
-const EMOJIS_MODULOS = {compromissos:'📅',agenda:'🗓️','calendario-empresa':'📅','contas-atrasadas':'💰',orcamentos:'📋',bancos:'🏦',marketing:'📣',licitacoes:'⚖️',glossario:'📖',manutencoes:'🛠️',patrimonio:'🏠',permutas:'🤝',campanhas:'🎯',documentos:'📁'};
+const EMOJIS_MODULOS = {'ferramenta-ia':'🧠',compromissos:'📅',agenda:'🗓️','calendario-empresa':'📅','contas-atrasadas':'💰',orcamentos:'📋',bancos:'🏦',marketing:'📣',licitacoes:'⚖️',glossario:'📖',manutencoes:'🛠️',patrimonio:'🏠',permutas:'🤝',campanhas:'🎯',documentos:'📁'};
 const EMOJIS_SISTEMAS = {rh:'👥',pcp:'🏭',brief:'📏',dre:'📊',compras:'🛒',pops:'📚',vof:'🧭',domo:'🏗️',bosques:'🌳',central:'👤',diamond:'💎',minaslab:'🔬'};
 
 export default function CentralShell({children,sessao,aoSair,controles}) {

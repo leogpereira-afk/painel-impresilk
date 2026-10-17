@@ -32,6 +32,7 @@ const Acessos = lazy(() => import("./pages/Acessos.jsx"));
 const Backups = lazy(() => import("./pages/Backups.jsx"));
 const Ativos = lazy(() => import("./pages/Ativos.jsx"));
 const Planilhas = lazy(() => import("./pages/Planilhas.jsx"));
+const FerramentaIA = lazy(() => import("./pages/FerramentaIA.jsx"));
 const Marketing = lazy(() => import("./pages/Marketing.jsx"));
 const Licitacoes = lazy(() => import("./pages/Licitacoes.jsx"));
 const Manutencoes = lazy(() => import("./pages/Manutencoes.jsx"));
@@ -165,6 +166,7 @@ export default function App() {
             </Restrito>
           }
         />
+        <Route path="/ferramenta-ia" element={<Restrito modulo="ferramenta-ia" sessao={sessao}><FerramentaIA /></Restrito>} />
         <Route
           path="/marketing"
           element={
