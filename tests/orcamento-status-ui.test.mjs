@@ -29,7 +29,7 @@ async function carregar() {
       stdin: { contents: entrada, resolveDir: SRC, loader: "jsx" },
       bundle: true, format: "esm", platform: "neutral", write: false, logLevel: "silent", jsx: "automatic",
       mainFields: ["module", "main"], conditions: ["browser", "import", "default"],
-      loader: { ".css": "empty", ".png": "empty", ".ttf": "empty" },
+      loader: { ".css": "empty", ".png": "empty", ".webp": "dataurl", ".ttf": "empty" },
       define: { "import.meta.env": '{"MODE":"test"}', "process.env.NODE_ENV": '"production"' },
       // Apenas a fronteira de dados é substituída; componentes e cálculo são reais.
       // SSR não executa efeitos, portanto não consulta nem altera o servidor.

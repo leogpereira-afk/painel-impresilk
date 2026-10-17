@@ -53,7 +53,7 @@ async function carregarTela() {
     stdin: { contents: ENTRADA, resolveDir: SRC, loader: "jsx", sourcefile: "entrada-teste.jsx" },
     bundle: true, format: "esm", platform: "neutral", write: false, logLevel: "silent",
     jsx: "automatic", mainFields: ["module", "main"], conditions: ["browser", "import", "default"],
-    loader: { ".css": "empty", ".png": "empty", ".ttf": "empty" },
+    loader: { ".css": "empty", ".png": "empty", ".webp": "dataurl", ".ttf": "empty" },
     define: { "import.meta.env": '{"MODE":"test"}', "process.env.NODE_ENV": '"production"' },
   });
   tela = await import("data:text/javascript;base64," + Buffer.from(saida.outputFiles[0].text).toString("base64"));

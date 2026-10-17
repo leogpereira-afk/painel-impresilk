@@ -22,7 +22,7 @@ const texto = no => Array.isArray(no) ? no.map(texto).join('') : no && typeof no
 const json = valor => valor === undefined ? valor : JSON.parse(JSON.stringify(valor));
 const marcas = nomes => Object.fromEntries(nomes.map(n => [n, n]));
 const ICONES = ['Plus', 'Search', 'Printer', 'Building2', 'Boxes', 'Wallet', 'AlertTriangle', 'Camera', 'LayoutGrid', 'List', 'ArrowUpRight', 'Pencil', 'Trash2', 'RefreshCw', 'Tag', 'ChevronLeft', 'ChevronRight', 'X', 'Phone', 'Archive', 'Wrench', 'BedDouble', 'Car', 'Cog', 'Shield', 'FireExtinguisher', 'Link2'];
-const COMPONENTES = ['AreaDoBem', 'BensDaArea', 'Telefonia', 'SegurancaPatrimonio', 'Incendio', 'PessoasRHProvider', 'HistoricoBem', 'VinculoDoBem', 'CarregandoModulo', 'ErroModulo', 'AvisoAtualizacao', 'JanelaFormulario', 'FotosPatrimonio', 'FormBem', 'FormSetor', 'ControlesPatrimonio', 'AtualizacaoPatrimonio', 'VinculosSetor', 'EquipamentosPatrimonio', 'EstruturaPatrimonio'];
+const COMPONENTES = ['SilkHeader', 'AreaDoBem', 'BensDaArea', 'Telefonia', 'SegurancaPatrimonio', 'Incendio', 'PessoasRHProvider', 'HistoricoBem', 'VinculoDoBem', 'CarregandoModulo', 'ErroModulo', 'AvisoAtualizacao', 'JanelaFormulario', 'FotosPatrimonio', 'FormBem', 'FormSetor', 'ControlesPatrimonio', 'AtualizacaoPatrimonio', 'VinculosSetor', 'EquipamentosPatrimonio', 'EstruturaPatrimonio'];
 
 const bem = (codigo, nomeGenerico, extra = {}) => ({ codigo, nomeGenerico, setorSigla: 'PRO', situacao: 'uso', valor: 100, responsavel: 'Pessoa fictícia', atualizadoEm: 'v-' + codigo, ...extra });
 const BENS = {
@@ -46,7 +46,7 @@ function pagina({ aba = 'estrutura', confirmar = true, remover, salvar, permissa
   let indice = 0, montado = false, abaAtual = aba;
   const navegar = (chave, opcoes) => { chamadas.abas.push({ chave, opcoes }); return [abaAtual, v => { abaAtual = v; }]; };
   const ctx = vm.createContext({
-    h: (type, props, ...children) => ({ type, props: { ...props, children } }), Fragment: 'Fragment',
+    h: (type, props, ...children) => ({ type, props: { ...props, children: type === 'SilkHeader' ? [props?.acao, ...children] : children } }), Fragment: 'Fragment',
     useState(inicial) { const n = indice++; if (!(n in estados)) estados[n] = typeof inicial === 'function' ? inicial() : inicial; return [estados[n], valor => { estados[n] = typeof valor === 'function' ? valor(estados[n]) : valor; }]; },
     useRef(inicial) { const n = indice++; return estados[n] ||= { current: inicial }; },
     useMemo: fn => fn(), useCallback: fn => fn, useEffect: fn => { if (!montado) efeitos.push(fn); },
