@@ -1,5 +1,9 @@
 # Vez do Painel Impresilk
 
+## Trabalho atual · Design System Silk
+
+Agente: codex. Continuidade autorizada em 17/10/2026. Clone isolado /tmp/impresilk-design-20261017, ramo codex/design-system-silk-20261017. Base visual compartilhada, cabeçalhos compactos com variações de azul e movimento breve acessível do Silk. Preservar comportamentos, dados e permissões. Educação permanece com Claude. Publicação autorizada pelo dono em 17/10/2026 com “subir”; em preparação.
+
 ## Trabalho atual · Central Comercial e Dashboard
 
 **Publicado e conferido · consolidação e cache em 17/10/2026:** código ec056dd; Pages 39051088157 e Functions 39051088294 concluídos com sucesso. Interface: 141/141 arquivos públicos idênticos ao build. Funções finais painel-comercial v76 ACTIVE (18/18 arquivos iguais) e painel-cache v149 ACTIVE (1/1). Carga piloto 39050523167 e histórico 39050606943 concluídos; todas as janelas anuais de 2020 até a data corrente em 2026 confirmadas. Recuperação privada preservada no banco. Comparação com o snapshot confirmou ausência de remoções, novos registros, alterações de itens ou valores monetários no cache; nenhuma escrita no Mubisys. Chrome autenticado confirmou o rótulo Impresilk + Universo, os totais anual e histórico reconciliados com SQL, gráficos presentes e nenhum erro JavaScript. Restam inconsistências da origem: registro sem empresa e valores negativos, mantidos fora dos totais certificados e com cobertura parcial indicada. 81 regressões focadas, build e lint aprovados. As pendências de autorização e execução nos parágrafos abaixo são históricas e foram resolvidas nesta entrega. Publicado e conferido; vez encerrada.
