@@ -1,6 +1,6 @@
-# Central Comercial V2 — entrega local
+# Central Comercial V2 — entrega e publicação
 
-Revisão de 17/10/2026 no ramo `codex/central-comercial`, continuando a V1 local `6aa7a27`. Implementação e prévia com dados fictícios. **Não publicada; nenhum registro real foi alterado.**
+Revisão de 17/10/2026 no ramo `codex/central-comercial`, continuando a V1 local `6aa7a27`. Implementação e prévia com dados fictícios; publicada em 17/10/2026 após autorização do dono. Nenhum registro real foi alterado manualmente.
 
 ## Navegação e funcionalidades
 
@@ -38,12 +38,12 @@ Os scripts reproduzíveis ficam em `tests/browser/central-comercial.mjs`, `tests
 
 ## Limites e publicação
 
-- Não houve validação autenticada em produção nem escrita real de meta, atividade, ficha ou compromisso. A prévia não comprova disponibilidade das fontes reais.
+- Cabeçalho, navegação e consulta do Dashboard foram conferidos na sessão autenticada do Chrome. Não houve escrita real de meta, atividade, ficha ou compromisso. A consulta revelou que o histórico legado ainda precisa receber a identificação da empresa de origem; seus registros permanecem fora dos indicadores certificados até uma recarga específica autorizada.
 - O conteúdo externo do Brief foi bloqueado durante os testes: foram verificados a navegação, a área útil e o isolamento, sem alteração do aplicativo de origem.
 - Percentual de aprovação de orçamento e classificações históricas de clientes usam critérios diferentes das vendas certificadas por empresa. As consultas de origem continuam acessíveis em Análises complementares e critérios; não foram fundidas em um indicador sem cobertura comprovada. Ver `migracao-resultados-solucoes.md`.
 - Margem/custo, conciliação e comparações sem fonte suficiente continuam indisponíveis. A cobertura real pode limitar rankings e histórico.
 - Os benchmarks registrados em `dashboard-fontes.md` medem apenas o motor local com dados fictícios. Não são promessa de latência em produção.
-- Publicação depende de autorização posterior. Como a interface utiliza novas ações e campos, é necessário publicar e conferir `painel-comercial` e seus módulos compartilhados antes da interface; depois conferir a versão servida e os fluxos autenticados sem criar dados de teste reais.
+- Servidor foi publicado e conferido antes da interface. A atualização dos históricos sem empresa não foi executada nesta publicação; exige autorização específica e recuperação prevista. Não confundir a publicação dos recursos com a confirmação dos dados legados.
 
 ## Refinamento do período e dos acentos visuais
 
@@ -55,4 +55,4 @@ Navegação, análises e KPIs receberam ícones e acentos por assunto, com contr
 
 Autorizada pelo dono em 17/10/2026, incluindo o cabeçalho com Silk, fundo azul-escuro e ações preservadas. Banner conferido em 1440, 390 e 320 px, modo escuro, imagem carregada, título único, Atualizar e Novo orçamento/cancelar, sem gravação real. Build oficial aprovado; lint sem erros e aviso anterior em Agenda.jsx.
 
-Servidor publicado antes da interface: painel-comercial v69 ACTIVE (18/18 arquivos iguais à fonte local) e painel-cache v145 ACTIVE (1/1 arquivo igual). Autenticação própria preservada. Verificação recente de 66 cenários do backend aprovada. Publicação e conferência da interface em andamento.
+Servidor publicado antes da interface: painel-comercial v69 ACTIVE (18/18 arquivos iguais à fonte local) e painel-cache v145 ACTIVE (1/1 arquivo igual). Autenticação própria preservada. Verificação recente de 66 cenários do backend aprovada. Interface publicada no commit 2a583ad: Pages 39047156593 e Functions 39047156629 concluídos com sucesso. Os 141 arquivos servidos são idênticos ao build oficial. Após a publicação automática, painel-comercial v70 ACTIVE (18/18 arquivos iguais) e painel-cache v146 ACTIVE (1/1 arquivo igual); ambas as funções mantêm rejeição 401 sem autenticação. Cabeçalho confirmado visualmente em produção na sessão do Chrome. A recarga do histórico legado foi preparada como próximo passo e depende de autorização específica.
