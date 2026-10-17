@@ -1,3 +1,4 @@
+import SilkHeader from '../components/SilkHeader.jsx';
 import {useEffect,useState} from 'react';
 import {Link,useSearchParams} from 'react-router-dom';
 import ParticipantesReuniao from '../components/ParticipantesReuniao.jsx';
@@ -46,7 +47,7 @@ export default function Reunioes({sessao}){
  async function salvar(f){const r=await salvarReuniao(f);atualizar(r);setEditor(null);abrir(r.id);setAviso(r.situacao==='cancelado'?'Encontro cancelado e retirado do calendário. O histórico continua disponível.':'Encontro salvo e disponível no calendário da empresa.');}
  async function executar(fn,mensagem){setOcupado(true);setErro('');setAviso('');try{await fn();if(mensagem)setAviso(mensagem);}catch(e){setErro(e.message);}finally{setOcupado(false);}}
  function editar(){setEditor({...atual,setor:atual.setor||'outros',versaoAnterior:atual.versao});}
- return <div className="reunioes"><header className="reu-cab"><div><h1>Reuniões e treinamentos</h1><p>Reúna cada setor. Vincule as pessoas. Registre os combinados.</p></div><button className="btn-primary" onClick={()=>setEditor({...vazio(sessao?.nome),setor:setor||'empresa'})}><Plus size={17}/>Novo encontro</button></header>
+ return <div className="reunioes"><SilkHeader titulo="Reuniões e treinamentos" descricao="Reúna cada setor. Vincule as pessoas. Registre os combinados." contexto="PESSOAS E COMBINADOS" tom="azul" retrato={false} acao={<button className="btn-primary" onClick={()=>setEditor({...vazio(sessao?.nome),setor:setor||'empresa'})}><Plus size={17}/>Novo encontro</button>}/>
  <div aria-live="polite">{aviso&&<p className="reu-sucesso">{aviso}</p>}</div>{erro&&<div role="alert" className="reu-erro">{erro} <button disabled={ocupado} onClick={carregar}>Atualizar dados</button></div>}
  {carregando?<p role="status">Carregando encontros…</p>:atual?<>
  <div className="reu-acoes"><button className="btn-outline" onClick={()=>{abrir(null);setErro('');setAviso('');}}><ArrowLeft size={16}/>Todos os encontros</button>{atual.podeEditar&&<button className="btn-primary" disabled={ocupado} onClick={editar}>Editar encontro e ata</button>}</div>

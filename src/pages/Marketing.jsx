@@ -1,3 +1,4 @@
+import SilkHeader from '../components/SilkHeader.jsx';
 import Newsletter from '../components/marketing/newsletter/Newsletter.jsx';
 /* MARKETING: o Centro de Comando (etapa a2, 11/10/2026).
  *
@@ -417,14 +418,7 @@ export default function Marketing() {
             desenho e fica para o leitor de tela; `relative` segura o recorte
             dela aqui dentro) e o botão. O botão é desenhado com 36px e toca
             em 44px (.alvo-44). */}
-        <div ref={topo} className="mkt-topo">
-          <div className="relative flex min-w-0 items-baseline gap-3">
-            <h1 className="mkt-titulo shrink-0 font-display font-bold tracking-tight text-slate-900">Marketing</h1>
-            <p className="mkt-topo-frase text-slate-500" title={FRASE_DO_TOPO}>
-              {FRASE_DO_TOPO}
-            </p>
-          </div>
-          <button
+        <div ref={topo}><SilkHeader titulo="Marketing" descricao={FRASE_DO_TOPO} contexto="MARCA E RELACIONAMENTO" tom="azul" acao={<button
             type="button"
             className={`${vista === 'materiais' ? 'btn-primary' : 'btn-outline'} alvo-44 min-h-9 shrink-0 px-3 py-1.5`}
             aria-pressed={vista === 'materiais'}
@@ -432,8 +426,7 @@ export default function Marketing() {
           >
             <FolderOpen size={16} strokeWidth={2.2} aria-hidden="true" />
             Materiais e Drive
-          </button>
-        </div>
+          </button>}/></div>
 
         <Fileira rotulo="Canais do Marketing" escolhido={geralAceso ? 'geral' : vista} quantos={fileira.length}>
           <ChipCanal

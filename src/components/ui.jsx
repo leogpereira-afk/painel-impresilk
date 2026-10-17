@@ -1,3 +1,4 @@
+import SilkHeader from './SilkHeader.jsx';
 // Vocabulario visual do painel. Todos os modulos compoem a partir daqui, para o
 // layout ficar consistente. Marca indigo, Poppins nos numeros, Spectral no corpo.
 
@@ -261,17 +262,9 @@ export function Skeleton({ className }) {
   return <div className={clsx("animate-pulse rounded-xl bg-slate-100", className)} />;
 }
 
-// Cabecalho grande no topo de cada modulo.
-export function PageTitle({ titulo, descricao, acao }) {
-  return (
-    <div className="page-title flex flex-wrap items-center justify-between gap-3">
-      <div>
-        <h1 className="font-display text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">{titulo}</h1>
-        {descricao && <p className="page-title-description mt-2 max-w-2xl text-slate-500">{descricao}</p>}
-      </div>
-      {acao}
-    </div>
-  );
+// A mesma identidade nos módulos, mantendo as ações e descrições existentes.
+export function PageTitle({ titulo, descricao, acao, tom='marinho' }) {
+  return <SilkHeader titulo={titulo} descricao={descricao} acao={acao} tom={tom} className="page-title"/>;
 }
 
 // Estado de carregamento padrao de um modulo.

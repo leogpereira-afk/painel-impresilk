@@ -1,3 +1,4 @@
+import SilkHeader from '../components/SilkHeader.jsx';
 import {useEffect,useMemo,useState} from 'react';
 import {Link,useSearchParams} from 'react-router-dom';
 import {Plus,RefreshCw,ArrowUpRight,Target,Search,Settings,ChevronRight,CalendarDays,CalendarCheck,Lightbulb,TrendingUp,FileText,Clock,AlertCircle,SlidersHorizontal,WalletCards} from 'lucide-react';
@@ -19,8 +20,6 @@ import {ClienteComercial,PedidoComercial} from '../components/comercial/Consulta
 import ProdutosComerciais,{FichaProduto} from '../components/comercial/ProdutosComerciais.jsx';
 import RelacionamentoComercial from '../components/comercial/RelacionamentoComercial.jsx';
 import PosVendaComercial from '../components/comercial/PosVendaComercial.jsx';
-import Silk from '../components/Silk.jsx';
-import './comercial-banner.css';
 import RotinaComercial from '../components/comercial/RotinaComercial.jsx';
 import {validadeOrcamento,diasSemContato,filtrarOrcamentos,FILTROS_ORCAMENTOS,filtrarFilaPrioridades} from '../lib/calc/apresentacaoComercial.js';
 import {BRIEFING_CAMPOS,MOTIVOS_PERDA} from '../../supabase/functions/_shared/relacionamento-comercial.mjs';
@@ -83,16 +82,10 @@ function ComercialTela({sessao,integrada}){
  const calendario=['calendario-empresa','agenda','reunioes'].find(m=>podeAbrir(m,sessao));
  const retornoComercial={origemComercial:true,filtrosComercial:params.toString()};
  return <div className="comercial com-modern">
- <header className="com-header com-hero">
-  <div className="silk-com-title">
-   <Silk portrait decorative/>
-   <div><p className="com-eyebrow">SEU ESPAÇO DE VENDAS</p><h1>{integrada?'Visão geral':'Comercial'}</h1><p className="com-muted">Sua carteira, próximos passos e resultados.</p></div>
-  </div>
-  <div className="com-header-actions sem-impressao">
+ <SilkHeader titulo={integrada?'Visão geral':'Comercial'} descricao="Sua carteira, próximos passos e resultados." contexto="SEU ESPAÇO DE VENDAS" acao={<div className="com-header-actions sem-impressao">
    <button className="btn-outline" onClick={()=>setRevisao(n=>n+1)} disabled={carregando}><RefreshCw size={16} aria-hidden="true"/><span>Atualizar</span></button>
    <button className="btn-primary" onClick={()=>setModal({tipo:'novo'})}><Plus size={18} aria-hidden="true"/>Novo orçamento</button>
-  </div>
- </header>
+  </div>}/>
  <details className="com-tools-drawer sem-impressao"><summary>Atalhos e materiais <ChevronRight size={14}/></summary><nav className="com-shortcuts sem-impressao" aria-label="Atalhos da rotina comercial">
  {calendario&&<Link className="com-shortcut com-shortcut-calendar" state={retornoComercial} to={`/${calendario}?mes=${filtro.de.slice(0,7)}`}><CalendarDays size={18} aria-hidden="true"/><span>Calendário</span><ChevronRight size={14} aria-hidden="true"/></Link>}
  {podeAbrir('compromissos',sessao)&&<Link className="com-shortcut com-shortcut-appointments" state={retornoComercial} to="/compromissos"><CalendarCheck size={18} aria-hidden="true"/><span>Compromissos</span><ChevronRight size={14} aria-hidden="true"/></Link>}

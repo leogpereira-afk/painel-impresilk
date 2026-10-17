@@ -1,3 +1,4 @@
+import SilkHeader from '../components/SilkHeader.jsx';
 import AreaDoBem, {BensDaArea} from '../components/patrimonio/AreaDoBem.jsx';
 import Telefonia from '../components/patrimonio/Telefonia.jsx';
 import SegurancaPatrimonio from '../components/patrimonio/Seguranca.jsx';
@@ -230,7 +231,7 @@ function PatrimonioConteudo() {
 
   return <div className="patrimonio-page">
     <AvisoAtualizacao erro={erro} aoTentar={carregar}/>
-    <header className="pat-heading"><div><span className="pat-eyebrow">EQUIPAMENTOS E BENS DA EMPRESA</span><h1>Patrimônio</h1><p>Saiba o que temos, onde está e o que precisa de atenção.</p></div><div className="pat-actions"><button className="btn-ghost" disabled={atualizando||salvando} onClick={()=>{carregar();carregarFotos();carregarFichas();}} aria-label="Atualizar patrimônio"><RefreshCw size={18} className={atualizando?'animate-spin':''}/></button>{['inventario','pendencias','outros'].includes(aba)&&<button className="btn-primary" disabled={!vm.setores.length} onClick={()=>abrirBem()}><Plus size={18}/>Novo bem</button>}</div></header>
+    <SilkHeader titulo="Patrimônio" descricao="Saiba o que temos, onde está e o que precisa de atenção." contexto="EQUIPAMENTOS E BENS DA EMPRESA" tom="petroleo" acao={<div className="pat-actions"><button className="btn-ghost" disabled={atualizando||salvando} onClick={()=>{carregar();carregarFotos();carregarFichas();}} aria-label="Atualizar patrimônio"><RefreshCw size={18} className={atualizando?'animate-spin':''}/></button>{['inventario','pendencias','outros'].includes(aba)&&<button className="btn-primary" disabled={!vm.setores.length} onClick={()=>abrirBem()}><Plus size={18}/>Novo bem</button>}</div>}/>
     {['inventario','pendencias'].includes(aba)&&<div className="pat-metrics">
       <Indicador titulo="Bens ativos" valor={numero(vm.kpis.quantos)} descricao={`${vm.kpis.baixados} no histórico de baixas`} icone={Boxes} aoClicar={()=>recortar({})}/>
       <Indicador titulo="Investido em bens" valor={moedaCheia(vm.kpis.valor)} descricao={`${moedaCheia(vm.kpis.noAno)} adquiridos em ${hoje.slice(0,4)}`} icone={Wallet} aoClicar={()=>recortar({ordem:'valor'})}/>

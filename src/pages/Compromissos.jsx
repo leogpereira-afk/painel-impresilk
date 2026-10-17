@@ -1,3 +1,4 @@
+import SilkHeader from '../components/SilkHeader.jsx';
 // Compromissos: a agenda de campo da vendedora -- visita, medicao, entrega,
 // instalacao, retorno de orcamento -- e as situacoes a resolver que nao tem
 // data marcada.
@@ -690,10 +691,7 @@ export default function Compromissos() {
       <AvisoAtualizacao erro={erro} aoTentar={recarregar}/>
       <AvisoAtualizacao erro={erroComercial} aoTentar={recarregar}/>
       <AvisoAtualizacao erro={erroEquipe} aoTentar={recarregar}/>
-      <header className="cp-cabecalho">
-        <div><p className="cp-eyebrow">OPERAÇÃO · {ehDirecao ? 'AGENDA DA EQUIPE' : 'MINHA AGENDA'}</p><h1>Compromissos</h1><p>Clareza sobre o que fazer, com quem e até quando.</p></div>
-        <div className="cp-cabecalho-acoes"><button type="button" className="cp-atualizar" disabled={atualizando} onClick={recarregar}><RefreshCw size={17} className={atualizando ? 'animate-spin' : ''}/>{atualizando ? 'Atualizando…' : 'Atualizar'}</button><button type="button" className="cp-agenda-comercial" aria-expanded={agendaComercialAberta} aria-controls="cp-agenda-comercial" onClick={() => setAgendaComercialAberta(v => !v)}><CalendarCheck size={17}/>Agenda comercial</button><button type="button" className="btn-primary" onClick={() => abrirForm(null)}><Plus size={18}/>Novo compromisso</button></div>
-      </header>
+      <SilkHeader titulo="Compromissos" descricao="Clareza sobre o que fazer, com quem e até quando." contexto={`OPERAÇÃO · ${ehDirecao ? 'AGENDA DA EQUIPE' : 'MINHA AGENDA'}`} tom="azul" acao={<div className="cp-cabecalho-acoes"><button type="button" className="cp-atualizar" disabled={atualizando} onClick={recarregar}><RefreshCw size={17} className={atualizando ? 'animate-spin' : ''}/>{atualizando ? 'Atualizando…' : 'Atualizar'}</button><button type="button" className="cp-agenda-comercial" aria-expanded={agendaComercialAberta} aria-controls="cp-agenda-comercial" onClick={() => setAgendaComercialAberta(v => !v)}><CalendarCheck size={17}/>Agenda comercial</button><button type="button" className="btn-primary" onClick={() => abrirForm(null)}><Plus size={18}/>Novo compromisso</button></div>}/>
       <div id="cp-agenda-comercial" className="cp-integracao" hidden={!agendaComercialAberta}><AgendaMubisys aberto={agendaComercialAberta} aoConcluir={recarregar}/></div>
       <section className="cp-prioridades" aria-label="Filtrar compromissos por prioridade">
         {PRIORIDADES.map(p => { const Icone = p.icone; return <button type="button" key={p.id} className={`cp-prioridade cp-prioridade--${p.tom} ${recorte === p.id ? 'selecionada' : ''}`} aria-pressed={recorte === p.id} onClick={() => setRecorte(p.id)}>
