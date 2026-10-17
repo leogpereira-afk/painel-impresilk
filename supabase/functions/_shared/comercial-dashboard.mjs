@@ -326,7 +326,12 @@ export function apurarDashboard(base,filtro={},hoje,sessao,opcoes={}) {
  }else inteligenciaOut.variacaoProdutos={estado:'dados_insuficientes',altas:[],quedas:[]};
  inteligenciaOut.quedas={estado:inteligenciaOut.variacaoProdutos.estado,itens:inteligenciaOut.variacaoProdutos.quedas,periodo:comparacoes.anterior};
  let metas={estado:'filtro_incompativel',mensagem:'Metas mensais por vendedor; selecione um mês completo sem filtros de cliente, produto, categoria ou campanha.'};
- if(!ctx.p.cliente&&!ctx.p.produto&&!ctx.p.categoria&&!ctx.p.campanha){const meta=metaDoPeriodo(base.metas,ctx.escopo,base.catalogo,{de:ctx.p.de,ate:ctx.p.ate},base.config||{}),realizado=somaSegura(vendas.filter(v=>meta.idsParticipantes.includes(v.vendedorId)).map(v=>v.centavos));metas=progressoMeta(meta,realizado,{de:ctx.p.de,ate:ctx.p.ate},hoje,base.config?.calendario,{vendasCompleta:resumo.completo,vinculosCompletos:!vendas.some(v=>!meta.vendedoresConhecidos.some(c=>c.id===v.vendedorId))});}
+ if(!ctx.p.cliente&&!ctx.p.produto&&!ctx.p.categoria&&!ctx.p.campanha){
+  const meta=metaDoPeriodo(base.metas,ctx.escopo,base.catalogo,{de:ctx.p.de,ate:ctx.p.ate},base.config||{}),vendasMeta=vendas.filter(v=>meta.idsParticipantes.includes(v.vendedorId));
+  // An empty observed subset is not a confirmed zero while coverage is missing.
+  const realizado=resumo.completo||vendasMeta.length?somaSegura(vendasMeta.map(v=>v.centavos)):null;
+  metas=progressoMeta(meta,realizado,{de:ctx.p.de,ate:ctx.p.ate},hoje,base.config?.calendario,{vendasCompleta:resumo.completo,vinculosCompletos:!vendas.some(v=>!meta.vendedoresConhecidos.some(c=>c.id===v.vendedorId))});
+ }
  metas.serieAcumulada=serieMeta(ctx,metas);
  return {versao:2,periodo:ctx.p,criterio:CRITERIO_DASHBOARD,escopo:{gestor:ctx.escopo.gestor,ids:ctx.escopo.ids,tipoEscopo:ctx.escopo.tipoEscopo},catalogo:ctx.catalogo,resumo,
   series,rankings:Object.fromEntries(Object.entries(rankings).map(([k,xs])=>[k,xs.slice(0,limite)])),rankingsCobertura:Object.fromEntries(Object.entries(rankings).map(([k,xs])=>[k,{total:xs.length,exibidos:Math.min(limite,xs.length),completo:xs.length<=limite}])),

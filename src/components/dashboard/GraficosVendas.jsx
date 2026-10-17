@@ -19,6 +19,8 @@ function Periodicidade({valor,onChange,series}) {
 export function EvolucaoVendas({dados,modo,abrirPeriodo,abrirTodos}) {
   const base=dados.series||{},[grupo,setGrupo]=useState(base.diariaDisponivel&&base.diaria?.length<=62?'dia':'mes');
   const [tipo,setTipo]=useState('linha'),[comparar,setComparar]=useState('');
+  const indisponivel=dados.resumo?.estado==='indisponivel';
+  const ausencia=<p className="dash-empty" role="status">Dados de vendas indisponíveis neste período. Confira a cobertura e a empresa de origem dos registros.</p>;
   const agrupamento=grupo==='dia'&&!base.diariaDisponivel?'mes':grupo;
   const pontos=pontosTemporais(base[CHAVES[agrupamento]]),comparativo=dados.comparacoes?.[comparar];
   const alinhamento=comparativo?.comparavel?alinharComparacaoGrafica({atuais:pontos,anteriores:pontosTemporais(comparativo.series?.[CHAVES[agrupamento]]||[]),agrupamento,tipo:comparar,modo}):null;
@@ -31,8 +33,8 @@ export function EvolucaoVendas({dados,modo,abrirPeriodo,abrirTodos}) {
     controles={<><Periodicidade valor={agrupamento} onChange={setGrupo} series={base}/><AlternadorGrafico rotulo="Tipo de gráfico de vendas" valor={tipo} onChange={setTipo} opcoes={[
       {valor:'linha',nome:'Linhas',icone:<ChartLine size={14}/>},{valor:'barras',nome:'Colunas',icone:<ChartColumn size={14}/>},
     ]}/><label className="chart-select-label">Comparação<select aria-label="Comparação da evolução" value={comparar} onChange={e=>setComparar(e.target.value)}><option value="">Sem comparação</option><option value="anterior" disabled={!dados.comparacoes?.anterior?.comparavel}>Período anterior</option><option value="anoAnterior" disabled={!dados.comparacoes?.anoAnterior?.comparavel}>Mesmo período do ano anterior</option></select></label></>}
-    renderGrafico={()=> <Plot pontos={pontos} series={linhas} tipo={tipo} formatar={moeda} onAbrir={p=>abrirPeriodo(p)}/>}
-    tabela={<TabelaGrafico pontos={pontos} series={linhas} formatar={moeda} abrir={abrirPeriodo}/>}
+    renderGrafico={()=>indisponivel?ausencia:<Plot pontos={pontos} series={linhas} tipo={tipo} formatar={moeda} onAbrir={p=>abrirPeriodo(p)}/>}
+    tabela={indisponivel?ausencia:<TabelaGrafico pontos={pontos} series={linhas} formatar={moeda} abrir={abrirPeriodo}/>}
     onRegistros={abrirTodos} nota={alinhamento?.disponivel?'Períodos alinhados por datas equivalentes. A tabela informa as datas comparadas; dias sem equivalente permanecem sem valor.':alinhamento?.motivo||'Comparações ficam disponíveis quando os dois períodos têm cobertura suficiente. Lacunas não são preenchidas com zero.'}/>
 }
 

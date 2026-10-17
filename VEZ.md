@@ -2,6 +2,8 @@
 
 ## Trabalho atual · Central Comercial e Dashboard
 
+**Ajuste da conferência em produção · 17/10/2026:** cobertura ausente agora mantém o realizado das metas como indisponível, em vez de zero, e a evolução explica a ausência de dados. Zeros comprovados e valores parciais observados permanecem preservados. 75 testes focados, build oficial, lint do componente e diff aprovados. Servidor corrigido publicado primeiro: painel-comercial v71 ACTIVE, 18/18 arquivos idênticos. Interface em publicação; sem recarga ou alteração de dados reais.
+
 Publicação autorizada pelo dono em 17/10/2026 com “subir”, incluindo o refinamento posterior do cabeçalho com Silk e fundo azul-escuro conforme referência. Servidor publicado e conferido antes da interface: painel-comercial v69 ACTIVE, 18/18 arquivos iguais; painel-cache v145 ACTIVE, 1/1 arquivo igual. Cabeçalho conferido em desktop e celular, build oficial aprovado. Sem migração ou alteração manual de registros reais. Vez Codex; publicação em andamento.
 
 Revisão V2 autorizada em 17/10/2026: Compromissos integrado mantendo lateral; migração completa de Resultados e Soluções; gráficos analíticos interativos, cores, tabelas responsivas e controles modernos. Continuidade no mesmo clone/ramo, a partir do commit local 6aa7a27. Execução local coordenada; sem publicação ou alteração de registros reais. Desenho e plano em docs/superpowers/specs/2026-10-17-central-comercial-v2.md e docs/superpowers/plans/2026-10-17-central-comercial-v2.md.
