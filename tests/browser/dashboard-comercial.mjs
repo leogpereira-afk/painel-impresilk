@@ -33,6 +33,7 @@ const abrir=async(query='',perfil='')=>{
   await page.goto(`${base}/revisao-local.html${perfil?`?perfil=${perfil}`:''}#/comercial/dashboard${query?'?'+query:''}`,{waitUntil:'networkidle'});
   await pronto();
 };
+const modo=async valor=>{const nomes={mes:'Mês',ano:'Ano',todos:'Todos os anos',personalizado:'Personalizado'};await page.getByRole('group',{name:'Período',exact:true}).getByRole('button',{name:nomes[valor],exact:true}).click();};
 const filtros=async()=>{const el=principal().locator('.dash-filters');if(await el.getAttribute('open')===null)await el.locator(':scope > summary').click();};
 const ranking=async()=>{const el=principal().locator('.dash-ranking-detail');if(await el.getAttribute('open')===null)await el.locator(':scope > summary').click();};
 const analise=async nome=>{await page.getByRole('navigation',{name:'Análises comerciais',exact:true}).getByRole('button',{name:nome,exact:true}).click();await pronto();};
@@ -63,9 +64,9 @@ try{
 
   await testar('períodos mês, ano e todos os anos conciliam com fixture',async()=>{
     await analise('Panorama');await filtros();
-    for(const modo of ['ano','todos','mes']){
-      await page.getByLabel('Período',{exact:true}).selectOption(modo);
-      const esperado=await respostaDashboardDemo({action:'dashboard',filtro:{modo,mes,ano}}).json();
+    for(const periodo of ['ano','todos','mes']){
+      await modo(periodo);
+      const esperado=await respostaDashboardDemo({action:'dashboard',filtro:{modo:periodo,mes,ano}}).json();
       await esperaKpi('Vendas registradas',moeda(esperado.resumo.centavos));
       assert.equal(await textoKpi('Pedidos'),String(esperado.resumo.pedidos));
     }
@@ -126,7 +127,7 @@ try{
 
   await testar('detalhe mensal preserva período personalizado e vendedor',async()=>{
     const de=`${mes}-10`,ate=`${mes}-15`;
-    await page.getByLabel('Período',{exact:true}).selectOption('personalizado');
+    await modo('personalizado');
     await page.getByLabel('De',{exact:true}).fill(de);
     await page.getByLabel('Até',{exact:true}).fill(ate);
     await filtros();await page.getByLabel('Vendedor',{exact:true}).selectOption('101');

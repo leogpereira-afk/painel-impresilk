@@ -1,6 +1,6 @@
 import {lazy,Suspense,useEffect,useMemo,useState} from 'react';
 import {useSearchParams,Link} from 'react-router-dom';
-import {RefreshCw,BarChart3,Package,Users,Wallet,Target,ArrowUpRight,X} from 'lucide-react';
+import {RefreshCw,BarChart3,Package,Users,Wallet,Target,ArrowUpRight,X,LayoutDashboard,ReceiptText,UserRound,AlarmClock,ChartNoAxesCombined,History,BadgePercent,Lightbulb,Receipt,Percent} from 'lucide-react';
 import {consultarDashboard,invalidarDashboard} from '../services/dashboardComercial.js';
 import Filtros from '../components/dashboard/FiltrosDashboard.jsx';
 import Ranking from '../components/dashboard/RankingDashboard.jsx';
@@ -16,16 +16,21 @@ import './dashboard-comercial.css';
 
 const Resultados=lazy(()=>import('../components/comercial/ResultadosComerciais.jsx'));
 const ABAS=[['resumo','Panorama'],['vendas','Minhas vendas'],['metas','Minhas metas'],['produtos','Produtos'],['vendedores','Vendedores'],['clientes','Clientes'],['atrasos','Atrasos'],['abc','Curva ABC'],['historico','Histórico'],['descontos','Descontos'],['inteligencia','Oportunidades']];
+const ICONES_ANALISES={
+ resumo:[LayoutDashboard,'roxo'],vendas:[ReceiptText,'roxo'],metas:[Target,'azul'],produtos:[Package,'ciano'],
+ vendedores:[UserRound,'azul'],clientes:[Users,'ciano'],atrasos:[AlarmClock,'alerta'],abc:[ChartNoAxesCombined,'azul'],
+ historico:[History,'ciano'],descontos:[BadgePercent,'roxo'],inteligencia:[Lightbulb,'azul'],
+};
 const DIMENSOES={produtos:'produto',vendedores:'vendedor',clientes:'cliente'};
 const SELECOES={vendedor:['Vendedor','vendedores'],cliente:['Cliente','clientes'],produto:['Produto','produtos'],categoria:['Categoria','categorias'],campanha:['Campanha','campanhas'],equipe:['Equipe','equipes']};
 const hojeSP=()=>new Intl.DateTimeFormat('en-CA',{timeZone:'America/Sao_Paulo',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
 const lista=v=>Array.isArray(v)?v:[];
 const estado=v=>typeof v==='string'?v:v?.mensagem||v?.motivo||'Informação não disponível para este recorte.';
 
-function Kpi({titulo,valor,nota,icone:Icone=BarChart3,onClick}) {
+function Kpi({titulo,valor,nota,icone:Icone=BarChart3,acento='roxo',onClick}) {
  const Conteudo=onClick?'button':'article';
- return <Conteudo className={`dash-kpi ${onClick?'dash-kpi-action':''}`} onClick={onClick}>
-  <span><Icone size={16}/>{titulo}{onClick&&<ArrowUpRight size={14} className="dash-kpi-arrow"/>}</span><strong>{valor}</strong><small>{nota}</small>
+ return <Conteudo className={`dash-kpi ${onClick?'dash-kpi-action':''}`} data-acento={acento} onClick={onClick}>
+  <span><span className="dash-kpi-icon" aria-hidden="true"><Icone size={16} aria-hidden="true"/></span>{titulo}{onClick&&<ArrowUpRight size={14} className="dash-kpi-arrow" aria-hidden="true"/>}</span><strong>{valor}</strong><small>{nota}</small>
  </Conteudo>;
 }
 function Comparacao({titulo,dados}) {
@@ -42,7 +47,7 @@ function ComparacoesMensais({dados,abrir}) {
 }
 function Financeiro({dados,onRegistros}) {
  if(!dados||['indisponivel','sem_permissao','nao_aplicavel','filtro_incompativel'].includes(dados.estado))return <section className="dash-card"><h2>Atrasos financeiros</h2><p className="dash-empty">{estado(dados)}</p>{dados?.estado!=='sem_permissao'&&<Link to="/comercial/contas-atrasadas" className="dash-link">Abrir Contas atrasadas</Link>}</section>;
- return <><div className="dash-kpis"><Kpi titulo="Valor vencido" valor={moeda(dados.vencidoCentavos)} nota={dados.criterio||'Saldo vencido em aberto'} icone={Wallet}/><Kpi titulo="Títulos vencidos" valor={numero(dados.titulosVencidos)} nota="Títulos identificados na fonte"/><Kpi titulo="Clientes com atraso" valor={numero(dados.clientes)} nota="Clientes únicos identificados" icone={Users}/><Kpi titulo="Índice de atraso" valor={porcentagem(dados.indiceAtraso)} nota={dados.formula||'Consulte a regra na fonte'}/></div>
+ return <><div className="dash-kpis"><Kpi titulo="Valor vencido" valor={moeda(dados.vencidoCentavos)} nota={dados.criterio||'Saldo vencido em aberto'} icone={Wallet} acento="critico"/><Kpi titulo="Títulos vencidos" valor={numero(dados.titulosVencidos)} nota="Títulos identificados na fonte" icone={Receipt} acento="alerta"/><Kpi titulo="Clientes com atraso" valor={numero(dados.clientes)} nota="Clientes únicos identificados" icone={Users} acento="alerta"/><Kpi titulo="Índice de atraso" valor={porcentagem(dados.indiceAtraso)} nota={dados.formula||'Consulte a regra na fonte'} icone={Percent} acento="critico"/></div>
   <GraficoAtrasos dados={dados} onRegistros={onRegistros}/>{dados.mensagem&&<p className="dash-note">{dados.mensagem}</p>}
  </>;
 }
@@ -93,13 +98,13 @@ function Dashboard({sessao,sessaoChave}) {
   <header className="dash-header"><div><p className="dash-eyebrow">Inteligência comercial</p><h1>Dashboard</h1><p>Resultados, metas e oportunidades da sua carteira.</p></div><div className="dash-header-actions"><label className="sr-only" htmlFor="dash-densidade">Densidade da tela</label><select id="dash-densidade" value={densidade} onChange={e=>setDensidade(e.target.value)}><option value="compacta">Compacto</option><option value="confortavel">Confortável</option></select><button className="btn-outline" onClick={atualizar} disabled={carregando}><RefreshCw size={16}/>{carregando?'Atualizando…':'Atualizar'}</button></div></header>
   <Filtros filtro={filtro} alterar={alterar} catalogo={dados?.catalogo||carga?.dados?.catalogo} abc={aba==='abc'}/>
   <ChipsSelecao filtro={filtro} catalogo={dados?.catalogo||carga?.dados?.catalogo} alterar={alterar}/>
-  <nav className="dash-tabs" aria-label="Análises comerciais">{ABAS.map(([a,n])=><button key={a} aria-current={aba===a?'page':undefined} onClick={()=>alterar({analise:a})}>{n}</button>)}</nav>
+  <nav className="dash-tabs" aria-label="Análises comerciais">{ABAS.map(([a,n])=>{const[Icone,acento]=ICONES_ANALISES[a];return <button key={a} data-acento={acento} aria-current={aba===a?'page':undefined} onClick={()=>alterar({analise:a})}><Icone size={15} aria-hidden="true"/><span>{n}</span></button>;})}</nav>
   {erro&&<p role="alert" className="dash-alert">{erro} <button className="dash-link" onClick={atualizar}>Tentar novamente</button></p>}
   {carregando&&!dados&&<div className="dash-loading" role="status"><div/><div/><div/><p>Consultando o recorte autorizado…</p></div>}
   {dados&&<>
    <div className="dash-context"><span>{dataCurta(dados.periodo?.de)} a {dataCurta(dados.periodo?.ateEfetivo||dados.periodo?.ate)}{dados.periodo?.parcial?' · período em andamento':''}</span><span>Consultado {dados.consultadoEm?new Date(dados.consultadoEm).toLocaleString('pt-BR',{timeZone:'America/Sao_Paulo'}):'—'}</span></div>
    {(alertas.length>0||resumo.empresaNaoIdentificadaPedidos>0)&&<details className="dash-alert"><summary>{resumo.empresaNaoIdentificadaPedidos>0?`${numero(resumo.empresaNaoIdentificadaPedidos)} pedido(s) com origem a conferir, fora dos indicadores`:`${alertas.length} observação(ões) de cobertura`} · ver critérios</summary>{resumo.empresaNaoIdentificadaPedidos>0&&<p>{moeda(resumo.empresaNaoIdentificadaCentavos)} separados por falta de confirmação da empresa.</p>}{alertas.map((a,i)=><p key={i}>{typeof a==='string'?a:a.mensagem||a.descricao}</p>)}</details>}
-   {['resumo','vendas','produtos','vendedores','clientes','descontos'].includes(aba)&&<div className="dash-kpis"><Kpi titulo="Vendas registradas" valor={moeda(resumo.centavos)} nota={resumo.completo===false?'Cobertura parcial · confira os critérios':'Venda líquida · abrir pedidos'} icone={Wallet} onClick={()=>alterar({analise:'vendas'})}/><Kpi titulo="Pedidos" valor={numero(resumo.pedidos)} nota="O.S. únicas · abrir detalhamento" icone={Package} onClick={abrirTodos}/><Kpi titulo="Clientes" valor={numero(resumo.clientes)} nota="Compradores · analisar carteira" icone={Users} onClick={()=>alterar({analise:'clientes'})}/><Kpi titulo="Ticket médio" valor={moeda(resumo.ticketMedio)} nota="Venda líquida ÷ pedidos" icone={Target} onClick={abrirTodos}/></div>}
+   {['resumo','vendas','produtos','vendedores','clientes','descontos'].includes(aba)&&<div className="dash-kpis"><Kpi titulo="Vendas registradas" valor={moeda(resumo.centavos)} nota={resumo.completo===false?'Cobertura parcial · confira os critérios':'Venda líquida · abrir pedidos'} icone={Wallet} onClick={()=>alterar({analise:'vendas'})}/><Kpi titulo="Pedidos" valor={numero(resumo.pedidos)} nota="O.S. únicas · abrir detalhamento" icone={Package} acento="azul" onClick={abrirTodos}/><Kpi titulo="Clientes" valor={numero(resumo.clientes)} nota="Compradores · analisar carteira" icone={Users} acento="ciano" onClick={()=>alterar({analise:'clientes'})}/><Kpi titulo="Ticket médio" valor={moeda(resumo.ticketMedio)} nota="Venda líquida ÷ pedidos" icone={Target} acento="azul" onClick={abrirTodos}/></div>}
    {aba==='resumo'&&<>
     <EvolucaoVendas key={chave} dados={dados} modo={filtro.modo} abrirPeriodo={abrirPeriodo} abrirTodos={abrirTodos}/>
     <div className="dash-comparisons"><Comparacao titulo="Período anterior" dados={dados.comparacoes?.anterior}/><Comparacao titulo="Mesmo período do ano anterior" dados={dados.comparacoes?.anoAnterior}/><article className="dash-comparison"><span>Bruto e descontos</span><strong>{moeda(resumo.brutoCentavos)}</strong><small>Descontos: {moeda(resumo.descontoCentavos)}</small></article></div>

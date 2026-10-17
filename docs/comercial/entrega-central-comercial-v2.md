@@ -44,3 +44,9 @@ Os scripts reproduzíveis ficam em `tests/browser/central-comercial.mjs`, `tests
 - Margem/custo, conciliação e comparações sem fonte suficiente continuam indisponíveis. A cobertura real pode limitar rankings e histórico.
 - Os benchmarks registrados em `dashboard-fontes.md` medem apenas o motor local com dados fictícios. Não são promessa de latência em produção.
 - Publicação depende de autorização posterior. Como a interface utiliza novas ações e campos, é necessário publicar e conferir `painel-comercial` e seus módulos compartilhados antes da interface; depois conferir a versão servida e os fluxos autenticados sem criar dados de teste reais.
+
+## Refinamento do período e dos acentos visuais
+
+Após a revisão da prévia, o período foi retirado do bloco recolhível: Mês, Ano, Todos os anos e Personalizado ficam visíveis, com emojis decorativos e estado acessível. Mês e ano usam seletores claros, setas anterior/próximo e retorno ao período atual. A virada dezembro/janeiro atualiza os dois campos, sem perder a carteira. O modo Todos mostra os anos conhecidos sem prometer cobertura integral. Filtros de vendedor, cliente e produto ficam na área avançada.
+
+Navegação, análises e KPIs receberam ícones e acentos por assunto, com contraste no tema escuro. Verificação deste ajuste: 21 regressões focadas e 18 cenários de navegador aprovados, sem erros JavaScript; build oficial e conferência de classes aprovados. Lint sem erros, com o aviso anterior em Agenda.jsx. Sem alteração dos cálculos, dados reais ou publicação.

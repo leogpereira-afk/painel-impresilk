@@ -6,6 +6,7 @@ import {secoesComerciais,secaoComercialAtual,destinoSecaoComercial,destinoComerc
 import GuardaDeRota from '../components/GuardaDeRota.jsx';
 import {FiltrosCentralContext} from '../hooks/useFiltroCentral.js';
 import './central-comercial.css';
+import './comercial-acentos.css';
 
 const Comercial=lazy(()=>import('./Comercial.jsx'));
 const Compromissos=lazy(()=>import('./Compromissos.jsx'));
@@ -14,6 +15,7 @@ const GlossarioComercial=lazy(()=>import('./GlossarioComercial.jsx'));
 const ContasAtrasadas=lazy(()=>import('./ContasAtrasadas.jsx'));
 const FerramentaBrief=lazy(()=>import('./FerramentaBrief.jsx'));
 const DashboardComercial=lazy(()=>import('./DashboardComercial.jsx'));
+const ACENTOS={visao:'roxo',compromissos:'azul',bancos:'ciano',glossario:'azul',contas:'alerta',brief:'ciano',dashboard:'roxo'};
 const ICONES={visao:LayoutDashboard,compromissos:CalendarCheck,bancos:Landmark,glossario:BookOpen,contas:Clock3,brief:ClipboardList,dashboard:ChartNoAxesCombined};
 
 function TelaAtiva({secao,sessao}) {
@@ -59,7 +61,7 @@ function CentralComercialTela({sessao}) {
     <nav className="central-comercial__nav sem-impressao" aria-label="Central Comercial">
       {secoes.map(s=>{const Icone=ICONES[s.icone];return <Link key={s.id} to={s.id===secao?.id?`${s.caminho}${location.search}${location.hash}`:destinoSecaoComercial(s,memoria.current)}
         className={`central-comercial__link ${s.id==='dashboard'?'central-comercial__link--dashboard':''}`}
-        aria-current={secao?.id===s.id?'page':undefined}><Icone size={17} aria-hidden="true"/><span>{s.nome}</span></Link>;})}
+        data-acento={ACENTOS[s.icone]} aria-current={secao?.id===s.id?'page':undefined}><span className="central-comercial__icone" aria-hidden="true"><Icone size={17} aria-hidden="true"/></span><span>{s.nome}</span></Link>;})}
     </nav>
     <section ref={foco} tabIndex={-1} aria-label={secao?.nome||'Área não encontrada'}
       className={`central-comercial__conteudo ${secao?.id==='brief'?'central-comercial__conteudo--brief':''}`}>

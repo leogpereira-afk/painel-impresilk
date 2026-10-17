@@ -1,0 +1,47 @@
+.dash-filter-panel{border:1px solid var(--cc-line);border-radius:var(--cc-radius);background:var(--cc-surface);min-width:0;overflow:hidden}
+.dash-period{padding:14px 16px;background:linear-gradient(110deg,#f8f7ff,var(--cc-surface) 66%);border-top:3px solid var(--cc-accent)}
+.dash-period-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px}
+.dash-period-title{display:flex;align-items:center;gap:8px;font-size:12px;font-weight:700;color:var(--cc-text)}
+.dash-period-title svg{color:var(--cc-accent)}
+.dash-period-hint{font-size:10px;color:var(--cc-muted)}
+.dash-period-content{display:flex;align-items:center;gap:14px 20px;flex-wrap:wrap;min-width:0}
+.dash-period-modes{display:flex;gap:5px;padding:4px;background:var(--cc-soft);border:1px solid var(--cc-line);border-radius:12px;min-width:0}
+.dash-period-modes button{display:inline-flex;align-items:center;justify-content:center;gap:7px;min-height:42px;padding:8px 12px;border:1px solid transparent;border-radius:9px;font-size:12px;font-weight:600;color:var(--cc-muted);background:transparent;white-space:nowrap;cursor:pointer}
+.dash-period-modes button:hover{color:var(--cc-accent);background:var(--cc-surface)}
+.dash-period-modes button[aria-pressed=true]{color:#fff;background:#5145cd;border-color:#5145cd;box-shadow:0 2px 5px #5145cd26}
+.dash-period-emoji{font-size:17px;line-height:1;flex-shrink:0}
+.dash-period-picker{display:flex;align-items:flex-end;gap:7px;min-width:0;flex:1}
+.dash-period-picker label{min-width:88px;flex:0 1 136px;font-size:10px;gap:3px}
+.dash-period-picker select{min-height:42px;font-size:13px;font-weight:650;padding:8px 9px}
+.dash-period-picker label:has(select[aria-label=Ano]){flex-basis:92px;min-width:82px}
+.dash-period-arrow{display:grid;place-items:center;flex:0 0 36px;width:36px;min-height:42px;border:1px solid var(--cc-line);border-radius:9px;background:var(--cc-surface);color:var(--cc-accent);cursor:pointer}
+.dash-period-arrow:hover:not(:disabled){background:var(--cc-soft);border-color:var(--cc-accent)}
+.dash-period-now{display:flex;align-items:center;justify-content:center;gap:5px;min-height:42px;padding:8px 7px;color:var(--cc-accent);font-size:11px!important;font-weight:600;background:transparent;border:0;border-radius:8px;white-space:nowrap;cursor:pointer}
+.dash-period-now:disabled,.dash-period-arrow:disabled{opacity:.5;cursor:default}
+.dash-period-all{display:flex;align-items:center;gap:10px;min-height:45px;color:var(--cc-text);flex:1;min-width:180px}
+.dash-period-all>span{display:grid;place-items:center;width:36px;height:36px;background:#eaf4ff;border:1px solid #bfd6ef;border-radius:10px;font-size:19px;flex-shrink:0}
+.dash-period-all strong{font-size:12px}.dash-period-all small{display:block;font-size:10px;color:var(--cc-muted);margin-top:4px;line-height:1.6}
+.dash-period-dates{display:flex;gap:9px;align-items:end;min-width:0;flex:1}
+.dash-period-dates label{max-width:170px;flex:1;font-size:10px}.dash-period-dates>span{padding-bottom:11px;color:var(--cc-muted)}
+.dash-filter-panel .dash-filters{border-top:1px solid var(--cc-line);padding:0 16px;background:var(--cc-surface)}
+.dash-filter-panel .dash-filters>summary{display:flex;align-items:center;gap:8px;list-style:none;min-height:43px;font-size:11px;cursor:pointer;color:var(--cc-muted)}
+.dash-filter-panel .dash-filters>summary::-webkit-details-marker{display:none}
+.dash-filter-count{font-size:10px;font-weight:400;margin-left:4px;line-height:1.5}
+.dash-filter-chevron{margin-left:auto;flex-shrink:0}.dash-filters[open] .dash-filter-chevron{transform:rotate(180deg)}
+.dash-filter-panel .dash-filter-grid{margin-top:2px;margin-bottom:14px}
+.dash-filter-label{display:flex;align-items:center;gap:5px}.dash-filter-label svg{color:var(--cc-accent)}
+.dash-filter-panel .dash-clear{display:flex;align-items:center;justify-content:center;gap:6px}
+.dark .dash-period{background:linear-gradient(110deg,#211f38,var(--cc-surface) 75%)}
+.dark .dash-period-all>span{background:#1a3049;border-color:#375675}
+@media(max-width:700px){
+ .dash-period{padding:12px}.dash-period-head{margin-bottom:10px}.dash-period-hint{display:none}.dash-period-content{gap:12px}
+ .dash-period-modes{width:100%;display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}.dash-period-modes button{padding:7px 8px}
+ .dash-period-picker{display:grid;width:100%;grid-template-columns:30px minmax(0,1fr) 30px;align-items:end}
+ .dash-period-picker:has(select[aria-label=Mês]){grid-template-columns:30px minmax(98px,1fr) 78px 30px}
+ .dash-period-picker label,.dash-period-picker label:has(select[aria-label=Ano]){min-width:0}
+ .dash-period-picker select{font-size:12px;padding-left:7px;padding-right:5px}.dash-period-picker .dash-period-arrow{width:30px}
+ .dash-period-picker .dash-period-now{grid-column:1/-1;justify-self:end;margin-left:0;min-height:32px}
+ .dash-period-dates{width:100%}.dash-period-dates label{max-width:none}
+ .dash-filter-panel .dash-filters{padding:0 12px}.dash-filter-count{max-width:125px}.dash-filter-panel .dash-filter-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media print{.dash-filter-panel{display:none}}
