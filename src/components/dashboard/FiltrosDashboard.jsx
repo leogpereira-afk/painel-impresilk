@@ -1,0 +1,10 @@
+export default function FiltrosDashboard({filtro,alterar,catalogo={},abc=false}){
+ const select=(campo,rotulo,opcoes)=><label key={campo}>{rotulo}<select value={filtro[campo]||''} onChange={e=>alterar({[campo]:e.target.value})}><option value="">Todos</option>{(opcoes||[]).map(o=><option key={o.id??o.nome??o} value={o.id??o.nome??o}>{o.nome??o}</option>)}</select></label>;
+ return <details className="dash-card dash-filters" open><summary>Período e filtros</summary><div className="dash-filter-grid"><label>Período<select value={filtro.modo} onChange={e=>alterar({modo:e.target.value})}><option value="mes">Mês</option><option value="ano">Ano</option><option value="todos">Todos os anos disponíveis</option><option value="personalizado">Personalizado</option></select></label>
+ {filtro.modo==='mes'&&<label>Mês<input type="month" value={filtro.mes} onChange={e=>alterar({mes:e.target.value})}/></label>}
+ {filtro.modo==='ano'&&<label>Ano<input type="number" min="2000" max="2100" value={filtro.ano} onChange={e=>alterar({ano:e.target.value})}/></label>}
+ {filtro.modo==='personalizado'&&<><label>De<input type="date" value={filtro.de} onChange={e=>alterar({de:e.target.value})}/></label><label>Até<input type="date" value={filtro.ate} onChange={e=>alterar({ate:e.target.value})}/></label></>}
+ {select('vendedor','Vendedor',catalogo.vendedores)}{select('cliente','Cliente',catalogo.clientes)}{select('produto','Produto',catalogo.produtos)}{select('categoria','Categoria',catalogo.categorias)}{select('campanha','Campanha',catalogo.campanhas)}
+ {abc&&<><label>Faixa A · até (%)<input type="number" min="1" max="98" value={filtro.abcA} onChange={e=>alterar({abcA:Number(e.target.value)})}/></label><label>Faixa B · até (%)<input type="number" min="2" max="99" value={filtro.abcB} onChange={e=>alterar({abcB:Number(e.target.value)})}/></label></>}
+ <button type="button" className="dash-clear" onClick={()=>alterar({vendedor:'',cliente:'',produto:'',categoria:'',campanha:''})}>Limpar filtros de seleção</button></div></details>;
+}

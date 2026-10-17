@@ -3,6 +3,7 @@ import {verificarJwt,crachaRevogado} from '../_shared/cripto.ts';
 import {consultarClientes} from '../_shared/consulta-clientes.mjs';
 import {clienteBasico,vendedorOriginalPosVenda} from '../_shared/relacionamento-comercial.mjs';
 import {contextoComercial} from '../_shared/comercial-contexto.ts';
+import {consultarDashboard} from '../_shared/comercial-dashboard-consulta.ts';
 import {mesclarOrdensComerciais,janelasHistoricas} from '../_shared/carteira-historica.mjs';
 import {consultarFinanceiroComercial,detalharVendasCliente,paginarVendasCliente,projetarVendaCliente,timelineContatosCliente,pedidosPosVendaPendentes} from '../_shared/comercial-consultas.ts';
 import {consultarOperacoesComerciais,enriquecerVendasOperacao} from '../_shared/comercial-operacao.ts';
@@ -21,7 +22,9 @@ Deno.serve(async(req:Request)=>{
  if(!sessao||await crachaRevogado(sb,'painel',sessao))return json({erro:'Entre novamente no Painel.',semSessao:true},401);
  if(!sessao.master && !(sessao.perms||[]).includes('*') && !(sessao.perms||[]).includes('orcamentos'))return json({erro:'Seu acesso não inclui o Comercial.'},403);
  try{
-  const b=await req.json();if(!b||typeof b!=='object')return json({erro:'Solicitação inválida.'},400);const filtro=b.filtro||{},hoje=hojeLocal(),periodo=validarPeriodo(filtro,hoje);
+  const b=await req.json();if(!b||typeof b!=='object')return json({erro:'Solicitação inválida.'},400);const filtro=b.filtro||{},hoje=hojeLocal();
+  if(b.action==='dashboard'||b.action==='dashboardDetalhe')return json(await consultarDashboard(sb,sessao,b,hoje));
+  const periodo=validarPeriodo(filtro,hoje);
   let anteriorAcao:any=null;
   if(b.action==='salvarAcao'){const {data,error}=await sb.from('painel_registros').select('registro').eq('colecao','comercial_acoes').eq('id',String(b.acao?.id||'')).maybeSingle();if(error)throw error;anteriorAcao=data;}
   const ctx=await contextoComercial(sb,sessao,filtro,{hoje,clienteId:b.clienteId||b.acao?.clienteId||anteriorAcao?.registro?.clienteId,pedidoId:b.ordemId,posVenda:b.action==='consultarPosVenda',detalharCliente:b.action==='contextoRelacionamento',operacaoCliente:['contextoRelacionamento','salvarAcao'].includes(b.action),historico:!['salvarMeta','configurar','consultarClientes'].includes(b.action)});const {escopo,catalogo,config,orcamentos,clientes,fontes,coberturaHistorica}=ctx;

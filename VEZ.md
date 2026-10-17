@@ -1,5 +1,11 @@
 # Vez do Painel Impresilk
 
+## Trabalho atual · Central Comercial e Dashboard
+
+Agente: codex. Implementação autorizada em 17/10/2026 pelo dono, com desenho aprovado no prompt: Visão geral, ferramentas integradas, Dashboard histórico, inteligência explicável e desempenho. Clone /tmp/painel-central-comercial-20261017. Trabalho local em frentes coordenadas de navegação, backend e interface, com auditoria independente. Sem publicação, migração ou alteração de registros reais.
+
+Implementado e verificado localmente em 17/10/2026, ramo codex/central-comercial, base 0f6ce56. Navegação centralizada, telas sob demanda, Dashboard com oito análises, filtros, detalhe conciliado, ABC, metas, oportunidades explicáveis e fontes/cobertura visíveis. Verificação: 1.521 regressões gerais; rodada focada e cálculos com 879 testes (há sobreposição, não somar); 7 testes de acessos; 11 cenários de Dashboard no navegador, navegação desktop/mobile e revisão independente. Build oficial aprovado, 15 verificadores aprovados, lint sem erros e apenas aviso anterior em Agenda.jsx. O conferir-sistemas foi refeito com equipe-auth da main atual de vida-leo porque a cópia local de setembro estava desatualizada. Sem publicação. Histórico sem empresa confirmada, unidades, custos e vínculos ausentes continuam sinalizados; detalhamento em docs/comercial/entrega-central-comercial.md. Próxima etapa depende de autorização específica para publicar; servidor deve anteceder a tela.
+
 ## Trabalho atual · Planejamento de campanhas e resumo dos produtos
 
 Agente: codex. Escopo aprovado pelo dono em 17/10/2026: resumo antes de selecionar O.S., considerações, estratégia e próximas ações com responsável e datas no calendário interno. Clone /tmp/painel-campanhas-20261017. Implementação e testes locais; publicação autorizada pelo dono em 17/10/2026 com “subir”. Preservar registros e regras de seleção existentes.

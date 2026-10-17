@@ -5,6 +5,7 @@ import {clienteBasico} from '../../supabase/functions/_shared/relacionamento-com
 import {consultarClientes} from '../../supabase/functions/_shared/consulta-clientes.mjs';
 import {apurarCarteiraHistorica} from '../../supabase/functions/_shared/carteira-historica.mjs';
 import {apurarComercial,resolverEscopo,pertence,validarAcao,validarMeta,metaDoPeriodo} from '../../supabase/functions/_shared/comercial.mjs';
+import {respostaDashboardDemo} from './dashboard.mjs';
 const hoje=new Date().toLocaleDateString('en-CA',{timeZone:'America/Sao_Paulo'}),mes=hoje.slice(0,7),ano=Number(hoje.slice(0,4));
 const vendedores=[{id:'101',nome:'Ana Exemplo'},{id:'102',nome:'Beatriz Exemplo'}];
 const produtos=[{id:'p1',nome:'Fachada em ACM',categoria:'Fachadas',descricao:'Acabamento para fachadas comerciais',unidade:'m²'},{id:'p2',nome:'Adesivo impresso',categoria:'Adesivos',descricao:'Comunicação visual interna e externa',unidade:'m²'},{id:'p3',nome:'Placa de sinalização',categoria:'Sinalização',descricao:'Identificação de ambientes',unidade:'un'}];
@@ -33,6 +34,7 @@ const contatoConcluido={em:hoje+'T10:00:00Z',autor:'Ana Exemplo',resultadoContat
 acoes.push(posDemo(3,{status:'concluida',resultado:contatoConcluido.resultado,relatoAtendimento:contatoConcluido.relatoAtendimento,contatoEm:contatoConcluido.em,contatos:[contatoConcluido]}));
 const metas=[];
 export function respostaComercial(b,sessao={sub:'demo',master:true}){try{
+ if(['dashboard','dashboardDetalhe'].includes(b.action))return respostaDashboardDemo(b,sessao);
  if(b.action==='consultarClientes')return Response.json(consultarClientes({valor:{completo:true,clientes:Object.fromEntries(clientes.map(c=>[c.id,c]))},atualizado_em:new Date().toISOString()},b));
  const escopo=resolverEscopo(sessao, {vendedores},config,b.filtro);
  const os=ordens.filter(o=>pertence(o,escopo)),orcs=orcamentos.filter(o=>pertence(o,escopo));

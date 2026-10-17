@@ -5,6 +5,7 @@ import {podeAbrir,ehDirecao} from '../lib/sessao.js';
 import {SISTEMAS} from '../lib/sistemas.js';
 import {destinoPatrimonio} from '../lib/calc/navegacao-patrimonio.js';
 import {MODULOS} from '../lib/modulos.js';
+import {destinoCentralComercial,ehRotaComercial} from '../lib/calc/navegacao-comercial.js';
 import Silk from './Silk.jsx';
 import './central-shell.css';
 
@@ -23,14 +24,16 @@ export default function CentralShell({children,sessao,aoSair,controles}) {
   const naCentral = ['/acessos','/minha-conta','/backups','/configuracoes'].includes(location.pathname);
   // `documentos` agora e um modulo como os outros (src/lib/modulos.js): sai
   // do acrescimo a mao, que o punha no menu de TODA sessao, e entra no filtro.
-  const modulos = MODULOS.filter(m=>!['configuracoes','agenda','calendario-empresa','compromissos','reunioes','demandas','manutencoes','inventario-valores','seguranca','documentos-pessoais'].includes(m.id) && (m.id==='patrimonio' ? !!destinoPatrimonio((podeAbrir('patrimonio',sessao)||podeAbrir('inventario-valores',sessao)||podeAbrir('seguranca',sessao)),podeAbrir('manutencoes',sessao)) : podeAbrir(m.id,sessao)));
+  const modulos = MODULOS.filter(m=>!['orcamentos','bancos','glossario','contas-atrasadas','configuracoes','agenda','calendario-empresa','compromissos','reunioes','demandas','manutencoes','inventario-valores','seguranca','documentos-pessoais'].includes(m.id) && (m.id==='patrimonio' ? !!destinoPatrimonio((podeAbrir('patrimonio',sessao)||podeAbrir('inventario-valores',sessao)||podeAbrir('seguranca',sessao)),podeAbrir('manutencoes',sessao)) : podeAbrir(m.id,sessao)));
   const gruposAcesso = [
     {nome:'IMPRESILK', links:SISTEMAS.filter(s=>!['painel','brief'].includes(s.id) && !s.pessoal && s.url)},
     {nome:'CENTRAL DO LÉO', links:SISTEMAS.filter(s=>s.id==='central')},
   ].filter((g,i)=>i===0 || ehDirecao(sessao) || review);
   const noCalendario=['/agenda','/calendario-empresa','/reunioes','/demandas','/consultorias'].includes(location.pathname);
   const calendarioDestino=podeAbrir('calendario-empresa',sessao)?'/calendario-empresa':podeAbrir('agenda',sessao)?'/agenda':podeAbrir('reunioes',sessao)?'/reunioes':'/demandas';
-  const titulo = (location.pathname.startsWith('/orcamentos') || location.pathname==='/comercial') ? 'Comercial' : location.pathname.startsWith('/patrimonio') ? 'Patrimônio' : noCalendario ? 'Calendário' : naCentral ? 'Sistemas e configurações' : MODULOS.find(m=>`/${m.id}`===location.pathname)?.nome || 'Início';
+  const naComercial=ehRotaComercial(location.pathname);
+  const comercialDestino=destinoCentralComercial(m=>podeAbrir(m,sessao));
+  const titulo = naComercial ? 'Central Comercial' : location.pathname.startsWith('/patrimonio') ? 'Patrimônio' : noCalendario ? 'Calendário' : naCentral ? 'Sistemas e configurações' : MODULOS.find(m=>`/${m.id}`===location.pathname)?.nome || 'Início';
   useEffect(()=>setMenu(false),[location.pathname,location.search]);
   useEffect(()=>{
     if(!menu)return;
@@ -69,8 +72,9 @@ export default function CentralShell({children,sessao,aoSair,controles}) {
       </details>
       <div className="review-sidebar-scroll">
         <details key={`modulos-${location.pathname}`} open><summary>MÓDULOS DO PAINEL <ChevronRight size={15}/></summary>
-          <nav aria-label="Módulos do painel">{modulos.map(m=>{return <NavLink key={m.id} to={m.id==='orcamentos'?'/comercial':m.id==='patrimonio'?destinoPatrimonio((podeAbrir('patrimonio',sessao)||podeAbrir('inventario-valores',sessao)||podeAbrir('seguranca',sessao)),podeAbrir('manutencoes',sessao)):`/${m.id}`} end={false} className={({isActive})=>(isActive || (m.id==='orcamentos'&&location.pathname.startsWith('/orcamentos')))?'selected':''}><span className="review-link-emoji" aria-hidden="true">{EMOJIS_MODULOS[m.id]||"📁"}</span><span>{m.nome}</span></NavLink>;})}
-            <NavLink to="/brief"><span className="review-link-emoji" aria-hidden="true">📏</span><span>Brief</span></NavLink>
+          <nav aria-label="Módulos do painel">
+            {comercialDestino&&<Link to={comercialDestino} className={naComercial?'selected':''} aria-current={naComercial?'page':undefined}><span className="review-link-emoji" aria-hidden="true">📋</span><span>Comercial</span></Link>}
+            {modulos.map(m=>{return <NavLink key={m.id} to={m.id==='orcamentos'?'/comercial':m.id==='patrimonio'?destinoPatrimonio((podeAbrir('patrimonio',sessao)||podeAbrir('inventario-valores',sessao)||podeAbrir('seguranca',sessao)),podeAbrir('manutencoes',sessao)):`/${m.id}`} end={false} className={({isActive})=>(isActive || (m.id==='orcamentos'&&location.pathname.startsWith('/orcamentos')))?'selected':''}><span className="review-link-emoji" aria-hidden="true">{EMOJIS_MODULOS[m.id]||"📁"}</span><span>{m.nome}</span></NavLink>;})}
             <NavLink to="/layout"><span className="review-link-emoji" aria-hidden="true">🗂️</span><span>Layout</span></NavLink>
           </nav>
         </details>

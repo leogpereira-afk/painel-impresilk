@@ -85,14 +85,14 @@ test('acesso total escolhe um único calendário e respeita o mês dos filtros t
  assert.equal(links.filter(l=>l.texto==='Compromissos').length,1);
 });
 
-test('as duas entradas do Comercial fornecem a sessão usada nos atalhos e preservam a guarda',()=>{
+test('Central recebe a sessão vigente e as rotas antigas preservam a guarda',()=>{
  const app=readFileSync(new URL('../src/App.jsx',import.meta.url),'utf8');
- for(const rota of ['/comercial','/orcamentos']){
-  const linha=app.split('\n').find(l=>l.includes(`path="${rota}"`));
-  assert.ok(linha,`rota ${rota} existente`);
-  assert.match(linha,/<Comercial\s+sessao=\{sessao\}/,`${rota} deve fornecer a sessão vigente`);
-  assert.match(linha,/<Restrito\s+modulo="orcamentos"\s+sessao=\{sessao\}/,`${rota} deve preservar a permissão da área`);
- }
+ const central=readFileSync(new URL('../src/pages/CentralComercial.jsx',import.meta.url),'utf8');
+ assert.match(app,/path="\/comercial\/\*" element=\{<CentralComercial sessao=\{sessao\}/);
+ assert.match(app,/path="\/orcamentos" element=\{<Restrito modulo="orcamentos" sessao=\{sessao\}><ComercialAntigo/);
+ assert.match(central,/secoesComerciais\(m=>podeAbrir\(m,sessao\)\)/);
+ assert.match(central,/<Comercial sessao=\{sessao\} integrada/);
+ assert.match(central,/!permitida\?/,'acesso direto sem permissão deve mostrar recusa antes de montar tela');
 });
 
 // O atalho abre a mesma rota interna da lateral; a autenticação

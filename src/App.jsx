@@ -1,6 +1,6 @@
-import FerramentaBrief from './pages/FerramentaBrief.jsx';
 import NavegacaoPatrimonio from './components/patrimonio/Navegacao.jsx';
 import {redirecionarManutencoes} from './lib/calc/navegacao-patrimonio.js';
+import {redirecionarComercial} from './lib/calc/navegacao-comercial.js';
 import CalendarioAbas from './components/CalendarioAbas.jsx';
 // Sem sessao, o painel inteiro e a tela de login -- nem o Layout monta. Assim
 // nenhuma rota "vaza" por digitar o endereco direto.
@@ -24,18 +24,16 @@ import Login from "./pages/Login.jsx";
    diferenca entre abrir e desistir.
    Login e Home ficam estaticos de proposito: sao a primeira coisa que todo
    mundo ve, e adiar o que ja vai ser pedido so acrescenta uma ida a rede. */
-const ContasAtrasadas = lazy(() => import("./pages/ContasAtrasadas.jsx"));
-const Comercial = lazy(() => import("./pages/Comercial.jsx"));
+const CentralComercial = lazy(() => import("./pages/CentralComercial.jsx"));
+const FerramentaBrief = lazy(() => import("./pages/FerramentaBrief.jsx"));
 const Orcamentos = lazy(() => import("./pages/Orcamentos.jsx"));
 const Configuracoes = lazy(() => import("./pages/Configuracoes.jsx"));
 const Acessos = lazy(() => import("./pages/Acessos.jsx"));
 const Backups = lazy(() => import("./pages/Backups.jsx"));
 const Ativos = lazy(() => import("./pages/Ativos.jsx"));
 const Planilhas = lazy(() => import("./pages/Planilhas.jsx"));
-const Bancos = lazy(() => import("./pages/Bancos.jsx"));
 const Marketing = lazy(() => import("./pages/Marketing.jsx"));
 const Licitacoes = lazy(() => import("./pages/Licitacoes.jsx"));
-const Glossario = lazy(() => import("./pages/Glossario.jsx"));
 const Compromissos = lazy(() => import("./pages/Compromissos.jsx"));
 const Manutencoes = lazy(() => import("./pages/Manutencoes.jsx"));
 const Permutas = lazy(() => import("./pages/Permutas.jsx"));
@@ -47,52 +45,8 @@ const ColaborarProcesso = lazy(() => import("./pages/ColaborarProcesso.jsx"));
 const Reunioes = lazy(() => import("./pages/Reunioes.jsx"));
 const CalendarioEmpresa = lazy(() => import("./pages/CalendarioEmpresa.jsx"));
 
-/* PREFETCH EM OCIOSIDADE: depois que a tela atual assentou, os chunks das
-   OUTRAS rotas descem em segundo plano -- e o clique seguinte abre do disco,
-   sem a ida à rede no meio do gesto. requestIdleCallback para não competir
-   com nada que o usuário esteja vendo; 2s de atraso para o boot de dados
-   (que importa mais) passar na frente; só com sessão, porque na tela de
-   login nada disso será usado. Com o service worker, o prefetch de hoje é a
-   revisita instantânea de amanhã. Falha é silenciosa de propósito: prefetch
-   é aposta, não promessa. */
-/* SÓ O QUE A PESSOA PODE ABRIR. A lista era fixa e baixava as treze telas
-   para todo mundo: uma vendedora com só "orcamentos" liberado puxava Gestão,
-   Campanhas (a maior do projeto), Patrimônio, Permutas... telas que a própria
-   rota dela recusa com "Você não tem acesso a este módulo". No 4G isso
-   desfazia justamente o ganho da divisão por rota. Rota sem módulo (o
-   glossário) alcança todo mundo. */
-const ROTAS_PREFETCH = [
-  { m: "contas-atrasadas", imp: () => import("./pages/ContasAtrasadas.jsx") },
-  { m: "orcamentos", imp: () => import("./pages/Comercial.jsx") },
-  { m: "compromissos", imp: () => import("./pages/Compromissos.jsx") },
-  { m: "agenda", imp: () => import("./pages/Agenda.jsx") },
-  { m: "calendario-empresa", imp: () => import("./pages/CalendarioEmpresa.jsx") },
-  { m: "permutas", imp: () => import("./pages/Permutas.jsx") },
-  { m: "campanhas", imp: () => import("./pages/Campanhas.jsx") },
-  { m: "manutencoes", imp: () => import("./pages/Manutencoes.jsx") },
-  { m: "bancos", imp: () => import("./pages/Bancos.jsx") },
-  { m: "patrimonio", imp: () => import("./pages/Patrimonio.jsx") },
-  { m: "documentos", imp: () => import("./pages/Ativos.jsx") },
-  { m: "planilhas", imp: () => import("./pages/Planilhas.jsx") },
-  { m: "licitacoes", imp: () => import("./pages/Licitacoes.jsx") },
-  { m: "marketing", imp: () => import("./pages/Marketing.jsx") },
-  { m: null, imp: () => import("./pages/Glossario.jsx") },
-];
-let prefetchFeito = false;
-function prefetchRotas() {
-  if (prefetchFeito) return;
-  prefetchFeito = true;
-  const idle = window.requestIdleCallback || ((fn) => setTimeout(fn, 1));
-  // Um por vez, cada um no seu pedaço de ociosidade: treze de uma vez
-  // disputariam a banda exatamente com o boot dos dados.
-  const fila = ROTAS_PREFETCH.filter((r) => !r.m || podeAbrir(r.m)).map((r) => r.imp);
-  const proximo = () => {
-    const imp = fila.shift();
-    if (!imp) return;
-    imp().catch(() => {}).finally(() => idle(proximo));
-  };
-  setTimeout(() => idle(proximo), 2000);
-}
+// Cada área carrega por uso. Baixar todas as rotas após o login concorria
+// com a consulta inicial e trazia módulos que a pessoa talvez nem abrisse.
 
 import { getSessao, aoMudarSessao, podeAbrir, ehDirecao, podeConfigurar } from "./lib/sessao.js";
 import { Card } from "./components/ui.jsx";
@@ -100,6 +54,11 @@ import { Card } from "./components/ui.jsx";
 function ManutencoesAntigas() {
   const {search} = useLocation();
   return <Navigate to={redirecionarManutencoes(search)} replace />;
+}
+
+function ComercialAntigo() {
+  const {pathname,search,hash,state} = useLocation();
+  return <Navigate to={redirecionarComercial(pathname,search,hash)} state={state} replace />;
 }
 
 function SemAcesso() {
@@ -132,8 +91,6 @@ export default function App() {
   // por sessao expirada dentro de uma chamada de dados).
   useEffect(() => aoMudarSessao(() => setSessao(getSessao())), []);
 
-  // Com sessão na mão, as outras telas descem em segundo plano (ver ROTAS_PREFETCH).
-  useEffect(() => { if (sessao && !colaboracao) prefetchRotas(); }, [sessao,colaboracao]);
 
   /* GuardaDeRota em volta de todo Suspense de rota: sem ela, a tela que não
      carrega (arquivo antigo pedido depois de uma publicação nova) deixava o
@@ -176,14 +133,14 @@ export default function App() {
           path="/contas-atrasadas"
           element={
             <Restrito modulo="contas-atrasadas" sessao={sessao}>
-              <ContasAtrasadas />
+              <ComercialAntigo />
             </Restrito>
           }
         />
-        <Route path="/brief" element={<FerramentaBrief tipo="brief" />} />
+        <Route path="/brief" element={<ComercialAntigo />} />
         <Route path="/layout" element={<FerramentaBrief tipo="layout" />} />
-        <Route path="/comercial" element={<Restrito modulo="orcamentos" sessao={sessao}><Comercial sessao={sessao} /></Restrito>} />
-        <Route path="/orcamentos" element={<Restrito modulo="orcamentos" sessao={sessao}><Comercial sessao={sessao} /></Restrito>} />
+        <Route path="/comercial/*" element={<CentralComercial sessao={sessao} />} />
+        <Route path="/orcamentos" element={<Restrito modulo="orcamentos" sessao={sessao}><ComercialAntigo /></Restrito>} />
         <Route
           path="/orcamentos/mesa"
           element={
@@ -205,7 +162,7 @@ export default function App() {
           path="/bancos"
           element={
             <Restrito modulo="bancos" sessao={sessao}>
-              <Bancos />
+              <ComercialAntigo />
             </Restrito>
           }
         />
@@ -295,7 +252,7 @@ export default function App() {
           path="/glossario"
           element={
             <Restrito modulo="glossario" sessao={sessao}>
-              <Glossario />
+              <ComercialAntigo />
             </Restrito>
           }
         />

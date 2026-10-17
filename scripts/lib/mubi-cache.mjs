@@ -16,6 +16,15 @@ import { mubiGetTudo, hojeMais, num } from "./mubi.js";
 
 // ---- normalizacoes (campos reais do Mubisys, confirmados em 2026-07-14) ----
 
+// `empresa` é texto nas respostas medidas de O.S. e orçamento (11/10/2026).
+// A conta da API pode conter mais de uma empresa. Nunca inferir a emissora
+// pelo cliente, vendedor ou credencial; ID não é fornecido por este contrato.
+// Chave ausente distingue cargas antigas de uma origem explicitamente vazia.
+function empresaDaOrigem(registro) {
+  if (!Object.hasOwn(registro, 'empresa')) return {};
+  return { empresaNome: typeof registro.empresa === 'string' ? registro.empresa.trim().slice(0, 180) || null : null, empresaId: null };
+}
+
 /* O CONTROLE: quanto cada fonte ABATEU nesta carga.
  *
  * Existe porque este defeito ja apareceu TRES vezes, em tres lugares, com a
@@ -209,6 +218,7 @@ export function normOrcamento(o, i) {
   const vendedor = String(o.vendedor || "").trim() || "Sem vendedor";
   return {
     id: String(o.id ?? `orc-${i}`),
+    ...empresaDaOrigem(o),
     numero: String(o.sequencial_orcamento || o.id || ""),
     cliente: String(o.cliente || "Cliente"),
     clienteId: String(o.cliente_id ?? ""),
@@ -298,6 +308,7 @@ export function normOS(os, i, categoriaPorNome) {
 
   return {
     id: String(os.id ?? `os-${i}`),
+    ...empresaDaOrigem(os),
     numero: String(os.sequencial_ordem || os.sequencial_orcamento || os.id || ""),
     // Campo `tipo` do ERP (Normal / Retrabalho / Amostra / Cortesia).
     // Sem ele, um pedido de retrabalho parecia uma nova venda não quitada.

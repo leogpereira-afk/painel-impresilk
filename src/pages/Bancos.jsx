@@ -1,3 +1,4 @@
+import {useFiltroCentral} from '../hooks/useFiltroCentral.js';
 // Bancos e Pix: contas, CNPJs e chaves de todas as empresas.
 //
 // O que a tela precisa fazer bem: alguem pede os dados no WhatsApp e voce
@@ -485,7 +486,7 @@ export default function Bancos() {
   const [mapa, setMapa] = useState(null); // {id: conta}
   const [erro, setErro] = useState(null);
   const [aviso, setAviso] = useState(null);
-  const [busca, setBusca] = useState("");
+  const [busca, setBusca] = useFiltroCentral('Bancos:busca',"");
   const [copiado, setCopiado] = useState(null);
   const [form, setForm] = useState(null); // null = formulario fechado
   const [salvando, setSalvando] = useState(false);

@@ -24,7 +24,7 @@ export default function Layout({ children, sessao }) {
   const [escuro, alternarTema] = useTema();
   const { modoDemo, atualizadoEm, recarregar, carregando, falhaSync, limparFalhaSync,
           fontesQueFalharam = [] } = useApp();
-  const mostraErp = ["/contas-atrasadas", "/orcamentos", "/marketing"].includes(location.pathname);
+  const mostraErp = ["/contas-atrasadas", "/comercial/contas-atrasadas", "/orcamentos", "/marketing"].includes(location.pathname);
   const f = modoDemo ? null : frescor(atualizadoEm);
 
   // Relogio: sem isto a idade do cache so era recalculada quando os dados

@@ -1,3 +1,4 @@
+import {useFiltroCentral} from '../hooks/useFiltroCentral.js';
 import { useAbaNavegavel } from "../hooks/useAbaNavegavel.js";
 // Contas Atrasadas: quem esta devendo, por que, e o que fazer agora.
 // Conclusao primeiro. Todo o calculo vem de calcContasAtrasadas e recalcula ao
@@ -287,36 +288,36 @@ export default function ContasAtrasadas() {
 
   // Duas abas: a lista de cobrança (o trabalho) e a análise (a reunião).
   const [aba, setAba] = useAbaNavegavel("cobranca", ["lista", "cobranca", "vendas", "analise"]);
-  const [maisFiltros, setMaisFiltros] = useState(false);
-  const [filtro, setFiltro] = useState("todos");
-  const [diasMin, setDiasMin] = useState(30);
-  const [busca, setBusca] = useState("");
-  const [faixaSel, setFaixaSel] = useState(null); // {faixa, de, ate}
+  const [maisFiltros, setMaisFiltros] = useFiltroCentral('ContasAtrasadas:maisFiltros',false);
+  const [filtro, setFiltro] = useFiltroCentral('ContasAtrasadas:filtro',"todos");
+  const [diasMin, setDiasMin] = useFiltroCentral('ContasAtrasadas:diasMin',30);
+  const [busca, setBusca] = useFiltroCentral('ContasAtrasadas:busca',"");
+  const [faixaSel, setFaixaSel] = useFiltroCentral('ContasAtrasadas:faixaSel',null); // {faixa, de, ate}
   const [expandido, setExpandido] = useState(null); // id do titulo aberto
   // Padrao = vencimento mais RECENTE: e o que acabou de vencer, onde a cobranca
   // ainda tem chance real de recuperar. O historico antigo continua a um clique
   // no seletor.
-  const [ordem, setOrdem] = useState("recentes"); // valor | recentes | antigos | atraso
-  const [venceDe, setVenceDe] = useState(""); // periodo de vencimento (YYYY-MM-DD)
-  const [venceAte, setVenceAte] = useState("");
+  const [ordem, setOrdem] = useFiltroCentral('ContasAtrasadas:ordem',"recentes"); // valor | recentes | antigos | atraso
+  const [venceDe, setVenceDe] = useFiltroCentral('ContasAtrasadas:venceDe',""); // periodo de vencimento (YYYY-MM-DD)
+  const [venceAte, setVenceAte] = useFiltroCentral('ContasAtrasadas:venceAte',"");
   // A tela abre em "Todos" para TODO MUNDO. Ja tentamos abrir na carteira de
   // quem entrou (lendo o vendedor da sessao) e foi pior: nenhuma conta tem
   // vendedor ligado, entao a pre-selecao nunca acontecia e so restava a
   // aparencia de defeito. Quem quiser a propria carteira escolhe no seletor.
-  const [vendedorSel, setVendedorSel] = useState(""); // carteira de um vendedor
-  const [anoSel, setAnoSel] = useState(""); // ano de vencimento (AAAA)
-  const [mesSel, setMesSel] = useState(""); // mes de vencimento (01-12)
-  const [visao, setVisao] = useState("mes"); // dash das dividas: ano | mes | cliente
+  const [vendedorSel, setVendedorSel] = useFiltroCentral('ContasAtrasadas:vendedorSel',""); // carteira de um vendedor
+  const [anoSel, setAnoSel] = useFiltroCentral('ContasAtrasadas:anoSel',""); // ano de vencimento (AAAA)
+  const [mesSel, setMesSel] = useFiltroCentral('ContasAtrasadas:mesSel',""); // mes de vencimento (01-12)
+  const [visao, setVisao] = useFiltroCentral('ContasAtrasadas:visao',"mes"); // dash das dividas: ano | mes | cliente
 
   /* A CARTEIRA DE COBRANÇA. Carregada uma vez, à parte do cache do ERP: são as
      anotações da direção, não dado do Mubisys. */
   const [cobrancas, setCobrancas] = useState(null);
   const [clienteAberto, setClienteAberto] = useState(null);
-  const [buscaCob, setBuscaCob] = useState("");
-  const [prioridadeFiltro, setPrioridadeFiltro] = useState("");
-  const [ordemCob, setOrdemCob] = useState("acao");
-  const [deCob, setDeCob] = useState("");
-  const [ateCob, setAteCob] = useState("");
+  const [buscaCob, setBuscaCob] = useFiltroCentral('ContasAtrasadas:buscaCob',"");
+  const [prioridadeFiltro, setPrioridadeFiltro] = useFiltroCentral('ContasAtrasadas:prioridadeFiltro',"");
+  const [ordemCob, setOrdemCob] = useFiltroCentral('ContasAtrasadas:ordemCob',"acao");
+  const [deCob, setDeCob] = useFiltroCentral('ContasAtrasadas:deCob',"");
+  const [ateCob, setAteCob] = useFiltroCentral('ContasAtrasadas:ateCob',"");
   const [salvandoChamado, setSalvandoChamado] = useState(false);
   const [avisoCob, setAvisoCob] = useState(null);
   /* PREFERÊNCIA DO DONO (23/08): em análise, todo quadro recolhe e a tela

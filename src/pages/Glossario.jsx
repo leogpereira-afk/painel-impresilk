@@ -1,3 +1,4 @@
+import {useFiltroCentral} from '../hooks/useFiltroCentral.js';
 // Glossario de comunicacao visual: o que a vendedora precisa saber para
 // conversar com o cliente sem prometer o que a producao nao entrega.
 //
@@ -26,8 +27,8 @@ export default function Glossario() {
   const [mapa, setMapa] = useState(null);
   const [erro, setErro] = useState(null);
   const [aviso, setAviso] = useState(null);
-  const [busca, setBusca] = useState("");
-  const [filtro, setFiltro] = useState(null); // categoria escolhida
+  const [busca, setBusca] = useFiltroCentral('Glossario:busca',"");
+  const [filtro, setFiltro] = useFiltroCentral('Glossario:filtro',null); // categoria escolhida
   const [form, setForm] = useState(null);
   const [salvando, setSalvando] = useState(false);
   const cartaoForm = useRef(null);
