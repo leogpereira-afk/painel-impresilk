@@ -4,7 +4,7 @@
 
 Agente: codex. Publicação autorizada pelo dono em 16/10/2026: “vamos subir e analisar novamente”. Atalhos independentes em Módulos do painel e botão para recolher a lateral. Preservar os demais trabalhos; nenhuma mudança de servidor, permissão ou registro. Revisão integrada à main atual, publicação em preparação. As melhorias da auditoria visual permanecem pendentes.
 
-Verificação: 20 casos Brief/Layout aprovados; 1.456 regressões do Painel passaram no ambiente restrito e os dois casos de porta local passaram na repetição autorizada (7/7 no arquivo); 653 testes de cálculos e acessos aprovados. Build oficial, verificadores e lint sem erros; aviso anterior em Agenda. Brief/Layout dc55619 já publicado e cinco arquivos servidos conferidos. Publicação dos atalhos em andamento.
+Verificação: 20 casos Brief/Layout aprovados; 1.456 regressões do Painel passaram no ambiente restrito e os dois casos de porta local passaram na repetição autorizada (7/7 no arquivo); 653 testes de cálculos e acessos aprovados. Build oficial, verificadores e lint sem erros; aviso anterior em Agenda. Brief/Layout dc55619 já publicado e cinco arquivos servidos conferidos. Publicado e conferido em 16/10/2026: código cc8509a; Pages 38989603468 concluído com sucesso. Os 121 arquivos públicos conferidos são idênticos ao build aprovado. Entradas oficiais de Brief e Layout conferidas sem sessão; fluxos internos testados com dados fictícios. Nenhuma mudança de servidor, permissão ou registro real. Trabalho publicado e conferido; vez encerrada.
 
 ## Trabalho atual · Correção do vínculo de titular ao RH
 
