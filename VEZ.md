@@ -2,7 +2,7 @@
 
 ## Trabalho atual · Brief e Layout dentro do Painel
 
-Agente: codex. Pedido em 17/10/2026: abrir Brief e Layout na mesma página, mantendo a lateral. Rotas internas e atalhos; sem mudança de servidor, permissões ou registros. Publicação autorizada pelo dono em 17/10/2026 com “subir”. Verificação e publicação em andamento.
+Agente: codex. Pedido em 17/10/2026: abrir Brief e Layout na mesma página, mantendo a lateral. Rotas internas e atalhos; sem mudança de servidor, permissões ou registros. Publicação autorizada pelo dono em 17/10/2026 com “subir”. Publicado e conferido em 17/10/2026: código 2f1a0db, Pages 39024299688 aprovado, 121/121 arquivos públicos idênticos ao build. Navegação e acessos: 16 testes aprovados; cálculos: 646; suíte completa aprovada na CI. Lint sem erros, aviso anterior em Agenda. Sessão do navegador solicitou login; conferência visual autenticada permanece pendente. Sem alteração de dados ou servidor. Trabalho publicado e conferido; vez encerrada.
 
 
 ## Trabalho atual · Brief e Layout separados
