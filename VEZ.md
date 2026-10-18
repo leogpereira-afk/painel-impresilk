@@ -2,6 +2,8 @@
 
 ## Trabalho atual · Reversão da simplificação do ACM
 
+**Publicação explicitamente autorizada em 18/10/2026:** o dono respondeu “Sim, publicar a reversão”. Commit de implementação `4e7a01c`; preparação e publicação da apresentação anterior, preservando cálculos, planos, furos e Letra Caixa.
+
 Agente: codex. Em 18/10/2026 o dono solicitou “voltar desse jeito ficou pior” sobre a versão publicada. Restaurar a apresentação anterior à última simplificação, mantendo planos ACM/metalon, dobras, furos nas abas, correções de integridade e Letra Caixa. Reversão e publicação dentro deste escopo autorizadas pelo pedido. Clone /tmp/painel-acm-studio-20261017; sem alteração de registros reais ou servidor. Vez Codex durante conferência e publicação. Prévia conferida: seletores anteriores, giro/sentido visíveis, abas de fixação abertas e desfazer atômico preservados. 1.146 testes passaram; build oficial, lint sem erros e diff aprovados. Apenas apresentação e adaptação dos testes de interface; motores e Letra Caixa intactos.
 
 ## Trabalho atual · ACM Studio v3 — planos, dobras e fixações
