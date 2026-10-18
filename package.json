@@ -10,11 +10,12 @@
     "preview": "vite preview",
     "lint": "eslint src",
     "conferir": "node scripts/conferir-sistemas.mjs",
-    "test": "TZ=UTC node --test src/lib/calc/*.test.mjs",
+    "test": "TZ=UTC node --test src/lib/calc/*.test.mjs src/lib/acm/*.test.mjs src/components/acm/*.test.mjs",
     "review": "vite --mode review --host 127.0.0.1 --port 5173 --strictPort",
     "build:review": "vite build --mode review --config vite.review.config.js",
     "test:acessos": "node --test src/lib/acesso-state.test.mjs",
-    "valores:pdf": "node scripts/valores-pdf.mjs"
+    "valores:pdf": "node scripts/valores-pdf.mjs",
+    "test:acm": "TZ=UTC node --test src/lib/acm/*.test.mjs src/components/acm/*.test.mjs tests/acm-backend.test.mjs tests/acm-installation-orders.test.mjs"
   },
   "dependencies": {
     "clsx": "^2.1.1",
@@ -22,7 +23,8 @@
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-router-dom": "^6.28.0",
-    "tailwind-merge": "^2.5.4"
+    "tailwind-merge": "^2.5.4",
+    "three": "0.180.0"
   },
   "devDependencies": {
     "@electric-sql/pglite": "0.5.8",

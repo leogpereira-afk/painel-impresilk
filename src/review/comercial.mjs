@@ -6,6 +6,7 @@ import {consultarClientes} from '../../supabase/functions/_shared/consulta-clien
 import {apurarCarteiraHistorica} from '../../supabase/functions/_shared/carteira-historica.mjs';
 import {apurarComercial,resolverEscopo,pertence,validarAcao,validarMeta,metaDoPeriodo} from '../../supabase/functions/_shared/comercial.mjs';
 import {respostaDashboardDemo,baseDashboardDemo} from './dashboard.mjs';
+import {installationOrdersPage} from '../../supabase/functions/_shared/acm-installation-orders.mjs';
 const hoje=new Date().toLocaleDateString('en-CA',{timeZone:'America/Sao_Paulo'}),mes=hoje.slice(0,7),ano=Number(hoje.slice(0,4));
 const vendedores=[{id:'101',nome:'Ana Exemplo'},{id:'102',nome:'Beatriz Exemplo'}];
 const produtos=baseDashboardDemo(hoje).catalogo.produtos;
@@ -34,6 +35,7 @@ const contatoConcluido={em:hoje+'T10:00:00Z',autor:'Ana Exemplo',resultadoContat
 acoes.push(posDemo(3,{status:'concluida',resultado:contatoConcluido.resultado,relatoAtendimento:contatoConcluido.relatoAtendimento,contatoEm:contatoConcluido.em,contatos:[contatoConcluido]}));
 const metas=baseDashboardDemo(hoje).metas;
 export function respostaComercial(b,sessao={sub:'demo',master:true}){try{
+ if(b.action==='consultarOrdensInstalacao'){const base=baseDashboardDemo(hoje),scope=resolverEscopo(sessao,base.catalogo,base.config,b.filtro);return Response.json(installationOrdersPage(base.ordens,scope,b));}
  if(['dashboard','dashboardDetalhe'].includes(b.action))return respostaDashboardDemo(b,sessao,hoje,{config,metas});
  if(b.action==='consultarClientes')return Response.json(consultarClientes({valor:{completo:true,clientes:Object.fromEntries(clientes.map(c=>[c.id,c]))},atualizado_em:new Date().toISOString()},b));
  const escopo=resolverEscopo(sessao, {vendedores},config,b.filtro);

@@ -1,5 +1,19 @@
 # Vez do Painel Impresilk
 
+## Trabalho atual · ACM Studio
+
+**Publicação autorizada em 17/10/2026:** dono pediu “pode subir e deixar a consulta das O.S. funcionando no sistema”. Servidor primeiro: painel-comercial v78 ACTIVE, 19/19 arquivos idênticos ao código validado; consulta sem sessão recusada com 401. Interface em preparação de publicação, mantendo acesso comercial e carteira existentes. Serviço futuro painel-acm movido para docs/acm-studio/backend-preparado, fora da varredura de deploy; SQL e IA remota não ativados. Nenhum registro operacional alterado.
+
+**Complementos v2 implementados e conferidos localmente; não publicados.** Plano de metalon independente, Layout 3D penúltimo, instalação com ficha e vínculo local às O.S. existentes, simulador ocupando a tela e cards reorganizados. Rodada final: 915 testes passaram, build concluído, lint sem erros (aviso anterior em Agenda). Navegador conferiu downloads, associação e confirmação de posição, desktop e largura estreita. Relatório atualizado: docs/acm-studio/entrega-v2.md. Publicação depende de autorização; painel-comercial precisa anteceder a interface para habilitar a nova busca de O.S. em produção.
+
+**Complemento autorizado: Planejamento da Instalação e vínculo às O.S. existentes.** Implementação no mesmo clone/ramo, antes de Layout 3D, que permanece penúltimo. Medidas, marcação proporcional, materiais/equipamentos, decisões confirmadas e ficha por revisão. Consulta às O.S. respeita os acessos existentes; sem escrita no ERP, publicação ou migração remota. Plano em docs/superpowers/plans/2026-10-17-acm-instalacao.md.
+
+**Evolução de fabricação e Layout 3D autorizada em 17/10/2026.** Vez Codex no mesmo clone/ramo. Executar plano de metalon com perfis independentes, desenhos router pelo verso e Layout 3D penúltimo. Plano em docs/superpowers/plans/2026-10-17-acm-fabricacao-layout.md. Sem publicação, dados reais ou ativação de serviço remoto.
+
+**Implementado e conferido localmente em 17/10/2026; não publicado.** Prévia funcional em 4305, com cena 3D, cores, medidas, desenvolvimento, encaixe, quatro prioridades, preços por material/formato, estrutura/fixações, documentos e revisões locais. 789 testes passaram; build aprovado; lint sem erros (aviso anterior em Agenda). Conferência desktop/celular e download real de caderno fictício concluídos. Servidor/SQL/IA preparados, sem ativação remota; fabricação exige validação técnica. Relatório: docs/acm-studio/entrega.md. Aguardando revisão do dono e autorização para publicação.
+
+Agente: codex. Autorizado pelo dono em 17/10/2026 com “fazer”, após aprovação do superprompt cumulativo. Clone /tmp/painel-acm-studio-20261017, ramo codex/acm-studio-20261017. Implementação e prévia local: modelo paramétrico, cores e cena 3D, bandejas, aproveitamento, estrutura/fixações e documentos. Dados fictícios; sem publicação. Plano em docs/superpowers/plans/2026-10-17-acm-studio.md. Preservar módulos e permissões existentes.
+
 ## Trabalho atual · Ferramenta I.A
 
 **Publicado e conferido em 17/10/2026:** autorização do dono “publicart”. Código 04c8e92; Pages 39057024261 e Functions 39057024218 aprovados. Login central 857c089; Functions 39057013694 aprovado. Versões finais equipe-auth v90 e painel-auth v167 ACTIVE, 1/1 e 5/5 arquivos iguais. Interface: 143/143 arquivos públicos iguais ao build. Navegador autenticado confirmou item lateral, catálogo e conteúdo publicado, sem erros JavaScript; HTML antigo em cache resolvido ao carregar URL com versão. 682 testes locais, build, lint sem erros e coerência de módulos aprovados; CI completa aprovada. Nenhuma concessão automática de acesso ou alteração de dados reais. Limites externos preservados. Publicado e conferido; vez encerrada.

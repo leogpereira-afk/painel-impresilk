@@ -1,4 +1,7 @@
-import {useMemo,useState} from 'react';
+import {lazy,Suspense,useMemo,useState} from 'react';
+import {useSearchParams} from 'react-router-dom';
+import {getSessao} from '../lib/sessao.js';
+const ACMStudio=lazy(()=>import('./ACMStudio.jsx'));
 import {ArrowLeft,ArrowUpRight,Search,Maximize2,Minimize2,Download,BookOpen} from 'lucide-react';
 import SilkHeader from '../components/SilkHeader.jsx';
 import {FERRAMENTAS,CAMPOS_ORCAMENTO,calcularOrcamento} from '../lib/ferramentas-ia.mjs';
@@ -24,13 +27,16 @@ function Orcamento(){
 export default function FerramentaIA(){
  const [busca,setBusca]=useState('');const [categoria,setCategoria]=useState('Todas');
  const [ativa,setAtiva]=useState(null);const [foco,setFoco]=useState(false);const [abrir,setAbrir]=useState(false);const [checks,setChecks]=useState({});
- const [aba,setAba]=useState('ferramentas');
+ const [params,setParams]=useSearchParams();
+ const aba=params.get('ferramenta')==='acm'?'acm':params.get('ferramenta')==='orcamento'?'orcamento':'ferramentas';
+ function setAba(value){setParams(value==='ferramentas'?{}:{ferramenta:value})}
  const normalizar=s=>s.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
  const lista=FERRAMENTAS.filter(f=>(categoria==='Todas'||f.categoria===categoria)&&normalizar(`${f.nome} ${f.resumo} ${f.formatos}`).includes(normalizar(busca)));
  function escolher(f){setAtiva(f);setAbrir(false);setFoco(false)}
+ if(aba==='acm')return <Suspense fallback={<p>Preparando ACM Studio…</p>}><ACMStudio key={getSessao()?.usuario} onBack={()=>setAba('ferramentas')}/></Suspense>;
  return <div className={`fia ${foco?'fia-focus':''}`}>
  {!foco&&<><SilkHeader titulo="Ferramenta I.A" contexto="CRIAÇÃO · PRODUÇÃO · IMPRESILK" descricao="Transforme a ideia em projeto, confira a montagem e planeje o custo."/>
- <nav className="fia-tabs" aria-label="Ferramenta I.A"><button aria-pressed={aba==='ferramentas'} onClick={()=>setAba('ferramentas')}>🧰 Ferramentas</button><button aria-pressed={aba==='orcamento'} onClick={()=>setAba('orcamento')}>🧮 Orçamento Impresilk</button></nav></>}
+ <nav className="fia-tabs" aria-label="Ferramenta I.A"><button onClick={()=>setAba('acm')}>🏢 ACM Studio · 3D</button><button aria-pressed={aba==='ferramentas'} onClick={()=>setAba('ferramentas')}>🧰 Ferramentas</button><button aria-pressed={aba==='orcamento'} onClick={()=>setAba('orcamento')}>🧮 Orçamento Impresilk</button></nav></>}
  {aba==='orcamento'?<Orcamento/>:ativa?<section className="fia-panel fia-workspace"><div className="fia-workbar"><button onClick={()=>{setAtiva(null);setFoco(false)}}><ArrowLeft size={16}/> Catálogo</button><h2>{ativa.emoji} {ativa.nome}</h2><button aria-pressed={foco} onClick={()=>setFoco(!foco)}>{foco?<Minimize2 size={16}/>:<Maximize2 size={16}/>} {foco?'Sair do foco':'Ampliar área'}</button><a href={ativa.url} target="_blank" rel="noopener noreferrer">Abrir no site <ArrowUpRight size={16}/></a></div>
  {!foco&&<details className="fia-details" open={!abrir}><summary><BookOpen size={16}/> Guia Impresilk · preparar e conferir</summary><div className="fia-guide"><div><h3>Como usar</h3><ol>{ativa.passos.map(p=><li key={p}>{p}</li>)}</ol></div><div><h3>Conferência do projeto</h3>{ativa.conferir.map((p,i)=><label className="fia-check" key={p}><input type="checkbox" checked={!!checks[`${ativa.id}-${i}`]} onChange={e=>setChecks({...checks,[`${ativa.id}-${i}`]:e.target.checked})}/>{p}</label>)}</div></div><p className="fia-note">{ativa.limite}</p></details>}
  <p className="fia-external">Ferramenta externa: <a href={ativa.url} target="_blank" rel="noopener noreferrer">Porto Designer</a>. Arquivos inseridos aqui são tratados pelo serviço externo. O Painel não salva os projetos nem acompanha suas exportações.</p>
@@ -38,7 +44,7 @@ export default function FerramentaIA(){
  </section>:<><section className="fia-intro"><div><span className="fia-eyebrow">DA IDEIA À PRODUÇÃO</span><h2>Escolha o próximo passo</h2><p>Sete ferramentas do Porto Designer, guias próprios e orçamento ampliado da Impresilk.</p></div><span className="fia-badge">7 ferramentas + orçamento</span></section>
  <div className="fia-search"><Search size={18}/><input aria-label="Buscar ferramenta" placeholder="Busque por caixa, SVG, letras, custo…" value={busca} onChange={e=>setBusca(e.target.value)}/></div>
  <div className="fia-categories" aria-label="Categorias">{['Todas','Criação','Preparação','Conferência','Orçamento'].map(c=><button key={c} aria-pressed={categoria===c} onClick={()=>setCategoria(c)}>{c}</button>)}</div>
- <div className="fia-grid">{lista.map(f=><button className="fia-card" key={f.id} onClick={()=>escolher(f)}><span className="fia-card-icon" aria-hidden="true">{f.emoji}</span><span className="fia-card-body"><small>{f.categoria}</small><strong>{f.nome}</strong><span>{f.resumo}</span><em>{f.formatos}</em>{f.acessoExterno&&<em>Acesso pelo site original</em>}</span><ArrowUpRight size={18}/></button>)}</div>{!lista.length&&<p role="status">Nenhuma ferramenta encontrada. Tente outro termo ou categoria.</p>}
+ <button className="fia-card fia-acm-entry" onClick={()=>setAba('acm')}><span className="fia-card-icon">🏢</span><span className="fia-card-body"><small>PRÓPRIO DA IMPRESILK</small><strong>ACM Studio · fachada em 3D</strong><span>Medidas, cores, bandejas, estrutura e aproveitamento de chapas em um projeto.</span><em>3 e 4 mm · abas de 20 e 30 mm · plano de corte</em></span><ArrowUpRight size={18}/></button><div className="fia-grid">{lista.map(f=><button className="fia-card" key={f.id} onClick={()=>escolher(f)}><span className="fia-card-icon" aria-hidden="true">{f.emoji}</span><span className="fia-card-body"><small>{f.categoria}</small><strong>{f.nome}</strong><span>{f.resumo}</span><em>{f.formatos}</em>{f.acessoExterno&&<em>Acesso pelo site original</em>}</span><ArrowUpRight size={18}/></button>)}</div>{!lista.length&&<p role="status">Nenhuma ferramenta encontrada. Tente outro termo ou categoria.</p>}
  <aside className="fia-panel fia-footer"><h3>💡 Um fluxo simples para a equipe</h3><p>Crie a geometria → confira a montagem → distribua na chapa → valide o tempo de corte → calcule a produção.</p><p>Os guias são orientações fixas, sem chat generativo nesta versão. Confirme material, medidas e configuração no software da sua máquina antes de fabricar.</p><a href="https://ferramentascnc.portodesigner.com.br/" target="_blank" rel="noopener noreferrer">Conhecer as ferramentas originais ↗</a></aside></>}
  </div>;
 }

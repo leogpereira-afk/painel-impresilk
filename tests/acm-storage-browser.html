@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="pt-BR"><meta charset="utf-8"><title>Verificação local do arquivo ACM</title>
+<style>body{font:16px system-ui;max-width:960px;margin:32px auto;padding:0 20px;background:#eef3f7;color:#182a3a}li{margin:10px 0}pre{white-space:pre-wrap;color:#9b1c1c}</style>
+<h1>Arquivo local de documentos ACM</h1><p>Teste isolado, sem dados reais e sem acesso à nuvem. Usa um banco temporário exclusivo.</p>
+<h2 id="status">Executando verificações…</h2><ol id="results"></ol><pre id="error"></pre>
+<script type="module">
+import {createIndexedDBBackend,createProjectStorage} from '/src/lib/acm/storage.mjs';
+import {createProject} from '/src/lib/acm/model.mjs';
+const results=document.querySelector('#results'),status=document.querySelector('#status');
+let checks=0;
+const check=(condition,label)=>{if(!condition)throw new Error(label);const li=document.createElement('li');li.textContent=`OK · ${label}`;results.append(li);checks++};
+const rejected=async(promise,code)=>{try{await promise;return false}catch(error){return error.code===code}};
+const open=(name,version,upgrade)=>new Promise((resolve,reject)=>{const request=indexedDB.open(name,version);request.onupgradeneeded=()=>upgrade?.(request.result,request.transaction);request.onsuccess=()=>resolve(request.result);request.onerror=()=>reject(request.error)});
+const read=(db,store,key)=>new Promise((resolve,reject)=>{const request=db.transaction(store).objectStore(store).get(key);request.onsuccess=()=>resolve(request.result);request.onerror=()=>reject(request.error)});
+const write=(db,store,key,value)=>new Promise((resolve,reject)=>{const tx=db.transaction(store,'readwrite');tx.objectStore(store).put(value,key);tx.oncomplete=()=>resolve();tx.onabort=()=>reject(tx.error)});
+try{
+  const dbName=`acm-documents-test-${crypto.randomUUID()}`,owner='fictitious-user',project=createProject();
+  const original={schemaVersion:1,owner,draft:{project,version:3,updatedAt:'2026-01-01T00:00:00.000Z'},revisions:[{id:'old-snapshot',project,createdAt:'2026-01-01T00:00:00.000Z'}]};
+  const old=await open(dbName,1,db=>db.createObjectStore('owners'));
+  await write(old,'owners',owner,original);
+  let oldClosed=false;old.onversionchange=()=>{oldClosed=true;old.close()};
+  const storage=createProjectStorage({backend:createIndexedDBBackend({dbName})});
+  check((await storage.loadDraft(owner)).version===3,'Rascunho da versão 1 recuperado após atualização para versão 2');
+  check(oldClosed,'Conexão antiga fecha para permitir atualização segura');
+  check((await storage.listRevisions(owner))[0].id==='old-snapshot','Revisão anterior permanece disponível');
+  const db=await open(dbName,2);
+  check(db.objectStoreNames.contains('documents')&&db.objectStoreNames.contains('documentOwners'),'Novos stores de documentos adicionados separadamente');
+  check(JSON.stringify(await read(db,'owners',owner))===JSON.stringify(original),'Envelope owners preservado exatamente na atualização');
+  let downgradeDenied=false;try{await open(dbName,1)}catch(error){downgradeDenied=error.name==='VersionError'}
+  check(downgradeDenied,'Código antigo não consegue rebaixar ou sobrescrever banco atualizado');
+  const input={projectId:project.id,revision:1,name:'piece-front.svg',mime:'image/svg+xml',content:'<svg xmlns="http://www.w3.org/2000/svg"><text>Peça á</text></svg>'};
+  const other=createProjectStorage({backend:createIndexedDBBackend({dbName})});
+  const race=await Promise.allSettled([storage.saveDocument(owner,input),other.saveDocument(owner,{...input,content:'<svg />'})]);
+  check(race.filter(item=>item.status==='fulfilled').length===1&&race.find(item=>item.status==='rejected').reason.code==='CONFLICT','Duas conexões concorrentes: um arquivo salvo e um conflito');
+  const metadata=(await storage.listDocuments(owner,project.id))[0],saved=await other.getDocument(owner,metadata.id);
+  check(saved.content===input.content||saved.content==='<svg />','Conteúdo original recuperado por outra conexão');
+  check((await storage.saveDocument(owner,{...input,content:saved.content})).id===saved.id,'Repetição idêntica é idempotente');
+  check((await other.listDocuments('another-user')).length===0&&await rejected(other.getDocument('another-user',saved.id),'NOT_FOUND'),'Identidades diferentes não acessam o arquivo');
+  check(JSON.stringify(await read(db,'owners',owner))===JSON.stringify(original),'Gravação de documentos não altera rascunhos nem revisões');
+  await write(db,'documents',[owner,saved.id],{schemaVersion:1,owner,...saved,content:saved.content.replace('svg','sVg')});
+  check(await rejected(storage.getDocument(owner,saved.id),'CORRUPT'),'Hash detecta alteração de conteúdo com o mesmo tamanho');
+  const blockedName=`acm-documents-blocked-test-${crypto.randomUUID()}`,locked=await open(blockedName,1,database=>database.createObjectStore('owners'));
+  await write(locked,'owners',owner,original);
+  const waiting=createProjectStorage({backend:createIndexedDBBackend({dbName:blockedName})});
+  check(await rejected(waiting.loadDraft(owner),'UNAVAILABLE'),'Aba antiga bloqueando atualização gera erro explícito');
+  locked.close();
+  check((await waiting.loadDraft(owner)).version===3,'Nova tentativa recupera o banco depois de fechar a aba antiga');
+  db.close();status.textContent=`${checks} verificações concluídas sem falhas`;
+}catch(error){status.textContent='Falha na verificação';document.querySelector('#error').textContent=error.stack||String(error)}
+</script></html>
