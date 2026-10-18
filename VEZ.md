@@ -2,7 +2,7 @@
 
 O dono autorizou explicitamente publicar as melhorias de Metalon junto com Acrílico e MDF após as prévias. Entrega baseada em aeb8cf8, preservando ACM e Letra Caixa. Inclui modelos, textos, meios-encaixes, plano de corte, laterais compactas, cores independentes e travas horizontais/verticais/diagonais. Sem mudanças de servidor ou dados reais.
 
-Verificação: 1.301 testes de cálculo/fabricação; 1.602 regressões (dois casos de servidor local repetidos com sucesso fora do sandbox, arquivo 7/7); build oficial; lint sem erros, aviso anterior em Agenda; quinze verificadores e testes de acesso. Dependência equipe-auth conferida contra main pública atual. Publicação e conferência no ar em andamento.
+Verificação: 1.301 testes de cálculo/fabricação; 1.602 regressões (dois casos de servidor local repetidos com sucesso fora do sandbox, arquivo 7/7); build oficial; lint sem erros, aviso anterior em Agenda; quinze verificadores e testes de acesso. Dependência equipe-auth conferida contra main pública atual. **Publicado e conferido:** implementação `7c4d2dc`; GitHub Pages 39174778455 concluído com sucesso. 187/187 arquivos oficiais idênticos ao build validado por SHA-256. Comportamentos do editor conferidos na prévia; nesta sessão o navegador oficial pediu login, portanto não houve reconferência autenticada após o deploy. Nenhum dado real alterado. Vez encerrada.
 
 ## Trabalho atual · Metalon e laterais da Oficina · Codex · 18/10/2026
 
