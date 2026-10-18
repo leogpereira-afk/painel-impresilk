@@ -1,5 +1,7 @@
 # ACM Studio — entrega local v2
 
+**Atualização posterior:** esta versão foi publicada e a consulta de O.S. foi conferida em produção. Veja [publicação e verificações](publicacao.md). As declarações de “não publicado” abaixo registram o estado da prévia antes dessa autorização.
+
 A prévia local de 17/10/2026 incorpora estrutura independente, plano de barras, fixações detalhadas, planejamento da instalação, documentos de oficina e Layout 3D. A navegação tem sete abas: **Projeto → Estrutura → Corte ACM → Fixações → Instalação → Layout 3D → Documentos**. Layout 3D permanece na penúltima etapa.
 
 **Não houve publicação, aplicação de SQL, ativação de servidor remoto ou provedor de IA.** Não houve fabricação física, calibração da oficina ou validação estrutural nesta entrega. Os estudos usados na conferência são fictícios; dados reais dos anexos não foram acrescentados ao repositório.
