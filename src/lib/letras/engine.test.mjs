@@ -14,6 +14,29 @@ test('arbitrary JSON schemas return errors, never throw',()=>{for(const bad of [
 test('identities survive dimensional edits but isolate projects and glyph changes',()=>{const p=createLetterProject({id:'p1',text:{value:'OO'}});const a=calculateLetters(p),b=calculateLetters({...p,text:{...p.text,heightMm:350}}),c=calculateLetters({...p,id:'p2'});assert.deepEqual(a.components.map(c=>c.id),b.components.map(c=>c.id));assert.notEqual(a.letters[0].id,c.letters[0].id);assert.notEqual(a.signature,b.signature);});
 test('family/material mismatch and metal body mismatch block fabrication',()=>{assert.ok(calculateLetters(createLetterProject({construction:{family:'flat-pvc',layers:[{material:'mdf',thickness:5,operation:'router'}]}})).errors.length);assert.ok(calculateLetters(createLetterProject({construction:{family:'galvanized-acrylic'},materials:{side:{material:'mdf',thickness:3,operation:'router'}}})).errors.length);});
 test('undefined project is an invalid result rather than an exception',()=>assert.ok(calculateLetters(undefined).errors.length));
-test('requested width fits physical bounds without typographic bearing',()=>{for(const text of ['O','  O','I\nOO','OO\nI'])for(const align of ['left','center','right']){const r=calculateLetters(createLetterProject({text:{value:text,widthMm:200,align}}));const min=Math.min(...r.letters.map(l=>l.x)),max=Math.max(...r.letters.map(l=>l.x+l.width));assert.ok(Math.abs(min)<1e-6);assert.ok(Math.abs(max-min-200)<1e-6);assert.ok(Math.abs(r.bounds.width-200)<1e-6);const byLine=Object.groupBy(r.letters,l=>l.line);if(align==='right')for(const line of Object.values(byLine))assert.ok(Math.abs(Math.max(...line.map(l=>l.x+l.width))-200)<1e-6);if(align==='center')for(const line of Object.values(byLine)){const left=Math.min(...line.map(l=>l.x)),right=Math.max(...line.map(l=>l.x+l.width));assert.ok(Math.abs((left+right)/2-100)<1e-6);}}});
+test('requested width fits physical bounds without typographic bearing', () => {
+  for (const text of ['O', '  O', 'I\nOO', 'OO\nI']) {
+    for (const align of ['left', 'center', 'right']) {
+      const r = calculateLetters(createLetterProject({text: {value: text, widthMm: 200, align}}));
+      const min = Math.min(...r.letters.map(l => l.x));
+      const max = Math.max(...r.letters.map(l => l.x + l.width));
+      assert.ok(Math.abs(min) < 1e-6);
+      assert.ok(Math.abs(max - min - 200) < 1e-6);
+      assert.ok(Math.abs(r.bounds.width - 200) < 1e-6);
+
+      const byLine = new Map();
+      for (const letter of r.letters) {
+        if (!byLine.has(letter.line)) byLine.set(letter.line, []);
+        byLine.get(letter.line).push(letter);
+      }
+      for (const line of byLine.values()) {
+        const left = Math.min(...line.map(l => l.x));
+        const right = Math.max(...line.map(l => l.x + l.width));
+        if (align === 'right') assert.ok(Math.abs(right - 200) < 1e-6);
+        if (align === 'center') assert.ok(Math.abs((left + right) / 2 - 100) < 1e-6);
+      }
+    }
+  }
+});
 test('units other than mm or conflicting unit fields are rejected',()=>{for(const unit of ['cm','m',null]){const r=calculateLetters(createLetterProject({unit,units:unit}));assert.ok(r.errors.length);assert.equal(r.components.length,0);}assert.ok(calculateLetters(createLetterProject({units:'cm'})).errors.length);});
 test('legacy blind projects without artwork retain the original metal face',()=>{const p=createLetterProject({construction:{family:'galvanized-blind'}});delete p.artwork;const r=calculateLetters(p);assert.deepEqual(r.errors,[]);assert.equal(r.components.find(c=>c.role==='front').material,'galvanized');assert.equal(r.components.find(c=>c.role==='front').thickness,p.materials.side.thickness);});
