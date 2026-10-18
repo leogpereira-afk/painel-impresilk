@@ -1,0 +1,7 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {setCrossbarCount} from './crossbars.mjs';
+import {createWorkshop,buildWorkshop} from './model.mjs';
+test('counts 0 1 2 3 automatically add and remove supports independently',()=>{const p=createWorkshop(),cfg=p.components.metalon;Object.assign(cfg,setCrossbarCount(cfg,'vertical',2));for(const n of [0,1,2,3,2,1,0]){Object.assign(cfg,setCrossbarCount(cfg,'horizontal',n));assert.equal(cfg.crossbars.filter(b=>b.axis==='horizontal').length,n);assert.equal(cfg.crossbars.filter(b=>b.axis==='vertical').length,2);const r=buildWorkshop(p,'metalon');assert.equal(r.valid,true,r.errors.join(';'));}});
+test('redistribution clears removal and position overrides only in chosen direction',()=>{const cfg=createWorkshop().components.metalon;Object.assign(cfg,setCrossbarCount(cfg,'horizontal',2));const id=cfg.crossbars[0].id;cfg.overrides={[`front-R-${id}`]:{position:70,removed:true},'front-EXT-L':{removed:true}};Object.assign(cfg,setCrossbarCount(cfg,'horizontal',1));assert.equal(cfg.crossbars[0].id,id);assert.equal(cfg.crossbars[0].position,400);assert.equal(cfg.overrides[`front-R-${id}`],undefined);assert.equal(cfg.overrides['front-EXT-L'].removed,true)});
+test('invalid counts rejected without mutating original',()=>{const cfg=createWorkshop().components.metalon;for(const n of [-1,1.5,21,NaN])assert.throws(()=>setCrossbarCount(cfg,'horizontal',n));assert.equal(cfg.crossbars.length,0)});

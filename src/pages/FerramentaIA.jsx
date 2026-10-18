@@ -1,6 +1,8 @@
 import {lazy,Suspense,useMemo,useState} from 'react';
 import {useSearchParams} from 'react-router-dom';
 import {getSessao} from '../lib/sessao.js';
+const OficinaMateriais=lazy(()=>import('./OficinaMateriais.jsx'));
+const OficinaPlacas=lazy(()=>import('./OficinaPlacas.jsx'));
 const ACMStudio=lazy(()=>import('./ACMStudio.jsx'));
 const LetraCaixa=lazy(()=>import('./LetraCaixa.jsx'));
 import {ArrowLeft,ArrowUpRight,Search,Maximize2,Minimize2,Download,BookOpen} from 'lucide-react';
@@ -29,16 +31,18 @@ export default function FerramentaIA(){
  const [busca,setBusca]=useState('');const [categoria,setCategoria]=useState('Todas');
  const [ativa,setAtiva]=useState(null);const [foco,setFoco]=useState(false);const [abrir,setAbrir]=useState(false);const [checks,setChecks]=useState({});
  const [params,setParams]=useSearchParams();
- const aba=params.get('ferramenta')==='letra-caixa'?'letra-caixa':params.get('ferramenta')==='acm'?'acm':params.get('ferramenta')==='orcamento'?'orcamento':'ferramentas';
+ const aba=['acrylic','mdf','metalon'].includes(params.get('ferramenta'))?params.get('ferramenta'):params.get('ferramenta')==='letra-caixa'?'letra-caixa':params.get('ferramenta')==='acm'?'acm':params.get('ferramenta')==='orcamento'?'orcamento':'ferramentas';
  function setAba(value){setParams(value==='ferramentas'?{}:{ferramenta:value})}
  const normalizar=s=>s.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
  const lista=FERRAMENTAS.filter(f=>(categoria==='Todas'||f.categoria===categoria)&&normalizar(`${f.nome} ${f.resumo} ${f.formatos}`).includes(normalizar(busca)));
  function escolher(f){setAtiva(f);setAbrir(false);setFoco(false)}
+ if(['acrylic','mdf'].includes(aba))return <Suspense fallback={<p>Preparando Acrílico e MDF…</p>}><OficinaPlacas key={getSessao()?.usuario} initialMaterial={aba} onBack={()=>setAba('ferramentas')} onTool={setAba}/></Suspense>;
+ if(aba==='metalon')return <Suspense fallback={<p>Preparando oficina…</p>}><OficinaMateriais key={getSessao()?.usuario} initialMaterial={aba} onBack={()=>setAba('ferramentas')} onTool={setAba}/></Suspense>;
  if(aba==='letra-caixa')return <Suspense fallback={<p>Preparando Letra Caixa…</p>}><LetraCaixa key={getSessao()?.usuario} onBack={()=>setAba('ferramentas')}/></Suspense>;
  if(aba==='acm')return <Suspense fallback={<p>Preparando ACM Studio…</p>}><ACMStudio key={getSessao()?.usuario} onBack={()=>setAba('ferramentas')}/></Suspense>;
  return <div className={`fia ${foco?'fia-focus':''}`}>
  {!foco&&<><SilkHeader titulo="Ferramenta I.A" contexto="CRIAÇÃO · PRODUÇÃO · IMPRESILK" descricao="Transforme a ideia em projeto, confira a montagem e planeje o custo."/>
- <nav className="fia-tabs" aria-label="Ferramenta I.A"><button onClick={()=>setAba('acm')}>🏢 ACM Studio · 3D</button><button onClick={()=>setAba('letra-caixa')}>🔤 Letra Caixa · 3D</button><button aria-pressed={aba==='ferramentas'} onClick={()=>setAba('ferramentas')}>🧰 Ferramentas</button><button aria-pressed={aba==='orcamento'} onClick={()=>setAba('orcamento')}>🧮 Orçamento Impresilk</button></nav></>}
+ <nav className="fia-tabs" aria-label="Ferramenta I.A"><button onClick={()=>setAba('acrylic')}>💎 Acrílico</button><button onClick={()=>setAba('mdf')}>🪵 MDF</button><button onClick={()=>setAba('metalon')}>🔩 Metalon</button><button onClick={()=>setAba('acm')}>🏢 ACM Studio · 3D</button><button onClick={()=>setAba('letra-caixa')}>🔤 Letra Caixa · 3D</button><button aria-pressed={aba==='ferramentas'} onClick={()=>setAba('ferramentas')}>🧰 Ferramentas</button><button aria-pressed={aba==='orcamento'} onClick={()=>setAba('orcamento')}>🧮 Orçamento Impresilk</button></nav></>}
  {aba==='orcamento'?<Orcamento/>:ativa?<section className="fia-panel fia-workspace"><div className="fia-workbar"><button onClick={()=>{setAtiva(null);setFoco(false)}}><ArrowLeft size={16}/> Catálogo</button><h2>{ativa.emoji} {ativa.nome}</h2><button aria-pressed={foco} onClick={()=>setFoco(!foco)}>{foco?<Minimize2 size={16}/>:<Maximize2 size={16}/>} {foco?'Sair do foco':'Ampliar área'}</button><a href={ativa.url} target="_blank" rel="noopener noreferrer">Abrir no site <ArrowUpRight size={16}/></a></div>
  {!foco&&<details className="fia-details" open={!abrir}><summary><BookOpen size={16}/> Guia Impresilk · preparar e conferir</summary><div className="fia-guide"><div><h3>Como usar</h3><ol>{ativa.passos.map(p=><li key={p}>{p}</li>)}</ol></div><div><h3>Conferência do projeto</h3>{ativa.conferir.map((p,i)=><label className="fia-check" key={p}><input type="checkbox" checked={!!checks[`${ativa.id}-${i}`]} onChange={e=>setChecks({...checks,[`${ativa.id}-${i}`]:e.target.checked})}/>{p}</label>)}</div></div><p className="fia-note">{ativa.limite}</p></details>}
  <p className="fia-external">Ferramenta externa: <a href={ativa.url} target="_blank" rel="noopener noreferrer">Porto Designer</a>. Arquivos inseridos aqui são tratados pelo serviço externo. O Painel não salva os projetos nem acompanha suas exportações.</p>

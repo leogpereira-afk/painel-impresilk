@@ -1,4 +1,29 @@
+## Trabalho atual · Publicação Acrílico, MDF e Metalon · Codex · 18/10/2026
+
+O dono autorizou explicitamente publicar as melhorias de Metalon junto com Acrílico e MDF após as prévias. Entrega baseada em aeb8cf8, preservando ACM e Letra Caixa. Inclui modelos, textos, meios-encaixes, plano de corte, laterais compactas, cores independentes e travas horizontais/verticais/diagonais. Sem mudanças de servidor ou dados reais.
+
+Verificação: 1.301 testes de cálculo/fabricação; 1.602 regressões (dois casos de servidor local repetidos com sucesso fora do sandbox, arquivo 7/7); build oficial; lint sem erros, aviso anterior em Agenda; quinze verificadores e testes de acesso. Dependência equipe-auth conferida contra main pública atual. Publicação e conferência no ar em andamento.
+
+## Trabalho atual · Metalon e laterais da Oficina · Codex · 18/10/2026
+
+Pedido do dono: reaproveitar melhorias do quadro e lateral do ACM em Metalon, Acrílico e MDF; Metalon sem referências visíveis a ACM. Trabalho local neste clone, preservando os rascunhos e a prévia antes de publicar. Sem publicação autorizada nesta etapa.
+
+## Trabalho atual · Acrílico e MDF: composição, texto e meios-encaixes · Codex · 18/10/2026
+
+Prévia local conferida em http://127.0.0.1:4320/revisao-local.html#/ferramenta-ia?ferramenta=acrylic. Composição, texto, meios-encaixes e retomada/corte implementados; limites avançados registrados em docs/acrilico-mdf-previa-20261018.md. 1.265 testes, builds e lint sem erros. 101 arquivos protegidos inalterados. Sem commit, push ou publicação; aguardando avaliação da prévia pelo dono.
+
+Autorização do dono: executar apenas Acrílico/MDF e mostrar prévia antes de publicar. Cópia isolada `/tmp/painel-acrilico-mdf-20261018`, ramo `codex/acrilico-mdf-composicao-20261018`. Metalon está em outro chat: seus arquivos e armazenamento ficam preservados. Escopo próprio em `oficina-placas`, nova página e rota apenas acrylic/mdf. Sem publicação nesta etapa.
+
 # Vez do Painel Impresilk
+
+## Trabalho atual · Acrílico/MDF modelos compactos
+
+Agente: codex. Em 18/10/2026 o dono autorizou executar o prompt com sete referências visuais. Escopo: interface compacta, modelos de tampas, meios-encaixes, textos e plano de corte interativo. Mesmo clone isolado /tmp/painel-acrilico-mdf-20261018. Metalon/ACM preservados. Prévia antes de publicar; nenhuma publicação autorizada nesta etapa. Plano docs/superpowers/plans/2026-10-18-placas-modelos-compactos.md.
+
+
+## Trabalho atual · Oficina Acrílico, MDF e Metalon
+
+Agente: codex. Em 18/10/2026 o dono autorizou implementar o prompt e imagens, reaproveitar ACM e mostrar prévia antes de subir. Clone /tmp/painel-oficina-materiais-20261018, ramo codex/oficina-materiais-20261018. Plano docs/superpowers/plans/2026-10-18-oficina-materiais.md. Implementação local em andamento; sem publicação, migração ou registros reais. Vez registrada nesta cópia isolada; nenhuma reserva remota publicada.
 
 ## Trabalho atual · ACM oficina compacta e encaixes
 
