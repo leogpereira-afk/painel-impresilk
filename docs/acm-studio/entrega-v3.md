@@ -1,6 +1,6 @@
 # ACM Studio v3 — entrega e publicação
 
-Implementação: 17–18/10/2026. Base: 3cd2ad4. Ramo: codex/acm-studio-20261017. Publicação autorizada pelo dono em 18/10/2026; em preparação. Os estados locais abaixo registram a sequência de validação, anterior à autorização. Sem migração ou escrita em dados de produção.
+Implementação: 17–18/10/2026. Base: 3cd2ad4. Ramo: codex/acm-studio-20261017. Publicado e conferido em 18/10/2026 no código `16fe8f0`. Evidências: [publicacao-v3.md](publicacao-v3.md). Os estados locais abaixo registram a sequência de validação, anterior à autorização. Sem migração ou escrita em dados de produção.
 
 ## Complemento — acabamento e furos nas abas
 
@@ -68,4 +68,4 @@ Limites: trata-se de distribuição geométrica; cantoneiras, contato com estrut
 
 ### Integração coordenada com Letra Caixa
 
-A main avançou para acad2c9 durante a validação. O dono autorizou coordenar com Simulador letras e preservar ambas as ferramentas. Merge conservou integralmente a Letra Caixa, o catálogo e os textos reutilizáveis da instalação; conflito apenas aditivo em VEZ.md resolvido mantendo as duas seções. Verificação da integração: 1.146 testes de cálculos/ACM/Letra Caixa/fabricação/acessos passaram, build oficial aprovado e lint sem erros. Publicação do ACM aguarda a conclusão da entrega anterior para não cancelar seu workflow.
+A main avançou para acad2c9 durante a validação. O dono autorizou coordenar com Simulador letras e preservar ambas as ferramentas. Merge conservou integralmente a Letra Caixa, o catálogo e os textos reutilizáveis da instalação; conflito apenas aditivo em VEZ.md resolvido mantendo as duas seções. Verificação da integração: 1.146 testes de cálculos/ACM/Letra Caixa/fabricação/acessos passaram, build oficial aprovado e lint sem erros. A entrega anterior foi concluída; suas correções e registro final foram integrados antes da publicação do ACM. Ambas as ferramentas estão preservadas. Evidências finais em [publicacao-v3.md](publicacao-v3.md).
