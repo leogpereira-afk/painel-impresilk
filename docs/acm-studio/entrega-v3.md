@@ -65,3 +65,7 @@ Limites: trata-se de distribuição geométrica; cantoneiras, contato com estrut
 - 962 testes de cálculo, ACM, componentes, consulta de O.S. e acesso aprovados. 1.602 regressões gerais: 1.600 aprovadas no ambiente restrito; duas bloqueadas por `listen EPERM` em localhost aprovadas na repetição do arquivo de sete casos fora desse isolamento.
 - Build oficial com BASE_PATH=/painel-impresilk/, 15 verificadores e diff aprovados. Lint sem erros, somente aviso preexistente em Agenda. Permanece aviso de tamanho do módulo 3D, carregado sob demanda.
 - Apenas arquivos da tarefa. Bibliotecas ACM compartilhadas alimentam o navegador; endpoint futuro permanece fora da pasta publicada. Nenhuma alteração de SQL ou ativação remota.
+
+### Integração coordenada com Letra Caixa
+
+A main avançou para acad2c9 durante a validação. O dono autorizou coordenar com Simulador letras e preservar ambas as ferramentas. Merge conservou integralmente a Letra Caixa, o catálogo e os textos reutilizáveis da instalação; conflito apenas aditivo em VEZ.md resolvido mantendo as duas seções. Verificação da integração: 1.146 testes de cálculos/ACM/Letra Caixa/fabricação/acessos passaram, build oficial aprovado e lint sem erros. Publicação do ACM aguarda a conclusão da entrega anterior para não cancelar seu workflow.

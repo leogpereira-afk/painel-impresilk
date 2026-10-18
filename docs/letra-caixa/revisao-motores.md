@@ -1,0 +1,19 @@
+# Revisão independente dos motores — 17/10/2026
+
+Revisão somente leitura da implementação; este relatório é a única escrita. Escopo: model/engine/vectors/finishing/electrical, TechnicalCards e testes, confrontados com motor-report, tecnica-report e especificacao-aprovada. Não revisada a página raiz em edição. Reproduções pontuais executadas com o Node absoluto indicado; não repetida a suíte existente.
+
+## Achados
+
+1. **P1 — Largura física diferente da medida solicitada.** `src/lib/letras/engine.mjs:33` (origem no cálculo de x, linha 32). `calculateLetters(createLetterProject({text:{value:'O',widthMm:200}}))` retorna `bounds.width=200`, mas a letra ocupa `x=12.176165803108809` até 200: largura física `187.82383419689123 mm`. O cálculo usa o máximo x sem subtrair o mínimo x, incluindo a margem tipográfica esquerda como se fosse peça. A escala, centralização e documentos passam a usar uma largura maior que o contorno real. Normalizar a origem X do conjunto e dimensionar pela união física dos contornos, incluindo testes para glifos com margem e alinhamento multilinha.
+
+2. **P1 — Unidade desconhecida é aceita e calculada como mm.** `src/lib/letras/engine.mjs:9-15`. `calculateLetters(createLetterProject({unit:'cm',units:'cm',text:{value:'O'}}))` retorna `errors:[]`, componentes e altura 200, sem rejeição nem conversão de unidade. O contrato promete mm e a especificação exige bloquear unidade desconhecida; JSON importado pode declarar cm/m e obter escala silenciosamente errada. Validar unit/units/schema antes de gerar geometria; se somente mm é suportado, rejeitar os demais e a divergência entre campos.
+
+3. **P2 — Validadores lançam exceções com JSON malformado.** `src/lib/letras/engine.mjs:16-21`, `src/lib/letras/finishing.mjs:7`, `src/lib/letras/electrical.mjs:5`. Casos reproduzidos: família numérica (`construction.family=1`) lança `startsWith is not a function`; camada `{material:'pvc',thickness:5}` sem operation lança leitura de `startsWith`; pintura `{layers:[null]}` lança leitura de selection; elétrica `{modules:[null]}` lança leitura de id. Esses campos passam pelo cálculo dos cards e podem interromper a renderização após reabertura/importação. Validar tipos, arrays e elementos antes de acessar métodos/propriedades e retornar errors, sem resultado técnico parcial.
+
+4. **P2 — Camada pode indicar liberação apesar de erro técnico.** `src/lib/letras/finishing.mjs:25`. Com uma camada apply, fabricante/SKU/ficha, rendimento 10, uma demão, conditionsConfirmed/compatibilityConfirmed/releaseConfirmed=true e `times:{cureHours:-2}`, o resultado inclui erro de tempo inválido mas `layers[0].released=true` (somente released global é false). A flag por camada contradiz a validação e pode autorizar consumidor futuro que use a camada individual. Condicionar released da camada à ausência de erros locais além das pendências.
+
+5. **P2 — Potência total vira zero com módulo sem circuito.** `src/lib/letras/electrical.mjs:21`. Entrada `{models:[{id:'m',powerW:2,voltageV:12}],modules:[{id:'x',modelId:'m',circuitId:'missing'}]}` produz erro de circuito mas `totals:{moduleCount:1,powerW:0,...}`. O cabeçalho do ElectricalCards mostra esse zero como potência do conjunto. A soma percorre apenas circuitos e omite módulos órfãos. Retornar potência pendente/null quando a associação estiver incompleta, ou calcular potência total dos módulos separada da carga atribuída a circuitos; não apresentar ausência de vínculo como ausência de consumo.
+
+## Limites aceitos da prévia
+
+Não considerados bugs por si: curvas discretizadas com tolerância pendente, desenvolvimento apenas nominal, ausência de emendas/fator K/CAM, SVG não suportado, ausência de distribuição óptica/caminhos elétricos completos/validação estrutural. Os relatórios explicitam essas restrições e approved elétrico permanece false. Não foram usados dados reais, feitas alterações de implementação, commits ou publicação.
