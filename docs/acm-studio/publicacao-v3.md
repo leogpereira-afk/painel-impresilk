@@ -24,3 +24,13 @@ Publicado em 18/10/2026 após autorização do dono para subir a versão simplif
 Não houve escrita no ERP, migração SQL, ampliação de permissões ou ativação do futuro serviço painel-acm. A consulta existente às O.S. foi preservada. Projetos/documentos continuam salvos no navegador. Geometria nominal, distribuição de fixações e desenhos exportados exigem calibração e conferência técnica para fabricação; não constituem dimensionamento estrutural. PDFs privados não foram copiados ao repositório público.
 
 Publicado e conferido. Vez encerrada.
+
+## Reversão da apresentação simplificada — 18/10/2026
+
+A pedido do dono, com autorização explícita “Sim, publicar a reversão”, a apresentação anterior foi restaurada em `4e7a01c` e publicada em `c6be3c3`. [Pages 39094875558](https://github.com/leogpereira-afk/painel-impresilk/actions/runs/39094875558) concluído com sucesso.
+
+Voltaram os seletores tradicionais de acabamento/fixação, as operações de abas visíveis e os campos de giro/sentido ao lado do retorno. Planos ACM/metalon, múltiplas dobras, furação somente nas abas e correções de integridade permanecem. Motores, armazenamento, servidor e Letra Caixa não foram alterados.
+
+Conferência: 1.146 testes locais; CI com 1.602 regressões, 1.114 de cálculos/fabricação e 7 de acesso, todos aprovados. Build e verificadores passaram, lint sem erros (aviso anterior em Agenda). Comparação pública: 169/169 arquivos idênticos ao build. Navegador autenticado confirmou seletores e campos restaurados; console sem erros. Nenhuma alteração de dados reais.
+
+[Abrir versão restaurada](https://leogpereira-afk.github.io/painel-impresilk/ferramenta-ia?ferramenta=acm&acm=finish&v=c6be3c3). Publicado e conferido; vez encerrada.
