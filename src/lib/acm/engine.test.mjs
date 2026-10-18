@@ -86,10 +86,10 @@ test('structure bars conserve cut lengths and kerf; fixings reference real segme
   for (const tape of r.pieces.flatMap(piece => piece.fixings.tape)) assert.ok(supports.has(tape.supportId));
   assert.equal(r.structure.dimensioned, false);
 });
-test('screws map has no duplicate corners and all points lie on their supporting profiles', () => {
+test('screws map has no duplicate centers and all positions are flange-local with support explicitly unverified', () => {
   const p = createProject(); p.fixing.type = 'screws'; const r = buildProject(p); assert.ok(r.valid); assert.ok(r.totals.screws > 0); assert.equal(r.totals.tapeLength, 0);
   assert.equal(r.totals.screws, r.pieces.reduce((n, item) => n + item.fixings.screws.length, 0));
-  for (const item of r.pieces) { assert.equal(new Set(item.fixings.screws.map(s => `${s.x},${s.y}`)).size, item.fixings.screws.length); for (const screw of item.fixings.screws) { const support = r.structure.segments.find(s => s.id === screw.supportId); assert.ok(support); assert.ok(screw.x >= p.fixing.edgeOffset && screw.x <= item.width - p.fixing.edgeOffset + 1e-5); } }
+  for (const item of r.pieces) { assert.equal(new Set(item.fixings.screws.map(s => `${s.x},${s.y}`)).size, item.fixings.screws.length); for (const screw of item.fixings.screws) { assert.equal(screw.supportId,undefined);assert.equal(screw.supportStatus,'unverified');assert.equal(screw.coordinateSpace,'blank');const f=item.blank.face;assert.ok(screw.x<f.x||screw.x>f.x+item.width||screw.y<f.y||screw.y>f.y+item.height); } }
 });
 test('nominal wrapping calculation reproduces explicit dimensional study', () => { const r = calculateWrap({ profile: '50x30', thickness: 3, tapeThickness: 1, clearance: 2 }); assert.equal(r.width, 58); assert.equal(r.height, 35); assert.equal(r.blankWidth, 128); assert.equal(r.calibrated, false); assert.equal(calculateWrap({ profile: '50x30', thickness: 3, tapeThickness: NaN, clearance: 2 }).valid, false); });
 test('nesting exact fit, physical trim and kerf have no phantom last-cut margin', () => {

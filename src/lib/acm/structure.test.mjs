@@ -92,10 +92,10 @@ test('remnants require physical SKU/material/wall/finish match and stay out of p
   f.remnants = [{ id: 'retalho-incompativel', length: 700, profile: { ...a.profileSpec, wall: 2 } }, { id: 'retalho-certo', length: 700, profile: a.profileSpec, pricePerM: 12 }];
   const r = planMetalBars([a, b], f); assert.equal(r.bars.length, 2); assert.equal(r.bars[0].source, 'remnant'); assert.equal(r.bars[0].pricePerM, 12); assert.equal(r.bars[1].source, 'commercial'); assert.equal(r.purchases.length, 1); assert.deepEqual(r.unusedRemnants, ['retalho-incompativel']);
 });
-test('hybrid fixation lies on actual frame supports and never fabricates a guessed hole diameter', () => {
+test('hybrid retains tape on frame supports and flange marks never fabricate anchor or hole diameter', () => {
   const p = project(); p.fixing.type = 'hybrid'; p.fixing.edgeOffset = 15; p.fixing.screwProduct = { code: 'ficticio', function: 'fixacao teste' };
   const r = valid(p); assert.ok(r.totals.tapeLength > 0); assert.ok(r.totals.screws > 0);
-  for (const piece of r.pieces) for (const fix of piece.fixings.screws) { const s = r.structure.segments.find(s => s.id === fix.supportId); assert.ok(s); const x = fix.x + piece.x, y = fix.y + piece.y; assert.ok(x >= s.bounds.x && x <= s.bounds.x + s.bounds.width && y >= s.bounds.y && y <= s.bounds.y + s.bounds.height); assert.equal(fix.drillDiameter, undefined); assert.equal(fix.role, 'fixacao teste'); }
+  for (const piece of r.pieces) for (const fix of piece.fixings.screws) { assert.equal(fix.supportId,undefined);assert.equal(fix.supportStatus,'unverified');assert.equal(fix.coordinateSpace,'blank'); assert.equal(fix.drillDiameter, undefined); assert.equal(fix.role, 'fixacao teste'); }
   p.fixing.screwProduct.drillDiameter = 4.8; const drilled = valid(p); assert.ok(drilled.pieces.flatMap(p => p.fixings.screws).every(s => s.drillDiameter === 4.8));
 });
 test('lack of support is visible instead of generating duplicate panel-specific members', () => {
@@ -159,19 +159,20 @@ test('equal total contact stack can use different ACM/tape thicknesses; screws d
   const r = valid(p); for (const s of r.structure.segments) near(s.start[2] + s.depth / 2, -8);
   p.overrides = {}; p.fixing.type = 'screws'; const screws = valid(p); for (const s of screws.structure.segments) near(s.start[2] + s.depth / 2, -3);
 });
-test('explicit drill circles stay entirely inside straight and mitered support contours', () => {
+test('explicit flange drill circles stay inside the blank and clear of the visible face and grooves', () => {
+  const inside=(x,y,polygon)=>{let hit=false;for(let i=0,j=polygon.length-1;i<polygon.length;j=i++){const a=polygon[i],b=polygon[j];if((a[1]>y)!==(b[1]>y)&&x<(b[0]-a[0])*(y-a[1])/(b[1]-a[1])+a[0])hit=!hit;}return hit;};
   for (const joint of ['butt', 'miter45']) {
     const p = project(); p.structure.frame.joint = joint; p.structure.frame.spacingX = 600; p.structure.frame.spacingY = 600; p.fixing.type = 'screws'; p.fixing.screwProduct = { drillDiameter: 6 };
     const r = valid(p); assert.ok(r.totals.screws > 0);
     for (const piece of r.pieces) for (const hole of piece.fixings.screws) {
-      const s = r.structure.segments.find(segment => segment.id === hole.supportId), x = hole.x + piece.x, y = hole.y + piece.y, radius = hole.drillDiameter / 2;
-      assert.ok(Math.min(hole.x, piece.width - hole.x, hole.y, piece.height - hole.y) >= radius - .00001);
-      for (const [i, [ax, ay]] of s.contour.entries()) { const [bx, by] = s.contour[(i + 1) % s.contour.length], margin = Math.abs((bx - ax) * (y - ay) - (by - ay) * (x - ax)) / Math.hypot(bx - ax, by - ay); assert.ok(margin >= radius - .00001, `${joint} ${s.id}: margin ${margin} < radius ${radius}`); }
+      const radius=hole.drillDiameter/2,f=piece.blank.face;
+      for(let i=0;i<72;i++){const x=hole.x+radius*Math.cos(i*Math.PI/36),y=hole.y+radius*Math.sin(i*Math.PI/36);assert.ok(inside(x,y,piece.blank.contour));assert.ok(!(x>f.x&&x<f.x+piece.width&&y>f.y&&y<f.y+piece.height));}
+      assert.equal(hole.supportId,undefined);
     }
   }
 });
-test('drill too large for a support emits a geometric warning and creates no invalid circles', () => {
+test('drill too large for a flange emits a geometric warning and creates no invalid circles', () => {
   const p = project(); p.fixing.type = 'screws'; p.fixing.screwProduct = { drillDiameter: 32 };
-  const r = valid(p); assert.equal(r.totals.screws, 0); assert.ok(r.warnings.some(w => w.code === 'FIXING_DRILL_SUPPORT'));
+  const r = valid(p); assert.equal(r.totals.screws, 0); assert.ok(r.warnings.some(w => w.code === 'FLANGE_HOLE_CLEARANCE'));
   delete p.fixing.screwProduct.drillDiameter; const markers = valid(p); assert.ok(markers.totals.screws > 0); assert.ok(markers.pieces.flatMap(piece => piece.fixings.screws).every(mark => mark.drillDiameter === undefined));
 });

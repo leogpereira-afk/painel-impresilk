@@ -6,11 +6,28 @@ export function materialKey(material = {}) {
   material = material ?? {};
   return JSON.stringify(['manufacturer', 'sku', 'colorId', 'color', 'finish', 'thickness', 'skin', 'core', 'lot', 'directional'].map(key => material[key] ?? null));
 }
-function areaOf(piece) {
-  const points = piece.blank.contour;
-  if (!Array.isArray(points) || points.length < 3) return piece.blank.width * piece.blank.height;
+function polygonNetArea(points) {
+  if (!Array.isArray(points) || points.length < 3) return NaN;
   return Math.abs(points.reduce((sum, p, i) => { const q = points[(i + 1) % points.length]; return sum + p[0] * q[1] - q[0] * p[1]; }, 0)) / 2;
 }
+function areaOf(piece) {
+  const blank = piece.blank;
+  if (blank.cutouts != null && !Array.isArray(blank.cutouts) || blank.holes != null && !Array.isArray(blank.holes)) return NaN;
+  const outer = Array.isArray(blank.contour) && blank.contour.length >= 3 ? polygonNetArea(blank.contour) : blank.width * blank.height;
+  const cutouts = (blank.cutouts ?? []).reduce((sum, cutout) => {
+    if (!cutout || typeof cutout !== 'object') return NaN;
+    const points = Array.isArray(cutout) ? cutout : cutout.contour ?? cutout.points;
+    const area = points ? polygonNetArea(points) : finite(cutout.width) && finite(cutout.height) ? cutout.width * cutout.height : NaN;
+    return sum + area;
+  }, 0);
+  const holes = (blank.holes ?? []).reduce((sum, hole) => {
+    if (!hole || typeof hole !== 'object') return NaN;
+    const diameter = hole.diameter ?? hole.drillDiameter ?? hole.radius * 2;
+    return sum + (finite(diameter, Number.EPSILON) ? Math.PI * (diameter / 2) ** 2 : NaN);
+  }, 0);
+  return outer - cutouts - holes;
+}
+
 function orientations(piece, stock) {
   const { width, height } = piece.blank;
   const out = [{ width, height, rotated: false }];

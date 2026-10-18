@@ -2,8 +2,9 @@ import { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
-import { MM_TO_SCENE as S, CAMERA_VIEWS, boundsFrameKey, cameraFrame, structurePrismTransform, withoutEditorOverlays, cutoutContour, unfoldedPanels, unfoldedPlacement } from './viewportGeometry.mjs';
+import { MM_TO_SCENE as S, CAMERA_VIEWS, boundsFrameKey, cameraFrame, structurePrismTransform, withoutEditorOverlays, cutoutContour, unfoldedPanels, foldedPanelTransform, flangeFixingTransform, unfoldedPlacement } from './viewportGeometry.mjs';
 import './acm-viewport.css';
+import { documentGeometry } from '../../lib/acm/documents.mjs';
 import { visualOf } from '../../lib/acm/visual.mjs';
 import { renderPieceArtwork, renderPhotoBackground } from '../../lib/acm/visual-browser.mjs';
 
@@ -192,8 +193,13 @@ function addFixings(group, piece, project, exploded, onFront = false) {
   }
   const screwMaterial = new THREE.MeshStandardMaterial({ color: '#d4a34c', metalness: 0.8, roughness: 0.3 });
   for (const screw of piece.fixings?.screws || []) {
+    const located=flangeFixingTransform(piece,screw);if(!located)continue;
     const mesh = new THREE.Mesh(new THREE.CylinderGeometry(0.004, 0.004, 0.003, 10), screwMaterial);
-    mesh.rotation.x = Math.PI / 2; mesh.position.set(screw.x * S, screw.y * S, onFront ? 0.0025 : z); mesh.userData.pieceId = piece.id; group.add(mesh);
+    if(screw.coordinateSpace==='blank') {
+      const normal=new THREE.Vector3(...located.normal);mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),normal);
+      mesh.position.set(...located.position.map((v,i)=>(v-located.normal[i]*(thickness+1))*S));
+    } else {mesh.rotation.x = Math.PI / 2; mesh.position.set(screw.x * S, screw.y * S, onFront ? 0.0025 : z);}
+    mesh.userData.pieceId = piece.id; group.add(mesh);
   }
   // Materials are otherwise unattached for empty maps.
   if (!piece.fixings?.tape?.length) tapeMaterial.dispose();
@@ -208,43 +214,64 @@ function setSurfaceTransform(group, piece, exploded) {
   group.position.set(...origin.map((value, index) => (value + u[index] * piece.x + v[index] * piece.y + normal[index] * separation) * S));
 }
 
-function addTray(group, piece, finish, core, back) {
-  const thickness = piece.material.thickness;
-  addPanel(group, [[0, 0], [piece.width, 0], [piece.width, piece.height], [0, piece.height]], thickness, finish, core, back, piece.id);
-  const face = piece.blank.face || { x: piece.blank.edges?.left || 0, y: piece.blank.edges?.bottom || 0 };
-  for (const panel of unfoldedPanels(piece).filter(item => item.edge !== 'center')) {
-    const vertical = panel.edge === 'left' || panel.edge === 'right';
-    const developed = piece.blank.edges?.[panel.edge] ?? piece.edges[panel.edge];
-    if (!developed) continue;
-    const ratio = piece.edges[panel.edge] / developed;
-    const contour = panel.contour.map(([x, y]) => vertical
-      ? [(x - panel.pivot[0]) * ratio, y - face.y]
-      : [x - face.x, (y - panel.pivot[1]) * ratio]);
-    const flap = new THREE.Group();
-    flap.position.set(panel.edge === 'right' ? piece.width * S : 0, panel.edge === 'top' ? piece.height * S : 0, 0);
-    flap.rotation[panel.axis] = panel.direction * Math.PI / 2;
-    // Preserve the engine's corner relief while showing the nominal finished
-    // flange height. Real bend radius is intentionally not fabricated here.
-    addPanel(flap, contour, thickness, finish, core, back, piece.id);
-    group.add(flap);
+function panelDrills(piece,panel) {
+  const face=piece.blank.face??{x:0,y:0};
+  const generated=(piece.fixings?.screws??[]).filter(h=>h.drillDiameter>0&&(h.coordinateSpace==='blank'?h.edge===panel.edge&&h.foldNumber===panel.number:panel.edge==='center')).map(h=>({x:h.x+(h.coordinateSpace==='blank'?0:face.x),y:h.y+(h.coordinateSpace==='blank'?0:face.y),diameter:h.drillDiameter}));
+  return [...(panel.edge==='center'?piece.blank.holes??[]:[]),...generated];
+}
+function panelHoles(piece, panel) {
+  return [...(panel.edge==='center'?piece.blank.cutouts??[]:[]),...panelDrills(piece,panel)]
+    .map(h=>cutoutContour(h).map(([x,y])=>[x-panel.pivot[0],y-panel.pivot[1]]));
+}
+/** Change nominal panel length while keeping every drilled circle circular and its diameter unchanged. */
+function compensatePanelGeometry(meshGroup,piece,panel,scale) {
+  if(meshGroup.userData.compensationScale===scale)return;
+  const axis=panel.axis==='y'?0:1,drills=panelDrills(piece,panel).map(h=>({center:[(h.x-panel.pivot[0])*S,(h.y-panel.pivot[1])*S],radius:h.diameter/2*S})),geometries=new Set();
+  meshGroup.traverse(child=>{if(child.geometry)geometries.add(child.geometry)});
+  for(const geometry of geometries){const attribute=geometry.attributes.position;if(!attribute)continue;geometry.userData.originalPositions??=new Float32Array(attribute.array);const original=geometry.userData.originalPositions;
+    for(let i=0;i<attribute.count;i++){const x=original[i*3],y=original[i*3+1],hole=drills.find(h=>Math.abs(Math.hypot(x-h.center[0],y-h.center[1])-h.radius)<1e-6);attribute.array[i*3+axis]=original[i*3+axis]+(scale-1)*(hole?hole.center[axis]:original[i*3+axis]);}
+    attribute.needsUpdate=true;geometry.computeVertexNormals();geometry.computeBoundingSphere();
   }
+  meshGroup.userData.compensationScale=scale;
+}
+function applyFoldTransform(flap, piece, panel, progress) {
+  const transform=foldedPanelTransform(piece,panel,progress);
+  flap.position.set(...transform.origin.map(v=>v*S));
+  if(panel.axis) { flap.rotation[panel.axis]=transform.angle; compensatePanelGeometry(flap.children[0],piece,panel,transform.scale); }
 }
 
-function SceneFallback({ result, selectedId, onSelect, mode, project }) {
+function addFoldPanels(group, piece, finish, core, back, progress, state) {
+  for(const panel of unfoldedPanels(piece)) {
+    const flap=new THREE.Group(), meshGroup=new THREE.Group();
+    addPanel(meshGroup,panel.contour.map(([x,y])=>[x-panel.pivot[0],y-panel.pivot[1]]),piece.material.thickness,finish,core,back,piece.id,panelHoles(piece,panel));
+    flap.add(meshGroup); applyFoldTransform(flap,piece,panel,progress);group.add(flap);
+    if(panel.axis && state) state.foldPivots.push({flap,piece,panel});
+  }
+}
+function addTray(group, piece, finish, core, back) {
+  const assembly=new THREE.Group(), face=piece.blank.face??{x:0,y:0};
+  assembly.position.set(-face.x*S,-face.y*S,0);
+  addFoldPanels(assembly,piece,finish,core,back,1);group.add(assembly);
+}
+
+export function SceneFallback({ result, selectedId, onSelect, mode, project }) {
   const selected = result.pieces?.find(piece => piece.id === selectedId);
-  const pieces = mode === 'unfolded' && selected ? [selected] : (result.pieces || []).filter(piece => piece.surface === 'front');
-  const width = mode === 'unfolded' && selected ? selected.blank.width : project.front.width;
-  const height = mode === 'unfolded' && selected ? selected.blank.height : project.front.height;
+  const technical = result.pieces?.some(piece => piece.technical);
+  const pieces = mode === 'unfolded' && selected ? [selected] : (result.pieces || []).filter(piece => technical || piece.surface === 'front');
+  const width = mode === 'unfolded' && selected ? selected.blank.width : technical ? Math.max(1,...pieces.map(p=>p.transform.origin[0]+p.width)) : project.front.width;
+  const height = mode === 'unfolded' && selected ? selected.blank.height : technical ? Math.max(1,...pieces.map(p=>p.height)) : project.front.height;
   return <div className="acmv-fallback">
     <span className="acmv-fallback-note">Visualização 2D · WebGL indisponível neste dispositivo</span>
     <svg role="img" aria-label={mode === 'unfolded' ? 'Peça desenvolvida em escala' : 'Elevação frontal em escala'} viewBox={`-80 -80 ${width + 160} ${height + 160}`}>
       <g transform={`translate(0 ${height}) scale(1 -1)`}>
-        {pieces.map(piece => <g key={piece.id} onClick={() => onSelect?.(piece.id)} role="button" tabIndex={0} aria-label={`Selecionar ${piece.id}`} onKeyDown={event => { if (['Enter', ' '].includes(event.key)) { event.preventDefault(); onSelect?.(piece.id); } }}>
-          {mode === 'unfolded' && selected
+        {pieces.map(piece => { const flat = (mode === 'unfolded' && selected) || technical; const geometry = flat ? documentGeometry(piece, {back:false}) : null; return <g key={piece.id} transform={technical && mode !== 'unfolded' ? `translate(${piece.transform.origin[0]} 0)` : undefined} onClick={() => onSelect?.(piece.id)} role="button" tabIndex={0} aria-label={`Selecionar ${piece.id}`} onKeyDown={event => { if (['Enter', ' '].includes(event.key)) { event.preventDefault(); onSelect?.(piece.id); } }}>
+          {(mode === 'unfolded' && selected) || technical
             ? <polygon points={piece.blank.contour.map(point => point.join(',')).join(' ')} fill={piece.material.color} stroke={selectedId === piece.id ? '#208bc8' : '#66758a'} strokeWidth={5} />
             : <rect x={piece.x} y={piece.y} width={piece.width} height={piece.height} fill={piece.material.color} stroke={selectedId === piece.id ? '#208bc8' : '#66758a'} strokeWidth={selectedId === piece.id ? 8 : 2} />}
-          {mode === 'unfolded' && selected && piece.blank.grooves.map((groove, index) => <line key={index} x1={groove.x1} y1={groove.y1} x2={groove.x2} y2={groove.y2} stroke="#62c6ff" strokeWidth={3} strokeDasharray="12 8" />)}
-        </g>)}
+          {geometry?.cutouts.map((points,index)=><polygon key={`cutout-${index}`} points={points.map(p=>p.join(',')).join(' ')} fill="#eff3f7" stroke="#000000" strokeWidth={1}/>)}
+          {geometry?.drills.map((hole,index)=>hole.diameter?<circle key={`hole-${index}`} cx={hole.x} cy={hole.y} r={hole.diameter/2} fill="#eff3f7" stroke="#0000ff" strokeWidth={1}/>:<path key={`hole-${index}`} d={`M ${hole.x-3} ${hole.y} h 6 M ${hole.x} ${hole.y-3} v 6`} fill="none" stroke="#0000ff"/>)}
+          {geometry?.grooves.map((groove, index) => <line key={index} x1={groove.x1} y1={groove.y1} x2={groove.x2} y2={groove.y2} stroke="#ff0000" strokeWidth={1} />)}
+        </g>})}
       </g>
     </svg>
     <div>{fmt(width)} × {fmt(height)} mm · {mode === 'unfolded' && selected ? selected.id : 'Frente'}</div>
@@ -422,18 +449,11 @@ export default function ACMViewport({ project, result, selectedId, onSelect, mod
       const back = new THREE.MeshStandardMaterial({ color: '#a9b5bc', metalness: 0.7, roughness: 0.55, side: THREE.DoubleSide, transparent, opacity: transparent ? 0.28 : 1, depthWrite: !transparent });
       if (mode === 'unfolded') {
         group.position.set(positions[i].x * S, positions[i].y * S, 0);
-        for (const panel of unfoldedPanels(piece)) {
-          const flap = new THREE.Group();
-          flap.position.set(panel.pivot[0] * S, panel.pivot[1] * S, 0);
-          if (panel.axis) {
-            flap.rotation[panel.axis] = panel.direction * foldRef.current * Math.PI / 180;
-            state.foldPivots.push({ flap, axis: panel.axis, direction: panel.direction });
-          }
-          const polygon = panel.contour.map(([x, y]) => [x - panel.pivot[0], y - panel.pivot[1]]);
-          addPanel(flap, polygon, piece.material.thickness, finish, core, back, piece.id, panel.edge === 'center' ? piece.blank.cutouts : []);
-          group.add(flap);
+        addFoldPanels(group, piece, finish, core, back, foldRef.current / 90, state);
+        for (const groove of piece.blank.grooves) {
+          addLine(group, [[groove.x1 * S, groove.y1 * S, 0.002], [groove.x2 * S, groove.y2 * S, 0.002]], '#dc2626', true);
+          if (labels && groove.number) addText(group, `${groove.edge} D${groove.number} · ${groove.angle}°`, [(groove.x1 + groove.x2) / 2 * S, (groove.y1 + groove.y2) / 2 * S, 0.004], labelSize * 0.45, '#991b1b');
         }
-        for (const groove of piece.blank.grooves) addLine(group, [[groove.x1 * S, groove.y1 * S, 0.002], [groove.x2 * S, groove.y2 * S, 0.002]], '#2199e8', true);
         if (piece.material.directional) addGrainDirection(group, piece.blank.width, piece.blank.height, piece.id);
         if (labels) state.pieceLabels.push(addText(group, piece.id, [piece.blank.width * S / 2, piece.blank.height * S / 2, 0.005], labelSize, '#28577b', true, false));
         if (dimensions) {
@@ -459,7 +479,7 @@ export default function ACMViewport({ project, result, selectedId, onSelect, mod
     }
     if ((showStructure || mode === 'exploded') && mode !== 'unfolded') addStructure(model, result.structure?.segments || [], result.surfaces || []);
     state.bounds.setFromObject(model);
-    if (mode !== 'unfolded' && dimensions) {
+    if (mode !== 'unfolded' && dimensions && !project.technicalDrawing) {
       const width = project.front.width * S; const height = project.front.height * S;
       const gap = labelSize * 1.65; const z = mode === 'exploded' ? 0.245 : 0.025;
       addDimension(annotations, [0, -gap, z], [width, -gap, z], fmt(project.front.width), labelSize);
@@ -540,7 +560,7 @@ export default function ACMViewport({ project, result, selectedId, onSelect, mod
   useEffect(() => {
     const state = sceneRef.current;
     if (!state) return;
-    for (const { flap, axis, direction } of state.foldPivots || []) flap.rotation[axis] = direction * fold * Math.PI / 180;
+    for (const { flap, piece, panel } of state.foldPivots || []) applyFoldTransform(flap, piece, panel, fold / 90);
     state.render();
   }, [fold]);
   useEffect(() => { setFold(0); setPlaying(false); }, [selectedId, mode]);
@@ -595,7 +615,7 @@ export default function ACMViewport({ project, result, selectedId, onSelect, mod
       </div>
     </div>}
     {mode === 'unfolded' && !failed && <div className="acmv-fold">
-      <div><strong>Dobra visual</strong><span>{Math.round(fold)}°</span><button type="button" onClick={() => { setFold(0); setPlaying(value => !value); }}>{playing ? 'Pausar' : '▶ Animar'}</button></div>
+      <div><strong>Sequência de dobras</strong><span>{Math.round(fold / 90 * 100)}%</span><button type="button" onClick={() => { setFold(0); setPlaying(value => !value); }}>{playing ? 'Pausar' : '▶ Animar'}</button></div>
       <input aria-label="Ângulo da simulação de dobra" type="range" min="0" max="90" step="1" value={fold} onChange={event => { setPlaying(false); setFold(Number(event.target.value)); }} />
       <small>Movimento idealizado nos canais. Raio e retorno dependem da calibração.</small>
     </div>}

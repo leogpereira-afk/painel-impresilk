@@ -184,8 +184,8 @@ test('assembly maps project world supports and local fixings onto all four real 
   const leftMap=assemblyFaceGeometry(result.surfaces.find(s=>s.id==='left'),result);
   assert.equal(leftMap.tape[0].x1, left.x+result.pieces.find(p=>p.id===left.id).fixings.tape[0].x1);
   assert.equal(leftMap.tape[0].y1, left.y+result.pieces.find(p=>p.id===left.id).fixings.tape[0].y1);
-  const front=assemblyFaceGeometry(result.surfaces[0],result),firstPiece=result.pieces[0];
-  assert.equal(front.screws[0].x,firstPiece.x+firstPiece.fixings.screws[0].x);
+  const front=assemblyFaceGeometry(result.surfaces[0],result);
+  assert.equal(front.screws.length,0);assert.ok(front.unprojectedScrews>0);assert.match(html,/posiç[ãõ]o.*nas abas/);
   assert.match(html,/data-layer="supports"/);assert.match(html,/data-layer="tape"/);assert.match(html,/data-layer="screws"/);
   assert.doesNotMatch(html,/Sequência orientativa:/);assert.match(html,/não define uma sequência executiva/);
 });
@@ -210,7 +210,7 @@ test('physically asymmetric front flange and screw are mirrored exactly once in 
   assert.equal(front.grooves.find(x=>x.edge==='left').x1,20);
   assert.equal(back.grooves.find(x=>x.edge==='left').x1,340);
   assert.equal(back.grooves.find(x=>x.edge==='right').x1,40);
-  assert.equal(front.drills[0].x,piece.blank.face.x+piece.fixings.screws[0].x);
+  assert.equal(front.drills[0].x,piece.fixings.screws[0].x);
   assert.equal(back.drills[0].x,360-front.drills[0].x);
   const svg=pieceSVG(piece,{project:p});
   assert.match(svg,/data-side="back"/);assert.match(svg,/VERSO — USINAGEM/);

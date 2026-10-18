@@ -1,3 +1,4 @@
+import { flangeScrews } from './flange-fixings.mjs';
 import { FRAME_GROUPS, validateStructureFrame } from '../../../supabase/functions/_shared/acm-structure.mjs';
 import { resolveFixing } from '../../../supabase/functions/_shared/acm-fixing.mjs';
 export { FRAME_GROUPS, validateStructureFrame };
@@ -217,7 +218,7 @@ export function frameInterferences(segments, surfaces) {
 export function fixingsOnFrame(pieces, project, structure, errors, warnings) {
   let tapeLength = 0, screws = 0;
   for (const piece of pieces) {
-    const f = resolveFixing(project, piece), tape = ['tape', 'hybrid'].includes(f.type), screw = ['screws', 'hybrid'].includes(f.type), screwMap = new Map(), supports = structure.segments.filter(s => s.surface === piece.surface);
+    const f = resolveFixing(project, piece), tape = ['tape', 'hybrid'].includes(f.type), screw = ['screws', 'hybrid'].includes(f.type), supports = structure.segments.filter(s => s.surface === piece.surface);
     piece.fixing = f; piece.fixings = { tape: [], screws: [], contact: 'back-face' };
     if (Math.min(piece.width, piece.height) <= f.edgeOffset * 2) { warnings.push(issue('FIXING_MARGIN', `${piece.id}: afastamento elimina a área de fixação; reveja o detalhe.`)); continue; }
     let contactCount = 0;
@@ -230,16 +231,9 @@ export function fixingsOnFrame(pieces, project, structure, errors, warnings) {
         if (strip) { piece.fixings.tape.push({ ...strip, width: f.tapeWidth }); tapeLength += Math.hypot(strip.x2 - strip.x1, strip.y2 - strip.y1); }
         else warnings.push(issue('TAPE_SUPPORT', `${piece.id}/${support.id}: fita não cabe integralmente no apoio com o afastamento informado.`));
       }
-      if (screw) {
-        const drillDiameter = f.drillDiameter ?? null, radius = (drillDiameter ?? 0) / 2;
-        const screwLine = drillDiameter === null ? line : lineOnPiece(support, piece, Math.max(f.edgeOffset, radius), drillDiameter, true);
-        if (!screwLine) { warnings.push(issue('FIXING_DRILL_SUPPORT', `${piece.id}/${support.id}: furo de ${drillDiameter} mm não cabe integralmente no apoio e na peça. Reveja o detalhe; nenhum furo foi gerado nesse apoio.`)); continue; }
-        const length = Math.hypot(screwLine.x2 - screwLine.x1, screwLine.y2 - screwLine.y1), count = Math.max(1, Math.ceil(length / f.screwPitch));
-        if (screws + screwMap.size + count + 1 > 30000) { errors.push(issue('FIXING_LIMIT', 'Limite de 30.000 parafusos excedido.')); break; }
-        for (let i = 0; i <= count; i++) { const x = round(screwLine.x1 + (screwLine.x2 - screwLine.x1) * i / count), y = round(screwLine.y1 + (screwLine.y2 - screwLine.y1) * i / count); screwMap.set(`${x}:${y}`, { x, y, supportId: support.id, ...(drillDiameter !== null ? { drillDiameter } : {}), role: f.screwProduct?.function || 'ACM → estrutura' }); }
-      }
+
     }
-    piece.fixings.screws = [...screwMap.values()].map((s, i) => ({ ...s, number: i + 1 })); screws += piece.fixings.screws.length;
+    piece.fixings.screws = flangeScrews(piece,f,project.fabrication,errors,warnings,30000-screws); screws += piece.fixings.screws.length;
     if (contactCount < 2 || tape && !piece.fixings.tape.length || screw && !piece.fixings.screws.length) warnings.push(issue('FIXING_SUPPORT_INSUFFICIENT', `${piece.id}: apoios disponíveis insuficientes para o padrão informado; ajuste o quadro ou detalhe a fixação. Quantidades não comprovam capacidade.`));
   }
   warnings.push(issue('FIXING_UNVERIFIED', 'Mapa geométrico sobre apoios reais. Produtos, espaçamentos, furação, preparação, dilatação e capacidade aguardam validação técnica.'));

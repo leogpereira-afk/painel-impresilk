@@ -1,4 +1,6 @@
-import { LIMITS, PROFILES, calibrationStatus, edgeHeight, validateMaterialProcess, validateProject } from './model.mjs';
+import { flangeScrews } from './flange-fixings.mjs';
+import { foldInterference } from '../../../supabase/functions/_shared/acm-folds.mjs';
+import { LIMITS, PROFILES, calibrationStatus, edgeExtent, edgeHeight, foldProfile, validateMaterialProcess, validateProject } from './model.mjs';
 import { buildStructureFrame, fixingsOnFrame } from './structure.mjs';
 import { resolveFixing } from '../../../supabase/functions/_shared/acm-fixing.mjs';
 const EPS = 1e-7;
@@ -16,13 +18,17 @@ export function calculateWrap({ profile, thickness, tapeThickness, clearance }) 
   return { valid: true, width, height, blankWidth: width + 2 * height, clearance, calibrated: false, warning: 'Estudo nominal de encapamento; conferir referência externa, compensação, encaixe e corpo de prova.' };
 }
 export function developBlank(width, height, edges, fabrication) {
-  const compensation = name => typeof fabrication.compensation === 'number' ? fabrication.compensation : fabrication.compensation[name] ?? 0;
-  const d = Object.fromEntries(Object.entries(edges).map(([name, value]) => [name, value > 0 ? round(value - compensation(name)) : 0]));
-  if (Object.entries(d).some(([key, n]) => edges[key] > 0 && n <= fabrication.grooveWidth / 2)) throw new Error('Compensação deixa uma aba sem largura suficiente para o canal.');
+  const profiles = Object.fromEntries(['left','right','bottom','top'].map(name => [name, foldProfile(edges[name], fabrication, name)]));
+  const d = Object.fromEntries(Object.entries(profiles).map(([name, profile]) => [name, profile.totalDeveloped]));
+  if (Object.values(profiles).some(profile => profile.operations.some((op, index) => op.developedLength <= (index < profile.operations.length - 1 ? fabrication.grooveWidth : fabrication.grooveWidth / 2)))) throw new Error('Compensação deixa um segmento sem largura suficiente entre canais ou até o recorte.');
+  const interference = foldInterference(profiles, width, height);
+  if (interference.length) throw new Error(interference.join(' '));
   const { left: l, right: r, bottom: b, top: t } = d, w = width, h = height;
   const c = fabrication.cornerRelief;
-  if ((b || t) && w <= (l ? c : 0) + (r ? c : 0) || (l || r) && h <= (b ? c : 0) + (t ? c : 0)) throw new Error('Alívio de canto elimina a largura útil da aba.');
-  const cl = l > 0 ? c : 0, cr = r > 0 ? c : 0, cb = b > 0 ? c : 0, ct = t > 0 ? c : 0;
+  // Conservative corner cutbacks prevent adjacent inward returns occupying the same material.
+  const cl = l > 0 ? c + profiles.left.inwardExtent : 0, cr = r > 0 ? c + profiles.right.inwardExtent : 0;
+  const cb = b > 0 ? c + profiles.bottom.inwardExtent : 0, ct = t > 0 ? c + profiles.top.inwardExtent : 0;
+  if ((b || t) && w <= cl + cr || (l || r) && h <= cb + ct) throw new Error('Alívio de canto e retornos eliminam a largura útil da aba.');
   const contour = [
     [l, b], [l + (b ? cl : 0), b], [l + (b ? cl : 0), 0], [l + w - (b ? cr : 0), 0], [l + w - (b ? cr : 0), b], [l + w, b],
     [l + w, b + (r ? cb : 0)], [l + w + r, b + (r ? cb : 0)], [l + w + r, b + h - (r ? ct : 0)], [l + w, b + h - (r ? ct : 0)], [l + w, b + h],
@@ -40,11 +46,15 @@ export function developBlank(width, height, edges, fabrication) {
     }
   }
   const grooves = [];
-  if (l) grooves.push({ x1: l, y1: b + cb, x2: l, y2: b + h - ct, edge: 'left' });
-  if (r) grooves.push({ x1: l + w, y1: b + cb, x2: l + w, y2: b + h - ct, edge: 'right' });
-  if (b) grooves.push({ x1: l + cl, y1: b, x2: l + w - cr, y2: b, edge: 'bottom' });
-  if (t) grooves.push({ x1: l + cl, y1: b + h, x2: l + w - cr, y2: b + h, edge: 'top' });
-  return { width: round(l + w + r), height: round(b + h + t), contour, grooves, cutouts: [], edges: d, face: { x: l, y: b, width: w, height: h }, area: round(polygonArea(contour)), cornerCuts: [
+  for (const [edge, profile] of Object.entries(profiles)) for (const op of profile.operations) {
+    const coordinates = edge === 'left' ? [l - op.offset, b + cb, l - op.offset, b + h - ct]
+      : edge === 'right' ? [l + w + op.offset, b + cb, l + w + op.offset, b + h - ct]
+      : edge === 'bottom' ? [l + cl, b - op.offset, l + w - cr, b - op.offset]
+      : [l + cl, b + h + op.offset, l + w - cr, b + h + op.offset];
+    const [x1,y1,x2,y2] = coordinates.map(round);
+    grooves.push({x1,y1,x2,y2,edge, foldId: op.id, number: op.number, angle: op.angle, direction: op.direction, compensation: op.compensation});
+  }
+  return { width: round(l + w + r), height: round(b + h + t), contour, grooves, folds: grooves.map(g => ({...g})), profiles, cutouts: [], edges: d, cornerSetbacks: {left:cl,right:cr,bottom:cb,top:ct}, face: { x: l, y: b, width: w, height: h }, area: round(polygonArea(contour)), cornerCuts: [
     { x: 0, y: 0, width: l, height: b }, { x: l + w, y: 0, width: r, height: b },
     { x: 0, y: b + h, width: l, height: t }, { x: l + w, y: b + h, width: r, height: t },
   ].filter(rect => rect.width > 0 && rect.height > 0), grooveWidth: fabrication.grooveWidth, compensation: fabrication.compensation };
@@ -72,7 +82,7 @@ function moduleDimensions(surface, project) {
   function score(option) {
     const cols = Math.ceil((surface.width + l.joint) / (option.width + l.joint)), rows = Math.ceil((surface.height + l.joint) / (option.height + l.joint));
     const w = (surface.width - (cols - 1) * l.joint) / cols, h = (surface.height - (rows - 1) * l.joint) / rows;
-    const e = project.edges, envelope = (w + edgeHeight(e.left) + edgeHeight(e.right)) * (h + edgeHeight(e.top) + edgeHeight(e.bottom)) * cols * rows;
+    const e = project.edges, envelope = (w + edgeExtent(e.left) + edgeExtent(e.right)) * (h + edgeExtent(e.top) + edgeExtent(e.bottom)) * cols * rows;
     return [cols * rows, envelope];
   }
   const a = score(vertical), b = score(horizontal);
@@ -90,7 +100,7 @@ function manualBoundaries(input, surface, dimension, joint, errors, axis) {
   boundaries.push(dimension); return boundaries;
 }
 export function pieceGeometrySignature(piece) {
-  return JSON.stringify({ surface: piece.surface, x: piece.x, y: piece.y, width: piece.width, height: piece.height, edges: ['left', 'right', 'top', 'bottom'].map(key => piece.edges[key]), material: Object.entries(piece.material).sort(([a], [b]) => a.localeCompare(b)), transform: piece.transform, blank: { width: piece.blank.width, height: piece.blank.height, contour: piece.blank.contour, grooves: piece.blank.grooves } });
+  return JSON.stringify({ surface: piece.surface, x: piece.x, y: piece.y, width: piece.width, height: piece.height, edges: ['left', 'right', 'top', 'bottom'].map(key => piece.edges[key]), material: Object.entries(piece.material).sort(([a], [b]) => a.localeCompare(b)), transform: piece.transform, blank: { width: piece.blank.width, height: piece.blank.height, contour: piece.blank.contour, grooves: piece.blank.grooves, holes: piece.blank.holes, cutouts: piece.blank.cutouts } });
 }
 function rectsFor(surface, project, errors, warnings) {
   const { layout } = project;
@@ -142,8 +152,9 @@ function barPlan(segments, length, kerf) {
     if (segment.length > length + EPS) { unplaced.push(segment.id); continue; }
     let bar = bars.filter(b => b.used + kerf + segment.length <= length + EPS).sort((a, b) => b.used - a.used)[0];
     if (!bar) { bar = { id: `B${bars.length + 1}`, cuts: [], used: 0, waste: length, length, kerf }; bars.push(bar); }
-    bar.used += (bar.cuts.length ? kerf : 0) + segment.length;
-    bar.cuts.push({ id: segment.id, length: segment.length }); bar.used = round(bar.used); bar.waste = round(length - bar.used);
+    const start = round(bar.used + (bar.cuts.length ? kerf : 0));
+    bar.used = start + segment.length;
+    bar.cuts.push({ id: segment.id, length: segment.length, sequence: bar.cuts.length + 1, start, end: round(bar.used), angleA: 90, angleB: 90, longLength: segment.length, shortLength: segment.length, faceWidth: segment.width }); bar.used = round(bar.used); bar.waste = round(length - bar.used);
   }
   return { bars, unplaced };
 }
@@ -164,7 +175,6 @@ function structureAndFixings(pieces, project, errors, warnings, surfaces) {
     const count = wrapping ? 0 : Math.max(1, Math.ceil((piece.width - 2 * o) / project.structure.spacing));
     if (segments.length + count + 3 > LIMITS.segments) { errors.push(issue('SEGMENT_LIMIT', 'Limite de segmentos excedido; reveja espaçamento da estrutura.')); break; }
     for (let i = 0; !wrapping && i <= count; i++) { const x = o + (piece.width - 2 * o) * i / count; supportLines.push({ x1: x, y1: o, x2: x, y2: piece.height - o }); }
-    const screwMap = new Map();
     for (const line of supportLines) {
       const length = Math.hypot(line.x2 - line.x1, line.y2 - line.y1);
       const setback = piece.material.thickness + f.thickness + profile.depth / 2;
@@ -183,13 +193,9 @@ function structureAndFixings(pieces, project, errors, warnings, surfaces) {
           }
         } else { piece.fixings.tape.push({ ...line, width: f.tapeWidth, supportId: support.id }); tapeLength += length; }
       }
-      if (['screws', 'hybrid'].includes(f.type)) {
-        const intervals = Math.max(1, Math.ceil(length / f.screwPitch));
-        if (screws + screwMap.size + intervals > 30000) { errors.push(issue('FIXING_LIMIT', 'Limite de 30.000 parafusos excedido.')); break; }
-        for (let i = 0; i <= intervals; i++) { const x = round(line.x1 + (line.x2 - line.x1) * i / intervals), y = round(line.y1 + (line.y2 - line.y1) * i / intervals); screwMap.set(`${x},${y}`, { x, y, supportId: support.id, ...(f.drillDiameter != null ? { drillDiameter: f.drillDiameter } : {}), role: f.screwProduct?.function || 'ACM → estrutura' }); }
-      }
+
     }
-    piece.fixings.screws = [...screwMap.values()].map((s, i) => ({ ...s, number: i + 1 })); screws += piece.fixings.screws.length;
+    piece.fixings.screws = flangeScrews(piece,f,project.fabrication,errors,warnings,30000-screws); screws += piece.fixings.screws.length;
   }
   const totalLength = round(segments.reduce((sum, s) => sum + s.length, 0));
   const { bars, unplaced } = barPlan(segments, project.structure.barLength, project.structure.kerf);
@@ -203,6 +209,7 @@ export function buildProject(project) {
   const empty = { valid: false, errors: [], warnings: [], pieces: [], surfaces: [], structure: { segments: [], totalLength: 0, bars: [], unplaced: [], dimensioned: false }, fixings: { tapeLength: 0, screws: 0, validated: false }, totals: { visibleArea: 0, developedArea: 0, envelopeArea: 0, metalLength: 0, tapeLength: 0, screws: 0, pieces: 0 }, calibration: { valid: false, reason: 'Projeto inválido.' } };
   const errors = validateProject(project), warnings = [];
   if (errors.length) return { ...empty, errors };
+  if (project.technicalDrawing) return buildTechnicalProject(project, empty);
   const surfaces = surfacesFor(project), pieces = [], calibration = calibrationStatus(project);
   for (const opening of project.openings) if (!surfaces.some(s => s.id === (opening.surface ?? 'front'))) errors.push(issue('OPENING_DISABLED', 'Há abertura em uma superfície desativada.'));
   if (project.assemblyMode === 'wrap') {
@@ -224,22 +231,25 @@ export function buildProject(project) {
     if (pieces.length + rects.length > LIMITS.pieces) { errors.push(issue('PIECE_LIMIT', `Projeto excede ${LIMITS.pieces} peças.`)); break; }
     for (const rect of rects) {
       const override = project.overrides[rect.id] ?? {};
-      const edges = Object.fromEntries(Object.entries({ ...project.edges, ...override.edges }).map(([key, value]) => [key, edgeHeight(value)]));
+      const edgeDefinitions = { ...project.edges, ...override.edges };
+      const edges = Object.fromEntries(Object.entries(edgeDefinitions).map(([key, value]) => [key, edgeHeight(value)]));
       const material = { ...project.material, ...(project.surfaceMaterials?.[surface.id] ?? {}), ...override.material };
       const processErrors = validateMaterialProcess(material, project.fabrication, rect.id);
       if (processErrors.length) { errors.push(...processErrors); continue; }
       try {
-        const blank = developBlank(rect.width, rect.height, edges, project.fabrication);
-        const piece = { ...rect, assemblyMode: project.assemblyMode ?? 'tray', surface: surface.id, edges, material, blank, transform: surface.transform, fixings: { tape: [], screws: [] }, projectId: project.id, revision: project.revision, calibrated: calibration.valid && JSON.stringify(material) === JSON.stringify(project.material) };
+        const blank = developBlank(rect.width, rect.height, edgeDefinitions, project.fabrication);
+        const piece = { ...rect, assemblyMode: project.assemblyMode ?? 'tray', surface: surface.id, edges, edgeDefinitions, material, blank, transform: surface.transform, fixings: { tape: [], screws: [] }, projectId: project.id, revision: project.revision, calibrated: calibration.valid && JSON.stringify(material) === JSON.stringify(project.material) };
         piece.geometrySignature = pieceGeometrySignature(piece);
         if (override.locked && override.geometrySignature !== piece.geometrySignature) errors.push(issue('LOCK_CHANGED', `${rect.id}: peça bloqueada mudou. Restaure a geometria aprovada ou desbloqueie conscientemente.`));
         if (rect.width < project.layout.minimumStrip || rect.height < project.layout.minimumStrip) warnings.push(issue('NARROW_STRIP', `${rect.id}: faixa menor que o mínimo de ${project.layout.minimumStrip} mm.`));
         if (!(blank.width <= project.fabrication.machineWidth + EPS && blank.height <= project.fabrication.machineLength + EPS) && !(project.stock.rotation && !material.directional && blank.height <= project.fabrication.machineWidth + EPS && blank.width <= project.fabrication.machineLength + EPS)) warnings.push(issue('MACHINE_SIZE', `${rect.id}: desenvolvimento não cabe na área útil da máquina; divida a peça explicitamente.`));
         if (material.thickness !== project.material.thickness || material.sku !== project.material.sku || material.finish !== project.material.finish) warnings.push(issue('PIECE_CALIBRATION', `${rect.id}: material específico exige calibração compatível.`));
+        if (Object.values(blank.profiles).some(p => p.operations.length > 1)) warnings.push(issue('FOLD_CHAIN', `${rect.id}: dobras encadeadas nominais; alívios conservadores consideram retornos internos. Raio, espessura, sequência e encaixe exigem corpo de prova.`));
         pieces.push(piece);
       } catch (error) { errors.push(issue('BLANK', `${rect.id}: ${error.message}`)); }
     }
   }
+  if (project.cladding?.panelForm === 'flat' && pieces.some(piece => piece.blank.grooves.some(g => g.edge))) warnings.push(issue('CLADDING_FORM_MISMATCH','Forma plana selecionada, mas existem dobras cadastradas. Confira ou remova-as explicitamente; a geometria foi preservada.'));
   for (const [id, override] of Object.entries(project.overrides)) if (override.locked && !pieces.some(piece => piece.id === id)) errors.push(issue('LOCK_MISSING', `${id}: peça bloqueada deixou de existir após a modulação.`));
   if (new Set(pieces.map(p => p.id)).size !== pieces.length) errors.push(issue('DUPLICATE_ID', 'Identificações de peças repetidas.'));
   if (!pieces.length && !errors.length) warnings.push(issue('EMPTY_FACADE', 'Nenhuma área revestida após as aberturas.'));
@@ -248,4 +258,18 @@ export function buildProject(project) {
     visibleArea: round(pieces.reduce((sum, p) => sum + p.width * p.height, 0)), developedArea: round(pieces.reduce((sum, p) => sum + p.blank.area, 0)), envelopeArea: round(pieces.reduce((sum, p) => sum + p.blank.width * p.blank.height, 0)),
     metalLength: result.structure.totalLength, tapeLength: result.fixings.tapeLength, screws: result.fixings.screws, pieces: pieces.length,
   } };
+}
+
+/** Imported technical parts remain flat: machining lines alone do not specify a 3D fold. */
+function buildTechnicalProject(project, empty) {
+  const drawing = project.technicalDrawing, pieces = [], surfaces = [];
+  let cursor = 0;
+  for (const part of drawing.parts) for (let copy=0; copy<part.quantity; copy++) {
+    const id = `${part.id}-Q${copy+1}`, surface = {id: `technical-${id}`,label: `${drawing.name} · ${id}`,width:part.width,height:part.height, transform:{origin:[cursor,0,0],u:[1,0,0],v:[0,1,0],normal:[0,0,1]}};
+    const blank={width:part.width,height:part.height,contour:part.contour.map(p=>[...p]),holes:part.holes.map(h=>({...h})),grooves:part.grooves.map(g=>({...g})),folds:[],cutouts:[],face:{x:0,y:0,width:part.width,height:part.height},edges:{left:0,right:0,top:0,bottom:0},area:round(polygonArea(part.contour)-part.holes.reduce((sum,h)=>sum+Math.PI*(h.diameter/2)**2,0)),grooveWidth:project.fabrication.grooveWidth};
+    const piece={id,x:0,y:0,width:part.width,height:part.height,surface:surface.id,technical:true,assemblyMode:'flat',edges:{left:0,right:0,top:0,bottom:0},material:{...project.material},blank,transform:surface.transform,fixings:{tape:[],screws:[]},projectId:project.id,revision:project.revision,calibrated:false};
+    piece.geometrySignature=pieceGeometrySignature(piece); pieces.push(piece); surfaces.push(surface); cursor+=part.width+100;
+  }
+  const area=round(pieces.reduce((sum,p)=>sum+p.blank.area,0));
+  return {...empty,valid:true,pieces,surfaces,warnings:[issue('TECHNICAL_PLANAR','Modo técnico separado da fachada: geometria plana em mm, sem estrutura/fixação automática. Canais importados não definem ângulo, sentido ou dobra 3D.'),issue('TECHNICAL_ENVELOPE','Encaixe conservador pelo retângulo envolvente; contorno, furos e canais são preservados na exportação. Não é otimização global nem programa CNC.')],calibration:{valid:false,reason:'Geometria técnica importada exige conferência de escala, primeira peça e processo.'},totals:{...empty.totals,visibleArea:area,developedArea:area,envelopeArea:round(pieces.reduce((sum,p)=>sum+p.blank.width*p.blank.height,0)),pieces:pieces.length}};
 }

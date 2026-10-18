@@ -1,3 +1,6 @@
+import {validateFoldEdge,edgeFolds} from './acm-folds.mjs';
+import {validateTechnicalDrawing} from './acm-technical.mjs';
+export {edgeFolds, edgeExtent, foldProfile} from './acm-folds.mjs';
 import {validateStructureFrame} from './acm-structure.mjs';
 import {validateVisual,isSafeRasterDataURL} from './acm-visual.mjs';
 import {validateFixingDetails,isSafeFixingPhoto,resolveFixing} from './acm-fixing.mjs';
@@ -22,6 +25,7 @@ export function createProject() {
   return {
     id: 'acm-estudo', name: 'Estudo de fachada', revision: 1, schemaVersion: SCHEMA_VERSION, units: 'mm',
     assemblyMode: 'tray',
+    cladding: {panelForm:'unspecified',joint:'unspecified',exposure:'unspecified',fixingConfirmed:false},
     front: { width: 6000, height: 1200 }, left: { enabled: false, depth: 600, height: 1200 }, right: { enabled: false, depth: 600, height: 1200 },
     soffit: { enabled: false, width: 6000, depth: 600 }, openings: [],
     material: { colorId: 'grafite', color: '#364152', finish: 'matte', thickness: 3, skin: null, core: 'PE', manufacturer: '', sku: '', directional: false },
@@ -79,6 +83,16 @@ export function validateProject(project) {
   }
   safe(project);
   if (errors.length) return errors;
+  if (project.cladding != null) {
+    const c=project.cladding;
+    if(!plain(c)) add('CLADDING','Sistema de revestimento inválido.');
+    else {
+      const enums={panelForm:['unspecified','tray','flat','wrap'],joint:['unspecified','dry','sealed','butt'],exposure:['unspecified','indoor','outdoor']};
+      for(const [key,values] of Object.entries(enums)) if(c[key]!=null&&!values.includes(c[key])) add('CLADDING',`${key}: opção de revestimento inválida.`);
+      if(c.fixingConfirmed!=null&&typeof c.fixingConfirmed!=='boolean')add('CLADDING','Confirmação da fixação deve ser booleana.');
+      for(const key of Object.keys(c))if(!Object.hasOwn(enums,key)&&key!=='fixingConfirmed')add('CLADDING',`Parâmetro de revestimento desconhecido: ${key}.`);
+    }
+  }
   if (project.assemblyMode != null && !['tray', 'wrap'].includes(project.assemblyMode)) add('ASSEMBLY_MODE', 'Modo de montagem inválido.');
   if (project.schemaVersion !== 1 || project.units !== 'mm') add('SCHEMA', 'Versão do projeto ou unidade não suportada.');
   if (!Number.isInteger(project.revision) || project.revision < 1) add('REVISION', 'Revisão deve ser um inteiro positivo.');
@@ -99,9 +113,11 @@ export function validateProject(project) {
   dimension(project.layout.joint, 'Junta', 0, 500);
   const checkEdges = (edges, prefix, partial = false) => {
     if (!plain(edges)) { add('EDGES', `${prefix}: abas inválidas.`); return; }
+    for (const key of Object.keys(edges)) if (!EDGE_NAMES.includes(key)) add('EDGES', `${prefix}: borda desconhecida ${key}.`);
     for (const key of EDGE_NAMES) {
       if (partial && !Object.hasOwn(edges, key)) continue;
       const edge = edges[key];
+      errors.push(...validateFoldEdge(edge, `${prefix}.${key}`));
       if (plain(edge) && !['fold', 'none'].includes(edge.type)) add('EDGE_TYPE', `${prefix}.${key}: tipo inválido.`);
       dimension(edgeHeight(edge), `${prefix}.${key}`, 0, 500);
     }
@@ -185,6 +201,7 @@ export function validateProject(project) {
     if (remnant.trim != null) dimension(remnant.trim, `Retalho ${i + 1}: refilo`, 0, 1000);
     if (typeof remnant.id !== 'string' || !remnant.id) add('REMNANT_ID', 'Retalhos precisam de identificação.');
   }
+  if (project.technicalDrawing != null) errors.push(...validateTechnicalDrawing(project.technicalDrawing));
   errors.push(...validateStructureFrame(project.structure), ...validateVisual(project.visual), ...validateInstallation(project.installation));
   if (project.titleBlock != null) {
     if (!plain(project.titleBlock)) add('TITLE_BLOCK','Identificação da prancha inválida.');
@@ -223,12 +240,14 @@ function canonical(value) {
 }
 export function calibrationSignature(project) {
   const { calibration: _calibration, ...process } = project.fabrication;
-  return JSON.stringify(canonical({ material: project.material, process }));
+  return JSON.stringify(canonical({ material: project.material, process, edges: project.edges, overrides: Object.fromEntries(Object.entries(project.overrides).filter(([,value])=>value.edges).map(([id,value])=>[id,value.edges])), geometry: { front: project.front, left: project.left, right: project.right, soffit: project.soffit, layout: project.layout, openings: project.openings, technicalDrawing: project.technicalDrawing } }));
 }
 export function calibrationStatus(project) {
   const calibration = project.fabrication?.calibration;
   if (!plain(calibration) || calibration.approved !== true) return { valid: false, reason: 'Corpo de prova ainda não aprovado.' };
   if (calibration.signature !== calibrationSignature(project)) return { valid: false, reason: 'Configuração alterada após a calibração.' };
+  const edges = [...Object.values(project.edges ?? {}), ...Object.values(project.overrides ?? {}).flatMap(override => Object.values(override.edges ?? {}))];
+  if (edges.some(edge => { const folds = edgeFolds(edge); return folds.length > 1 || folds.some(fold => fold.angle !== 90); })) return { valid: false, reason: 'Registro legado de prova a 90° não valida múltiplas dobras ou outros ângulos; conferir cada operação em corpo de prova específico.' };
   if (typeof calibration.responsible !== 'string' || !calibration.responsible.trim() || typeof calibration.date !== 'string' || !/^\d{4}-\d{2}-\d{2}/.test(calibration.date) || !Number.isFinite(Date.parse(calibration.date))) return { valid: false, reason: 'Informe responsável e data válida da calibração.' };
   if (project.material.skin == null || project.fabrication.depth == null || project.fabrication.remainingCore == null) return { valid: false, reason: 'Defina lâmina, profundidade e núcleo residual do processo testado.' };
   for (const key of ['targetWidth', 'targetHeight', 'measuredWidth', 'measuredHeight']) if (!num(calibration[key], 0.01)) return { valid: false, reason: 'Registre dimensões alvo e medidas do corpo de prova.' };

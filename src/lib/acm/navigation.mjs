@@ -1,8 +1,9 @@
 export const ACM_AREAS = Object.freeze([
-  { id: 'project', icon: '📐', label: 'Projeto', initial: 'measures', steps: [['measures', 'Medidas'], ['materials', 'Materiais'], ['modulation', 'Paginação'], ['costs', 'Custos'], ['review', 'Conferência']] },
-  { id: 'structure', icon: '🏗️', label: 'Estrutura', initial: 'structure', steps: [['structure', 'Metalon e corte']] },
-  { id: 'cut', icon: '✂️', label: 'Corte ACM', initial: 'nesting', steps: [['nesting', 'Plano das chapas'], ['bends', 'Bandejas e fresagem']] },
-  { id: 'fixing', icon: '🔩', label: 'Fixações', initial: 'fixing', steps: [['fixing', 'Produtos e mapa']] },
+  { id: 'project', icon: '📐', label: 'Projeto', initial: 'finish', steps: [['finish', 'Acabamento'], ['measures', 'Medidas'], ['materials', 'Materiais'], ['modulation', 'Paginação'], ['costs', 'Custos'], ['review', 'Conferência']] },
+  { id: 'bends', icon: '↪️', label: 'Dobras do ACM', initial: 'bends', steps: [['bends', 'Bandejas e fresagem']] },
+  { id: 'structure', icon: '🏗️', label: 'Estrutura', initial: 'structure', steps: [['structure', 'Quadro e barras internas']] },
+  { id: 'cut', icon: '✂️', label: 'Planos de corte', initial: 'nesting', steps: [['nesting', 'Chapas de ACM'], ['metalcut', 'Quadro de metalon']] },
+  { id: 'fixing', icon: '🔩', label: 'Parafusos e furos', initial: 'fixing', steps: [['fixing', 'Produtos e mapa']] },
   { id: 'installation', icon: '🧰', label: 'Instalação', initial: 'installation', steps: [['installation', 'Planejamento da instalação']] },
   { id: 'layout', icon: '🎨', label: 'Layout 3D', initial: 'layout3d', steps: [['layout3d', 'Arte e apresentação']] },
   { id: 'documents', icon: '📄', label: 'Documentos', initial: 'documents', steps: [['documents', 'Caderno e arquivos']] },
@@ -34,4 +35,11 @@ export function setProjectPath(object,path,value) {
   }
   at[keys.at(-1)]=value;
   return object;
+}
+
+/** Keep one URL-addressable entry for each manufacturing workspace. */
+export function stepFromLocation(location) {
+  const query=String(location?.hash||'').split('?')[1]||String(location?.search||'').replace(/^\?/, '');
+  const step=new URLSearchParams(query).get('acm');
+  return ACM_AREAS.some(a=>a.steps.some(([id])=>id===step))?step:'finish';
 }

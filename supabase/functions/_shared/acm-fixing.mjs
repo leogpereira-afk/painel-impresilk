@@ -19,6 +19,9 @@ export function validateFixingDetails(fixing) {
     const p = fixing.pattern;
     if (!plain(p)) add('FIXING_PATTERN', 'Padrão de fixação inválido.');
     else {
+      if(p.surface!=null&&p.surface!=='flange')add('FIXING_PATTERN_SURFACE','Furação automática deve ocorrer somente nas abas.');
+      number(p,'flangeOffset',0,500,'Aba');
+      if(p.flangeFoldByEdge!=null){if(!plain(p.flangeFoldByEdge))add('FIXING_PATTERN','Seleção de abas inválida.');else for(const [edge,value]of Object.entries(p.flangeFoldByEdge))if(!['left','right','bottom','top'].includes(edge)||!Number.isInteger(value)||value<0||value>4)add('FIXING_PATTERN','Operação de aba deve ser 0 (desativada) ou 1 a 4.');}
       number(p, 'maxPitch', .1, 10000, 'Padrão'); number(p, 'cornerOffset', 0, 500, 'Padrão'); number(p, 'minEdgeDistance', 0, 500, 'Padrão');
       text(p, ['source', 'responsible', 'validatedAt', 'constraints', 'validationNotes'], 'Padrão');
       if (p.validatedAt && (!/^\d{4}-\d{2}-\d{2}$/.test(p.validatedAt) || !Number.isFinite(Date.parse(p.validatedAt)) || new Date(p.validatedAt).toISOString().slice(0, 10) !== p.validatedAt)) add('FIXING_DATE', 'Data de conferência da fixação inválida.');
@@ -43,6 +46,10 @@ export function resolveFixing(project, piece) {
   const base = project.fixing ?? {}, override = project.overrides?.[piece?.id]?.fixing ?? {};
   const f = { ...base, ...override };
   for (const key of ['pattern', 'screwProduct', 'tapeProduct']) if (base[key] || override[key]) f[key] = { ...base[key], ...override[key] };
+  // A legacy face pattern's sign-off cannot approve a new flange distribution.
+  if (['screws', 'hybrid'].includes(f.type) && f.pattern?.surface !== 'flange') f.validated = false;
+  f.pattern = {...f.pattern,surface:f.pattern?.surface??'flange'};
+  if(base.pattern?.flangeFoldByEdge||override.pattern?.flangeFoldByEdge)f.pattern.flangeFoldByEdge={...base.pattern?.flangeFoldByEdge,...override.pattern?.flangeFoldByEdge};
   f.screwPitch = f.pattern?.maxPitch ?? f.screwPitch;
   f.edgeOffset = f.pattern?.cornerOffset ?? f.edgeOffset;
   f.tapeWidth = f.tapeProduct?.width ?? f.tapeWidth;
@@ -64,4 +71,10 @@ export function fixingQuantities(result) {
     else { group.tapeBands++; group.tapeLength += Math.hypot(item.x2 - item.x1, item.y2 - item.y1); }
   }
   return [...groups.values()];
+}
+
+/** Old face-local saved marks remain readable; new generated flange marks already use blank coordinates. */
+export function fixingPointOnBlank(piece,hole) {
+  const face=piece.blank.face??{x:0,y:0};
+  return {x:hole.x+(hole.coordinateSpace==='blank'?0:face.x),y:hole.y+(hole.coordinateSpace==='blank'?0:face.y)};
 }
