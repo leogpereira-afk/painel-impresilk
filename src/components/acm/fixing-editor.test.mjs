@@ -66,10 +66,11 @@ function apply(project,updates){
   assert.ok(['fixing','overrides'].includes(updates[0].path));
   return {...structuredClone(project),[updates[0].path]:updates[0].value};
 }
-function typeButton(tree,type){
-  const group=find(tree,node=>node.props?.role==='group'&&node.props?.['aria-label']==='Sistema de fixação');
-  assert.ok(group);
-  return find(group,node=>node.type==='button'&&find(node.props.children,child=>child.type==='strong'&&child.props.children===type));
+function typeSelect(tree){
+  const select=find(tree,node=>node.props?.label==='Sistema de fixação'&&typeof node.props.onChange==='function');
+  assert.ok(select);
+  assert.deepEqual(select.props.options.map(option=>option.value),['tape','screws','hybrid']);
+  return select;
 }
 
 for(const scope of ['all','piece','surface']){
@@ -77,14 +78,13 @@ for(const scope of ['all','piece','surface']){
     const {project,pieceId}=fixture(),before=structuredClone(project);
     assert.equal(resolveFixing(project,{id:pieceId}).validated,true);
     const {tree,updates}=renderEditor(project,pieceId,scope);
-    const selected=typeButton(tree,'Parafusos');
-    assert.ok(selected);assert.equal(selected.props['aria-pressed'],true);
-    selected.props.onClick();
+    const selected=typeSelect(tree);
+    assert.equal(selected.props.value,'screws');
+    selected.props.onChange('screws');
     assert.equal(updates.length,0,'The selected choice must not create an undo step or invalidate signoff');
     assert.equal(resolveFixing(project,{id:pieceId}).validated,true);
     assert.deepEqual(project,before);
-    const hybrid=typeButton(tree,'Híbrido');assert.ok(hybrid);
-    hybrid.props.onClick();
+    selected.props.onChange('hybrid');
     const next=apply(project,updates),effective=resolveFixing(next,{id:pieceId});
     assert.equal(effective.type,'hybrid');assert.equal(effective.validated,false);
     assert.deepEqual(next.overrides['outra-peca-sintetica'],before.overrides['outra-peca-sintetica']);
