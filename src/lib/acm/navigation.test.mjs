@@ -4,7 +4,7 @@ import { ACM_AREAS, areaForStep, productionInput } from './navigation.mjs';
 test('installation preserves every previous operation; Layout 3D is penultimate', () => {
   assert.deepEqual(ACM_AREAS.map(area => area.label), ['Projeto', 'Dobras do ACM', 'Estrutura', 'Planos de corte', 'Parafusos e furos', 'Instalação', 'Layout 3D', 'Documentos']);
   assert.equal(ACM_AREAS.at(-2).id, 'layout');
-  for (const step of ['finish','measures','materials','modulation','bends','structure','nesting','metalcut','costs','review','documents','fixing','installation','layout3d']) {
+  for (const step of ['measures','materials','modulation','bends','structure','nesting','metalcut','costs','review','documents','fixing','installation','layout3d']) {
     assert.ok(areaForStep(step).steps.some(([id]) => id === step));
   }
 });
@@ -32,5 +32,7 @@ test('manufacturing links preserve the exact workspace and reject unknown steps'
  const {stepFromLocation}=await import('./navigation.mjs');
  assert.equal(stepFromLocation({hash:'#/ferramenta-ia?ferramenta=acm&acm=metalcut'}),'metalcut');
  assert.equal(stepFromLocation({search:'?ferramenta=acm&acm=fixing'}),'fixing');
- assert.equal(stepFromLocation({hash:'#/ferramenta-ia?acm=invalid'}),'finish');
+ assert.equal(stepFromLocation({hash:'#/ferramenta-ia?acm=invalid'}),'measures');
 });
+
+test('finish legacy URL opens unified measures; project has five persistent blocks', async()=>{ const {stepFromLocation}=await import('./navigation.mjs'); assert.equal(stepFromLocation({search:'?acm=finish'}),'measures'); assert.equal(stepFromLocation({}),'measures'); assert.deepEqual(ACM_AREAS[0].steps.map(([id])=>id),['measures','materials','modulation','costs','review']); assert.equal(areaForStep('finish').id,'project'); });

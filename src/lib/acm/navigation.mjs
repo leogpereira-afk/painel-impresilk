@@ -1,5 +1,5 @@
 export const ACM_AREAS = Object.freeze([
-  { id: 'project', icon: '📐', label: 'Projeto', initial: 'finish', steps: [['finish', 'Acabamento'], ['measures', 'Medidas'], ['materials', 'Materiais'], ['modulation', 'Paginação'], ['costs', 'Custos'], ['review', 'Conferência']] },
+  { id: 'project', icon: '📐', label: 'Projeto', initial: 'measures', steps: [['measures', 'Medidas e acabamento'], ['materials', 'Materiais'], ['modulation', 'Paginação'], ['costs', 'Custos'], ['review', 'Conferência']] },
   { id: 'bends', icon: '↪️', label: 'Dobras do ACM', initial: 'bends', steps: [['bends', 'Bandejas e fresagem']] },
   { id: 'structure', icon: '🏗️', label: 'Estrutura', initial: 'structure', steps: [['structure', 'Quadro e barras internas']] },
   { id: 'cut', icon: '✂️', label: 'Planos de corte', initial: 'nesting', steps: [['nesting', 'Chapas de ACM'], ['metalcut', 'Quadro de metalon']] },
@@ -10,7 +10,7 @@ export const ACM_AREAS = Object.freeze([
 ]);
 
 export function areaForStep(step) {
-  return ACM_AREAS.find(area => area.steps.some(([id]) => id === step)) ?? ACM_AREAS[0];
+  return ACM_AREAS.find(area => area.steps.some(([id]) => id === (step==='finish'?'measures':step))) ?? ACM_AREAS[0];
 }
 
 /** Presentation assets never cross into a cutting worker or change physical quantities. */
@@ -41,5 +41,5 @@ export function setProjectPath(object,path,value) {
 export function stepFromLocation(location) {
   const query=String(location?.hash||'').split('?')[1]||String(location?.search||'').replace(/^\?/, '');
   const step=new URLSearchParams(query).get('acm');
-  return ACM_AREAS.some(a=>a.steps.some(([id])=>id===step))?step:'finish';
+  return step==='finish'?'measures':ACM_AREAS.some(a=>a.steps.some(([id])=>id===step))?step:'measures';
 }

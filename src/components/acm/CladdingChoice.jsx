@@ -14,6 +14,6 @@ export default function CladdingChoice({project,result,update,onFlat,onFixing,on
    <section><h3>☀️ 4. Exposição</h3><SelectField label="Ambiente da instalação" value={state.exposure} options={EXPOSURES} onChange={v=>change('exposure',v)}/><p>Sol, chuva, dilatação e acesso influenciam o detalhe. Junta, bandeja e fita são escolhas diferentes; registrar estas opções não libera a instalação.</p><button onClick={()=>onStep('installation')}>Planejar a instalação</button></section>
   </div>
   {state.notices.length>0&&<div className="acm-notice" role="status">{state.notices.map(message=><p key={message}>{message}</p>)}</div>}
-  <footer><p>Escolher o tipo não apaga medidas nem dobras existentes. Alterações explícitas podem ser desfeitas.</p><a href="https://www.youtube.com/watch?v=8v-h4S_6AsY" target="_blank" rel="noreferrer">Referência: tipos de juntas ↗</a><button onClick={()=>onStep('measures')}>Continuar para medidas →</button></footer>
+  <footer><p>Escolher o tipo não apaga medidas nem dobras existentes. Alterações explícitas podem ser desfeitas.</p><a href="https://www.youtube.com/watch?v=8v-h4S_6AsY" target="_blank" rel="noreferrer">Referência: tipos de juntas ↗</a><button onClick={()=>onStep('measures')}>Ver medidas abaixo ↓</button></footer>
  </section>
 }

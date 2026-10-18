@@ -4,6 +4,8 @@ import { resolveFixing } from '../../../supabase/functions/_shared/acm-fixing.mj
 export { FRAME_GROUPS, validateStructureFrame };
 const EPS = 1e-6, LIMIT = 5000;
 const round = value => Math.round(value * 1e6) / 1e6;
+export const frameMemberSignature = member => JSON.stringify([member.surface, member.axis, member.local, member.longLength]);
+const rawMemberSignature = (raw, face) => frameMemberSignature({surface:face,axis:raw.axis,local:raw.axis==='horizontal'?{x1:raw.lo,y1:raw.q,x2:raw.hi,y2:raw.q}:{x1:raw.q,y1:raw.lo,x2:raw.q,y2:raw.hi},longLength:round(raw.hi-raw.lo)});
 const issue = (code, message) => ({ code, message });
 const point = (t, x, y, z) => t.origin.map((v, i) => round(v + t.u[i] * x + t.v[i] * y + t.normal[i] * z));
 export const frameFaceWidth = p => p.orientation === 'depth' ? p.depth : p.width;
@@ -35,7 +37,7 @@ function localContour(raw) {
 }
 /** Plane frames have actual profile envelopes; no member derives from panel pagination. */
 export function buildStructureFrame(project, surfaces, errors, warnings, pieces = []) {
-  const f = project.structure.frame, segments = [];
+  const f = project.structure.frame, segments = [], knownIds = new Set(), changedEdits = new Set();
   const invalid = validateStructureFrame(project.structure);
   if (invalid.length) { errors.push(...invalid); return { segments, totalLength: 0, bars: [], unplaced: [], dimensioned: false, frame: true }; }
   if (project.assemblyMode === 'wrap') { errors.push(issue('FRAME_WRAP', 'Encapamento exige detalhe específico: desative o quadro independente para usar o estudo legado.')); return { segments, totalLength: 0, bars: [], unplaced: [], dimensioned: false, frame: true }; }
@@ -52,7 +54,7 @@ export function buildStructureFrame(project, surfaces, errors, warnings, pieces 
       continue;
     }
     const profileFor = (group, id, explicit) => resolveFrameGroup(f, face, group, id, explicit);
-    const make = (id, group, axis, q, lo, hi, priority, explicit) => { const g = profileFor(group, id, explicit); return { id, group, axis, q, lo, hi, priority, ...g, faceWidth: frameFaceWidth(g.profile) }; };
+    const make = (id, group, axis, q, lo, hi, priority, explicit) => { knownIds.add(id); const g = profileFor(group, id, explicit); return { id, group, axis, q: g.position ?? q, lo, hi, priority, ...g, faceWidth: frameFaceWidth(g.profile) }; };
     const external = ['B', 'T', 'L', 'R'].map(side => { const axis = ['B', 'T'].includes(side) ? 'horizontal' : 'vertical'; return make(`${face}-EXT-${side}`, axis === 'horizontal' ? 'externalHorizontal' : 'externalVertical', axis, 0, 0, 0, 100); });
     const [bottom, top, left, right] = external, b = bottom.faceWidth, t = top.faceWidth, l = left.faceWidth, r = right.faceWidth;
     const inner = { x: inset + l, y: inset + b, width: W - 2 * inset - l - r, height: H - 2 * inset - b - t };
@@ -64,7 +66,7 @@ export function buildStructureFrame(project, surfaces, errors, warnings, pieces 
     if (isMiter) for (const [i, item] of external.entries()) { item.lo += gap; item.hi -= gap; item.miterEdge = ['low', 'high', 'low', 'high'][i]; }
     else if (f.continuous === 'horizontal') for (const member of [left, right]) { member.lo = inner.y + gap; member.hi = inner.y + inner.height - gap; }
     else for (const member of [bottom, top]) { member.lo = inner.x + gap; member.hi = inner.x + inner.width - gap; }
-    placed.push(...external);
+    placed.push(...external.filter(member => !member.removed));
     const openings = project.openings.filter(o => (o.surface ?? 'front') === face), rings = [];
     for (const [index, opening] of openings.entries()) {
       const ring = ['B', 'T', 'L', 'R'].map(side => make(`${face}-OP${index + 1}-${side}`, 'reinforcement', ['B', 'T'].includes(side) ? 'horizontal' : 'vertical', 0, 0, 0, 90));
@@ -79,7 +81,7 @@ export function buildStructureFrame(project, surfaces, errors, warnings, pieces 
       }
       const envelope = { x: opening.x - rl, y: opening.y - rb, width: opening.width + rl + rr, height: opening.height + rb + rt };
       if (envelope.x < inner.x + gap - EPS || envelope.y < inner.y + gap - EPS || envelope.x + envelope.width > inner.x + inner.width - gap + EPS || envelope.y + envelope.height > inner.y + inner.height - gap + EPS || rings.some(other => overlaps(envelope, other))) { errors.push(issue('FRAME_OPENING_CLEARANCE', `${surface.label}: abertura ${index + 1} não comporta seu reforço sem colisão. Afaste a abertura ou detalhe a estrutura explicitamente.`)); continue; }
-      rings.push(envelope); placed.push(...ring);
+      rings.push(envelope); placed.push(...ring.filter(member => !member.removed));
     }
     const candidates = [];
     const nx = Math.ceil(inner.width / cfg.spacingX), ny = Math.ceil(inner.height / cfg.spacingY);
@@ -88,6 +90,7 @@ export function buildStructureFrame(project, surfaces, errors, warnings, pieces 
     for (let i = 1; i < ny; i++) candidates.push(make(`${face}-IH-${i}`, 'internalHorizontal', 'horizontal', inner.y + inner.height * i / ny, inner.x + gap, inner.x + inner.width - gap, f.continuous === 'horizontal' ? 60 : 50));
     for (const reinforcement of f.reinforcements.filter(item => item.surface === face)) candidates.push(make(`${face}-R-${reinforcement.id}`, 'reinforcement', reinforcement.axis, reinforcement.position, reinforcement.start, reinforcement.end, 80, reinforcement.profile));
     for (const raw of candidates.sort((a, b) => b.priority - a.priority || a.id.localeCompare(b.id))) {
+      if (raw.removed) continue;
       const bounds = rectangle(raw.axis, raw.q, raw.lo, raw.hi, raw.faceWidth);
       if (bounds.x < inner.x - EPS || bounds.y < inner.y - EPS || bounds.x + bounds.width > inner.x + inner.width + EPS || bounds.y + bounds.height > inner.y + inner.height + EPS) { errors.push(issue('FRAME_MEMBER_BOUNDS', `${raw.id}: o elemento ultrapassa o vão do quadro.`)); continue; }
       let intervals = [[raw.lo, raw.hi]], parallelCollision = false;
@@ -100,9 +103,11 @@ export function buildStructureFrame(project, surfaces, errors, warnings, pieces 
       }
       if (parallelCollision) { errors.push(issue('FRAME_PARALLEL_COLLISION', `${raw.id}: perfis paralelos se sobrepõem. Ajuste o espaçamento, seção ou reforço.`)); continue; }
       if (placed.length + segments.length + intervals.length > LIMIT) { errors.push(issue('SEGMENT_LIMIT', 'Limite de 5.000 elementos após subdividir encontros. Aumente espaçamento ou simplifique reforços.')); break; }
-      for (const [index, [lo, hi]] of intervals.entries()) if (hi - lo > EPS) placed.push({ ...raw, lo, hi, baseId: raw.id, id: intervals.length > 1 ? `${raw.id}-S${index + 1}` : raw.id });
+      for (const [index, [lo, hi]] of intervals.entries()) if (hi - lo > EPS) { const id = intervals.length > 1 ? `${raw.id}-S${index + 1}` : raw.id; knownIds.add(id); const edit=f.overrides[id], changed=edit?.geometrySignature && edit.geometrySignature!==rawMemberSignature({...raw,lo,hi},face); if(changed) changedEdits.add(id); if (!edit?.removed || changed) placed.push({ ...raw, lo, hi, baseId: raw.id, id }); }
     }
     for (const raw of placed) {
+      knownIds.add(raw.id);
+      if (f.overrides[raw.id]?.removed && !changedEdits.has(raw.id)) continue;
       const longLength = round(raw.hi - raw.lo), shortLength = round(longLength - (raw.miterEdge ? 2 * raw.faceWidth : 0));
       if (shortLength <= EPS) { errors.push(issue('FRAME_MEMBER_LENGTH', `${raw.id}: comprimento insuficiente para o encontro.`)); continue; }
       if (raw.profile.wall != null && 2 * raw.profile.wall >= Math.min(raw.profile.width, raw.profile.depth)) { errors.push(issue('FRAME_WALL', `${raw.id}: parede personalizada elimina o vão interno do tubo.`)); continue; }
@@ -114,6 +119,9 @@ export function buildStructureFrame(project, surfaces, errors, warnings, pieces 
       if (segments.length > LIMIT) { errors.push(issue('SEGMENT_LIMIT', 'Limite de 5.000 elementos da estrutura excedido.')); break; }
     }
   }
+  if(changedEdits.size) warnings.push(issue('FRAME_CHANGED_EDIT', `Trechos alterados pela geometria: ${[...changedEdits].join(', ')}. Exclusões suspensas; reveja e remova novamente para confirmar.`));
+  const orphanedOverrides = Object.keys(f.overrides).filter(id => !knownIds.has(id));
+  if (orphanedOverrides.length) warnings.push(issue('FRAME_ORPHAN_EDIT', `Edições sem elemento nesta geometria, preservadas: ${orphanedOverrides.join(', ')}. Reveja ou descarte explicitamente.`));
   const collisions = frameInterferences(segments, surfaces);
   if (collisions.length) errors.push(issue('FRAME_FACE_INTERFERENCE', `${collisions.length} interferência(s) entre quadros de faces distintas: ${collisions.slice(0, 8).map(pair => pair.join(' × ')).join('; ')}. Ajuste recuos/perfis ou detalhe o encontro; nenhuma união foi presumida.`));
   const plan = planMetalBars(segments, f);
@@ -122,7 +130,7 @@ export function buildStructureFrame(project, surfaces, errors, warnings, pieces 
   warnings.push(issue('STRUCTURE_UNVERIFIED', 'Comprimentos de oficina calculados com seções, encontros e folgas informados. Cargas, ligações, solda, ancoragem e resistência aguardam avaliação técnica.'));
   if (segments.some(s => s.wall == null)) warnings.push(issue('PROFILE_WALL', 'Há perfil sem parede em mm; bitola nominal não determina espessura, peso ou resistência.'));
   if (segments.some(s => !s.sku || !s.material)) warnings.push(issue('PROFILE_CATALOG', 'Complete material e SKU para confirmar identidade comercial dos perfis.'));
-  return { segments, ...plan, totalLength: round(segments.reduce((sum, member) => sum + member.length, 0)), dimensioned: false, frame: true };
+  return { segments, orphanedOverrides, ...plan, totalLength: round(segments.reduce((sum, member) => sum + member.length, 0)), dimensioned: false, frame: true };
 }
 /** Conservative long-point envelopes. Miter starts get an individual cut; end kerf includes the last cut when there is a remainder. */
 export function planMetalBars(segments, frame) {

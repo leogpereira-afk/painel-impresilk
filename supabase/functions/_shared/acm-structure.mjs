@@ -35,7 +35,7 @@ export function validateStructureFrame(structure) {
     if (cfg.groups !== undefined) { if (!plain(cfg.groups)) add('FRAME_GROUP', `${face}: grupos inválidos.`); else for (const [key, g] of Object.entries(cfg.groups)) { if (!FRAME_GROUPS.includes(key)) add('FRAME_GROUP', `${face}: grupo desconhecido.`); else group(g, `${face}.${key}`, true); } }
   }
   if (!plain(f.overrides) || Object.keys(f.overrides).length > 5000) add('FRAME_OVERRIDE', 'Personalizações de elementos inválidas ou acima do limite.');
-  else for (const [id, value] of Object.entries(f.overrides)) { if (id.length > 180 || !plain(value)) { add('FRAME_OVERRIDE', 'Personalização de elemento inválida.'); continue; } group(value, id, true); }
+  else for (const [id, value] of Object.entries(f.overrides)) { if (id.length > 180 || !plain(value)) { add('FRAME_OVERRIDE', 'Personalização de elemento inválida.'); continue; } group(value, id, true); if(value.geometrySignature!==undefined&&(typeof value.geometrySignature!=='string'||value.geometrySignature.length>1000)) add('FRAME_OVERRIDE', `${id}: referência geométrica inválida.`); if (value.removed !== undefined && typeof value.removed !== 'boolean') add('FRAME_OVERRIDE', `${id}: exclusão deve ser booleana.`); if (value.position !== undefined && !number(value.position, 0, 100000)) add('FRAME_OVERRIDE', `${id}: posição inválida.`); if (value.position !== undefined && id.includes('-EXT-')) add('FRAME_OVERRIDE', `${id}: mova o quadro externo pelo recuo da face.`); }
   if (!Array.isArray(f.reinforcements) || f.reinforcements.length > 100) add('FRAME_REINFORCEMENT', 'Limite de 100 reforços explícitos.');
   else {
     const ids = new Set();

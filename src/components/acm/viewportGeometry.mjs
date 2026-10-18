@@ -2,7 +2,7 @@
 export const MM_TO_SCENE = 0.001;
 // Keep a tiny Z offset at the poles so OrbitControls retains a stable roll.
 export const CAMERA_VIEWS = Object.freeze({
-  iso: [1, 0.62, 1.45], front: [0, 0, 1], back: [0, 0, -1],
+  iso: [1, 0.62, 1.45], backIso: [1, 0.62, -1.45], front: [0, 0, 1], back: [0, 0, -1],
   left: [-1, 0, 0], right: [1, 0, 0], top: [0, 1, 0.001], bottom: [0, -1, 0.001],
 });
 
@@ -164,4 +164,44 @@ export function flangeFixingTransform(piece,hole,progress=1) {
   let x=hole.x-panel.pivot[0],y=hole.y-panel.pivot[1];if(vertical)x*=t.scale;else y*=t.scale;
   const c=Math.cos(t.angle),s=Math.sin(t.angle),rotated=vertical?[c*x,y,-s*x]:[x,c*y,s*y];
   return {position:[t.origin[0]+rotated[0]-face.x,t.origin[1]+rotated[1]-face.y,t.origin[2]+rotated[2]],normal:vertical?[s,0,c]:[0,-s,c],panel};
+}
+
+/** Section through a real engine flange chain, in mm; no invented attachment hardware. */
+export function flangeSection(piece, edge) {
+  const panels = unfoldedPanels(piece).filter(panel => panel.edge === edge);
+  const vertical = ['left', 'right'].includes(edge);
+  const face = piece.blank.face ?? { x: 0, y: 0 };
+  const origin = vertical ? face.x + (edge === 'right' ? piece.width : 0) : face.y + (edge === 'top' ? piece.height : 0);
+  const outward = ['left', 'bottom'].includes(edge) ? -1 : 1;
+  const segments = panels.map(panel => {
+    const transform = foldedPanelTransform(piece, panel);
+    const axis = vertical ? 0 : 1;
+    const values = panel.contour.map(point => point[axis] - panel.pivot[axis]);
+    const a = Math.min(...values) * transform.scale, b = Math.max(...values) * transform.scale;
+    const point = value => [(transform.origin[axis] + Math.cos(transform.angle) * value - origin) * outward, transform.origin[2] + (vertical ? -1 : 1) * Math.sin(transform.angle) * value];
+    const start=point(outward < 0 ? b : a), end=point(outward < 0 ? a : b);
+    return { number: panel.number, start, end, length:Math.hypot(end[0]-start[0],end[1]-start[1]), angle: panel.angle, direction: piece.blank.profiles?.[edge]?.operations?.[panel.index]?.direction };
+  });
+  return { thickness: piece.material.thickness, segments };
+}
+
+/** Hollow tube walls only when wall thickness is specified; preserves engine mitres. */
+export function structureWallLayers(segment) {
+  const { contour, depth, wall } = segment;
+  if (!contour?.length || !(wall > 0) || wall * 2 >= Math.min(segment.width, depth)) return null;
+  const axis = segment.axis === 'horizontal' ? 1 : 0;
+  const low = Math.min(...contour.map(p=>p[axis])), high = Math.max(...contour.map(p=>p[axis]));
+  return [
+    { contour, depth: wall, z: -depth/2 },
+    { contour, depth: wall, z: depth/2-wall },
+    { contour: clipPolygon(contour,axis,low+wall,false), depth:depth-2*wall,z:-depth/2+wall },
+    { contour: clipPolygon(contour,axis,high-wall,true), depth:depth-2*wall,z:-depth/2+wall },
+  ];
+}
+
+/** A position without specified diameter is a cross, never a measured circular hole. */
+export function fixingMarkerSpec(hole) {
+  return Number.isFinite(hole.drillDiameter) && hole.drillDiameter > 0
+    ? { kind: 'diameter', radius: hole.drillDiameter / 2 }
+    : { kind: 'position', radius: null };
 }

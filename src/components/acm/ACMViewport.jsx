@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
-import { MM_TO_SCENE as S, CAMERA_VIEWS, boundsFrameKey, cameraFrame, structurePrismTransform, withoutEditorOverlays, cutoutContour, unfoldedPanels, foldedPanelTransform, flangeFixingTransform, unfoldedPlacement } from './viewportGeometry.mjs';
+import { MM_TO_SCENE as S, CAMERA_VIEWS, boundsFrameKey, cameraFrame, structurePrismTransform, structureWallLayers, withoutEditorOverlays, cutoutContour, unfoldedPanels, foldedPanelTransform, flangeFixingTransform, fixingMarkerSpec, unfoldedPlacement } from './viewportGeometry.mjs';
 import './acm-viewport.css';
 import { documentGeometry } from '../../lib/acm/documents.mjs';
 import { visualOf } from '../../lib/acm/visual.mjs';
@@ -145,7 +146,7 @@ function disposeGroup(group) {
   group.clear();
 }
 
-function addStructure(group, segments, surfaces = []) {
+function addStructure(group, segments, surfaces = [], selectedStructureId) {
   if (!segments.length) return;
   const metal = new THREE.MeshStandardMaterial({ color: '#667b8c', metalness: 0.76, roughness: 0.37 });
   for (const segment of segments) {
@@ -157,8 +158,14 @@ function addStructure(group, segments, surfaces = []) {
     let geometry, mesh;
     if (segment.contour?.length >= 3 && segment.local && surface?.transform) {
       const transform = structurePrismTransform(segment, surface);
-      geometry = new THREE.ExtrudeGeometry(shapeFrom(segment.contour), { depth: segment.depth * S, bevelEnabled: false, steps: 1 });
-      geometry.translate(0, 0, -segment.depth * S / 2);
+      const layers = structureWallLayers(segment);
+      if (layers) {
+        const walls = layers.map(layer=>{const wall=new THREE.ExtrudeGeometry(shapeFrom(layer.contour),{depth:layer.depth*S,bevelEnabled:false,steps:1});wall.translate(0,0,layer.z*S);return wall;});
+        geometry = mergeGeometries(walls); for(const wall of walls)wall.dispose();
+      } else {
+        geometry = new THREE.ExtrudeGeometry(shapeFrom(segment.contour), { depth: segment.depth * S, bevelEnabled: false, steps: 1 });
+        geometry.translate(0, 0, -segment.depth * S / 2);
+      }
       mesh = new THREE.Mesh(geometry, metal);
       mesh.position.fromArray(transform.origin).multiplyScalar(S);
       mesh.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(new THREE.Vector3(...transform.u), new THREE.Vector3(...transform.v), new THREE.Vector3(...transform.normal)));
@@ -173,6 +180,7 @@ function addStructure(group, segments, surfaces = []) {
         mesh.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(across, along, normal));
       } else mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), along);
     }
+    if (segment.id === selectedStructureId) { mesh.material = metal.clone(); mesh.material.color.set('#1398e5'); mesh.material.emissive.set('#073653'); }
     mesh.castShadow = true; mesh.receiveShadow = true; mesh.userData.structureId = segment.id;
     group.add(mesh);
     const edges = new THREE.LineSegments(new THREE.EdgesGeometry(geometry), new THREE.LineBasicMaterial({ color: '#405668', transparent: true, opacity: 0.35 }));
@@ -180,7 +188,7 @@ function addStructure(group, segments, surfaces = []) {
   }
 }
 
-function addFixings(group, piece, project, exploded, onFront = false) {
+function addFixings(group, piece, project, exploded, onFront = false, selectedFixingIndex) {
   const thickness = piece.material?.thickness || project.material.thickness;
   const fixing = piece.fixing || project.fixing;
   const z = onFront ? 0.002 : -(thickness + fixing.thickness / 2) * S - (exploded ? 0.05 : 0);
@@ -192,18 +200,31 @@ function addFixings(group, piece, project, exploded, onFront = false) {
     mesh.rotation.z = -Math.atan2(dx, dy); mesh.userData.pieceId = piece.id; group.add(mesh);
   }
   const screwMaterial = new THREE.MeshStandardMaterial({ color: '#d4a34c', metalness: 0.8, roughness: 0.3 });
-  for (const screw of piece.fixings?.screws || []) {
+  for (const [fixingIndex,screw] of (piece.fixings?.screws || []).entries()) {
     const located=flangeFixingTransform(piece,screw);if(!located)continue;
-    const mesh = new THREE.Mesh(new THREE.CylinderGeometry(0.004, 0.004, 0.003, 10), screwMaterial);
+    const marker = fixingMarkerSpec(screw);
+    const color = selectedFixingIndex===fixingIndex?'#ef4444':'#168be0';
+    let mesh;
+    if (marker.kind === 'diameter') {
+      const radius = marker.radius * S;
+      mesh = new THREE.Mesh(new THREE.RingGeometry(radius*.8,radius,20),new THREE.MeshBasicMaterial({color,side:THREE.DoubleSide}));
+    } else {
+      // A display cross denotes a coordinate only; its span is not a drill diameter.
+      const geometry = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(-.004,0,0),new THREE.Vector3(.004,0,0),new THREE.Vector3(0,-.004,0),new THREE.Vector3(0,.004,0)]);
+      mesh = new THREE.LineSegments(geometry,new THREE.LineBasicMaterial({color}));
+    }
+    mesh.userData.fixingMarkerKind = marker.kind;
+    mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0,0,1),new THREE.Vector3(...located.normal));
     if(screw.coordinateSpace==='blank') {
-      const normal=new THREE.Vector3(...located.normal);mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),normal);
+      const normal=new THREE.Vector3(...located.normal);mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0,0,1),normal);
       mesh.position.set(...located.position.map((v,i)=>(v-located.normal[i]*(thickness+1))*S));
-    } else {mesh.rotation.x = Math.PI / 2; mesh.position.set(screw.x * S, screw.y * S, onFront ? 0.0025 : z);}
-    mesh.userData.pieceId = piece.id; group.add(mesh);
+    } else {mesh.rotation.x = 0; mesh.position.set(screw.x * S, screw.y * S, onFront ? 0.0025 : z);}
+    mesh.userData.pieceId = piece.id; mesh.userData.fixingIndex = fixingIndex; group.add(mesh);
   }
+  screwMaterial.dispose();
   // Materials are otherwise unattached for empty maps.
   if (!piece.fixings?.tape?.length) tapeMaterial.dispose();
-  if (!piece.fixings?.screws?.length) screwMaterial.dispose();
+
 }
 
 function setSurfaceTransform(group, piece, exploded) {
@@ -278,23 +299,25 @@ export function SceneFallback({ result, selectedId, onSelect, mode, project }) {
   </div>;
 }
 
-export default function ACMViewport({ project, result, selectedId, onSelect, mode = 'assembled', view = 'iso', showStructure = false, showFixings = false, transparent = false, onCapture, presentation = false, hideArtwork = false, onCameraAPI, onCameraChange, immersive = false }) {
+export default function ACMViewport({ project, result, selectedId, onSelect, mode = 'assembled', view = 'iso', showStructure = false, showFixings = false, transparent = false, onCapture, presentation = false, hideArtwork = false, onCameraAPI, onCameraChange, immersive = false, selectedStructureId, onSelectStructure, focusPiece = false, focusEdge, section = false, selectedFixingIndex, onSelectFixing }) {
   const hostRef = useRef(null);
   const sceneRef = useRef(null);
   const selectRef = useRef(onSelect);
+  const structureSelectRef = useRef(onSelectStructure);
+  const fixingSelectRef = useRef(onSelectFixing);
   const captureRef = useRef(onCapture);
   const viewRef = useRef(view);
   const cameraChangeRef = useRef(onCameraChange);
   const foldRef = useRef(0);
   const [failed, setFailed] = useState(false);
   const [ready, setReady] = useState(false);
-  const [dimensions, setDimensions] = useState(!presentation);
-  const [labels, setLabels] = useState(!presentation);
+  const [dimensions, setDimensions] = useState(!presentation && !focusEdge);
+  const [labels, setLabels] = useState(!presentation && !focusEdge);
   const [fold, setFold] = useState(0);
   const [playing, setPlaying] = useState(false);
   const [announce, setAnnounce] = useState('');
   const [optionsOpen, setOptionsOpen] = useState(false);
-  selectRef.current = onSelect; captureRef.current = onCapture; cameraChangeRef.current = onCameraChange; viewRef.current = view; foldRef.current = fold;
+  fixingSelectRef.current = onSelectFixing; structureSelectRef.current = onSelectStructure; selectRef.current = onSelect; captureRef.current = onCapture; cameraChangeRef.current = onCameraChange; viewRef.current = view; foldRef.current = fold;
 
   useEffect(() => {
     const host = hostRef.current;
@@ -305,10 +328,11 @@ export default function ACMViewport({ project, result, selectedId, onSelect, mod
       setFailed(true); onCapture?.(null); return undefined;
     }
     renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    renderer.localClippingEnabled = true;
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.2;
     renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-    renderer.domElement.setAttribute('aria-label', 'Fachada em 3D. Arraste para girar, use a roda para aproximar, F para enquadrar.');
+    renderer.domElement.setAttribute('aria-label', 'Fachada em 3D. Arraste para girar, use os botões para aproximar, F para enquadrar.');
     renderer.domElement.setAttribute('role', 'img');
     host.appendChild(renderer.domElement);
     const scene = new THREE.Scene(); scene.background = new THREE.Color('#eff3f7');
@@ -325,6 +349,7 @@ export default function ACMViewport({ project, result, selectedId, onSelect, mod
     scene.add(model, annotations, surroundings);
     const camera = new THREE.PerspectiveCamera(35, 1, 0.001, 10000);
     const controls = new OrbitControls(camera, renderer.domElement);
+    controls.enableZoom = false; // Toolbar/keyboard zoom keeps ordinary page scrolling available.
     controls.enableDamping = false; controls.screenSpacePanning = true; controls.minDistance = 0.03; controls.maxDistance = 500;
     controls.rotateSpeed = 0.6; controls.zoomSpeed = 0.8;
     const state = { renderer, scene, camera, controls, model, annotations, surroundings, sun, ambient, bounds: new THREE.Box3(), frame: 0, stopped: false };
@@ -349,7 +374,12 @@ export default function ACMViewport({ project, result, selectedId, onSelect, mod
       if (state.bounds.isEmpty()) return;
       const center = state.bounds.getCenter(new THREE.Vector3());
       const size = state.bounds.getSize(new THREE.Vector3());
-      const direction = preserveDirection ? camera.position.clone().sub(controls.target).normalize() : new THREE.Vector3(...(CAMERA_VIEWS[namedView] || CAMERA_VIEWS.iso)).normalize();
+      let direction = preserveDirection ? camera.position.clone().sub(controls.target).normalize() : new THREE.Vector3(...(CAMERA_VIEWS[namedView] || CAMERA_VIEWS.iso)).normalize();
+      if (!preserveDirection && state.detailTransform) {
+        const {u,v,normal,edge}=state.detailTransform;
+        if(namedView==='backIso')direction.set(edge==='left'?-1:1,edge==='bottom'?-.62:.62,-1.45);
+        const local=direction.clone();direction.set(...u.map((value,i)=>value*local.x+v[i]*local.y+normal[i]*local.z)).normalize();
+      }
       const radius = size.length() / 2;
       const { distance } = cameraFrame(state.bounds.min.toArray(), state.bounds.max.toArray(), direction.toArray(), camera.aspect, camera.fov);
       controls.target.copy(center); camera.position.copy(center).addScaledVector(direction, distance);
@@ -368,8 +398,9 @@ export default function ACMViewport({ project, result, selectedId, onSelect, mod
       const rect = renderer.domElement.getBoundingClientRect();
       const raycaster = new THREE.Raycaster();
       raycaster.setFromCamera(new THREE.Vector2((event.clientX - rect.left) / rect.width * 2 - 1, -(event.clientY - rect.top) / rect.height * 2 + 1), camera);
-      const hit = raycaster.intersectObjects(model.children, true).find(item => item.object.userData.pieceId);
-      if (hit) { selectRef.current?.(hit.object.userData.pieceId); setAnnounce(`Peça ${hit.object.userData.pieceId} selecionada`); }
+      const hit = raycaster.intersectObjects(model.children, true).find(item => item.object.userData.pieceId || (structureSelectRef.current && item.object.userData.structureId));
+      if (hit?.object.userData.structureId) { structureSelectRef.current?.(hit.object.userData.structureId); setAnnounce(`Barra ${hit.object.userData.structureId} selecionada`); }
+      else if (hit) { selectRef.current?.(hit.object.userData.pieceId); if(hit.object.userData.fixingIndex!==undefined)fixingSelectRef.current?.(hit.object.userData.fixingIndex); setAnnounce(`Peça ${hit.object.userData.pieceId} selecionada`); }
     };
     renderer.domElement.addEventListener('pointerdown', down); renderer.domElement.addEventListener('pointerup', up);
     const contextLost = event => { event.preventDefault(); setFailed(true); setReady(false); captureRef.current?.(null); state.stopped = true; };
@@ -435,7 +466,8 @@ export default function ACMViewport({ project, result, selectedId, onSelect, mod
     state.foldPivots = []; state.pieceLabels = []; state.projectName = project.name; state.revision = project.revision; state.projectStamp = JSON.stringify(project);
     if (!result.valid || !result.pieces?.length) { state.layoutPending = false; state.bounds.makeEmpty(); state.render(); return; }
     const selected = result.pieces.find(piece => piece.id === selectedId);
-    const pieces = mode === 'unfolded' && selected ? [selected] : result.pieces;
+    state.detailTransform=focusEdge&&selected?{...selected.transform,edge:focusEdge}:null;
+    const pieces = (mode === 'unfolded' || focusPiece) && selected ? [selected] : result.pieces;
     const positions = mode === 'unfolded' ? unfoldedPlacement(pieces) : [];
     const textureCache = new Map();
     const labelSize = Math.max(0.035, Math.min(0.16, (mode === 'unfolded' && selected ? selected.blank.width : project.front.width) * S * 0.019));
@@ -452,11 +484,11 @@ export default function ACMViewport({ project, result, selectedId, onSelect, mod
         addFoldPanels(group, piece, finish, core, back, foldRef.current / 90, state);
         for (const groove of piece.blank.grooves) {
           addLine(group, [[groove.x1 * S, groove.y1 * S, 0.002], [groove.x2 * S, groove.y2 * S, 0.002]], '#dc2626', true);
-          if (labels && groove.number) addText(group, `${groove.edge} D${groove.number} · ${groove.angle}°`, [(groove.x1 + groove.x2) / 2 * S, (groove.y1 + groove.y2) / 2 * S, 0.004], labelSize * 0.45, '#991b1b');
+          if (labels && !focusEdge && groove.number) addText(group, `${groove.edge} D${groove.number} · ${groove.angle}°`, [(groove.x1 + groove.x2) / 2 * S, (groove.y1 + groove.y2) / 2 * S, 0.004], labelSize * 0.45, '#991b1b');
         }
         if (piece.material.directional) addGrainDirection(group, piece.blank.width, piece.blank.height, piece.id);
         if (labels) state.pieceLabels.push(addText(group, piece.id, [piece.blank.width * S / 2, piece.blank.height * S / 2, 0.005], labelSize, '#28577b', true, false));
-        if (dimensions) {
+        if (dimensions && !focusEdge) {
           const offset = labelSize * 1.1;
           addDimension(group, [0, -offset, 0], [piece.blank.width * S, -offset, 0], fmt(piece.blank.width), labelSize);
           addDimension(group, [-offset, 0, 0], [-offset, piece.blank.height * S, 0], fmt(piece.blank.height), labelSize, 'y');
@@ -464,9 +496,10 @@ export default function ACMViewport({ project, result, selectedId, onSelect, mod
       } else {
         setSurfaceTransform(group, piece, mode === 'exploded');
         addTray(group, piece, finish, core, back);
+        if (section && focusPiece) { const verticalEdge=['left','right'].includes(focusEdge), tangent=verticalEdge?piece.transform.v:piece.transform.u; const plane = new THREE.Plane(new THREE.Vector3(...tangent), -(piece.transform.origin.reduce((sum,v,i)=>sum+v*tangent[i],0)+(verticalEdge?piece.y+piece.height/2:piece.x+piece.width/2))*S); group.traverse(child=>{ if(child.material) for(const material of Array.isArray(child.material)?child.material:[child.material]) { material.clippingPlanes=[plane]; material.clipShadows=true; } }); }
         if (piece.material.directional) addGrainDirection(group, piece.width, piece.height, piece.id);
-        if (showFixings) addFixings(group, piece, project, mode === 'exploded', (piece.fixing || project.fixing).type === 'screws');
-        if (labels && (pieces.length <= 40 || selectedId === piece.id)) state.pieceLabels.push(addText(group, piece.id, [piece.width * S / 2, piece.height * S / 2, 0.006], labelSize, '#28577b', true, false));
+        if (showFixings) addFixings(group, piece, project, mode === 'exploded', (piece.fixing || project.fixing).type === 'screws', selectedId===piece.id?selectedFixingIndex:undefined);
+        if (labels && !focusEdge && (pieces.length <= 40 || selectedId === piece.id)) state.pieceLabels.push(addText(group, piece.id, [piece.width * S / 2, piece.height * S / 2, 0.006], labelSize, '#28577b', true, false));
       }
       if (selectedId === piece.id) {
         const bounds = new THREE.Box3().setFromObject(group);
@@ -477,9 +510,20 @@ export default function ACMViewport({ project, result, selectedId, onSelect, mod
       }
       model.add(group);
     }
-    if ((showStructure || mode === 'exploded') && mode !== 'unfolded') addStructure(model, result.structure?.segments || [], result.surfaces || []);
+    if ((showStructure || mode === 'exploded') && mode !== 'unfolded') addStructure(model, result.structure?.segments || [], result.surfaces || [], selectedStructureId);
     state.bounds.setFromObject(model);
-    if (mode !== 'unfolded' && dimensions && !project.technicalDrawing) {
+    if (focusPiece && selected) {
+      const selectedGroup = model.children.find(item=>item.userData.pieceId===selected.id);
+      if (selectedGroup) state.bounds.setFromObject(selectedGroup);
+      if (focusEdge && selectedGroup) {
+        const size = Math.max(40, ...(selected.blank.profiles?.[focusEdge]?.operations??[]).map(op=>op.length)) * S * 2;
+        const x = focusEdge==='left'?0:focusEdge==='right'?selected.width:selected.width/2;
+        const y = focusEdge==='bottom'?0:focusEdge==='top'?selected.height:selected.height/2;
+        const point = selectedGroup.localToWorld(new THREE.Vector3(x*S,y*S,0));
+        state.bounds.setFromCenterAndSize(point,new THREE.Vector3(size,size,size));
+      }
+    }
+    if (mode !== 'unfolded' && dimensions && !focusEdge && !project.technicalDrawing) {
       const width = project.front.width * S; const height = project.front.height * S;
       const gap = labelSize * 1.65; const z = mode === 'exploded' ? 0.245 : 0.025;
       addDimension(annotations, [0, -gap, z], [width, -gap, z], fmt(project.front.width), labelSize);
@@ -500,7 +544,7 @@ export default function ACMViewport({ project, result, selectedId, onSelect, mod
     Object.assign(state.sun.shadow.camera, { left: -shadowSpan, right: shadowSpan, top: shadowSpan, bottom: -shadowSpan, near: 0.01, far: span * 6 });
     state.sun.shadow.camera.updateProjectionMatrix();
     // Selection/material changes keep the user's camera position.
-    const framingKey = boundsFrameKey(mode, selectedId, state.bounds.min.toArray(), state.bounds.max.toArray(), pieces.length);
+    const framingKey = boundsFrameKey(`${mode}:${focusPiece?selectedId:''}:${focusEdge??''}`, selectedId, state.bounds.min.toArray(), state.bounds.max.toArray(), pieces.length);
     if (state.framingKey !== framingKey) { state.framingKey = framingKey; state.fit(mode === 'unfolded' ? 'front' : viewRef.current); }
     let cancelled = false;
     state.refreshBackground = null;
@@ -543,7 +587,7 @@ export default function ACMViewport({ project, result, selectedId, onSelect, mod
     } else state.layoutPending = false;
     state.render();
     return () => { cancelled = true; };
-  }, [ready, result, project, selectedId, mode, showStructure, showFixings, transparent, dimensions, labels, presentation, hideArtwork]);
+  }, [ready, result, project, selectedId, mode, showStructure, showFixings, transparent, dimensions, labels, presentation, hideArtwork, selectedStructureId, focusPiece, focusEdge, section, selectedFixingIndex]);
 
   useEffect(() => {
     if (!ready || failed || !onCameraAPI) return undefined;
@@ -609,7 +653,7 @@ export default function ACMViewport({ project, result, selectedId, onSelect, mod
       <button type="button" onClick={() => sceneRef.current?.zoom(0.8)} title="Aproximar (+)" aria-label="Aproximar desenho">＋</button>
       <button type="button" onClick={() => sceneRef.current?.zoom(1.25)} title="Afastar (-)" aria-label="Afastar desenho">−</button>
       {immersive && <button type="button" className="acmv-options-toggle" aria-expanded={optionsOpen} onClick={() => setOptionsOpen(open => !open)}>Opções</button>}
-      <div className="acmv-display-options" hidden={immersive && !optionsOpen}>
+      <div className="acmv-display-options" hidden={!!focusEdge || immersive && !optionsOpen}>
       <button type="button" aria-pressed={dimensions} onClick={() => setDimensions(value => !value)} title="Mostrar cotas">Cotas</button>
       <button type="button" aria-pressed={labels} onClick={() => setLabels(value => !value)} title="Identificar peças">IDs</button>
       </div>
@@ -621,7 +665,7 @@ export default function ACMViewport({ project, result, selectedId, onSelect, mod
     </div>}
     <div className="acmv-bottom">
       <div className="acmv-axis" aria-hidden="true"><span>X</span><span>Y</span><span>Z</span></div>
-      <div className="acmv-hint">{failed ? 'Toque em uma peça para selecionar' : 'Arraste para orbitar · role para aproximar · F enquadra'}</div>
+      <div className="acmv-hint">{failed ? 'Toque em uma peça para selecionar' : 'Arraste para orbitar · +/− aproximam · F enquadra'}</div>
       <span className="acmv-finish">{finishLabel[project.material.finish] || project.material.finish}</span>
     </div>
     {selection && <div className="acmv-selected"><span />{selection.id}<small>{fmt(selection.width)} × {fmt(selection.height)} mm</small></div>}
