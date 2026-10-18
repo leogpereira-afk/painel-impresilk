@@ -10,12 +10,13 @@
     "preview": "vite preview",
     "lint": "eslint src",
     "conferir": "node scripts/conferir-sistemas.mjs",
-    "test": "TZ=UTC node --test src/lib/calc/*.test.mjs src/lib/acm/*.test.mjs src/components/acm/*.test.mjs",
+    "test": "TZ=UTC node --test src/lib/calc/*.test.mjs src/lib/acm/*.test.mjs src/components/acm/*.test.mjs src/lib/letras/*.test.mjs src/lib/fabrication/*.test.mjs",
     "review": "vite --mode review --host 127.0.0.1 --port 5173 --strictPort",
     "build:review": "vite build --mode review --config vite.review.config.js",
     "test:acessos": "node --test src/lib/acesso-state.test.mjs",
     "valores:pdf": "node scripts/valores-pdf.mjs",
-    "test:acm": "TZ=UTC node --test src/lib/acm/*.test.mjs src/components/acm/*.test.mjs tests/acm-backend.test.mjs tests/acm-installation-orders.test.mjs"
+    "test:acm": "TZ=UTC node --test src/lib/acm/*.test.mjs src/components/acm/*.test.mjs tests/acm-backend.test.mjs tests/acm-installation-orders.test.mjs",
+    "test:letras": "TZ=UTC node --test src/lib/letras/*.test.mjs src/lib/fabrication/*.test.mjs"
   },
   "dependencies": {
     "clsx": "^2.1.1",

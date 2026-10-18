@@ -1,0 +1,17 @@
+# Letra Caixa — implementação do fluxo de fabricação
+
+**Objetivo:** concluir o percurso arte pronta → corpo/bordas → fabricação → LEDs/ligação → documentos conforme a correção autorizada pelo usuário.
+**Arquitetura:** React/Vite/Three, motores puros em mm, armazenamento local por revisão. Importação normaliza para o mesmo contrato de contornos já usado pelo texto. Roteiro e LEDs derivam desse resultado, sem motor paralelo de medidas.
+**Especificação:** docs/letra-caixa/prompt-fabricacao-v2.md.
+
+## Tarefas e contratos
+
+- [ ] **Arte e construção.** Proprietário: agente de geometria. Alterar model/engine/input/project/vectors e novos importers; componente VectorImportPanel. Projeto `artwork={mode:'text'|'vector',fileName,format,contours:[{id,label,outer:[[x,y]],holes:[...]}],widthMm,heightMm,sourceWidthMm,sourceHeightMm}`. Usar contornos válidos do motor no resultado. Preservar contrato `result.letters/components/strips/bounds`. Importação deve rejeitar código ativo, recursos externos, contornos abertos, unidades ausentes sem confirmação e formatos incompatíveis; exemplos SVG/DXF fictícios e testes. Construção acrescenta desenvolvimento e famílias restantes conforme capacidade modelada, com parâmetros declarados.
+- [ ] **Distribuição LED.** Proprietário: agente de iluminação. Novos light-layout.mjs/test, LedPlanner.jsx/CSS; extensão LetterViewport. `createLightLayout()`, `calculateLightLayout(project,result)`, `validateLightLayout(config)`. Configuração em project.lighting; resultado módulos com x/y/z globais mm, letterId, circuitId e totais/circuitos/fontes/percursos. Painel `{project,result,onChange}` emite nova configuração. Viewport recebe `lighting` e `showLighting` opcionais. Não alterar engine/model/root. Testar vazados, bordas, unidades, potência, limites de ramal, exclusão de módulos e famílias não luminosas.
+- [ ] **Roteiro e pranchas de oficina.** Proprietário: agente de fabricação. Novos fabrication.mjs/test e FabricationPanel.jsx/CSS; não alterar documents/root/model/engine. `calculateFabrication(project,result)` retorna etapas com componentes/operações, faixas desenvolvidas, pendências e resumo; `fabricationSVG(...)` e `fabricationHTML(...)` para desenhos por etapa, legíveis. Config em project.fabrication. Painel `{project,result,onChange,onExport}`. Roteiro específico por família, sem etapas falsas; união/material e compensações explícitas. Testar dependências, cortes por material, largura das bordas e separação de operações/anotações.
+- [ ] **Integração.** Root: página organizada por processo, borda em destaque, imports/painéis/worker, cartões resumidos, documentos e persistência dos novos dados. Propagar campos novos no worker e assinatura. Não permitir exportação incompatível com a revisão atual. Reaproveitar O.S./instalação e cores, aprimorar etapas existentes.
+- [ ] **Pesquisa e validação.** Fontes primárias de fabricantes para LED e pintura; links e data no relatório, sem receitas universais. Revisão independente, correção dos achados, suíte e navegação com importação real de fixtures, borda 75 mm, LEDs no vazado, downloads, reload, mobile. Atualizar entrega e prompt.
+
+## Decisões
+
+Prévia local no clone existente; nenhum merge de alterações paralelas ACM. O foco é cumprir os fluxos pedidos, não afirmar fabricação aprovada. Fontes, dimensões e potência demonstrativas devem ter identificação explícita. Não produzir desenhos arbitrários ao falhar uma importação.

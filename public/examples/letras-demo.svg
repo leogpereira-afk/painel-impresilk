@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="400mm" height="200mm" viewBox="0 0 400 200">
+  <!-- Exemplo ficticio: duas formas com vazados, sem dados de cliente. -->
+  <path fill="#182d45" fill-rule="evenodd" d="M0 0H180V200H0Z M40 40H140V160H40Z"/>
+  <path fill="#182d45" fill-rule="evenodd" d="M220 0H400V200H220Z M260 30H360V80H260Z M260 120H360V170H260Z"/>
+</svg>

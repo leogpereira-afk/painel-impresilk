@@ -1,5 +1,11 @@
 # Vez do Painel Impresilk
 
+## Trabalho atual · Letra Caixa
+
+Agente: codex. Publicação autorizada pelo dono em 18/10/2026: “subir”, após a conferência da prévia v5. Integrar a Letra Caixa sobre a main atual, preservando ACM e servidor publicados. Escopo: modelo, importação SVG/DXF, fabricação, bordas/emendas, LEDs/fontes/fios, pintura, instalação e documentos locais por revisão. Sem migração, ampliação de permissões ou escrita no ERP. Clone /tmp/painel-letra-caixa-publicacao-20261018; ramo codex/letra-caixa-publicacao-20261018. Verificação integrada e publicação em preparação.
+
+Verificação integrada: 1.600 regressões passaram no ambiente restrito; os dois casos que precisam abrir porta local foram recusados por EPERM e passaram na repetição autorizada do arquivo completo (7/7). Mais 1.041 testes de cálculos, fabricação e acesso passaram. Build de produção com caminho oficial e 15 verificadores aprovados; lint sem erros, aviso anterior em Agenda. Revisão de dependências sem imports ausentes. Viewport, geometria e armazenamento do ACM conservados da main; somente textos da instalação tornados reutilizáveis. Nenhuma alteração no servidor.
+
 ## Trabalho atual · ACM Studio
 
 **Publicado e conferido em 17/10/2026:** autorização do dono “pode subir e deixar a consulta das O.S. funcionando no sistema”. Código bc728d1; Pages 39086028148 e Functions 39086028216 concluídos com sucesso. Servidor antes da tela: painel-comercial v78, versão final v79 ACTIVE e 19/19 arquivos idênticos. Interface: 156/156 arquivos públicos iguais ao build validado. CI: 1.602 regressões, 850 testes de cálculo/ACM e 7 de acesso passaram, sem falhas ou ignorados; build e 15 verificadores aprovados, lint sem erros (aviso preexistente em Agenda). Navegador autenticado confirmou busca por número e cliente, vínculo local e abertura do detalhe de O.S. existente. Houve falha transitória de rede na primeira tentativa; servidor/CORS conferidos e repetição completou com sucesso. Desktop e celular sem transbordamento horizontal. Vínculo de teste removido do rascunho ao concluir; nenhuma ordem alterada. Serviço futuro painel-acm mantido fora da publicação, sem SQL ou IA remota ativados. Relatório: docs/acm-studio/publicacao.md. Publicado e conferido; vez encerrada.
