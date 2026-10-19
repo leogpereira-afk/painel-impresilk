@@ -1,6 +1,6 @@
 ## Trabalho atual · Fundo cinza das chapas · Codex · 19/10/2026
 
-Ajuste solicitado: chapa inteira em cinza-claro e peças na cor do material, na tela e PDF. Prévia local; sem alterar medidas, divisão ou compras.
+Publicado e conferido: chapa inteira em cinza-claro e peças na cor do material, na tela e PDF. Commit 4d2d559; Pages 39304597286 concluído com sucesso. Build validado e 190/190 arquivos públicos iguais. Conferidos desenho da tela e PDF baixado em produção. Sem alterar medidas, divisão ou compras.
 
 ## Trabalho atual · OK e sugestão de bandejas · Codex · 19/10/2026
 
