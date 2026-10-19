@@ -1,6 +1,6 @@
 ## Trabalho atual · Visualização das colunas · Codex · 19/10/2026
 
-Prévia local verificada: faces afastadas ilustrativas e dimensões de corte vindas do cálculo real; peça única em U ou três painéis. Navegador conferiu ambos os modos, 32 testes, lint e build aprovados. Inclui cotas e dobras da prévia anterior. Publicação dos três ajustes autorizada pelo dono nesta conversa.
+Prévia local verificada: faces afastadas ilustrativas e dimensões de corte vindas do cálculo real; peça única em U ou três painéis. Navegador conferiu ambos os modos, 32 testes, lint e build aprovados. Inclui cotas e dobras da prévia anterior. Publicado e conferido: commit dae136f, Pages 39306678028 aprovado; 190/190 arquivos públicos iguais ao build validado. Tela e PDF verificados na prévia. Reconferência visual em produção limitada por cache anterior e falha de navegação do navegador integrado. Vez encerrada.
 
 ## Trabalho atual · Cotas e dobras no plano · Codex · 19/10/2026
 
