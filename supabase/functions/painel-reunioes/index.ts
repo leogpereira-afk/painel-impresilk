@@ -1,6 +1,7 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.0';
 import { verificarJwt, crachaRevogado } from '../_shared/cripto.ts';
 import { COLECAO_REUNIOES, ErroReuniao, idValido, podeEditarReuniao, prepararReuniao, carimbarReuniao, novoRegistro, validarArquivoReuniao, pessoasParaReunioes, agendaReunioes } from '../_shared/reunioes.mjs';
+import {identidadePresenca,minhaPresenca,confirmarPresenca,periodoAvisos,avisosReunioes} from '../_shared/reunioes-presenca.mjs';
 const sb=createClient(Deno.env.get('SUPABASE_URL')!,Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,{auth:{persistSession:false}});
 const JWT_SECRET=Deno.env.get('PAINEL_JWT_SECRET')||'',BUCKET='painel-arquivos';
 const cors={'Access-Control-Allow-Origin':'*','Access-Control-Allow-Headers':'authorization, apikey, content-type, x-client-info','Access-Control-Allow-Methods':'POST, OPTIONS'};
@@ -43,6 +44,21 @@ Deno.serve(async(req:Request)=>{
   const raw=await req.text();if(raw.length>7500000)return json({erro:'Conteúdo grande demais.'},413);
   let b:any;try{b=JSON.parse(raw);}catch{return json({erro:'Pedido inválido.'},400);}
   if(!b||typeof b!=='object'||Array.isArray(b))return json({erro:'Pedido inválido.'},400);
+  let identidade:any;
+  async function identidadeAtual(){return identidade??=await identidadePresenca(sb,s.sub);}
+  async function apresentar(r:any){return {...r,podeEditar:podeEditarReuniao(r,s),minhaPresenca:minhaPresenca(r,await identidadeAtual())};}
+  if(b.action==='avisos'){
+   const pessoa=await identidadeAtual();
+   if(pessoa.indisponivel)return json({erro:pessoa.motivo},503);
+   if(!pessoa.rhId)return json({ok:true,avisos:[],aviso:pessoa.motivo});
+   const agora=new Date(),{hoje,ate}=periodoAvisos(agora),itens:any[]=[];
+   for(let pag=0;pag<100;pag++){
+    const {data,error}=await sb.from('painel_registros').select('id,titulo:registro->>titulo,tipo:registro->>tipo,data:registro->>data,inicio:registro->>inicio,fim:registro->>fim,local:registro->>local,situacao:registro->>situacao,participantes:registro->participantes').eq('colecao',COLECAO_REUNIOES).eq('registro->>situacao','agendado').gte('registro->>data',hoje).lte('registro->>data',ate).contains('registro',{participantes:[{rhId:pessoa.rhId}]}).order('id').range(pag*500,pag*500+499);
+    if(error)throw error;itens.push(...(data||[]));
+    if((data||[]).length<500)return json({ok:true,avisos:avisosReunioes(itens,pessoa,agora)});
+   }
+   throw new Error('Limite de avisos atingido.');
+  }
   if(b.action==='pessoas')return json({ok:true,pessoas:await pessoasRH()});
   if(b.action==='agenda'&&!/^\d{4}-(0[1-9]|1[0-2])$/.test(b.mes||''))return json({erro:'Informe um mês válido.'},422);
   if(b.action==='listar'||b.action==='agenda'){
@@ -50,7 +66,7 @@ Deno.serve(async(req:Request)=>{
    for(let pag=0;pag<100;pag++){
     const {data,error}=await sb.from('painel_registros').select('id,registro').eq('colecao',COLECAO_REUNIOES).order('id').range(pag*500,pag*500+499);
     if(error)throw error;
-    for(const row of data||[])itens.push({...row.registro,id:row.id,podeEditar:podeEditarReuniao(row.registro,s)});
+    for(const row of data||[]){const r={...row.registro,id:row.id};itens.push(b.action==='agenda'?r:await apresentar(r));}
     if((data||[]).length<500)return json(b.action==='agenda'?{ok:true,eventos:agendaReunioes(itens,b.mes)}:{ok:true,itens});
    }
    throw new Error('Limite de consulta atingido.');
@@ -59,9 +75,19 @@ Deno.serve(async(req:Request)=>{
   if(b.action==='salvar'){
    const vinculadas=Array.isArray(b.item?.participantes)&&b.item.participantes.some((p:any)=>p?.rhId);
    const novo=prepararReuniao(b.item,antes,s,new Date().toISOString(),vinculadas?await pessoasRH():[]);const item=await gravar(carimbarReuniao(novo,s,antes?'Editou o encontro':'Criou o encontro'),antes);
-   return json({ok:true,item:{...item,podeEditar:true}});
+   return json({ok:true,item:await apresentar(item)});
   }
   if(!antes)return json({erro:'Encontro não encontrado.'},404);
+  if(b.action==='presenca'){
+   const pessoa=await identidadeAtual();let atual=antes;
+   // Reaplica somente esta presença na versão mais recente; nunca reenvia a ata do navegador.
+   for(let tentativa=0;tentativa<3;tentativa++){
+    const item=confirmarPresenca(atual,s,pessoa,b);
+    if(item===atual)return json({ok:true,item:await apresentar(item)});
+    try{await gravar(item,atual);return json({ok:true,item:await apresentar(item)});}
+    catch(e){if(!(e instanceof ErroReuniao)||e.status!==409||tentativa===2)throw e;atual=await obter(id);if(!atual)return json({erro:'Encontro não encontrado.'},404);}
+   }
+  }
   if(b.action==='arquivo'){
    const a=(antes.anexos||[]).find((x:any)=>x.id===b.arquivoId);
    if(!a||typeof a.chave!=='string'||!a.chave.startsWith('reunioes/'+id+'/'))return json({erro:'Arquivo não encontrado neste encontro.'},404);
@@ -73,7 +99,7 @@ Deno.serve(async(req:Request)=>{
   if(b.versao!==antes.versao)return json({erro:'Este encontro mudou. Reabra a ficha antes de continuar.'},409);
   if(b.action==='registro'){
    const item=await gravar(carimbarReuniao(novoRegistro(antes,b.texto,s),s,'Acrescentou um registro'),antes);
-   return json({ok:true,item:{...item,podeEditar:true}});
+   return json({ok:true,item:await apresentar(item)});
   }
   if((antes.anexos||[]).length>=20)return json({erro:'Limite de 20 arquivos por encontro.'},422);
   if(typeof b.base64!=='string'||b.base64.length>7000000||!/^[A-Za-z0-9+/]*={0,2}$/.test(b.base64))return json({erro:'Arquivo inválido.'},422);
@@ -84,7 +110,7 @@ Deno.serve(async(req:Request)=>{
   const {error}=await sb.storage.from(BUCKET).upload(chave,bytes,{contentType:a.mime,upsert:false});
   if(error)throw error;
   try{await gravar(item,antes);}catch(e){await sb.storage.from(BUCKET).remove([chave]).catch(()=>{});throw e;}
-  return json({ok:true,item:{...item,podeEditar:true}});
+  return json({ok:true,item:await apresentar(item)});
  }catch(e){
   if(e instanceof ErroReuniao)return json({erro:e.message},e.status);
   console.error('painel-reunioes',e);return json({erro:'Não foi possível concluir. Tente novamente.'},500);

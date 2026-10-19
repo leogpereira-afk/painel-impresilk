@@ -1,3 +1,7 @@
+## Trabalho atual · Confirmação de presença e aviso de reuniões
+
+Agente: codex. Publicação autorizada pelo dono em 19/10/2026 após a prévia, incluindo aviso no topo do Painel para cada convidado. Clone /tmp/painel-presenca-20261019, ramo codex/reunioes-presenca-20261019. Confirmação própria, marcação pelo responsável e preservação de ata/histórico em concorrência; nenhuma presença real alterada. Servidor v74 publicado antes da interface, quatro arquivos relidos e idênticos. Interface em publicação. 1.611 regressões (dois casos de servidor local repetidos fora do sandbox), 1.304 testes de cálculo/fabricação, sete de acesso, quinze verificadores, build e lint sem erros. Navegador: aviso, confirmação, temas e celular conferidos. ACM preservado. Relatório: docs/REUNIOES-PRESENCA-20261019.md.
+
 ## Trabalho atual · Publicação Acrílico, MDF e Metalon · Codex · 18/10/2026
 
 O dono autorizou explicitamente publicar as melhorias de Metalon junto com Acrílico e MDF após as prévias. Entrega baseada em aeb8cf8, preservando ACM e Letra Caixa. Inclui modelos, textos, meios-encaixes, plano de corte, laterais compactas, cores independentes e travas horizontais/verticais/diagonais. Sem mudanças de servidor ou dados reais.

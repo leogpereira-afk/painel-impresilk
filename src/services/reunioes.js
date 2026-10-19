@@ -1,14 +1,17 @@
 import {API} from '../lib/api.js';
 import {comCracha,mensagemDoStatus} from '../lib/sessao.js';
 import {validarArquivoReuniao} from '../../supabase/functions/_shared/reunioes.mjs';
-async function chamar(action,dados={}){
- const r=await comCracha(`${API}/painel-reunioes`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action,...dados})});
+async function chamar(action,dados={},signal){
+ const r=await comCracha(`${API}/painel-reunioes`,{method:'POST',signal,headers:{'Content-Type':'application/json'},body:JSON.stringify({action,...dados})});
  const b=await r.json().catch(()=>null);if(!r.ok||!b?.ok)throw new Error(b?.erro||mensagemDoStatus(r.status));return b;
 }
+export const listarAvisosReunioes=signal=>chamar('avisos',{},signal);
+const avisarAtualizacao=item=>{window.dispatchEvent(new Event('reunioes-atualizadas'));return item;};
 export const listarReunioes=()=>chamar('listar').then(r=>r.itens);
 export const listarPessoasReunioes=()=>chamar('pessoas').then(r=>r.pessoas);
 export const lerAgendaReunioes=mes=>chamar('agenda',{mes}).then(r=>r.eventos);
-export const salvarReuniao=item=>chamar('salvar',{item}).then(r=>r.item);
+export const salvarReuniao=item=>chamar('salvar',{item}).then(r=>avisarAtualizacao(r.item));
+export const confirmarPresencaReuniao=(r,pessoa)=>chamar('presenca',{id:r.id,presencaAnterior:pessoa?.presenca||r.minhaPresenca?.presenca,...(pessoa?{participanteId:pessoa.id}:{})}).then(x=>avisarAtualizacao(x.item));
 export const registrarReuniao=(r,texto)=>chamar('registro',{id:r.id,versao:r.versao,texto}).then(x=>x.item);
 export const abrirArquivoReuniao=(id,arquivoId)=>chamar('arquivo',{id,arquivoId}).then(r=>r.url);
 export async function anexarReuniao(r,arquivo){

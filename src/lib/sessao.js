@@ -58,6 +58,7 @@ export function getSessao() {
     // Perfis fictícios para conferir o que cada pessoa vê, sem autenticação
     // real. Este ramo desaparece da compilação publicada.
     const perfil = new URLSearchParams(window.location.search).get('perfil');
+    if (perfil === 'reuniao-convidado') return {usuario:'ana-demo',nome:'Ana Exemplo',master:false,permissoes:['reunioes','calendario-empresa']};
     if (perfil === 'central-bancos') return {usuario:'bancos-exemplo',nome:'Bancos · simulação',master:false,permissoes:['bancos']};
     if (perfil === 'comercial-ana') return {usuario:'ana-exemplo',nome:'Ana Exemplo · simulação',master:false,vendedorId:'101',permissoes:['orcamentos','compromissos','calendario-empresa']};
     if (perfil === 'comercial-beatriz') return {usuario:'beatriz-exemplo',nome:'Beatriz Exemplo · simulação',master:false,vendedorId:'102',permissoes:['orcamentos','compromissos','calendario-empresa']};
