@@ -1,3 +1,7 @@
+## Trabalho atual · Plano de chapas e PDF compacto · Codex · 19/10/2026
+
+Publicação autorizada após prévia: chapas maiores na horizontal e informações ao lado, PDF compacto em uma página quando couber. Inclui entrada já revisada em cm, material por peça e colunas em U ou painéis separados. Sem alteração dos motores compartilhados ou dados reais. Verificação e publicação em andamento.
+
 ## Trabalho atual · Sistema Cortes · Codex · 19/10/2026
 
 Dono autorizou executar e publicar as sete ferramentas no acesso único Sistema Cortes, repetindo “subir” após a prévia. **Publicado e conferido:** código `795361e`, Pages [39290174659](https://github.com/leogpereira-afk/painel-impresilk/actions/runs/39290174659) concluído com sucesso. 190/190 arquivos oficiais idênticos ao build validado por SHA-256. Navegador autenticado: sete seleções e destinos, entrada e ausência de iframe antes de abrir editor conferidos; console sem erros. Seis testes focados, build oficial, lint sem erros (aviso anterior em Agenda), 72 classes de cor, revisão independente e verificações gerais do GitHub aprovados. Prévia: histórico/reload, teclado, temas e celular sem transbordamento. Acessos próprios de Acrílico, MDF, Metalon, ACM e Letra Caixa e Plano de chapas Vendas preservados. Sem alteração de servidor, motores ou dados reais. Base integrada b863f62, após conclusão de Licitações e Plano de chapas Vendas. Relatório: docs/sistema-cortes-20261019.md. Publicado e conferido; vez encerrada.

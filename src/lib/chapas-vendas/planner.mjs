@@ -4,7 +4,7 @@ import {nestPieces,validateNesting,materialKey} from '../acm/nesting.mjs';
 export const FINISHES=[['matte','Fosco'],['gloss','Brilhante'],['wood','Amadeirado'],['brushed','Escovado'],['metallic','Metálico'],['mirror','Espelhado']];
 export const COATINGS=[['polyester','Poliéster'],['pvdf','PVDF'],['unspecified','A confirmar']];
 export const defaultMaterial=()=>({colorId:'branco',colorName:'',finish:'matte',thickness:3,directional:false,manufacturer:'',sku:'',coating:'polyester'});
-export const newRow=(material=defaultMaterial())=>({id:crypto.randomUUID(),description:'Peça',width:1000,height:1000,quantity:1,folded:false,left:30,right:30,top:30,bottom:30,...material,materialOverride:false});
+export const newRow=(material=defaultMaterial())=>({id:crypto.randomUUID(),description:'Frente',kind:'front',columnMode:'folded',sideLeft:300,sideRight:300,width:1000,height:1000,quantity:1,folded:false,left:30,right:30,top:30,bottom:30,...material,materialOverride:false});
 export const initialPlan=()=>({name:'Novo plano de chapas',material:defaultMaterial(),rows:[newRow()],stock:{...createProject().stock,width:1220,length:5000},reserves:{}});
 export function updateDefaultMaterial(input,patch){const material={...input.material,...patch};return {...input,material,rows:input.rows.map(r=>r.materialOverride?r:{...r,...material})};}
 export const salesMaterialKey=m=>JSON.stringify([materialKey(m),m.coating??'polyester',(m.colorName??'').trim()]);
@@ -17,8 +17,21 @@ export function calculatePlan(input){
  const errors=[],rows=[],pieces=[],groups=[];
  if(!input||!Array.isArray(input.rows)||!input.rows.length||input.rows.length>100)return {valid:false,errors:['Informe de 1 a 100 linhas.'],rows,groups};
  if(new Set(input.rows.map(r=>r.id)).size!==input.rows.length)errors.push('Linhas com identificadores repetidos.');
- const fabrication={...createProject().fabrication,machineWidth:input.stock?.width,machineLength:input.stock?.length};
+ const expanded=[];
  for(const [index,row] of input.rows.entries()){
+  const kind=row.kind??'front';
+  if(!['front','side','column'].includes(kind)){errors.push(`Linha ${index+1}: tipo de peça inválido.`);continue;}
+  if(kind!=='column'){expanded.push({...row,number:index+1});continue;}
+  if(!['folded','separate'].includes(row.columnMode)||!number(row.sideLeft,.01,1000)||!number(row.sideRight,.01,1000)){
+   errors.push(`Linha ${index+1}: informe laterais da coluna entre 0,01 e 100 cm e o tipo de montagem.`);continue;
+  }
+  const base={...row,sourceId:row.id};
+  if(row.columnMode==='folded')expanded.push({...base,number:index+1,description:`${row.description||'Coluna'} · U dobrado (frente + laterais)`,folded:true,left:row.sideLeft,right:row.sideRight,top:0,bottom:0});
+  else for(const [suffix,name,width] of [['F','Frente',row.width],['E','Lateral esquerda',row.sideLeft],['D','Lateral direita',row.sideRight]])expanded.push({...base,id:`${row.id}/${suffix}`,number:`${index+1}${suffix}`,description:`${row.description||'Coluna'} · ${name}`,width});
+ }
+ if(errors.length)return {valid:false,errors,rows,groups};
+ const fabrication={...createProject().fabrication,machineWidth:input.stock?.width,machineLength:input.stock?.length};
+ for(const [index,row] of expanded.entries()){
   const label=`Linha ${index+1}`;
   if(!number(row.width,.01,LIMITS.dimension)||!number(row.height,.01,LIMITS.dimension)||!Number.isInteger(row.quantity)||row.quantity<1||row.quantity>LIMITS.pieces||![3,4].includes(row.thickness)||!COLORS.some(c=>c.id===row.colorId)||!['matte','gloss','wood','brushed','metallic','mirror'].includes(row.finish)||typeof row.folded!=='boolean'){errors.push(`${label}: confira medidas, quantidade e material.`);continue;}
   if(!COATINGS.some(c=>c[0]===(row.coating??'polyester'))||['manufacturer','sku','colorName'].some(k=>row[k]!=null&&(typeof row[k]!=='string'||row[k].length>120))){errors.push(`${label}: confira revestimento, marca, referência e nome da cor (até 120 caracteres).`);continue;}
@@ -27,9 +40,9 @@ export function calculatePlan(input){
   try{
    const blank=developBlank(row.width,row.height,edges,fabrication),color=COLORS.find(c=>c.id===row.colorId);
    const material={...createProject().material,colorId:color.id,color:color.hex,colorName:(row.colorName??'').trim(),finish:row.finish,thickness:row.thickness,directional:!!row.directional||color.directional||['wood','brushed'].includes(row.finish),manufacturer:(row.manufacturer??'').trim(),sku:(row.sku??'').trim(),coating:row.coating??'polyester'};
-   rows.push({...row,number:index+1,blank,material});
+   rows.push({...row,number:row.number??index+1,blank,material});
    if(pieces.length+row.quantity>LIMITS.pieces){errors.push(`Máximo de ${LIMITS.pieces} peças por cálculo.`);break;}
-   for(let i=0;i<row.quantity;i++)pieces.push({id:`${row.id}:${i+1}`,rowId:row.id,number:index+1,blank,material});
+   for(let i=0;i<row.quantity;i++)pieces.push({id:`${row.id}:${i+1}`,rowId:row.id,number:row.number??index+1,blank,material});
   }catch(error){errors.push(`${label}: ${error.message}`);}
  }
  if(errors.length)return {valid:false,errors,rows,groups};
