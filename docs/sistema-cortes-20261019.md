@@ -16,4 +16,4 @@ Prévia: seleção e destino dos sete atalhos, ausência de iframe antes de abri
 
 ## Publicação
 
-Publicação expressamente autorizada pelo dono. Integração após o encerramento da vez de Licitações e de Plano de chapas Vendas. GitHub Pages em preparação; confirmar execução concluída, arquivos servidos e tela oficial antes de declarar publicado.
+Publicação expressamente autorizada pelo dono. Integração após o encerramento da vez de Licitações e de Plano de chapas Vendas. Publicado e conferido: código `795361e`, GitHub Pages [39290174659](https://github.com/leogpereira-afk/painel-impresilk/actions/runs/39290174659) concluído com sucesso, incluindo as verificações gerais do repositório. 190/190 arquivos oficiais iguais ao build por SHA-256. Navegador autenticado confirmou as sete seleções e seus destinos fixos, retorno à entrada, nenhum iframe carregado antes da ação e console sem erros. Revisão independente também aprovada sobre a base integrada. Nenhuma gravação em registros reais.
