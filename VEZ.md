@@ -1,6 +1,6 @@
 ## Trabalho atual · Publicação Plano de chapas Vendas · Codex · 19/10/2026
 
-Dono autorizou subir após prévia aprovada: formatos padrão, poliéster, cores/nome personalizado, marca/referência e PDF colorido. Integração sobre main atual; somente esta entrega, preservando outras alterações locais da Oficina. Publicação e conferência em andamento. Sem alteração de servidor ou dados reais.
+Dono autorizou subir após prévia aprovada: formatos padrão, poliéster, cores/nome personalizado, marca/referência e PDF colorido. Integração sobre main atual; somente esta entrega, preservando outras alterações locais da Oficina. Publicado e conferido: fa8bfbc, Pages 39256388463 concluído com sucesso; 185/185 arquivos do build iguais ao site e tela autenticada conferida, sem erros de console. Sem alteração de servidor ou dados reais.
 
 ## Trabalho atual · Confirmação de presença e aviso de reuniões
 

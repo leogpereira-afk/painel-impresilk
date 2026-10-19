@@ -30,3 +30,5 @@ Sem commit, push ou publicação desta etapa. Alterações anteriores da Oficina
 ## Integração para publicação
 
 Entrega isolada sobre main 33cdfc6: 1.318 testes de cálculo/fabricação, 1.611 testes de integração (dois exigiram execução com porta localhost liberada), 7 testes de acesso, lint, build e conferidores aprovados. Conferência de sistemas usa equipe-auth da main pública atual; checkout local antigo estava desatualizado. Publicação autorizada pelo dono.
+
+Publicado e conferido: commit fa8bfbc, GitHub Pages 39256388463 concluído com sucesso. Comparação binária de index.html e assets: 185/185 iguais. Tela autenticada conferida em produção: formato 1,22 × 5 m, poliéster, marca/referência, nome personalizado da cor e PDF presentes; sem erros de console.
