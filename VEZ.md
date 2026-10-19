@@ -1,3 +1,11 @@
+## Trabalho atual · Visualização das colunas · Codex · 19/10/2026
+
+Prévia local verificada: faces afastadas ilustrativas e dimensões de corte vindas do cálculo real; peça única em U ou três painéis. Navegador conferiu ambos os modos, 32 testes, lint e build aprovados. Inclui cotas e dobras da prévia anterior. Publicação dos três ajustes autorizada pelo dono nesta conversa.
+
+## Trabalho atual · Cotas e dobras no plano · Codex · 19/10/2026
+
+Prévia local concluída: comprimento e altura em cm, linhas de dobra azuis tracejadas na tela e PDF, com contorno real das peças. 32 testes aprovados, incluindo rotação e dobras assimétricas; lint/build aprovados; PDF baixado e inspecionado. Cálculo e compras preservados. Publicação conjunta autorizada pelo dono.
+
 ## Trabalho atual · Fundo cinza das chapas · Codex · 19/10/2026
 
 Publicado e conferido: chapa inteira em cinza-claro e peças na cor do material, na tela e PDF. Commit 4d2d559; Pages 39304597286 concluído com sucesso. Build validado e 190/190 arquivos públicos iguais. Conferidos desenho da tela e PDF baixado em produção. Sem alterar medidas, divisão ou compras.

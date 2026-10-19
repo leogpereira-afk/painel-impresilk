@@ -1,3 +1,4 @@
+import {placedDrawing,FOLD_COLOR} from './drawing.mjs';
 import {formatCM} from './units.mjs';
 import {materialLabel,productLabel,contrastInk,salesMaterialKey} from './planner.mjs';
 // PDF vetorial A4, following the app's native PDF writer. WinAnsi covers Portuguese.
@@ -59,17 +60,26 @@ export function purchasePDF(input,plan,{logo,date=new Date(),confirmed=false}={}
  if(sheets.length){room(98);lines('Distribuição · números correspondem às peças da lista',{size:9,bold:true});}
  for(const {sheet,material} of sheets){
   const scale=Math.min(500/sheet.length,74/sheet.width),w=sheet.length*scale,h=sheet.width*scale;
-  const x=32,infoX=Math.max(410,x+w+22);
+  const x=52,infoX=Math.max(430,x+w+22);
   const metadata=wrapCell(`${materialLabel(sheet.material)} · ${productLabel(sheet.material)}`,810-infoX,8);
   const blockHeight=Math.max(h,52+metadata.length*10);
-  room(blockHeight+12);const top=y;
+  room(blockHeight+42);const top=y+23;
+  text(`Comprimento: ${formatCM(sheet.length)} cm`,x,top-9,8);
+  commands.push(`BT /FN 8 Tf ${rgb("#203647")} rg 0 1 -1 0 ${x-8} ${595-top-h} Tm (${esc(`Altura: ${formatCM(sheet.width)} cm`)}) Tj ET`);
   rect(x,top,w,h,'#edf0f2','#71838e');
-  for(const p of sheet.placements){const piece=pieceById.get(p.pieceId),px=x+p.y*scale,py=top+p.x*scale,pw=p.height*scale,ph=p.width*scale;rect(px,py,pw,ph,piece.material.color,contrastInk(piece.material.color));const label=String(piece.number),size=Math.min(10,pw/(label.length+1),ph/2);if(size>=4)text(label,px+pw/2-label.length*size*.25,py+ph/2+size*.35,size,true,contrastInk(piece.material.color));}
+  for(const p of sheet.placements){
+   const piece=pieceById.get(p.pieceId),drawing=placedDrawing(piece,p),px=x+p.y*scale,py=top+p.x*scale,pw=p.height*scale,ph=p.width*scale;
+   const points=drawing.contour.map(([a,b])=>`${(x+a*scale).toFixed(2)} ${(595-top-b*scale).toFixed(2)}`);
+   commands.push(`q ${rgb(piece.material.color)} rg ${rgb(contrastInk(piece.material.color))} RG 0.4 w ${points.map((pt,i)=>pt+(i?' l':' m')).join(' ')} h B Q`);
+   for(const g of drawing.folds){const path=`${x+g.a[0]*scale} ${595-top-g.a[1]*scale} m ${x+g.b[0]*scale} ${595-top-g.b[1]*scale} l S`;commands.push(`q 1 1 1 RG 2 w ${path} ${rgb(FOLD_COLOR)} RG 1 w [3 2] 0 d ${path} Q`);}
+   const label=String(piece.number),size=Math.min(10,pw/(label.length+1),ph/2);if(size>=4)text(label,px+pw/2-label.length*size*.25,py+ph/2+size*.35,size,true,contrastInk(piece.material.color));
+  }
+  text('Dobras: azul tracejado',x,top+h+12,7,false,FOLD_COLOR);
   text(`${sheet.id} · Material M${material}`,infoX,top+14,10,true);
   text(`${sheet.placements.length} peças · ${fmt(sheet.width)} × ${fmt(sheet.length)} mm`,infoX,top+30,9);
   text(`Aproveitamento: ${fmt(sheet.usedArea/(sheet.width*sheet.length)*100)}%`,infoX,top+46,9);
   metadata.forEach((line,i)=>text(line,infoX,top+58+i*10,8));
-  y+=blockHeight+12;
+  y+=blockHeight+42;
  }
  // Short, repeated footnote keeps all pages self-contained without a block of prose.
  for(const body of [...pages,commands])body.push(`BT /FN 7 Tf 0.4 0.45 0.5 rg 1 0 0 1 32 48 Tm (${esc('Estimativa de compra · cores ilustrativas · dobras incluídas · reserva fora do aproveitamento · conferir produto com fornecedor.')}) Tj ET`);
