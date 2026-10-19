@@ -59,3 +59,29 @@ test('column U includes both sides once; separate mode produces three panels per
 test('column side and mode validation blocks impossible or unfinished columns',()=>{
  for(const patch of [{sideLeft:null},{sideRight:-1},{sideLeft:1001},{columnMode:'unknown'}]){const p=initialPlan();Object.assign(p.rows[0],{kind:'column'},patch);const r=calculatePlan(p);assert.equal(r.valid,false);assert.throws(()=>purchasePDF(p,r));}
 });
+test('900cm front requires explicit division and preserves area and quantities',()=>{
+ const p=initialPlan();Object.assign(p.rows[0],{width:9000,height:1000,quantity:2});
+ assert.equal(calculatePlan(p).valid,false);
+ p.rows[0].panelsX=2;const r=calculatePlan(p);
+ assert.equal(r.valid,true,r.errors.join(';'));assert.equal(r.pieces.length,4);assert.equal(r.total,4);
+ assert.equal(r.rows.reduce((n,x)=>n+x.width*x.height*x.quantity,0),18000000);
+ p.rows[0].folded=true;const folded=calculatePlan(p);assert.equal(folded.valid,true);assert.equal(folded.rows[0].blank.width,4560);assert.equal(folded.rows[0].blank.height,1060);
+ for(const n of [0,1.5,101,null]){p.rows[0].panelsX=n;if(n!==null)assert.equal(calculatePlan(p).valid,false);}
+});
+test('forro and teto keep independent materials and customer/order identity in PDF',()=>{
+ const p=initialPlan();p.client='Cliente exemplo';p.order={client:'Cliente vinculado',number:'DEMO',company:'Empresa exemplo'};
+ p.rows=[{...p.rows[0],id:'a',kind:'ceiling',description:'Forro',width:9000,height:1000,panelsX:2},{...p.rows[0],id:'b',kind:'roof',description:'Teto',colorId:'azul'}];
+ const r=calculatePlan(p);assert.equal(r.valid,true,r.errors.join(';'));assert.equal(r.groups.length,2);assert.equal(r.pieces.length,3);
+ const pdf=Buffer.from(purchasePDF(p,r)).toString('latin1');
+ for(const text of ['Cliente vinculado','O.S. #DEMO','Empresa exemplo','900,00','painel 1/2','Forro','Teto'])assert.ok(pdf.includes(text),text);
+});
+test('tray stays whole when it fits and confirmation is explicit in PDF',()=>{
+ const p=initialPlan();Object.assign(p.rows[0],{folded:true,colorId:'vermelho',manufacturer:'Marca exemplo',sku:'REF-TESTE'});
+ let r=calculatePlan(p);assert.equal(r.valid,true);assert.equal(r.pieces.length,1);assert.equal(r.rows[0].blank.width,1060);
+ let pdf=Buffer.from(purchasePDF(p,r,{confirmed:true})).toString('latin1');
+ for(const value of ['Bandeja','Conferido pelo','Marca exemplo','REF-TESTE'])assert.ok(pdf.includes(value),value);
+ assert.ok(Buffer.from(purchasePDF(p,r)).toString('latin1').includes('Conferência pendente'));
+ p.rows[0].width=9000;assert.equal(calculatePlan(p).valid,false);
+ p.rows[0].panelsX=2;r=calculatePlan(p);assert.equal(r.valid,true);assert.equal(r.pieces.length,2);
+ assert.equal(r.rows[0].blank.width,4560);assert.equal(r.total,2);
+});

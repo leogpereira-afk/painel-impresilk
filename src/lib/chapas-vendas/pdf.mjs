@@ -18,15 +18,21 @@ function wrapCell(value,width,size=8.5){
  }
  if(line.trim())out.push(line.trim());return out;
 }
-export function purchasePDF(input,plan,{logo,date=new Date()}={}){
+export function purchasePDF(input,plan,{logo,date=new Date(),confirmed=false}={}){
  if(!plan.valid)throw Error('Resolva as pendências antes de salvar o PDF.');
  const pages=[];let commands=[],y;
  const text=(value,x,top,size=10,bold=false,color='#203647')=>commands.push(`BT /${bold?'FB':'FN'} ${size} Tf ${rgb(color)} rg 1 0 0 1 ${x.toFixed(2)} ${(595-top).toFixed(2)} Tm (${esc(value)}) Tj ET`);
  const rect=(x,top,w,h,fill,stroke='#71838e')=>commands.push(`q ${rgb(fill)} rg ${rgb(stroke)} RG 0.6 w ${x.toFixed(2)} ${(595-top-h).toFixed(2)} ${w.toFixed(2)} ${h.toFixed(2)} re B Q`);
- function page(subtitle){if(commands.length)pages.push(commands);commands=[];if(logo)commands.push(`q 68 0 0 ${(68*logo.height/logo.width).toFixed(2)} 32 535 cm /Logo Do Q`);else text('IMPRESILK',32,48,14,true);text('PLANO DE CHAPAS · VENDAS',120,39,18,true);text(subtitle,120,58,10);const title=String(input.name||'Novo plano de chapas').slice(0,90);text(title,32,76,Math.min(11,750/Math.max(1,title.length)),true);rect(32,85,778,2,'#188574','#188574');y=102;}
+ function page(subtitle){if(commands.length)pages.push(commands);commands=[];if(logo)commands.push(`q 68 0 0 ${(68*logo.height/logo.width).toFixed(2)} 32 535 cm /Logo Do Q`);else text('IMPRESILK',32,48,14,true);text('PLANO DE CHAPAS · VENDAS',120,39,18,true);text(subtitle,120,58,10);if(input.planNumber)text(input.planNumber,120,70,7.5);const title=String(input.name||'Novo plano de chapas').slice(0,90);text(title,32,81,Math.min(11,750/Math.max(1,title.length)),true);rect(32,90,778,2,'#188574','#188574');y=107;}
  function lines(value,{size=9,bold=false,gap=12}={}){for(const line of wrap(value,Math.floor(778/size))){if(y>510)page('Continuação');text(line,32,y,size,bold);y+=gap;}}
  const room=height=>{if(y+height>520)page('Continuação');};
- page(date.toLocaleString('pt-BR'));
+ page(`${date.toLocaleString('pt-BR')} · ${confirmed?'Conferido pelo usuário':'Conferência pendente'}`);
+ if(input.requester)lines(`Solicitado por: ${input.requester}`,{bold:true});
+ if(input.order?.client||input.client)lines(`Cliente: ${input.order?.client||input.client}`,{bold:true});
+ if(input.order)lines(`O.S. #${input.order.number} · ${input.order.company}`);
+ const divided=input.rows.filter(r=>(r.panelsX??1)*(r.panelsY??1)>1);
+ for(const r of divided)lines(`${r.description}: ${formatCM(r.width)} × ${formatCM(r.height)} cm · divisão ${r.panelsX??1} × ${r.panelsY??1} · sem vão/sobreposição; dobras por painel.`);
+ if(input.requester||input.client||input.order||divided.length)y+=8;
  lines(`COMPRAR ${plan.total} ${plan.total===1?'CHAPA':'CHAPAS'} · ${plan.pieces.length} peças`,{size:16,bold:true,gap:21});
  lines(`Formato: ${fmt(input.stock.width)} × ${fmt(input.stock.length)} mm · Aproveitamento ${fmt(plan.result.utilization)}% · Área não utilizada ${fmt(plan.result.wasteArea/1e6)} m²`);
  lines(`Margem: ${fmt(input.stock.trim)} mm · Separação: ${fmt(input.stock.kerf)} mm · Giro de 90°: ${input.stock.rotation?'permitido conforme sentido':'desativado'}`);y+=6;
@@ -40,7 +46,7 @@ export function purchasePDF(input,plan,{logo,date=new Date()}={}){
  y+=4;tableHeader();
  for(const r of plan.rows){
   const group=plan.groups.findIndex(g=>g.key===salesMaterialKey(r.material));
-  const cells=[`#${r.number} · ${r.description||'Peça'}`,String(r.quantity),`${formatCM(r.width)} × ${formatCM(r.height)}`,`${formatCM(r.blank.width)} × ${formatCM(r.blank.height)}`,['left','right','top','bottom'].map(k=>formatCM(r.folded?r[k]:0)).join(' / '),`Material M${group+1} · ${r.material.directional?'fixo':'livre'}`];
+  const cells=[`#${r.number} · ${r.description||'Peça'}${r.folded?' · Bandeja':''}`,String(r.quantity),`${formatCM(r.width)} × ${formatCM(r.height)}`,`${formatCM(r.blank.width)} × ${formatCM(r.blank.height)}`,['left','right','top','bottom'].map(k=>formatCM(r.folded?r[k]:0)).join(' / '),`Material M${group+1} · ${r.material.directional?'fixo':'livre'}`];
   const wrapped=cells.map((v,i)=>wrapCell(v,columns[i].w-6)),height=Math.max(...wrapped.map(c=>c.length))*11+8;
   if(y+height>510){page('Peças e dobras · continuação');tableHeader();}
   for(const [i,cell] of wrapped.entries())for(const [line,value] of cell.entries())text(value,columns[i].x+3,y+line*11,8.5,i===0);
@@ -53,14 +59,17 @@ export function purchasePDF(input,plan,{logo,date=new Date()}={}){
  if(sheets.length){room(98);lines('Distribuição · números correspondem às peças da lista',{size:9,bold:true});}
  for(const {sheet,material} of sheets){
   const scale=Math.min(500/sheet.length,74/sheet.width),w=sheet.length*scale,h=sheet.width*scale;
-  room(h+12);const x=32,top=y;
-  rect(x,top,w,h,'#eef1f3');
-  for(const p of sheet.placements){const piece=pieceById.get(p.pieceId),px=x+p.y*scale,py=top+p.x*scale,pw=p.height*scale,ph=p.width*scale;rect(px,py,pw,ph,piece.material.color);const label=String(piece.number),size=Math.min(10,pw/(label.length+1),ph/2);if(size>=4)text(label,px+pw/2-label.length*size*.25,py+ph/2+size*.35,size,true,contrastInk(piece.material.color));}
-  const infoX=Math.max(410,x+w+22);
+  const x=32,infoX=Math.max(410,x+w+22);
+  const metadata=wrapCell(`${materialLabel(sheet.material)} · ${productLabel(sheet.material)}`,810-infoX,8);
+  const blockHeight=Math.max(h,52+metadata.length*10);
+  room(blockHeight+12);const top=y;
+  rect(x,top,w,h,sheet.material.color,contrastInk(sheet.material.color));
+  for(const p of sheet.placements){const piece=pieceById.get(p.pieceId),px=x+p.y*scale,py=top+p.x*scale,pw=p.height*scale,ph=p.width*scale;rect(px,py,pw,ph,piece.material.color,contrastInk(piece.material.color));const label=String(piece.number),size=Math.min(10,pw/(label.length+1),ph/2);if(size>=4)text(label,px+pw/2-label.length*size*.25,py+ph/2+size*.35,size,true,contrastInk(piece.material.color));}
   text(`${sheet.id} · Material M${material}`,infoX,top+14,10,true);
   text(`${sheet.placements.length} peças · ${fmt(sheet.width)} × ${fmt(sheet.length)} mm`,infoX,top+30,9);
   text(`Aproveitamento: ${fmt(sheet.usedArea/(sheet.width*sheet.length)*100)}%`,infoX,top+46,9);
-  y+=h+12;
+  metadata.forEach((line,i)=>text(line,infoX,top+58+i*10,8));
+  y+=blockHeight+12;
  }
  // Short, repeated footnote keeps all pages self-contained without a block of prose.
  for(const body of [...pages,commands])body.push(`BT /FN 7 Tf 0.4 0.45 0.5 rg 1 0 0 1 32 48 Tm (${esc('Estimativa de compra · cores ilustrativas · dobras incluídas · reserva fora do aproveitamento · conferir produto com fornecedor.')}) Tj ET`);

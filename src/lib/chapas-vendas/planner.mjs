@@ -20,8 +20,14 @@ export function calculatePlan(input){
  const expanded=[];
  for(const [index,row] of input.rows.entries()){
   const kind=row.kind??'front';
-  if(!['front','side','column'].includes(kind)){errors.push(`Linha ${index+1}: tipo de peça inválido.`);continue;}
-  if(kind!=='column'){expanded.push({...row,number:index+1});continue;}
+  if(!['front','side','column','ceiling','roof'].includes(kind)){errors.push(`Linha ${index+1}: tipo de peça inválido.`);continue;}
+  if(kind!=='column'){
+   const nx=row.panelsX??1,ny=row.panelsY??1;
+   if(!Number.isInteger(nx)||!Number.isInteger(ny)||nx<1||ny<1||nx*ny>100){errors.push(`Linha ${index+1}: use de 1 a 100 painéis.`);continue;}
+   if(nx*ny===1)expanded.push({...row,number:index+1});
+   else for(let y=0;y<ny;y++)for(let x=0;x<nx;x++)expanded.push({...row,sourceId:row.id,id:`${row.id}/P${y*nx+x+1}`,number:`${index+1}.${y*nx+x+1}`,description:`${row.description} · painel ${y*nx+x+1}/${nx*ny}`,width:row.width/nx,height:row.height/ny});
+   continue;
+  }
   if(!['folded','separate'].includes(row.columnMode)||!number(row.sideLeft,.01,1000)||!number(row.sideRight,.01,1000)){
    errors.push(`Linha ${index+1}: informe laterais da coluna entre 0,01 e 100 cm e o tipo de montagem.`);continue;
   }
