@@ -1,6 +1,7 @@
 import JanelaFormulario from "../components/JanelaFormulario.jsx";
 import PesquisaLicitacoes from "../components/PesquisaLicitacoes.jsx";
-import {obterPesquisaLicitacoes} from "../services/licitacoes.js";
+import {obterPesquisaLicitacoes, obterExecucaoLicitacoes, iniciarPesquisaLicitacoes, criarControleExecucaoLicitacoes} from "../services/licitacoes.js";
+import {getSessao, aoMudarSessao} from "../lib/sessao.js";
 import {criarLeituraLicitacoes} from "../lib/licitacoes-leitura.mjs";
 // Licitacoes: os editais em que a Impresilk vai (ou pode) entrar, com O DIA da
 // sessao na cara -- o valor da tela e ninguem perder prazo. Ordena pelo que
@@ -164,9 +165,24 @@ function Linha({ it, baixarEdital, editar, remover }) {
 }
 
 export default function Licitacoes() {
+  const [sessao,setSessao]=useState(getSessao);
   const [pesquisa,setPesquisa]=useState({dados:null,carregando:true,erro:null});
-  const leituraPesquisa=useMemo(()=>criarLeituraLicitacoes({consultar:obterPesquisaLicitacoes,receber:setPesquisa}),[]);
-  useEffect(()=>{void leituraPesquisa.atualizar();return leituraPesquisa.cancelar;},[leituraPesquisa]);
+  const [execucao,setExecucao]=useState({dados:null,carregando:false,iniciando:false,erro:null});
+  const leituraPesquisa=useMemo(()=>criarLeituraLicitacoes({consultar:signal=>sessao?obterPesquisaLicitacoes(signal):Promise.reject(new Error("Entre no sistema para consultar a pesquisa.")),receber:setPesquisa}),[sessao]);
+  const controleExecucao=useMemo(()=>criarControleExecucaoLicitacoes({consultar:signal=>sessao?obterExecucaoLicitacoes(signal):Promise.reject(new Error("Entre no sistema para consultar a execução.")),iniciar:signal=>sessao?iniciarPesquisaLicitacoes(signal):Promise.reject(new Error("Entre no sistema para iniciar uma pesquisa.")),receber:setExecucao}),[sessao]);
+  useEffect(()=>{
+    void leituraPesquisa.atualizar();void controleExecucao.atualizar();
+    return ()=>{leituraPesquisa.cancelar();controleExecucao.cancelar();};
+  },[leituraPesquisa,controleExecucao]);
+  useEffect(()=>aoMudarSessao(()=>{
+    // Cancelamento síncrono: nenhum retorno antigo sobrevive à troca de crachá.
+    leituraPesquisa.cancelar();controleExecucao.cancelar();
+    setPesquisa({dados:null,carregando:true,erro:null});
+    setExecucao({dados:null,carregando:false,iniciando:false,erro:null});
+    setSessao(getSessao());
+  }),[leituraPesquisa,controleExecucao]);
+  const podeRodar=(sessao?.master===true||(sessao?.permissoes||[]).includes('*'))&&execucao.dados?.podeIniciar!==false;
+  const propsPesquisa={...pesquisa,execucao,podeRodar,aoRodar:()=>{if(podeRodar)void controleExecucao.rodar();},aoConsultarExecucao:controleExecucao.atualizar,aoAtualizar:()=>{void leituraPesquisa.atualizar();void controleExecucao.atualizar();}};
   const [itens, setItens] = useState(null);
   const [erro, setErro] = useState(null);
   const [aviso, setAviso] = useState(null);
@@ -356,12 +372,12 @@ export default function Licitacoes() {
     return (
       <div className="space-y-6">
         <PageTitle titulo="Licitações" descricao="Editais, prazos e sessões." />
-        <PesquisaLicitacoes {...pesquisa} aoAtualizar={leituraPesquisa.atualizar}/>
+        <PesquisaLicitacoes {...propsPesquisa}/>
         <ErroModulo mensagem={erro} aoTentar={() => window.location.reload()}/>
       </div>
     );
   }
-  if (itens === null) return <div className="space-y-6"><PageTitle titulo="Licitações" descricao="Pesquise oportunidades e acompanhe os editais da equipe."/><PesquisaLicitacoes {...pesquisa} aoAtualizar={leituraPesquisa.atualizar}/><CarregandoModulo/></div>;
+  if (itens === null) return <div className="space-y-6"><PageTitle titulo="Licitações" descricao="Pesquise oportunidades e acompanhe os editais da equipe."/><PesquisaLicitacoes {...propsPesquisa}/><CarregandoModulo/></div>;
 
   return (
     <div className="space-y-8">
@@ -370,7 +386,7 @@ export default function Licitacoes() {
         descricao="Pesquise oportunidades no acervo do BotImpresilk e acompanhe os editais da equipe."
       />
 
-      <PesquisaLicitacoes {...pesquisa} aoAtualizar={leituraPesquisa.atualizar}/>
+      <PesquisaLicitacoes {...propsPesquisa}/>
       <SectionTitle titulo="Acompanhamento da equipe" sub="Editais cadastrados, responsáveis, sessões e resultados. As oportunidades pesquisadas não entram aqui automaticamente."/>
 
       <div className="grid gap-3 sm:grid-cols-3">

@@ -182,3 +182,41 @@ test('consultas operacionais são preparadas para cópia sem prometer envio auto
   assert.match(html, /cole no Telegram/i);
   assert.doesNotMatch(html, /href="https:\/\/t.me/);
 });
+
+test('rodar pesquisa é ação separada de atualizar leitura e só aparece para direção',()=>{
+ const html=renderizar({dados:relatorio(),podeRodar:true,aoRodar(){},aoAtualizar(){}});
+ assert.match(html,/Rodar pesquisa/);assert.match(html,/Atualizar leitura/);assert.match(html,/Varredura pública automática; consultas e anexos ainda pendentes ficam marcados/);
+ const restrita=renderizar({dados:relatorio(),podeRodar:false,aoRodar(){},aoAtualizar(){}});assert.doesNotMatch(restrita,/Rodar pesquisa/);
+});
+test('execução concluída não altera cobertura e apresenta link de execução seguro',()=>{
+ const html=renderizar({dados:relatorio(),execucao:{dados:{estado:'concluida',execucao:{id:123,url:'https://github.com/empresa-exemplo/painel-exemplo/actions/runs/123',iniciadaEm:'2026-01-01T12:00:00Z'},consultadoEm:'2026-01-01T12:10:00Z'}},aoAtualizar(){}});
+ assert.match(html,/Etapa automática concluída/);assert.match(html,/0 de 89/);assert.match(html,/cobertura.*relatório/i);assert.match(html,/Abrir execução/);
+ const insegura=renderizar({dados:relatorio(),execucao:{dados:{estado:'falhou',execucao:{url:'javascript:alert(1)'},erro:'Falha demonstrativa'}},aoAtualizar(){}});assert.doesNotMatch(insegura,/href="javascript/);assert.match(insegura,/Falha demonstrativa/);
+});
+test('execução ativa trava novo disparo e não faz promessa de cobertura integral',()=>{
+ const html=renderizar({dados:relatorio(),podeRodar:true,aoRodar(){},aoAtualizar(){},execucao:{dados:{estado:'em_andamento'}}});
+ assert.match(html,/disabled=""[^>]*>.*?Rodar pesquisa|disabled=""[^>]*>.*?Pesquisando/s);assert.match(html,/em andamento/i);assert.doesNotMatch(html,/100% concluída/);
+});
+test('prompt geral e prompts dos editais são ações de copiar texto público sem envio',()=>{
+ const html=renderizar({dados:relatorio({oportunidades}),aoAtualizar(){}});assert.match(html,/Copiar prompt geral/);assert.equal((html.match(/>Copiar prompt</g)||[]).length,3);assert.match(html,/não.*envia/i);
+});
+
+test('copiar prompt executa clipboard apenas com o contexto público selecionado do edital',async()=>{
+  const anterior=Object.getOwnPropertyDescriptor(globalThis,'navigator');let copiado='';
+  Object.defineProperty(globalThis,'navigator',{configurable:true,value:{clipboard:{writeText:async texto=>{copiado=texto;}}}});
+  const dispatcher=React.__SECRET_INTERNALS_DO_NOT_USE_OR_YOU_WILL_BE_FIRED.ReactCurrentDispatcher;
+  const previo=dispatcher.current;
+  dispatcher.current={useId:()=> 'exemplo',useMemo:fn=>fn(),useState:inicial=>[typeof inicial==='function'?inicial():inicial,()=>{}]};
+  function encontrar(elemento){
+    if(Array.isArray(elemento)){for(const e of elemento){const r=encontrar(e);if(r)return r;}return null;}
+    if(!elemento?.props)return null;
+    if(elemento.type?.name==='Oportunidade')return encontrar(elemento.type(elemento.props));
+    if(elemento.type==='button'&&React.Children.toArray(elemento.props.children).some(v=>v==='Copiar prompt'))return elemento;
+    return encontrar(elemento.props.children);
+  }
+  try{
+    const item={...oportunidades[0],oficialUrl:'https://portal.example/edital-ficticio',exigencias:['Material fictício'],custoInterno:'NÃO COPIAR DADO INTERNO FICTÍCIO'};
+    const arvore=PesquisaLicitacoes({dados:relatorio({oportunidades:[item]})});const botao=encontrar(arvore);assert.ok(botao);
+    await botao.props.onClick();assert.match(copiado,/Processo demonstrativo A/);assert.match(copiado,/Instituto Exemplo/);assert.match(copiado,/https:\/\/portal.example\/edital-ficticio/);assert.match(copiado,/Material fictício/);assert.doesNotMatch(copiado,/NÃO COPIAR DADO INTERNO/);
+  }finally{dispatcher.current=previo;if(anterior)Object.defineProperty(globalThis,'navigator',anterior);else delete globalThis.navigator;}
+});

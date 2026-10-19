@@ -24,6 +24,7 @@ const financeiroDasOS = (pedidos: Set<string>, ids: string[]) => financeiroDasOS
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { verificarJwt, crachaRevogado } from "../_shared/cripto.ts";
 import { consultarPesquisaLicitacoes } from "../_shared/licitacoes-pesquisa.mjs";
+import { processarExecucaoLicitacoes, CHAVE_DISPARO_LICITACOES } from "../_shared/licitacoes-execucao.mjs";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -131,6 +132,54 @@ Deno.serve(async (req: Request) => {
 
   try {
     switch (modulo) {
+      case "licitacoes-execucao": {
+        const g = await exigirSessao(req, "licitacoes", true);
+        if (g.resposta) return g.resposta;
+        if (!["GET", "POST"].includes(req.method)) return json({ erro: "Esta operação aceita somente GET ou POST." }, 405);
+        const direcao = (sessao: any) => sessao?.master === true || (sessao?.perms || []).includes("*");
+        if (req.method === "POST" && !direcao(g.sessao)) return json({ erro: "Somente a Direção pode iniciar uma pesquisa." }, 403);
+        const confirmarAcesso = async () => {
+          const atual = await exigirSessao(req, "licitacoes", true);
+          if (atual.resposta) throw { resposta: atual.resposta };
+          if (req.method === "POST" && !direcao(atual.sessao)) throw { resposta: json({ erro: "Somente a Direção pode iniciar uma pesquisa." }, 403) };
+        };
+        const meta = {
+          async ler() {
+            const { data, error } = await sb.from("painel_meta").select("valor,atualizado_em").eq("chave", CHAVE_DISPARO_LICITACOES).maybeSingle();
+            if (error) throw new Error("Não foi possível consultar a solicitação anterior de pesquisa.");
+            return data;
+          },
+          async reservar(anterior: any, valor: any) {
+            const registro = { chave: CHAVE_DISPARO_LICITACOES, valor, atualizado_em: valor.em };
+            if (!anterior) {
+              const { error } = await sb.from("painel_meta").insert(registro);
+              if (error?.code === "23505") return false;
+              if (error) throw new Error("Não foi possível reservar a solicitação de pesquisa.");
+              return true;
+            }
+            // Compare-and-set: duas requisições não podem reservar a mesma versão.
+            const { data, error } = await sb.from("painel_meta").update(registro).eq("chave", CHAVE_DISPARO_LICITACOES).eq("atualizado_em", anterior.atualizado_em).select("chave").maybeSingle();
+            if (error) throw new Error("Não foi possível reservar a solicitação de pesquisa.");
+            return !!data;
+          },
+          async registrar(reserva: any, valor: any) {
+            const { data, error } = await sb.from("painel_meta").update({ valor }).eq("chave", CHAVE_DISPARO_LICITACOES).eq("valor->>solicitacaoId", reserva.solicitacaoId).select("chave").maybeSingle();
+            if (error) throw new Error("Não foi possível confirmar o registro da solicitação de pesquisa.");
+            return !!data;
+          },
+        };
+        try {
+          const resultado = await processarExecucaoLicitacoes({ method: req.method, token: Deno.env.get("PAINEL_GH_ACTIONS_TOKEN") || Deno.env.get("GITHUB_TOKEN") || "", repo: Deno.env.get("PAINEL_GH_REPO") || "leogpereira-afk/painel-impresilk", meta, confirmarAcesso });
+          await confirmarAcesso();
+          return new Response(JSON.stringify({ ...resultado, podeIniciar: direcao(g.sessao) }), { status: req.method === "POST" ? 202 : 200, headers: { ...CORS, "content-type": "application/json", "cache-control": "no-store" } });
+        } catch (e) {
+          if (e?.resposta) return e.resposta;
+          // Uma falha de transporte também não devolve dados a crachá revogado.
+          try { await confirmarAcesso(); } catch (acesso) { return acesso.resposta; }
+          return json({ estado: "falhou", erro: e?.message || "A execução da pesquisa não foi confirmada." }, e?.status || 503);
+        }
+      }
+
       case "licitacoes": {
         const g = await exigirSessao(req, "licitacoes", true);
         if (g.resposta) return g.resposta;

@@ -1,0 +1,35 @@
+name: Pesquisa pública de licitações
+run-name: Pesquisa licitações · ${{ inputs.solicitacao_id || github.run_id }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      solicitacao_id:
+        description: Identificador da solicitação do painel
+        required: false
+        type: string
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: pesquisa-publica-licitacoes
+  cancel-in-progress: false
+
+jobs:
+  pesquisar:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Validar executor público
+        run: node --test tests/licitacoes-coleta-publica.test.mjs tests/licitacoes-executor-oidc.test.mjs
+      - name: Pesquisar e conferir publicação no BotImpresilk
+        run: node scripts/licitacoes/rodar.mjs

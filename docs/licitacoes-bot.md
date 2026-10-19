@@ -6,7 +6,7 @@ O módulo possui duas áreas independentes. **Pesquisa do BotImpresilk** lê o �
 
 O navegador chama `painel-dados?modulo=licitacoes` usando o crachá existente. O servidor confere a permissão `licitacoes` e a revogação estrita antes e depois da consulta. Esta rota aceita somente GET, não grava registros e não consulta ERP, RH, e-mail ou memória pessoal.
 
-Como painel e bot utilizam projetos distintos, a leitura usa a rota dedicada `badboy-telegram?acao=licitacoes-painel`. O endereço é fixo, com credencial de leitura `LICITACOES_PAINEL_TOKEN` somente nos ambientes dos dois servidores. O cabeçalho de serviço é `x-licitacoes-painel-token`. Não repassa o crachá do usuário nem aceita endereço ou ID informado pelo navegador. Não segue redirects, limita o documento a 250 KiB e encerra a consulta em quinze segundos.
+Como painel e bot utilizam projetos distintos, a leitura usa a rota dedicada `badboy-telegram?acao=licitacoes-painel`. O endereço é fixo, com credencial de leitura `LICITACOES_PAINEL_TOKEN` somente nos ambientes dos dois servidores. O cabeçalho de serviço é `x-licitacoes-painel-token`. Não repassa o crachá do usuário nem aceita endereço ou ID informado pelo navegador. Não segue redirects, limita o documento a 600 KiB e encerra a consulta em quinze segundos.
 
 O serviço do bot entrega o último dossiê público, com ID, geração, período, versão e SHA256. O painel rejeita campos desconhecidos, recomputa o relatório com `supabase/functions/_shared/licitacoes-controle.mjs`, confere hash e metadados e entrega apenas a projeção pública. Totais persistidos não substituem a reconstrução. O núcleo congelado é compartilhado com o bot; versão `2026.10.12-cobertura-2-educacao`, SHA256 `99dd186a62b3e92736ed9ff002cbd9de0466f017a88d0147c8c5d0e9ceb87e75`.
 
@@ -32,3 +32,7 @@ A prévia `revisao-local.html#/licitacoes` utiliza somente fixtures de demonstra
 Os testes exercitam permissão e revogação, contrato do serviço, projeção pública, integridade, ausência versus cobertura inicial, relatório antigo, limite de corpo, timeout, descarte de respostas atrasadas, filtros, prazos, paginação, CSV e renderização React. A instalação normal da CI (`npm ci`) fornece PGlite para testes de banco em memória.
 
 Publicar e conferir o serviço do bot e sua credencial dedicada primeiro; publicar e conferir `painel-dados` antes da tela dependente. Confirmar o estado efetivo em produção usando leitura autenticada e conferir a resposta sem sessão/permissão. A criação ou alteração de editais continua no fluxo manual existente. Este documento não comprova implantação nem pesquisa executada.
+
+## Execução sob solicitação
+
+O botão Rodar pesquisa e seu executor parcial estão descritos em [licitacoes-execucao.md](licitacoes-execucao.md). Atualizar leitura continua somente consultando o acervo.

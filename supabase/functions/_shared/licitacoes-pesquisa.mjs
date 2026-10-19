@@ -2,7 +2,7 @@ import {gerarRelatorio} from './licitacoes-controle.mjs';
 
 // Endereço fixo: não aceita destino, ID de relatório ou credencial do cliente.
 export const URL_PESQUISA_LICITACOES='https://reoghclxripktzpdwhiy.supabase.co/functions/v1/badboy-telegram?acao=licitacoes-painel';
-export const MAX_BYTES_PESQUISA=250*1024;
+export const MAX_BYTES_PESQUISA=600*1024;
 const CAMPOS_REGISTRO=['id','periodo_de','periodo_ate','gerado_em','recebido_em','versao','dossie','hash_sha256'];
 const indisponivel=()=>new Error('Pesquisa do BotImpresilk indisponível. A cobertura não foi inferida; tente atualizar a leitura mais tarde.');
 const objeto=value=>value&&typeof value==='object'&&!Array.isArray(value);

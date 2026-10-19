@@ -1,3 +1,9 @@
+## Trabalho atual · Pesquisa de licitações no painel · Codex · 19/10/2026
+
+O dono autorizou corrigir a publicação da pesquisa pública, exibir a rodada na área Licitações e adicionar um botão para executar novas pesquisas. Clone isolado em /tmp, ramo codex/licitacoes-rodar-20261019. Escopo: executor público, disparo autenticado, estado real da execução e prompts de análise; preservar acompanhamento manual, permissões e registros existentes. Publicação expressamente autorizada pelo dono nesta conversa. Sem ERP, RH, e-mail, MubiChat, propostas ou lances. Pesquisas incompletas permanecem parciais. Servidor painel-dados publicado antes da tela, com todos os arquivos conferidos. Correção da persistência do bot publicada e relatório público confirmado por ID/hash; nomes e conteúdo dos editais ficam somente no acervo, fora do repositório público.
+
+Validação local: 87 testes focados; suíte geral com 1.660 casos, 1.658 passaram no ambiente restrito e dois exigiram servidor local e passaram na repetição autorizada do arquivo completo (7/7); build oficial e lint sem erros, aviso anterior em Agenda. Conferência autenticada e disparo real pendentes da liberação da interface. A varredura automática desta versão é de propostas no PNCP; fontes e etapas adicionais continuam explicitamente pendentes.
+
 ## Trabalho atual · Publicação Plano de chapas Vendas · Codex · 19/10/2026
 
 Dono autorizou subir após prévia aprovada: formatos padrão, poliéster, cores/nome personalizado, marca/referência e PDF colorido. Integração sobre main atual; somente esta entrega, preservando outras alterações locais da Oficina. Publicado e conferido: fa8bfbc, Pages 39256388463 concluído com sucesso; 185/185 arquivos do build iguais ao site e tela autenticada conferida, sem erros de console. Sem alteração de servidor ou dados reais.
