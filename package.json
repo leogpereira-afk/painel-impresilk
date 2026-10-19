@@ -10,7 +10,7 @@
     "preview": "vite preview",
     "lint": "eslint src",
     "conferir": "node scripts/conferir-sistemas.mjs",
-    "test": "TZ=UTC node --test src/lib/calc/*.test.mjs src/lib/acm/*.test.mjs src/components/acm/*.test.mjs src/lib/letras/*.test.mjs src/lib/fabrication/*.test.mjs src/lib/oficina/*.test.mjs src/components/oficina/*.test.mjs src/lib/oficina-placas/*.test.mjs src/components/oficina-placas/*.test.mjs",
+    "test": "TZ=UTC node --test src/lib/calc/*.test.mjs src/lib/acm/*.test.mjs src/components/acm/*.test.mjs src/lib/letras/*.test.mjs src/lib/fabrication/*.test.mjs src/lib/oficina/*.test.mjs src/components/oficina/*.test.mjs src/lib/oficina-placas/*.test.mjs src/components/oficina-placas/*.test.mjs src/lib/chapas-vendas/*.test.mjs",
     "review": "vite --mode review --host 127.0.0.1 --port 5173 --strictPort",
     "build:review": "vite build --mode review --config vite.review.config.js",
     "test:acessos": "node --test src/lib/acesso-state.test.mjs",

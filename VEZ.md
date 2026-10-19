@@ -1,3 +1,7 @@
+## Trabalho atual · Publicação Plano de chapas Vendas · Codex · 19/10/2026
+
+Dono autorizou subir após prévia aprovada: formatos padrão, poliéster, cores/nome personalizado, marca/referência e PDF colorido. Integração sobre main atual; somente esta entrega, preservando outras alterações locais da Oficina. Publicação e conferência em andamento. Sem alteração de servidor ou dados reais.
+
 ## Trabalho atual · Confirmação de presença e aviso de reuniões
 
 Agente: codex. Publicação autorizada pelo dono em 19/10/2026 após a prévia, incluindo aviso no topo para cada convidado. **Publicado e conferido:** implementação `7d131c6`; Pages [39250919255](https://github.com/leogpereira-afk/painel-impresilk/actions/runs/39250919255) e Functions [39250918995](https://github.com/leogpereira-afk/painel-impresilk/actions/runs/39250918995) concluídos com sucesso. Servidor v74 antes da tela, v75 após o workflow, quatro arquivos relidos e idênticos. 185/185 arquivos públicos iguais ao build oficial por SHA-256. Navegador autenticado: aviso pessoal e botão de confirmação presentes; console sem erros; nenhuma presença real alterada. Prévia: confirmação, atualização do aviso, temas e celular conferidos. 1.611 regressões (dois casos de servidor local repetidos fora do sandbox), 1.304 testes de cálculo/fabricação, sete de acesso, quinze verificadores, build e lint sem erros. Trabalho ACM preservado. Relatório: docs/REUNIOES-PRESENCA-20261019.md. Publicado e conferido; vez encerrada.
