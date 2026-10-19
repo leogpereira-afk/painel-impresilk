@@ -27,7 +27,7 @@ function MaterialFields({value,onChange,suffix='',brands=[]}){
 }
 function SheetDrawing({sheet,plan}){
  const pieces=new Map(plan.pieces.map(p=>[p.id,p]));
- return <svg role="img" aria-label={`${sheet.id} · ${colorLabel(sheet.material)}`} viewBox={`0 0 ${sheet.length} ${sheet.width}`}><rect width={sheet.length} height={sheet.width} fill={sheet.material.color} stroke={contrastInk(sheet.material.color)} strokeWidth={6}/>{sheet.placements.map(p=>{const piece=pieces.get(p.pieceId);return <g key={p.pieceId}><title>Peça {piece.number} · {fmt(p.width)} × {fmt(p.height)} mm</title><rect x={p.y} y={p.x} width={p.height} height={p.width} fill={piece.material.color} stroke={contrastInk(piece.material.color)} strokeWidth={3}/><text x={p.y+p.height/2} y={p.x+p.width/2} textAnchor="middle" dominantBaseline="middle" fontSize={Math.min(60,p.width/3,p.height/3)} fill={contrastInk(piece.material.color)}>{piece.number}</text></g>})}</svg>;
+ return <svg role="img" aria-label={`${sheet.id} · ${colorLabel(sheet.material)}`} viewBox={`0 0 ${sheet.length} ${sheet.width}`}><rect width={sheet.length} height={sheet.width} fill="#edf0f2" stroke="#71838e" strokeWidth={6}/>{sheet.placements.map(p=>{const piece=pieces.get(p.pieceId);return <g key={p.pieceId}><title>Peça {piece.number} · {fmt(p.width)} × {fmt(p.height)} mm</title><rect x={p.y} y={p.x} width={p.height} height={p.width} fill={piece.material.color} stroke={contrastInk(piece.material.color)} strokeWidth={3}/><text x={p.y+p.height/2} y={p.x+p.width/2} textAnchor="middle" dominantBaseline="middle" fontSize={Math.min(60,p.width/3,p.height/3)} fill={contrastInk(piece.material.color)}>{piece.number}</text></g>})}</svg>;
 }
 export default function PlanoChapasVendas(){
  const [session]=useState(()=>getSessao());

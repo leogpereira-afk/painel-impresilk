@@ -63,7 +63,7 @@ export function purchasePDF(input,plan,{logo,date=new Date(),confirmed=false}={}
   const metadata=wrapCell(`${materialLabel(sheet.material)} · ${productLabel(sheet.material)}`,810-infoX,8);
   const blockHeight=Math.max(h,52+metadata.length*10);
   room(blockHeight+12);const top=y;
-  rect(x,top,w,h,sheet.material.color,contrastInk(sheet.material.color));
+  rect(x,top,w,h,'#edf0f2','#71838e');
   for(const p of sheet.placements){const piece=pieceById.get(p.pieceId),px=x+p.y*scale,py=top+p.x*scale,pw=p.height*scale,ph=p.width*scale;rect(px,py,pw,ph,piece.material.color,contrastInk(piece.material.color));const label=String(piece.number),size=Math.min(10,pw/(label.length+1),ph/2);if(size>=4)text(label,px+pw/2-label.length*size*.25,py+ph/2+size*.35,size,true,contrastInk(piece.material.color));}
   text(`${sheet.id} · Material M${material}`,infoX,top+14,10,true);
   text(`${sheet.placements.length} peças · ${fmt(sheet.width)} × ${fmt(sheet.length)} mm`,infoX,top+30,9);

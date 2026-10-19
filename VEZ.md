@@ -1,3 +1,7 @@
+## Trabalho atual · Fundo cinza das chapas · Codex · 19/10/2026
+
+Ajuste solicitado: chapa inteira em cinza-claro e peças na cor do material, na tela e PDF. Prévia local; sem alterar medidas, divisão ou compras.
+
 ## Trabalho atual · OK e sugestão de bandejas · Codex · 19/10/2026
 
 Dono autorizou implementar e publicar botão junto às medidas e sugestão confirmável de bandejas. Escopo restrito ao Plano de chapas; preservar motores compartilhados. 30 testes do módulo aprovados, lint/build aprovados. Navegador: frente maior que chapa sugere bandejas; confirmação aplica divisão, OK fica verde e leva ao plano. Orientação/margens/dobras e ausência de mutação antes de confirmar testadas. Publicado e conferido: 71860ea, Pages 39302166846 aprovado; 190 arquivos públicos iguais ao build (um arquivo repetido após falha transitória de DNS). Vez encerrada.
