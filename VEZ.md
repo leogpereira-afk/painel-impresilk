@@ -1,6 +1,6 @@
 ## Trabalho atual · Plano de chapas e PDF compacto · Codex · 19/10/2026
 
-Publicação autorizada após prévia: chapas maiores na horizontal e informações ao lado, PDF compacto em uma página quando couber. Inclui entrada já revisada em cm, material por peça e colunas em U ou painéis separados. Sem alteração dos motores compartilhados ou dados reais. Verificação e publicação em andamento.
+Publicação autorizada após prévia: chapas maiores na horizontal e informações ao lado, PDF compacto em uma página quando couber. Inclui entrada já revisada em cm, material por peça e colunas em U ou painéis separados. Sem alteração dos motores compartilhados ou dados reais. Publicado e conferido: código 4960f5b, Pages39291656667 concluído com sucesso; 190/190 arquivos públicos iguais ao build. 269 testes focados, lint, build e CI geral aprovados. PDF baixado do site: uma página, duas chapas horizontais, medidas com dobras e informações ao lado; console sem erros. Vez encerrada.
 
 ## Trabalho atual · Sistema Cortes · Codex · 19/10/2026
 
