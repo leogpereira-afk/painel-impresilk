@@ -73,3 +73,24 @@ export function calculatePlan(input){
  }
  return {valid:errors.length===0,errors:[...new Set(errors)],rows,groups,pieces,result,total:groups.reduce((n,g)=>n+g.total,0)};
 }
+
+// Suggest only: callers must explicitly confirm before changing the project.
+export function suggestTrays(input,row){
+ if(row.kind==='column'||calculatePlan({...input,rows:[row],reserves:{}}).valid)return null;
+ if(!number(row.width,.01,LIMITS.dimension)||!number(row.height,.01,LIMITS.dimension))return null;
+ const fabrication={...createProject().fabrication,machineWidth:input.stock.width,machineLength:input.stock.length};
+ const edges=Object.fromEntries(['left','right','top','bottom'].map(k=>[k,row[k]??30]));
+ if(Object.values(edges).some(v=>!number(v,0,1000)))return null;
+ const w=input.stock.width-2*input.stock.trim,h=input.stock.length-2*input.stock.trim;
+ const color=COLORS.find(c=>c.id===row.colorId),rotate=input.stock.rotation&&!row.directional&&!color?.directional&&!['wood','brushed'].includes(row.finish);
+ for(let count=2;count<=100;count++)for(let nx=1;nx<=count;nx++){
+  if(count%nx)continue;const ny=count/nx;
+  try{
+   const blank=developBlank(row.width/nx,row.height/ny,edges,fabrication);
+   if(!((blank.width<=w&&blank.height<=h)||(rotate&&blank.height<=w&&blank.width<=h)))continue;
+   const patch={folded:true,...edges,panelsX:nx,panelsY:ny};
+   if(calculatePlan({...input,rows:[{...row,...patch}],reserves:{}}).valid)return {patch,count,width:row.width/nx,height:row.height/ny,blankWidth:blank.width,blankHeight:blank.height};
+  }catch{ /* Unsupported dimensions remain an explicit validation error. */ }
+ }
+ return null;
+}
