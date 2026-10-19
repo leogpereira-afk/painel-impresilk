@@ -185,7 +185,9 @@ test('consultas operacionais são preparadas para cópia sem prometer envio auto
 
 test('rodar pesquisa é ação separada de atualizar leitura e só aparece para direção',()=>{
  const html=renderizar({dados:relatorio(),podeRodar:true,aoRodar(){},aoAtualizar(){}});
- assert.match(html,/Rodar pesquisa/);assert.match(html,/Atualizar leitura/);assert.match(html,/Varredura pública automática; consultas e anexos ainda pendentes ficam marcados/);
+ assert.match(html,/Rodar pesquisa/);assert.match(html,/Atualizar leitura/);
+ assert.match(html,/Varredura pública automática de propostas no PNCP/);
+ assert.match(html,/Portais municipais, Diário Oficial, anexos e demais consultas pendentes/);
  const restrita=renderizar({dados:relatorio(),podeRodar:false,aoRodar(){},aoAtualizar(){}});assert.doesNotMatch(restrita,/Rodar pesquisa/);
 });
 test('execução concluída não altera cobertura e apresenta link de execução seguro',()=>{
