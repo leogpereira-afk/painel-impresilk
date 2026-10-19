@@ -1,6 +1,6 @@
 ## Trabalho atual · Forro, teto, cliente e painéis · Codex · 19/10/2026
 
-Publicação autorizada pelo dono: número próprio, solicitante, cliente/O.S., rascunhos locais por usuário, forro/teto, bandeja inteira ou dividida explicitamente, cores/marcas nas chapas, confirmação e PDF. Cabeçalho compactado conforme pedido final. 279 testes focados aprovados, lint e build aprovados; prévia e PDF conferidos. Sem sequência central nem sincronização entre computadores. Seletor de O.S. existente reutilizado; vínculo real não exercitado na simulação. Publicação em andamento.
+Publicação autorizada pelo dono: número próprio, solicitante, cliente/O.S., rascunhos locais por usuário, forro/teto, bandeja inteira ou dividida explicitamente, cores/marcas nas chapas, confirmação e PDF. Cabeçalho compactado conforme pedido final. 279 testes focados aprovados, lint e build aprovados; prévia e PDF conferidos. Sem sequência central nem sincronização entre computadores. Seletor de O.S. existente reutilizado; vínculo real não exercitado na simulação. Publicado e conferido: código 64e871e, Pages 39298249826 concluído com sucesso, 190/190 arquivos públicos iguais ao build. Cabeçalho conferido na prévia em desktop e celular. Navegador integrado falhou ao reabrir o site (ERR_FAILED); verificação pública feita por comparação HTTP dos arquivos. Vez encerrada.
 
 ## Trabalho atual · Plano de chapas e PDF compacto · Codex · 19/10/2026
 
