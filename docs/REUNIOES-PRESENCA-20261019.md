@@ -24,6 +24,6 @@ Regressões: 1.611 casos; os dois casos que abrem servidor local foram impedidos
 
 Navegador: aviso no início e na ficha, abertura da reunião pelo aviso, confirmação de convidado sem edição, lista de 0/2 para 1/2 e aviso atualizado, PDF habilitado, marcação pelo responsável. Celular 390 px sem transbordamento após ajuste do botão, temas claro/escuro e console sem erros. Nenhuma presença real alterada. Conteúdo do PDF validado nos testes; evento do download não foi capturado pela automação.
 
-## Publicação autorizada
+## Publicado e conferido
 
-O dono autorizou a publicação e solicitou o aviso no topo. Servidor painel-reunioes v74 implantado primeiro e os quatro arquivos foram relidos e conferidos integralmente. Interface em preparação para GitHub Pages. Não há migração SQL ou concessão automática de permissões. ACM preservado no clone anterior. Prévia 4312 usa dados fictícios.
+O dono autorizou a publicação e solicitou o aviso no topo. Servidor painel-reunioes v74 implantado primeiro e os quatro arquivos foram relidos e conferidos integralmente. Após o workflow, servidor v75 novamente relido e idêntico. Commit `7d131c6`; Pages 39250919255 e Functions 39250918995 concluídos com sucesso. Comparação SHA-256: 185/185 arquivos públicos iguais ao build validado. Navegador oficial autenticado confirmou aviso pessoal no topo e botão Confirmar minha presença; console sem erros. Consulta sem login segue recusada (401). Nenhuma presença real foi marcada na conferência. Não há migração SQL ou concessão automática de permissões. ACM preservado no clone anterior. Prévia 4312 usa dados fictícios.
