@@ -18,7 +18,7 @@ const RAPHAEL = ['patrimonio', 'inventario-valores', 'manutencoes', 'seguranca']
 const ficha = (id, tipo, categoria = '', extra = {}) => ({ id, tipo, categoria, nome: 'Ficha ' + id, especificacao: {}, atualizadoEm: 'v-' + id, ...extra });
 const bem = (id, extra = {}) => ({ id, codigo: 'PRO-' + id, nomeGenerico: 'Bem ' + id, situacao: 'uso', setorSigla: 'PRO', atualizadoEm: 'vb-' + id, ...extra });
 
-function ambiente({ bemAtual, fichas = [], bens = [bemAtual], ocultos = [], perms = RAPHAEL, abas = ['estrutura', 'telefonia', 'seguranca', 'incendio', 'carros', 'maquinas', 'inventario'], setores = [], carregando = false, erro = '', confirmar = true, vincular, desfazer, historico = async () => [] } = {}) {
+function ambiente({ bemAtual, fichas = [], bens = [bemAtual], ocultos = [], perms = RAPHAEL, abas = ['estrutura', 'telefonia', 'seguranca', 'incendio', 'carros', 'maquinas', 'inventario'], setores = [], carregando = false, erro = '', confirmar = true, organizar, salvandoArea=false, vincular, desfazer, historico = async () => [] } = {}) {
   const estados = [], chamadas = { vincular: [], desfazer: [], historico: [], confirm: [], tentar: 0, atualizar: 0, mudou: [], abrir: 0 };
   let indice = 0, arvore;
   const ctx = vm.createContext({
@@ -36,7 +36,7 @@ function ambiente({ bemAtual, fichas = [], bens = [bemAtual], ocultos = [], perm
   vm.runInContext(codigo, ctx);
   const vinculos = calc.vinculosDosBens(bens, fichas, ocultos);
   const props = () => ({ bem: bemAtual, vinculo: carregando ? undefined : vinculos[bemAtual.id], fichas, bens, setores, abasPermitidas: abas, carregando, erro,
-    aoTentar: () => { chamadas.tentar++; }, aoAtualizar: () => { chamadas.atualizar++; }, aoMudou: r => chamadas.mudou.push(json(r)), aoAbrirFicha: () => { chamadas.abrir++; } });
+    aoOrganizarBem: organizar, salvandoArea, aoTentar: () => { chamadas.tentar++; }, aoAtualizar: () => { chamadas.atualizar++; }, aoMudou: r => chamadas.mudou.push(json(r)), aoAbrirFicha: () => { chamadas.abrir++; } });
   const render = () => { indice = 0; arvore = ctx.Componente(props()); return arvore; };
   const todos = no => Array.isArray(no) ? no.flatMap(todos) : no && typeof no === 'object' ? [no, ...todos(no.props.children)] : [];
   const texto = no => Array.isArray(no) ? no.map(texto).join('') : no && typeof no === 'object' ? texto(no.props.children) : typeof no === 'string' || typeof no === 'number' ? String(no) : '';
@@ -250,4 +250,23 @@ test('busca em todos os tipos e abertura técnica reaproveitam bem sem gravaçã
  const form=a.todos().find(n=>n.type==='CadastroEquipamento');
  assert.equal(form.props.inicial.bemEscolha,'b1');assert.equal(form.props.inicial.tipoFixo,true);
  assert.equal(form.props.inicial.nome,'Laser fictício');assert.equal(a.chamadas.vincular.length,0);
+});
+
+
+test('Ferramentas & Outros organiza o mesmo bem sem criar vínculo técnico', async()=>{
+ const chamadas=[]; const b=bem('b1');
+ const a=ambiente({bemAtual:b,abas:['inventario','outros'],organizar:(...args)=>chamadas.push(args)});
+ assert.ok(a.opcoes('Tipo de ficha').some(([v])=>v==='area-outros'));
+ a.escolher('Tipo de ficha','area-outros');
+ assert.equal(a.botoes('Confirmar vínculo').length,0);
+ assert.equal(chamadas.length,0);
+ await a.clicar('Confirmar organização');
+ assert.equal(chamadas[0][0].id,'b1');assert.equal(chamadas[0][1],'outros');
+ assert.equal(a.chamadas.vincular.length,0);
+ assert.ok(a.todos().some(n=>n.type==='Link'&&n.props.to==='/patrimonio?aba=outros'));
+ const restrito=ambiente({bemAtual:b,abas:['inventario'],organizar:()=>{}});
+ assert.ok(!restrito.opcoes('Tipo de ficha').some(([v])=>v==='area-outros'));
+ const salvo=ambiente({bemAtual:bem('b1',{areaPatrimonio:'outros'}),abas:['outros'],organizar:()=>{}});
+ salvo.escolher('Tipo de ficha','area-outros');
+ assert.equal(salvo.botoes('Já organizado nesta área')[0].props.disabled,true);
 });

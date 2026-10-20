@@ -81,3 +81,5 @@
 .pat-field-pending .label,.pat-field-pending dt,.pat-fill-hint{color:#6b470b}
 .pat-fill-hint{display:block;font-size:.75rem;font-weight:700;margin-bottom:5px}
 .pat-vinculo-form h4{grid-column:1/-1;margin:8px 0}
+
+.pat-vinculo-organizar{grid-column:1/-1;padding:14px;border:1px solid var(--hairline,#dce1e9);border-radius:12px;background:var(--surface,#f8fafc)}.pat-vinculo-organizar .pat-actions{margin:12px 0}.pat-vinculo-organizar small{display:block}
