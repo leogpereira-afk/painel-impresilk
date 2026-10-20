@@ -40,3 +40,10 @@ Código `4c98c68` publicado na main. Pages [39430081689](https://github.com/leog
 Durante a publicação, o dono pediu identificação mais clara das medidas. Cada bloco agora tem número com dois dígitos, título atualizado e faixa de identificação, com cores alternadas. As cores de material e os cálculos permanecem iguais. Inclusão, duplicação, exclusão, título Forro, desktop, celular de 390 px e temas claro/escuro conferidos na prévia. Corrigida também a quebra do balão de sugestão em tela estreita. Lint e build aprovados; revisão independente sem bloqueador. Delta visual `c6a6cdf` publicado: Pages [39431422092](https://github.com/leogpereira-afk/painel-impresilk/actions/runs/39431422092) concluído com sucesso. Nova comparação após o deploy confirmou 191/191 arquivos públicos idênticos ao build atualizado, sem divergências.
 
 O site oficial abriu na tela de login. A conferência autenticada de interface e download do PDF publicado depende da entrada do dono; a versão local e o PDF baixado na prévia foram verificados.
+
+
+## Ajuste de paginação do PDF
+
+O caso com duas origens de corte, dois retalhos iguais e uma chapa nova estava indo para duas páginas por 12 pontos de espaço útil não aproveitado. O limite inferior do corpo passou de 520 para 532 pontos, mantendo 15 pontos até a linha de base do rodapé. Fontes, escala dos desenhos, margens laterais e cálculos permanecem iguais.
+
+Regressão reproduzida antes da correção (duas páginas) e validada depois (uma página). Os 79 testes do módulo passaram, incluindo continuação de relatórios longos; ESLint dos arquivos alterados e build passaram. Render local conferido, sem sobreposição com o rodapé. Publicação e download oficial pendentes nesta etapa.

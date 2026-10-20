@@ -1,3 +1,7 @@
+## Trabalho atual · Codex · PDF compacto do plano de chapas · 20/10/2026
+
+Ajustar a paginação para aproveitar uma página quando couber, preservando desenhos e letras. Publicação e conferência no site autorizadas pelo dono. Escopo: PDF e seus testes.
+
 ## Trabalho atual · Plano de chapas: melhorias e retalhos · Codex · 20/10/2026
 
 Agente: codex. Dono autorizou implementar os achados da auditoria e adicionar retalhos opcionais no Plano de chapas. Ramo codex/chapas-retalhos-auditoria-20261020, clone isolado em /tmp. Escopo: consumo de retalhos compatíveis, compras de chapas novas, alternativas de divisão, conferência explícita, legibilidade e PDF com identidade Impresilk. Preservar motores compartilhados, registros e demais ferramentas. Implementação e prévia local; sem publicação autorizada nesta etapa.

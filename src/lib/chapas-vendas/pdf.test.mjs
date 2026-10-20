@@ -98,3 +98,14 @@ test('PDF paginates a consolidated cut with many long descriptions without dropp
  for(let i=1;i<=100;i++)assert.ok(pdf.includes(`Origem ${String(i).padStart(3,'0')}`));
  for(const page of pages)for(const match of page.matchAll(/1 0 0 1 [\d.]+ (-?[\d.]+) Tm/g))assert.ok(Number(match[1])>=26,'No text outside the printable page');
 });
+
+test('PDF fits two source rows, two remnants and one new sheet without shrinking drawings or text',()=>{
+ const input=initialPlan();input.requester='Solicitante de teste';input.client='Cliente de teste';
+ input.rows=[{...input.rows[0],id:'front',description:'Frente',width:1000,height:1000,quantity:3},{...input.rows[0],id:'ceiling',description:'Forro',width:1000,height:1000,quantity:2}];
+ input.remnants=[{id:'offcut',name:'Retalho 1',width:1200,length:2200,quantity:2,material:defaultMaterial()}];
+ const pdf=pdfText(input);
+ assert.equal(streams(pdf).length,1);
+ for(const value of ['Frente · 3 peças','Forro · 2 peças','RT1, RT2','CH1','COMPRAR 1 CHAPA NOVA'])assert.ok(pdf.includes(value),value);
+ assert.match(pdf,/\/FN 8 Tf/);
+ assert.match(pdf,/64\.00 re B Q/,'Retain the 64-point remnant drawing height');
+});

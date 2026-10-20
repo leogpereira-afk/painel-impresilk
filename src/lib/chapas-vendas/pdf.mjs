@@ -65,7 +65,8 @@ export function purchasePDF(input,plan,{logo,date=new Date(),confirmed=false}={}
  if(!plan.valid)throw Error('Resolva as pendências antes de salvar o PDF.');
  const pages=[];let commands=[],y;
  const stamp=date.toLocaleString('pt-BR'),status=confirmed?'Conferido pelo usuário':'Conferência pendente';
- const ink='#203647',muted='#60717e',accent='#188574',bottom=520;
+ // Keep 15 points clear above the footer baseline (547), without scaling content.
+ const ink='#203647',muted='#60717e',accent='#188574',bottom=532;
  const text=(value,x,top,size=9,bold=false,color=ink)=>commands.push(`BT /${bold?'FB':'FN'} ${size} Tf ${rgb(color)} rg 1 0 0 1 ${x.toFixed(2)} ${(595-top).toFixed(2)} Tm (${esc(value)}) Tj ET`);
  const verticalText=(value,x,top,size=8,bold=false,color=ink)=>commands.push(`BT /${bold?'FB':'FN'} ${size} Tf ${rgb(color)} rg 0 1 -1 0 ${x.toFixed(2)} ${(595-top).toFixed(2)} Tm (${esc(value)}) Tj ET`);
  const rect=(x,top,w,h,fill,stroke=fill)=>commands.push(`q ${rgb(fill)} rg ${rgb(stroke)} RG 0.6 w ${x.toFixed(2)} ${(595-top-h).toFixed(2)} ${w.toFixed(2)} ${h.toFixed(2)} re B Q`);
