@@ -4,6 +4,8 @@ Dono autorizou criar simulador ao lado do plano de chapas, com cadastro comparti
 
 Prévia concluída: nova aba, cadastro autenticado de chapas/retalhos com versão e conflito, materiais independentes, consumo simulado de retalhos compatíveis, compra de chapas novas, desenho e PDF vetorial com logo. Verificação: 359 testes, lint e build; interface em desktop/celular e PDF baixado em uma página com dados fictícios. Compartilhamento conferido em testes com duas sessões; servidor ainda não publicado nem validado em produção. Publicar painel-placas antes da tela após autorização específica. Detalhes em docs/simulador-placas-vendas-20261020.md.
 
+Dono autorizou publicar em 20/10/2026. Servidor painel-placas v1 publicado primeiro: ACTIVE, 11/11 arquivos relidos iguais ao código validado, tabela/RPC existentes e acesso anônimo recusado (401). Publicação da tela e conferência autenticada em andamento.
+
 ## Trabalho atual · Codex · PDF compacto do plano de chapas · 20/10/2026
 
 Ajustar a paginação para aproveitar uma página quando couber, preservando desenhos e letras. Publicado e conferido em 20/10/2026: commit 20b411a, Pages 39434229983 concluído com sucesso; 191 arquivos públicos iguais ao build. PDF baixado do site autenticado em uma página, com duas origens, dois retalhos e uma chapa nova; desenho e fonte preservados. Projeto original restaurado no navegador. Vez encerrada.
