@@ -5,7 +5,7 @@ export const FINISHES=[['matte','Fosco'],['gloss','Brilhante'],['wood','Amadeira
 export const COATINGS=[['polyester','Poliéster'],['pvdf','PVDF'],['unspecified','A confirmar']];
 export const defaultMaterial=()=>({colorId:'branco',colorName:'',finish:'matte',thickness:3,directional:false,manufacturer:'',sku:'',coating:'polyester'});
 export const newRow=(material=defaultMaterial())=>({id:crypto.randomUUID(),description:'Frente',kind:'front',columnMode:'folded',sideLeft:300,sideRight:300,width:1000,height:1000,quantity:1,folded:false,left:30,right:30,top:30,bottom:30,...material,materialOverride:false});
-export const initialPlan=()=>({name:'Novo plano de chapas',material:defaultMaterial(),rows:[newRow()],stock:{...createProject().stock,width:1220,length:5000},reserves:{}});
+export const initialPlan=()=>({name:'Novo plano de chapas',material:defaultMaterial(),rows:[newRow()],stock:{...createProject().stock,width:1220,length:5000},reserves:{},remnants:[]});
 export function updateDefaultMaterial(input,patch){const material={...input.material,...patch};return {...input,material,rows:input.rows.map(r=>r.materialOverride?r:{...r,...material})};}
 export const salesMaterialKey=m=>JSON.stringify([materialKey(m),m.coating??'polyester',(m.colorName??'').trim()]);
 export const colorLabel=m=>(m.colorName??'').trim()||COLORS.find(c=>c.id===m.colorId)?.name;
@@ -13,9 +13,34 @@ export const materialLabel=m=>[colorLabel(m),COATINGS.find(c=>c[0]===(m.coating?
 export const productLabel=m=>[m.manufacturer||'Marca a confirmar',m.sku?`Ref. ${m.sku}`:'Referência a confirmar'].join(' · ');
 export function contrastInk(hex){const rgb=hex.replace('#','').match(/../g).map(n=>{const v=parseInt(n,16)/255;return v<=.04045?v/12.92:((v+.055)/1.055)**2.4;});return rgb[0]*.2126+rgb[1]*.7152+rgb[2]*.0722>.179?'#182c3c':'#ffffff';}
 const number=(v,min,max)=>typeof v==='number'&&Number.isFinite(v)&&v>=min&&v<=max;
+const materialValid=m=>m&&typeof m==='object'&&!Array.isArray(m)&&[3,4].includes(m.thickness)&&COLORS.some(c=>c.id===m.colorId)&&FINISHES.some(f=>f[0]===m.finish)&&COATINGS.some(c=>c[0]===(m.coating??'polyester'))&&!['manufacturer','sku','colorName'].some(k=>m[k]!=null&&(typeof m[k]!=='string'||m[k].length>120))&&(m.directional==null||typeof m.directional==='boolean');
+function normalizeMaterial(row){
+ const color=COLORS.find(c=>c.id===row.colorId);
+ return {...createProject().material,colorId:color.id,color:color.hex,colorName:(row.colorName??'').trim(),finish:row.finish,thickness:row.thickness,directional:!!row.directional||color.directional||['wood','brushed'].includes(row.finish),manufacturer:(row.manufacturer??'').trim(),sku:(row.sku??'').trim(),coating:row.coating??'polyester'};
+}
+function prepareRemnants(input,errors){
+ const items=input.remnants??[],units=[],usage=[];
+ if(!Array.isArray(items)||items.length>100){errors.push('Informe no máximo 100 retalhos.');return {units,usage};}
+ const ids=new Set();let available=0;
+ for(const [index,item] of items.entries()){
+  const label=`Retalho ${index+1}`;
+  if(!item||typeof item.id!=='string'||!item.id||item.id.length>160||ids.has(item.id)){errors.push(`${label}: identificador inválido ou repetido.`);continue;}ids.add(item.id);
+  if(!number(item.width,.01,LIMITS.dimension)||!number(item.length,.01,LIMITS.dimension)||!Number.isInteger(item.quantity)||item.quantity<1||item.quantity>100){errors.push(`${label}: confira largura, comprimento e quantidade (1 a 100).`);continue;}
+  if(item.name!=null&&(typeof item.name!=='string'||item.name.length>120)){errors.push(`${label}: nome deve ter até 120 caracteres.`);continue;}
+  if(!materialValid(item.material)){errors.push(`${label}: confira cor, marca, referência, revestimento, acabamento e espessura.`);continue;}
+  if(number(input.stock?.trim,0,1000)&&2*input.stock.trim>=Math.min(item.width,item.length)){errors.push(`${label}: a margem de borda elimina a área útil.`);continue;}
+  available+=item.quantity;
+  if(available>100){errors.push('Use no máximo 100 unidades de retalhos por cálculo.');break;}
+  const material=normalizeMaterial(item.material),name=item.name?.trim()||label,key=salesMaterialKey(material);
+  usage.push({id:item.id,name,width:item.width,length:item.length,material,available:item.quantity,used:0,remaining:item.quantity});
+  for(let i=0;i<item.quantity;i++)units.push({id:JSON.stringify([item.id,i+1]),remnantId:item.id,name,width:item.width,length:item.length,material,purchaseKey:key});
+ }
+ return {units,usage};
+}
 export function calculatePlan(input){
  const errors=[],rows=[],pieces=[],groups=[];
  if(!input||!Array.isArray(input.rows)||!input.rows.length||input.rows.length>100)return {valid:false,errors:['Informe de 1 a 100 linhas.'],rows,groups};
+ const remnantStock=prepareRemnants(input,errors);
  if(new Set(input.rows.map(r=>r.id)).size!==input.rows.length)errors.push('Linhas com identificadores repetidos.');
  const expanded=[];
  for(const [index,row] of input.rows.entries()){
@@ -36,16 +61,17 @@ export function calculatePlan(input){
   else for(const [suffix,name,width] of [['F','Frente',row.width],['E','Lateral esquerda',row.sideLeft],['D','Lateral direita',row.sideRight]])expanded.push({...base,id:`${row.id}/${suffix}`,number:`${index+1}${suffix}`,description:`${row.description||'Coluna'} · ${name}`,width});
  }
  if(errors.length)return {valid:false,errors,rows,groups};
- const fabrication={...createProject().fabrication,machineWidth:input.stock?.width,machineLength:input.stock?.length};
+ // The sales form specifies purchase stock, not a machine envelope. A larger
+ // existing remnant retains its own bounds; new sheets retain the chosen format.
+ const fabrication={...createProject().fabrication,machineWidth:Math.max(input.stock?.width,...remnantStock.units.map(r=>r.width)),machineLength:Math.max(input.stock?.length,...remnantStock.units.map(r=>r.length))};
  for(const [index,row] of expanded.entries()){
-  const label=`Linha ${index+1}`;
+  const label=`Peça ${row.number??index+1}`;
   if(!number(row.width,.01,LIMITS.dimension)||!number(row.height,.01,LIMITS.dimension)||!Number.isInteger(row.quantity)||row.quantity<1||row.quantity>LIMITS.pieces||![3,4].includes(row.thickness)||!COLORS.some(c=>c.id===row.colorId)||!['matte','gloss','wood','brushed','metallic','mirror'].includes(row.finish)||typeof row.folded!=='boolean'){errors.push(`${label}: confira medidas, quantidade e material.`);continue;}
-  if(!COATINGS.some(c=>c[0]===(row.coating??'polyester'))||['manufacturer','sku','colorName'].some(k=>row[k]!=null&&(typeof row[k]!=='string'||row[k].length>120))){errors.push(`${label}: confira revestimento, marca, referência e nome da cor (até 120 caracteres).`);continue;}
+  if(!materialValid(row)){errors.push(`${label}: confira revestimento, marca, referência e nome da cor (até 120 caracteres).`);continue;}
   const edges=Object.fromEntries(['left','right','top','bottom'].map(k=>[k,row.folded?row[k]:0]));
   if(Object.values(edges).some(v=>!number(v,0,1000))){errors.push(`${label}: abas devem ser de 0 a 1.000 mm.`);continue;}
   try{
-   const blank=developBlank(row.width,row.height,edges,fabrication),color=COLORS.find(c=>c.id===row.colorId);
-   const material={...createProject().material,colorId:color.id,color:color.hex,colorName:(row.colorName??'').trim(),finish:row.finish,thickness:row.thickness,directional:!!row.directional||color.directional||['wood','brushed'].includes(row.finish),manufacturer:(row.manufacturer??'').trim(),sku:(row.sku??'').trim(),coating:row.coating??'polyester'};
+   const blank=developBlank(row.width,row.height,edges,fabrication),material=normalizeMaterial(row);
    rows.push({...row,number:row.number??index+1,blank,material});
    if(pieces.length+row.quantity>LIMITS.pieces){errors.push(`Máximo de ${LIMITS.pieces} peças por cálculo.`);break;}
    for(let i=0;i<row.quantity;i++)pieces.push({id:`${row.id}:${i+1}`,rowId:row.id,number:row.number??index+1,blank,material});
@@ -55,13 +81,30 @@ export function calculatePlan(input){
  const stock={...input.stock,quantity:null,remnants:[]};
  // Preserve the ACM engine; custom color names and coatings also separate purchases.
  const result={sheets:[],unplaced:[],grossArea:0,usedArea:0,wasteArea:0};
+ let regularCount=0,remnantCount=0;
  for(const key of new Set(pieces.map(p=>salesMaterialKey(p.material)))){
-  const batch=pieces.filter(p=>salesMaterialKey(p.material)===key),packed=nestPieces(batch,stock,fabrication);
-  errors.push(...(packed.errors||[]).map(e=>e.message));
-  if(!packed.errors?.length)errors.push(...validateNesting(packed,batch,stock,fabrication));
-  for(const sheet of packed.sheets)result.sheets.push({...sheet,id:`CH${result.sheets.length+1}`,purchaseKey:salesMaterialKey(sheet.material)});
-  result.unplaced.push(...packed.unplaced);
-  for(const k of ['grossArea','usedArea','wasteArea'])result[k]+=packed[k]||0;
+  const batch=pieces.filter(p=>salesMaterialKey(p.material)===key),compatible=remnantStock.units.filter(r=>r.purchaseKey===key),stages=[];
+  let remaining=batch;
+  if(compatible.length){
+   const remnantOnly={...stock,quantity:0,remnants:compatible},packed=nestPieces(batch,remnantOnly,fabrication);
+   errors.push(...(packed.errors||[]).map(e=>e.message));
+   if(!packed.errors?.length)errors.push(...validateNesting(packed,batch,remnantOnly,fabrication));
+   stages.push(packed);const unplaced=new Set(packed.unplaced.map(p=>p.pieceId));remaining=batch.filter(p=>unplaced.has(p.id));
+  }
+  if(remaining.length){
+   const packed=nestPieces(remaining,stock,fabrication);
+   errors.push(...(packed.errors||[]).map(e=>e.message));
+   if(!packed.errors?.length)errors.push(...validateNesting(packed,remaining,stock,fabrication));
+   stages.push(packed);result.unplaced.push(...packed.unplaced);
+  }
+  for(const packed of stages){
+   for(const sheet of packed.sheets){
+    const source=compatible.find(r=>r.id===sheet.sourceId),remnant=sheet.source==='remnant';
+    result.sheets.push({...sheet,id:remnant?`RT${++remnantCount}`:`CH${++regularCount}`,purchaseKey:key,...(remnant?{remnantId:source.remnantId,sourceName:source.name}:{})});
+    if(remnant){const usage=remnantStock.usage.find(r=>r.id===source.remnantId);usage.used++;usage.remaining--;}
+   }
+   for(const k of ['grossArea','usedArea','wasteArea'])result[k]+=packed[k]||0;
+  }
  }
  result.utilization=result.grossArea?100*result.usedArea/result.grossArea:0;
  for(const item of result.unplaced){const p=pieces.find(p=>p.id===item.pieceId);errors.push(`Peça ${p?.number}: ${item.reason}`);}
@@ -69,9 +112,12 @@ export function calculatePlan(input){
  for(const key of keys){
   const material=pieces.find(p=>salesMaterialKey(p.material)===key).material,sheets=result.sheets.filter(s=>s.purchaseKey===key),reserve=input.reserves?.[key]??0;
   if(!Number.isInteger(reserve)||reserve<0||reserve>2000)errors.push('Reserva deve ser um número inteiro de 0 a 2.000 chapas.');
-  groups.push({key,material,sheets,reserve,calculated:sheets.length,total:sheets.length+reserve});
+  const calculated=sheets.filter(s=>s.source==='sheet').length,remnantsUsed=sheets.length-calculated;
+  groups.push({key,material,sheets,reserve,calculated,remnantsUsed,total:calculated+reserve});
  }
- return {valid:errors.length===0,errors:[...new Set(errors)],rows,groups,pieces,result,total:groups.reduce((n,g)=>n+g.total,0)};
+ // Independently check the combined stages, including unique consumption and piece conservation.
+ errors.push(...validateNesting(result,pieces,{...stock,remnants:remnantStock.units},fabrication));
+ return {valid:errors.length===0,errors:[...new Set(errors)],rows,groups,pieces,result,total:groups.reduce((n,g)=>n+g.total,0),remnantsUsed:remnantCount,remnantUsage:remnantStock.usage};
 }
 
 // Suggest only: callers must explicitly confirm before changing the project.
@@ -79,18 +125,31 @@ export function suggestTrays(input,row){
  if(row.kind==='column'||calculatePlan({...input,rows:[row],reserves:{}}).valid)return null;
  if(!number(row.width,.01,LIMITS.dimension)||!number(row.height,.01,LIMITS.dimension))return null;
  const fabrication={...createProject().fabrication,machineWidth:input.stock.width,machineLength:input.stock.length};
- const edges=Object.fromEntries(['left','right','top','bottom'].map(k=>[k,row[k]??30]));
- if(Object.values(edges).some(v=>!number(v,0,1000)))return null;
+ const trayEdges=Object.fromEntries(['left','right','top','bottom'].map(k=>[k,row[k]??30]));
+ if(Object.values(trayEdges).some(v=>!number(v,0,1000)))return null;
  const w=input.stock.width-2*input.stock.trim,h=input.stock.length-2*input.stock.trim;
  const color=COLORS.find(c=>c.id===row.colorId),rotate=input.stock.rotation&&!row.directional&&!color?.directional&&!['wood','brushed'].includes(row.finish);
- for(let count=2;count<=100;count++)for(let nx=1;nx<=count;nx++){
-  if(count%nx)continue;const ny=count/nx;
-  try{
-   const blank=developBlank(row.width/nx,row.height/ny,edges,fabrication);
-   if(!((blank.width<=w&&blank.height<=h)||(rotate&&blank.height<=w&&blank.width<=h)))continue;
-   const patch={folded:true,...edges,panelsX:nx,panelsY:ny};
-   if(calculatePlan({...input,rows:[{...row,...patch}],reserves:{}}).valid)return {patch,count,width:row.width/nx,height:row.height/ny,blankWidth:blank.width,blankHeight:blank.height};
-  }catch{ /* Unsupported dimensions remain an explicit validation error. */ }
+ const alternatives=[];
+ for(const mode of row.folded?['tray']:['flat','tray']){
+  const edges=mode==='tray'?trayEdges:{left:0,right:0,top:0,bottom:0},candidates=[];
+  let evaluated=0,piecesBudget=0;
+  search:for(let count=2;count<=100;count++)for(let nx=1;nx<=count;nx++){
+   if(count%nx)continue;const ny=count/nx;
+   if(count*row.quantity>LIMITS.pieces)continue;
+   try{
+    const blank=developBlank(row.width/nx,row.height/ny,edges,fabrication);
+    if(!((blank.width<=w&&blank.height<=h)||(rotate&&blank.height<=w&&blank.width<=h)))continue;
+    if(evaluated>=64||piecesBudget+count*row.quantity>6000)break search;
+    evaluated++;piecesBudget+=count*row.quantity;
+    const patch={folded:mode==='tray',...(mode==='tray'?edges:{}),panelsX:nx,panelsY:ny},plan=calculatePlan({...input,rows:[{...row,...patch}],reserves:{}});
+    if(plan.valid)candidates.push({patch,count,width:row.width/nx,height:row.height/ny,blankWidth:blank.width,blankHeight:blank.height,sheets:plan.total,remnantsUsed:plan.remnantsUsed,utilization:plan.result.utilization,mode});
+   }catch{ /* Unsupported dimensions remain an explicit validation error. */ }
+  }
+  if(candidates.length){
+   const fewestSeams=candidates[0],fewestSheets=[...candidates].sort((a,b)=>a.sheets-b.sheets||a.count-b.count||b.utilization-a.utilization)[0],kind=mode==='tray'?'bandejas':'painéis planos';
+   alternatives.push({...fewestSeams,label:`Menos emendas · ${kind}`});
+   if(fewestSheets.count!==fewestSeams.count||fewestSheets.patch.panelsX!==fewestSeams.patch.panelsX)alternatives.push({...fewestSheets,label:`Menos chapas · ${kind}`});
+  }
  }
- return null;
+ return alternatives.length?{...alternatives[0],alternatives}:null;
 }

@@ -1,17 +1,82 @@
 import test from 'node:test';import assert from 'node:assert/strict';
-import {identifyPlan,saveDraft,readDraft,listDrafts} from './identity.mjs';
+import {identifyPlan,draftPrefix,saveDraft,readDraft,listDrafts} from './identity.mjs';
 import {initialPlan,calculatePlan} from './planner.mjs';import {purchasePDF} from './pdf.mjs';
 const storage=()=>{const m=new Map();return {get length(){return m.size;},key:i=>[...m.keys()][i],getItem:k=>m.get(k)??null,setItem:(k,v)=>m.set(k,v)};};
 test('plan identity stays independent of order and survives editing and reopening',()=>{
  const s=storage(),p=identifyPlan(initialPlan(),{requester:'Pessoa exemplo',date:new Date('2026-10-19T12:00:00Z'),uuid:'12345678-1234-4567-8123-123456789abc'});
  p.order={number:'OS-DEMO',client:'Cliente exemplo',company:'Empresa exemplo',id:'demo'};
- saveDraft(s,'user-a',p);const restored=readDraft(s,'user-a');assert.deepEqual(restored,p);assert.equal(readDraft(s,'user-b'),null);assert.deepEqual(listDrafts(s,'user-b'),[]);
+ const saved=saveDraft(s,'user-a',p);const restored=readDraft(s,'user-a');assert.deepEqual(restored,saved.plan);assert.equal(restored.planNumber,p.planNumber);assert.equal(readDraft(s,'user-b'),null);assert.deepEqual(listDrafts(s,'user-b'),[]);
  assert.equal(identifyPlan(restored).planNumber,p.planNumber);assert.notEqual(p.planNumber,p.order.number);
  restored.rows[0].width=500;saveDraft(s,'user-a',restored);assert.equal(readDraft(s,'user-a').planNumber,p.planNumber);
  const second=identifyPlan(initialPlan());saveDraft(s,'user-a',second);assert.equal(listDrafts(s,'user-a').length,2);assert.equal(readDraft(s,'user-a',p.planId).requester,'Pessoa exemplo');
  const pdf=Buffer.from(purchasePDF(p,calculatePlan(p))).toString('latin1');for(const v of [p.planNumber,'Solicitado por: Pessoa exemplo','O.S. #OS-DEMO'])assert.ok(pdf.includes(v),v);
 });
 test('storage failures are surfaced and corrupt saved data is retained',()=>{
- assert.throws(()=>saveDraft({setItem(){throw Error('full');}},'a',identifyPlan(initialPlan())),/full/);
+ assert.throws(()=>saveDraft({getItem(){return null;},setItem(){throw Error('full');}},'a',identifyPlan(initialPlan())),/full/);
  const s=storage();s.setItem('impresilk.chapas-vendas.v1.a.active','broken');s.setItem('impresilk.chapas-vendas.v1.a.broken','{');assert.throws(()=>readDraft(s,'a'));assert.equal(s.getItem('impresilk.chapas-vendas.v1.a.broken'),'{');
+});
+test('plan date follows Sao Paulo through the UTC day boundary',()=>{
+ const p=identifyPlan(initialPlan(),{date:new Date('2026-10-20T21:30:00-03:00'),uuid:'12345678-1234-4567-8123-123456789abc'});
+ assert.match(p.planNumber,/^PC-20261020-/);
+ assert.equal(p.createdAt,'2026-10-21T00:30:00.000Z');
+ const next=identifyPlan(initialPlan(),{date:new Date('2026-10-21T00:00:00-03:00'),uuid:'12345678-1234-4567-8123-123456789abd'});
+ assert.match(next.planNumber,/^PC-20261021-/);
+});
+test('two tabs retain both versions instead of overwriting a saved dimension',()=>{
+ const s=storage(),owner='two-tabs',p=identifyPlan(initialPlan());
+ saveDraft(s,owner,p);
+ const a=readDraft(s,owner),b=readDraft(s,owner);
+ a.rows[0].width=2000;
+ const first=saveDraft(s,owner,a);
+ assert.equal(first.conflict,false);
+ b.name='Nome ajustado na segunda aba';
+ const second=saveDraft(s,owner,b);
+ assert.equal(second.conflict,true);
+ assert.notEqual(second.plan.planId,p.planId);
+ assert.notEqual(second.plan.planNumber,p.planNumber);
+ assert.equal(second.originalPlanId,p.planId);
+ assert.equal(second.originalPlanNumber,p.planNumber);
+ assert.equal(second.plan.draftForkOf.planId,p.planId);
+ assert.equal(readDraft(s,owner,p.planId).rows[0].width,2000);
+ assert.equal(readDraft(s,owner,second.plan.planId).rows[0].width,1000);
+ assert.equal(readDraft(s,owner).name,'Nome ajustado na segunda aba');
+ assert.equal(listDrafts(s,owner).length,2);
+ const again=saveDraft(s,owner,second.plan);
+ assert.equal(again.conflict,false);
+ assert.equal(again.saved,false);
+ assert.equal(again.plan.draftRevision,second.plan.draftRevision);
+ assert.equal(listDrafts(s,owner).length,2);
+});
+test('autosave returns its revision and identical content does not loop or fork',()=>{
+ const s=storage(),owner='autosave',p=identifyPlan(initialPlan());
+ const first=saveDraft(s,owner,p);
+ assert.equal(first.saved,true);assert.equal(first.conflict,false);
+ assert.equal(first.plan.draftRevision,1);assert.equal(p.draftRevision,undefined);
+ const same=saveDraft(s,owner,first.plan);
+ assert.equal(same.saved,false);assert.equal(same.plan.draftRevision,1);
+ const changed=saveDraft(s,owner,{...first.plan,name:'Nova referência'});
+ assert.equal(changed.conflict,false);assert.equal(changed.plan.draftRevision,2);
+ const equivalent=saveDraft(s,owner,{...changed.plan,draftRevision:1});
+ assert.equal(equivalent.conflict,false);assert.equal(equivalent.saved,false);
+ assert.equal(equivalent.plan.draftRevision,2);
+ assert.equal(listDrafts(s,owner).length,1);
+});
+test('legacy drafts can autosave and begin revision control without an initial conflict',()=>{
+ const s=storage(),owner='legacy',p=identifyPlan(initialPlan()),key=draftPrefix(owner);
+ s.setItem(key+p.planId,JSON.stringify(p));s.setItem(key+'active',p.planId);
+ const restored=readDraft(s,owner);
+ assert.equal(restored.draftRevision,undefined);
+ const unchanged=saveDraft(s,owner,restored);
+ assert.equal(unchanged.conflict,false);assert.equal(unchanged.saved,false);
+ const edited=saveDraft(s,owner,{...restored,name:'Legado atualizado'});
+ assert.equal(edited.conflict,false);assert.equal(edited.plan.planId,p.planId);
+ assert.equal(edited.plan.draftRevision,1);assert.equal(listDrafts(s,owner).length,1);
+});
+test('an unreadable draft is preserved when its key collides with a local edit',()=>{
+ const s=storage(),owner='corrupt',p=identifyPlan(initialPlan()),key=draftPrefix(owner)+p.planId;
+ s.setItem(key,'{');
+ const saved=saveDraft(s,owner,p);
+ assert.equal(saved.conflict,true);assert.equal(saved.reason,'unreadable-draft');
+ assert.equal(s.getItem(key),'{');assert.notEqual(saved.plan.planId,p.planId);
+ assert.equal(readDraft(s,owner).planId,saved.plan.planId);
 });
