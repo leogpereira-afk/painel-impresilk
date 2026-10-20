@@ -1,6 +1,6 @@
 ## Trabalho atual · Codex · PDF compacto do plano de chapas · 20/10/2026
 
-Ajustar a paginação para aproveitar uma página quando couber, preservando desenhos e letras. Publicação e conferência no site autorizadas pelo dono. Escopo: PDF e seus testes.
+Ajustar a paginação para aproveitar uma página quando couber, preservando desenhos e letras. Publicado e conferido em 20/10/2026: commit 20b411a, Pages 39434229983 concluído com sucesso; 191 arquivos públicos iguais ao build. PDF baixado do site autenticado em uma página, com duas origens, dois retalhos e uma chapa nova; desenho e fonte preservados. Projeto original restaurado no navegador. Vez encerrada.
 
 ## Trabalho atual · Plano de chapas: melhorias e retalhos · Codex · 20/10/2026
 
