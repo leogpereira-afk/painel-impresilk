@@ -27,11 +27,15 @@ Modo `review` usa catálogo fictício no navegador, isolado do oficial e explici
 - Prévia em 1440px e 390px; sem transbordamento horizontal no simulador. Cadastro, edição de cor, cálculo e exportação exercitados pela interface.
 - PDF baixado da prévia: 15 peças, 3 materiais, 3 chapas novas e 1 retalho, em uma página; texto e imagem inspecionados. Exemplos fictícios criados só no navegador, não versionados.
 
-## Publicação pendente
+## Publicação concluída
 
-Implementação local no ramo próprio. Ainda sem publicação desta funcionalidade. A autorização anterior de publicação tratava do PDF ACM, não desta nova ferramenta.
+Dono autorizou publicar em 20/10/2026. Commit de implementação 5c0fafa; release 013daf8. Servidor publicado antes do frontend, com autenticação própria do Painel.
 
-1. Obter autorização específica para publicar.
-2. Publicar somente `painel-placas` com dependências compartilhadas e JWT próprio do Painel, seguindo Functions existente. Confirmar endpoint ativo, autenticação e catálogo com sessões autorizadas; não criar registros reais de teste sem necessidade/autorização.
-3. Publicar frontend após confirmar backend. Conferir site oficial e cadastro acessível em sessões distintas, inclusive erro de versão concorrente sem sobrescrita.
-4. Plano de reversão: restaurar frontend anterior e desabilitar nova função se necessário; preservar registros do catálogo.
+- Functions 39458125903: sucesso; painel-placas v2 ACTIVE, 11 arquivos relidos iguais (caminho do entrypoint normalizado pelo publicador).
+- Pages 39458126020: sucesso; 197/197 arquivos públicos iguais ao build validado.
+- Suíte completa local: 3.062 testes aprovados. Lint sem erros, um aviso preexistente em Agenda.jsx. Os testes que abrem servidor local precisaram executar fora do isolamento, que inicialmente recusou listen com EPERM.
+- Endpoint sem sessão retorna 401. Banco com tabela e RPC existentes. Escrita/leitura da RPC testadas em transação revertida; consulta seguinte confirmou que o registro fictício não permaneceu.
+- Site oficial na sessão autenticada: nova aba, catálogo vazio carregado e formulários habilitados. Não foram cadastrados materiais inventados no catálogo produtivo. Compartilhamento entre duas identidades e conflito concorrente foram verificados nos testes de handler; não foi utilizado login de outro vendedor em produção.
+- PDF e cálculo completo conferidos na prévia; seus arquivos publicados são idênticos aos validados. O catálogo produtivo começa vazio para a equipe cadastrar formatos reais.
+
+Reversão: restaurar frontend anterior e desabilitar função se necessário, preservando registros do catálogo.
