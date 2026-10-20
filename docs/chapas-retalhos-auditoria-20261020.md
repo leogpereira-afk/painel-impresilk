@@ -1,6 +1,6 @@
 # Plano de chapas: auditoria e retalhos
 
-Implementação e publicação autorizadas em 20/10/2026. Conferência da versão publicada pendente.
+Implementação e publicação autorizadas em 20/10/2026.
 
 ## Comportamento
 
@@ -32,3 +32,11 @@ Conferências no navegador, sempre com dados fictícios:
 - Testes incluem limite exato de 10 cm, rejeição acima dele, uso único dos retalhos, quantidades, incompatibilidades, 100 medidas, conservação geométrica, conflitos de rascunho e identificação no PDF.
 
 Não houve escrita em O.S. real, validação física de usinagem ou consulta de preços.
+
+## Publicação
+
+Código `4c98c68` publicado na main. Pages [39430081689](https://github.com/leogpereira-afk/painel-impresilk/actions/runs/39430081689) concluído com sucesso. Os 191 arquivos públicos conferem por SHA-256 com o build validado, sem divergências.
+
+Durante a publicação, o dono pediu identificação mais clara das medidas. Cada bloco agora tem número com dois dígitos, título atualizado e faixa de identificação, com cores alternadas. As cores de material e os cálculos permanecem iguais. Inclusão, duplicação, exclusão, título Forro, desktop, celular de 390 px e temas claro/escuro conferidos na prévia. Corrigida também a quebra do balão de sugestão em tela estreita. Lint e build aprovados; revisão independente sem bloqueador. Publicação desse delta visual em andamento.
+
+O site oficial abriu na tela de login. A conferência autenticada de interface e download do PDF publicado depende da entrada do dono; a versão local e o PDF baixado na prévia foram verificados.
