@@ -231,6 +231,35 @@ function semSegredo(r) {
 
 // ============================================================ casos ruins ==
 
+test('Search Console retoma a página pendente após o prazo e reaproveita inspeções do mesmo dia', async () => {
+  const limitado = (reg) => de(reg, /urlInspection\/index:inspect$/).length < 1 ? 100_000 : 5_000;
+  const primeira = montar({ prazo: limitado });
+  const a = await G.coletar(primeira.ctx);
+  assert.equal(a.dados.search_console.inspecoes.length, 1);
+  const segundaColeta = montar({ anterior: a.dados, prazo: limitado });
+  const b = await G.coletar(segundaColeta.ctx);
+  const pedidos = de(segundaColeta.reg, /urlInspection\/index:inspect$/);
+  assert.equal(pedidos[0].body.inspectionUrl, 'https://impresilk.com.br/?page_id=144');
+  assert.equal(b.dados.search_console.inspecoes.length, 2);
+  assert.ok(!b.avisos.some((v) => /tempo para inspecionar/.test(v)));
+  const terceira = montar({ anterior: b.dados });
+  const c = await G.coletar(terceira.ctx);
+  assert.equal(de(terceira.reg, /urlInspection\/index:inspect$/).length, 0);
+  assert.equal(c.dados.search_console.inspecoes.length, 2);
+  const outroDia = montar({ anterior: c.dados, hoje: somar(HOJE, 1) });
+  await G.coletar(outroDia.ctx);
+  assert.equal(de(outroDia.reg, /urlInspection\/index:inspect$/).length, 2);
+});
+
+test('Search Console não reutiliza inspeções de outra propriedade', async () => {
+  const { ctx } = montar();
+  const a = await G.coletar(ctx);
+  a.dados.search_console.propriedade.site = 'sc-domain:outra-empresa.example';
+  const seguinte = montar({ anterior: a.dados });
+  await G.coletar(seguinte.ctx);
+  assert.equal(de(seguinte.reg, /urlInspection\/index:inspect$/).length, 2);
+});
+
 test('o caso ruim: sem o client OAuth no Supabase, falta_configurar nas três partes e nenhuma chamada', async () => {
   const {ctx, reg} = montar({ env: { GOOGLE_OAUTH_CLIENT_ID: CLIENTE } });
   const r = await G.coletar(ctx);

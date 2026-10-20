@@ -1,3 +1,7 @@
+## Trabalho atual · Retomada Search Console · Codex · 19/10/2026
+
+Agente: codex. Dono autorizou concluir as pendências do Search Console. Escopo: inspeções opcionais do coletor Google; conservar resultados por URL e propriedade, retomar ausentes antes de repetir e reutilizar consultas apenas no mesmo dia. Sem mudanças de permissões, credenciais, dados do Google ou interface. Ramo isolado em /tmp. Publicação da correção autorizada pelo pedido de conclusão. Teste reproduziu a falha antes do ajuste; 436 testes de Marketing aprovados após regenerar as fixtures; build oficial aprovado. Servidor painel-mkt-fontes v62 ACTIVE e 15/15 arquivos relidos e idênticos. Validação da retomada com a coleta oficial em andamento.
+
 ## Trabalho atual · Visualização das colunas · Codex · 19/10/2026
 
 Prévia local verificada: faces afastadas ilustrativas e dimensões de corte vindas do cálculo real; peça única em U ou três painéis. Navegador conferiu ambos os modos, 32 testes, lint e build aprovados. Inclui cotas e dobras da prévia anterior. Publicado e conferido: commit dae136f, Pages 39306678028 aprovado; 190/190 arquivos públicos iguais ao build validado. Tela e PDF verificados na prévia. Reconferência visual em produção limitada por cache anterior e falha de navegação do navegador integrado. Vez encerrada.

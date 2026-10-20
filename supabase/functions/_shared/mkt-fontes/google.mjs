@@ -91,7 +91,8 @@
  *     agregacao: { [bloco]: 'byProperty' | 'byPage' | 'auto' },        // por página e por propriedade contam diferente
  *     sitemaps: null | [{ caminho, enviado_em, lido_em, pendente, indice, tipo, avisos, erros, conteudos: [{ tipo, enviados }] }],
  *     inspecoes: null | [{ pagina, veredito, cobertura, robots, indexacao, rastreado_em, busca, canonica_google,
- *                          canonica_site, rastreado_como, ricos: null | { veredito, tipos }, link }],
+ *                          canonica_site, rastreado_como, ricos: null | { veredito, tipos }, link, consultado_em }],
+ *       consultado_em = dia da consulta (São Paulo); reutiliza apenas no mesmo dia e na mesma propriedade.
  *   },
  *
  *   perfil: null | {
@@ -1051,7 +1052,7 @@ const somaSc = (linhas) => {
   return { cliques, impressoes };
 };
 
-async function coletarSearchConsole(ctx, chamar, j, { host }) {
+async function coletarSearchConsole(ctx, chamar, j, { host, anterior }) {
   const avisos = [];
   const rSites = await chamar(`${SC}/sites`, { rotulo: 'sc sites' });
   if (!rSites.ok) return { ...classificarErro('search_console', rSites), dados: null, avisos };
@@ -1187,14 +1188,22 @@ async function coletarSearchConsole(ctx, chamar, j, { host }) {
   }
   const alvos = lista(dados.paginas).slice(0, LIMITES.INSPECOES).map((p) => p.pagina).filter(Boolean);
   if (!parada && alvos.length) {
-    dados.inspecoes = [];
-    for (const pagina of alvos) {
+    // O prazo pode terminar antes das últimas páginas. Conservar por URL e
+    // consultar as ausentes primeiro impede reiniciar sempre na primeira.
+    // Nunca misturar propriedades, nem apresentar a consulta antiga como nova.
+    const prev = anterior?.search_console;
+    const guardadas = new Map((prev?.propriedade?.site === escolhida.site ? lista(prev.inspecoes) : [])
+      .filter((i) => alvos.includes(i?.pagina)).map((i) => [i.pagina, i]));
+    const pendentes = alvos.filter((p) => guardadas.get(p)?.consultado_em !== j.hoje)
+      .sort((a, b) => Number(guardadas.has(a)) - Number(guardadas.has(b)));
+    for (const pagina of pendentes) {
       const r = await chamar(SC_INSPECAO, { method: 'POST', body: { inspectionUrl: pagina, siteUrl: escolhida.site, languageCode: 'pt-BR' }, rotulo: 'sc inspecao', margem: MARGEM_EXTRA_MS });
       if (r.semTempo) { avisos.push('Search Console: faltou tempo para inspecionar todas as páginas; a próxima coleta continua.'); break; }
       if (!r.ok) { if (r.status === 401) parada = r; else avisos.push('Search Console: a inspeção de páginas parou (cota ou permissão).'); break; }
       const i = lerInspecao(r.dados, pagina);
-      if (i) dados.inspecoes.push(i);
+      if (i) guardadas.set(pagina, { ...i, consultado_em: j.hoje });
     }
+    dados.inspecoes = alvos.map((p) => guardadas.get(p)).filter(Boolean);
     const fora = dados.inspecoes.filter((i) => i.veredito && i.veredito !== 'PASS').length;
     if (fora) avisos.push(`Search Console: ${fora === 1 ? '1 página com clique está fora do índice ou com problema' : `${fora} páginas com clique estão fora do índice ou com problema`}.`);
   }
@@ -1837,7 +1846,7 @@ export async function coletar(ctx) {
   };
   await Promise.all([
     rodar('ga4', () => coletarGa4(ctx, chamar, j, { medicoes, host, anterior: ctx.anterior })),
-    rodar('search_console', () => coletarSearchConsole(ctx, chamar, j, { host })),
+    rodar('search_console', () => coletarSearchConsole(ctx, chamar, j, { host, anterior: ctx.anterior })),
     rodar('perfil', () => coletarPerfil(ctx, chamar, j, { host, urlCanal: canal('google')?.url_perfil ?? null, anterior: ctx.anterior })),
   ]);
   // Token morto no meio (401): a parte que não chegou a ver o 401 também não
