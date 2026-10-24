@@ -1,6 +1,6 @@
 # Manual de máquinas — implementação e verificação local
 
-24/10/2026. Ramo `codex/manuais-maquinas-20261024`, iniciado em `d8b4c82`. Sem publicação, migração ou gravação em produção.
+24/10/2026. Ramo `codex/manuais-maquinas-20261024`, iniciado em `d8b4c82`. Implementação não publicada; sem migração ou carga de manuais em produção.
 
 ## Entrega
 
@@ -17,7 +17,7 @@
 | Verificação | Resultado |
 |---|---|
 | Suíte geral `npm test` | 1.402/1.402 passaram |
-| Manuais, banco PGlite, interface, RH, fotos, equipamentos e permissões | 63/63 passaram |
+| Manuais, banco PGlite, interface, RH, fotos, equipamentos e permissões | 66/66 passaram após a revisão visual |
 | Build de produção | Concluído; aviso de chunks grandes já existentes |
 | Build de review | Concluído |
 | ESLint em `src` | 0 erros; 1 aviso anterior em Agenda.jsx |
@@ -39,3 +39,13 @@ A prévia usa o handler real com armazenamento em memória: recarregar descarta 
 O levantamento das máquinas e os documentos privados estão fora deste repositório público. A interface de revisão usa exclusivamente exemplos fictícios. Nenhum manual técnico foi homologado para operação e nenhum vínculo do acervo foi aplicado automaticamente.
 
 Antes de disponibilizar conteúdo operacional: resolver as divergências de fabricante/modelo/configuração, conferir fotos e consumíveis, validar o procedimento com responsável técnico e aprovar a revisão. Antes de publicar a interface: publicar e conferir o servidor correspondente, com autorização do dono.
+
+## Revisão visual e fotografias
+
+- Navegação por seis áreas com ícones, cor e descrições curtas; orientações e editor recolhíveis; indicadores clicáveis no catálogo.
+- Fotografias inteiras com `object-fit: contain`, fundo de destaque e diálogo de ampliação com foco, Escape e retorno ao botão. Temas claro/escuro e largura de 390 px conferidos em navegador.
+- Duas referências públicas empacotadas localmente: Roland SG-540 tratada para transparência e Boxer MIGFLEX 250 com transparência original. Proveniência em `src/assets/manuais/README.md`. Só uma URL exata já escolhida e confirmada recebe a imagem local, sem associação por nome.
+- Galeria do patrimônio continua prioritária e sujeita à permissão existente. Fonte inacessível mostra aviso; o teste cobre inclusive falha de CSP antes do efeito React. A CSP não foi relaxada.
+- A prévia permanece fictícia. Fotografias de referência não comprovam configuração instalada nem homologam operação. Modelos ou fotos não confirmados permanecem explicitamente pendentes no acervo privado.
+- Teste de consulta da equipe: foto disponível, última aprovação preservada e nenhum botão de editar/aprovar. Seis seções, filtro de rascunhos, ampliação, formulário móvel e modo escuro conferidos.
+- Revisão independente do diff sem achados concretos de regressão em permissões, vínculos por ID, fotos ou navegação. Builds de produção/review concluídos e lint sem erros (aviso anterior em Agenda).

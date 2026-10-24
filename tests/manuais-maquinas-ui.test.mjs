@@ -13,13 +13,13 @@ const require=createRequire(import.meta.url);
 const raiz=fileURLToPath(new URL('..',import.meta.url));
 const componentes=path.join(raiz,'src/components/patrimonio');
 const globais={window:globalThis.window,localStorage:globalThis.localStorage};
-let pasta,Formulario,DetalheCarregando,DetalheLido;
+let pasta,Formulario,DetalheCarregando,DetalheLido,FotoMaquina,fotoReferenciaManual;
 
 async function compilar(nome,{detalhe=false,leituraConcluida=false}={}) {
   let fonte=await readFile(path.join(componentes,nome),'utf8');
   // O componente de detalhe é interno. A instrumentação só o exporta no
   // bundle temporário de teste; nenhuma API de produção é acrescentada.
-  if(detalhe)fonte+='\nexport {ManualDetalhe};\n';
+  if(detalhe)fonte+='\nexport {ManualDetalhe,FotoMaquina,fotoReferenciaManual};\n';
   if(leituraConcluida){
     const inicial='[carregando,setCarregando]=useState(true)';
     assert.equal(fonte.split(inicial).length,2,'A leitura concluída deve substituir um único estado inicial.');
@@ -32,6 +32,10 @@ async function compilar(nome,{detalhe=false,leituraConcluida=false}={}) {
     plugins:[{name:'react-compartilhado',setup(b){
       b.onResolve({filter:/^react(?:-dom|-router-dom)?(?:\/.*)?$/},a=>({path:require.resolve(a.path),external:true}));
       b.onLoad({filter:/\.css$/},()=>({contents:'',loader:'empty'}));
+      // O teste verifica a seleção da URL do asset; a leitura dos pixels e o
+      // empacotamento de imagens são conferidos na prévia e no build.
+      b.onResolve({filter:/\.(png|webp)$/},a=>({path:path.resolve(a.resolveDir,a.path),namespace:'imagem-ui'}));
+      b.onLoad({filter:/.*/,namespace:'imagem-ui'},a=>({contents:`export default ${JSON.stringify(`/assets/${path.basename(a.path)}`)}`,loader:'js'}));
     }}],
   });
   const arquivo=path.join(pasta,`${nome}-${leituraConcluida?'lido':'inicial'}.cjs`);
@@ -46,7 +50,8 @@ before(async()=>{
   globalThis.localStorage={getItem:()=>null};
   Formulario=(await compilar('ManualMaquinaFormulario.jsx')).default;
   DetalheCarregando=(await compilar('ManuaisMaquinas.jsx',{detalhe:true})).ManualDetalhe;
-  DetalheLido=(await compilar('ManuaisMaquinas.jsx',{detalhe:true,leituraConcluida:true})).ManualDetalhe;
+  const lido=await compilar('ManuaisMaquinas.jsx',{detalhe:true,leituraConcluida:true});
+  DetalheLido=lido.ManualDetalhe;FotoMaquina=lido.FotoMaquina;fotoReferenciaManual=lido.fotoReferenciaManual;
 });
 after(async()=>{
   for(const [chave,valor] of Object.entries(globais)){
@@ -69,23 +74,32 @@ const manual={id:'manual-exemplo',referencia:{tipo:'ativo',id:item.id},conteudo,
 const propsDetalhe=inicial=>({item,inicial,aoVoltar(){},aoAtualizar(){}});
 
 // Preserva o estado entre chamadas do componente e usa os callbacks reais.
-// Não emula o DOM, o modal nativo ou efeitos; essas verificações são de interação.
-function montarFormulario(props) {
-  const estados=[];
+// Executa efeitos quando solicitado; não emula o DOM ou o modal nativo.
+function montarComponente(Componente,props) {
+  const estados=[],dependencias=[],efeitos=[];
   const internos=React.__SECRET_INTERNALS_DO_NOT_USE_OR_YOU_WILL_BE_FIRED;
   let cursor=0;
   const dispatcher={useState(inicial){
     const indice=cursor++;
     if(!(indice in estados))estados[indice]=typeof inicial==='function'?inicial():inicial;
     return [estados[indice],valor=>{estados[indice]=typeof valor==='function'?valor(estados[indice]):valor;}];
+  },useEffect(efeito,deps){
+    const indice=cursor++,anteriores=dependencias[indice];
+    if(!anteriores||deps.some((d,i)=>!Object.is(d,anteriores[i]))){dependencias[indice]=deps;efeitos.push(efeito);}
   }};
   const renderizar=novasProps=>{
     cursor=0;
     const anterior=internos.ReactCurrentDispatcher.current;
     internos.ReactCurrentDispatcher.current=dispatcher;
-    try{return Formulario(novasProps);}finally{internos.ReactCurrentDispatcher.current=anterior;}
+    try{return Componente(novasProps);}finally{internos.ReactCurrentDispatcher.current=anterior;}
   };
-  return {renderizar,inicial:renderizar(props)};
+  return {renderizar,inicial:renderizar(props),rodarEfeitos(){while(efeitos.length)efeitos.shift()();}};
+}
+const montarFormulario=props=>montarComponente(Formulario,props);
+function encontrar(elemento,tipo){
+  if(Array.isArray(elemento))return elemento.map(e=>encontrar(e,tipo)).find(Boolean);
+  if(!React.isValidElement(elemento))return null;
+  return elemento.type===tipo?elemento:encontrar(elemento.props.children,tipo);
 }
 function texto(elemento){
   if(typeof elemento==='string'||typeof elemento==='number')return String(elemento);
@@ -138,7 +152,10 @@ test('SSR oculta orientação e selo aprovados da lista até confirmar a revisã
 test('SSR preserva todas as seções do documento, mesmo com abas ocultas, e o responsável projetado',()=>{
   const html=renderToStaticMarkup(React.createElement(DetalheLido,propsDetalhe(manual)));
   for(const trecho of [conteudo.operacao,'Consumível Exemplo','Assistência Exemplo','Treinamento Exemplo','Critério de demonstração','Fonte Exemplo','Responsável Exemplo'])assert.ok(html.includes(trecho),trecho);
-  assert.match(html,/class="mm-painel" hidden=""/);
+  assert.match(html,/class="mm-painel"[^>]* hidden=""/);
+  const destinos=[...html.matchAll(/aria-controls="(manual-painel-[^"]+)"/g)].map(m=>m[1]);
+  assert.equal(destinos.length,6);
+  for(const id of destinos)assert.ok(html.includes(`id="${id}"`),`Seção acessível: ${id}`);
   assert.match(html,/Foto não disponível/);
   assert.ok(!html.includes('Responsável não identificado'));
 });
@@ -156,4 +173,36 @@ test('histórico mostra atual primeiro e snapshots em ordem decrescente sem alte
   const html=renderToStaticMarkup(React.createElement(DetalheLido,propsDetalhe({...manual,historico:snapshots})));
   assert.deepEqual([...html.matchAll(/<strong>Revisão (\d+)/g)].map(m=>Number(m[1])),[4,3,2,1]);
   assert.deepEqual(snapshots.map(m=>m.revisao),[1,3,2]);
+});
+
+test('recorte local exige confirmação e URL exata, sem inferir a imagem pelo modelo',()=>{
+  const url='https://boxersoldas.com.br/wp-content/uploads/2025/12/FRENTE-MIGFLEX-250.webp';
+  assert.deepEqual(fotoReferenciaManual({url,usoConfirmado:true}),{url:'/assets/boxer-migflex250-referencia.webp',tratada:false,local:true,rotulo:'Referência do fabricante'});
+  const roland='https://image.rolanddga.com/-/media/roland/images/support/product_shots/sg540.jpg?rev=86ec3754662e4da9a85d530d523efdb8&hash=97EDD9A3DE121811D0B4D0BA85D4CFE6';
+  assert.deepEqual(fotoReferenciaManual({url:roland,usoConfirmado:true}),{url:'/assets/roland-sg540-recorte.png',tratada:true,local:true});
+  assert.deepEqual(fotoReferenciaManual({url,usoConfirmado:false}),{url:'',tratada:false});
+  assert.deepEqual(fotoReferenciaManual({url:`${url}?outra-versao=1`,usoConfirmado:true}),{url:`${url}?outra-versao=1`,tratada:false});
+  assert.deepEqual(fotoReferenciaManual({url:'https://example.com/outra-maquina.png',usoConfirmado:true}),{url:'https://example.com/outra-maquina.png',tratada:false});
+});
+
+test('imagem bloqueada antes dos efeitos mantém o aviso e não reaparece quebrada',()=>{
+  const props={item,conteudo:{foto:{url:'https://example.com/imagem-bloqueada.png',usoConfirmado:true}},grande:true};
+  const montado=montarComponente(FotoMaquina,props),img=encontrar(montado.inicial,'img');
+  assert.ok(img);
+  // Simula CSP/cache já concluído quando o elemento é associado pelo React.
+  img.ref({complete:true,naturalWidth:0});
+  montado.rodarEfeitos();
+  const aposFalha=montado.renderizar(props);
+  assert.equal(encontrar(aposFalha,'img'),undefined);
+  assert.match(texto(aposFalha),/Imagem indisponível/);
+});
+
+test('erro de carregamento tardio também troca a imagem pelo aviso explícito',()=>{
+  const props={item,conteudo:{foto:{url:'https://example.com/foto-indisponivel.png',usoConfirmado:true}},grande:true};
+  const montado=montarComponente(FotoMaquina,props);
+  montado.rodarEfeitos();
+  encontrar(montado.inicial,'img').props.onError();
+  const aposFalha=montado.renderizar(props);
+  assert.equal(encontrar(aposFalha,'img'),undefined);
+  assert.match(texto(aposFalha),/Imagem indisponível/);
 });

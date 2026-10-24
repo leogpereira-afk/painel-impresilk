@@ -1,5 +1,5 @@
 import {useId, useState} from 'react';
-import {AlertTriangle, Plus, Save, Trash2} from 'lucide-react';
+import {AlertTriangle, BookOpen, FileText, GraduationCap, Image, Package, Plus, Save, ScanLine, Trash2, Wrench} from 'lucide-react';
 import JanelaFormulario from '../JanelaFormulario.jsx';
 import PessoaRH from './PessoasRH.jsx';
 import {conteudoManualVazio, pendenciasManual} from '../../lib/calc/manuais-maquinas.js';
@@ -31,8 +31,8 @@ function Escolha({rotulo, valor, aoMudar, children}) {
   const id=useId();
   return <div className="mm-campo"><label htmlFor={id}>{rotulo}</label><select className="input" id={id} value={valor} onChange={e=>aoMudar(e.target.value)}>{children}</select></div>;
 }
-function Secao({titulo, resumo, aberta=false, children}) {
-  return <details className="mm-editor-secao" open={aberta||undefined}><summary><strong>{titulo}</strong><span>{resumo}</span></summary><div className="mm-editor-conteudo">{children}</div></details>;
+function Secao({titulo, resumo, icone:Icone, tom='azul', aberta=false, children}) {
+  return <details className={`mm-editor-secao mm-tom-${tom}`} open={aberta||undefined}><summary><span className="mm-editor-icone"><Icone size={23} aria-hidden="true"/></span><span className="mm-editor-titulo"><strong>{titulo}</strong><span>{resumo}</span></span></summary><div className="mm-editor-conteudo">{children}</div></details>;
 }
 
 export default function ManualMaquinaFormulario({item, manual, aoFechar, aoSalvar}) {
@@ -60,7 +60,7 @@ export default function ManualMaquinaFormulario({item, manual, aoFechar, aoSalva
       <p className="mm-editor-intro">Cada salvamento cria uma revisão em rascunho. Registre apenas informações confirmadas para esta máquina; a aprovação é uma etapa separada.</p>
       {erro&&<p role="alert" className="pat-notice is-error"><AlertTriangle size={18}/>{erro}</p>}
       <fieldset disabled={ocupado} className="mm-editor-campos">
-        <Secao titulo="1. Identificação e responsabilidade" resumo="Modelo exato, pessoa responsável e revisão" aberta>
+        <Secao icone={ScanLine} tom="azul" titulo="1. Identificação e responsabilidade" resumo="Modelo exato, pessoa responsável e revisão" aberta>
           <div className="mm-form-grid">
             <Campo rotulo="Fabricante" valor={conteudo.fabricante} aoMudar={v=>mudar('fabricante',v)}/>
             <Campo rotulo="Modelo exato" valor={conteudo.modelo} aoMudar={v=>mudar('modelo',v)}/>
@@ -70,7 +70,7 @@ export default function ManualMaquinaFormulario({item, manual, aoFechar, aoSalva
           </div>
           <label className="mm-checkbox"><input type="checkbox" checked={!!conteudo.identificacaoConfirmada} onChange={e=>mudar('identificacaoConfirmada',e.target.checked)}/><span>Conferi fabricante, modelo e variante na identificação desta máquina.</span></label>
         </Secao>
-        <Secao titulo="2. Fontes e manual original" resumo={`${conteudo.fontes?.length||0} fontes · registre origem e conferência`}>
+        <Secao icone={FileText} tom="ciano" titulo="2. Fontes e manual original" resumo={`${conteudo.fontes?.length||0} fontes · registre origem e conferência`}>
           <p className="mm-ajuda">Use links do fabricante, documentos internos ou do Drive. Documentos privados mantêm a exigência de acesso à conta. Marque “Verificada” só depois de conferir a correspondência do modelo.</p>
           {(conteudo.fontes||[]).map((i,n)=><div className="mm-editor-item" key={i.id}><header><strong>Fonte {n+1}</strong>{excluir('fontes',i,i.titulo||`fonte ${n+1}`)}</header><div className="mm-form-grid">
             {campoItem('fontes',i,'titulo','Título')}{campoItem('fontes',i,'url','Link HTTPS',{tipo:'url',placeholder:'https://…'})}
@@ -80,10 +80,10 @@ export default function ManualMaquinaFormulario({item, manual, aoFechar, aoSalva
           </div></div>)}
           <button className="btn-outline" type="button" onClick={()=>adicionar('fontes')}><Plus size={16}/>Adicionar fonte</button>
         </Secao>
-        <Secao titulo="3. Guia operacional" resumo="Segurança, preparação, trabalho e encerramento">
+        <Secao icone={BookOpen} tom="azul" titulo="3. Guia operacional" resumo="Segurança, preparação, trabalho e encerramento">
           <div className="mm-form-grid">{GUIA.map(([campo,rotulo,ajuda])=><Campo key={campo} rotulo={rotulo} ajuda={ajuda} longo valor={conteudo[campo]} aoMudar={v=>mudar(campo,v)}/>)}</div>
         </Secao>
-        <Secao titulo="4. Consumíveis e compatibilidade" resumo={`${conteudo.consumiveis?.length||0} itens · código, uso e armazenamento`}>
+        <Secao icone={Package} tom="ciano" titulo="4. Consumíveis e compatibilidade" resumo={`${conteudo.consumiveis?.length||0} itens · código, uso e armazenamento`}>
           {(conteudo.consumiveis||[]).map((i,n)=><div className="mm-editor-item" key={i.id}><header><strong>Consumível {n+1}</strong>{excluir('consumiveis',i,i.nome||`consumível ${n+1}`)}</header><div className="mm-form-grid">
             {campoItem('consumiveis',i,'nome','Nome do consumível')}{campoItem('consumiveis',i,'codigo','Código / especificação')}{campoItem('consumiveis',i,'uso','Uso na máquina')}
             <Escolha rotulo="Compatibilidade" valor={i.compatibilidade} aoMudar={v=>mudarItem('consumiveis',i.id,'compatibilidade',v)}><option value="pendente">Pendente de confirmação</option><option value="fabricante">Confirmada pelo fabricante</option><option value="uso-interno">Validada internamente</option></Escolha>
@@ -92,20 +92,20 @@ export default function ManualMaquinaFormulario({item, manual, aoFechar, aoSalva
           </div></div>)}
           <button className="btn-outline" type="button" onClick={()=>adicionar('consumiveis')}><Plus size={16}/>Adicionar consumível</button>
         </Secao>
-        <Secao titulo="5. Treinamento" resumo={`${conteudo.treinamentos?.length||0} etapas · prática e critério de conclusão`}>
+        <Secao icone={GraduationCap} tom="magenta" titulo="5. Treinamento" resumo={`${conteudo.treinamentos?.length||0} etapas · prática e critério de conclusão`}>
           <p className="mm-ajuda">Organize etapas de estudo e prática supervisionada. Este manual não registra presença nem certifica o operador.</p>
           {(conteudo.treinamentos||[]).map((i,n)=><div className="mm-editor-item" key={i.id}><header><strong>Etapa {n+1}</strong>{excluir('treinamentos',i,i.titulo||`etapa ${n+1}`)}</header><div className="mm-form-grid">
             {campoItem('treinamentos',i,'titulo','Título da etapa')}{campoItem('treinamentos',i,'objetivo','Objetivo')}{campoItem('treinamentos',i,'conteudo','Conteúdo e prática',{longo:true})}{campoItem('treinamentos',i,'criterio','Critério de conclusão',{longo:true})}{campoItem('treinamentos',i,'url','Material de apoio (HTTPS)',{tipo:'url'})}
           </div></div>)}
           <button className="btn-outline" type="button" onClick={()=>adicionar('treinamentos')}><Plus size={16}/>Adicionar etapa</button>
         </Secao>
-        <Secao titulo="6. Assistência técnica" resumo={`${conteudo.assistencias?.length||0} contatos · canais e data de conferência`}>
+        <Secao icone={Wrench} tom="magenta" titulo="6. Assistência técnica" resumo={`${conteudo.assistencias?.length||0} contatos · canais e data de conferência`}>
           {(conteudo.assistencias||[]).map((i,n)=><div className="mm-editor-item" key={i.id}><header><strong>Assistência {n+1}</strong>{excluir('assistencias',i,i.nome||`assistência ${n+1}`)}</header><div className="mm-form-grid">
             {campoItem('assistencias',i,'nome','Empresa / profissional')}{campoItem('assistencias',i,'especialidade','Especialidade / cobertura')}{campoItem('assistencias',i,'telefone','Telefone',{tipo:'tel'})}{campoItem('assistencias',i,'whatsapp','WhatsApp com DDD e país',{tipo:'tel',ajuda:'Ex.: +55…; confira o número antes de registrar.'})}{campoItem('assistencias',i,'email','E-mail',{tipo:'email'})}{campoItem('assistencias',i,'endereco','Endereço / região')}{campoItem('assistencias',i,'url','Site (HTTPS)',{tipo:'url'})}{campoItem('assistencias',i,'conferidoEm','Contato conferido em',{tipo:'date'})}
           </div></div>)}
           <button className="btn-outline" type="button" onClick={()=>adicionar('assistencias')}><Plus size={16}/>Adicionar assistência</button>
         </Secao>
-        <Secao titulo="7. Imagem de referência" resumo="Opcional · a foto do patrimônio tem prioridade">
+        <Secao icone={Image} tom="ciano" titulo="7. Imagem de referência" resumo="Opcional · a foto do patrimônio tem prioridade">
           <p className="mm-ajuda">A galeria do patrimônio é reutilizada quando disponível. Se precisar, informe uma imagem HTTPS autorizada para este modelo e registre sua origem.</p>
           <div className="mm-form-grid">{[['url','Link direto da imagem'],['fonteUrl','Página de origem'],['legenda','Legenda / identificação']].map(([campo,rotulo])=><Campo key={campo} rotulo={rotulo} tipo={campo==='legenda'?'text':'url'} valor={conteudo.foto?.[campo]} aoMudar={v=>mudar('foto',{...conteudo.foto,[campo]:v})}/>)}</div>
           <label className="mm-checkbox"><input type="checkbox" checked={!!conteudo.foto?.usoConfirmado} onChange={e=>mudar('foto',{...conteudo.foto,usoConfirmado:e.target.checked})}/><span>Conferi a identificação e a autorização de uso desta imagem.</span></label>

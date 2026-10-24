@@ -70,12 +70,12 @@ Object.assign(configs.patrimonio_controles['controle-ferramentas'], {
 });
 const equipamentosDemo=[
  {id:'car-demo',tipo:'veiculo',nome:'Utilitário de demonstração',categoria:'Utilitário',identificacao:'VEI-01',responsavel:'Ana Exemplo',responsavelId:'rh-demo-ana-1',especificacao:{placa:'EXE1A23',marcaModelo:'Utilitário exemplo',ano:'2024',motorista:'Ana Exemplo',motoristaId:'rh-demo-ana-1'},atualizadoEm:'2026-10-05T12:00:00Z',atualizadoPor:'Conta de demonstração'},
- {id:'maq-demo',tipo:'maquina',nome:'Impressora de demonstração',categoria:'Impressão',responsavel:'Bruno Exemplo',responsavelId:'rh-demo-bruno',setorSigla:'PRO',especificacao:{fabricante:'Fabricante exemplo',modelo:'Impressora UV',numeroSerie:'DEMO-001',setor:'Produção'},atualizadoEm:'2026-10-05T12:00:00Z',atualizadoPor:'Conta de demonstração'}
+ {id:'maq-demo',tipo:'maquina',nome:'Impressora de demonstração',categoria:'Impressão',responsavel:'Bruno Exemplo',responsavelId:'rh-demo-bruno',setorSigla:'PRO',especificacao:{fabricante:'Roland DG',modelo:'SG-540 · referência visual',numeroSerie:'DEMO-001',setor:'Produção'},atualizadoEm:'2026-10-05T12:00:00Z',atualizadoPor:'Conta de demonstração'}
 ];
 // Máquinas fictícias com documentação pendente para conferir a central Manual.
 equipamentosDemo.push(
  {id:'maq-corte-demo',tipo:'maquina',nome:'Mesa de corte · demonstração',categoria:'Corte',setorSigla:'PRO',especificacao:{fabricante:'Fabricante exemplo',modelo:'Modelo a conferir',setor:'Produção'}},
- {id:'maq-acabamento-demo',tipo:'maquina',nome:'Equipamento de acabamento · demonstração',categoria:'Acabamento',especificacao:{setor:'Acabamento'}}
+ {id:'maq-acabamento-demo',tipo:'maquina',nome:'Solda · demonstração',categoria:'Solda',especificacao:{fabricante:'Boxer',modelo:'MIGFLEX 250 · referência visual',setor:'Oficina de demonstração'}}
 );
 configs.patrimonio['bem-maquina-sem-ficha-demo']={areaPatrimonio:'maquinas',nomeGenerico:'Máquina somente no inventário · demonstração',codigo:'PRO-004',setorSigla:'PRO',situacao:'uso',valor:12345,nf:'NF-FICTICIA-RESTRITA'};
 equipamentosDemo.push(
