@@ -1200,7 +1200,7 @@ test("atualizar com o ERP: sem lista do ERP nada é proposto (senão tudo parece
 });
 
 /* ---------------------------------------------------- a próxima edição */
-import { proximaEdicao, estrategiaDaProxima, textoDaEstrategia } from "./campanhas.js";
+import { proximaEdicao, estrategiaDaProxima, textoDaEstrategia, acoesDaEstrategia, ritmoDaMeta } from "./campanhas.js";
 
 test("próxima edição: ano seguinte livre, datas deslocadas junto, 29/02 cai no fim do mês", () => {
   const c = { ano: "2026", desde: "2026-08-01", ate: "2026-09-14" };
@@ -1254,4 +1254,83 @@ test("estratégia: meta cresce o que cresceu (entre 5% e 25%), redonda ao milhar
   const zero = estrategiaDaProxima({ atual, anteriores: [{ ...anterior, vendido: 0, linhas: [], porCliente: [] }] });
   assert.equal(zero.crescimento, null); assert.equal(zero.fator, 0.10);
   assert.ok(textoDaEstrategia(zero).includes("a edição de 2025 não tem venda marcada para comparar"));
+});
+
+test("ritmoDaMeta: quanto falta por semana, o ritmo até agora e o mesmo ponto da edição anterior", () => {
+  const atual = { desde: "2026-10-01", ate: "2026-11-14" };
+  const anterior = { ano: "2025", desde: "2025-10-01", meta: 40000, vendido: 33000,
+    linhas: [{ data: "2025-10-05", valor: 12000 }, { data: "2025-10-20", valor: 9000 }, { data: "2025-11-02", valor: 7000 }],
+    vendasSemOS: [{ data: "2025-10-24", valor: 500 }, { data: "", valor: 999 }] };
+  const r = ritmoDaMeta(atual, { meta: 45000, vendido: 38500 }, { hoje: "2026-10-24", anterior });
+  assert.equal(r.fase, "durante");
+  assert.deepEqual([r.diasTotal, r.diasDecorridos, r.diasRestantes, r.semanasTotal, r.semanasRestantes], [45, 24, 22, 7, 4]);
+  assert.equal(r.falta, 6500); assert.equal(r.porSemana, 2068.18);    // 6.500 × 7 / 22 dias (hoje conta)
+  assert.equal(r.ritmoAtual, 11229.17);                                 // 38.500 / (24/7)
+  // neste ponto (dia 24) em 2025: 12.000 + 9.000 + 500 sem O.S. no mesmo dia; a sem data fica de fora e é contada
+  assert.deepEqual([r.anterior.ano, r.anterior.ponto, r.anterior.nestePonto, r.anterior.total, r.anterior.semDatas], ["2025", "2025-10-24", 21500, 33000, 1]);
+  assert.ok(Math.abs(r.anterior.pctDaMeta - 0.5375) < 1e-9);
+  // anterior sem data de começo: o mesmo dia do calendário no ano dela
+  const semDesde = ritmoDaMeta(atual, { meta: 45000, vendido: 1000 }, { hoje: "2026-10-24", anterior: { ...anterior, desde: "" } });
+  assert.equal(semDesde.anterior.ponto, "2025-10-24"); assert.equal(semDesde.anterior.nestePonto, 21500);
+  // anterior que começou noutro dia: conta os MESMOS dias desde o começo dela, não o dia do calendário
+  const desl = ritmoDaMeta(atual, { meta: 1, vendido: 0 }, { hoje: "2026-10-24", anterior: { ...anterior, desde: "2025-09-15" } });
+  assert.equal(desl.anterior.ponto, "2025-10-08"); assert.equal(desl.anterior.nestePonto, 12000);
+  // 29/02 com anterior sem desde num ano comum: cai em 28/02, não em "sem data"
+  const bissexto = ritmoDaMeta({ desde: "2028-02-01", ate: "2028-03-15" }, { meta: 1, vendido: 0 },
+    { hoje: "2028-02-29", anterior: { ano: "2027", desde: "", vendido: 1000, linhas: [{ data: "2027-02-10", valor: 1000 }] } });
+  assert.equal(bissexto.anterior.ponto, "2027-02-28"); assert.equal(bissexto.anterior.nestePonto, 1000);
+  // anterior sem nenhuma O.S. datada: diz que não dá para comparar, não inventa zero
+  const semDatas = ritmoDaMeta(atual, { meta: 45000, vendido: 1000 }, { hoje: "2026-10-24", anterior: { ano: "2025", vendido: 9000, linhas: [{ data: "", valor: 9000 }] } });
+  assert.equal(semDatas.anterior.nestePonto, null); assert.equal(semDatas.anterior.semDatas, 1); assert.equal(semDatas.anterior.total, 9000);
+  // meta batida: não há "falta por semana"
+  const bateu = ritmoDaMeta(atual, { meta: 45000, vendido: 50000 }, { hoje: "2026-11-14" });
+  assert.equal(bateu.bateu, true); assert.equal(bateu.porSemana, null); assert.deepEqual([bateu.diasRestantes, bateu.semanasRestantes, bateu.diasDecorridos], [1, 1, 45]);
+  // último dia sem bater: o ritmo é o que falta hoje
+  assert.equal(ritmoDaMeta(atual, { meta: 45000, vendido: 44000 }, { hoje: "2026-11-14" }).porSemana, 7000);
+  // antes de começar: dias até começar e a meta dividida pelas semanas inteiras; sem "neste ponto"
+  const antes = ritmoDaMeta(atual, { meta: 42000, vendido: 0 }, { hoje: "2026-09-20", anterior });
+  assert.deepEqual([antes.fase, antes.diasAteComecar, antes.diasDecorridos, antes.semanasRestantes, antes.porSemana, antes.ritmoAtual, antes.anterior], ["antes", 11, 0, 7, 6533.33, null, null]);
+  // depois do fim: nada a dividir
+  const depois = ritmoDaMeta(atual, { meta: 45000, vendido: 38500 }, { hoje: "2026-12-01", anterior });
+  assert.deepEqual([depois.fase, depois.semanasRestantes, depois.porSemana, depois.diasDecorridos], ["depois", 0, null, 45]);
+  assert.equal(depois.anterior.nestePonto, 28500);                      // até o fim equivalente (dia 45 = 14/11/2025): 12.000 + 9.000 + 7.000 + 500
+  // sem meta: o ritmo até agora existe, o "falta" não
+  const semMeta = ritmoDaMeta(atual, { meta: 0, vendido: 7000 }, { hoje: "2026-10-07" });
+  assert.equal(semMeta.falta, null); assert.equal(semMeta.porSemana, null); assert.equal(semMeta.ritmoAtual, 7000);
+  // datas inválidas ou invertidas, ou hoje inválido: null, sem NaN
+  assert.equal(ritmoDaMeta({ desde: "2026-02-30", ate: "2026-11-14" }, { meta: 1 }, { hoje: "2026-10-24" }), null);
+  assert.equal(ritmoDaMeta({ desde: "2026-11-14", ate: "2026-10-01" }, { meta: 1 }, { hoje: "2026-10-24" }), null);
+  assert.equal(ritmoDaMeta(atual, { meta: 1 }, { hoje: "" }), null);
+  // não mexe nas entradas
+  const congelado = JSON.stringify(anterior);
+  ritmoDaMeta(atual, { meta: 45000, vendido: 38500 }, { hoje: "2026-10-24", anterior });
+  assert.equal(JSON.stringify(anterior), congelado);
+});
+
+test("acoesDaEstrategia: uma ação por cliente, datadas um mês antes da primeira venda no ano novo, e um só lembrete no calendário", async () => {
+  const { validarPlanejamento } = await import("../../../supabase/functions/_shared/campanhas-planejamento.mjs");
+  const e = { ano: "2026", primeiraVenda: "2026-03-02",
+    procurarPrimeiro: [{ cliente: "RURAL", valor: 100000, qtd: 3 }, { cliente: "PADARIA", valor: 50000.5, qtd: 1 }],
+    naoVoltaram: [{ cliente: "SUMIU", valor: 5000, ano: "2025" }] };
+  const acoes = acoesDaEstrategia(e, { anoNovo: "2027", desdeNovo: "2027-01-01", responsavel: "  Ana  ", idBase: "x" });
+  assert.equal(acoes.length, 4);
+  assert.deepEqual(acoes.map((a) => a.id), ["x-lembrete", "x-procurar-1", "x-procurar-2", "x-recuperar-1"]);
+  assert.deepEqual(acoes.map((a) => a.calendario), [true, false, false, false]);
+  assert.ok(acoes.every((a) => a.data === "2027-01-31" && a.responsavel === "Ana" && a.status === "pendente"));   // 02/03/2027 menos 30 dias
+  assert.equal(acoes[1].titulo, "Procurar RURAL: comprou R$ 100.000,00 em 2026 (3 O.S.)");
+  assert.equal(acoes[2].titulo, "Procurar PADARIA: comprou R$ 50.000,50 em 2026");
+  assert.equal(acoes[3].titulo, "Recuperar SUMIU: comprou R$ 5.000,00 em 2025 e não voltou em 2026");
+  assert.ok(acoes[0].titulo.includes("2027") && acoes[0].titulo.includes("3 na lista"));
+  // o servidor aceita o que nasce aqui, sem retoque
+  assert.equal(validarPlanejamento({ consideracoes: "", estrategia: "", proximaCampanha: "", acoes }).acoes.length, 4);
+  // sem primeira venda: um mês antes do começo da edição nova; sem data nenhuma: lista sem lembrete e sem calendário
+  assert.equal(acoesDaEstrategia({ ...e, primeiraVenda: null }, { anoNovo: "2027", desdeNovo: "2027-08-01" })[0].data, "2027-07-02");
+  const semData = acoesDaEstrategia({ ...e, primeiraVenda: null }, { anoNovo: "2027", desdeNovo: "" });
+  assert.equal(semData.length, 3); assert.ok(semData.every((a) => a.data === "" && a.calendario === false));
+  // ninguém para procurar: nenhuma ação, nem o lembrete
+  assert.deepEqual(acoesDaEstrategia({ ...e, procurarPrimeiro: [], naoVoltaram: [] }, { anoNovo: "2027" }), []);
+  // nome comprido não estoura os 200 do servidor; sem travessão
+  const longo = acoesDaEstrategia({ ...e, procurarPrimeiro: [{ cliente: "X".repeat(250), valor: 1, qtd: 1 }] }, { anoNovo: "2027" });
+  assert.equal(longo[1].titulo.length, 200);
+  assert.ok(acoes.every((a) => !/[—–]/.test(a.titulo)));
 });

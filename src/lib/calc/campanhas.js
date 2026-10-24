@@ -1101,6 +1101,16 @@ export function foraDoPeriodo(linhas, desde, ate) {
  * `anoEscolhido` deixa a pessoa trocar o ano (uma eleição é de dois em dois);
  * aí `jaExiste` e `mesmoAno` dizem por que a tela recusa. */
 const MESES_CURTOS_PT = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
+/* A mesma data N anos depois. 29/02 num ano sem 29 cai no último dia do mês,
+   nunca em 01/03. Data inválida vira "". */
+const deslocaAnos = (iso, salto) => {
+  const s = String(iso || "").slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return "";
+  const [a, m, d] = s.split("-").map(Number);
+  const alvo = a + salto;
+  const ultimo = new Date(Date.UTC(alvo, m, 0)).getUTCDate();
+  return `${alvo}-${String(m).padStart(2, "0")}-${String(Math.min(d, ultimo)).padStart(2, "0")}`;
+};
 export function proximaEdicao(campanha, anosUsados = [], anoEscolhido = null) {
   const base = String(campanha?.ano || "").trim();
   if (!/^\d{4}$/.test(base)) return null;
@@ -1109,15 +1119,7 @@ export function proximaEdicao(campanha, anosUsados = [], anoEscolhido = null) {
   if (/^\d{4}$/.test(String(anoEscolhido ?? "").trim())) ano = Number(String(anoEscolhido).trim());
   else while (usados.has(String(ano)) && ano < Number(base) + 50) ano += 1;
   const salto = ano - Number(base);
-  const desloca = (iso) => {
-    const s = String(iso || "").slice(0, 10);
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return "";
-    const [a, m, d] = s.split("-").map(Number);
-    const alvo = a + salto;
-    // 29/02 num ano sem 29 cai no último dia do mês, nunca em 01/03.
-    const ultimo = new Date(Date.UTC(alvo, m, 0)).getUTCDate();
-    return `${alvo}-${String(m).padStart(2, "0")}-${String(Math.min(d, ultimo)).padStart(2, "0")}`;
-  };
+  const desloca = (iso) => deslocaAnos(iso, salto);
   return {
     ano: String(ano), salto,
     desde: desloca(campanha?.desde) || `${ano}-01-01`,
@@ -1226,4 +1228,111 @@ export function textoDaEstrategia(e, { anoNovo = "" } = {}) {
      (editar depois continua valendo), e um recado de 10.000 caracteres colado
      neste texto estourava o limite do planejamento na hora de criar. */
   return linhas.join("\n");
+}
+
+/* ===================================================================== */
+/* AS AÇÕES DA ESTRATÉGIA, para nascer no planejamento da edição nova (pedido
+ * do dono, 24/10/2026: "procurar primeiro vira ações com responsável e data").
+ *
+ * Uma ação por cliente a PROCURAR (os maiores da edição de origem) e por
+ * cliente a RECUPERAR (comprou na anterior e não voltou), todas com a mesma
+ * data: um mês antes da primeira venda da edição de origem, deslocada para o
+ * ano novo (sem primeira venda, um mês antes do começo da edição nova). E UM
+ * lembrete datado ligado ao Calendário da empresa: dez eventos iguais no mesmo
+ * dia seriam ruído; o lembrete é um só, a lista fica no planejamento, onde se
+ * marca cada cliente como concluído. O responsável é o mesmo em todas (quem
+ * cria escolhe) e pode ser trocado ação por ação depois. */
+export function acoesDaEstrategia(e, { anoNovo = "", desdeNovo = "", responsavel = "", idBase = "estrategia" } = {}) {
+  if (!e) return [];
+  const rs = (v) => "R$ " + Number(v || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const novo = String(anoNovo || "").trim();
+  const salto = /^\d{4}$/.test(novo) && /^\d{4}$/.test(String(e.ano || "")) ? Number(novo) - Number(e.ano) : 0;
+  const menos30 = (iso) => { const d = diaUTC(iso); return d === null ? "" : isoDoDia(d - 30); };
+  const data = menos30(e.primeiraVenda ? deslocaAnos(e.primeiraVenda, salto) : desdeNovo);
+  const resp = String(responsavel || "").trim().slice(0, 120);
+  const titulo = (t) => (t.length > 200 ? `${t.slice(0, 197)}...` : t);
+  const acao = (id, t) => ({ id: `${idBase}-${id}`, titulo: titulo(t), data, responsavel: resp, calendario: false, status: "pendente" });
+  const procurar = (e.procurarPrimeiro || []).map((c, i) =>
+    acao(`procurar-${i + 1}`, `Procurar ${c.cliente}: comprou ${rs(c.valor)} em ${e.ano}${c.qtd > 1 ? ` (${c.qtd} O.S.)` : ""}`));
+  const recuperar = (e.naoVoltaram || []).map((c, i) =>
+    acao(`recuperar-${i + 1}`, `Recuperar ${c.cliente}: comprou ${rs(c.valor)} em ${c.ano} e não voltou em ${e.ano}`));
+  const n = procurar.length + recuperar.length;
+  if (!n) return [];
+  const lembrete = data
+    ? [{ ...acao("lembrete", `Começar a procurar os clientes da edição de ${novo || "..."} (${n} na lista do planejamento)`), calendario: true }]
+    : [];
+  return [...lembrete, ...procurar, ...recuperar];
+}
+
+/* ===================================================================== */
+/* O RITMO DA META (pedido do dono, 24/10/2026: "falta vender R$ X por semana"
+ * e "neste ponto, em 2026, você já tinha R$ Y").
+ *
+ * A meta é um número; o que se faz com ela é vender A TEMPO. Com as datas da
+ * campanha e o dia de hoje, a conta diz quanto falta POR SEMANA até o fim e
+ * em que ritmo se vendeu até agora. E diz, da edição anterior, quanto ela já
+ * tinha vendido NO MESMO PONTO: o mesmo número de dias depois do começo dela
+ * (sem data de começo nela, o mesmo dia do calendário no ano dela).
+ *
+ * `hoje` vem de fora (ISO, o dia local da tela): a conta não olha o relógio,
+ * e o teste não depende do fuso. Tudo em dias inteiros, via Date.UTC. Hoje
+ * conta como dia decorrido (no primeiro dia da campanha é "dia 1 de N"). */
+const diaUTC = (iso) => {
+  const s = String(iso || "").slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return null;
+  const [a, m, d] = s.split("-").map(Number);
+  const t = Date.UTC(a, m - 1, d);
+  return new Date(t).toISOString().slice(0, 10) === s ? Math.round(t / 86400000) : null;
+};
+const isoDoDia = (dias) => new Date(dias * 86400000).toISOString().slice(0, 10);
+export function ritmoDaMeta(campanha, resumo, { hoje, anterior = null } = {}) {
+  const cem = (n) => Math.round(n * 100) / 100;
+  const h = diaUTC(hoje);
+  const de = diaUTC(campanha?.desde);
+  const ate = diaUTC(campanha?.ate);
+  if (h === null || de === null || ate === null || ate < de) return null;
+  const meta = num(resumo?.meta);
+  const vendido = num(resumo?.vendido);
+  const diasTotal = ate - de + 1;
+  const fase = h < de ? "antes" : h > ate ? "depois" : "durante";
+  const diasDecorridos = Math.min(diasTotal, Math.max(0, h - de + 1));
+  /* Hoje conta nos dois lados: no último dia resta 1 dia, não 0 (e a tela
+     não diz "1 semana pela frente" num dia que é o último). */
+  const diasRestantes = fase === "durante" ? ate - h + 1 : 0;
+  const semanasTotal = Math.max(1, Math.ceil(diasTotal / 7));
+  const semanasRestantes = fase === "durante" ? Math.ceil(diasRestantes / 7) : fase === "antes" ? semanasTotal : 0;
+  const falta = meta > 0 ? cem(meta - vendido) : null;
+  /* O ritmo pedido é por semana EXATA (falta × 7 / dias que restam): arredondar
+     as semanas para cima dizia um valor menor do que o necessário. */
+  const diasParaVender = fase === "durante" ? diasRestantes : fase === "antes" ? diasTotal : 0;
+  const porSemana = falta !== null && falta > 0 && diasParaVender > 0 ? cem((falta * 7) / diasParaVender) : null;
+  const ritmoAtual = fase !== "antes" && diasDecorridos > 0 ? cem(vendido / Math.max(1, diasDecorridos / 7)) : null;
+
+  let ant = null;
+  if (anterior && fase !== "antes") {
+    const anoAnt = String(anterior.ano || "").trim();
+    const deAnt = diaUTC(anterior.desde);
+    let ponto = null;
+    if (deAnt !== null) ponto = deAnt + diasDecorridos - 1;
+    else if (/^\d{4}$/.test(anoAnt)) {
+      // O mesmo dia do calendário no ano dela; 29/02 cai em 28/02 num ano comum.
+      const ref = isoDoDia(Math.min(h, ate));
+      ponto = diaUTC(deslocaAnos(ref, Number(anoAnt) - Number(ref.slice(0, 4))));
+    }
+    const linhas = [...(anterior.linhas || []), ...(anterior.vendasSemOS || [])];
+    const datadas = linhas.map((l) => ({ dia: diaUTC(l.data), valor: num(l.valor) })).filter((l) => l.dia !== null);
+    const metaAnt = num(anterior.meta);
+    if (ponto !== null && datadas.length) {
+      const nestePonto = cem(datadas.filter((l) => l.dia <= ponto).reduce((s, l) => s + l.valor, 0));
+      ant = { ano: anoAnt, nestePonto, pctDaMeta: metaAnt > 0 ? nestePonto / metaAnt : null, total: cem(num(anterior.vendido)), ponto: isoDoDia(ponto), semDatas: linhas.length - datadas.length };
+    } else if (anoAnt) {
+      ant = { ano: anoAnt, nestePonto: null, pctDaMeta: null, total: cem(num(anterior.vendido)), ponto: null, semDatas: linhas.length - datadas.length };
+    }
+  }
+  return {
+    fase, diasTotal, diasDecorridos, diasRestantes, diasAteComecar: fase === "antes" ? de - h : 0,
+    semanasTotal, semanasRestantes, falta, porSemana, ritmoAtual,
+    bateu: meta > 0 && vendido >= meta,
+    anterior: ant,
+  };
 }
