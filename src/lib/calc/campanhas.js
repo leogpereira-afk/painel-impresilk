@@ -1087,3 +1087,143 @@ export function foraDoPeriodo(linhas, desde, ate) {
     return (!!de && d < de) || (!!ateQ && d > ateQ);
   });
 }
+
+/* ===================================================================== */
+/* A PRÓXIMA EDIÇÃO (pedido do dono, 24/10/2026: "um botão para já criar a
+ * próxima campanha", "um recado do que posso melhorar", "uma pequena
+ * estratégia para a próxima" e "já criar essas metas").
+ *
+ * O ANO E AS DATAS com que a próxima nasce. O ano é o seguinte ao desta, ou o
+ * primeiro livre depois dele (o evento pode já ter a edição seguinte). As datas
+ * acompanham as desta edição, deslocadas o mesmo número de anos: a Fenics de
+ * 01/08 a 14/09 vira 01/08 a 14/09 do ano seguinte. Sem data nesta edição,
+ * nasce no ano inteiro -- é o mesmo que o "Outra edição" já fazia.
+ * `anoEscolhido` deixa a pessoa trocar o ano (uma eleição é de dois em dois);
+ * aí `jaExiste` e `mesmoAno` dizem por que a tela recusa. */
+const MESES_CURTOS_PT = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
+export function proximaEdicao(campanha, anosUsados = [], anoEscolhido = null) {
+  const base = String(campanha?.ano || "").trim();
+  if (!/^\d{4}$/.test(base)) return null;
+  const usados = new Set((anosUsados || []).map((a) => String(a ?? "").trim()));
+  let ano = Number(base) + 1;
+  if (/^\d{4}$/.test(String(anoEscolhido ?? "").trim())) ano = Number(String(anoEscolhido).trim());
+  else while (usados.has(String(ano)) && ano < Number(base) + 50) ano += 1;
+  const salto = ano - Number(base);
+  const desloca = (iso) => {
+    const s = String(iso || "").slice(0, 10);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return "";
+    const [a, m, d] = s.split("-").map(Number);
+    const alvo = a + salto;
+    // 29/02 num ano sem 29 cai no último dia do mês, nunca em 01/03.
+    const ultimo = new Date(Date.UTC(alvo, m, 0)).getUTCDate();
+    return `${alvo}-${String(m).padStart(2, "0")}-${String(Math.min(d, ultimo)).padStart(2, "0")}`;
+  };
+  return {
+    ano: String(ano), salto,
+    desde: desloca(campanha?.desde) || `${ano}-01-01`,
+    ate: desloca(campanha?.ate) || `${ano}-12-31`,
+    jaExiste: usados.has(String(ano)) && String(ano) !== base,
+    mesmoAno: salto === 0,
+  };
+}
+
+/* A ESTRATÉGIA PARA A PRÓXIMA EDIÇÃO, tirada do que esta edição e as
+ * anteriores já mostraram. É SUGESTÃO: cada número diz de onde saiu, e quem
+ * decide é quem lê.
+ *
+ * - meta sugerida: o vendido desta edição crescido do que ela cresceu contra
+ *   a anterior, entre 5% e 25% -- um salto de 60% num ano não vira régua para
+ *   o próximo, e uma queda não vira meta abaixo do vendido. Sem edição
+ *   anterior, 10%. Arredonda para cima ao milhar: meta é número redondo, que
+ *   se fala em reunião. Sem venda, fica a meta que esta edição tinha.
+ * - quando: a primeira venda e o mês de pico desta edição.
+ * - quem: os maiores desta edição; quem comprou na anterior e não voltou; quem
+ *   compra toda edição.
+ * - o quê: os produtos que mais venderam (quando a carga trouxe os itens).
+ * `atual` é o resumo da campanha aberta junto com os campos dela (ano, meta,
+ * planejamento); `anteriores` são as outras edições do mesmo evento, com o
+ * resumo de cada uma (o que `edicoesDoMesmoEvento` devolve). */
+export function estrategiaDaProxima({ atual, anteriores = [], produtos = null } = {}) {
+  if (!atual) return null;
+  const cem = (n) => Math.round(n * 100) / 100;
+  const anoAtual = String(atual.ano || "").trim();
+  const antes = (anteriores || [])
+    .filter((e) => e && e.id !== atual.id && /^\d{4}$/.test(String(e.ano || "").trim()) && String(e.ano).trim() < anoAtual)
+    .sort((a, b) => String(b.ano).trim().localeCompare(String(a.ano).trim()));
+  const anterior = antes[0] || null;
+  const vendido = num(atual.vendido);
+  const vendidoAntes = anterior ? num(anterior.vendido) : 0;
+  const crescimento = anterior && vendidoAntes > 0 && vendido > 0 ? (vendido - vendidoAntes) / vendidoAntes : null;
+  const fator = crescimento === null ? 0.10 : Math.min(0.25, Math.max(0.05, crescimento));
+  const metaSugerida = vendido > 0 ? Math.ceil((vendido * (1 + fator)) / 1000) * 1000 : cem(num(atual.meta));
+  const linhas = atual.linhas || [];
+  const datas = linhas.map((l) => String(l.data || "").slice(0, 10)).filter((d) => /^\d{4}-\d{2}-\d{2}$/.test(d)).sort();
+  const pico = comprasPorMes(linhas).reduce((m, x) => (x.qtd > 0 && (!m || x.valor > m.valor) ? x : m), null);
+  const nesta = new Set((atual.porCliente || []).map((c) => c.chave));
+  const resumoCliente = (c) => ({ chave: c.chave, cliente: c.cliente, valor: cem(num(c.valor)), qtd: Number(c.qtd) || 0 });
+  const procurarPrimeiro = (atual.porCliente || []).slice(0, 5).map(resumoCliente);
+  const naoVoltaram = anterior
+    ? (anterior.porCliente || []).filter((c) => !nesta.has(c.chave)).slice(0, 5).map((c) => ({ ...resumoCliente(c), ano: String(anterior.ano).trim() }))
+    : [];
+  /* Em quantas edições (esta e as anteriores) cada comprador apareceu. O nome
+     mostrado é o desta edição quando ele está nela: é a grafia mais recente. */
+  const porChave = new Map();
+  for (const e of [atual, ...antes]) {
+    for (const c of e.porCliente || []) {
+      const g = porChave.get(c.chave) || { chave: c.chave, cliente: c.cliente, edicoes: 0, valor: 0 };
+      g.edicoes += 1;
+      g.valor += num(c.valor);
+      if (e === atual) g.cliente = c.cliente;
+      porChave.set(c.chave, g);
+    }
+  }
+  const totalEdicoes = 1 + antes.length;
+  const fieis = totalEdicoes > 1
+    ? [...porChave.values()].filter((g) => g.edicoes >= 2).map((g) => ({ ...g, valor: cem(g.valor) }))
+        .sort((a, b) => b.edicoes - a.edicoes || b.valor - a.valor).slice(0, 5)
+    : [];
+  const produtosLider = produtos ? porProduto(produtos).slice(0, 3).map((p) => ({ rotulo: p.rotulo, valor: p.valor })) : [];
+  return {
+    ano: anoAtual, vendido: cem(vendido), metaAtual: cem(num(atual.meta)), metaSugerida, fator, crescimento,
+    anterior: anterior ? { id: anterior.id, ano: String(anterior.ano).trim(), vendido: cem(vendidoAntes), compradores: (anterior.porCliente || []).length } : null,
+    totalEdicoes, compradores: (atual.porCliente || []).length,
+    primeiraVenda: datas[0] || null, ultimaVenda: datas[datas.length - 1] || null,
+    pico: pico ? { mes: pico.mes, valor: pico.valor, qtd: pico.qtd } : null,
+    procurarPrimeiro, naoVoltaram, fieis, produtosLider,
+    recado: String(atual.planejamento?.proximaCampanha || "").trim(),
+  };
+}
+
+/* A MESMA ESTRATÉGIA EM TEXTO, para nascer gravada no planejamento da
+   próxima edição ("Estratégia aplicada"): quem abrir a nova lê de onde a meta
+   veio, mesmo meses depois. */
+export function textoDaEstrategia(e, { anoNovo = "" } = {}) {
+  if (!e) return "";
+  const rs = (v) => "R$ " + Number(v || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const pc = (f) => `${Math.round(f * 100)}%`;
+  const dia = (iso) => { const [a, m, d] = String(iso).split("-"); return `${d}/${m}/${a}`; };
+  const mes = (ch) => { const [a, m] = String(ch).split("-"); return `${MESES_CURTOS_PT[Number(m) - 1] || m}/${a}`; };
+  const nomes = (lista, extra = () => "") => lista.map((c) => `${c.cliente} (${rs(c.valor)}${extra(c)})`).join("; ");
+  const linhas = [];
+  linhas.push(`Estratégia sugerida para ${anoNovo || "a próxima edição"} a partir da edição de ${e.ano}${e.anterior ? `, comparada com a de ${e.anterior.ano}` : ""}.`);
+  if (e.vendido > 0) {
+    linhas.push(`Meta: ${rs(e.metaSugerida)}. A edição de ${e.ano} vendeu ${rs(e.vendido)}${e.crescimento === null
+      ? e.anterior
+        ? `; a edição de ${e.anterior.ano} não tem venda marcada para comparar, a meta sobe 10%.`
+        : "; sem edição anterior para comparar, a meta sobe 10%."
+      : ` e ${e.crescimento >= 0 ? "cresceu" : "caiu"} ${pc(Math.abs(e.crescimento))} contra ${e.anterior.ano} (${rs(e.anterior.vendido)}); a meta sobe ${pc(e.fator)}.`}`);
+  } else if (e.metaSugerida > 0) {
+    linhas.push(`Meta: ${rs(e.metaSugerida)}, a mesma desta edição, que ainda não tem venda marcada.`);
+  }
+  if (e.primeiraVenda) {
+    linhas.push(`Quando: em ${e.ano} a primeira venda foi em ${dia(e.primeiraVenda)}${e.pico ? ` e o pico em ${mes(e.pico.mes)} (${rs(e.pico.valor)})` : ""}. Comece a procurar os clientes um mês antes.`);
+  }
+  if (e.procurarPrimeiro.length) linhas.push(`Procurar primeiro: ${nomes(e.procurarPrimeiro)}.`);
+  if (e.naoVoltaram.length) linhas.push(`Compraram em ${e.naoVoltaram[0].ano} e não voltaram em ${e.ano}: ${nomes(e.naoVoltaram)}.`);
+  if (e.fieis.length) linhas.push(`Compram toda edição: ${e.fieis.map((c) => `${c.cliente} (${c.edicoes} de ${e.totalEdicoes})`).join("; ")}.`);
+  if (e.produtosLider.length) linhas.push(`O que mais vendeu: ${e.produtosLider.map((p) => `${p.rotulo} (${rs(p.valor)})`).join("; ")}.`);
+  /* O recado NÃO entra aqui: a edição nova lê o recado da anterior ao vivo
+     (editar depois continua valendo), e um recado de 10.000 caracteres colado
+     neste texto estourava o limite do planejamento na hora de criar. */
+  return linhas.join("\n");
+}

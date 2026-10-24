@@ -1,4 +1,4 @@
-import { validarPlanejamento } from "../_shared/campanhas-planejamento.mjs";
+import { validarPlanejamento, validarLogo } from "../_shared/campanhas-planejamento.mjs";
 import {lerEquipeCompromissos, enriquecerCompromissosRH, prepararCompromissoRH, autorCompromissoRH} from '../_shared/compromissos-rh.mjs';
 import {inventarioPermitido,rotuloFichaVinculo,erroVinculo} from '../_shared/patrimonio-acesso.mjs';
 import {lerPessoasPatrimonio, validarVinculoPessoa, prepararPessoasControle} from '../_shared/patrimonio-pessoas.mjs';
@@ -679,6 +679,11 @@ Deno.serve(async (req: Request) => {
             if (chave === "campanhas" && Object.hasOwn(limpos,"planejamento")) {
               try { limpos.planejamento = validarPlanejamento(limpos.planejamento); }
               catch(e) { return resposta({erro: e instanceof Error ? e.message : "Planejamento inválido."},400); }
+            }
+            // A logo do evento: imagem pequena em base64 ou null para tirar.
+            if (chave === "campanhas" && Object.hasOwn(limpos,"logo")) {
+              try { limpos.logo = validarLogo(limpos.logo); }
+              catch(e) { return resposta({erro: e instanceof Error ? e.message : "Logo inválida."},400); }
             }
             /* TIRAR UM LANCAMENTO LEVA O ANEXO DELE. A funcao apaga o objeto
                inteiro (`v_lanc - k`), e com ele a referencia do arquivo -- os

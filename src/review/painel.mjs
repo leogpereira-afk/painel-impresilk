@@ -11,6 +11,21 @@ import {inventarioPermitido,bemPermitido,ativoPermitido,temPermissao} from '../.
 import {getSessao} from '../lib/sessao.js';
 import {prepararInfra,infraPermitida} from '../../supabase/functions/_shared/patrimonio-infra.mjs';
 import {criarVinculoPrevia,projetarFicha} from './vinculo.mjs';
+import {validarPlanejamento,validarLogo} from '../../supabase/functions/_shared/campanhas-planejamento.mjs';
+// Campanhas FICTÍCIAS: duas edições do mesmo evento, para conferir o recado,
+// a estratégia e a criação da próxima. Nenhum cliente, O.S. ou valor é real.
+function campanhasDemo(){
+ const os=(id,numero,cliente,data,valor)=>[id,{numero,cliente,cnpj:'',data,valor}];
+ const clientes=[{chave:'papelaria exemplo',nome:'Papelaria Exemplo',cnpjs:[]},{chave:'mercado modelo',nome:'Mercado Modelo',cnpjs:[]},{chave:'padaria ficticia',nome:'Padaria Fictícia',cnpjs:[]}];
+ return {
+  'campanha-demo-2025':{nome:'Feira de demonstração',ano:'2025',evento:'campanha-demo-2025',meta:40000,desde:'2025-08-01',ate:'2025-09-14',clientes,
+   os:Object.fromEntries([os('d25-1','90001','Papelaria Exemplo','2025-08-05',12000),os('d25-2','90002','Mercado Modelo','2025-08-20',9000),os('d25-3','90003','Padaria Fictícia','2025-09-02',7000),os('d25-4','90004','Lanchonete Teste','2025-09-10',5000)]),
+   planejamento:{consideracoes:'',estrategia:'',proximaCampanha:'Fechar os patrocínios antes de julho e levar o catálogo impresso. Exemplo de recado.',acoes:[]},historico:[]},
+  'campanha-demo-2026':{nome:'Feira de demonstração',ano:'2026',evento:'campanha-demo-2025',meta:45000,desde:'2026-08-01',ate:'2026-09-14',clientes,
+   os:Object.fromEntries([os('d26-1','91001','Papelaria Exemplo','2026-08-03',15000),os('d26-2','91002','Mercado Modelo','2026-08-25',11000),os('d26-3','91003','Padaria Fictícia','2026-09-01',8000),os('d26-4','91004','Papelaria Exemplo','2026-09-06',4500)]),
+   planejamento:{consideracoes:'',estrategia:'',proximaCampanha:'',acoes:[]},historico:[]},
+ };
+}
 const pessoasPatrimonioDemo=[
  {id:'rh-demo-ana-1',nome:'Ana Exemplo',idPessoa:'900001',disponivel:true},
  {id:'rh-demo-ana-2',nome:'Ana Exemplo',idPessoa:'900002',disponivel:true},
@@ -34,7 +49,7 @@ const configs = {
   'servico-car-demo':{ativoId:'car-demo',data:'2026-10-01',valor:120,tipo:'preventiva',descricao:'Revisão de demonstração',proxima:'2026-11-01'},
   'servico-maq-demo':{ativoId:'maq-demo',data:'2026-10-02',valor:350,tipo:'corretiva',descricao:'Ajuste de demonstração',proxima:'2026-10-05'},
   'servico-removido-demo':{ativoId:'retirado-demo',data:'2026-10-03',valor:80,tipo:'corretiva',descricao:'Serviço histórico de demonstração'},
- },permutas:{},campanhas:{},grupos_clientes:{},
+ },permutas:{},campanhas:campanhasDemo(),grupos_clientes:{},
 };
 // Acervo fictício: permite revisar entrega parcial e avaliação mensal sem gravar no servidor.
 Object.assign(configs.patrimonio_controles['controle-ferramentas'], {
@@ -225,6 +240,24 @@ export async function respostaPreview(url,opcoes={}){
  }
  // Classificação em memória de um bem fictício existente; não habilita
  // gravação genérica nem chamadas à produção pela prévia.
+ /* CAMPANHAS NA PRÉVIA: a gravação vale só nesta memória. Confere planejamento e
+    logo com os MESMOS validadores do servidor; `criar` nasce; osPatch põe/tira. */
+ else if(endpoint==='painel-config' && corpo.action==='merge' && corpo.chave==='campanhas'){
+  for(const [id,c] of Object.entries(corpo.patch||{})){
+   const {osPatch,lancPatch,clientesPatch,criar,...campos}=c||{};const atual=configs.campanhas[id];
+   for(const k of ['historico','os','lancamentos','anexos'])delete campos[k];
+   if(!atual&&!criar)return erroPreview('Prévia: campanha não encontrada.',409);
+   if(Object.hasOwn(campos,'planejamento')){try{campos.planejamento=validarPlanejamento(campos.planejamento);}catch(e){return erroPreview(e.message,400);}}
+   if(Object.hasOwn(campos,'logo')){try{campos.logo=validarLogo(campos.logo);}catch(e){return erroPreview(e.message,400);}}
+   const reg={os:{},clientes:[],historico:[],...(atual||{}),...campos};
+   /* `clientesPatch` = {chave:{nome,cnpjs}} põe, {chave:null} tira, como o RPC troca_mexer. */
+   if(clientesPatch){const lista=(reg.clientes||[]).filter(x=>x&&x.chave);for(const [k,v] of Object.entries(clientesPatch)){const i=lista.findIndex(x=>x.chave===k);if(v===null){if(i>=0)lista.splice(i,1);}else if(i>=0)lista[i]={...v,chave:k};else lista.push({...v,chave:k});}reg.clientes=lista;}
+   if(osPatch)for(const [k,v] of Object.entries(osPatch)){if(v===null)delete reg.os[k];else reg.os={...reg.os,[k]:v};}
+   if(lancPatch)for(const [k,v] of Object.entries(lancPatch)){reg.lancamentos={...(reg.lancamentos||{})};if(v===null)delete reg.lancamentos[k];else reg.lancamentos[k]=v;}
+   configs.campanhas[id]=reg;
+  }
+  dados={valor:structuredClone(configs.campanhas)};
+ }
  else if(endpoint==='painel-config' && corpo.action==='merge' && corpo.chave==='patrimonio'){
   if(!temPermissao(sessao,'inventario-valores'))return erroPreview('Esta operação exige Inventário e valores.',403);
   const entradas=Object.entries(corpo.patch||{});
