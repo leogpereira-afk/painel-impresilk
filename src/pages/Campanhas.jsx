@@ -49,7 +49,7 @@ import { fichaDaOS, ordensDosClientes, donoPorOS, unirOrdens, valorDaOS } from "
 import {
   resumoDaCampanha, resumoGeralCampanhas, compradoresDaCampanha, extratoDaCampanha, atualizacaoDaCampanha,
   anosDasCampanhas, totaisDoAno, comparativoPorAno, edicoesDoMesmoEvento, anosRepetidos,
-  proximaEdicao, estrategiaDaProxima, textoDaEstrategia,
+  proximaEdicao, estrategiaDaProxima, textoDaEstrategia, acoesDaEstrategia, ritmoDaMeta,
   maiorComprador, comprasPorMes, produtosDaCampanha, categoriasDosProdutos, porProduto,
   foraDoPeriodo,
   membrosDoEvento, candidatasAVincular, comparativoDeEdicoes, eventosVinculados,
@@ -96,12 +96,58 @@ const CONTA_O_EVENTO = {
    passou, em número e em barra, no cartão da lista e na ficha. Sem meta não
    se finge 0%: diz "sem meta" e aponta onde definir. */
 const logoValida = (s) => { try { return !!validarLogo(s); } catch { return false; } };
-function Meta({ vendido, meta, pct, grande = false, aoDefinir = null }) {
+/* O RITMO DA META (pedido do dono, 24/10/2026): quanto falta por semana até o
+   fim da campanha, em que ritmo se vendeu até agora e, na ficha, quanto a
+   edição anterior já tinha no mesmo ponto. Antes de começar, quanto falta
+   para começar; depois do fim, nada (o "faltam" acima já diz o resultado). */
+function LinhasDoRitmo({ ritmo, grande }) {
+  if (!ritmo) return null;
+  const cls = `${grande ? "text-xs" : "text-[11px]"} text-slate-500`;
+  const dias = (n) => `${n} ${n === 1 ? "dia" : "dias"}`;
+  if (ritmo.fase === "antes") {
+    return (
+      <div className={cls}>
+        Começa em {dias(ritmo.diasAteComecar)}
+        {ritmo.porSemana != null && <> · para bater a meta: <b className="font-medium text-slate-700">{dinheiro(ritmo.porSemana)} por semana</b> nos {dias(ritmo.diasTotal)} da campanha</>}
+      </div>
+    );
+  }
+  if (ritmo.fase !== "durante") return null;
+  const a = ritmo.anterior;
+  /* Em dias, não em semanas arredondadas: "1 semana pela frente" no último dia
+     era mentira. Hoje conta como dia que resta. */
+  const ultimo = ritmo.diasRestantes === 1;
+  return (
+    <div className={`space-y-0.5 ${cls}`}>
+      <div>
+        {ritmo.bateu
+          ? (ultimo ? <>Meta batida; hoje é o último dia</> : <>Meta batida com {dias(ritmo.diasRestantes)} pela frente</>)
+          : ritmo.porSemana != null
+            ? <>Faltam <b className="font-medium text-slate-700">{dinheiro(ritmo.porSemana)} por semana</b> {ultimo ? "e hoje é o último dia" : `em ${dias(ritmo.diasRestantes)}`}</>
+            : null}
+        {ritmo.ritmoAtual != null && <> · até agora {dinheiro(ritmo.ritmoAtual)} por semana (dia {ritmo.diasDecorridos} de {ritmo.diasTotal})</>}
+      </div>
+      {grande && a && (a.nestePonto != null ? (
+        <div>
+          Neste ponto, em {a.ano}, você já tinha <b className="font-medium text-slate-700">{dinheiro(a.nestePonto)}</b>
+          {a.pctDaMeta != null && ` (${Math.round(a.pctDaMeta * 100)}% da meta de então)`}; {a.ano} fechou em {dinheiro(a.total)}.
+        </div>
+      ) : (
+        <div>A edição de {a.ano} não tem O.S. com data para comparar o ritmo.</div>
+      ))}
+    </div>
+  );
+}
+function Meta({ vendido, meta, pct, grande = false, aoDefinir = null, ritmo = null }) {
   if (!(meta > 0)) {
     return (
-      <div className={`flex flex-wrap items-center gap-2 ${grande ? "text-sm" : "text-xs"} text-slate-500`}>
-        <span>Sem meta definida{aoDefinir ? " ·" : ""}</span>
-        {aoDefinir && <Link className="text-brand-600 hover:underline" to={aoDefinir}>Definir a meta</Link>}
+      <div className="space-y-1">
+        <div className={`flex flex-wrap items-center gap-2 ${grande ? "text-sm" : "text-xs"} text-slate-500`}>
+          <span>Sem meta definida{aoDefinir ? " ·" : ""}</span>
+          {aoDefinir && <Link className="text-brand-600 hover:underline" to={aoDefinir}>Definir a meta</Link>}
+        </div>
+        {/* Sem meta não há "falta", mas o ritmo até agora e o começo existem. */}
+        <LinhasDoRitmo ritmo={ritmo} grande={grande} />
       </div>
     );
   }
@@ -121,6 +167,7 @@ function Meta({ vendido, meta, pct, grande = false, aoDefinir = null }) {
       <div className={`${grande ? "h-3" : "h-2"} overflow-hidden rounded-full bg-slate-100`}>
         <div className={`h-full rounded-full ${bateu ? "bg-ok-500" : "bg-brand-500"}`} style={{ width: `${cheio * 100}%` }} />
       </div>
+      <LinhasDoRitmo ritmo={ritmo} grande={grande} />
     </div>
   );
 }
@@ -371,7 +418,7 @@ function CartoesFinanceiro({ financeiro, erro, dados, linhas, quadro, aoAbrirQua
 /* O CARTÃO DA LISTA. Responde as duas metades da pergunta sem abrir: quanto
    rendeu e quantos compraram. O nome do maior comprador entra porque é o que
    distingue "um evento" de "um cliente grande com nome de evento". */
-function CartaoCampanha({ c, aoAbrir, contra, aoDuplicar, aoProxima, salvando = false }) {
+function CartaoCampanha({ c, aoAbrir, contra, aoDuplicar, aoProxima, salvando = false, hoje = "" }) {
   const lider = c.porCliente[0] || null;
   return (
     <article
@@ -420,7 +467,7 @@ function CartaoCampanha({ c, aoAbrir, contra, aoDuplicar, aoProxima, salvando = 
 
       {/* A META SEMPRE À VISTA, com meta ou sem: "sem meta" também é informação. */}
       <div className="mt-3">
-        <Meta vendido={c.vendido} meta={c.meta} pct={c.pct} />
+        <Meta vendido={c.vendido} meta={c.meta} pct={c.pct} ritmo={hoje && !c.encerrada ? ritmoDaMeta(c, c, { hoje }) : null} />
       </div>
 
       {lider && c.compradores > 1 && (
@@ -2297,6 +2344,18 @@ export default function Campanhas() {
     [campanha, resumo, aberta, edicoes, produtos],
   );
   const proxima = useMemo(() => (campanha ? proximaEdicao(campanha, anosDoEvento) : null), [campanha, anosDoEvento]);
+  /* O dia de hoje entra como texto: o ritmo é conta pura e o memo só refaz
+     quando o dia vira. */
+  const hoje = hojeISO();
+  const ritmo = useMemo(() => {
+    // Encerrada à mão não tem "falta por semana": o resultado é o que ficou.
+    if (!campanha || !resumo || campanha.encerrada) return null;
+    const anoAtual = String(campanha.ano || "").trim();
+    const antes = edicoes
+      .filter((e) => /^\d{4}$/.test(String(e.ano || "").trim()) && String(e.ano).trim() < anoAtual)
+      .sort((a, b) => String(b.ano).trim().localeCompare(String(a.ano).trim()))[0] || null;
+    return ritmoDaMeta(campanha, resumo, { hoje, anterior: antes });
+  }, [campanha, resumo, edicoes, hoje]);
   const recadoAnterior = useMemo(() => {
     const anoAtual = String(campanha?.ano || "").trim();
     const antes = edicoes
@@ -2523,7 +2582,7 @@ export default function Campanhas() {
      planejamento. As O.S., os lançamentos e os anexos ficam aqui: são fatos
      desta edição. O recado desta não é copiado: a nova lê o recado da
      anterior daqui, então editar depois continua valendo. */
-  const criarProxima = useCallback(async (c, { ano: anoPedido, meta: metaPedida } = {}) => {
+  const criarProxima = useCallback(async (c, { ano: anoPedido, meta: metaPedida, responsavel = "", comAcoes = true } = {}) => {
     if (!c?.id) return null;
     /* Tudo dentro do try: `validarPlanejamento` lança de forma síncrona, e uma
        rejeição aqui chegava ao botão sem aviso nenhum na tela. */
@@ -2554,12 +2613,15 @@ export default function Campanhas() {
       }
       const id = novoId("campanha");
       const clientes = atual?.clientes || [];
+      /* As ações da estratégia nascem no planejamento da nova, com o
+         responsável escolhido; quem cria pode desligar. */
+      const acoes = comAcoes ? acoesDaEstrategia(est, { anoNovo: prox.ano, desdeNovo: prox.desde, responsavel, idBase: novoId("acao") }) : [];
       const nova = await mexer(id, {
         campos: {
           nome: atual?.nome || "Nova campanha", ano: prox.ano, evento, meta, clientes,
           desde: prox.desde, ate: prox.ate,
           ...(logoValida(atual?.logo) ? { logo: atual.logo } : {}),
-          planejamento: validarPlanejamento({ consideracoes: "", estrategia: textoDaEstrategia(est, { anoNovo: prox.ano }), proximaCampanha: "", acoes: [] }),
+          planejamento: validarPlanejamento({ consideracoes: "", estrategia: textoDaEstrategia(est, { anoNovo: prox.ano }), proximaCampanha: "", acoes }),
         },
         criar: true,
       });
@@ -2568,7 +2630,7 @@ export default function Campanhas() {
         setAberta(id);
         setAviso({
           tom: "ok",
-          texto: `Edição de ${prox.ano} criada: ${clientes.length} ${clientes.length === 1 ? "comprador" : "compradores"}, meta ${dinheiro(meta)}, de ${dataDaOS(prox.desde)} a ${dataDaOS(prox.ate)}, com a estratégia no planejamento. As O.S. ficam na edição de ${atual?.ano || "origem"}.`,
+          texto: `Edição de ${prox.ano} criada: ${clientes.length} ${clientes.length === 1 ? "comprador" : "compradores"}, meta ${dinheiro(meta)}, de ${dataDaOS(prox.desde)} a ${dataDaOS(prox.ate)}, com a estratégia${acoes.length ? ` e ${acoes.length} ${acoes.length === 1 ? "ação" : "ações"}` : ""} no planejamento. As O.S. ficam na edição de ${atual?.ano || "origem"}.`,
         });
       }
       return nova;
@@ -2584,14 +2646,18 @@ export default function Campanhas() {
   const criandoDoCartao = useRef(false);
   const criarProximaDoCartao = useCallback(async (c) => {
     if (criandoDoCartao.current) return;
-    const listaAgora = resumoGeralCampanhas(mapaRef.current || {}, [], ANO_HOJE);
-    const grupo = membrosDoEvento(listaAgora, listaAgora.find((x) => x.id === c.id) || c);
+    const listaAgora = resumoGeralCampanhas(mapaRef.current || {}, ordens, ANO_HOJE);
+    const atualResumo = listaAgora.find((x) => x.id === c.id) || c;
+    const grupo = membrosDoEvento(listaAgora, atualResumo);
     const prox = proximaEdicao(mapaRef.current?.[c.id] || c, grupo.map((x) => String(x.ano || "").trim()));
     if (!prox) { setAviso({ tom: "erro", texto: "Informe o ano desta campanha (4 dígitos) antes de criar a próxima." }); return; }
-    if (!window.confirm(`Criar a edição de ${prox.ano} de “${c.nome || "sem nome"}”?\nNasce com os compradores desta, a meta sugerida pelos números, de ${dataDaOS(prox.desde)} a ${dataDaOS(prox.ate)}, e a estratégia. As O.S. ficam aqui.`)) return;
+    /* A confirmação só promete as ações que vão nascer de verdade. */
+    const est = estrategiaDaProxima({ atual: { ...(mapaRef.current?.[c.id] || c), id: c.id, ...atualResumo }, anteriores: edicoesDoMesmoEvento(listaAgora, atualResumo) });
+    const n = est ? est.procurarPrimeiro.length + est.naoVoltaram.length : 0;
+    if (!window.confirm(`Criar a edição de ${prox.ano} de “${c.nome || "sem nome"}”?\nNasce com os compradores desta, a meta sugerida pelos números, de ${dataDaOS(prox.desde)} a ${dataDaOS(prox.ate)}, e a estratégia${n ? ` com ${n + 1} ações (responsável a definir na ficha)` : ""} no planejamento. As O.S. ficam aqui.`)) return;
     criandoDoCartao.current = true;
     try { await criarProxima(c); } finally { criandoDoCartao.current = false; }
-  }, [criarProxima]);
+  }, [criarProxima, ordens]);
 
   /* O RECADO PARA A PRÓXIMA mora no planejamento desta edição
      (`proximaCampanha`). Grava só esse campo, a partir do que o servidor tem
@@ -3180,6 +3246,7 @@ export default function Campanhas() {
                 vendido={resumo.vendido}
                 meta={resumo.meta}
                 pct={resumo.pct}
+                ritmo={ritmo}
                 aoDefinir={podeAbrir("campanhas") ? `/configuracoes?secao=campanhas&campanha=${encodeURIComponent(aberta)}` : null}
               />
               {podeAbrir("campanhas") && resumo.meta > 0 && (
@@ -4072,7 +4139,7 @@ export default function Campanhas() {
       {abaLista === "campanhas" && (listaDoAno.length ? (
         <div className="grid gap-3 sm:grid-cols-2">
           {listaDoAno.map((c) => (
-            <CartaoCampanha key={c.id} c={c} aoAbrir={setAberta} contra={contraAnterior.get(c.id)} aoDuplicar={duplicar} aoProxima={criarProximaDoCartao} salvando={salvando} />
+            <CartaoCampanha key={c.id} c={c} aoAbrir={setAberta} contra={contraAnterior.get(c.id)} aoDuplicar={duplicar} aoProxima={criarProximaDoCartao} salvando={salvando} hoje={hoje} />
           ))}
         </div>
       ) : lista.length ? (

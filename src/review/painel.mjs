@@ -17,12 +17,16 @@ import {validarPlanejamento,validarLogo} from '../../supabase/functions/_shared/
 function campanhasDemo(){
  const os=(id,numero,cliente,data,valor)=>[id,{numero,cliente,cnpj:'',data,valor}];
  const clientes=[{chave:'papelaria exemplo',nome:'Papelaria Exemplo',cnpjs:[]},{chave:'mercado modelo',nome:'Mercado Modelo',cnpjs:[]},{chave:'padaria ficticia',nome:'Padaria Fictícia',cnpjs:[]}];
+ /* A edição deste ano está EM ANDAMENTO na prévia (dia 24 de 45), para o
+    ritmo da meta aparecer; a do ano passado tem as mesmas datas um ano antes. */
+ const t=new Date();const A=t.getFullYear();
+ const dia=(n,anos=0)=>new Date(Date.UTC(A-anos,t.getMonth(),t.getDate()+n)).toISOString().slice(0,10);
  return {
-  'campanha-demo-2025':{nome:'Feira de demonstração',ano:'2025',evento:'campanha-demo-2025',meta:40000,desde:'2025-08-01',ate:'2025-09-14',clientes,
-   os:Object.fromEntries([os('d25-1','90001','Papelaria Exemplo','2025-08-05',12000),os('d25-2','90002','Mercado Modelo','2025-08-20',9000),os('d25-3','90003','Padaria Fictícia','2025-09-02',7000),os('d25-4','90004','Lanchonete Teste','2025-09-10',5000)]),
+  'campanha-demo-anterior':{nome:'Feira de demonstração',ano:String(A-1),evento:'campanha-demo-anterior',meta:40000,desde:dia(-23,1),ate:dia(21,1),clientes,
+   os:Object.fromEntries([os('d25-1','90001','Papelaria Exemplo',dia(-19,1),12000),os('d25-2','90002','Mercado Modelo',dia(-4,1),9000),os('d25-3','90003','Padaria Fictícia',dia(9,1),7000),os('d25-4','90004','Lanchonete Teste',dia(17,1),5000)]),
    planejamento:{consideracoes:'',estrategia:'',proximaCampanha:'Fechar os patrocínios antes de julho e levar o catálogo impresso. Exemplo de recado.',acoes:[]},historico:[]},
-  'campanha-demo-2026':{nome:'Feira de demonstração',ano:'2026',evento:'campanha-demo-2025',meta:45000,desde:'2026-08-01',ate:'2026-09-14',clientes,
-   os:Object.fromEntries([os('d26-1','91001','Papelaria Exemplo','2026-08-03',15000),os('d26-2','91002','Mercado Modelo','2026-08-25',11000),os('d26-3','91003','Padaria Fictícia','2026-09-01',8000),os('d26-4','91004','Papelaria Exemplo','2026-09-06',4500)]),
+  'campanha-demo-atual':{nome:'Feira de demonstração',ano:String(A),evento:'campanha-demo-anterior',meta:45000,desde:dia(-23),ate:dia(21),clientes,
+   os:Object.fromEntries([os('d26-1','91001','Papelaria Exemplo',dia(-21),15000),os('d26-2','91002','Mercado Modelo',dia(-12),11000),os('d26-3','91003','Padaria Fictícia',dia(-4),8000),os('d26-4','91004','Papelaria Exemplo',dia(-2),4500)]),
    planejamento:{consideracoes:'',estrategia:'',proximaCampanha:'',acoes:[]},historico:[]},
  };
 }

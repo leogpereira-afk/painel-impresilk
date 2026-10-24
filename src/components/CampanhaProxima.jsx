@@ -67,6 +67,13 @@ export default function CampanhaProxima({ campanha, estrategia: e, proxima, anos
   useEffect(() => { if (!anoMexido) setAno(anoSugerido); }, [anoSugerido, anoMexido]);
   useEffect(() => { if (!metaMexida) setMeta(metaSugerida); }, [metaSugerida, metaMexida]);
   const [criando, setCriando] = useState(false);
+  /* AS AÇÕES DA ESTRATÉGIA (pedido do dono, 24/10/2026): "procurar primeiro"
+     vira ações com responsável e data no planejamento da edição nova. */
+  const [responsavel, setResponsavel] = useState("");
+  const [comAcoes, setComAcoes] = useState(true);
+  const nProcurar = e?.procurarPrimeiro?.length || 0;
+  const nRecuperar = e?.naoVoltaram?.length || 0;
+  const nAcoes = nProcurar + nRecuperar;
   const anoAtual = String(campanha?.ano || "").trim();
   const anoLimpo = ano.replace(/\D/g, "").slice(0, 4);
   const anoOk = /^\d{4}$/.test(anoLimpo);
@@ -89,7 +96,7 @@ export default function CampanhaProxima({ campanha, estrategia: e, proxima, anos
 
   async function criar() {
     setCriando(true);
-    try { await aoCriar({ ano: anoLimpo, meta }); } finally { setCriando(false); }
+    try { await aoCriar({ ano: anoLimpo, meta, responsavel, comAcoes: comAcoes && nAcoes > 0 }); } finally { setCriando(false); }
   }
 
   return (
@@ -208,10 +215,29 @@ export default function CampanhaProxima({ campanha, estrategia: e, proxima, anos
                 onChange={(ev) => { setMetaMexida(true); setMeta(ev.target.value); }}
               />
             </label>
+            <label className="text-xs text-slate-600">
+              Responsável pelas ações
+              <input
+                className="input mt-1 h-9 w-48"
+                maxLength={120}
+                value={responsavel}
+                placeholder="quem vai procurar"
+                disabled={!comAcoes || nAcoes === 0}
+                onChange={(ev) => setResponsavel(ev.target.value)}
+              />
+            </label>
             <button type="button" className="btn-primary h-9" disabled={!podeCriar} onClick={criar}>
               <ArrowRight size={15} /> Criar a edição de {anoOk ? anoLimpo : "…"}
             </button>
           </div>
+          <label className="mt-2 flex items-start gap-2 text-xs text-slate-600">
+            <input type="checkbox" className="mt-0.5" checked={comAcoes && nAcoes > 0} disabled={nAcoes === 0} onChange={(ev) => setComAcoes(ev.target.checked)} />
+            <span>
+              {nAcoes > 0
+                ? <>Criar {nAcoes + 1} ações no planejamento da nova: {[nProcurar > 0 ? `${nProcurar} a procurar` : "", nRecuperar > 0 ? `${nRecuperar} a recuperar` : ""].filter(Boolean).join(", ")} e 1 lembrete no Calendário, um mês antes {e?.primeiraVenda ? "da primeira venda desta edição" : "do começo da edição nova"}. Cada uma se marca como concluída no quadro Planejamento.</>
+                : "Sem comprador marcado nesta edição para virar ação no planejamento."}
+            </span>
+          </label>
           {proxima.salto > 1 && !anoMexido && (
             <div className="mt-2 text-xs text-warn-800">
               Este evento já tem edição depois de {anoAtual}; a próxima livre é {proxima.ano}. A estratégia acima vem dos números de {anoAtual}.
