@@ -1,6 +1,6 @@
 ## Trabalho atual · Privacidade do calendário RH · Codex · 24/10/2026
 
-Em andamento. Restringir consultas do calendário RH a contas com perfil RH ativo; testar Comercial com dados fictícios. Publicação autorizada pelo dono. Cópia isolada, sem alteração de registros reais.
+Publicado e conferido: servidor painel-agenda com autorização RH antes de consultar dados; interface limpa dados antigos ao revalidar. Código 65191c5 e 896301f. Functions 40139181369 e 40139185104 aprovados; Pages 40139257665 aprovado. Cinco arquivos relevantes servidos iguais ao build, incluindo CalendarioEmpresa, index e CSS. Testes fictícios de Comercial, gestor, acesso amplo, conta inativa e RH autorizado; nenhum registro real modificado. Detalhes em docs/calendario-rh-privado-20261024.md. Vez encerrada.
 
 ## Trabalho atual · Campanhas: lembrete no Início, logo no Storage e contraste · claude · 24/10/2026
 
