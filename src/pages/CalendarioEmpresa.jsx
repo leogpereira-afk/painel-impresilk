@@ -66,6 +66,7 @@ export default function CalendarioEmpresa({sessao}) {
   const recarregar = useCallback(async () => {
     const meu = ++pedido.current;
     setAtualizando(true);
+    setDados(null);
     try {
       const [empresa,reunioes,trabalhos,bens,prazos,atividades,planos]=await Promise.allSettled([lerEmpresa(mes),temReunioes?lerAgendaReunioes(mes):Promise.resolve([]),temProcessos?lerAgendaProcessos(mes):Promise.resolve([]),temPatrimonio?lerAgendaPatrimonio(mes):Promise.resolve([]),temDocumentos?lerAgendaDocumentos(mes):Promise.resolve([]),temComercial?lerAgendaComercial(mes):Promise.resolve({eventos:[]}),temCampanhas?lerAgendaCampanhas(mes):Promise.resolve([])]);
       // Resposta fora de ordem não pinta a tela (ver Agenda.jsx).
@@ -83,7 +84,7 @@ export default function CalendarioEmpresa({sessao}) {
       setDocumentos({chave:chaveDocumentos,eventos:prazos.status==='fulfilled'?prazos.value:[]});
       setErroDocumentos(prazos.status==='rejected'?'Não foi possível carregar os vencimentos de documentos, seguros e garantias. Atualize para tentar novamente.':'');
       if(empresa.status==='rejected')throw empresa.reason;
-      setDados(empresa.value);
+      setDados({...empresa.value,chave:chaveDocumentos});
       setErro("");
     } catch (e) {
       if (meu === pedido.current) setErro(e.message || "Não foi possível ler o calendário.");
@@ -100,7 +101,7 @@ export default function CalendarioEmpresa({sessao}) {
 
   const hoje = dados?.hoje || "";
   const eventos = useMemo(
-    () => combinarEventosCalendario([dados?.eventos ?? [],temReunioes?encontros:[],temProcessos?processos:[],temPatrimonio&&patrimonio.chave===chaveDocumentos?patrimonio.eventos:[],temDocumentos&&documentos.chave===chaveDocumentos?documentos.eventos:[],temComercial&&comercial.chave===chaveComercial?comercial.eventos:[],temCampanhas&&campanhas.chave===chaveComercial?campanhas.eventos:[]],mes),
+    () => combinarEventosCalendario([dados?.chave===chaveDocumentos ? dados.eventos : [],temReunioes?encontros:[],temProcessos?processos:[],temPatrimonio&&patrimonio.chave===chaveDocumentos?patrimonio.eventos:[],temDocumentos&&documentos.chave===chaveDocumentos?documentos.eventos:[],temComercial&&comercial.chave===chaveComercial?comercial.eventos:[],temCampanhas&&campanhas.chave===chaveComercial?campanhas.eventos:[]],mes),
     [dados,encontros,temReunioes,mes,processos,temProcessos,temPatrimonio,patrimonio,temDocumentos,documentos,chaveDocumentos,temComercial,comercial,chaveComercial,temCampanhas,campanhas],
   );
 
