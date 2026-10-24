@@ -2,6 +2,7 @@ import {respostaAgenda,pessoasAgenda} from './compromissos.mjs';
 import {respostaComercial,agendaComercialDemo} from './comercial.mjs';
 import {respostaReunioes} from './reunioes.mjs';
 import {respostaMarketing} from './marketing.mjs';
+import {respostaManuais} from './manuais-maquinas.mjs';
 import {respostaDocumentos,agendaDocumentosDemo} from './documentos.mjs';
 import {validarVinculoPessoa,prepararPessoasControle} from '../../supabase/functions/_shared/patrimonio-pessoas.mjs';
 import {prepararControle} from '../../supabase/functions/_shared/patrimonio-controles.mjs';
@@ -71,6 +72,12 @@ const equipamentosDemo=[
  {id:'car-demo',tipo:'veiculo',nome:'Utilitário de demonstração',categoria:'Utilitário',identificacao:'VEI-01',responsavel:'Ana Exemplo',responsavelId:'rh-demo-ana-1',especificacao:{placa:'EXE1A23',marcaModelo:'Utilitário exemplo',ano:'2024',motorista:'Ana Exemplo',motoristaId:'rh-demo-ana-1'},atualizadoEm:'2026-10-05T12:00:00Z',atualizadoPor:'Conta de demonstração'},
  {id:'maq-demo',tipo:'maquina',nome:'Impressora de demonstração',categoria:'Impressão',responsavel:'Bruno Exemplo',responsavelId:'rh-demo-bruno',setorSigla:'PRO',especificacao:{fabricante:'Fabricante exemplo',modelo:'Impressora UV',numeroSerie:'DEMO-001',setor:'Produção'},atualizadoEm:'2026-10-05T12:00:00Z',atualizadoPor:'Conta de demonstração'}
 ];
+// Máquinas fictícias com documentação pendente para conferir a central Manual.
+equipamentosDemo.push(
+ {id:'maq-corte-demo',tipo:'maquina',nome:'Mesa de corte · demonstração',categoria:'Corte',setorSigla:'PRO',especificacao:{fabricante:'Fabricante exemplo',modelo:'Modelo a conferir',setor:'Produção'}},
+ {id:'maq-acabamento-demo',tipo:'maquina',nome:'Equipamento de acabamento · demonstração',categoria:'Acabamento',especificacao:{setor:'Acabamento'}}
+);
+configs.patrimonio['bem-maquina-sem-ficha-demo']={areaPatrimonio:'maquinas',nomeGenerico:'Máquina somente no inventário · demonstração',codigo:'PRO-004',setorSigla:'PRO',situacao:'uso',valor:12345,nf:'NF-FICTICIA-RESTRITA'};
 equipamentosDemo.push(
  {id:'telefonia-demo-1',tipo:'informatica',categoria:'Telefone',nome:'Telefone de demonstração A',especificacao:{marcaModelo:'Modelo A de exemplo',numeroSerie:'DEMO-TEL-01'},atualizadoEm:'2026-10-01T12:00:00Z'},
  {id:'telefonia-demo-2',tipo:'informatica',categoria:'Telefone',nome:'Telefone de demonstração B',especificacao:{marcaModelo:'Modelo B de exemplo'},atualizadoEm:'2026-10-01T12:00:00Z'},
@@ -212,6 +219,7 @@ export async function respostaPreview(url,opcoes={}){
  const u=new URL(url,location.origin), corpo=opcoes.body ? JSON.parse(opcoes.body) : {};
  const endpoint=u.pathname.split('/').pop();
  const ss=getSessao(),sessao={sub:'demo',nome:'Conta de demonstração',master:ss?.master,perms:ss?.permissoes||[]};
+ if(endpoint==='painel-config'&&corpo.action?.startsWith('manuaisMaquinas'))return respostaManuais(corpo,ss?sessao:null,equipamentosDemo,configs.patrimonio,pessoasPatrimonioDemo,configs.setores);
  if(endpoint==='painel-ativos'){
   const documentos=await respostaDocumentos(corpo,sessao,[...equipamentosDemo,...estruturasDemo]);
   if(documentos)return documentos;

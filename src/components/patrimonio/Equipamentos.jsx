@@ -2,7 +2,7 @@ import {equipamentosComBens} from '../../lib/calc/area-bem.js';
 import {usePessoasRH,comNomeRH} from './PessoasRH.jsx';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link,useSearchParams } from 'react-router-dom';
-import { Car, Cog, Search, X, Printer, RefreshCw, ChevronLeft, ChevronRight, ArrowUpRight, Link2, Plus, Pencil } from 'lucide-react';
+import { Car, Cog, Search, X, Printer, RefreshCw, ChevronLeft, ChevronRight, ArrowUpRight, Link2, Plus, Pencil, BookOpen } from 'lucide-react';
 import { listarEquipamentosPatrimonio,listarAtivos } from '../../services/ativos.js';
 import { podeAbrir } from '../../lib/sessao.js';
 import { projetarEquipamentos, filtrarEquipamentos, vinculoDoEquipamento, bensParaFicha } from '../../lib/calc/equipamentos-patrimonio.js';
@@ -10,6 +10,8 @@ import { textoAtualizacao } from '../../lib/calc/controles-patrimonio.js';
 import {caminhoManutencao} from '../../lib/calc/navegacao-patrimonio.js';
 import CadastroEquipamento from './CadastroEquipamento.jsx';
 import './equipamentos.css';
+import ManuaisMaquinas from './ManuaisMaquinas.jsx';
+import {caminhoManualMaquina} from '../../lib/calc/manuais-maquinas.js';
 
 const POR_PAGINA = 15;
 const TIPOS = {
@@ -63,6 +65,10 @@ export default function EquipamentosPatrimonio({ tipo, bens = [], setores = [], 
     em: new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' }),
   });
 
+  if(tipo==='maquina'&&params.has('manual')) {
+    return <ManuaisMaquinas aoVerBem={aoVerBem?ref=>{const bem=bens.find(b=>b.id===ref.id);if(bem)aoVerBem(bem);}:undefined} aoVoltar={()=>setParams(p=>{const n=new URLSearchParams(p);n.delete('manual');return n;})}/>;
+  }
+
   if (relatorio) return <div className="pat-print pat-controle-relatorio pat-equip-report">
     <div className="sem-impressao pat-print-toolbar">
       <button className="btn-ghost" onClick={() => setRelatorio(null)}><ChevronLeft size={18}/>Voltar</button>
@@ -81,6 +87,7 @@ export default function EquipamentosPatrimonio({ tipo, bens = [], setores = [], 
       <div className="pat-actions">
         <button className="btn-ghost" onClick={carregar} disabled={carregando} aria-label={`Atualizar ${meta.titulo.toLowerCase()}`} title="Atualizar cadastros"><RefreshCw size={17}/></button>
         <button className="btn-outline" onClick={abrirRelatorio} disabled={!lista.length || carregando || !!erro}><Printer size={17}/>Salvar PDF</button>
+        {tipo==='maquina'&&<Link className="btn-outline" to={caminhoManualMaquina()}><BookOpen size={17}/>Manual</Link>}
         {gerenciar && <button className="btn-primary" onClick={novo} disabled={carregando}><Plus size={17}/>Cadastrar {meta.singular}</button>}
       </div>
     </div>
@@ -97,7 +104,7 @@ export default function EquipamentosPatrimonio({ tipo, bens = [], setores = [], 
     {ativos === null ? <p role="status">{carregando ? 'Carregando equipamentos…' : 'Não foi possível consultar os equipamentos.'}</p> : !lista.length ? <div className="pat-empty"><Icone size={28}/><h3>{comFiltro ? 'Nenhum equipamento encontrado' : `Nenhum ${meta.singular} cadastrado`}</h3><p>{comFiltro ? 'Tente outro nome, identificação ou filtro.' : `Os registros de ${meta.titulo.toLowerCase()} aparecerão aqui após o cadastro.`}</p>{comFiltro && <button className="btn-outline" onClick={limpar}>Ver todos</button>}</div> : <>
       <div className="pat-table-wrap"><table className="pat-table pat-equip-table"><thead><tr><th>Equipamento</th><th>{meta.identificacao} / modelo</th><th>Setor</th><th>Responsável</th><th>Inventário</th>{gerenciar && <th>Manutenção</th>}</tr></thead>
         <tbody>{recorte.map(item => <tr key={item.id}>
-          <td data-label="Equipamento"><strong className="pat-equip-name">{item.nome || 'Sem nome'}</strong><small className="pat-updated">{item.somenteBem?"Bem do inventário · dados técnicos opcionais":textoAtualizacao(item)}</small></td>
+          <td data-label="Equipamento"><strong className="pat-equip-name">{item.nome || 'Sem nome'}</strong><small className="pat-updated">{item.somenteBem?"Bem do inventário · dados técnicos opcionais":textoAtualizacao(item)}</small>{tipo==='maquina'&&<Link className="pat-equip-manage" to={caminhoManualMaquina(item)} aria-label={`Abrir manual de ${item.nome}`}><BookOpen size={15}/>Manual</Link>}</td>
           <td data-label={`${meta.identificacao} / modelo`}><strong>{item.identificacao || 'Não informado'}</strong><small>{[item.modelo, item.ano].filter(Boolean).join(' · ') || 'Modelo não informado'}</small></td>
           <td data-label="Setor">{item.setor || 'Não informado'}</td><td data-label="Responsável">{item.responsavel || 'Não informado'}</td>
           <td data-label="Inventário">{item.bem && aoVerBem ? <button className="pat-equip-inventory" onClick={() => aoVerBem(item.bem)} aria-label={`Ver ficha de ${item.nome} no inventário`}><Link2 size={14}/>{rotuloVinculo(item)}</button> : <span className={item.vinculo === 'conflito' ? 'pat-equip-conflict' : 'pat-equip-unlinked'}>{rotuloVinculo(item)}</span>}{item.bem?.situacao === 'baixado' && <small>Baixado no inventário</small>}</td>

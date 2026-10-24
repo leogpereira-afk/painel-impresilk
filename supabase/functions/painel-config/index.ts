@@ -4,6 +4,7 @@ import {inventarioPermitido,rotuloFichaVinculo,erroVinculo} from '../_shared/pat
 import {lerPessoasPatrimonio, validarVinculoPessoa, prepararPessoasControle} from '../_shared/patrimonio-pessoas.mjs';
 import {contextoComercial} from '../_shared/comercial-contexto.ts';
 import {gestorComercial} from '../_shared/comercial.mjs';
+import {atenderManuaisMaquinas} from '../_shared/manuais-maquinas-handler.mjs';
 // ============================================================================
 // painel-config — configuracoes e marcacoes manuais (substitui config.js)
 //
@@ -434,6 +435,12 @@ Deno.serve(async (req: Request) => {
       return resposta(recusa,status);
     };
     switch (corpo.action) {
+      case 'manuaisMaquinasCatalogo':
+      case 'manuaisMaquinasListar':
+      case 'manuaisMaquinasLer':
+      case 'manuaisMaquinasSalvar':
+      case 'manuaisMaquinasAprovar':
+        return await atenderManuaisMaquinas({sb,sessao,corpo,resposta,pessoasRH});
       case "pessoasCompromissos": {
         if(!sessao)return resposta({erro:'Entre no sistema.',semSessao:true},401);
         if(!temModulo('compromissos'))return resposta({erro:'Sem acesso a Compromissos.'},403);
