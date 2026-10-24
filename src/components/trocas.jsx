@@ -99,7 +99,7 @@ export function Secao({ id, titulo, sub, acao, aberta, aoAlternar, semImpressao,
         >
           <ChevronDown
             size={16}
-            className={`mt-0.5 shrink-0 text-slate-400 transition-transform group-hover:text-slate-600 ${
+            className={`mt-0.5 shrink-0 text-slate-500 transition-transform group-hover:text-slate-600 ${
               aberta ? "" : "-rotate-90"
             }`}
           />
@@ -283,11 +283,11 @@ export function GrupoCliente({ g, aberto, aoAlternar, aoTirar, onde = "permuta",
       >
         <ChevronDown
           size={15}
-          className={`shrink-0 text-slate-400 transition-transform ${aberto ? "" : "-rotate-90"}`}
+          className={`shrink-0 text-slate-500 transition-transform ${aberto ? "" : "-rotate-90"}`}
         />
         <span className="min-w-0 flex-1">
           <span className="block truncate font-medium text-slate-800">{g.cliente}</span>
-          <span className="text-[11px] text-slate-400">
+          <span className="text-[11px] text-slate-500">
             {g.cnpj ? formatarDoc(g.cnpj) : "sem CNPJ no cadastro"} · {g.qtd} O.S.
           </span>
           {/* No celular os chips descem para baixo do nome: ao lado dele, três
@@ -330,7 +330,7 @@ export function LinhaAceita({ l, aoTirar, onde = "permuta", fin }) {
             <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[11px] text-slate-500">valor do aceite</span>
           )}
         </div>
-        <div className="text-[11px] text-slate-400">
+        <div className="text-[11px] text-slate-500">
           {dataDaOS(l.data)}
           {/* A CONTA À VISTA quando houve desconto. "R$ 2.000,00" sozinho não
               responde de onde saiu, e foi guardar só o resultado que deixou o
@@ -387,7 +387,7 @@ export function LinhaEscolher({ o, aoMarcar, onde = "permuta" }) {
             </span>
           )}
         </div>
-        <div className="text-[11px] text-slate-400">{dataDaOS(o.data)}</div>
+        <div className="text-[11px] text-slate-500">{dataDaOS(o.data)}</div>
       </div>
       <span className="shrink-0 tabular-nums text-slate-700">{dinheiro(o.valor)}</span>
     </label>
@@ -452,7 +452,7 @@ export function Historico({ eventos, conta, cortados = 0 }) {
   return (
     <ol className="space-y-2">
       {cortados > 0 && (
-        <li className="text-[11px] text-slate-400">
+        <li className="text-[11px] text-slate-500">
           {cortados === 1
             ? "1 evento mais antigo já saiu deste histórico (guardamos os 1.000 últimos)."
             : `${cortados.toLocaleString("pt-BR")} eventos mais antigos já saíram deste histórico (guardamos os 1.000 últimos).`}
@@ -464,7 +464,7 @@ export function Historico({ eventos, conta, cortados = 0 }) {
         const numeros = e.juntos.map((x) => x.numero).filter(Boolean);
         return (
           <li key={`${e.em}-${i}`} className="flex gap-3 text-sm">
-            <span className="w-32 shrink-0 text-[11px] tabular-nums text-slate-400">{quandoFoi(e.em)}</span>
+            <span className="w-32 shrink-0 text-[11px] tabular-nums text-slate-500">{quandoFoi(e.em)}</span>
             <span className="min-w-0 text-slate-600">
               <span className="font-medium text-slate-800">{e.quemNome || e.quem}</span>{" "}
               {n === 1 ? (
@@ -473,7 +473,7 @@ export function Historico({ eventos, conta, cortados = 0 }) {
                 <>
                   {e.tipo === "aceitouOS" ? "marcou" : "tirou"} {n} O.S. de uma vez ({moedaCheia(total)})
                   {numeros.length > 0 && (
-                    <span className="text-slate-400">
+                    <span className="text-slate-500">
                       {" — "}
                       {numeros.slice(0, 6).join(", ")}
                       {numeros.length > 6 && ` e mais ${numeros.length - 6}`}

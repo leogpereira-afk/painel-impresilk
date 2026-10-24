@@ -1200,7 +1200,7 @@ test("atualizar com o ERP: sem lista do ERP nada é proposto (senão tudo parece
 });
 
 /* ---------------------------------------------------- a próxima edição */
-import { proximaEdicao, estrategiaDaProxima, textoDaEstrategia, acoesDaEstrategia, ritmoDaMeta } from "./campanhas.js";
+import { proximaEdicao, estrategiaDaProxima, textoDaEstrategia, acoesDaEstrategia, ritmoDaMeta, lembretesDeCampanha } from "./campanhas.js";
 
 test("próxima edição: ano seguinte livre, datas deslocadas junto, 29/02 cai no fim do mês", () => {
   const c = { ano: "2026", desde: "2026-08-01", ate: "2026-09-14" };
@@ -1333,4 +1333,47 @@ test("acoesDaEstrategia: uma ação por cliente, datadas um mês antes da primei
   const longo = acoesDaEstrategia({ ...e, procurarPrimeiro: [{ cliente: "X".repeat(250), valor: 1, qtd: 1 }] }, { anoNovo: "2027" });
   assert.equal(longo[1].titulo.length, 200);
   assert.ok(acoes.every((a) => !/[—–]/.test(a.titulo)));
+});
+
+test("lembretesDeCampanha: um mês antes da primeira venda do ano anterior, só quando a edição deste ano ainda não existe", () => {
+  const os = (data, valor) => ({ numero: "1", cliente: "Cliente", data, valor });
+  const mapa = {
+    feira25: { nome: "Feira", ano: "2025", evento: "feira25", os: { a: os("2025-11-20", 100), b: os("2025-12-01", 50) } },
+    festa25: { nome: "Festa", ano: "2025", evento: "festa25", os: { a: os("2025-11-05", 10) } },
+    festa26: { nome: "Festa", ano: "2026", evento: "festa25", os: {} },            // já tem a edição deste ano: sem lembrete
+    semOS25: { nome: "Sem O.S.", ano: "2025", os: {} },                            // sem referência: não inventa
+    longe25: { nome: "Longe", ano: "2025", os: { a: os("2025-03-10", 10) } },      // passou da janela
+    velha23: { nome: "Antiga", ano: "2023", os: { a: os("2023-11-10", 10) } },     // três anos: desloca três
+    semAno: { nome: "Sem ano", ano: "", os: { a: os("2025-11-01", 10) } },
+  };
+  const r = lembretesDeCampanha(mapa, { hoje: "2026-10-15" });
+  assert.deepEqual(r.map((x) => [x.id, x.anoAnterior, x.anoNovo, x.primeiraVendaPrevista, x.procurarAte, x.diasAteProcurar, x.atrasado, x.edicoes]), [
+    ["velha23", "2023", "2026", "2026-11-10", "2026-10-11", -4, true, 1],
+    ["feira25", "2025", "2026", "2026-11-20", "2026-10-21", 6, false, 1],
+  ]);
+  assert.equal(r[1].vendidoAnterior, 150); assert.equal(r[1].compradores, 1);
+  // fora da janela (45 dias antes), nada; depois de 60 dias, nada; no ano seguinte a janela reabre para o evento daquele mês
+  assert.deepEqual(lembretesDeCampanha(mapa, { hoje: "2026-08-01" }), []);
+  assert.deepEqual(lembretesDeCampanha(mapa, { hoje: "2027-01-15" }).map((x) => x.id), []);
+  assert.deepEqual(lembretesDeCampanha(mapa, { hoje: "2027-02-01" }).map((x) => [x.id, x.anoNovo, x.primeiraVendaPrevista]), [["longe25", "2027", "2027-03-10"]]);
+  // 29/02 na primeira venda cai em 28/02 no ano comum; hoje inválido ou mapa vazio: nada
+  const biss = lembretesDeCampanha({ b: { nome: "B", ano: "2024", os: { a: os("2024-02-29", 1) } } }, { hoje: "2026-02-01" });
+  assert.deepEqual(biss.map((x) => [x.primeiraVendaPrevista, x.procurarAte]), [["2026-02-28", "2026-01-29"]]);
+  assert.deepEqual(lembretesDeCampanha(mapa, { hoje: "" }), []);
+  assert.deepEqual(lembretesDeCampanha({}, { hoje: "2026-10-15" }), []);
+  // não mexe na entrada
+  const antes = JSON.stringify(mapa); lembretesDeCampanha(mapa, { hoje: "2026-10-15" }); assert.equal(JSON.stringify(mapa), antes);
+  // evento de janeiro: em dezembro já pede a edição do ANO SEGUINTE (a última ainda é deste ano)
+  const jan = { jan25: { nome: "Janeiro", ano: "2025", os: { a: os("2025-01-20", 10) } } };
+  assert.deepEqual(lembretesDeCampanha(jan, { hoje: "2025-12-10" }).map((x) => [x.id, x.anoNovo, x.primeiraVendaPrevista, x.procurarAte, x.diasAteProcurar, x.atrasado]),
+    [["jan25", "2026", "2026-01-20", "2025-12-21", 11, false]]);
+  assert.deepEqual(lembretesDeCampanha({ ...jan, jan26: { nome: "Janeiro", ano: "2026", evento: "jan25", os: {} } }, { hoje: "2025-12-10" }), []);
+  // "Feira 2025" e "Feira 2026" soltas, sem vínculo: a edição nova apaga o lembrete mesmo assim
+  assert.deepEqual(lembretesDeCampanha({ f25: { nome: "Feira 2025", ano: "2025", os: { a: os("2025-11-20", 1) } }, f26: { nome: "Feira 2026", ano: "2026", os: {} } }, { hoje: "2026-10-15" }), []);
+  // cadastro gêmeo no mesmo ano: a primeira venda é a mais cedo das duas fichas, e `edicoes` conta anos, não fichas
+  const gemeas = { a25: { nome: "Gêmea", ano: "2025", os: { a: os("2025-11-20", 100) } }, b25: { nome: "Gêmea", ano: "2025", os: { a: os("2025-09-01", 50) } } };
+  assert.deepEqual(lembretesDeCampanha(gemeas, { hoje: "2026-08-01" }).map((x) => [x.id, x.primeiraVendaPrevista, x.edicoes]), [["a25", "2026-09-01", 1]]);
+  // venda sem O.S. datada conta como primeira venda (mesma base do ritmo da meta)
+  const semOS = { s25: { nome: "Só lançamento", ano: "2025", os: { a: os("2025-11-20", 100) }, lancamentos: { x: { data: "2025-09-01", valor: 500, descricao: "venda sem O.S." } } } };
+  assert.deepEqual(lembretesDeCampanha(semOS, { hoje: "2026-08-01" }).map((x) => [x.primeiraVendaPrevista, x.vendidoAnterior]), [["2026-09-01", 600]]);
 });

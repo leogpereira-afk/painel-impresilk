@@ -186,7 +186,7 @@ export default function CampanhaProxima({ campanha, estrategia: e, proxima, anos
               />
             </Quadro>
           </div>
-          <p className="mt-2 text-[11px] text-slate-400">
+          <p className="mt-2 text-[11px] text-slate-500">
             Sugestão calculada com as O.S. marcadas nesta edição e nas anteriores ligadas a ela. Quem decide é a direção.
           </p>
         </div>

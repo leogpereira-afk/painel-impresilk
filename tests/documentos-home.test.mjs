@@ -14,8 +14,8 @@ test('Home conserva prazo documental legado sem contar físicos sem data como do
 
 // Executa os componentes reais com efeitos controlados, para conferir a tela
 // antes da limpeza dos efeitos e resolver consultas antigas fora de ordem.
-function tela(caminho) {
- const hooks=[],pendentes=[],pedidos=[];let cursor=0,sessao;
+function tela(caminho,extras={}) {
+ const hooks=[],pendentes=[],pedidos=[],campanhas=[];let cursor=0,sessao;
  const iguais=(a,b)=>a&&b&&a.length===b.length&&a.every((v,i)=>Object.is(v,b[i]));
  const useState=inicial=>{
   const indice=cursor++;if(!hooks[indice])hooks[indice]={valor:typeof inicial==='function'?inicial():inicial};
@@ -37,10 +37,11 @@ function tela(caminho) {
   useNavigate:()=>()=>{},getSessao:()=>sessao,podeAbrir,ehDirecao:atual=>(atual??sessao)?.master===true,
   listarDocumentos,api:{listarDocumentos},calcDocumentos,alertasDocumentosLegados,
   ymdLocal:()=> '2026-10-11',statusBackup:async()=>null,lerCargaAlarme:async()=>null,
-  meusSistemas:()=>[],sessionStorage:{getItem:()=>null,setItem:()=>{}},logoColor:'logo',logoWhite:'logo'};
- for(const nome of ['AlertTriangle','ChevronDown','ChevronRight','Card','MeusSistemas','MissaoValores','Silk','FileCheck2','Car','ShieldCheck','Wrench','PessoasRHProvider','CarregandoModulo','ErroModulo'])contexto[nome]=componente(nome);
+  meusSistemas:()=>[],sessionStorage:{getItem:()=>null,setItem:()=>{}},logoColor:'logo',logoWhite:'logo',
+  lerCampanhas:async()=>{campanhas.push(1);return {};},lembretesDeCampanha:()=>extras.lembretes||[],dataCurta:(s)=>s};
+ for(const nome of ['AlertTriangle','ChevronDown','ChevronRight','Megaphone','Card','MeusSistemas','MissaoValores','Silk','FileCheck2','Car','ShieldCheck','Wrench','PessoasRHProvider','CarregandoModulo','ErroModulo'])contexto[nome]=componente(nome);
  vm.runInNewContext(js,contexto);
- return {pedidos,render(atual,{efeitos=true}={}){sessao=atual;cursor=0;const arvore=contexto.module.exports.default({sessao});if(efeitos)this.efeitos();return arvore;},efeitos(){for(const fn of pendentes.splice(0))fn();}};
+ return {pedidos,campanhas,render(atual,{efeitos=true}={}){sessao=atual;cursor=0;const arvore=contexto.module.exports.default({sessao});if(efeitos)this.efeitos();return arvore;},efeitos(){for(const fn of pendentes.splice(0))fn();}};
 }
 const pessoal={usuario:'consulta',master:false,permissoes:['documentos','documentos-pessoais']};
 const empresa={...pessoal,permissoes:['documentos']};
@@ -112,4 +113,20 @@ test('troca de usuário invalida dados mesmo conservando todas as permissões',a
   const pagina=tela(`../src/pages/${caminho}.jsx`);pagina.render(pessoal);pagina.pedidos[0].resolve(lista(nomePessoal));await aguardar();
   assert.doesNotMatch(textoTela(pagina.render({...pessoal,usuario:'outra-consulta'},{efeitos:false})),new RegExp(nomePessoal));
  }
+});
+
+/* O LEMBRETE DA CAMPANHA no Início (24/10/2026): só quem abre Campanhas
+   consulta e vê; o cartão de verdade é renderizado com o texto do lembrete. */
+test('Home consulta campanhas só com o módulo e renderiza o cartão do lembrete',async()=>{
+ const lembrete={id:'x',nome:'Evento fictício',anoNovo:'2026',anoAnterior:'2025',primeiraVendaAnterior:'2025-11-20',procurarAte:'2026-10-21',diasAteProcurar:6,atrasado:false};
+ const comModulo={...pessoal,permissoes:['campanhas']};
+ const home=tela('../src/pages/Home.jsx',{lembretes:[lembrete]});home.render(comModulo);await aguardar();await aguardar();
+ assert.equal(home.campanhas.length,1);
+ const texto=textoTela(home.render(comModulo));
+ // O JSX divide o texto em pedaços; confere cada pedaço.
+ for(const trecho of [/Evento fictício/,/hora de criar a edição de /,/"2026"/,/faltam 6 dias/,/Megaphone/])assert.match(texto,trecho);
+ const semModulo=tela('../src/pages/Home.jsx',{lembretes:[lembrete]});semModulo.render({...pessoal,permissoes:[]});await aguardar();
+ assert.equal(semModulo.campanhas.length,0);assert.doesNotMatch(textoTela(semModulo.render({...pessoal,permissoes:[]})),/hora de criar/);
+ const quatro=tela('../src/pages/Home.jsx',{lembretes:[1,2,3,4].map(n=>({...lembrete,id:'x'+n}))});quatro.render(comModulo);await aguardar();await aguardar();
+ const textoQuatro=textoTela(quatro.render(comModulo));assert.match(textoQuatro,/"e mais ",1," ","campanha espera"/);assert.equal((textoQuatro.match(/Megaphone/g)||[]).length,3,'só três cartões');
 });

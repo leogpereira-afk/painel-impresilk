@@ -1,12 +1,14 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { AlertTriangle, ChevronDown, ChevronRight } from "lucide-react";
+import { AlertTriangle, ChevronDown, ChevronRight, Megaphone } from "lucide-react";
 import { listarDocumentos } from "../services/documentos.js";
+import { lerCampanhas } from "../services/campanhas.js";
+import { lembretesDeCampanha } from "../lib/calc/campanhas.js";
 import { statusBackup } from "../services/backup.js";
 import { lerCargaAlarme } from "../services/permutas.js";
 import { ehDirecao, getSessao, podeAbrir } from "../lib/sessao.js";
 import { calcDocumentos, alertasDocumentosLegados } from "../lib/calc/documentos.js";
-import { ymdLocal } from "../lib/format.js";
+import { ymdLocal, dataCurta } from "../lib/format.js";
 import { Card } from "../components/ui.jsx";
 import MeusSistemas from "../components/MeusSistemas.jsx";
 import { meusSistemas } from "../lib/entradaUnica.js";
@@ -101,6 +103,21 @@ export default function Home({ sessao = getSessao() } = {}) {
      no mesmo lugar em que a direção já olha o backup. */
   const [cargaParada, setCargaParada] = useState(null);
   const [cargaDegradada, setCargaDegradada] = useState(null);
+
+  /* O LEMBRETE DA CAMPANHA (sugestão aceita pelo dono, 24/10/2026): um mês
+     antes da primeira venda do ano passado, "crie a edição deste ano e comece
+     a procurar os clientes". Some sozinho quando a edição nasce. Falha de
+     rede não vira aviso aqui: é um lembrete, não um alarme. */
+  const temCampanhas = podeAbrir("campanhas", sessao);
+  const [lembretes, setLembretes] = useState([]);
+  useEffect(() => {
+    let vivo = true;
+    if (!temCampanhas) { setLembretes([]); return undefined; }
+    lerCampanhas()
+      .then((mapa) => { if (vivo) setLembretes(lembretesDeCampanha(mapa, { hoje: ymdLocal(new Date()) })); })
+      .catch(() => {});
+    return () => { vivo = false; };
+  }, [temCampanhas, chaveSessao]);
   useEffect(() => {
     let vivo = true;
     if (ehDirecao()) {
@@ -306,6 +323,31 @@ export default function Home({ sessao = getSessao() } = {}) {
               </span>
             )}
           </span>
+        </button>
+      )}
+      {lembretes.slice(0, 3).map((l) => (
+        <button
+          key={l.id}
+          onClick={() => navigate(`/campanhas?campanha=${encodeURIComponent(l.id)}`)}
+          className="card card-hover w-full border-l-4 border-l-brand-600 p-4 text-left"
+        >
+          <span className="flex items-center gap-2">
+            <Megaphone size={16} className="shrink-0 text-brand-700" />
+            <span className="flex-1 font-display text-sm font-semibold text-slate-900">
+              {l.nome || "Campanha"}: hora de criar a edição de {l.anoNovo}
+            </span>
+            <ChevronRight size={16} className="shrink-0 text-slate-300" />
+          </span>
+          <span className="mt-2 block text-sm text-slate-600">
+            Em {l.anoAnterior} a primeira venda foi em {dataCurta(l.primeiraVendaAnterior)}. Comece a procurar os clientes até {dataCurta(l.procurarAte)}
+            {l.diasAteProcurar > 0 ? ` (faltam ${l.diasAteProcurar} ${l.diasAteProcurar === 1 ? "dia" : "dias"})` : l.diasAteProcurar === 0 ? " (é hoje)" : ` (passaram ${-l.diasAteProcurar} ${-l.diasAteProcurar === 1 ? "dia" : "dias"})`}.
+            Toque para abrir a edição de {l.anoAnterior} e criar a próxima com a estratégia.
+          </span>
+        </button>
+      ))}
+      {lembretes.length > 3 && (
+        <button onClick={() => navigate("/campanhas")} className="card card-hover w-full p-4 text-left text-sm text-slate-600">
+          e mais {lembretes.length - 3} {lembretes.length - 3 === 1 ? "campanha espera" : "campanhas esperam"} a edição nova. Toque para abrir Campanhas.
         </button>
       )}
 

@@ -46,6 +46,13 @@ export const mexerNaCampanha = (id, { campos = {}, osPatch, lancPatch, criar } =
 export const removerCampanha = (id) =>
   chamar("removerId", { chave: "campanhas", id }).then(() => true);
 
+/* A LOGO vai para o Storage pela ação própria: o registro guarda só a URL.
+   `base64` é só o conteúdo (sem o prefixo data:). `tirar` apaga o arquivo. */
+export const enviarLogoDaCampanha = (id, { mime, base64 }) =>
+  chamar("logo", { id, mime, base64 }).then((r) => r.valor || {});
+export const tirarLogoDaCampanha = (id) =>
+  chamar("logo", { id, remover: true }).then((r) => r.valor || {});
+
 export const anexarNaCampanha = (id, { lancId, nome, mime, base64 }) =>
   chamar("permutaAnexo", { chave: "campanhas", id, lancId, nome, mime, base64 }).then((r) => r.valor || {});
 

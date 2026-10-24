@@ -28,6 +28,12 @@ function campanhasDemo(){
   'campanha-demo-atual':{nome:'Feira de demonstração',ano:String(A),evento:'campanha-demo-anterior',meta:45000,desde:dia(-23),ate:dia(21),clientes,
    os:Object.fromEntries([os('d26-1','91001','Papelaria Exemplo',dia(-21),15000),os('d26-2','91002','Mercado Modelo',dia(-12),11000),os('d26-3','91003','Padaria Fictícia',dia(-4),8000),os('d26-4','91004','Papelaria Exemplo',dia(-2),4500)]),
    planejamento:{consideracoes:'',estrategia:'',proximaCampanha:'',acoes:[]},historico:[]},
+  /* Um evento SÓ com a edição do ano passado, com a primeira venda daqui a 40
+     dias (no ano dela): é o que acende o lembrete no Início ("comece a
+     procurar até daqui a 10 dias e crie a edição deste ano"). */
+  'campanha-demo-so-passado':{nome:'Festa da cidade · demonstração',ano:String(A-1),evento:'campanha-demo-so-passado',meta:20000,desde:dia(30,1),ate:dia(60,1),clientes:[clientes[0],clientes[1]],
+   os:Object.fromEntries([os('dp-1','92001','Papelaria Exemplo',dia(40,1),9000),os('dp-2','92002','Mercado Modelo',dia(52,1),6000)]),
+   planejamento:{consideracoes:'',estrategia:'',proximaCampanha:'',acoes:[]},historico:[]},
  };
 }
 const pessoasPatrimonioDemo=[
@@ -246,6 +252,16 @@ export async function respostaPreview(url,opcoes={}){
  // gravação genérica nem chamadas à produção pela prévia.
  /* CAMPANHAS NA PRÉVIA: a gravação vale só nesta memória. Confere planejamento e
     logo com os MESMOS validadores do servidor; `criar` nasce; osPatch põe/tira. */
+ /* A LOGO na prévia: não há bucket, então fica como data URL (a forma antiga,
+    que validarLogo ainda aceita). O servidor de verdade grava no Storage. */
+ else if(endpoint==='painel-config' && corpo.action==='logo'){
+  const c=configs.campanhas[corpo.id];if(!c)return erroPreview('Prévia: campanha não encontrada.',409);
+  if(corpo.remover===true)c.logo=null;
+  else{const mime=String(corpo.mime||''),b64=String(corpo.base64||'');
+   if(!/^image\/(png|jpeg|webp)$/.test(mime)||!/^[A-Za-z0-9+/]+={0,2}$/.test(b64)||b64.length>400000)return erroPreview('Logo inválida ou acima de 300 KB.',422);
+   try{c.logo=validarLogo(`data:${mime};base64,${b64}`);}catch(e){return erroPreview(e.message,422);}}
+  dados={valor:structuredClone(configs.campanhas)};
+ }
  else if(endpoint==='painel-config' && corpo.action==='merge' && corpo.chave==='campanhas'){
   for(const [id,c] of Object.entries(corpo.patch||{})){
    const {osPatch,lancPatch,clientesPatch,criar,...campos}=c||{};const atual=configs.campanhas[id];

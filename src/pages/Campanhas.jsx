@@ -40,7 +40,7 @@ import {
   Crown, Check, Link2, Copy, RotateCw, ArrowRight,
 } from "lucide-react";
 import {
-  lerCampanhas, mexerNaCampanha, removerCampanha, anexarNaCampanha, lerAnexoCampanha,
+  lerCampanhas, mexerNaCampanha, removerCampanha, anexarNaCampanha, lerAnexoCampanha, enviarLogoDaCampanha, tirarLogoDaCampanha,
   buscarClientes, buscarOrdensDe, buscarOrdensPorId, lerCobertura,
   lerAnosPanorama, lerAnosMes, lerAnosMesCal, lerOsFinanceiro,
 } from "../services/campanhas.js";
@@ -230,9 +230,9 @@ function ListaDoQuadro({ quadro, linhas, financeiro }) {
                 {o.fin?.tipo === "aberto" && o.fin.resto > 0 && (
                   <span className="text-[11px] text-warn-800">+ {dinheiro(o.fin.resto)} além do título</span>
                 )}
-                {o.fin?.compartilhado && <span className="text-[11px] text-slate-400">∗</span>}
+                {o.fin?.compartilhado && <span className="text-[11px] text-slate-500">∗</span>}
               </span>
-              <span className="block text-[11px] text-slate-400">
+              <span className="block text-[11px] text-slate-500">
                 {dataDaOS(o.data)}
                 {/* A PARTE x O TOTAL DA O.S. quando são diferentes: sem isto,
                     "R$ 4.000" numa O.S. de R$ 10.000 parece erro. */}
@@ -268,7 +268,7 @@ function CartoesFinanceiro({ financeiro, erro, dados, linhas, quadro, aoAbrirQua
     );
   }
   if (!financeiro) {
-    return <div className="text-xs text-slate-400">Conferindo os títulos no contas a receber…</div>;
+    return <div className="text-xs text-slate-500">Conferindo os títulos no contas a receber…</div>;
   }
   const t = financeiro.totais;
   const semMapa = !dados?.temPagos;
@@ -321,7 +321,7 @@ function CartoesFinanceiro({ financeiro, erro, dados, linhas, quadro, aoAbrirQua
               à vista: com título dá para cobrar hoje; sem nota emitida, não --
               e é o financeiro que resolve isso. Sem a divisão, "em aberto"
               viraria um número que ninguém sabe como perseguir. */}
-          <div className={`mt-0.5 text-[11px] ${t.vencidas > 0 ? "text-bad-700/80" : t.aReceber > 0 ? "text-warn-800/80" : "text-slate-400"}`}>
+          <div className={`mt-0.5 text-[11px] ${t.vencidas > 0 ? "text-bad-700/80" : t.aReceber > 0 ? "text-warn-800/80" : "text-slate-500"}`}>
             {t.aReceberOS > 0 ? (
               <>
                 {t.aReceberOS} O.S.
@@ -452,7 +452,7 @@ function CartaoCampanha({ c, aoAbrir, contra, aoDuplicar, aoProxima, salvando = 
             {c.semOS > 0 && " · tem venda sem O.S."}
           </div>
           {(c.desde || c.ate) && (
-            <div className="mt-0.5 text-[11px] text-slate-400">
+            <div className="mt-0.5 text-[11px] text-slate-500">
               {c.desde ? dataDaOS(c.desde) : "início não informado"} — {c.ate ? dataDaOS(c.ate) : "hoje"}
             </div>
           )}
@@ -490,7 +490,7 @@ function CartaoCampanha({ c, aoAbrir, contra, aoDuplicar, aoProxima, salvando = 
           {c.linhas.length === 0 && !(c.semOS > 0)
             ? <span className="text-xs text-slate-500">ainda sem O.S. marcada</span>
             : <Variacao variacao={contra.variacao} anoAnterior={contra.anoAnterior} diferenca={contra.diferenca} />}
-          <span className="truncate text-[11px] text-slate-400">
+          <span className="truncate text-[11px] text-slate-500">
             {contra.anoAnterior} fez {dinheiro(contra.vendidoAnterior)} · {contra.edicoes} edições
           </span>
         </div>
@@ -525,7 +525,7 @@ function CartaoCampanha({ c, aoAbrir, contra, aoDuplicar, aoProxima, salvando = 
 function LinhaVenda({ l, aoTirar, aoAnexar, aoBaixar }) {
   return (
     <div className="flex items-center gap-3 border-b border-slate-100 py-2 text-sm last:border-0">
-      <span className="w-20 shrink-0 text-xs tabular-nums text-slate-400">{dataDaOS(l.data)}</span>
+      <span className="w-20 shrink-0 text-xs tabular-nums text-slate-500">{dataDaOS(l.data)}</span>
       <span className="min-w-0 flex-1 truncate text-slate-700">{l.descricao || "sem descrição"}</span>
       {l.anexo ? (
         <button
@@ -605,7 +605,7 @@ function FormVenda({ form, setForm, aoSalvar, aoCancelar, salvando }) {
  * Sem edição anterior não aparece nada. "0%" ali seria afirmar estabilidade
  * que ninguém mediu. */
 function Variacao({ variacao, anoAnterior, diferenca }) {
-  if (anoAnterior == null) return <span className="text-xs text-slate-400">primeira edição</span>;
+  if (anoAnterior == null) return <span className="text-xs text-slate-500">primeira edição</span>;
   const subiu = (diferenca || 0) > 0;
   const desceu = (diferenca || 0) < 0;
   const Icone = subiu ? TrendingUp : desceu ? TrendingDown : Minus;
@@ -616,7 +616,7 @@ function Variacao({ variacao, anoAnterior, diferenca }) {
       {variacao != null
         ? `${subiu ? "+" : ""}${Math.round(variacao * 100)}%`
         : `${subiu ? "+" : ""}${dinheiro(diferenca || 0)}`}
-      <span className="font-normal text-slate-400">vs {anoAnterior}</span>
+      <span className="font-normal text-slate-500">vs {anoAnterior}</span>
     </span>
   );
 }
@@ -648,7 +648,7 @@ function SeletorAno({ anos, valor, aoEscolher, temSemAno }) {
     >
       {rotulo}
       {sub != null && (
-        <span className={`ml-1.5 text-[11px] ${valor === id ? "text-white/70" : "text-slate-400"}`}>{sub}</span>
+        <span className={`ml-1.5 text-[11px] ${valor === id ? "text-white/70" : "text-slate-500"}`}>{sub}</span>
       )}
     </button>
   );
@@ -706,7 +706,7 @@ function Comparativo({ linhas, anoSel, aoEscolher }) {
                       a mesma cara de um ano ruim -- e puxava "-100%" para o
                       ano seguinte. */}
                   <span className="block tabular-nums text-slate-800">
-                    {l.medido ? dinheiro(l.vendido) : <span className="text-slate-400">nada marcado</span>}
+                    {l.medido ? dinheiro(l.vendido) : <span className="text-slate-500">nada marcado</span>}
                   </span>
                   {/* A barra é relativa ao MAIOR ano, não à soma: com seis anos,
                       barras sobre a soma ficam todas invisíveis. */}
@@ -792,7 +792,7 @@ function Edicoes({ edicoes, atual, aoAbrir, repetidos = [] }) {
                 />
               </span>
             </span>
-            <span className="ml-auto w-24 shrink-0 text-right text-xs tabular-nums text-slate-400 sm:ml-0">
+            <span className="ml-auto w-24 shrink-0 text-right text-xs tabular-nums text-slate-500 sm:ml-0">
               {e.compradores} {e.compradores === 1 ? "comprador" : "compradores"}
             </span>
             <span className="w-28 shrink-0 text-right font-medium tabular-nums text-slate-800">
@@ -810,7 +810,7 @@ function Edicoes({ edicoes, atual, aoAbrir, repetidos = [] }) {
           duplicado. Junte as duas, senão o mesmo evento conta duas vezes no ano.
         </div>
       )}
-      <div className="border-t border-slate-100 pt-2 text-xs text-slate-400">
+      <div className="border-t border-slate-100 pt-2 text-xs text-slate-500">
         As edições criadas pelo botão “Outra edição” ficam ligadas de verdade — o vínculo sobrevive a
         renomear. As cadastradas soltas se encontram pelo NOME; se uma edição antiga foi cadastrada com
         outro nome, renomeie as duas igual, ou crie a nova por aqui.
@@ -942,7 +942,7 @@ function FormVincular({ candidatas, aoVincular, aoCancelar, salvando }) {
           >
             <span className="min-w-0">
               <span className="block truncate text-slate-800">{c.nome || "sem nome"}</span>
-              <span className="text-[11px] text-slate-400">
+              <span className="text-[11px] text-slate-500">
                 {c.ano || "sem ano"} · {c.linhas.length} O.S.
                 {/* Já ligada a outras: vincular arrasta o GRUPO inteiro, e ele
                     precisa saber disso antes de clicar. */}
@@ -952,7 +952,7 @@ function FormVincular({ candidatas, aoVincular, aoCancelar, salvando }) {
             <span className="shrink-0 tabular-nums text-slate-700">{dinheiro(c.vendido)}</span>
           </button>
         )) : (
-          <div className="px-3 py-2 text-sm text-slate-400">Nenhuma com esse nome ou ano.</div>
+          <div className="px-3 py-2 text-sm text-slate-500">Nenhuma com esse nome ou ano.</div>
         )}
       </div>
     </div>
@@ -969,7 +969,7 @@ function Ranking({ itens, semOS }) {
     <div className="space-y-2">
       {itens.map((c, i) => (
         <div key={c.chave} className="flex items-center gap-3 text-sm">
-          <span className="w-5 shrink-0 text-right text-xs tabular-nums text-slate-400">{i + 1}</span>
+          <span className="w-5 shrink-0 text-right text-xs tabular-nums text-slate-500">{i + 1}</span>
           <span className="min-w-0 flex-1">
             <span className="block truncate text-slate-800">{c.cliente}</span>
             <span className="mt-0.5 block h-1.5 overflow-hidden rounded-full bg-slate-100 sem-impressao">
@@ -981,7 +981,7 @@ function Ranking({ itens, semOS }) {
           </span>
           {/* A contagem some no celular: ali a largura toda tem de ir para o
               NOME, que é o que se lê. Ela continua no extrato de papel. */}
-          <span className="hidden w-14 shrink-0 text-right text-xs tabular-nums text-slate-400 sm:block">
+          <span className="hidden w-14 shrink-0 text-right text-xs tabular-nums text-slate-500 sm:block">
             {c.qtd} O.S.
           </span>
           <span className="w-28 shrink-0 text-right font-medium tabular-nums text-slate-800">
@@ -1022,7 +1022,7 @@ function CurvaMensal({ meses }) {
       <div className="flex items-end gap-1 overflow-x-auto pb-1" style={{ minHeight: "5rem" }}>
         {meses.map((m) => (
           <div key={m.mes} className="flex min-w-[2.2rem] flex-1 flex-col items-center gap-1">
-            <span className="text-[10px] tabular-nums text-slate-400">
+            <span className="text-[10px] tabular-nums text-slate-500">
               {m.valor > 0 ? dinheiro(m.valor).replace("R$ ", "") : ""}
             </span>
             <span
@@ -1032,7 +1032,7 @@ function CurvaMensal({ meses }) {
               style={{ height: `${m.valor > 0 ? Math.max(2, (m.valor / teto) * 56) : 0}px` }}
               title={`${rotuloMes(m.mes)}: ${dinheiro(m.valor)} em ${m.qtd} O.S.`}
             />
-            <span className="whitespace-nowrap text-[10px] text-slate-400">{rotuloMes(m.mes)}</span>
+            <span className="whitespace-nowrap text-[10px] text-slate-500">{rotuloMes(m.mes)}</span>
           </div>
         ))}
       </div>
@@ -1050,7 +1050,7 @@ function CurvaMensal({ meses }) {
 function LinhaCompra({ l, fora }) {
   return (
     <div className={`flex items-center gap-3 border-b border-slate-100 py-2 text-sm last:border-0 ${fora ? "bg-warn-50" : ""}`}>
-      <span className={`w-20 shrink-0 text-xs tabular-nums ${fora ? "text-warn-700" : "text-slate-400"}`}>{dataDaOS(l.data)}</span>
+      <span className={`w-20 shrink-0 text-xs tabular-nums ${fora ? "text-warn-700" : "text-slate-500"}`}>{dataDaOS(l.data)}</span>
       <span className="w-20 shrink-0 font-medium text-slate-700">{l.numero}</span>
       <span className="min-w-0 flex-1 truncate text-slate-600">{l.cliente}</span>
       {/* O SELO diz POR QUE esta linha esta destacada. Sem ele, a faixa amarela
@@ -1131,13 +1131,13 @@ function Produtos({ produtos, categorias, grao, aoTrocar }) {
                     item saiu -- sem isso "Adesivo Perfurado 60x33" fica solto e
                     não dá para achar no ERP. */}
                 {(x.produto && x.produto !== x.rotulo) || x.categoria ? (
-                  <span className="truncate text-[11px] text-slate-400">
+                  <span className="truncate text-[11px] text-slate-500">
                     {[x.produto !== x.rotulo ? x.produto : null, x.categoria || null]
                       .filter(Boolean).join(" · ")}
                   </span>
                 ) : null}
               </span>
-              <span className="w-24 shrink-0 text-right text-xs tabular-nums text-slate-400">
+              <span className="w-24 shrink-0 text-right text-xs tabular-nums text-slate-500">
                 {/* QUANTIDADE só no detalhe: nos rollups ela somaria adesivo com
                     bandeira. Ali o que conta é quantos itens diferentes. */}
                 {detalhado
@@ -1168,7 +1168,7 @@ function Produtos({ produtos, categorias, grao, aoTrocar }) {
             </div>
           ))}
           {lista.length > 30 && (
-            <div className="text-xs text-slate-400">
+            <div className="text-xs text-slate-500">
               e mais {lista.length - 30} — o PDF traz a lista inteira.
             </div>
           )}
@@ -1187,7 +1187,7 @@ function Produtos({ produtos, categorias, grao, aoTrocar }) {
           o número vira uma afirmação que ninguém pode sustentar na frente do
           cliente. */}
       {temDinheiro && lista.length > 0 && (
-        <p className="text-[11px] text-slate-400">
+        <p className="text-[11px] text-slate-500">
           O ERP cobra a O.S., não o item. A divisão acima é proporcional ao valor de cada
           item dentro da sua O.S. — serve para ver onde o dinheiro está preso, não para cobrar por item.
         </p>
@@ -1283,7 +1283,7 @@ function Produtos({ produtos, categorias, grao, aoTrocar }) {
         </div>
       )}
       {produtos.total > 0 && produtos.fecha && (
-        <div className="text-xs text-slate-400">
+        <div className="text-xs text-slate-500">
           Soma dos itens: {dinheiro(produtos.total)} — fecha com o bruto das O.S. lidas (antes do
           desconto de cada uma).
         </div>
@@ -1635,7 +1635,7 @@ function MesDetalhe({ mes, detalhe, erro, semCampanha, aoFechar }) {
             </span>
           )}
         </span>
-        <button type="button" onClick={aoFechar} className="shrink-0 rounded-md p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600" aria-label="Fechar o mês">
+        <button type="button" onClick={aoFechar} className="shrink-0 rounded-md p-1 text-slate-500 hover:bg-slate-100 hover:text-slate-600" aria-label="Fechar o mês">
           <X size={14} />
         </button>
       </div>
@@ -1643,7 +1643,7 @@ function MesDetalhe({ mes, detalhe, erro, semCampanha, aoFechar }) {
       {erro ? (
         <div className="text-xs text-bad-600">{erro}</div>
       ) : !detalhe ? (
-        <div className="text-xs text-slate-400">Buscando o mês no servidor…</div>
+        <div className="text-xs text-slate-500">Buscando o mês no servidor…</div>
       ) : (
         <>
           {detalhe.campanha?.valor > 0 && (
@@ -1654,7 +1654,7 @@ function MesDetalhe({ mes, detalhe, erro, semCampanha, aoFechar }) {
           )}
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-1">
-              <div className="text-xs font-medium uppercase tracking-wide text-slate-400">Quem comprou</div>
+              <div className="text-xs font-medium uppercase tracking-wide text-slate-500">Quem comprou</div>
               <div className="max-h-72 space-y-0.5 overflow-y-auto pr-1">
                 {detalhe.clientes.map((c) => (
                   <div key={c.chave || c.nome} className="flex items-baseline gap-2 text-xs">
@@ -1677,13 +1677,13 @@ function MesDetalhe({ mes, detalhe, erro, semCampanha, aoFechar }) {
                 ))}
               </div>
               {detalhe.clientesFora > 0 && (
-                <div className="text-[11px] text-slate-400">
+                <div className="text-[11px] text-slate-500">
                   e mais {detalhe.clientesFora} {detalhe.clientesFora === 1 ? "comprador" : "compradores"} no mês.
                 </div>
               )}
             </div>
             <div className="space-y-1">
-              <div className="text-xs font-medium uppercase tracking-wide text-slate-400">O que foi vendido</div>
+              <div className="text-xs font-medium uppercase tracking-wide text-slate-500">O que foi vendido</div>
               <div className="max-h-72 space-y-0.5 overflow-y-auto pr-1">
                 {detalhe.produtos.map((pr) => (
                   <div key={`${pr.produto}|${pr.rotulo}`} className="flex items-baseline gap-2 text-xs">
@@ -1698,10 +1698,10 @@ function MesDetalhe({ mes, detalhe, erro, semCampanha, aoFechar }) {
                 ))}
               </div>
               {detalhe.produtosForaValor > 0 && (
-                <div className="text-[11px] text-slate-400">e mais {dinheiro(detalhe.produtosForaValor)} em outros produtos.</div>
+                <div className="text-[11px] text-slate-500">e mais {dinheiro(detalhe.produtosForaValor)} em outros produtos.</div>
               )}
               {!detalhe.produtos.length && (
-                <div className="text-[11px] text-slate-400">
+                <div className="text-[11px] text-slate-500">
                   {detalhe.produtosCobertura?.osComItens === 0
                     ? "Nenhuma O.S. deste mês tem itens carregados do ERP — o ranking não tem de onde ler."
                     : "Nenhum item com produto nomeado neste mês."}
@@ -1719,7 +1719,7 @@ function MesDetalhe({ mes, detalhe, erro, semCampanha, aoFechar }) {
                 </div>
               )}
               {detalhe.produtos.length > 0 && (
-                <div className="text-[11px] text-slate-400">
+                <div className="text-[11px] text-slate-500">
                   {/* A COLUNA DA ESQUERDA É LÍQUIDA e esta é BRUTA (os itens
                       somam antes do desconto). Em fevereiro de 2026 isso são
                       R$ 149 mil de diferença entre duas colunas vizinhas --
@@ -1730,7 +1730,7 @@ function MesDetalhe({ mes, detalhe, erro, semCampanha, aoFechar }) {
               )}
               {detalhe.produtosCobertura &&
                 detalhe.produtosCobertura.brutoComItens - detalhe.produtosCobertura.valorLido > 0.05 && (
-                <div className="text-[11px] text-slate-400">
+                <div className="text-[11px] text-slate-500">
                   {dinheiro(detalhe.produtosCobertura.brutoComItens - detalhe.produtosCobertura.valorLido)} vieram
                   do ERP sem produto nomeado e ficam fora do ranking.
                 </div>
@@ -1771,18 +1771,18 @@ function MesCalendario({ n, linhas, detalhe, erro, semCampanha, aoFechar }) {
           {MES_LONGO[n - 1]}, ano a ano
           {semCampanha && <span className="ml-2 font-sans text-xs font-normal text-slate-500">sem as campanhas</span>}
         </span>
-        <button type="button" onClick={aoFechar} className="shrink-0 rounded-md p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600" aria-label="Fechar o mês comparado">
+        <button type="button" onClick={aoFechar} className="shrink-0 rounded-md p-1 text-slate-500 hover:bg-slate-100 hover:text-slate-600" aria-label="Fechar o mês comparado">
           <X size={14} />
         </button>
       </div>
 
       <div className="space-y-1">
-        {temParcialAqui && <div className="text-[11px] text-slate-400">* mês pela metade — fica fora das comparações.</div>}
+        {temParcialAqui && <div className="text-[11px] text-slate-500">* mês pela metade: fica fora das comparações.</div>}
         {linhas.map((l) => (
           <div key={l.ano} className="flex items-center gap-3 text-xs">
             <span className="w-10 shrink-0 font-medium tabular-nums text-brand-600">{l.ano}</span>
             {l.fora ? (
-              <span className="flex-1 text-slate-400">o painel não tem este mês</span>
+              <span className="flex-1 text-slate-500">o painel não tem este mês</span>
             ) : (
               <>
                 <span className="h-3 min-w-0 flex-1 overflow-hidden rounded bg-slate-100">
@@ -1810,15 +1810,15 @@ function MesCalendario({ n, linhas, detalhe, erro, semCampanha, aoFechar }) {
       </div>
 
       <div className="space-y-1">
-        <div className="text-xs font-medium uppercase tracking-wide text-slate-400">
+        <div className="text-xs font-medium uppercase tracking-wide text-slate-500">
           Os produtos desta época, ano a ano
         </div>
         {erro ? (
           <div className="text-xs text-bad-600">{erro}</div>
         ) : !detalhe ? (
-          <div className="text-xs text-slate-400">Comparando os {MES_LONGO[n - 1]}s no servidor…</div>
+          <div className="text-xs text-slate-500">Comparando os {MES_LONGO[n - 1]}s no servidor…</div>
         ) : !detalhe.produtos.length ? (
-          <div className="text-xs text-slate-400">Nenhum item com produto nomeado nesta época.</div>
+          <div className="text-xs text-slate-500">Nenhum item com produto nomeado nesta época.</div>
         ) : (
           <>
             <div className="space-y-1.5">
@@ -1829,7 +1829,7 @@ function MesCalendario({ n, linhas, detalhe, erro, semCampanha, aoFechar }) {
                     <span className="min-w-0 flex-1 self-center truncate text-slate-700" title={pr.produto !== pr.rotulo ? `${pr.produto} — ${pr.rotulo}` : pr.rotulo}>
                       {pr.rotulo}
                     </span>
-                    <span className="shrink-0 self-center whitespace-nowrap text-[10px] text-slate-400">
+                    <span className="shrink-0 self-center whitespace-nowrap text-[10px] text-slate-500">
                       em {anosCheios.filter((a2) => (pr.anos[a2] || 0) > 0).length} de {anosCheios.length}
                     </span>
                     {/* A recorrência DESENHADA: uma coluna por ano, altura pelo
@@ -1863,7 +1863,7 @@ function MesCalendario({ n, linhas, detalhe, erro, semCampanha, aoFechar }) {
               })}
             </div>
             {detalhe.produtosQtd > Math.min(detalhe.produtos.length, 15) && (
-              <div className="text-[11px] text-slate-400">
+              <div className="text-[11px] text-slate-500">
                 {/* O corte fala, medido contra o que a TELA mostra -- não
                     contra um 15 fixo que calaria se o servidor mandasse menos. */}
                 e mais {detalhe.produtosQtd - Math.min(detalhe.produtos.length, 15)} produtos nesta época,
@@ -1879,11 +1879,11 @@ function MesCalendario({ n, linhas, detalhe, erro, semCampanha, aoFechar }) {
               </div>
             )}
             {sobraSemNome > 0.05 && (
-              <div className="text-[11px] text-slate-400">
+              <div className="text-[11px] text-slate-500">
                 {dinheiro(sobraSemNome)} vieram do ERP sem produto nomeado e ficam fora do ranking.
               </div>
             )}
-            <div className="text-[11px] text-slate-400">
+            <div className="text-[11px] text-slate-500">
               Os valores dos produtos são brutos, antes do desconto — as linhas dos anos, acima, são líquidas.
               Cada linha de colunas usa a escala do próprio produto; para comparar produtos, leia os totais.
             </div>
@@ -2069,6 +2069,15 @@ export default function Campanhas() {
   }, []);
 
   const campanha = aberta ? mapa?.[aberta] : null;
+  /* LINK PARA UMA CAMPANHA QUE NÃO EXISTE (o lembrete do Início aponta pelo
+     id): sem isto a tela caía na lista em silêncio e o parâmetro ficava na
+     URL, repetindo a cada recarga. */
+  useEffect(() => {
+    if (mapa && aberta && !mapa[aberta]) {
+      setAberta(null);
+      setAviso({ tom: "erro", texto: "A campanha do link não existe mais. Veja a lista." });
+    }
+  }, [mapa, aberta]);
 
   /* DE QUANDO PROCURAR: campo DA CAMPANHA. O padrão é 1º de janeiro do ano
      dela -- é a data certa em praticamente todo caso, e sem ela a busca traz a
@@ -2378,9 +2387,13 @@ export default function Campanhas() {
       setAviso(null);
       setSalvando(true);
       try {
-        const novo = typeof o === "function"
-          ? await mexerNaCampanha(id, o(mapaRef.current?.[id]))
-          : await mexerNaCampanha(id, o);
+        const pedido = typeof o === "function" ? o(mapaRef.current?.[id]) : o;
+        /* A logo tem ação própria (vai para o Storage); o resto é o merge. */
+        const novo = pedido?.logoArquivo
+          ? await enviarLogoDaCampanha(id, pedido.logoArquivo)
+          : pedido?.tirarLogo
+            ? await tirarLogoDaCampanha(id)
+            : await mexerNaCampanha(id, pedido);
         mapaRef.current = novo;
         setMapa(novo);
         /* A aba Anos lê a MESMA marcação que acabou de mudar (a fatia âmbar
@@ -2670,8 +2683,10 @@ export default function Campanhas() {
   }, [aberta, mexer]);
 
   /* A LOGO DO EVENTO: reduzida aqui (192 px no lado maior; PNG se tiver
-     transparência, JPEG se não) e gravada dentro do registro, a mesma regra da
-     logo das contas em Bancos. Nada de SVG nem da imagem original de vários MB. */
+     transparência, JPEG se não) e mandada ao Storage pela ação `logo`; o
+     registro guarda só a URL (até 24/10 ia em base64 dentro dele, e cada
+     leitura trazia todas as logos). Nada de SVG nem da imagem original de
+     vários MB. */
   const logoRef = useRef(null);
   const trocarLogo = useCallback(async (file) => {
     if (!aberta || !file) return;
@@ -2702,8 +2717,11 @@ export default function Campanhas() {
         dados = canvas.toDataURL("image/jpeg", 0.85);
       }
       if (dados.length > LOGO_MAX) throw new Error("A imagem ficou grande demais mesmo reduzida. Tente uma mais simples.");
-      const logo = validarLogo(dados);
-      await mexer(aberta, { campos: { logo } });
+      const [cabecalho, base64] = dados.split(",");
+      const mime = cabecalho.slice(5, cabecalho.indexOf(";"));
+      const salvo = await mexer(aberta, { logoArquivo: { mime, base64 } });
+      // "Não deu erro" não é prova: a URL gravada tem de ser a de uma logo nossa.
+      if (salvo && !logoValida(salvo.logo)) setAviso({ tom: "erro", texto: "Não consegui confirmar a logo gravada. Tente de novo." });
     } catch (e) {
       setAviso({ tom: "erro", texto: e.message || "Não foi possível usar esta imagem." });
     }
@@ -3117,7 +3135,7 @@ export default function Campanhas() {
                   cartão da lista e vai junto para a próxima edição. */}
               <button
                 type="button"
-                className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-dashed border-slate-300 bg-slate-50 text-[10px] text-slate-400 hover:border-brand-300 sem-impressao"
+                className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-dashed border-slate-300 bg-slate-50 text-[10px] text-slate-500 hover:border-brand-300 sem-impressao"
                 title={logoValida(campanha.logo) ? "Trocar a logo do evento" : "Anexar a logo do evento (PNG, JPG ou WebP)"}
                 aria-label={logoValida(campanha.logo) ? "Trocar a logo do evento" : "Anexar a logo do evento"}
                 disabled={salvando}
@@ -3127,7 +3145,7 @@ export default function Campanhas() {
                 {logoValida(campanha.logo) ? <img src={campanha.logo} alt="" className="h-full w-full object-contain p-1" /> : "Logo"}
               </button>
               {logoValida(campanha.logo) && (
-                <button type="button" className="min-h-11 px-2 text-xs text-slate-500 hover:text-bad-600 sem-impressao" disabled={salvando} onClick={() => mexer(aberta, { campos: { logo: null } })}>
+                <button type="button" className="min-h-11 px-2 text-xs text-slate-500 hover:text-bad-600 sem-impressao" disabled={salvando} onClick={() => mexer(aberta, { tirarLogo: true })}>
                   tirar logo
                 </button>
               )}
@@ -3228,7 +3246,7 @@ export default function Campanhas() {
                       <> · {dinheiro(lider.sobreOSegundo)} à frente do 2º</>
                     )}
                   </div>
-                  <div className="mt-0.5 text-xs text-slate-400">
+                  <div className="mt-0.5 text-xs text-slate-500">
                     de {resumo.compradores} {resumo.compradores === 1 ? "comprador" : "compradores"}
                   </div>
                 </>
@@ -3529,15 +3547,15 @@ export default function Campanhas() {
           <div className="flex flex-wrap gap-2">
             {(campanha.clientes || []).map((c) => (
               <span key={c.chave} className="flex items-center gap-1.5 rounded-full bg-slate-100 py-1 pl-3 pr-1.5 text-sm text-slate-700">
-                <Building2 size={13} className="text-slate-400" />
+                <Building2 size={13} className="text-slate-500" />
                 <span>{c.nome}</span>
                 {(c.cnpjs || []).length > 0 && (
-                  <span className="text-[11px] text-slate-400">{c.cnpjs.map(formatarDoc).join(" · ")}</span>
+                  <span className="text-[11px] text-slate-500">{c.cnpjs.map(formatarDoc).join(" · ")}</span>
                 )}
                 <button
                   type="button"
                   onClick={() => desligarCliente(c.chave)}
-                  className="rounded-full p-1 text-slate-400 hover:bg-white hover:text-bad-600"
+                  className="rounded-full p-1 text-slate-500 hover:bg-white hover:text-bad-600"
                   aria-label={`Tirar ${c.nome} desta campanha`}
                 >
                   <X size={12} />
@@ -3545,12 +3563,12 @@ export default function Campanhas() {
               </span>
             ))}
             {!(campanha.clientes || []).length && (
-              <span className="text-sm text-slate-400">Nenhum ainda — procure abaixo.</span>
+              <span className="text-sm text-slate-500">Nenhum ainda. Procure abaixo.</span>
             )}
           </div>
 
           <div className="relative max-w-md">
-            <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+            <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
             <input
               className="input pl-9"
               placeholder="Procurar comprador pelo nome…"
@@ -3572,10 +3590,10 @@ export default function Campanhas() {
                     <span className="min-w-0">
                       <span className="block truncate text-slate-800">{c.nome}</span>
                       {(c.cnpjs || []).length > 0 && (
-                        <span className="text-[11px] text-slate-400">{c.cnpjs.map(formatarDoc).join(" · ")}</span>
+                        <span className="text-[11px] text-slate-500">{c.cnpjs.map(formatarDoc).join(" · ")}</span>
                       )}
                     </span>
-                    <span className="shrink-0 text-[11px] text-slate-400">{c.qtd} O.S. · {dinheiro(c.total)}</span>
+                    <span className="shrink-0 text-[11px] text-slate-500">{c.qtd} O.S. · {dinheiro(c.total)}</span>
                   </button>
                 ))}
               </div>
@@ -3591,7 +3609,7 @@ export default function Campanhas() {
                 no chip acima. Digitar o nome para conferir se já foi ligado é
                 gesto diário. */}
             {buscaCliente.trim().length >= 2 && !clientesAchados.length && (
-              <div className="mt-1 text-xs text-slate-400">
+              <div className="mt-1 text-xs text-slate-500">
                 {achados.length > 0 ? (
                   achados.length === 1
                     ? `“${achados[0].nome}” já está nesta campanha — veja os compradores acima.`
@@ -3739,7 +3757,7 @@ export default function Campanhas() {
               </button>
               {paraEscolher.length > 8 && (
                 <div className="relative">
-                  <Search size={14} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <Search size={14} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-500" />
                   <input
                     className="input h-8 w-44 pl-8 text-sm"
                     placeholder="nº ou cliente"
@@ -3797,7 +3815,7 @@ export default function Campanhas() {
                     {" · "}
                     <span className="tabular-nums">{dinheiro(valorParaMarcar)}</span>
                     {presasNaLista > 0 && (
-                      <span className="text-slate-400">
+                      <span className="text-slate-500">
                         {" "}({presasNaLista} {presasNaLista === 1 ? "está" : "estão"} em outra campanha e fica
                         {presasNaLista === 1 ? "" : "m"} de fora)
                       </span>
@@ -3845,7 +3863,7 @@ export default function Campanhas() {
           <ExtratoImpresso e={extrato} produtos={produtos} categorias={categorias} meses={meses} desde={desde} ate={ate} />
         )}
 
-        {salvando && <div className="text-xs text-slate-400">salvando…</div>}
+        {salvando && <div className="text-xs text-slate-500">salvando…</div>}
       </div>
     );
   }
@@ -3958,7 +3976,7 @@ export default function Campanhas() {
               <div key={ev.rotulo + ev.total} className="space-y-1.5">
                 <div className="flex items-baseline justify-between gap-3">
                   <span className="truncate text-sm font-medium text-slate-800">{ev.rotulo}</span>
-                  <span className="shrink-0 text-xs tabular-nums text-slate-400">
+                  <span className="shrink-0 text-xs tabular-nums text-slate-500">
                     {ev.edicoes.length} {ev.edicoes.length === 1 ? "edição" : "edições"} · {dinheiro(ev.total)}
                   </span>
                 </div>
@@ -3971,7 +3989,7 @@ export default function Campanhas() {
                       className="flex w-full flex-wrap items-center gap-x-3 gap-y-1 rounded-lg px-2 py-1.5 text-left text-sm hover:bg-slate-50"
                     >
                       <span className="w-12 shrink-0 font-medium tabular-nums text-brand-600">{e.ano || "—"}</span>
-                      <span className="min-w-0 flex-1 truncate text-xs text-slate-400">
+                      <span className="min-w-0 flex-1 truncate text-xs text-slate-500">
                         {e.compradores} {e.compradores === 1 ? "comprador" : "compradores"} · {e.os} O.S.
                         {e.encerrada && " · encerrada"}
                       </span>
@@ -4000,7 +4018,7 @@ export default function Campanhas() {
             >
               <Ranking itens={rankingGeral.slice(0, 10)} semOS={0} />
               {rankingGeral.length > 10 && (
-                <div className="text-xs text-slate-400">e mais {rankingGeral.length - 10} compradores.</div>
+                <div className="text-xs text-slate-500">e mais {rankingGeral.length - 10} compradores.</div>
               )}
             </Secao>
           )}
@@ -4053,7 +4071,7 @@ export default function Campanhas() {
               </button>
             </Card>
           ) : !panorama ? (
-            <Card className="py-8 text-center text-sm text-slate-400">Somando a base inteira no servidor…</Card>
+            <Card className="py-8 text-center text-sm text-slate-500">Somando a base inteira no servidor…</Card>
           ) : (
             <>
               <Secao
@@ -4075,7 +4093,7 @@ export default function Campanhas() {
                     {picoEpoca.mediaCampanha > 0 && <> — {dinheiro(picoEpoca.mediaCampanha)} disso é campanha</>}.
                   </div>
                 )}
-                <div className="text-[11px] text-slate-400">
+                <div className="text-[11px] text-slate-500">
                   Toque num mês para comparar todos os janeiros (ou fevereiros…) entre si, com os produtos da época.
                 </div>
                 <LegendaAnos temParcial={false} semCampanha={modoAnos === "sem"} />
