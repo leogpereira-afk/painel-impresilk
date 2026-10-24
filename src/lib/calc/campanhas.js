@@ -1336,3 +1336,70 @@ export function ritmoDaMeta(campanha, resumo, { hoje, anterior = null } = {}) {
     anterior: ant,
   };
 }
+
+/* ===================================================================== */
+/* O LEMBRETE NO INÍCIO (sugestão aceita pelo dono, 24/10/2026): "um mês antes
+ * da primeira venda do ano anterior". Para cada evento (edições agrupadas pelo
+ * vínculo ou pelo nome), se a edição mais recente é de um ano ANTERIOR ao de
+ * hoje e a primeira venda dela, deslocada para este ano, cai na janela (45
+ * dias antes até 60 depois), sai um lembrete: crie a edição deste ano e
+ * comece a procurar os clientes até um mês antes. Some sozinho quando a
+ * edição nasce (a mais recente passa a ser deste ano). Sem O.S. datada na
+ * última edição não há referência, e não se inventa uma. `hoje` vem de fora;
+ * as O.S. do ERP não entram (a lista usa a data e o valor gravados na marcação). */
+export function lembretesDeCampanha(mapa, { hoje, antes = 45, depois = 60 } = {}) {
+  const h = diaUTC(hoje);
+  if (h === null) return [];
+  const anoHoje = Number(String(hoje).slice(0, 4));
+  const lista = resumoGeralCampanhas(mapa || {}, [], anoHoje);
+  const g = gruposDeEvento(lista);
+  const porGrupo = new Map();
+  for (const c of lista) {
+    const k = g.raiz(c);
+    if (!porGrupo.has(k)) porGrupo.set(k, []);
+    porGrupo.get(k).push(c);
+  }
+  /* O NOME SEM O ANO: "Feira 2025" e "Feira 2026" soltas (sem vínculo) são o
+     mesmo evento para este lembrete; senão a edição nova não o apagaria. */
+  const anoValido = (c) => /^\d{4}$/.test(String(c.ano || "").trim());
+  const semAno = (nome) => chaveCliente(String(nome || "").replace(/\b\d{4}\b/g, " "));
+  const maiorAnoDoNome = new Map();
+  for (const c of lista) {
+    if (!anoValido(c)) continue;
+    const k = semAno(c.nome);
+    if (k) maiorAnoDoNome.set(k, Math.max(maiorAnoDoNome.get(k) ?? -1, Number(String(c.ano).trim())));
+  }
+  const saida = [];
+  for (const membros of porGrupo.values()) {
+    const comAno = membros.filter(anoValido)
+      .sort((a, b) => String(b.ano).trim().localeCompare(String(a.ano).trim()) || b.vendido - a.vendido);
+    const ultima = comAno[0];
+    if (!ultima) continue;
+    const anoUlt = Number(String(ultima.ano).trim());
+    /* As datas vêm de TODAS as fichas do último ano (cadastro gêmeo no mesmo
+       ano) e também das vendas sem O.S.: é a mesma base do ritmo da meta. */
+    const datas = comAno.filter((c) => Number(String(c.ano).trim()) === anoUlt)
+      .flatMap((c) => [...(c.linhas || []), ...(c.vendasSemOS || [])])
+      .map((l) => String(l.data || "").slice(0, 10)).filter((d) => diaUTC(d) !== null).sort();
+    const primeira = datas[0];
+    if (!primeira) continue;
+    const anoDoNome = maiorAnoDoNome.get(semAno(ultima.nome)) ?? anoUlt;
+    /* O alvo é este ano ou o seguinte: em dezembro, um evento de janeiro já
+       pede a edição do ano que vem, e a "última edição" ainda é a deste ano. */
+    for (const anoAlvo of [anoHoje, anoHoje + 1]) {
+      if (anoUlt >= anoAlvo || anoDoNome >= anoAlvo) continue;
+      const prevista = deslocaAnos(primeira, anoAlvo - anoUlt);
+      const p = diaUTC(prevista);
+      if (p === null || h < p - antes || h > p + depois) continue;
+      saida.push({
+        id: ultima.id, nome: String(ultima.nome || ""), anoAnterior: String(anoUlt), anoNovo: String(anoAlvo),
+        primeiraVendaAnterior: primeira, primeiraVendaPrevista: prevista, procurarAte: isoDoDia(p - 30),
+        diasAteProcurar: p - 30 - h, diasAtePrimeiraVenda: p - h, atrasado: h > p - 30,
+        vendidoAnterior: ultima.vendido, compradores: ultima.compradores,
+        edicoes: new Set(comAno.map((c) => String(c.ano).trim())).size,
+      });
+      break;
+    }
+  }
+  return saida.sort((a, b) => a.diasAtePrimeiraVenda - b.diasAtePrimeiraVenda);
+}

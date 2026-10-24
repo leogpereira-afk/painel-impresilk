@@ -32,14 +32,36 @@ export function projetarCampanhas(campanhas, mes) {
   }
   return eventos;
 }
-// A LOGO DO EVENTO mora dentro do registro, como imagem pequena em base64
-// (PNG, JPEG ou WebP), do mesmo jeito que a logo das contas em Bancos: vira o
-// src de <img> na lista e na ficha, sem uma ida ao bucket por campanha. A tela
-// reduz a imagem antes de mandar; aqui só se confere que é imagem de verdade e
-// de tamanho razoável. SVG não entra (pode carregar script). null ou '' tira.
+// A LOGO DO EVENTO mora no Storage (bucket público painel-publico, pasta
+// campanhas/<id da campanha>/<uuid>.<png|jpg|webp>) e o registro guarda só a
+// URL: até 24/10/2026 ela viajava em base64 dentro do registro e cada leitura
+// ou gravação devolvia TODAS as campanhas com todas as logos. A tela reduz a
+// imagem e manda pela ação `logo` do painel-config, que confere os bytes e
+// grava o arquivo. A forma antiga (data URL pequena) continua aceita: é o que
+// a prévia usa e o que uma tela ainda não recarregada mandaria. SVG não entra
+// (pode carregar script). null ou '' tira.
 export const LOGO_MAX = 200000;
+export const LOGO_BUCKET = 'painel-publico';
+/* O id da campanha que pode ter logo: só letras, dígitos, ponto, traço e
+   sublinhado, começando por letra ou dígito (nem ".", nem "..", nem barra).
+   É o que novoId gera; outro id é cliente forjado e leva 400 antes do upload. */
+export const LOGO_ID_RE = /^[A-Za-z0-9][A-Za-z0-9._-]{0,119}$/;
+export const LOGO_URL_RE = /^https:\/\/[a-z0-9-]+\.supabase\.co\/storage\/v1\/object\/public\/painel-publico\/campanhas\/[A-Za-z0-9][A-Za-z0-9._-]{0,119}\/[a-f0-9-]{36}\.(png|jpg|webp)$/;
 export function validarLogo(valor) {
   if (valor == null || valor === '') return null;
-  if (typeof valor !== 'string' || valor.length > LOGO_MAX || !/^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/]+={0,2}$/.test(valor)) throw Error('Logo inválida: use uma imagem PNG, JPG ou WebP pequena.');
+  if (typeof valor !== 'string') throw Error('Logo inválida: use uma imagem PNG, JPG ou WebP pequena.');
+  if (LOGO_URL_RE.test(valor)) return valor;
+  if (valor.length > LOGO_MAX || !/^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/]+={0,2}$/.test(valor)) throw Error('Logo inválida: use uma imagem PNG, JPG ou WebP pequena.');
   return valor;
+}
+/* O caminho no bucket, a partir do id da campanha e de um nome de arquivo
+   gerado pelo servidor. O id vai codificado: um id com barra viraria pasta. */
+export function caminhoDaLogo(campanhaId, uuid, ext) {
+  return `campanhas/${encodeURIComponent(String(campanhaId))}/${uuid}.${ext}`;
+}
+/* O caminho dentro do bucket a partir da URL pública gravada; "" se a URL não
+   é a de uma logo nossa (forma antiga em base64, ou lixo). */
+export function caminhoNoBucket(url) {
+  if (!LOGO_URL_RE.test(String(url || ''))) return '';
+  return String(url).split(`/object/public/${LOGO_BUCKET}/`)[1] || '';
 }

@@ -4,11 +4,11 @@ import {readFile} from 'node:fs/promises';
 import {build} from 'esbuild';
 import {fileURLToPath} from 'node:url';
 
-async function funcao(nome,{revogada=false,erroBanco=false,linhas=[],unico=null}={}) {
+async function funcao(nome,{revogada=false,erroBanco=false,linhas=[],unico=null,env={}}={}) {
  let handler;const operacoes=[];
- const banco={storage:{from:()=>({})},rpc:async (nome,args)=>{operacoes.push({nome,args});return erroBanco?{data:null,error:{message:'falha de gravação simulada'}}:{data:{gravou:2,contas:0,verificado:true},error:null};},from:tabela=>{let q; q=new Proxy({}, {get(_,key){if(key==='then')return(resolve,reject)=>Promise.resolve(erroBanco?{data:null,error:{message:'falha de gravação simulada'}}:{data:tabela==='painel_cache'?[{chave:'comercial_catalogo',valor:{vendedores:[{id:'1',nome:'Vendedora teste'}]}},{chave:'orcamentos',valor:[{id:'ficticio',vendedorNome:'Vendedora teste'}]}]:(globalThis.__testeLinhas??[]),error:null}).then(resolve,reject);if(key==='maybeSingle')return async()=>({data:globalThis.__testeUnico??null,error:null});return()=>q;}});operacoes.push({tabela});return q;}};
+ const banco={storage:{from:bucket=>({upload:async(caminho)=>{operacoes.push({storage:'upload',bucket,caminho});return {error:null};},remove:async(caminhos)=>{operacoes.push({storage:'remove',bucket,caminhos});return {error:null};}})},rpc:async (nome,args)=>{operacoes.push({nome,args});return erroBanco?{data:null,error:{message:'falha de gravação simulada'}}:{data:{gravou:2,contas:0,verificado:true},error:null};},from:tabela=>{let q; q=new Proxy({}, {get(_,key){if(key==='then')return(resolve,reject)=>Promise.resolve(erroBanco?{data:null,error:{message:'falha de gravação simulada'}}:{data:tabela==='painel_cache'?[{chave:'comercial_catalogo',valor:{vendedores:[{id:'1',nome:'Vendedora teste'}]}},{chave:'orcamentos',valor:[{id:'ficticio',vendedorNome:'Vendedora teste'}]}]:(globalThis.__testeLinhas??[]),error:null}).then(resolve,reject);if(key==='maybeSingle')return async()=>({data:globalThis.__testeUnico??null,error:null});return()=>q;}});operacoes.push({tabela});return q;}};
  globalThis.__testeBanco=banco;globalThis.__testeRevogada=revogada;globalThis.__testeLinhas=linhas;globalThis.__testeUnico=unico;
- globalThis.Deno={env:{get:()=> 'teste',toObject:()=>({})},serve:fn=>handler=fn};
+ globalThis.Deno={env:{get:chave=>env[chave]??'teste',toObject:()=>({})},serve:fn=>handler=fn};
  let s=await readFile(new URL(`../supabase/functions/${nome}/index.ts`,import.meta.url),'utf8');
  s=s.replace(/import \{ createClient \} from [^;]+;/,'const createClient=()=>globalThis.__testeBanco;')
  .replace(/import \{ verificarJwt, crachaRevogado \} from [^;]+;/,`const verificarJwt=async token=>token==='direcao'?{master:true,sub:'direcao'}:token==='glossario'?{sub:'pessoa',perms:['glossario']}:token==='vendas'?{sub:'vendas',vend:'Vendedora teste',perms:['orcamentos']}:token==='cobranca'?{sub:'cobranca',perms:['contas-atrasadas']}:token==='documentos'?{sub:'documentos',perms:['documentos']}:token==='manutencao'?{sub:'manutencao',perms:['manutencoes']}:token==='planilheiro'?{sub:'planilheiro',perms:['planilhas']}:token==='curinga'?{sub:'curinga',perms:['*']}:null;const crachaRevogado=async()=>globalThis.__testeRevogada;`);
@@ -250,4 +250,42 @@ test('a tabela de concessão não tem porta genérica — ninguém se auto-conce
   for (const cracha of ['planilheiro', 'curinga'])
    assert.equal((await f.chamar(cracha, { action: acao, usuario: 'alguem', setores: ['set-fin'] })).status, 403,
      `${cracha} ${acao}`);
+});
+
+/* A LOGO DA CAMPANHA NO STORAGE (24/10/2026): a porta e a mesma do merge de
+   campanhas, o conteudo tem de ser a imagem que o tipo diz, e nada sobe antes
+   de a campanha existir; se o banco recusa, o arquivo que subiu desce. */
+test('ação logo: sem o módulo 403 e nada sobe; SVG disfarçado 422; id torto 400; campanha inexistente 409; banco recusa 503 e apaga o que subiu',async()=>{
+ const svg=Buffer.from('<svg xmlns="http://www.w3.org/2000/svg"></svg>').toString('base64');
+ const png=Buffer.from([137,80,78,71,13,10,26,10,0,0,0,13,73,72,68,82]).toString('base64');
+ const env={SUPABASE_URL:'https://projeto-teste.supabase.co'};
+ const sem=await funcao('painel-config',{env});
+ assert.equal((await sem.chamar('glossario',{action:'logo',id:'campanha-1',mime:'image/png',base64:png})).status,403);
+ assert.equal((await sem.chamar('direcao',{action:'logo',id:'campanha-1',mime:'image/png',base64:png})).status,409,'campanha que não existe');
+ assert.equal(sem.operacoes.filter(o=>o.storage).length,0,'nada sobe sem campanha');
+ const com=await funcao('painel-config',{unico:{registro:{nome:'Fictícia',ano:'2026'}},env});
+ assert.equal((await com.chamar('direcao',{action:'logo',id:'campanha-1',mime:'image/png',base64:svg})).status,422,'SVG declarado como PNG');
+ assert.equal((await com.chamar('direcao',{action:'logo',id:'campanha-1',mime:'image/svg+xml',base64:png})).status,422,'tipo fora da lista');
+ assert.equal((await com.chamar('direcao',{action:'logo',id:'../x',mime:'image/png',base64:png})).status,400,'id torto');
+ assert.equal(com.operacoes.filter(o=>o.storage).length,0,'nada subiu nas recusas');
+ const ok=await com.chamar('direcao',{action:'logo',id:'campanha-1',mime:'image/png',base64:png});
+ assert.equal(ok.status,200);assert.equal(ok.body.ok,true);
+ const subiu=com.operacoes.find(o=>o.storage==='upload');
+ assert.equal(subiu.bucket,'painel-publico');assert.match(subiu.caminho,/^campanhas\/campanha-1\/[a-f0-9-]{36}\.png$/);
+ const gravou=com.operacoes.find(o=>o.nome==='troca_mexer');
+ assert.equal(gravou.args.p_campos.logo,'https://projeto-teste.supabase.co/storage/v1/object/public/painel-publico/'+subiu.caminho);
+ assert.equal(gravou.args.p_criar,false);
+ // o merge não aceita base64 nem URL de fora: a imagem entra só pela ação
+ assert.equal((await com.chamar('direcao',{action:'merge',chave:'campanhas',patch:{'campanha-1':{logo:'data:image/png;base64,iVBORw0KGgo='}}})).status,400);
+ assert.equal((await com.chamar('direcao',{action:'merge',chave:'campanhas',patch:{'campanha-1':{logo:'https://outro.supabase.co/storage/v1/object/public/painel-publico/campanhas/x/0f8fad5b-d9cb-469f-a165-70867728950e.png'}}})).status,400);
+ // o banco recusa: 503 com o arquivo novo removido
+ const falha=await funcao('painel-config',{unico:{registro:{nome:'Fictícia'}},erroBanco:true,env});
+ const r=await falha.chamar('direcao',{action:'logo',id:'campanha-1',mime:'image/png',base64:png});
+ assert.equal(r.status,503);
+ const up=falha.operacoes.find(o=>o.storage==='upload'),rem=falha.operacoes.find(o=>o.storage==='remove');
+ assert.ok(up&&rem);assert.deepEqual(rem.caminhos,[up.caminho]);
+ // endereço do projeto fora do padrão (ambiente local): recusa ANTES de subir
+ const local=await funcao('painel-config',{unico:{registro:{nome:'Fictícia'}},env:{SUPABASE_URL:'http://kong:8000'}});
+ assert.equal((await local.chamar('direcao',{action:'logo',id:'campanha-1',mime:'image/png',base64:png})).status,503);
+ assert.equal(local.operacoes.filter(o=>o.storage).length,0);
 });

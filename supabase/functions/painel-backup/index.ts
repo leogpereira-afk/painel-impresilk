@@ -199,7 +199,14 @@ async function montarBackupPainel() {
   // autoexame reprova (ausência de cópia parece ausência de dado).
   painel.tabelasMarketingNoBanco = Array.isArray(mkt?.tabelas) ? mkt.tabelas : null;
 
-  const arquivos = await capturarArquivos(sb.storage.from("painel-arquivos"));
+  /* DOIS BUCKETS desde 24/10/2026: o privado (fotos de bens, documentos) e o
+     publico (logos das campanhas, que antes viajavam em base64 dentro do
+     registro). Cada entrada leva o nome do bucket; copia antiga sem o campo e
+     do privado. O conteudo e guardado por sha256, igual para os dois. */
+  const arquivos = [
+    ...(await capturarArquivos(sb.storage.from("painel-arquivos"))).map((a: any) => ({ ...a, bucket: "painel-arquivos" })),
+    ...(await capturarArquivos(sb.storage.from("painel-publico"))).map((a: any) => ({ ...a, bucket: "painel-publico" })),
+  ];
 
   return {
     versao: VERSAO,
@@ -795,12 +802,28 @@ Deno.serve(async (req: Request) => {
           }
         }
         const contas = Object.entries(bk.contas ?? {}).map(([usuario, c]: [string, any]) => ({ ...c, usuario: c.usuario || usuario }));
-        const arquivos = await prepararArquivos(sb.storage.from("painel-arquivos"),bk.arquivos || [],async a=>{
+        const resolver = async (a: any) => {
           if(!/^[a-f0-9]{64}$/.test(a.sha256)) throw new Error('Identificação de arquivo inválida.');
           const r = await buscarComRetentativa(`https://api.github.com/repos/${GH_REPO}/contents/arquivos/painel/${a.sha256}`,{headers:{Authorization:`Bearer ${GH_TOKEN}`,Accept:'application/vnd.github.raw+json','User-Agent':'impresilk-painel-backup'}});
           if(!r.ok) throw new Error('A cópia do arquivo não foi encontrada no repositório privado.');
           return new Uint8Array(await r.arrayBuffer());
-        });
+        };
+        // Um bucket por vez; a copia antiga (sem `bucket`) e toda do privado.
+        const manifesto: any[] = Array.isArray(bk.arquivos) ? bk.arquivos : [];
+        const porBucket = new Map<string, any[]>();
+        for (const a of manifesto) {
+          const b = a?.bucket === "painel-publico" ? "painel-publico" : "painel-arquivos";
+          if (!porBucket.has(b)) porBucket.set(b, []);
+          porBucket.get(b)!.push(a);
+        }
+        const preparados: { quantidade: number; desfazer: () => Promise<void> }[] = [];
+        try {
+          for (const [b, lista] of porBucket) preparados.push(await prepararArquivos(sb.storage.from(b), lista, resolver));
+        } catch (e) { for (const p of [...preparados].reverse()) await p.desfazer(); throw e; }
+        const arquivos = {
+          quantidade: preparados.reduce((s, p) => s + p.quantidade, 0),
+          desfazer: async () => { for (const p of [...preparados].reverse()) await p.desfazer(); },
+        };
         try {
           const { data, error } = await sb.rpc("painel_restaurar_atomico", {
             p_backup: { config: p.config ?? null, registros, contas, gestao: p.gestao ?? {},

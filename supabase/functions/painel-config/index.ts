@@ -1,4 +1,4 @@
-import { validarPlanejamento, validarLogo } from "../_shared/campanhas-planejamento.mjs";
+import { validarPlanejamento, validarLogo, caminhoDaLogo, caminhoNoBucket, LOGO_URL_RE, LOGO_ID_RE, LOGO_BUCKET } from "../_shared/campanhas-planejamento.mjs";
 import {lerEquipeCompromissos, enriquecerCompromissosRH, prepararCompromissoRH, autorCompromissoRH} from '../_shared/compromissos-rh.mjs';
 import {inventarioPermitido,rotuloFichaVinculo,erroVinculo} from '../_shared/patrimonio-acesso.mjs';
 import {lerPessoasPatrimonio, validarVinculoPessoa, prepararPessoasControle} from '../_shared/patrimonio-pessoas.mjs';
@@ -81,6 +81,26 @@ const CACHES = new Set(["recebiveis", "pagar", "bancos", "orcamentos", "ordens",
 // quem carimba autor e hora e esta funcao. Cliente que mande `historico` no
 // corpo tem o campo ignorado (ver `merge`).
 const MAX_ARQUIVO = 4 * 1024 * 1024; // ~3 MB reais depois do base64
+const LOGO_B64_MAX = 399996; // 299.997 bytes, abaixo dos 300.000 do bucket: a tela reduz a logo a 192 px antes de mandar
+// A URL publica de toda logo comeca assim; o merge so aceita logo daqui, e o
+// bucket so apaga arquivo daqui. Funcao, nao constante: os testes de porta
+// carregam este arquivo sem os imports, e um nome importado usado no topo
+// do modulo derrubava todos eles.
+const baseLogo = () => `${SUPABASE_URL}/storage/v1/object/public/${LOGO_BUCKET}/campanhas/`;
+/* A LOGO ANTIGA SAI DO BUCKET so quando nenhum registro a usa: a proxima
+   edicao nasce com a mesma URL, e a lixeira guarda a campanha retirada com a
+   URL dela (recuperar a campanha recuperaria uma logo que ja nao existe).
+   Falha aqui nao derruba a operacao: o registro ja esta certo. */
+async function apagarLogoSemUso(antiga: unknown, campanhas: Record<string, any>) {
+  if (typeof antiga !== "string" || !antiga.startsWith(baseLogo())) return;
+  const caminho = caminhoNoBucket(antiga);
+  if (!caminho) return;
+  if (Object.values(campanhas ?? {}).some((c) => c?.logo === antiga)) return;
+  const { data: naLixeira } = await sb.from("painel_registros").select("id")
+    .eq("colecao", "registro_lixeira").eq("registro->>colecao", "campanhas").eq("registro->registro->>logo", antiga).limit(1);
+  if (naLixeira?.length) return;
+  await sb.storage.from(LOGO_BUCKET).remove([caminho]).catch(() => {});
+}
 const BUCKET = "painel-arquivos";
 const MAX_HISTORICO = 200; // conversa longa demais vira registro gigante
 
@@ -673,6 +693,7 @@ Deno.serve(async (req: Request) => {
           if (barrado) return barrado;
           const quem = String(sessao?.sub ?? "");
           const quemNome = String(sessao?.nome || quem);
+          const logosParaConferir: string[] = [];
           for (const [id, campos] of Object.entries(patch)) {
             const c = (campos ?? {}) as Record<string, unknown>;
             const { osPatch, lancPatch, criar, ...limpos } = c;
@@ -680,10 +701,26 @@ Deno.serve(async (req: Request) => {
               try { limpos.planejamento = validarPlanejamento(limpos.planejamento); }
               catch(e) { return resposta({erro: e instanceof Error ? e.message : "Planejamento inválido."},400); }
             }
-            // A logo do evento: imagem pequena em base64 ou null para tirar.
+            /* A LOGO pelo merge: so null (tirar) ou a URL do bucket que OUTRA
+               campanha ja usa (a proxima edicao nasce com a mesma logo). A
+               imagem em si entra pela acao `logo`: em base64 aqui, o registro
+               voltaria a carregar a logo inteira em cada leitura. */
+            let logoAntes: string | null = null;
             if (chave === "campanhas" && Object.hasOwn(limpos,"logo")) {
               try { limpos.logo = validarLogo(limpos.logo); }
               catch(e) { return resposta({erro: e instanceof Error ? e.message : "Logo inválida."},400); }
+              if (typeof limpos.logo === "string") {
+                if (limpos.logo.startsWith("data:")) return resposta({ erro: "Recarregue a tela para trocar a logo." }, 400);
+                if (!limpos.logo.startsWith(baseLogo())) return resposta({ erro: "A logo entra pelo botao de logo da campanha." }, 400);
+                const { data: donas, error: erroDonas } = await sb.from("painel_registros").select("id")
+                  .eq("colecao", "campanhas").eq("registro->>logo", limpos.logo).limit(1);
+                if (erroDonas) throw Object.assign(new Error(erroDonas.message), { code: erroDonas.code });
+                if (!donas?.length) return resposta({ erro: "A logo entra pelo botao de logo da campanha." }, 400);
+              }
+              const { data: antesLogo } = await sb.from("painel_registros")
+                .select("registro").eq("colecao", chave).eq("id", id).maybeSingle();
+              const l = (antesLogo?.registro as any)?.logo;
+              logoAntes = typeof l === "string" ? l : null;
             }
             /* TIRAR UM LANCAMENTO LEVA O ANEXO DELE. A funcao apaga o objeto
                inteiro (`v_lanc - k`), e com ele a referencia do arquivo -- os
@@ -726,8 +763,11 @@ Deno.serve(async (req: Request) => {
             if (paraApagar.length) {
               await sb.storage.from(BUCKET).remove(paraApagar).catch(() => {});
             }
+            if (logoAntes && logoAntes !== limpos.logo) logosParaConferir.push(logoAntes);
           }
-          return resposta({ ok: true, valor: await overlaySeguro(chave) });
+          const valorFinal = await overlaySeguro(chave);
+          for (const antiga of logosParaConferir) await apagarLogoSemUso(antiga, (valorFinal ?? {}) as Record<string, any>);
+          return resposta({ ok: true, valor: valorFinal });
         }
 
         if (OVERLAYS.has(chave)) {
@@ -990,6 +1030,76 @@ Deno.serve(async (req: Request) => {
          Os bytes vao para o bucket e so a referencia entra no registro: um PDF
          dentro do JSON incharia a linha e viajaria em TODA leitura da tela.
          Mesma escolha da conversa dos compromissos. */
+      /* A LOGO DA CAMPANHA vai para o Storage publico (24/10/2026, sugestao
+         aceita pelo dono): o registro guarda so a URL. Antes ia em base64
+         dentro do registro, e cada leitura ou gravacao devolvia TODAS as
+         campanhas com todas as logos. A permissao e a mesma do merge. */
+      case "logo": {
+        if (!sessao) return resposta({ erro: "Entre no sistema.", semSessao: true }, 401);
+        const barrado = barraChave("campanhas");
+        if (barrado) return barrado;
+        const id = String(corpo.id ?? "");
+        if (!LOGO_ID_RE.test(id)) return resposta({ erro: "informe a campanha" }, 400);
+        const { data: existente, error: erroLer } = await sb.from("painel_registros")
+          .select("registro").eq("colecao", "campanhas").eq("id", id).maybeSingle();
+        if (erroLer) throw erroLer;
+        if (!existente) return resposta({ erro: "Essa campanha nao existe mais -- recarregue a tela." }, 409);
+        const antiga = typeof existente.registro?.logo === "string" ? existente.registro.logo : "";
+        let logo: string | null = null;
+        let chaveNova = "";
+        if (corpo.remover !== true) {
+          const mime = String(corpo.mime ?? "");
+          const base64 = String(corpo.base64 ?? "");
+          const ext = mime === "image/png" ? "png" : mime === "image/jpeg" ? "jpg" : mime === "image/webp" ? "webp" : "";
+          if (!ext) return resposta({ erro: "Use uma imagem PNG, JPG ou WebP." }, 422);
+          if (!base64 || base64.length > LOGO_B64_MAX || !/^[A-Za-z0-9+/]+={0,2}$/.test(base64)) {
+            return resposta({ erro: "Logo invalida ou acima de 300 KB." }, 422);
+          }
+          let bytes: Uint8Array;
+          try { bytes = Uint8Array.from(atob(base64), (c) => c.charCodeAt(0)); } catch { return resposta({ erro: "Logo invalida." }, 422); }
+          // O conteudo tem de ser a imagem que o tipo diz: SVG renomeado nao entra.
+          const assinatura = mime === "image/jpeg" ? bytes[0] === 255 && bytes[1] === 216 && bytes[2] === 255
+            : mime === "image/png" ? bytes[0] === 137 && bytes[1] === 80 && bytes[2] === 78 && bytes[3] === 71
+            : bytes[0] === 82 && bytes[1] === 73 && bytes[2] === 70 && bytes[3] === 70 && bytes[8] === 87 && bytes[9] === 69 && bytes[10] === 66 && bytes[11] === 80;
+          if (!assinatura) return resposta({ erro: "O conteudo nao corresponde ao tipo de imagem." }, 422);
+          chaveNova = caminhoDaLogo(id, crypto.randomUUID(), ext);
+          logo = `${SUPABASE_URL}/storage/v1/object/public/${LOGO_BUCKET}/${chaveNova}`;
+          // Conferido ANTES de subir: URL fora do padrao e configuracao do
+          // projeto, nao e culpa da imagem, e nao deixa arquivo para tras.
+          if (!LOGO_URL_RE.test(logo) || !logo.startsWith(baseLogo())) {
+            return resposta({ erro: "O endereco do Storage deste projeto esta fora do padrao; a logo nao foi gravada. Avise a direcao." }, 503);
+          }
+          // Nome novo a cada troca: o navegador pode guardar a imagem por um ano.
+          const { error: up } = await sb.storage.from(LOGO_BUCKET)
+            .upload(chaveNova, bytes, { contentType: mime, upsert: false, cacheControl: "31536000" });
+          if (up) return resposta({ erro: `Nao consegui guardar a imagem agora (${up.message}). Tente de novo.` }, 503);
+        }
+        const { data: reg, error } = await sb.rpc("troca_mexer", {
+          p_colecao: "campanhas",
+          p_id: id,
+          p_quem: String(sessao.sub ?? ""),
+          p_quem_nome: String(sessao.nome || sessao.sub || ""),
+          p_campos: { logo },
+          p_os: {},
+          p_lancamentos: {},
+          p_anexo: null,
+          p_criar: false,
+        });
+        if (error || reg === null) {
+          // O arquivo que acabou de subir nao pode virar lixo sem dono.
+          if (chaveNova) await sb.storage.from(LOGO_BUCKET).remove([chaveNova]).catch(() => {});
+          return resposta(
+            error
+              ? { erro: "Nao consegui gravar a logo agora (o banco recusou). Tente de novo." }
+              : { erro: "Essa campanha nao existe mais -- recarregue a tela." },
+            error ? 503 : 409,
+          );
+        }
+        const valor = await overlaySeguro("campanhas");
+        if (antiga && antiga !== logo) await apagarLogoSemUso(antiga, (valor ?? {}) as Record<string, any>);
+        return resposta({ ok: true, valor });
+      }
+
       case "permutaAnexo": {
         if (!sessao) return resposta({ erro: "Entre no sistema.", semSessao: true }, 401);
         // A mesma acao serve permuta e campanha: o anexo e a nota do que
