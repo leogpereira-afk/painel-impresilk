@@ -5,6 +5,7 @@ import {tmpdir} from 'node:os';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {createRequire} from 'node:module';
+import {createHash} from 'node:crypto';
 import {build} from 'esbuild';
 import React from 'react';
 import {renderToStaticMarkup} from 'react-dom/server';
@@ -34,7 +35,7 @@ async function compilar(nome,{detalhe=false,leituraConcluida=false}={}) {
       b.onLoad({filter:/\.css$/},()=>({contents:'',loader:'empty'}));
       // O teste verifica a seleção da URL do asset; a leitura dos pixels e o
       // empacotamento de imagens são conferidos na prévia e no build.
-      b.onResolve({filter:/\.(png|webp)$/},a=>({path:path.resolve(a.resolveDir,a.path),namespace:'imagem-ui'}));
+      b.onResolve({filter:/\.(png|webp|jpg)$/},a=>({path:path.resolve(a.resolveDir,a.path),namespace:'imagem-ui'}));
       b.onLoad({filter:/.*/,namespace:'imagem-ui'},a=>({contents:`export default ${JSON.stringify(`/assets/${path.basename(a.path)}`)}`,loader:'js'}));
     }}],
   });
@@ -183,6 +184,17 @@ test('recorte local exige confirmação e URL exata, sem inferir a imagem pelo m
   assert.deepEqual(fotoReferenciaManual({url,usoConfirmado:false}),{url:'',tratada:false});
   assert.deepEqual(fotoReferenciaManual({url:`${url}?outra-versao=1`,usoConfirmado:true}),{url:`${url}?outra-versao=1`,tratada:false});
   assert.deepEqual(fotoReferenciaManual({url:'https://example.com/outra-maquina.png',usoConfirmado:true}),{url:'https://example.com/outra-maquina.png',tratada:false});
+});
+
+test('referência Schulz usa o JPG original somente pela URL exata confirmada',async()=>{
+  const url='https://www.schulz.com.br/cnp/970.3140-0_1.jpg';
+  assert.deepEqual(fotoReferenciaManual({url,usoConfirmado:true}),{url:'/assets/schulz-srp3010-iii-referencia.jpg',tratada:false,local:true,rotulo:'Referência do fabricante'});
+  assert.deepEqual(fotoReferenciaManual({url,usoConfirmado:false}),{url:'',tratada:false});
+  assert.deepEqual(fotoReferenciaManual({url}),{url:'',tratada:false});
+  const outra=`${url}?outra-versao=1`;
+  assert.deepEqual(fotoReferenciaManual({url:outra,usoConfirmado:true}),{url:outra,tratada:false});
+  const original=await readFile(path.join(raiz,'src/assets/manuais/schulz-srp3010-iii-referencia.jpg'));
+  assert.equal(createHash('sha256').update(original).digest('hex'),'92d74616bfb8df26a0866e54f4356879959ed25f81c2a9bb1199d97e3b033b82','O asset deve conservar os bytes da foto original, sem o derivado gerado.');
 });
 
 test('imagem bloqueada antes dos efeitos mantém o aviso e não reaparece quebrada',()=>{

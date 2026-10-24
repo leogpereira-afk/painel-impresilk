@@ -16,4 +16,12 @@ Estas imagens são referências de produtos, não fotografias dos bens da empres
 - Arquivo original do fabricante em WebP, com transparência de origem. Mantido sem tratamento para preservar os detalhes do produto.
 - Origem e imagem conferidas em 24/10/2026. Direitos da imagem original permanecem com o titular.
 
+## Schulz SRP 3010 Compact III
+
+- Página de origem: https://www.schulz.com.br/pt_BR/produtos/ver/970.3140-0
+- Foto original: https://www.schulz.com.br/cnp/970.3140-0_1.jpg
+- Arquivo original do fabricante em JPG, 1000 × 1000 px, com fundo branco e sem tratamento. SHA-256: `92d74616bfb8df26a0866e54f4356879959ed25f81c2a9bb1199d97e3b033b82`.
+- A página identifica SRP 3010E III Compact; a foto mostra SRP 3010 Compact, 10 hp e 200 litros. A ficha apresenta 183,1 L. A imagem é referência visual da família/geração, sem determinar a variante ou configuração instalada.
+- Origem e imagem conferidas em 24/10/2026. Direitos da imagem original permanecem com o titular.
+
 Os procedimentos de operação, a lista de consumíveis e a assistência precisam de validação independente. Uma foto de produto não comprova a configuração da máquina instalada.

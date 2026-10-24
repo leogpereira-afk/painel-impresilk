@@ -49,3 +49,10 @@ Antes de disponibilizar conteúdo operacional: resolver as divergências de fabr
 - A prévia permanece fictícia. Fotografias de referência não comprovam configuração instalada nem homologam operação. Modelos ou fotos não confirmados permanecem explicitamente pendentes no acervo privado.
 - Teste de consulta da equipe: foto disponível, última aprovação preservada e nenhum botão de editar/aprovar. Seis seções, filtro de rascunhos, ampliação, formulário móvel e modo escuro conferidos.
 - Revisão independente do diff sem achados concretos de regressão em permissões, vínculos por ID, fotos ou navegação. Builds de produção/review concluídos e lint sem erros (aviso anterior em Agenda).
+
+## Cobertura fotográfica — revisão adicional
+
+- Fonte oficial Schulz incluída no resolvedor de imagens por URL exata confirmada. JPG original preservado, sem tratamento generativo; selo de referência do fabricante, nunca foto do bem.
+- Acervo real e sua conferência permanecem em entrega privada. A prévia com essas fotos é uma instância local separada, sem incorporar cadastros ou imagens privadas ao build público.
+- Nova execução dos testes focados: 67/67 aprovados. Build de produção concluído; lint com zero erros e o mesmo aviso anterior em Agenda. `git diff --check` sem erros.
+- Permissões da galeria e vínculos existentes preservados. Nenhum novo manual ou foto foi gravado em produção nesta revisão; nenhuma publicação executada.
