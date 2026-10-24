@@ -83,14 +83,16 @@ const CACHES = new Set(["recebiveis", "pagar", "bancos", "orcamentos", "ordens",
 const MAX_ARQUIVO = 4 * 1024 * 1024; // ~3 MB reais depois do base64
 const LOGO_B64_MAX = 399996; // 299.997 bytes, abaixo dos 300.000 do bucket: a tela reduz a logo a 192 px antes de mandar
 // A URL publica de toda logo comeca assim; o merge so aceita logo daqui, e o
-// bucket so apaga arquivo daqui.
-const BASE_LOGO = `${SUPABASE_URL}/storage/v1/object/public/${LOGO_BUCKET}/campanhas/`;
+// bucket so apaga arquivo daqui. Funcao, nao constante: os testes de porta
+// carregam este arquivo sem os imports, e um nome importado usado no topo
+// do modulo derrubava todos eles.
+const baseLogo = () => `${SUPABASE_URL}/storage/v1/object/public/${LOGO_BUCKET}/campanhas/`;
 /* A LOGO ANTIGA SAI DO BUCKET so quando nenhum registro a usa: a proxima
    edicao nasce com a mesma URL, e a lixeira guarda a campanha retirada com a
    URL dela (recuperar a campanha recuperaria uma logo que ja nao existe).
    Falha aqui nao derruba a operacao: o registro ja esta certo. */
 async function apagarLogoSemUso(antiga: unknown, campanhas: Record<string, any>) {
-  if (typeof antiga !== "string" || !antiga.startsWith(BASE_LOGO)) return;
+  if (typeof antiga !== "string" || !antiga.startsWith(baseLogo())) return;
   const caminho = caminhoNoBucket(antiga);
   if (!caminho) return;
   if (Object.values(campanhas ?? {}).some((c) => c?.logo === antiga)) return;
@@ -709,7 +711,7 @@ Deno.serve(async (req: Request) => {
               catch(e) { return resposta({erro: e instanceof Error ? e.message : "Logo inválida."},400); }
               if (typeof limpos.logo === "string") {
                 if (limpos.logo.startsWith("data:")) return resposta({ erro: "Recarregue a tela para trocar a logo." }, 400);
-                if (!limpos.logo.startsWith(BASE_LOGO)) return resposta({ erro: "A logo entra pelo botao de logo da campanha." }, 400);
+                if (!limpos.logo.startsWith(baseLogo())) return resposta({ erro: "A logo entra pelo botao de logo da campanha." }, 400);
                 const { data: donas, error: erroDonas } = await sb.from("painel_registros").select("id")
                   .eq("colecao", "campanhas").eq("registro->>logo", limpos.logo).limit(1);
                 if (erroDonas) throw Object.assign(new Error(erroDonas.message), { code: erroDonas.code });
@@ -1064,7 +1066,7 @@ Deno.serve(async (req: Request) => {
           logo = `${SUPABASE_URL}/storage/v1/object/public/${LOGO_BUCKET}/${chaveNova}`;
           // Conferido ANTES de subir: URL fora do padrao e configuracao do
           // projeto, nao e culpa da imagem, e nao deixa arquivo para tras.
-          if (!LOGO_URL_RE.test(logo) || !logo.startsWith(BASE_LOGO)) {
+          if (!LOGO_URL_RE.test(logo) || !logo.startsWith(baseLogo())) {
             return resposta({ erro: "O endereco do Storage deste projeto esta fora do padrao; a logo nao foi gravada. Avise a direcao." }, 503);
           }
           // Nome novo a cada troca: o navegador pode guardar a imagem por um ano.
