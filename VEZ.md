@@ -1,3 +1,7 @@
+## Trabalho atual · Privacidade do calendário RH · Codex · 24/10/2026
+
+Em andamento. Restringir consultas do calendário RH a contas com perfil RH ativo; testar Comercial com dados fictícios. Publicação autorizada pelo dono. Cópia isolada, sem alteração de registros reais.
+
 ## Trabalho atual · Campanhas: lembrete no Início, logo no Storage e contraste · claude · 24/10/2026
 
 Agente: claude. Pedido do dono em 24/10/2026 ("faz a 3 e a 4 também", "e a 5"): (3) lembrete no Início um mês antes da primeira venda do ano anterior; (4) logo da campanha fora do registro, no Storage; (5) textos miúdos da tela de Campanhas com contraste legível. Ramo claude/campanhas-lembrete-logo-20261024 a partir de d7064d3, clone isolado em ~/Projetos. Escopo: lembretesDeCampanha em src/lib/calc/campanhas.js e cartão no Home (só para quem abre Campanhas; some quando a edição do ano nasce); migração 20261024a cria o bucket PÚBLICO painel-publico (300 KB, PNG/JPG/WebP; só a function escreve); painel-config ganha a ação `logo` (confere tipo, tamanho e assinatura dos bytes, sobe com nome uuid, grava só a URL via troca_mexer, apaga o arquivo antigo quando nenhuma outra edição o usa; `remover` tira); validarLogo aceita a URL do bucket ou a forma antiga em base64; a tela manda {mime, base64} e "tirar logo" apaga o arquivo; text-slate-400 virou text-slate-500 em Campanhas.jsx, CampanhaProxima.jsx e trocas.jsx (modo escuro remapeado no index.css). Em produção há 13 campanhas e nenhuma logo gravada: nada a migrar.
