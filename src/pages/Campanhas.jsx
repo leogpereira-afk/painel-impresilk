@@ -1,4 +1,6 @@
 import CampanhaPlanejamento from "../components/CampanhaPlanejamento.jsx";
+import CampanhaProxima from "../components/CampanhaProxima.jsx";
+import { validarPlanejamento, validarLogo, LOGO_MAX } from "../../supabase/functions/_shared/campanhas-planejamento.mjs";
 import CampanhaResumoOS from "../components/CampanhaResumoOS.jsx";
 import { useSearchParams } from "react-router-dom";
 import { useAbaNavegavel } from "../hooks/useAbaNavegavel.js";
@@ -35,7 +37,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowLeft, Plus, Trash2, Search, X, AlertTriangle, Megaphone, Building2,
   Archive, Paperclip, Download, CalendarRange, TrendingUp, TrendingDown, Minus,
-  Crown, Check, Link2, Copy, RotateCw,
+  Crown, Check, Link2, Copy, RotateCw, ArrowRight,
 } from "lucide-react";
 import {
   lerCampanhas, mexerNaCampanha, removerCampanha, anexarNaCampanha, lerAnexoCampanha,
@@ -47,6 +49,7 @@ import { fichaDaOS, ordensDosClientes, donoPorOS, unirOrdens, valorDaOS } from "
 import {
   resumoDaCampanha, resumoGeralCampanhas, compradoresDaCampanha, extratoDaCampanha, atualizacaoDaCampanha,
   anosDasCampanhas, totaisDoAno, comparativoPorAno, edicoesDoMesmoEvento, anosRepetidos,
+  proximaEdicao, estrategiaDaProxima, textoDaEstrategia,
   maiorComprador, comprasPorMes, produtosDaCampanha, categoriasDosProdutos, porProduto,
   foraDoPeriodo,
   membrosDoEvento, candidatasAVincular, comparativoDeEdicoes, eventosVinculados,
@@ -89,23 +92,34 @@ const CONTA_O_EVENTO = {
 /* QUANTO DA META. Só aparece quando há meta -- barra em 0% num evento sem meta
    é uma cobrança que ninguém fez. Passar de 100% não estoura a barra: ela
    enche e o número ao lado diz o quanto passou. */
-function Meta({ vendido, meta, pct }) {
-  if (!(meta > 0)) return null;
+/* A META, BEM CLARA (pedido do dono, 24/10/2026): quanto falta ou quanto
+   passou, em número e em barra, no cartão da lista e na ficha. Sem meta não
+   se finge 0%: diz "sem meta" e aponta onde definir. */
+const logoValida = (s) => { try { return !!validarLogo(s); } catch { return false; } };
+function Meta({ vendido, meta, pct, grande = false, aoDefinir = null }) {
+  if (!(meta > 0)) {
+    return (
+      <div className={`flex flex-wrap items-center gap-2 ${grande ? "text-sm" : "text-xs"} text-slate-500`}>
+        <span>Sem meta definida{aoDefinir ? " ·" : ""}</span>
+        {aoDefinir && <Link className="text-brand-600 hover:underline" to={aoDefinir}>Definir a meta</Link>}
+      </div>
+    );
+  }
   const cheio = Math.min(1, pct || 0);
   const bateu = (pct || 0) >= 1;
   return (
     <div className="space-y-1">
-      <div className="h-2 overflow-hidden rounded-full bg-slate-100">
-        <div
-          className={`h-full rounded-full ${bateu ? "bg-ok-500" : "bg-brand-500"}`}
-          style={{ width: `${cheio * 100}%` }}
-        />
+      <div className={`flex flex-wrap items-baseline gap-x-2 gap-y-0.5 ${grande ? "" : "text-xs"}`}>
+        <span className={`font-semibold tabular-nums ${bateu ? "text-ok-700" : "text-slate-800"} ${grande ? "text-2xl" : ""}`}>
+          {Math.round((pct || 0) * 100)}%
+        </span>
+        <span className="text-slate-500">da meta de <b className="font-medium text-slate-700">{dinheiro(meta)}</b></span>
+        <span className={`font-medium ${bateu ? "text-ok-700" : "text-warn-700"}`}>
+          {bateu ? `${dinheiro(vendido - meta)} acima` : `faltam ${dinheiro(meta - vendido)}`}
+        </span>
       </div>
-      <div className="text-xs text-slate-500">
-        {Math.round((pct || 0) * 100)}% da meta de {dinheiro(meta)}
-        {bateu
-          ? ` · ${dinheiro(vendido - meta)} acima`
-          : ` · faltam ${dinheiro(meta - vendido)}`}
+      <div className={`${grande ? "h-3" : "h-2"} overflow-hidden rounded-full bg-slate-100`}>
+        <div className={`h-full rounded-full ${bateu ? "bg-ok-500" : "bg-brand-500"}`} style={{ width: `${cheio * 100}%` }} />
       </div>
     </div>
   );
@@ -357,7 +371,7 @@ function CartoesFinanceiro({ financeiro, erro, dados, linhas, quadro, aoAbrirQua
 /* O CARTÃO DA LISTA. Responde as duas metades da pergunta sem abrir: quanto
    rendeu e quantos compraram. O nome do maior comprador entra porque é o que
    distingue "um evento" de "um cliente grande com nome de evento". */
-function CartaoCampanha({ c, aoAbrir, contra, aoDuplicar }) {
+function CartaoCampanha({ c, aoAbrir, contra, aoDuplicar, aoProxima, salvando = false }) {
   const lider = c.porCliente[0] || null;
   return (
     <article
@@ -366,6 +380,9 @@ function CartaoCampanha({ c, aoAbrir, contra, aoDuplicar }) {
       }`}
     >
       <div className="flex items-start justify-between gap-3">
+        {logoValida(c.logo) && (
+          <img src={c.logo} alt="" className="h-11 w-11 shrink-0 rounded-lg border border-slate-100 bg-white object-contain p-0.5" />
+        )}
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-1.5">
             <button className="min-h-11 text-left font-semibold text-slate-800" onClick={()=>aoAbrir(c.id)}>{c.nome || "sem nome"} · Abrir</button>
@@ -401,11 +418,10 @@ function CartaoCampanha({ c, aoAbrir, contra, aoDuplicar }) {
         </div>
       </div>
 
-      {c.meta > 0 && (
-        <div className="mt-3">
-          <Meta vendido={c.vendido} meta={c.meta} pct={c.pct} />
-        </div>
-      )}
+      {/* A META SEMPRE À VISTA, com meta ou sem: "sem meta" também é informação. */}
+      <div className="mt-3">
+        <Meta vendido={c.vendido} meta={c.meta} pct={c.pct} />
+      </div>
 
       {lider && c.compradores > 1 && (
         <div className="mt-2 truncate text-xs text-slate-500">
@@ -422,7 +438,11 @@ function CartaoCampanha({ c, aoAbrir, contra, aoDuplicar }) {
           sozinhas pelo nome. */}
       {contra && (
         <div className="mt-2 flex flex-wrap items-center gap-x-2 border-t border-slate-100 pt-2">
-          <Variacao variacao={contra.variacao} anoAnterior={contra.anoAnterior} diferenca={contra.diferenca} />
+          {/* A EDIÇÃO QUE ACABOU DE NASCER não "caiu 100%": ela ainda não
+              vendeu. O -100% só aparece quando há O.S. ou venda sem O.S. marcada. */}
+          {c.linhas.length === 0 && !(c.semOS > 0)
+            ? <span className="text-xs text-slate-500">ainda sem O.S. marcada</span>
+            : <Variacao variacao={contra.variacao} anoAnterior={contra.anoAnterior} diferenca={contra.diferenca} />}
           <span className="truncate text-[11px] text-slate-400">
             {contra.anoAnterior} fez {dinheiro(contra.vendidoAnterior)} · {contra.edicoes} edições
           </span>
@@ -433,6 +453,19 @@ function CartaoCampanha({ c, aoAbrir, contra, aoDuplicar }) {
         <div className="mt-2 flex items-center gap-1.5 text-xs text-warn-700">
           <AlertTriangle size={12} className="shrink-0" />
           {c.sumiram > 0 ? `${c.sumiram} O.S. não encontradas na consulta` : `${c.mudaram} O.S. mudaram de valor`}
+        </div>
+      )}
+      {aoProxima && (
+        <div className="mt-3 flex justify-end border-t border-slate-100 pt-2">
+          <button
+            type="button"
+            className="btn-ghost text-xs"
+            title="Cria a edição seguinte deste evento, já com os compradores, a meta sugerida pelos números e a estratégia"
+            disabled={salvando}
+            onClick={(e) => { e.stopPropagation(); aoProxima(c); }}
+          >
+            <ArrowRight size={14} /> Criar a próxima edição
+          </button>
         </div>
       )}
     </article>
@@ -1954,7 +1987,7 @@ export default function Campanhas() {
   const [gruposAbertos, setGruposAbertos] = useState({});
   const alternarGrupo = useCallback((k) => setGruposAbertos((g) => ({ ...g, [k]: !g[k] })), []);
   const [abertas, setAbertas] = useState(() => {
-    const padrao = { edicoes: true, ranking: true, produtos: true, quando: true, aceitas: true,
+    const padrao = { proxima: true, edicoes: true, ranking: true, produtos: true, quando: true, aceitas: true,
                      semOS: false, clientes: true, escolher: true, historico: false };
     try {
       return { ...padrao, ...JSON.parse(localStorage.getItem("campanhas_secoes") || "{}") };
@@ -2251,6 +2284,28 @@ export default function Campanhas() {
     [lista, aberta, campanha],
   );
 
+  /* A PRÓXIMA EDIÇÃO desta: os anos que o evento já tem, a estratégia sugerida
+     pelos números, o ano e as datas com que a nova nasce, e o recado que a
+     edição anterior deixou (lido de lá, não copiado: editar o recado depois
+     continua valendo). */
+  const anosDoEvento = useMemo(
+    () => [...new Set([String(campanha?.ano || "").trim(), ...edicoes.map((e) => String(e.ano || "").trim())].filter(Boolean))],
+    [campanha, edicoes],
+  );
+  const estrategia = useMemo(
+    () => (campanha && resumo ? estrategiaDaProxima({ atual: { ...campanha, id: aberta, ...resumo }, anteriores: edicoes, produtos }) : null),
+    [campanha, resumo, aberta, edicoes, produtos],
+  );
+  const proxima = useMemo(() => (campanha ? proximaEdicao(campanha, anosDoEvento) : null), [campanha, anosDoEvento]);
+  const recadoAnterior = useMemo(() => {
+    const anoAtual = String(campanha?.ano || "").trim();
+    const antes = edicoes
+      .filter((e) => /^\d{4}$/.test(String(e.ano || "").trim()) && String(e.ano).trim() < anoAtual)
+      .sort((a, b) => String(b.ano).trim().localeCompare(String(a.ano).trim()))[0];
+    const texto = String(antes?.planejamento?.proximaCampanha || "").trim();
+    return antes && texto ? { id: antes.id, ano: String(antes.ano).trim(), texto } : null;
+  }, [campanha, edicoes]);
+
   const mapaRef = useRef(null);
   useEffect(() => { mapaRef.current = mapa; }, [mapa]);
 
@@ -2460,6 +2515,133 @@ export default function Campanhas() {
       setAviso({ tom: "ok", texto: `“${c.nome}” duplicada para ${ano}, com ${clientes.length} compradores e sem as O.S. Tire quem não voltou e marque as novas.` });
     }
   }, [mexer]);
+
+  /* CRIAR A PRÓXIMA EDIÇÃO de um clique (pedido do dono, 24/10/2026).
+     Nasce ligada a esta (`evento`), com o mesmo nome e a mesma logo, os
+     compradores desta, as datas deslocadas, a META já definida (a sugerida
+     pelos números ou a que a pessoa digitou) e a estratégia gravada no
+     planejamento. As O.S., os lançamentos e os anexos ficam aqui: são fatos
+     desta edição. O recado desta não é copiado: a nova lê o recado da
+     anterior daqui, então editar depois continua valendo. */
+  const criarProxima = useCallback(async (c, { ano: anoPedido, meta: metaPedida } = {}) => {
+    if (!c?.id) return null;
+    /* Tudo dentro do try: `validarPlanejamento` lança de forma síncrona, e uma
+       rejeição aqui chegava ao botão sem aviso nenhum na tela. */
+    try {
+      const listaAgora = resumoGeralCampanhas(mapaRef.current || {}, ordens, ANO_HOJE);
+      const atualResumo = listaAgora.find((x) => x.id === c.id) || c;
+      const atual = mapaRef.current?.[c.id] || c;
+      const grupo = membrosDoEvento(listaAgora, atualResumo);
+      const prox = proximaEdicao(atual, grupo.map((x) => String(x.ano || "").trim()), anoPedido);
+      if (!prox) { setAviso({ tom: "erro", texto: "Informe o ano desta campanha (4 dígitos) antes de criar a próxima." }); return null; }
+      if (prox.mesmoAno) { setAviso({ tom: "erro", texto: `${prox.ano} é o ano desta campanha. A próxima precisa de outro ano.` }); return null; }
+      if (prox.jaExiste) {
+        const colide = grupo.find((x) => String(x.ano || "").trim() === prox.ano);
+        setAviso({ tom: "erro", texto: `Este evento já tem a edição de ${prox.ano}${colide ? ` (“${colide.nome || "sem nome"}”)` : ""}. Abra a que existe em vez de criar outra.` });
+        return null;
+      }
+      const est = estrategiaDaProxima({
+        atual: { ...atual, id: c.id, ...atualResumo },
+        anteriores: edicoesDoMesmoEvento(listaAgora, atualResumo),
+        produtos: produtosDaCampanha(atual, ordens, null),
+      });
+      const metaDigitada = metaPedida != null && String(metaPedida).trim() !== "";
+      const meta = metaDigitada ? Math.round(Math.max(0, paraNumero(metaPedida)) * 100) / 100 : est.metaSugerida;
+      const evento = atual?.evento || c.id;
+      if (!atual?.evento) {
+        const ok = await mexer(c.id, { campos: { evento } });
+        if (!ok || ok.evento !== evento) { setAviso({ tom: "erro", texto: "Não consegui ligar as duas edições. Tente de novo." }); return null; }
+      }
+      const id = novoId("campanha");
+      const clientes = atual?.clientes || [];
+      const nova = await mexer(id, {
+        campos: {
+          nome: atual?.nome || "Nova campanha", ano: prox.ano, evento, meta, clientes,
+          desde: prox.desde, ate: prox.ate,
+          ...(logoValida(atual?.logo) ? { logo: atual.logo } : {}),
+          planejamento: validarPlanejamento({ consideracoes: "", estrategia: textoDaEstrategia(est, { anoNovo: prox.ano }), proximaCampanha: "", acoes: [] }),
+        },
+        criar: true,
+      });
+      if (nova) {
+        setCriandoEdicao(false);
+        setAberta(id);
+        setAviso({
+          tom: "ok",
+          texto: `Edição de ${prox.ano} criada: ${clientes.length} ${clientes.length === 1 ? "comprador" : "compradores"}, meta ${dinheiro(meta)}, de ${dataDaOS(prox.desde)} a ${dataDaOS(prox.ate)}, com a estratégia no planejamento. As O.S. ficam na edição de ${atual?.ano || "origem"}.`,
+        });
+      }
+      return nova;
+    } catch (e) {
+      setAviso({ tom: "erro", texto: e.message || "Não consegui criar a próxima edição." });
+      return null;
+    }
+  }, [mexer, ordens]);
+
+  /* Pelo cartão da lista: o ano é o próximo livre, e a pessoa confirma. Com
+     trava de reentrada: o segundo clique antes de a primeira gravação voltar
+     calculava o MESMO ano (o mapa ainda não tinha a nova) e criava duas. */
+  const criandoDoCartao = useRef(false);
+  const criarProximaDoCartao = useCallback(async (c) => {
+    if (criandoDoCartao.current) return;
+    const listaAgora = resumoGeralCampanhas(mapaRef.current || {}, [], ANO_HOJE);
+    const grupo = membrosDoEvento(listaAgora, listaAgora.find((x) => x.id === c.id) || c);
+    const prox = proximaEdicao(mapaRef.current?.[c.id] || c, grupo.map((x) => String(x.ano || "").trim()));
+    if (!prox) { setAviso({ tom: "erro", texto: "Informe o ano desta campanha (4 dígitos) antes de criar a próxima." }); return; }
+    if (!window.confirm(`Criar a edição de ${prox.ano} de “${c.nome || "sem nome"}”?\nNasce com os compradores desta, a meta sugerida pelos números, de ${dataDaOS(prox.desde)} a ${dataDaOS(prox.ate)}, e a estratégia. As O.S. ficam aqui.`)) return;
+    criandoDoCartao.current = true;
+    try { await criarProxima(c); } finally { criandoDoCartao.current = false; }
+  }, [criarProxima]);
+
+  /* O RECADO PARA A PRÓXIMA mora no planejamento desta edição
+     (`proximaCampanha`). Grava só esse campo, a partir do que o servidor tem
+     agora, para não passar por cima do resto do planejamento. */
+  const salvarRecado = useCallback((texto) => {
+    if (!aberta) return Promise.resolve(null);
+    return mexer(aberta, (atual) => ({
+      campos: { planejamento: validarPlanejamento({ consideracoes: "", estrategia: "", acoes: [], ...(atual?.planejamento || {}), proximaCampanha: texto }) },
+    }));
+  }, [aberta, mexer]);
+
+  /* A LOGO DO EVENTO: reduzida aqui (192 px no lado maior; PNG se tiver
+     transparência, JPEG se não) e gravada dentro do registro, a mesma regra da
+     logo das contas em Bancos. Nada de SVG nem da imagem original de vários MB. */
+  const logoRef = useRef(null);
+  const trocarLogo = useCallback(async (file) => {
+    if (!aberta || !file) return;
+    try {
+      if (!/^image\/(png|jpeg|webp)$/.test(file.type)) throw new Error("Use uma imagem PNG, JPG ou WebP.");
+      if (file.size > 10 * 1024 * 1024) throw new Error("Imagem grande demais (até 10 MB).");
+      let bmp;
+      /* O navegador recusa em inglês ("The source image could not be decoded"). */
+      try { bmp = await createImageBitmap(file); } catch { throw new Error("Não foi possível ler esta imagem. Tente outra."); }
+      const esc = Math.min(1, 192 / Math.max(bmp.width, bmp.height));
+      const canvas = document.createElement("canvas");
+      canvas.width = Math.max(1, Math.round(bmp.width * esc));
+      canvas.height = Math.max(1, Math.round(bmp.height * esc));
+      const ctx = canvas.getContext("2d");
+      ctx.drawImage(bmp, 0, 0, canvas.width, canvas.height);
+      bmp.close?.();
+      /* Uma FOTO em PNG passa do limite do servidor mesmo em 192 px, e "use uma
+         imagem pequena" não ajuda quem viu a tela reduzir. Sem transparência
+         vai em JPEG; com transparência e grande demais, JPEG sobre branco. */
+      const px = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
+      let transparente = false;
+      for (let i = 3; i < px.length; i += 4) if (px[i] < 255) { transparente = true; break; }
+      let dados = transparente ? canvas.toDataURL("image/png") : canvas.toDataURL("image/jpeg", 0.9);
+      if (dados.length > LOGO_MAX) {
+        ctx.globalCompositeOperation = "destination-over";
+        ctx.fillStyle = "#ffffff";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        dados = canvas.toDataURL("image/jpeg", 0.85);
+      }
+      if (dados.length > LOGO_MAX) throw new Error("A imagem ficou grande demais mesmo reduzida. Tente uma mais simples.");
+      const logo = validarLogo(dados);
+      await mexer(aberta, { campos: { logo } });
+    } catch (e) {
+      setAviso({ tom: "erro", texto: e.message || "Não foi possível usar esta imagem." });
+    }
+  }, [aberta, mexer]);
 
   const apagar = useCallback(async (id, nome) => {
     if (!window.confirm(`Apagar a campanha "${nome || "sem nome"}"? O histórico, as vendas e os anexos vão junto.`)) return;
@@ -2833,6 +3015,7 @@ export default function Campanhas() {
         <AvisoDadoParado atualizadoEm={atualizadoEm} />
 
         <input ref={arquivoRef} type="file" className="hidden" onChange={(e) => anexar(e.target.files?.[0])} />
+        <input ref={logoRef} type="file" accept="image/png,image/jpeg,image/webp" className="hidden" onChange={(e) => { trocarLogo(e.target.files?.[0]); e.target.value = ""; }} />
 
         <CampanhaPlanejamento key={aberta} campanha={campanha} aoSalvar={planejamento => mexer(aberta,{campos:{planejamento}})} />
 
@@ -2864,6 +3047,24 @@ export default function Campanhas() {
                 com `min-w-0` e encolhia para OITO PIXELS: os campos vazavam
                 para fora e o "Baixar PDF" era desenhado por cima do nome. */}
             <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:min-w-0 sm:flex-1">
+              {/* A LOGO DO EVENTO: um clique anexa ou troca; aparece aqui, no
+                  cartão da lista e vai junto para a próxima edição. */}
+              <button
+                type="button"
+                className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-dashed border-slate-300 bg-slate-50 text-[10px] text-slate-400 hover:border-brand-300 sem-impressao"
+                title={logoValida(campanha.logo) ? "Trocar a logo do evento" : "Anexar a logo do evento (PNG, JPG ou WebP)"}
+                aria-label={logoValida(campanha.logo) ? "Trocar a logo do evento" : "Anexar a logo do evento"}
+                disabled={salvando}
+                aria-busy={salvando}
+                onClick={() => logoRef.current?.click()}
+              >
+                {logoValida(campanha.logo) ? <img src={campanha.logo} alt="" className="h-full w-full object-contain p-1" /> : "Logo"}
+              </button>
+              {logoValida(campanha.logo) && (
+                <button type="button" className="min-h-11 px-2 text-xs text-slate-500 hover:text-bad-600 sem-impressao" disabled={salvando} onClick={() => mexer(aberta, { campos: { logo: null } })}>
+                  tirar logo
+                </button>
+              )}
               {/* NÃO-CONTROLADOS, com `key` -- o mesmo padrão da meta e das
                   datas logo abaixo. Controlados por `mapa`, a resposta da
                   gravação anterior chegava DURANTE a digitação e devolvia o
@@ -2974,11 +3175,20 @@ export default function Campanhas() {
             </div>
             <div>
               <div className="mb-1 text-xs text-slate-500">Meta do evento</div>
-              <div className="font-semibold tabular-nums">{resumo.meta>0?dinheiro(resumo.meta):'Sem meta definida'}</div>
-              {podeAbrir("campanhas")&&<Link className="btn-ghost mt-1" to={`/configuracoes?secao=campanhas&campanha=${encodeURIComponent(aberta)}`}>Configurar meta</Link>}
+              <Meta
+                grande
+                vendido={resumo.vendido}
+                meta={resumo.meta}
+                pct={resumo.pct}
+                aoDefinir={podeAbrir("campanhas") ? `/configuracoes?secao=campanhas&campanha=${encodeURIComponent(aberta)}` : null}
+              />
+              {podeAbrir("campanhas") && resumo.meta > 0 && (
+                <Link className="mt-1 inline-block text-xs text-brand-600 hover:underline sem-impressao" to={`/configuracoes?secao=campanhas&campanha=${encodeURIComponent(aberta)}`}>
+                  Ajustar a meta
+                </Link>
+              )}
             </div>
           </div>
-          <Meta vendido={resumo.vendido} meta={resumo.meta} pct={resumo.pct} />
 
           {/* PAGO × EM ABERTO — só faz sentido com O.S. marcadas. */}
           {resumo.linhas.length > 0 && (
@@ -3016,6 +3226,28 @@ export default function Campanhas() {
             </div>
           )}
         </Card>
+
+        {/* ------------------------------------------- a próxima edição */}
+        <Secao
+          semImpressao
+          id="proxima"
+          titulo="Próxima edição"
+          sub="O recado para a próxima, a estratégia que os números desta sugerem e o botão que já cria a edição seguinte com meta."
+          aberta={abertas.proxima}
+          aoAlternar={alternar}
+        >
+          <CampanhaProxima
+            key={aberta}
+            campanha={{ ...campanha, id: aberta }}
+            estrategia={estrategia}
+            proxima={proxima}
+            anosUsados={anosDoEvento}
+            recadoAnterior={recadoAnterior}
+            aoCriar={(o) => criarProxima({ ...campanha, id: aberta }, o)}
+            aoSalvarRecado={salvarRecado}
+            salvando={salvando}
+          />
+        </Secao>
 
         {/* ------------------------------------------- as outras edições */}
         {/* A SEÇÃO EXISTE MESMO SEM EDIÇÃO NENHUMA: é aqui que mora o botão de
@@ -3840,7 +4072,7 @@ export default function Campanhas() {
       {abaLista === "campanhas" && (listaDoAno.length ? (
         <div className="grid gap-3 sm:grid-cols-2">
           {listaDoAno.map((c) => (
-            <CartaoCampanha key={c.id} c={c} aoAbrir={setAberta} contra={contraAnterior.get(c.id)} aoDuplicar={duplicar} />
+            <CartaoCampanha key={c.id} c={c} aoAbrir={setAberta} contra={contraAnterior.get(c.id)} aoDuplicar={duplicar} aoProxima={criarProximaDoCartao} salvando={salvando} />
           ))}
         </div>
       ) : lista.length ? (

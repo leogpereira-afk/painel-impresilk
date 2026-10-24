@@ -32,3 +32,14 @@ export function projetarCampanhas(campanhas, mes) {
   }
   return eventos;
 }
+// A LOGO DO EVENTO mora dentro do registro, como imagem pequena em base64
+// (PNG, JPEG ou WebP), do mesmo jeito que a logo das contas em Bancos: vira o
+// src de <img> na lista e na ficha, sem uma ida ao bucket por campanha. A tela
+// reduz a imagem antes de mandar; aqui só se confere que é imagem de verdade e
+// de tamanho razoável. SVG não entra (pode carregar script). null ou '' tira.
+export const LOGO_MAX = 200000;
+export function validarLogo(valor) {
+  if (valor == null || valor === '') return null;
+  if (typeof valor !== 'string' || valor.length > LOGO_MAX || !/^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/]+={0,2}$/.test(valor)) throw Error('Logo inválida: use uma imagem PNG, JPG ou WebP pequena.');
+  return valor;
+}

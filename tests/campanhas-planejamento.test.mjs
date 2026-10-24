@@ -33,3 +33,10 @@ function porta(perms, falha=false){
 }
 test('porta exige acesso à campanha e ao calendário antes de ler',async()=>{for(const perms of [[],['campanhas'],['calendario-empresa']]){const p=porta(perms);assert.equal((await p.call()).status,403);assert.equal(p.consultas(),0);}});
 test('porta devolve projeção e falha não vira calendário vazio',async()=>{const r=await porta(['campanhas','calendario-empresa']).call();assert.equal(r.status,200);assert.equal((await r.json()).eventos.length,1);const falha=await porta(['campanhas','calendario-empresa'],true).call();assert.equal(falha.status,500);assert.ok(!(await falha.text()).includes('Erro privado'));});
+
+import { validarLogo, LOGO_MAX } from '../supabase/functions/_shared/campanhas-planejamento.mjs';
+test('logo da campanha: só imagem pequena em base64; vazio tira; SVG e lixo não entram',()=>{
+ const png='data:image/png;base64,iVBORw0KGgo=';
+ assert.equal(validarLogo(png),png);assert.equal(validarLogo(''),null);assert.equal(validarLogo(null),null);
+ for(const ruim of ['data:image/svg+xml;base64,PHN2Zz4=','https://exemplo.test/logo.png','data:image/png;base64,<script>',42,'data:image/png;base64,'+'A'.repeat(LOGO_MAX)]) assert.throws(()=>validarLogo(ruim),/Logo inválida/);
+});

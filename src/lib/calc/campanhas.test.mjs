@@ -1198,3 +1198,60 @@ test("atualizar com o ERP: sem lista do ERP nada é proposto (senão tudo parece
     assert.equal(r.sumiram.length, 0);
   }
 });
+
+/* ---------------------------------------------------- a próxima edição */
+import { proximaEdicao, estrategiaDaProxima, textoDaEstrategia } from "./campanhas.js";
+
+test("próxima edição: ano seguinte livre, datas deslocadas junto, 29/02 cai no fim do mês", () => {
+  const c = { ano: "2026", desde: "2026-08-01", ate: "2026-09-14" };
+  assert.deepEqual(proximaEdicao(c, ["2026"]), { ano: "2027", salto: 1, desde: "2027-08-01", ate: "2027-09-14", jaExiste: false, mesmoAno: false });
+  // o evento já tem 2027: pula para 2028
+  assert.equal(proximaEdicao(c, ["2026", "2027"]).ano, "2028");
+  // ano escolhido à mão: a eleição é de dois em dois
+  const esc = proximaEdicao({ ano: "2026", desde: "2026-01-02", ate: "2026-10-31" }, ["2022", "2024", "2026"], "2028");
+  assert.equal(esc.desde, "2028-01-02"); assert.equal(esc.ate, "2028-10-31"); assert.equal(esc.jaExiste, false);
+  assert.equal(proximaEdicao(c, ["2026", "2027"], "2027").jaExiste, true);
+  assert.equal(proximaEdicao(c, ["2026"], "2026").mesmoAno, true);
+  assert.deepEqual(proximaEdicao({ ano: "2024", desde: "2024-02-29" }, []).desde, "2025-02-28");
+  // sem data nesta edição: o ano inteiro
+  assert.deepEqual([proximaEdicao({ ano: "2026" }, []).desde, proximaEdicao({ ano: "2026" }, []).ate], ["2027-01-01", "2027-12-31"]);
+  assert.equal(proximaEdicao({ ano: "" }, []), null);
+});
+
+test("estratégia: meta cresce o que cresceu (entre 5% e 25%), redonda ao milhar; sem anterior sobe 10%", () => {
+  const cliente = (chave, valor, qtd = 1) => ({ chave, cliente: chave.toUpperCase(), cnpj: "", qtd, valor });
+  const atual = { id: "a", ano: "2026", vendido: 186004.23, meta: 150000, linhas: [{ data: "2026-03-02", valor: 100 }, { data: "2026-05-20", valor: 185904.23 }],
+    porCliente: [cliente("rural", 33809.05), cliente("padaria", 20000), cliente("nova", 5000)], planejamento: { proximaCampanha: "Fechar os patrocínios em janeiro." } };
+  const anterior = { id: "b", ano: "2025", vendido: 160966.38, porCliente: [cliente("rural", 30000), cliente("padaria", 15000), cliente("sumiu", 9000)] };
+  const e = estrategiaDaProxima({ atual, anteriores: [anterior, { id: "c", ano: "2027", vendido: 1, porCliente: [] }] });
+  assert.equal(e.anterior.ano, "2025");                 // a de 2027 não é "anterior"
+  assert.ok(Math.abs(e.crescimento - 0.1555) < 0.001);
+  assert.equal(e.fator, e.crescimento);                 // dentro da faixa: usa o que cresceu
+  assert.equal(e.metaSugerida, 215000);                 // 186.004 × 1,1555 = 214.9xx → milhar acima
+  assert.equal(e.primeiraVenda, "2026-03-02"); assert.equal(e.pico.mes, "2026-05");
+  assert.deepEqual(e.procurarPrimeiro.map((c) => c.chave), ["rural", "padaria", "nova"]);
+  assert.deepEqual(e.naoVoltaram.map((c) => [c.chave, c.ano]), [["sumiu", "2025"]]);
+  assert.deepEqual(e.fieis.map((c) => [c.chave, c.edicoes]), [["rural", 2], ["padaria", 2]]);
+  assert.equal(e.recado, "Fechar os patrocínios em janeiro.");
+  // salto de 60% não vira régua; queda não vira meta abaixo do vendido
+  assert.equal(estrategiaDaProxima({ atual: { ...atual, vendido: 300000 }, anteriores: [anterior] }).fator, 0.25);
+  assert.equal(estrategiaDaProxima({ atual: { ...atual, vendido: 100000 }, anteriores: [anterior] }).fator, 0.05);
+  // sem edição anterior: 10%, e ninguém é "fiel" com uma edição só
+  const so = estrategiaDaProxima({ atual });
+  assert.equal(so.fator, 0.10); assert.equal(so.metaSugerida, 205000); assert.deepEqual(so.fieis, []); assert.deepEqual(so.naoVoltaram, []);
+  // sem venda: fica a meta desta edição, sem inventar crescimento
+  assert.equal(estrategiaDaProxima({ atual: { ...atual, vendido: 0, linhas: [], porCliente: [] } }).metaSugerida, 150000);
+  const texto = textoDaEstrategia(e, { anoNovo: "2027" });
+  for (const trecho of ["Meta: R$ 215.000,00", "cresceu 16% contra 2025", "primeira venda foi em 02/03/2026", "pico em mai/2026", "Procurar primeiro: RURAL", "não voltaram em 2026: SUMIU", "Compram toda edição: RURAL (2 de 2)"]) {
+    assert.ok(texto.includes(trecho), trecho);
+  }
+  assert.doesNotMatch(texto, /[—–]/);
+  // o recado não vai no texto: a edição nova lê o da anterior ao vivo, e um
+  // recado no limite (10.000) colado aqui passava do limite do planejamento
+  assert.ok(!texto.includes("Fechar os patrocínios"));
+  assert.ok(textoDaEstrategia({ ...e, recado: "x".repeat(10000) }).length <= 10000);
+  // edição anterior ligada mas sem venda: não inventa percentual nem diz "sem edição anterior"
+  const zero = estrategiaDaProxima({ atual, anteriores: [{ ...anterior, vendido: 0, linhas: [], porCliente: [] }] });
+  assert.equal(zero.crescimento, null); assert.equal(zero.fator, 0.10);
+  assert.ok(textoDaEstrategia(zero).includes("a edição de 2025 não tem venda marcada para comparar"));
+});

@@ -12,7 +12,8 @@ export default function CampanhaPlanejamento({ campanha, aoSalvar }) {
   async function salvar(){
     setAviso('');setSalvando(true);
     try {
-      const planejamento=validarPlanejamento(plano);
+      // O recado para a próxima é editado no quadro "Próxima edição": vai o que o servidor tem, não um rascunho velho daqui.
+      const planejamento=validarPlanejamento({...plano,proximaCampanha:campanha.planejamento?.proximaCampanha||''});
       const salvo=await aoSalvar(planejamento);
       if(!salvo?.planejamento || JSON.stringify(validarPlanejamento(salvo.planejamento))!==JSON.stringify(planejamento)) throw Error('Não foi possível confirmar o planejamento salvo. Seus campos foram preservados; tente novamente.');
       setRascunho(null);setAviso('Planejamento salvo. As ações vinculadas aparecem no Calendário da empresa.');
@@ -21,7 +22,7 @@ export default function CampanhaPlanejamento({ campanha, aoSalvar }) {
   return <section className="rounded-xl border border-slate-200 bg-white p-4 print:hidden">
     <button type="button" className="btn-outline" aria-expanded={aberto} onClick={()=>setAberto(!aberto)}>Planejamento e estratégia {aberto?'▴':'▾'} · {plano.acoes?.length||0} {plano.acoes?.length===1?'ação':'ações'}{rascunho?' · alterações não salvas':''}</button>
     {aberto&&<div className="mt-4 space-y-4">
-      <div className="grid gap-4 md:grid-cols-3">{[['consideracoes','Considerações e aprendizados'],['estrategia','Estratégia aplicada'],['proximaCampanha','O que fazer na próxima campanha']].map(([campo,rotulo])=><label key={campo} className="text-sm font-medium">{rotulo}<textarea disabled={salvando} className="input mt-1 min-h-28 w-full" maxLength={10000} value={plano[campo]||''} onChange={e=>mudar({[campo]:e.target.value})}/></label>)}</div>
+      <div className="grid gap-4 md:grid-cols-2">{[['consideracoes','Considerações e aprendizados'],['estrategia','Estratégia aplicada']].map(([campo,rotulo])=><label key={campo} className="text-sm font-medium">{rotulo}<textarea disabled={salvando} className="input mt-1 min-h-28 w-full" maxLength={10000} value={plano[campo]||''} onChange={e=>mudar({[campo]:e.target.value})}/></label>)}</div>
       <p className="text-sm text-slate-500">Vincule as datas ao Calendário da empresa. Ações concluídas, canceladas e campanhas encerradas saem do calendário.</p>
       {plano.acoes.map(a=><fieldset key={a.id} className="grid gap-3 rounded-lg border p-3 md:grid-cols-2" disabled={salvando}>
         <label className="text-sm">Próxima ação<input className="input mt-1 w-full" maxLength={200} value={a.titulo} onChange={e=>mudarAcao(a.id,{titulo:e.target.value})}/></label>
