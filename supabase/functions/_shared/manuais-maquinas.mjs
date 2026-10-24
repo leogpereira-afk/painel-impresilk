@@ -34,13 +34,24 @@ function lista(v,permitidos,preparar){
  if(!Array.isArray(v)||v.length>LIMITES_MANUAL.lista)falhaManual('Lista inválida ou extensa demais.');
  const ids=new Set();return v.map(item=>{camposManuais(item,['id',...permitidos],'Item');const id=uuid(item.id);if(ids.has(id))falhaManual('Há IDs repetidos na lista.');ids.add(id);return {id,...preparar(item)};});
 }
+function prepararFotoManual(v,consumivel=false){
+ const foto=v??{};camposManuais(foto,['url','fonteUrl','legenda','usoConfirmado',...(!consumivel?['principal']:[])],'Foto');
+ const pronta={url:urlManual(foto.url),fonteUrl:urlManual(foto.fonteUrl),legenda:texto(foto.legenda,1000),usoConfirmado:booleano(foto.usoConfirmado)};
+ if(pronta.url&&!pronta.usoConfirmado)falhaManual('Confirme o direito de uso da foto antes de cadastrá-la.');
+ if(pronta.url&&consumivel&&!pronta.fonteUrl)falhaManual('Informe a fonte da foto do consumível.');
+ if(!consumivel){
+  pronta.principal=opcao(foto.principal,['inventario','referencia'],'inventario');
+  if(pronta.principal==='referencia'&&!pronta.url)falhaManual('Cadastre uma foto de referência confirmada antes de priorizá-la.');
+ }
+ return pronta;
+}
 export function prepararConteudoManual(v){
  camposManuais(v,['identificacaoConfirmada','fabricante','modelo','variante','responsavelId','revisarEm',...SECOES_MANUAL,'consumiveis','fontes','assistencias','treinamentos','foto']);
  if(JSON.stringify(v).length>LIMITES_MANUAL.conteudo)falhaManual('Conteúdo extenso demais.');
  const c={identificacaoConfirmada:booleano(v.identificacaoConfirmada),fabricante:texto(v.fabricante),modelo:texto(v.modelo),variante:texto(v.variante),responsavelId:texto(v.responsavelId,180),revisarEm:data(v.revisarEm)};
  for(const s of SECOES_MANUAL)c[s]=texto(v[s],LIMITES_MANUAL.texto);
  c.fontes=lista(v.fontes,['titulo','url','tipo','modelo','versao','idioma','conferidoEm','pagina','situacao'],s=>({titulo:texto(s.titulo),url:urlManual(s.url),tipo:opcao(s.tipo,['fabricante','interno','video','ficha-seguranca'],'interno'),modelo:texto(s.modelo),versao:texto(s.versao),idioma:texto(s.idioma),conferidoEm:data(s.conferidoEm),pagina:texto(s.pagina),situacao:opcao(s.situacao,['verificado','pendente'],'pendente')}));
- c.consumiveis=lista(v.consumiveis,['nome','codigo','uso','compatibilidade','armazenamento','fonteId'],s=>({nome:texto(s.nome),codigo:texto(s.codigo),uso:texto(s.uso,3000),compatibilidade:opcao(s.compatibilidade,['fabricante','uso-interno','pendente'],'pendente'),armazenamento:texto(s.armazenamento,3000),fonteId:uuid(s.fonteId,true)}));
+ c.consumiveis=lista(v.consumiveis,['nome','codigo','uso','compatibilidade','armazenamento','fonteId','foto'],s=>({nome:texto(s.nome),codigo:texto(s.codigo),uso:texto(s.uso,3000),compatibilidade:opcao(s.compatibilidade,['fabricante','uso-interno','pendente'],'pendente'),armazenamento:texto(s.armazenamento,3000),fonteId:uuid(s.fonteId,true),foto:prepararFotoManual(s.foto,true)}));
  for(const item of c.consumiveis){if(item.fonteId&&!c.fontes.some(f=>f.id===item.fonteId))falhaManual('A fonte do consumível não existe neste manual.');if(item.compatibilidade==='fabricante'&&!c.fontes.some(f=>f.id===item.fonteId&&f.tipo==='fabricante'&&f.situacao==='verificado'&&f.url&&f.conferidoEm&&c.modelo&&f.modelo.toLocaleLowerCase('pt-BR')===c.modelo.toLocaleLowerCase('pt-BR')))falhaManual('Compatibilidade do fabricante exige fonte verificada para este modelo, com link e data de conferência.');}
  c.assistencias=lista(v.assistencias,['nome','especialidade','telefone','whatsapp','email','endereco','url','conferidoEm'],s=>{
   const email=texto(s.email);if(email&&!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))falhaManual('E-mail inválido.');
@@ -48,8 +59,7 @@ export function prepararConteudoManual(v){
   return {nome:texto(s.nome),especialidade:texto(s.especialidade),telefone,whatsapp,email,endereco:texto(s.endereco,1000),url:urlManual(s.url),conferidoEm:data(s.conferidoEm)};
  });
  c.treinamentos=lista(v.treinamentos,['titulo','objetivo','conteudo','criterio','url'],s=>({titulo:texto(s.titulo),objetivo:texto(s.objetivo,3000),conteudo:texto(s.conteudo,6000),criterio:texto(s.criterio,3000),url:urlManual(s.url)}));
- const foto=v.foto??{};camposManuais(foto,['url','fonteUrl','legenda','usoConfirmado'],'Foto');c.foto={url:urlManual(foto.url),fonteUrl:urlManual(foto.fonteUrl),legenda:texto(foto.legenda,1000),usoConfirmado:booleano(foto.usoConfirmado)};
- if(c.foto.url&&!c.foto.usoConfirmado)falhaManual('Confirme o direito de uso da foto antes de cadastrá-la.');
+ c.foto=prepararFotoManual(v.foto);
  return c;
 }
 export function validarReferenciaManual(ref){

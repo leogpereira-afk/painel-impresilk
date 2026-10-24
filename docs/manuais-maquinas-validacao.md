@@ -56,3 +56,16 @@ Antes de disponibilizar conteúdo operacional: resolver as divergências de fabr
 - Acervo real e sua conferência permanecem em entrega privada. A prévia com essas fotos é uma instância local separada, sem incorporar cadastros ou imagens privadas ao build público.
 - Nova execução dos testes focados: 67/67 aprovados. Build de produção concluído; lint com zero erros e o mesmo aviso anterior em Agenda. `git diff --check` sem erros.
 - Permissões da galeria e vínculos existentes preservados. Nenhum novo manual ou foto foi gravado em produção nesta revisão; nenhuma publicação executada.
+
+## Galeria e consumíveis — fechamento local
+
+- Preferência explícita entre referência e Inventário; novas escolhas respeitam a revisão salva, sem a seleção antiga permanecer por cima. Galeria com miniaturas, navegação anterior/próxima, teclado, ampliação e origem. URLs assinadas continuam transitórias.
+- Consumíveis aceitam imagem, legenda, fonte HTTPS e confirmação de uso no contrato validado pelo servidor. Incluir foto não promove compatibilidade. Edição, aprovação, histórico e CAS preservam essas informações.
+- Corrigidos o acesso de foto de consumível sem bem vinculado, a edição de referência legada sem fonte e o rótulo do atalho: uma página de peça é “Fonte do fabricante”, nunca presumida como manual técnico.
+- Conteúdo técnico privado preparado para a variante confirmada, com referências por página, exemplos históricos identificados e compatibilidades não verificadas pendentes. Roteiros de treinamento são propostas, sem conclusão ou matrícula registrada.
+- Conferência nativa: catálogo completo em duas páginas, busca, todas as fotos principais, galeria com original/derivada/referência, Escape e seis ilustrações de consumíveis. Larguras de 319 e 1280 px sem transbordamento horizontal; não equivale a aparelho físico.
+- Acervo privado, derivados aceitos e originais conservados fora de src/public/dist. Candidatos com perda de fidelidade excluídos da prévia. A página privada permanece somente leitura e não é distribuída no build.
+- Correções pontuais de identificação expressamente solicitadas pelo dono foram efetuadas e relidas na interface publicada, com registros privados antes/depois. Identificações conflitantes não foram substituídas por inferência. A nova interface, os manuais e as fotos continuam sem publicação/carga produtiva.
+- Permanece a limitação já registrada da última conferência nativa do PDF. Aprovação operacional exige responsável e validação técnica.
+
+Verificação final desta revisão: **77/77 testes focados passaram**, build de produção concluído, ESLint sem erros (mesmo aviso anterior em Agenda) e `git diff --check` limpo. A suíte geral mencionada acima pertence à etapa inicial e não foi repetida nesta revisão.

@@ -24,6 +24,23 @@ test('compatibilidade confirmada pelo fabricante exige fonte datada do modelo do
  const c={modelo:'M1',fontes:[fonte],consumiveis:[{id:C,compatibilidade:'fabricante',fonteId:F}]};
  for(const patch of [{modelo:'outro'},{url:''},{conferidoEm:''}])assert.throws(()=>prepararConteudoManual({...c,fontes:[{...fonte,...patch}]}),/fabricante/);
 });
+test('foto do consumível exige origem e uso confirmado sem promover compatibilidade',()=>{
+ const foto={url:'https://example.com/peca.png',fonteUrl:'https://example.com/catalogo',legenda:'Peça ilustrativa',usoConfirmado:true};
+ const preparar=f=>prepararConteudoManual({consumiveis:[{id:C,nome:'Peça fictícia',foto:f}]}).consumiveis[0];
+ const item=preparar(foto);assert.deepEqual(item.foto,foto);assert.equal(item.compatibilidade,'pendente');assert.equal(item.fonteId,'');
+ assert.deepEqual(preparar(undefined).foto,{url:'',fonteUrl:'',legenda:'',usoConfirmado:false});
+ const drive='https://drive.google.com/file/d/arquivo-ficticio/view?resourcekey=exemplo';assert.equal(preparar({...foto,url:drive}).foto.url,drive);
+ for(const patch of [{usoConfirmado:false},{usoConfirmado:'true'},{fonteUrl:''},{url:'http://example.com/peca.png'},{url:'data:image/png;base64,AA'},{fonteUrl:'https://example.com/?token=privado'},{url:'https://10.0.0.1/foto.png'},{url:`https://example.com/${'x'.repeat(2048)}`},{legenda:'x'.repeat(1001)},{legenda:'senha=segredo'},{valor:100},{historico:[]},{principal:'referencia'}])assert.throws(()=>preparar({...foto,...patch}),undefined,JSON.stringify(patch));
+ assert.throws(()=>preparar([]),/Foto/);
+ assert.throws(()=>prepararConteudoManual({modelo:'M1',consumiveis:[{id:C,foto,compatibilidade:'fabricante'}]}),/fabricante/);
+ const confirmado=prepararConteudoManual({modelo:'M1',fontes:[fonte],consumiveis:[{id:C,foto,compatibilidade:'fabricante',fonteId:F}]}).consumiveis[0];assert.equal(confirmado.fonteId,F);assert.equal(confirmado.compatibilidade,'fabricante');
+});
+test('foto principal preserva preferência legado e só prioriza referência confirmada',()=>{
+ const foto={url:'https://example.com/maquina.jpg',fonteUrl:'https://example.com/catalogo',usoConfirmado:true};
+ assert.equal(prepararConteudoManual({}).foto.principal,'inventario');assert.equal(prepararConteudoManual({foto}).foto.principal,'inventario');
+ assert.equal(prepararConteudoManual({foto:{...foto,principal:'referencia'}}).foto.principal,'referencia');
+ for(const patch of [{principal:'qualquer'},{principal:null},{principal:'referencia',url:''},{principal:'referencia',usoConfirmado:false},{principal:'referencia',url:'/Users/exemplo/foto.jpg'}])assert.throws(()=>prepararConteudoManual({foto:{...foto,...patch}}));
+});
 test('aprovar exige identificação, procedimento, fonte específica e pessoa ativa',()=>{
  const pessoas=[{id:'rh-1',disponivel:true}],c=prepararConteudoManual(conteudo());assert.doesNotThrow(()=>validarAprovacaoManual(c,pessoas));
  for(const patch of [{identificacaoConfirmada:false},{fabricante:''},{modelo:''},{seguranca:''},{operacao:''},{responsavelId:''},{revisarEm:''},{fontes:[{...fonte,modelo:'Outro'}]},{fontes:[{...fonte,situacao:'pendente'}]},{fontes:[{...fonte,conferidoEm:''}]}])assert.throws(()=>validarAprovacaoManual({...c,...patch},pessoas));

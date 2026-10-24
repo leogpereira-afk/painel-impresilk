@@ -17,3 +17,16 @@ export function fotoReferenciaManual(foto) {
   const recorte=RECORTES.get(foto.url);
   return recorte?{...recorte}:{url:original,tratada:false};
 }
+
+// URLs assinadas da galeria são transitórias e nunca entram no conteúdo salvo.
+function urlFotoPatrimonio(valor) {
+  try {const u=new URL(valor);return u.protocol==='https:'&&!u.username&&!u.password?u.href:'';}catch{return '';}
+}
+
+export function galeriaFotosManual(foto, patrimonio=[]) {
+  const referencia=fotoReferenciaManual(foto);
+  const principal=referencia.url?[{...referencia,tipo:'referencia',fonteUrl:urlManualSegura(foto?.fonteUrl),legenda:referencia.tratada?'Referência visual · imagem tratada':referencia.rotulo||foto?.legenda||'Imagem de referência'}]:[];
+  const reais=patrimonio.flatMap(f=>{const url=urlFotoPatrimonio(f.url);return url?[{url,tipo:'inventario',tratada:false,legenda:'Foto do patrimônio',fonteUrl:''}]:[];});
+  const ordenadas=foto?.principal==='referencia'?[...principal,...reais]:[...reais,...principal];
+  return ordenadas.filter((f,n)=>ordenadas.findIndex(o=>o.url===f.url)===n);
+}

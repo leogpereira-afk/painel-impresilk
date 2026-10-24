@@ -18,6 +18,19 @@ function ambiente(perms=['patrimonio','manutencoes','configuracoes']){
 const salvar=(a,c=conteudo(),versaoAnterior=null,referencia=ref)=>a.chamar({action:'manuaisMaquinasSalvar',referencia,conteudo:c,versaoAnterior});
 const ler=(a,referencia=ref)=>a.chamar({action:'manuaisMaquinasLer',referencia});
 const aprovar=(a,m)=>a.chamar({action:'manuaisMaquinasAprovar',referencia:ref,versaoAnterior:m.atualizadoEm});
+test('foto de consumível segue aprovação, permissões e histórico integral com CAS',async()=>{
+ const a=ambiente(),foto={url:'https://example.com/peca-v1.png',fonteUrl:'https://example.com/catalogo',legenda:'Peça fictícia',usoConfirmado:true};
+ const c={...conteudo(),foto:{...foto,url:'https://example.com/maquina.png',principal:'referencia'},consumiveis:[{id:'6a595e14-2b16-41bd-b6a5-2a375d21463c',nome:'Consumível de teste',foto}]};
+ let r=await salvar(a,c);assert.equal(r.status,200,JSON.stringify(r.body));let m=r.body.manual;
+ a.sessao(['patrimonio']);assert.equal((await ler(a)).body.manual,null);assert.deepEqual((await a.chamar({action:'manuaisMaquinasListar'})).body.itens,[]);assert.equal((await salvar(a,c,m.atualizadoEm)).status,403);
+ a.sessao(['patrimonio','manutencoes','configuracoes']);m=(await aprovar(a,m)).body.manual;const aprovado=structuredClone(m);
+ const revisado={...c,foto:{...c.foto,principal:'inventario'},consumiveis:[{...c.consumiveis[0],foto:{...foto,url:'https://example.com/peca-v2.png'}}]};m=(await salvar(a,revisado,m.atualizadoEm)).body.manual;
+ assert.equal(m.conteudo.foto.principal,'inventario');assert.equal(m.historico.find(v=>v.estado==='aprovado').conteudo.foto.principal,'referencia');
+ assert.deepEqual(m.historico.find(v=>v.estado==='aprovado').conteudo.consumiveis[0].foto,foto);assert.equal((await salvar(a,c,aprovado.atualizadoEm)).status,409);
+ a.sessao(['patrimonio']);const leitor=(await ler(a,bem)).body.manual;assert.deepEqual(leitor.conteudo.consumiveis[0].foto,foto);assert.equal(leitor.conteudo.foto.principal,'referencia');assert.equal(leitor.historico,undefined);assert.deepEqual((await a.chamar({action:'manuaisMaquinasListar'})).body.itens[0].conteudo.consumiveis[0].foto,foto);
+ a.sessao(['patrimonio','manutencoes','configuracoes']);const antes=a.escritas.length;
+ const invalido={...c,consumiveis:[{...c.consumiveis[0],foto:{...foto,fonteUrl:''}}]};assert.equal((await salvar(a,invalido,m.atualizadoEm)).status,422);assert.equal(a.escritas.length,antes);assert.deepEqual((await ler(a)).body.manual.conteudo.consumiveis[0].foto,revisado.consumiveis[0].foto);
+});
 test('porteiro real exige sessão e permissões em leitura, edição, aprovação e verbos genéricos',async()=>{
  for(const action of ['manuaisMaquinasCatalogo','manuaisMaquinasListar','manuaisMaquinasLer','manuaisMaquinasSalvar','manuaisMaquinasAprovar']){
   assert.equal((await ambiente(null).chamar({action,referencia:ref})).status,401);

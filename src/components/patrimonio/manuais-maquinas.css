@@ -19,6 +19,7 @@
 
 /* A identidade da operação fica na tela; a folha A4 mantém sua própria escala. */
 @media screen {
+  .mm-detalhe{scroll-margin-top:90px}
   .mm-central,.mm-formulario {
     --mm-azul:#3840e8;--mm-ciano:#007caa;--mm-magenta:#b70b75;
     --mm-azul-bg:#eeefff;--mm-ciano-bg:#e9f7fc;--mm-magenta-bg:#fcecf6;
@@ -292,7 +293,20 @@
   .mm-foto-dialog>img{display:block;width:100%;height:min(58vh,500px);object-fit:contain;padding:18px;background:linear-gradient(140deg,var(--mm-surface),var(--mm-ciano-bg))}
   .mm-foto-dialog>footer{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;padding:11px 17px;border-top:1px solid var(--mm-line)}
   .mm-foto-dialog>footer a{font-size:12px;color:var(--mm-azul)}
-  .mm-foto-dialog>footer button{margin-left:auto}
+  .mm-foto-dialog>footer>button{margin-left:auto}
+  .mm-galeria-controles{display:flex;align-items:center;gap:9px;font-size:12px}
+  .mm-galeria-controles button{min-width:38px;min-height:38px;padding:8px}
+  .mm-galeria-miniaturas{display:flex;gap:7px;padding:8px 10px;background:var(--mm-surface);overflow-x:auto;flex-shrink:0;border-top:1px solid var(--mm-line)}
+  .mm-galeria-miniaturas button{position:relative;flex:0 0 52px;height:44px;border:1px solid var(--mm-line);border-radius:7px;overflow:hidden;background:var(--mm-ciano-bg)}
+  .mm-galeria-miniaturas button[aria-pressed=true]{border:2px solid var(--mm-azul);box-shadow:0 0 0 1px var(--mm-azul)}
+  .mm-foto.is-grande .mm-galeria-miniaturas img{display:block;width:100%;height:100%;min-height:0;padding:2px;object-fit:contain;filter:none}
+  .mm-galeria-miniaturas span{position:absolute;bottom:0;right:0;padding:0 3px;border-radius:4px 0 0 0;background:var(--mm-surface);font-size:8px;color:var(--mm-muted)}
+  .mm-foto.is-grande:has(.mm-galeria-miniaturas){height:auto;min-height:270px}
+  .mm-foto.is-grande.is-consumivel{height:auto;min-height:0;border:1px solid var(--mm-line);border-radius:9px;margin:0 0 13px}
+  .mm-foto.is-grande.is-consumivel>img{height:140px;max-height:140px;padding:10px;flex:none}
+  .mm-editor-foto-consumivel{margin-top:14px;padding-top:10px;border-top:1px solid var(--pat-line,#e2e7ef)}
+  .mm-editor-foto-consumivel>summary{font-size:12px;font-weight:650;cursor:pointer;padding:5px 0}
+  .mm-editor-foto-consumivel .mm-ajuda{margin:10px 0}
 }
 
 @media print {

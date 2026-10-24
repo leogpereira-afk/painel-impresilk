@@ -35,6 +35,12 @@ function Secao({titulo, resumo, icone:Icone, tom='azul', aberta=false, children}
   return <details className={`mm-editor-secao mm-tom-${tom}`} open={aberta||undefined}><summary><span className="mm-editor-icone"><Icone size={23} aria-hidden="true"/></span><span className="mm-editor-titulo"><strong>{titulo}</strong><span>{resumo}</span></span></summary><div className="mm-editor-conteudo">{children}</div></details>;
 }
 
+function CamposFoto({foto={},aoMudar,principal=false}) {
+  return <><div className="mm-form-grid">{[['url','Link direto da imagem'],['fonteUrl','Página de origem'],['legenda','Legenda / identificação']].map(([campo,rotulo])=><Campo key={campo} rotulo={rotulo} tipo={campo==='legenda'?'text':'url'} valor={foto[campo]} aoMudar={v=>aoMudar({...foto,[campo]:v})} required={(campo==='fonteUrl'&&!principal&&!!foto.url)||(campo==='url'&&principal&&foto.principal==='referencia')}/>)}
+    {principal&&<Escolha rotulo="Imagem principal" valor={foto.principal||'inventario'} aoMudar={v=>aoMudar({...foto,principal:v})}><option value="inventario">Foto do patrimônio</option><option value="referencia">Imagem de referência</option></Escolha>}
+  </div><label className="mm-checkbox"><input type="checkbox" checked={!!foto.usoConfirmado} required={!!foto.url} onChange={e=>aoMudar({...foto,usoConfirmado:e.target.checked})}/><span>Conferi a identificação e a autorização de uso desta imagem.</span></label></>;
+}
+
 export default function ManualMaquinaFormulario({item, manual, aoFechar, aoSalvar}) {
   const [versaoBase]=useState(()=>manual?.atualizadoEm??null);
   const [conteudo,setConteudo]=useState(()=>{
@@ -56,7 +62,7 @@ export default function ManualMaquinaFormulario({item, manual, aoFechar, aoSalva
     finally{setOcupado(false);}
   };
   return <JanelaFormulario titulo={`${manual?'Editar':'Preparar'} manual · ${item.nome||'Máquina'}`} ocupado={ocupado} aoFechar={aoFechar} classe="mm-janela">
-    <form onSubmit={salvar} onInvalid={e=>{const secao=e.target.closest('details');if(secao)secao.open=true;}} className="mm-formulario">
+    <form onSubmit={salvar} onInvalid={e=>{let secao=e.target.closest('details');while(secao){secao.open=true;secao=secao.parentElement?.closest('details');}}} className="mm-formulario">
       <p className="mm-editor-intro">Cada salvamento cria uma revisão em rascunho. Registre apenas informações confirmadas para esta máquina; a aprovação é uma etapa separada.</p>
       {erro&&<p role="alert" className="pat-notice is-error"><AlertTriangle size={18}/>{erro}</p>}
       <fieldset disabled={ocupado} className="mm-editor-campos">
@@ -89,7 +95,7 @@ export default function ManualMaquinaFormulario({item, manual, aoFechar, aoSalva
             <Escolha rotulo="Compatibilidade" valor={i.compatibilidade} aoMudar={v=>mudarItem('consumiveis',i.id,'compatibilidade',v)}><option value="pendente">Pendente de confirmação</option><option value="fabricante">Confirmada pelo fabricante</option><option value="uso-interno">Validada internamente</option></Escolha>
             {campoItem('consumiveis',i,'armazenamento','Armazenamento e cuidados',{longo:true})}
             <Escolha rotulo="Fonte da compatibilidade" valor={i.fonteId||''} aoMudar={v=>mudarItem('consumiveis',i.id,'fonteId',v)}><option value="">Sem fonte vinculada</option>{(conteudo.fontes||[]).map((f,k)=><option key={f.id} value={f.id}>{f.titulo||`Fonte ${k+1}`}</option>)}</Escolha>
-          </div></div>)}
+          </div><details className="mm-editor-foto-consumivel"><summary>Foto do consumível · opcional</summary><p className="mm-ajuda">Registre uma imagem deste produto e sua origem. A foto não confirma a compatibilidade com a máquina.</p><CamposFoto foto={i.foto} aoMudar={foto=>mudarItem('consumiveis',i.id,'foto',foto)}/></details></div>)}
           <button className="btn-outline" type="button" onClick={()=>adicionar('consumiveis')}><Plus size={16}/>Adicionar consumível</button>
         </Secao>
         <Secao icone={GraduationCap} tom="magenta" titulo="5. Treinamento" resumo={`${conteudo.treinamentos?.length||0} etapas · prática e critério de conclusão`}>
@@ -105,10 +111,9 @@ export default function ManualMaquinaFormulario({item, manual, aoFechar, aoSalva
           </div></div>)}
           <button className="btn-outline" type="button" onClick={()=>adicionar('assistencias')}><Plus size={16}/>Adicionar assistência</button>
         </Secao>
-        <Secao icone={Image} tom="ciano" titulo="7. Imagem de referência" resumo="Opcional · a foto do patrimônio tem prioridade">
-          <p className="mm-ajuda">A galeria do patrimônio é reutilizada quando disponível. Se precisar, informe uma imagem HTTPS autorizada para este modelo e registre sua origem.</p>
-          <div className="mm-form-grid">{[['url','Link direto da imagem'],['fonteUrl','Página de origem'],['legenda','Legenda / identificação']].map(([campo,rotulo])=><Campo key={campo} rotulo={rotulo} tipo={campo==='legenda'?'text':'url'} valor={conteudo.foto?.[campo]} aoMudar={v=>mudar('foto',{...conteudo.foto,[campo]:v})}/>)}</div>
-          <label className="mm-checkbox"><input type="checkbox" checked={!!conteudo.foto?.usoConfirmado} onChange={e=>mudar('foto',{...conteudo.foto,usoConfirmado:e.target.checked})}/><span>Conferi a identificação e a autorização de uso desta imagem.</span></label>
+        <Secao icone={Image} tom="ciano" titulo="7. Fotos e imagem principal" resumo="Galeria do patrimônio e referência deste modelo">
+          <p className="mm-ajuda">Escolha a imagem principal da ficha. As fotos do patrimônio continuam na galeria para quem tem acesso ao Inventário. A referência exige identificação e autorização de uso conferidas.</p>
+          <CamposFoto foto={conteudo.foto} aoMudar={foto=>mudar('foto',foto)} principal/>
         </Secao>
       </fieldset>
       <footer className="mm-editor-rodape"><div><strong>Salvar como rascunho</strong><span>{pendencias.length?`${pendencias.length} pendência${pendencias.length===1?'':'s'} para aprovação.`:'Requisitos para aprovação preenchidos; a conferência ainda é necessária.'}</span></div><button type="button" className="btn-ghost" disabled={ocupado} onClick={aoFechar}>Cancelar</button><button className="btn-primary" disabled={ocupado} type="submit"><Save size={17}/>{ocupado?'Salvando…':'Salvar revisão'}</button></footer>
