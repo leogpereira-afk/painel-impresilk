@@ -31,7 +31,7 @@ const GRUPOS_COMERCIAL=[['painel','Meu dia',['painel']],['orcamentos','Negociaç
 const IconeBrief=iconeDoSistema(doSistema('brief'));
 const brl=c=>c==null?'Não disponível':(c/100).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
 const valor=v=>v==null?null:Math.round(v*100);
-const colunasPedidos=['O.S. / cadastro','Cliente / vendedora','Líquido da venda','Sinal registrado','Recebido','Saldo conciliado','Andamento'];
+const colunasPedidos=['O.S. / aprovação','Cliente / vendedora','Valor líquido','Sinal registrado','Recebido','Saldo conciliado','Andamento'];
 const data=d=>d?d.slice(0,10).split('-').reverse().join('/'):'Não informado';
 const hora=d=>/^\d{4}-\d{2}-\d{2}$/.test(d||'')?data(d):d?new Date(d).toLocaleString('pt-BR',{timeZone:'America/Sao_Paulo'}):'Não disponível';
 const status=o=>o.situacaoLocal?`Encerrado como ${o.situacaoLocal==='ganho'?'ganho':'perdido'} no Painel`:({aberto:'Em aberto',ganho:o.statusErp&&o.statusErp.trim().toUpperCase()!=='APROVADO'?`Convertido em O.S. · ${o.statusErp}`:'Aprovado',perdido:'Perdido / cancelado',conferir:'A conferir no Mubisys'}[o.situacao]||o.statusErp||'A conferir');
@@ -104,11 +104,12 @@ function ComercialTela({sessao,integrada}){
  {!r.orcamentosCompletos&&aba==='orcamentos'&&params.get('visaoOrc')==='periodo'&&<div className="com-alert">O histórico de orçamentos não cobre todo este período. A lista mostra os registros disponíveis; o total de propostas fica indisponível.</div>}
  {aba==='painel'&&<>
  <div className="com-kpis">{[
- ['Vendas no período',brl(r.valor),`${r.pedidos} pedidos considerados`,'sales',TrendingUp,()=>detalhe('Vendas que compõem o total',r.vendas,'vendas')],
+ ['Vendas aprovadas',brl(r.valor),`${r.pedidos} pedidos · pela data de aprovação`,'sales',TrendingUp,()=>detalhe('Vendas que compõem o total',r.vendas,'vendas')],
  ['Sem próximo passo',filtrarFilaPrioridades(r,'sem_acao').length,'Propostas abertas sem retorno combinado','quotes',FileText,()=>alterar({rotina:'sem_acao'})],
  ['Retornos de hoje',filtrarFilaPrioridades(r,'hoje').length,'Oportunidades e atividades com retorno hoje','today',Clock,()=>alterar({rotina:'hoje'})],
  ['Retornos atrasados',filtrarFilaPrioridades(r,'atrasadas').length,filtrarFilaPrioridades(r,'atrasadas').length?'Oportunidades e atividades atrasadas':'Nenhum atraso registrado',filtrarFilaPrioridades(r,'atrasadas').length?'late':'clear',AlertCircle,()=>alterar({rotina:'atrasadas'})]
  ].map(([l,v,s,tom,Icone,fn])=><button key={l} className={`com-kpi com-kpi-${tom}`} onClick={fn}><span><Icone size={17} aria-hidden="true"/>{l}<ArrowUpRight size={14} aria-hidden="true"/></span><strong>{v}</strong><small>{s}</small></button>)}</div>
+ {r.criterioVendas==='aprovacao'&&<div className="com-context"><span>O.S. normais + retrabalhos: <b>{brl(r.totalOS.valor)}</b> · {r.totalOS.pedidos} O.S.</span><button className="com-link" onClick={()=>detalhe('Retrabalhos no período',r.retrabalhos.registros,'vendas')}>Retrabalho: {brl(r.retrabalhos.valor)} · {r.retrabalhos.pedidos} O.S. · separado das vendas</button></div>}
  <div className="com-workspace">
  <RotinaComercial key={revisao} r={r} dados={dados} filtro={filtro} abrirAcao={abrirAcao} abrirOrc={abrirOrc} abrirCliente={abrirCliente} grupoInicial={params.get('rotina')||'todas'} aoGrupo={g=>alterar({rotina:g})}/>
  <aside className="com-workspace-side" aria-label="Meta e apoio à venda"><section className="com-card com-goal"><div className="com-section-head"><h2><Target size={19}/> Meta do período</h2><button className="com-link" onClick={()=>alterar({aba:'metas'})}>Ver meta <ChevronRight size={15}/></button></div><MetaResumo r={r} dados={dados} abrirVendas={xs=>detalhe('Pedidos consultados na meta',xs,'vendas')} cadastrar={dados.escopo.gestor?id=>setModal({tipo:'meta',vendedor:id}):null}/><div className="com-rhythm"><span>Ticket médio <b>{brl(r.ticket)}</b></span><button className="com-link" onClick={()=>alterar({aba:'vendas'})}>Ver comparativos <ArrowUpRight size={14}/></button></div></section>

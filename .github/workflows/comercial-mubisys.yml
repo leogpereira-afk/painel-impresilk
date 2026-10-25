@@ -14,7 +14,7 @@ on:
       recurso:
         description: "Fonte comercial a atualizar"
         type: choice
-        options: [ordens, orcamentos, ambos]
+        options: [ordens, ordens_aprovacao, orcamentos, ambos]
         default: ordens
 
 permissions:

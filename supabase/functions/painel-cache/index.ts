@@ -106,6 +106,7 @@ Deno.serve(async (req: Request) => {
       desconto: Number(o?.desconto) || 0,
       vendedor: String(o?.vendedor ?? ""),
       ...(o?.comercial && typeof o.comercial==='object' ? {comercial:{tipo:String(o.comercial.tipo||''),clienteId:String(o.comercial.clienteId||''),cancelada:o.comercial.cancelada===true,...(typeof o.comercial.valorConfirmado==='boolean'?{valorConfirmado:o.comercial.valorConfirmado}:{}),unidadesConfirmadas:false,
+        ...(Object.hasOwn(o.comercial,'dataAprovacao') ? {dataAprovacao: /^\d{4}-\d{2}-\d{2}$/.test(String(o.comercial.dataAprovacao))&&Number.isFinite(Date.parse(o.comercial.dataAprovacao+'T12:00:00Z'))&&new Date(o.comercial.dataAprovacao+'T12:00:00Z').toISOString().slice(0,10)===o.comercial.dataAprovacao?o.comercial.dataAprovacao:null} : {}),
         ...(Object.hasOwn(o.comercial,'empresaNome') ? {empresaNome:typeof o.comercial.empresaNome==='string'?o.comercial.empresaNome.trim().slice(0,180)||null:null,empresaId:null} : {}),
       }} : {}),
       /* OS ITENS, para o ranking de produtos das campanhas.
@@ -147,13 +148,13 @@ Deno.serve(async (req: Request) => {
        conflito ela fica de fora do SET -- o valor que ja estava la permanece. */
     // Um lote antigo/incremental sem o campo não apaga a identidade já lida.
     // Uma empresa explicitamente vazia, porém, permanece desconhecida.
-    const semEmpresa = limpas.filter((o: any) => o.comercial && !Object.hasOwn(o.comercial,'empresaNome'));
+    const semEmpresa = limpas.filter((o: any) => o.comercial && (!Object.hasOwn(o.comercial,'empresaNome')||!Object.hasOwn(o.comercial,'dataAprovacao')));
     for(let inicio=0;inicio<semEmpresa.length;inicio+=200){
       const lote=semEmpresa.slice(inicio,inicio+200);
       const {data,error}=await sb.from('painel_ordens').select('id,comercial').in('id',lote.map((o:any)=>o.id));
-      if(error)return json({erro:'Não foi possível preservar a identificação da empresa das O.S.'},500);
+      if(error)return json({erro:'Não foi possível preservar os metadados comerciais das O.S.'},500);
       const anteriores=new Map((data||[]).map((o:any)=>[String(o.id),o.comercial]));
-      for(const o of lote){const anterior:any=anteriores.get(o.id);if(anterior&&Object.hasOwn(anterior,'empresaNome'))Object.assign(o.comercial,{empresaNome:anterior.empresaNome,empresaId:anterior.empresaId??null});}
+      for(const o of lote){const anterior:any=anteriores.get(o.id);if(anterior){if(!Object.hasOwn(o.comercial,'empresaNome')&&Object.hasOwn(anterior,'empresaNome'))Object.assign(o.comercial,{empresaNome:anterior.empresaNome,empresaId:anterior.empresaId??null});if(!Object.hasOwn(o.comercial,'dataAprovacao')&&Object.hasOwn(anterior,'dataAprovacao'))o.comercial.dataAprovacao=anterior.dataAprovacao;}}
     }
     const comItens = limpas.filter((o: any) => o.itens !== undefined);
     const semItens = limpas.filter((o: any) => o.itens === undefined);

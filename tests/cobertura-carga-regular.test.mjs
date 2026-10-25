@@ -58,7 +58,7 @@ function rodar(opcoes = {}) {
       const recurso = u.pathname.split('/').at(-1);
       consultas.push({recurso,query:Object.fromEntries(u.searchParams)});
       if (recurso === opcoes.falha) return new Response('{}',{status:500});
-      const linha = {id:recurso+'-nova',tipo:'Normal',cliente_id:'c',cliente_nome:'Cliente',data_cadastro:'2026-10-08',status:'ABERTO',valor_total:100,itens:[]};
+      const linha = {id:recurso+'-nova',tipo:'Normal',cliente_id:'c',cliente_nome:'Cliente',data_cadastro:'2026-10-08',data_aprovacao:'2026-10-08',status:'ABERTO',valor_total:100,itens:[]};
       const data = recurso === 'orcamento' || recurso === 'ordem-servico' ? [linha] : recurso === 'produto' ? [{nome:'Placa',categoria:'Sinalização'}] : [];
       if (opcoes.cancelada && recurso === 'ordem-servico') data.push({...linha,id:'os-cancelada',data_cadastro:'2025-06-01',status:'CANCELADO'});
       return Response.json({data,pagination:{current_page:1,last_page:1}});
@@ -138,4 +138,13 @@ test('recusa do comprovante preserva cobertura anterior e aparece no estado da c
   const r=rodar({recusa:'comercial_carga_status'});
   assert.deepEqual(r.cache.comercial_carga_status,anterior);
   assert.ok(r.cache.status.fontesQueFalharam.includes('comercial_carga_status'));
+});
+test('carga regular transporta aprovação e certifica a consulta específica sem chamar cadastro de aprovação',()=>{
+ for(const completo of [false,true]){
+  const r=rodar({completo});assert.equal(r.tabela['ordem-servico-nova'].comercial.dataAprovacao,'2026-10-08');
+  assert.ok(r.consultas.some(c=>c.recurso==='ordem-servico'&&c.query.filtrodata==='APROVACAO'));
+  const j=r.cache.comercial_carga_status.janelas.ordens_aprovacao;assert.equal(j.length,1);assert.equal(j[0].ate,'2026-10-08');
+  assert.equal(j[0].desde,completo?'2025-01-01':'2026-10-01');
+ }
+ const falha=rodar({tabelaFalha:true});assert.equal(falha.cache.comercial_carga_status.janelas.ordens_aprovacao,undefined);
 });

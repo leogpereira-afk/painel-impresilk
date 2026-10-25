@@ -22,6 +22,19 @@ function ambiente(respostas = {}) {
   return { deps, valores, gravacoes, leituras, tabelas };
 }
 
+test('carga por aprovação inclui cadastro de outro ano e certifica só essa janela', async()=>{
+ const t=ambiente({'ordem-servico':[venda('antiga',{data_cadastro:'2019-06-01',data_aprovacao:'2020-06-02'}),venda('fora',{data_aprovacao:'2021-01-01'})]});
+ await executarCargaComercial({desde:'2020-01-01',ate:'2020-12-31',recurso:'ordens_aprovacao'},t.deps);
+ assert.equal(t.leituras[0].query.filtrodata,'APROVACAO');assert.equal(t.leituras[0].query.datafinal,'2021-01-01');
+ assert.equal(t.tabelas.size,1);assert.equal(t.tabelas.get('antiga').data,'2019-06-01');assert.equal(t.tabelas.get('antiga').comercial.dataAprovacao,'2020-06-02');
+ assert.equal(t.valores.comercial_carga_status.janelas.ordens.length,0);assert.equal(t.valores.comercial_carga_status.janelas.ordens_aprovacao[0].registros,1);
+});
+test('carga por aprovação não certifica data ausente nem usa cadastro como substituto',async()=>{
+ const t=ambiente({'ordem-servico':[venda()]});
+ await assert.rejects(executarCargaComercial({desde:'2020-01-01',ate:'2020-12-31',recurso:'ordens_aprovacao'},t.deps));
+ assert.equal(t.tabelas.size,0);assert.equal(t.valores.comercial_carga_status.tentativa.estado,'falhou');
+});
+
 test('janela exige datas reais e não consulta futuro nem recurso desconhecido', () => {
   for (const dados of [{ desde: '2020-02-30', ate: '2020-03-01' }, { desde: '2020-01-01', ate: '2026-10-08' }, { desde: '2021-01-01', ate: '2020-01-01' }, { desde: '2020-01-01', ate: '2020-12-31', recurso: 'pagar' }]) assert.throws(() => validarCargaComercial(dados, '2026-10-07'));
 });

@@ -1,10 +1,11 @@
+import {ordensPorAprovacao} from './vendas-aprovadas.mjs';
 import {dataISO, dia, dinheiro, normal, pertence, resolverEscopo, metaDoPeriodo, progressoMeta, agruparRevisoes, anteriorEquivalente} from './comercial.mjs';
 import {janelasHistoricas, mesclarOrdensComerciais} from './carteira-historica.mjs';
 import {numerosDeOSComercial} from './vinculo-financeiro-os.mjs';
 
 // Pure, shared calculation boundary. All monetary amounts leaving this module
 // are integer cents; quantities remain separated by their explicitly recorded unit.
-export const CRITERIO_DASHBOARD = 'Impresilk e Universo consolidadas: O.S. normal não cancelada, valor líquido na data de cadastro. Venda não equivale a faturamento nem a recebimento.';
+export const CRITERIO_DASHBOARD = 'Impresilk e Universo consolidadas: O.S. normal não cancelada, valor líquido na data de aprovação. Venda não equivale a faturamento nem a recebimento.';
 const erro = (message, status=400) => Object.assign(new Error(message), {status});
 const texto = v => String(v ?? '').trim();
 const dias = (a,b) => Math.round((Date.parse(b+'T12:00:00Z')-Date.parse(a+'T12:00:00Z'))/864e5);
@@ -92,9 +93,9 @@ export function prepararDashboard(base,filtro,hoje,sessao) {
  const catalogo=base.catalogo||{};
  if(!catalogo.completo)throw erro('O catálogo comercial ainda não está disponível por completo.',503);
  const escopo=resolverEscopo(sessao,catalogo,base.config||{},filtro),escopoSessao=resolverEscopo(sessao,catalogo,base.config||{},{});
- const misturadas=mesclarOrdensComerciais(base.ordens||[],base.recentes||[]),autorizadas=misturadas.filter(o=>pertence(o,escopo));
+ const misturadas=mesclarOrdensComerciais(base.ordens||[],base.recentes||[]),projetadas=base.criterioVendas==='aprovacao'?ordensPorAprovacao(misturadas):misturadas,autorizadas=projetadas.filter(o=>pertence(o,escopo));
  const divergentes=autorizadas.filter(empresaDivergente),ordens=autorizadas.filter(o=>!empresaDivergente(o));
- const janelas=janelasHistoricas(base.cargaStatus),datas=ordens.map(o=>dia(o.data)).filter(d=>dataISO(d)&&d<=hoje);
+ const janelas=janelasHistoricas(base.cargaStatus,base.criterioVendas==='aprovacao'?'ordens_aprovacao':'ordens'),datas=ordens.map(o=>dia(o.data)).filter(d=>dataISO(d)&&d<=hoje);
  const primeira=[...datas,...janelas.map(j=>j.desde)].sort()[0]||null,p=validarFiltroDashboard(filtro,hoje,primeira);
  const campanhas=Array.isArray(base.campanhas)?base.campanhas:[],campanha=p.campanha?campanhas.find(c=>String(c.id)===p.campanha):null;
  if(p.campanha&&!campanha)throw erro('Campanha indisponível ou fora do seu acesso.',403);
@@ -112,7 +113,7 @@ export function prepararDashboard(base,filtro,hoje,sessao) {
   if((!p.cliente||p.cliente===clienteId)&&(!osCampanha||osCampanha.has(String(bruto.id)))&&produtos.some(pr=>!pr.itensCompletos))itensNaoIdentificados.push({data});
   const selecionados=produtos.filter(pr=>(!p.produto||pr.id===p.produto)&&(!p.categoria||pr.categoria===p.categoria));
   if(p.cliente&&p.cliente!==clienteId||osCampanha&&!osCampanha.has(String(bruto.id))||!selecionados.length)continue;
-  const venda={id:texto(bruto.id),numero:texto(bruto.numero),data,clienteId,cliente:clientesCatalogo.get(clienteId).nome,vendedorId:vendedor.id,vendedor:vendedor.nome,
+  const venda={id:texto(bruto.id),numero:texto(bruto.numero),data,dataCadastro:bruto.dataCadastro||bruto.data,clienteId,cliente:clientesCatalogo.get(clienteId).nome,vendedorId:vendedor.id,vendedor:vendedor.nome,
    empresaConfirmada:!!texto(bruto.empresaNome||bruto.empresa_nome||(typeof bruto.empresa==='string'?bruto.empresa:bruto.empresa?.nome)),centavos:somaSegura(selecionados.map(i=>i.centavos)),totalOS:valor,brutoCentavos:centavos(bruto.valorBruto??bruto.bruto),descontoCentavos:centavos(bruto.desconto),
    sinalPagoCentavos:centavos(bruto.sinalPago)!==null&&centavos(bruto.sinalPago)>=0?centavos(bruto.sinalPago):null,
    produtos:selecionados,itensCompletos:produtos.every(i=>i.itensCompletos),atualizadoEm:bruto.atualizado_em||null};
@@ -330,7 +331,7 @@ export function apurarDashboard(base,filtro={},hoje,sessao,opcoes={}) {
   const meta=metaDoPeriodo(base.metas,ctx.escopo,base.catalogo,{de:ctx.p.de,ate:ctx.p.ate},base.config||{}),vendasMeta=vendas.filter(v=>meta.idsParticipantes.includes(v.vendedorId));
   // An empty observed subset is not a confirmed zero while coverage is missing.
   const realizado=resumo.completo||vendasMeta.length?somaSegura(vendasMeta.map(v=>v.centavos)):null;
-  metas=progressoMeta(meta,realizado,{de:ctx.p.de,ate:ctx.p.ate},hoje,base.config?.calendario,{vendasCompleta:resumo.completo,vinculosCompletos:!vendas.some(v=>!meta.vendedoresConhecidos.some(c=>c.id===v.vendedorId))});
+  metas=progressoMeta(meta,realizado,{de:ctx.p.de,ate:ctx.p.ate},hoje,base.config?.calendario,{criterioVendas:base.criterioVendas,vendasCompleta:resumo.completo,vinculosCompletos:!vendas.some(v=>!meta.vendedoresConhecidos.some(c=>c.id===v.vendedorId))});
  }
  metas.serieAcumulada=serieMeta(ctx,metas);
  return {versao:2,periodo:ctx.p,criterio:CRITERIO_DASHBOARD,escopo:{gestor:ctx.escopo.gestor,ids:ctx.escopo.ids,tipoEscopo:ctx.escopo.tipoEscopo},catalogo:ctx.catalogo,resumo,
@@ -340,7 +341,7 @@ export function apurarDashboard(base,filtro={},hoje,sessao,opcoes={}) {
   cobertura:{estado:resumo.estado,completo:resumo.completo,janelas:ctx.janelas,registrosConsultados:ctx.vendas.length,incompletos:ctx.falhas.length,itensAusentes:resumo.itensAusentes,desde:ctx.janelas[0]?.desde||null,ate:ctx.janelas.at(-1)?.ate||null,
    empresa:{estado:resumo.certificadoEmpresa?'origem_preservada':'base_provisoria',verificacaoPorRegistro:resumo.certificadoEmpresa,semEmpresa:ctx.vendasPendentes.filter(v=>noPeriodo(v,p)).length,confirmadas:vendas.filter(v=>v.empresaConfirmada).length,divergenciasExcluidas:ctx.divergentes.length,mensagem:resumo.certificadoEmpresa?'Consolidado Impresilk e Universo, com a empresa de origem preservada em cada registro.':'Registros sem empresa de origem ficam fora dos totais, rankings e gráficos até confirmação.'}},
   metas,
-  fontes:{vendas:{fonte:'Mubisys sincronizado em painel_ordens',atualizadoEm:base.atualizadoEm||null,criterio:'Data de cadastro da O.S.'},catalogo:{fonte:'Catálogo comercial sincronizado',atualizadoEm:base.catalogoEm||null},financeiro:{fonte:podeFinanceiro?'Títulos em aberto sincronizados':null,atualizadoEm:podeFinanceiro?base.financeiroEm||null:null}},
+  fontes:{vendas:{fonte:'Mubisys sincronizado em painel_ordens',atualizadoEm:base.atualizadoEm||null,criterio:base.criterioVendas==='aprovacao'?'Data de aprovação da O.S.':'Data de cadastro da O.S.'},catalogo:{fonte:'Catálogo comercial sincronizado',atualizadoEm:base.catalogoEm||null},financeiro:{fonte:podeFinanceiro?'Títulos em aberto sincronizados':null,atualizadoEm:podeFinanceiro?base.financeiroEm||null:null}},
   avisos:[...(!resumo.completo?['Consulta parcial: valores observados não comprovam o total do período.']:[]),...(resumo.itensAusentes?['Há vendas sem itens identificados; confira a linha Itens não disponíveis.']:[]),'Quantidades só são somadas na mesma unidade informada na origem.','Devoluções sem vínculo não são abatidas automaticamente.',...(resumo.certificadoEmpresa?[]:['Registros sem empresa de origem foram separados; não compõem os totais e rankings consolidados de Impresilk e Universo.'])],consultadoEm:opcoes.consultadoEm||new Date().toISOString()};
 }
 

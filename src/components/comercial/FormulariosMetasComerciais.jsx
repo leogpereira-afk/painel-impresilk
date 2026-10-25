@@ -21,7 +21,7 @@ export function MetaForm({dados,filtro,salvo,fechar,mesInicial}){
  useEffect(()=>setValor(anterior?.valor==null?'':String(anterior.valor)),[anterior,vendedorId,mes]);
  async function enviar(e){e.preventDefault();setErro('');setSalvando(true);try{await chamarComercial('salvarMeta',{meta:{vendedorId,mes,valor:valorMeta},anterior:anterior||null,filtro});salvo();}catch(e){setErro(e.message);}finally{setSalvando(false);}}
  return <Dialogo titulo="Cadastrar meta mensal" fechar={fechar}><form className="com-form" onSubmit={enviar}>
- <p>Esta meta é informada pela direção no Painel. O realizado considera o valor líquido das O.S. normais, pela data de cadastro no Mubisys.</p>
+ <p>Esta meta é informada pela direção no Painel. O realizado considera o valor líquido das O.S. normais, pela data de aprovação no Mubisys.</p>
  <label>Vendedora<select required value={vendedorId} onChange={e=>setVendedor(e.target.value)}><option value="">Selecione</option>{dados.catalogo.vendedores.map(v=><option key={v.id} value={v.id}>{v.nome}</option>)}</select></label>
  <div className="com-form-grid"><label>Mês da meta<input type="month" required value={mes} onChange={e=>setMes(e.target.value)}/></label><label>Meta em reais<input type="number" required min="0" max="10000000000" step="0.01" value={valorMeta} onChange={e=>setValor(e.target.value)} placeholder="Ex.: 100000,00"/></label></div>
  <p className="com-muted">Metas individuais somam o consolidado. Não há distribuição automática da meta da empresa.</p>

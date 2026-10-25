@@ -1,3 +1,4 @@
+import {dataAprovacaoComercial} from '../../supabase/functions/_shared/vendas-aprovadas.mjs';
 // ============================================================================
 // Etapas da carga do Mubisys: buscam no ERP e normalizam recebiveis, contas a
 // pagar, bancos, orcamentos e O.S. para o cache do painel.
@@ -372,6 +373,7 @@ export function normOS(os, i, categoriaPorNome) {
     // a esta OS. Ver src/lib/calc/contasAtrasadas.js.
     vendedor: String(os.vendedor || "").trim(),
     data: String(os.data_cadastro || ""),
+    ...(Object.hasOwn(os, "data_aprovacao") ? {dataAprovacao: dataAprovacaoComercial(os.data_aprovacao)} : {}),
     cancelada: /cancel/i.test(String(os.status || "")),
     itens,
   };
@@ -837,7 +839,10 @@ export async function etapaCompleta(ordensAnteriores = [], orcamentosAnteriores 
       }
     }
     try {
-      const brutas = await mubiGetTudo("ordem-servico", { ...base, datainicial: desdeOS });
+      const cadastradas = await mubiGetTudo("ordem-servico", { ...base, datainicial: desdeOS });
+      const aprovadas = await mubiGetTudo("ordem-servico", { ...base, filtrodata:"APROVACAO", datainicial: desdeOS });
+      validarRespostaAprovacao(aprovadas);
+      const brutas = [...new Map([...cadastradas,...aprovadas].map(o=>[String(o.id),o])).values()];
       const normalizadas = brutas.map((os, i) => {
         const ordem = normOS(os, i, categoriaPorNome);
         // Sem catálogo, desconhecido não significa fora do catálogo.
@@ -846,6 +851,7 @@ export async function etapaCompleta(ordensAnteriores = [], orcamentosAnteriores 
       });
       osCanceladasComerciais = normalizadas.filter((o) => o.cancelada).map((o) => String(o.id));
       janelasConsultadas.ordens = janelaConsultada({ ...base, datainicial: desdeOS });
+      janelasConsultadas.ordens_aprovacao = janelaConsultada({ ...base, datainicial: desdeOS });
       return normalizadas.filter((o) => !o.cancelada);
     } catch (e) {
       console.warn("carga completa: ordens indisponíveis:", e?.message || e);
@@ -861,4 +867,9 @@ export async function etapaCompleta(ordensAnteriores = [], orcamentosAnteriores 
 // não a amplitude do cache mesclado nem o horário da gravação desse cache.
 export function janelaConsultada({ datainicial, datafinal }) {
   return { desde: datainicial, ate: new Date(Date.parse(`${datafinal}T12:00:00Z`) - 864e5).toISOString().slice(0, 10) };
+}
+
+export function validarRespostaAprovacao(ordens) {
+ if(!Array.isArray(ordens)||ordens.some(o=>o.id==null||!String(o.id).trim()||!dataAprovacaoComercial(o.data_aprovacao)))throw new Error('Consulta de aprovação com identificador ou data inválida; cobertura não confirmada.');
+ return ordens;
 }
