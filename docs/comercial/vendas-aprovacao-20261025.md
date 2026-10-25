@@ -38,4 +38,14 @@ O dono autorizou priorizar esta correção, atualizar a sincronização e confer
 4. Publicar `painel-comercial` com seus módulos compartilhados. Conferir API autenticada, escopo por vendedor e resumo por aprovação.
 5. Publicar a interface e verificar os arquivos servidos, o período relatado, o detalhamento, o Dashboard e os filtros no site.
 
-Não foi feita publicação, carga de dados ou alteração de cadastros em produção nesta etapa.
+## Resultado da publicação
+
+- PR 27 integrado em `a28ae37`; atualização documental da Inteligência em `3a9f152` preservada.
+- Servidor conferido: `painel-cache` v173 e `painel-comercial` v101 ACTIVE. Os arquivos publicados correspondem ao código testado; acesso sem sessão continua retornando 401.
+- Functions 40189305636, sincronização histórica 40189031955 e Pages 40189500991 concluídos com sucesso.
+- Sete janelas anuais de aprovação confirmadas, desde 2020 até a data da carga. O carregador mantém a atualização por aprovação nas cargas seguintes.
+- Na sessão real do site, as quantidades e somas das linhas de vendas e de retrabalho fecham com a referência fornecida pelo dono; o total combinado e a separação aparecem no resumo.
+- Quantidade de registros e IDs distintos preservada; hash dos IDs e itens idêntico antes/depois. Cópias de recuperação e evidências reais guardadas somente em arquivos privados fora do Git.
+- Dez arquivos servidos conferidos byte a byte com o build local. CI: 1.751 testes da raiz, 1.402 de cálculos e 7 de acesso aprovados; build concluído e lint sem erros (aviso anterior em Agenda).
+
+Nenhuma O.S. fictícia foi criada; nenhum cadastro foi excluído e não houve escrita no ERP.
