@@ -29,7 +29,7 @@ export function EvolucaoVendas({dados,modo,abrirPeriodo,abrirTodos}) {
     const anteriores=alinhamento.pontos;
     linhas.push({id:comparar,nome:comparar==='anterior'?'Período anterior':'Ano anterior',referencia:true,cor:'var(--chart-3)',pontos:anteriores,valores:anteriores.map(p=>p?.centavos??null)});
   }
-  return <Grafico titulo="Evolução das vendas" descricao="Valor líquido por data de cadastro da O.S. Selecione um ponto para conferir o período."
+  return <Grafico titulo="Evolução das vendas" descricao="Valor líquido por data de aprovação da O.S. Selecione um ponto para conferir o período."
     controles={<><Periodicidade valor={agrupamento} onChange={setGrupo} series={base}/><AlternadorGrafico rotulo="Tipo de gráfico de vendas" valor={tipo} onChange={setTipo} opcoes={[
       {valor:'linha',nome:'Linhas',icone:<ChartLine size={14}/>},{valor:'barras',nome:'Colunas',icone:<ChartColumn size={14}/>},
     ]}/><label className="chart-select-label">Comparação<select aria-label="Comparação da evolução" value={comparar} onChange={e=>setComparar(e.target.value)}><option value="">Sem comparação</option><option value="anterior" disabled={!dados.comparacoes?.anterior?.comparavel}>Período anterior</option><option value="anoAnterior" disabled={!dados.comparacoes?.anoAnterior?.comparavel}>Mesmo período do ano anterior</option></select></label></>}

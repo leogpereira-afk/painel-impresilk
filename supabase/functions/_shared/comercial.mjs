@@ -1,3 +1,4 @@
+import {ordensPorAprovacao} from './vendas-aprovadas.mjs';
 import {contextoDaAcao,validarContato} from './relacionamento-comercial.mjs';
 import {contarDiasUteis, fimPorDiasUteis, coberturaComercialContem, revisoesComerciais, ultimoContatoConfirmado, filaComercial, inteligenciaClienteComercial, compararAcoesComerciais, perfilCompraComercialPeriodo, aprovacaoOrcamentosComerciais} from './comercial-calculos.mjs';
 // Regra única: usada no servidor, na prévia e nos testes. Sem efeitos colaterais.
@@ -65,16 +66,17 @@ export function anteriorEquivalente({de,ate},hoje,tipo='equivalente',calendario)
  if(!uteis||diasAnterior<uteis)return {...comp,indisponivel:true,calendarioConfigurado:true,diasUteisAtual:uteis,diasUteisAnterior:diasAnterior,criterio:'Mesmo número de dias úteis',mensagem:!uteis?'O intervalo atual não contém dias úteis configurados.':'O mês anterior tem menos dias úteis que o intervalo atual; escolha um intervalo menor.'};
  return {...comp,ate:fimPorDiasUteis({de:comp.de,ate:fimAnterior},uteis,calendario),calendarioConfigurado:true,diasUteisAtual:uteis,diasUteisAnterior:uteis,criterio:'Mesmo número de dias úteis, conforme calendário configurado'};
 }
+const criteriosMetaCompativeis=new Set(['cadastro_liquido_os_normal','aprovacao_liquido_os_normal']);
 export function progressoMeta(meta,valor,periodo,hoje,calendario,apuracao={}) {
  const detalhe={participantes:meta?.participantes||[],faltantes:meta?.faltantes||[],excluidos:meta?.excluidos||[],idsParticipantes:meta?.idsParticipantes||[],idsFaltantes:meta?.idsFaltantes||[],idsExcluidos:meta?.idsExcluidos||[],idsAConferir:meta?.idsAConferir||[],registros:meta?.registros||[],origem:meta?.origem||null,
-  realizado:apuracao.realizado??valor,vendas:apuracao.vendas||[],idsVendas:(apuracao.vendas||[]).map(o=>String(o.id)),idsVendasAConferir:apuracao.idsVendasAConferir||[],vendasExcluidas:apuracao.vendasExcluidas||[],idsVendasExcluidas:(apuracao.vendasExcluidas||[]).map(o=>String(o.id)),criterio:'O.S. normal, valor líquido, data de cadastro, dos mesmos participantes da meta'};
- const cobertura={metasCompleta:!!meta&&!meta.indisponivel&&dinheiro(meta.valor)!==null&&meta.criterio==='cadastro_liquido_os_normal',vendasCompleta:apuracao.vendasCompleta!==false,vinculosCompletos:apuracao.vinculosCompletos!==false&&!(meta?.idsAConferir||[]).length,completa:false,estado:'parcial'};
+  realizado:apuracao.realizado??valor,vendas:apuracao.vendas||[],idsVendas:(apuracao.vendas||[]).map(o=>String(o.id)),idsVendasAConferir:apuracao.idsVendasAConferir||[],vendasExcluidas:apuracao.vendasExcluidas||[],idsVendasExcluidas:(apuracao.vendasExcluidas||[]).map(o=>String(o.id)),criterio:`O.S. normal, valor líquido, data de ${apuracao.criterioVendas==='aprovacao'?'aprovação':'cadastro'}, dos mesmos participantes da meta`};
+ const cobertura={metasCompleta:!!meta&&!meta.indisponivel&&dinheiro(meta.valor)!==null&&criteriosMetaCompativeis.has(meta.criterio),vendasCompleta:apuracao.vendasCompleta!==false,vinculosCompletos:apuracao.vinculosCompletos!==false&&!(meta?.idsAConferir||[]).length,completa:false,estado:'parcial'};
  cobertura.completa=!!meta&&cobertura.metasCompleta&&cobertura.vendasCompleta&&cobertura.vinculosCompletos;
  cobertura.estado=cobertura.completa?'completa':meta?.estadoMeta==='fonte_indisponivel'?'indisponivel':'parcial';
  const saida={...detalhe,cobertura,valor:dinheiro(meta?.valor),percentual:null,falta:null,diasUteis:null,porDia:null};
  if(meta==null)return {...saida,estado:'ausente',mensagem:'Meta ainda não cadastrada'};
  if(meta.indisponivel)return {...saida,estado:meta.estadoMeta||'indisponivel',mensagem:meta.mensagem};
- if(meta.criterio!=='cadastro_liquido_os_normal')return {...saida,estado:'incompativel',mensagem:'Critério da meta precisa ser conferido'};
+ if(!criteriosMetaCompativeis.has(meta.criterio))return {...saida,estado:'incompativel',mensagem:'Critério da meta precisa ser conferido'};
  const cent=dinheiro(meta.valor);if(cent===null || cent<0)return {...saida,estado:'indisponivel',mensagem:'Meta indisponível'};
  if(!cobertura.completa)return {...saida,estado:!cobertura.vinculosCompletos?'vinculo_pendente':'parcial',mensagem:!cobertura.vinculosCompletos?'Há vendas ou participantes sem vínculo confirmado; percentual indisponível.':'Realizado parcial; percentual e referência diária aguardam cobertura completa.'};
  if(cent===0)return {...saida,estado:'zero',valor:0,falta:0,mensagem:'Meta cadastrada em R$ 0,00'};
@@ -85,7 +87,7 @@ export function progressoMeta(meta,valor,periodo,hoje,calendario,apuracao={}) {
 export function validarMeta(b,catalogo,autor,agora) {
  const vendedorId=String(b?.vendedorId||''),mes=String(b?.mes||''),centavos=dinheiro(b?.valor);
  if(!catalogo.vendedores?.some(v=>String(v.id)===vendedorId)||!dataISO(mes+'-01')||centavos===null||centavos<0||centavos>1e12)throw Object.assign(new Error('Informe a vendedora, o mês e uma meta válida em reais.'),{status:400});
- return {id:`${vendedorId}_${mes}`,vendedorId,mes,valor:centavos/100,origem:'painel',criterio:'cadastro_liquido_os_normal',atualizadoPor:autor,atualizadoEm:agora};
+ return {id:`${vendedorId}_${mes}`,vendedorId,mes,valor:centavos/100,origem:'painel',criterio:'aprovacao_liquido_os_normal',atualizadoPor:autor,atualizadoEm:agora};
 }
 export function metaDoPeriodo(metas,escopo,catalogo,periodo,config={}) {
  const mes=periodo.de.slice(0,7),fim=new Date(Date.UTC(Number(mes.slice(0,4)),Number(mes.slice(5,7)),0)).toISOString().slice(0,10);
@@ -100,12 +102,12 @@ export function metaDoPeriodo(metas,escopo,catalogo,periodo,config={}) {
   if(motivo){excluidos.push({id,nome,status,motivo});continue;}
   const encontrados=fonteDisponivel?metas.filter(m=>String(m.vendedorId)===id&&m.mes===mes):[];
   const m=encontrados.length===1?encontrados[0]:null,cent=dinheiro(m?.valor);
-  const valida=!!m&&cent!==null&&cent>=0&&(!m.criterio||m.criterio==='cadastro_liquido_os_normal');
+  const valida=!!m&&cent!==null&&cent>=0&&(!m.criterio||criteriosMetaCompativeis.has(m.criterio));
   participantes.push({id,nome,status,metaId:m?.id||null,metaValor:valida?cent/100:null,origem:m?.origem||null,nomeUnico:vendedores.filter(x=>normal(x.nome)===normal(nome)).length===1});
   if(valida)registros.push(m);
   else faltantes.push({id,nome,motivo:!fonteDisponivel?'Fonte de metas indisponível':encontrados.length>1?'Mais de uma meta para o mesmo ID e mês':!m?'Meta não cadastrada':cent===null?'Valor da meta ausente':cent<0?'Meta inválida':'Critério da meta incompatível'});
  }
- const detalhe={mes,participantes,faltantes,excluidos,idsParticipantes:participantes.map(v=>v.id),idsFaltantes:faltantes.map(v=>v.id),idsExcluidos:excluidos.map(v=>v.id),idsAConferir,registros,origem:'painel',criterio:'cadastro_liquido_os_normal',
+ const detalhe={mes,participantes,faltantes,excluidos,idsParticipantes:participantes.map(v=>v.id),idsFaltantes:faltantes.map(v=>v.id),idsExcluidos:excluidos.map(v=>v.id),idsAConferir,registros,origem:'painel',criterio:'aprovacao_liquido_os_normal',
   vendedoresConhecidos:dentro.map(v=>({id:String(v.id),nome:String(v.nome||''),nomeUnico:vendedores.filter(x=>normal(x.nome)===normal(v.nome)).length===1})),valor:registros.length?registros.reduce((s,m)=>s+dinheiro(m.valor),0)/100:null};
  if(periodo.de!==mes+'-01'||periodo.ate!==fim)return {...detalhe,indisponivel:true,estadoMeta:'periodo_incompativel',mensagem:'Selecione um mês completo para acompanhar a meta mensal'};
  if(!fonteDisponivel)return {...detalhe,indisponivel:true,estadoMeta:'fonte_indisponivel',mensagem:'A fonte das metas está indisponível; ausência de leitura não significa meta zero.'};
@@ -120,14 +122,19 @@ export function agruparRevisoes(xs) {
 export function apurarComercial(base,filtro,hoje) {
  const periodo=validarPeriodo(filtro,hoje), fimReal=periodo.ate<hoje?periodo.ate:hoje;
  const noPeriodo=(d,p=periodo)=>dataISO(dia(d))&&dia(d)>=p.de&&dia(d)<=p.ate;
- const cobertura=base.cobertura || {};
+ const cobertura={...base.cobertura,criterioVendas:base.criterioVendas};
  const coberturaContem=(c,p)=>coberturaComercialContem(c,p,hoje);
  const coberto=p=>coberturaContem(cobertura,p);
- const ordens=unicos(base.ordens||[]).map(o=>({...o,centavos:o.valorConfirmado===false?null:dinheiro(o.valor)}));
+ const porAprovacao=base.criterioVendas==='aprovacao';
+ const ordens=unicos(porAprovacao?ordensPorAprovacao(base.ordens||[]):base.ordens||[]).map(o=>({...o,centavos:o.valorConfirmado===false?null:dinheiro(o.valor)}));
  const elegivel=o=>!o.cancelada && normal(o.tipo)==='normal' && o.centavos!==null;
  const vendas=ordens.filter(o=>noPeriodo(o.data,{de:periodo.de,ate:fimReal})&&elegivel(o));
  const incompletas=ordens.filter(o=>!o.cancelada&&noPeriodo(o.data,{de:periodo.de,ate:fimReal}) && (!o.tipo||normal(o.tipo)==='normal'&&o.centavos===null));
+ const retrabalho=ordens.filter(o=>noPeriodo(o.data,{de:periodo.de,ate:fimReal})&&!o.cancelada&&normal(o.tipo)==='retrabalho');
+ const retrabalhos={registros:retrabalho,pedidos:retrabalho.length,valor:retrabalho.some(o=>o.centavos===null)?null:retrabalho.reduce((s,o)=>s+o.centavos,0)};
+ const totalOS={pedidos:vendas.length+retrabalhos.pedidos,valor:retrabalhos.valor===null?null:vendas.reduce((s,o)=>s+o.centavos,0)+retrabalhos.valor};
  const valor=vendas.reduce((s,o)=>s+o.centavos,0), completo=coberto(periodo)&&!incompletas.length;
+ if(porAprovacao&&!coberto(periodo)){if(!retrabalhos.pedidos)retrabalhos.valor=null;if(!totalOS.pedidos)totalOS.valor=null;}
  const todasAcoes=unicos(base.acoes||[]);
  const propostasDisponiveis=agruparRevisoes(base.orcamentos||[]).map(o=>{
   const aa=todasAcoes.filter(a=>o.orcamentoIds.includes(String(a.orcamentoId))).sort((a,b)=>String(b.atualizadoEm||'').localeCompare(String(a.atualizadoEm||''))||String(a.id).localeCompare(String(b.id)));
@@ -210,8 +217,8 @@ export function apurarComercial(base,filtro,hoje) {
  const vendasExcluidas=Array.isArray(participantes)?vendas.filter(o=>vendedorDaVenda(o)&&!participantes.includes(vendedorDaVenda(o))):[];
  const incompletasMeta=Array.isArray(participantes)?incompletas.filter(o=>!vendedorDaVenda(o)||participantes.includes(vendedorDaVenda(o))):incompletas;
  const realizado=vendasMeta.reduce((s,o)=>s+o.centavos,0);
- const meta=progressoMeta(base.meta,realizado,periodo,hoje,base.config?.calendario,{realizado,vendas:vendasMeta,vendasExcluidas,idsVendasAConferir:naoVinculadas.map(o=>String(o.id)),vendasCompleta:coberto(periodo)&&!incompletasMeta.length,vinculosCompletos:!naoVinculadas.length&&!incompletasMeta.some(o=>!vendedorDaVenda(o))});
- return {periodo,hoje,criterio:'O.S. normal, valor líquido, data de cadastro',completo,incompletas:incompletas.length,vendas,valor,pedidos:vendas.length,ticket:vendas.length?Math.round(valor/vendas.length):null,propostas,propostasDisponiveis,aprovacaoOrcamentos,abertasOperacionais,semProximaAcao,valorAbertoOperacional,abertas,orcamentosCompletos,valorAberto:!orcamentosCompletos||abertas.some(o=>dinheiro(o.valor)===null)?null:abertas.reduce((s,o)=>s+dinheiro(o.valor),0),acoes,hojeA,atrasadas,prioridades,clientes:[...porCliente.values()],sugestoesReativacao:[...porCliente.values()].filter(c=>c.reativacao.sugerida),categorias:[...categorias.values()].sort((a,b)=>b.centavos-a.centavos),produtos:[...produtos.values()].sort((a,b)=>b.centavos-a.centavos),meses:[...meses.values()].sort((a,b)=>a.mes.localeCompare(b.mes)),acumulado,comparativo,meta};
+ const meta=progressoMeta(base.meta,realizado,periodo,hoje,base.config?.calendario,{criterioVendas:base.criterioVendas,realizado,vendas:vendasMeta,vendasExcluidas,idsVendasAConferir:naoVinculadas.map(o=>String(o.id)),vendasCompleta:coberto(periodo)&&!incompletasMeta.length,vinculosCompletos:!naoVinculadas.length&&!incompletasMeta.some(o=>!vendedorDaVenda(o))});
+ return {periodo,hoje,criterio:`O.S. normal, valor líquido, data de ${porAprovacao?'aprovação':'cadastro'}`,criterioVendas:base.criterioVendas||'cadastro',completo,incompletas:incompletas.length,vendas,valor:porAprovacao&&!completo&&!vendas.length?null:valor,retrabalhos,totalOS,pedidos:vendas.length,ticket:vendas.length?Math.round(valor/vendas.length):null,propostas,propostasDisponiveis,aprovacaoOrcamentos,abertasOperacionais,semProximaAcao,valorAbertoOperacional,abertas,orcamentosCompletos,valorAberto:!orcamentosCompletos||abertas.some(o=>dinheiro(o.valor)===null)?null:abertas.reduce((s,o)=>s+dinheiro(o.valor),0),acoes,hojeA,atrasadas,prioridades,clientes:[...porCliente.values()],sugestoesReativacao:[...porCliente.values()].filter(c=>c.reativacao.sugerida),categorias:[...categorias.values()].sort((a,b)=>b.centavos-a.centavos),produtos:[...produtos.values()].sort((a,b)=>b.centavos-a.centavos),meses:[...meses.values()].sort((a,b)=>a.mes.localeCompare(b.mes)),acumulado,comparativo,meta};
 }
 export function validarAcao(b,escopo,base,autor,agora) {
  if(!b || !/^[\w-]{1,80}$/.test(b.id||''))throw Object.assign(new Error('Identificador inválido.'),{status:400});

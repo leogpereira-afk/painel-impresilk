@@ -1,4 +1,14 @@
+## Trabalho atual · Vendas pela aprovação · codex · 25/10/2026
+
+Prioridade e publicação autorizadas pelo dono em 25/10/2026: liberar a vez da Inteligência, publicar as vendas, atualizar a sincronização e conferir o consolidado com retrabalho separado. Preservar as mudanças e os dados das demais tarefas. Servidor e carga serão verificados antes da tela.
+
+Agente: codex. Conferência solicitada pelo dono sobre a divergência entre o Comercial e o resumo de O.S. do ERP. Clone isolado `/tmp/painel-vendas-aprovacao-20261025`, ramo `codex/vendas-aprovacao-20261025`. Escopo: preservar a data de aprovação da origem, apurar vendas por aprovação com cobertura própria e separar retrabalho; validar cargas, resumos e detalhamento com dados fictícios. Leituras reais e conciliação somente em arquivos privados fora do Git. Sem alteração de cadastros, escrita em produção ou publicação nesta etapa.
+
+Correção local pronta para revisão: causa conciliada com a origem em leitura somente; cadastro anterior e aprovação atual passam a compor o mês correto. Retrabalho e total de O.S. separados. Verificação: 1.738 testes raiz, 1.402 cálculos e 7 acessos aprovados; 282 testes pertinentes após ajustes finais, build aprovado e lint sem erros (aviso anterior em Agenda). Prévia com dados fictícios conferida no navegador, incluindo filtros por vendedor e detalhamento. Publicação não realizada e aguardando autorização específica. Sequência de servidor, carga histórica e tela em `docs/comercial/vendas-aprovacao-20261025.md`.
+
 ## Trabalho atual · Inteligência outubro · codex · 25/10/2026
+
+Vez liberada para a correção das vendas por autorização expressa do dono em 25/10/2026. Implementação e histórico desta tarefa preservados.
 
 Pedido do dono: corrigir falhas do sistema e trazer outubro na Inteligência; classificações dependentes de decisão serão apresentadas individualmente antes de alteração. Escopo: recuperar importador publicado, corrigir janela inclusiva/corte real e executar carga retomável com preservação das fontes. Nenhuma reclassificação automática. Ramo codex/inteligencia-outubro-20261025, clone isolado /tmp/painel-inteligencia-outubro-20261025. Implementação e execução autorizadas pelo pedido; validar antes de publicar servidor e carga.
 

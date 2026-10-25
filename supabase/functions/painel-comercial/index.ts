@@ -125,12 +125,12 @@ Deno.serve(async(req:Request)=>{
   if(b.action!=='painel')return json({erro:'Ação inválida.'},400);
   if(!fontes.orcamentos || !fontes.crm_clientes?.valor?.completo)return json({erro:'As fontes de orçamentos e clientes ainda não estão disponíveis.'},503);
   const inicio=`${Number(periodo.de.slice(0,4))-1}-01-01`;
-  const ordensBrutas=await todas(()=>{let q=sb.from('painel_ordens').select('id,numero,cliente,data,valor,bruto,desconto,vendedor,itens,comercial,atualizado_em').gte('data',inicio).lte('data',periodo.ate).order('id');
+  const ordensBrutas=await todas(()=>{let q=sb.from('painel_ordens').select('id,numero,cliente,data,valor,bruto,desconto,vendedor,itens,comercial,atualizado_em').gte('comercial->>dataAprovacao',inicio).lte('comercial->>dataAprovacao',periodo.ate).order('id');
    // Nomes de origem são legados. O segundo filtro, por identidade, é obrigatório.
    return q;});
   // A tabela conserva o histórico; o cache normalizado traz tipo e cliente das O.S. recentes.
-  const recentes=(fontes.ordens?.valor||[]).filter((o:any)=>o.data>=inicio&&o.data<=periodo.ate);
-  const ordens=mesclarOrdensComerciais(ordensBrutas.map((o:any)=>({...o,valorBruto:o.bruto})),recentes,fontes.ordens?.atualizado_em).filter((o:any)=>pertence(o,escopo));
+  const recentes=(fontes.ordens?.valor||[]).filter((o:any)=>o.data<=periodo.ate);
+  const ordens=mesclarOrdensComerciais(ordensBrutas.map((o:any)=>({...o,valorBruto:o.bruto})),recentes,fontes.ordens?.atualizado_em).filter((o:any)=>pertence(o,escopo)&&o.dataAprovacao>=inicio&&o.dataAprovacao<=periodo.ate);
   const acoes=(await carregarAcoes()).map((a:any)=>({...a.registro}));
   const marcacoes=await todas(()=>sb.from('painel_registros').select('id,registro').eq('colecao','ov_orc').order('id'));
   const permitidos=new Map(orcamentos.map((o:any)=>[String(o.id),o]));
@@ -139,23 +139,19 @@ Deno.serve(async(req:Request)=>{
    if(dataISO(v.proximoToque)&&!['ganho','perdido'].includes(v.situacao)&&o.situacao==='aberto')acoes.push({id:'mesa-'+m.id,origem:'mesa',compromissoId:v.compromissoId||null,vendedorId:o.vendedorErpId||o.vendedorId||null,clienteId:o.clienteId,cliente:o.cliente,orcamentoId:o.id,valor:o.valor,descricao:v.nota||'Retorno combinado na mesa de orçamentos',nota:v.nota||'',data:v.proximoToque,status:'pendente',atualizadoEm:v.atualizadoEm||null,contatoEm:v.contatoEm||null,vendedorNome:o.vendedorNome});
   }
   const atualizado=ordensBrutas.map((o:any)=>o.atualizado_em).sort().at(-1)||null;
-  const status=fontes.historico_status?.valor || {};
-  const plena=fontes.status?.valor?.ultimaCompleta;
-  const recenteEm=fontes.ordens?.atualizado_em?.slice(0,10);
-  const historicoOk=status.ok===true;
   const porJanelas=(recurso:string,legado:any)=>{
    const carga=fontes.comercial_carga_status?.valor;if(!carga)return {...legado,fonte:'legado'};
    const janelas=janelasHistoricas(carga,recurso),janela=janelas.find((j:any)=>j.desde<=periodo.de&&j.ate>=periodo.de);
    return {desde:janela?.desde||null,ate:janela?.ate||null,janelas,fonte:'comercial_carga_status'};
   };
-  const cobertura=porJanelas('ordens',{desde:historicoOk?status.desde:(plena?'2025-01-01':null),ate:plena&&recenteEm?recenteEm:(historicoOk?status.ate:null)});
+  const cobertura=porJanelas('ordens_aprovacao',{desde:null,ate:null});
   const coberturaOrcamentos=porJanelas('orcamentos',{desde:fontes.orcamentos.atualizado_em?.slice(0,4)+'-01-01',ate:fontes.orcamentos.atualizado_em?.slice(0,10)});
   const configPublica=escopo.gestor?config:{diasSemResposta:config.diasSemResposta,diasVencimento:config.diasVencimento,diasReativacao:config.diasReativacao,calendario:config.calendario,fichasProdutos:config.fichasProdutos||{}};
   const metas=(await todas(()=>{let q=sb.from('painel_registros').select('id,registro').eq('colecao','comercial_metas').order('id');if(escopo.ids!==null)q=q.in('registro->>vendedorId',escopo.ids);return q;})).map((r:any)=>r.registro);
   const meta=metaDoPeriodo(metas,escopo,catalogo,periodo,config);
-  const bases={ordens,orcamentos,clientes,acoes,meta,config:configPublica,cobertura,coberturaHistorica,coberturaOrcamentos};
+  const bases={criterioVendas:'aprovacao',ordens,orcamentos,clientes,acoes,meta,config:configPublica,cobertura,coberturaHistorica,coberturaOrcamentos};
   const relatorio=apurarComercial(bases,filtro,hoje);
   const financeiro=await consultarFinanceiroComercial(sb,relatorio.vendas);
-  return json({base:bases,relatorio,financeiro,metas,escopo:{...escopo,nomes:undefined},catalogo:{produtos:catalogo.produtos||[],vendedores:escopo.vendedores},config:escopo.gestor?config:{diasSemResposta:config.diasSemResposta,diasVencimento:config.diasVencimento,diasReativacao:config.diasReativacao,calendario:config.calendario,fichasProdutos:config.fichasProdutos||{}},fontes:Object.fromEntries(Object.entries(fontes).map(([k,v]:any)=>[k,{atualizadoEm:v.atualizado_em}])),ordensEm:atualizado,avisos:[...(fontes.status?.valor?.fontesQueFalharam?.length?['A sincronização teve falhas. Confira os horários das fontes; os últimos dados válidos foram preservados.']:[]),'Metas cadastradas pela direção no Painel, por vendedora e mês. Realizado por O.S. normal, líquida, na data de cadastro. Não são metas importadas do Mubisys.','Devoluções sem vínculo não são abatidas automaticamente.','Histórico sem tipo da O.S. requer nova leitura do ERP; não compõe o realizado verificável.','A cobertura dos orçamentos é informada pelas janelas de sincronização. Datas de envio, versões e conversão em pedido não foram confirmadas pela integração.'],atualizadoEm:fontes.orcamentos.atualizado_em});
+  return json({base:bases,relatorio,financeiro,metas,escopo:{...escopo,nomes:undefined},catalogo:{produtos:catalogo.produtos||[],vendedores:escopo.vendedores},config:escopo.gestor?config:{diasSemResposta:config.diasSemResposta,diasVencimento:config.diasVencimento,diasReativacao:config.diasReativacao,calendario:config.calendario,fichasProdutos:config.fichasProdutos||{}},fontes:Object.fromEntries(Object.entries(fontes).map(([k,v]:any)=>[k,{atualizadoEm:v.atualizado_em}])),ordensEm:atualizado,avisos:[...(fontes.status?.valor?.fontesQueFalharam?.length?['A sincronização teve falhas. Confira os horários das fontes; os últimos dados válidos foram preservados.']:[]),'Metas cadastradas pela direção no Painel, por vendedora e mês. Realizado por O.S. normal, líquida, na data de aprovação. Não são metas importadas do Mubisys.','Devoluções sem vínculo não são abatidas automaticamente.','Histórico sem tipo da O.S. requer nova leitura do ERP; não compõe o realizado verificável.','A cobertura dos orçamentos é informada pelas janelas de sincronização. Datas de envio, versões e conversão em pedido não foram confirmadas pela integração.'],atualizadoEm:[atualizado,fontes.ordens?.atualizado_em].filter(Boolean).sort().at(-1)||null});
  }catch(e){return json({erro:e?.status?e.message:'A consulta comercial não foi concluída. Tente atualizar.',codigo:e?.codigo||null},e?.status||503);}
 });

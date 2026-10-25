@@ -6,19 +6,21 @@ const centavos = (v) => Math.round(Number(v) * 100) / 100;
 
 export function validarCargaComercial({ desde, ate, recurso = 'ambos' }, hoje) {
   if (!dataValida(desde) || !dataValida(ate) || desde > ate || ate > hoje || desde < '2000-01-01') throw new Error('Informe uma janela válida, até hoje, em AAAA-MM-DD.');
-  if (!['ordens', 'orcamentos', 'ambos'].includes(recurso)) throw new Error('Recurso deve ser ordens, orcamentos ou ambos.');
+  if (!['ordens', 'ordens_aprovacao', 'orcamentos', 'ambos'].includes(recurso)) throw new Error('Recurso deve ser ordens, ordens_aprovacao, orcamentos ou ambos.');
   return { desde, ate, recursos: recurso === 'ambos' ? ['ordens', 'orcamentos'] : [recurso] };
 }
 
 // Não envia itens: o objetivo é enriquecer o vínculo comercial. O contrato de
 // painel-cache preserva os itens e categorias existentes quando a chave falta.
 export function ordemComercialParaTabela(o) {
+  if (!dataValida(o.data.slice(0,10))) throw new Error("O.S. sem data de cadastro válida; base anterior preservada.");
   if (!o.id || !o.valorConfirmado || !Number.isFinite(o.valor) || !Number.isFinite(o.valorBruto)) throw new Error('O.S. sem cabeçalho financeiro confirmado; dados anteriores preservados.');
   return {
     id: o.id, numero: o.numero, cliente: o.cliente, clienteChave: chaveCliente(o.cliente),
     cnpj: o.cnpj, data: o.data.slice(0, 10), valor: centavos(o.valor), bruto: centavos(o.valorBruto),
     desconto: centavos(o.desconto), vendedor: o.vendedor,
     comercial: { clienteId: o.clienteId, tipo: o.tipo, valorConfirmado: o.valorConfirmado, cancelada: false, sinalPago: o.sinalPago,
+      ...(Object.hasOwn(o, 'dataAprovacao') ? {dataAprovacao:o.dataAprovacao} : {}),
       ...(Object.hasOwn(o, 'empresaNome') ? { empresaNome: o.empresaNome, empresaId: o.empresaId ?? null } : {}),
     },
   };
@@ -58,17 +60,18 @@ export async function executarCargaComercial(opcoes, { getTudo, cache, agora = (
       log(`${recurso}: ${fatia.de} a ${fatia.ate}`);
       // Cliente compartilhado mantém paginação completa, limite de concorrência
       // e recuo para HTTP 429. A mesma consulta das cargas já em produção.
-      const brutos = await getTudo(recurso === 'ordens' ? 'ordem-servico' : 'orcamento', {
-        status: 'TODOS', filtrodata: 'CADASTRO', datainicial: fatia.de, datafinal: diaSeguinte(fatia.ate),
+      const ehOrdem=recurso.startsWith('ordens'),campoData=recurso==='ordens_aprovacao'?'data_aprovacao':'data_cadastro';
+      const brutos = await getTudo(ehOrdem ? 'ordem-servico' : 'orcamento', {
+        status: 'TODOS', filtrodata: recurso==='ordens_aprovacao'?'APROVACAO':'CADASTRO', datainicial: fatia.de, datafinal: diaSeguinte(fatia.ate),
       }, 100);
       if (!Array.isArray(brutos) || !brutos.length) throw new Error(`${recurso}: fonte vazia; fatia não confirmada e base anterior preservada.`);
-      if (brutos.some((r) => r.id == null || String(r.id).trim() === '' || !dataValida(String(r.data_cadastro || '').slice(0, 10)))) throw new Error(`${recurso}: registro sem identificador ou data válida; fatia não confirmada.`);
+      if (brutos.some((r) => r.id == null || String(r.id).trim() === '' || !dataValida(String(r[campoData] || '').slice(0, 10)))) throw new Error(`${recurso}: registro sem identificador ou data válida; fatia não confirmada.`);
       const noPeriodo = [...new Map(brutos.filter((r) => {
-        const d = String(r.data_cadastro).slice(0, 10); return d >= fatia.de && d <= fatia.ate;
+        const d = String(r[campoData]).slice(0, 10); return d >= fatia.de && d <= fatia.ate;
       }).map((r) => [String(r.id), r])).values()];
       if (!noPeriodo.length) throw new Error(`${recurso}: nenhum registro dentro da janela; fatia não confirmada.`);
       let registros = 0, canceladas = 0;
-      if (recurso === 'ordens') {
+      if (ehOrdem) {
         const normalizadas = noPeriodo.map((r, i) => normOS(r, i, new Map()));
         // Valida antes de escrever qualquer lote da fatia; não transforma valor
         // ausente em zero por cima de um cabeçalho já conferido.
@@ -96,7 +99,7 @@ export async function executarCargaComercial(opcoes, { getTudo, cache, agora = (
         registros = novas.length;
       }
       status = confirmarJanelaComercial(status, recurso, {
-        desde: fatia.de, ate: fatia.ate, concluidaEm: agora(), registros, ...(recurso === 'ordens' ? { canceladas } : {}),
+        desde: fatia.de, ate: fatia.ate, concluidaEm: agora(), registros, ...(ehOrdem ? { canceladas } : {}),
       });
       await gravarStatus();
       log(`${recurso}: ${registros} registros confirmados${canceladas ? `; ${canceladas} canceladas verificadas` : ''}.`);

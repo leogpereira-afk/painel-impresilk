@@ -13,6 +13,7 @@ export async function confirmarCoberturaRegular(pesados, gravados, cache, agora 
   for (const fonte of fontes) status = confirmarJanelaComercial(status, fonte, {
     ...pesados.janelasConsultadas[fonte], concluidaEm, origem: 'carga_regular',
   });
+  if(fontes.includes('ordens')&&pesados.janelasConsultadas.ordens_aprovacao)status=confirmarJanelaComercial(status,'ordens_aprovacao',{...pesados.janelasConsultadas.ordens_aprovacao,concluidaEm,origem:'carga_regular'});
   status.atualizacaoEm = concluidaEm;
   const resposta = await cache({ chave: 'comercial_carga_status', valor: status });
   if (resposta.recusouVazio || resposta.pulou) throw new Error('Confirmação da cobertura comercial recusada.');

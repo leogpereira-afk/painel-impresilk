@@ -26,7 +26,7 @@
 import {
   etapaRapidos, etapaCompleta, etapaRealizado, calcDso, normOrcamento, normOS, chaveProduto,
   SEM_CATEGORIA, FORA_CATALOGO, normRecebivel, CORTE_ATRASADOS,
-  etapaHistoricoOS, fatiasPorAno, anosDoHistorico, conferirAbatimentos, janelaConsultada,
+  etapaHistoricoOS, fatiasPorAno, anosDoHistorico, conferirAbatimentos, janelaConsultada, validarRespostaAprovacao,
 } from "./lib/mubi-cache.mjs";
 import { mubiGetTudo, mubiConfigurado, hojeMais } from "./lib/mubi.js";
 /* A faxina do mapa de pagos APAGA registro de dinheiro recebido: a decisao
@@ -170,7 +170,8 @@ async function gravarOrdensTabela(ordens) {
         desconto: Math.round((Number(o.desconto) || 0) * 100) / 100,
         vendedor: String(o.vendedor ?? ""),
         comercial: {tipo:o.tipo || "",clienteId:o.clienteId || "",cancelada:o.cancelada===true,valorConfirmado:o.valorConfirmado,
-          ...(Object.hasOwn(o, 'empresaNome') ? {empresaNome:o.empresaNome,empresaId:o.empresaId??null} : {}),
+          ...(Object.hasOwn(o, 'dataAprovacao') ? {dataAprovacao:o.dataAprovacao} : {}),
+      ...(Object.hasOwn(o, 'empresaNome') ? {empresaNome:o.empresaNome,empresaId:o.empresaId??null} : {}),
         },
         /* OS ITENS VAO JUNTO. E o que responde "o que a gente vende nesse tipo
            de evento" na tela de Campanhas -- placa, lona, adesivo. Sem eles a
@@ -308,6 +309,7 @@ async function janelaDe7Dias() {
   try {
     for (const filtro of ["CADASTRO", "APROVACAO", "CANCELAMENTO"]) {
       const brutos = await mubiGetTudo("ordem-servico", { ...janela, filtrodata: filtro }, 100);
+      if(filtro==="APROVACAO")validarRespostaAprovacao(brutos);
       janelaErp.os[filtro] = brutos.length;
       for (const [i, bruto] of brutos.entries()) {
         const o = normOS(bruto, i, categoriaPorNome);
@@ -327,6 +329,7 @@ async function janelaDe7Dias() {
     return { orcamentos: [...mapaOrc.values()], ordens: null, falhas: ["ordens"], janelaErp, janelasConsultadas };
   }
   janelasConsultadas.ordens = janelaConsultada(janela);
+  janelasConsultadas.ordens_aprovacao = janelaConsultada(janela);
 
   // `falhas` sobe junto: sem isso a rodada terminava em "sucesso" limpo, e nada
   // na tela nem no log dizia que o painel estava rodando com a classificacao

@@ -16,7 +16,7 @@ export default function DetalheDashboard({filtro,selecao,fechar,verCompleto}) {
  const periodo=dados?.periodo;
  return <Dialogo className="dash-dialog" titulo={selecao.nome||'Pedidos do recorte'} fechar={fechar}>
   <div className="commercial-dashboard">
-   <p className="dash-note">{financeiro?'Títulos vencidos ligados integralmente às O.S. selecionadas. Posição atual da fonte; o período abaixo é o período da venda.':'Registros da base comercial autorizada. Data de cadastro da O.S.; não representa data de faturamento ou recebimento.'}</p>
+   <p className="dash-note">{financeiro?'Títulos vencidos ligados integralmente às O.S. selecionadas. Posição atual da fonte; o período abaixo é o período da venda.':'Registros da base comercial autorizada. Data de aprovação da O.S.; não representa data de faturamento ou recebimento.'}</p>
    {periodo&&<p className="dash-note">Vendas de {dataCurta(periodo.de)} a {dataCurta(periodo.ateEfetivo||periodo.ate)}. Os filtros selecionados foram mantidos.</p>}
    {carregando?<p role="status">Carregando {financeiro?'títulos':'pedidos'}…</p>:erro?<p role="alert" className="dash-alert">{erro}</p>:<>
     {dados?.cobertura?.completo===false&&<p className="dash-alert">Cobertura parcial: esta lista contém somente os registros confirmados.</p>}

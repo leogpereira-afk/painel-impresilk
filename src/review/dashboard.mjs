@@ -37,9 +37,9 @@ export function baseDashboardDemo(hoje=diaLocal()) {
  const campanhas=[{id:'campanha-demo',nome:'Renovação de fachadas · exemplo',os:Object.fromEntries(atuais.slice(0,5).map(o=>[o.id,{data:o.data}]))}];
  const metas=vendedores.map(v=>({id:`${v.id}_${hoje.slice(0,7)}`,vendedorId:v.id,mes:hoje.slice(0,7),valor:120000,criterio:'cadastro_liquido_os_normal',origem:'painel',atualizadoPor:'Conta de demonstração'}));
  return {catalogo:{completo:true,vendedores,produtos},config:{vinculos:{'ana-exemplo':'101','beatriz-exemplo':'102'},participantesMetas:['101','102'],calendario:{configurado:true,diasSemana:[1,2,3,4,5],feriados:[]},equipes:[{id:'com1',nome:'Equipe comercial · exemplo',vendedores:['101','102']},{id:'com2',nome:'Carteira de Ana · exemplo',vendedores:['101']}]},
-  metas,
-  ordens,recentes:[],orcamentos,campanhas,recebiveis,financeiroEm:hoje+'T08:00:00Z',financeiroFalhou:false,
-  cargaStatus:{janelas:{ordens:[{desde:`${ano-2}-01-01`,ate:hoje,concluidaEm:hoje+'T08:00:00Z'}]}},atualizadoEm:hoje+'T08:00:00Z',catalogoEm:hoje+'T08:00:00Z'};
+  criterioVendas:'aprovacao',metas,
+  ordens:ordens.map(o=>({...o,dataAprovacao:o.data})),recentes:[],orcamentos,campanhas,recebiveis,financeiroEm:hoje+'T08:00:00Z',financeiroFalhou:false,
+  cargaStatus:{janelas:{ordens_aprovacao:[{desde:`${ano-2}-01-01`,ate:hoje,concluidaEm:hoje+'T08:00:00Z'}]}},atualizadoEm:hoje+'T08:00:00Z',catalogoEm:hoje+'T08:00:00Z'};
 }
 
 export function respostaDashboardDemo(b,sessao={sub:'demo',master:true},hoje=diaLocal(),apoio={}) {

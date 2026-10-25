@@ -137,7 +137,7 @@ export function perfilCompraComercialPeriodo(cliente, compras, periodo, hoje, co
  const anteriores = primeiraCompraPeriodo ? todas.filter(o => dia(o.data) < primeiraCompraPeriodo) : [];
  const compraAnterior = anteriores.length ? dia(anteriores.at(-1).data) : null;
  const prazo = Number(config.diasReativacao ?? 90);
- const criterio = `O.S. normal não cancelada, líquido confirmado e data de cadastro, na carteira autorizada. Intervalo entre a primeira compra do período e a última O.S. anterior confirmada; reativado exige pelo menos ${prazo} dias e cobertura contínua.`;
+ const criterio = `O.S. normal não cancelada, líquido confirmado e data de ${cobertura.criterioVendas==='aprovacao'?'aprovação':'cadastro'}, na carteira autorizada. Intervalo entre a primeira compra do período e a última O.S. anterior confirmada; reativado exige pelo menos ${prazo} dias e cobertura contínua.`;
  const detalhe = {estado: 'indisponivel', rotulo: 'Indisponível', criterio, coberturaCompleta: false, idsVendas: atuais.map(o => String(o.id)), primeiraCompraPeriodo, compraAnterior, intervaloDias: null};
  const periodoCoberto = coberturaComercialContem(cobertura, {de: periodo.de, ate}, hoje);
  if (!periodoCoberto) return {...detalhe, criterio: criterio + ' A cobertura das compras do período está incompleta.'};

@@ -9,8 +9,8 @@ const source=readFileSync(new URL('../supabase/functions/painel-comercial/index.
 const code=buildSync({stdin:{contents:source,loader:'ts',resolveDir:fileURLToPath(new URL('../supabase/functions/painel-comercial/',import.meta.url))},bundle:true,write:false,format:'iife',platform:'node'}).outputFiles[0].text;
 const hoje=new Date().toLocaleDateString('en-CA',{timeZone:'America/Sao_Paulo'});
 function setup(){let handler,session={sub:'a',perms:['orcamentos']},revoked=false,fail=false,writes=0;const queries=[];
- const cache=[{chave:'comercial_catalogo',valor:{completo:true,vendedores:[{id:'1',nome:'Ana Exemplo'},{id:'2',nome:'Bia Exemplo'}],produtos:[{id:'p1',nome:'Lona Exemplo'}]}},{chave:'comercial_carga_status',valor:{janelas:{ordens:[{desde:'2018-01-01',ate:hoje,concluidaEm:hoje}]}}},{chave:'ordens',valor:[]},{chave:'orcamentos',valor:[]},{chave:'recebiveis',valor:[]}];
- const order=(id,vendedor='Ana Exemplo')=>({id,numero:'900'+id,cliente:'Cliente '+id,data:hoje,valor:100,bruto:100,desconto:0,vendedor,itens:[{produto:'Lona Exemplo',valorTotal:100}],comercial:{tipo:'Normal',clienteId:'c'+id,empresaNome:'Impresilk'}});
+ const cache=[{chave:'comercial_catalogo',valor:{completo:true,vendedores:[{id:'1',nome:'Ana Exemplo'},{id:'2',nome:'Bia Exemplo'}],produtos:[{id:'p1',nome:'Lona Exemplo'}]}},{chave:'comercial_carga_status',valor:{janelas:{ordens_aprovacao:[{desde:'2018-01-01',ate:hoje,concluidaEm:hoje}]}}},{chave:'ordens',valor:[]},{chave:'orcamentos',valor:[]},{chave:'recebiveis',valor:[]}];
+ const order=(id,vendedor='Ana Exemplo')=>({id,numero:'900'+id,cliente:'Cliente '+id,data:hoje,dataAprovacao:hoje,valor:100,bruto:100,desconto:0,vendedor,itens:[{produto:'Lona Exemplo',valorTotal:100}],comercial:{tipo:'Normal',dataAprovacao:hoje,clienteId:'c'+id,empresaNome:'Impresilk'}});
  const ordens=[order('1'),order('2','Bia Exemplo')],db={painel_cache:cache,painel_registros:[{colecao:'comercial_config',id:'regras',registro:{vinculos:{a:'1',b:'2'}}}],painel_ordens:ordens};
  const sb={from(table){let rows=db[table]||[],columns='';const log={table,filters:[]};queries.push(log);const field=(x,k)=>k==='registro->>vendedorId'?x.registro?.vendedorId:x[k];const q={select(c){columns=c;log.columns=c;return q},eq(k,v){log.filters.push([k,v]);rows=rows.filter(x=>field(x,k)===v);return q},in(k,v){log.filters.push([k,v]);rows=rows.filter(x=>v.includes(field(x,k)));return q},gte(k,v){rows=rows.filter(x=>x[k]>=v);return q},lte(k,v){rows=rows.filter(x=>x[k]<=v);return q},order(){return q},range(a,b){log.range=[a,b];return Promise.resolve(fail?{error:{}}:{data:structuredClone(rows.slice(a,b+1))})},maybeSingle(){return Promise.resolve(fail?{error:{}}:{data:structuredClone(rows[0]||null)})},then(fn){return Promise.resolve(fail?{error:{}}:{data:structuredClone(rows)}).then(fn)}};return q},async rpc(){writes++;return {data:null}}};
  vm.runInNewContext(code,{createClient:()=>sb,verificarJwt:async()=>session,crachaRevogado:async()=>revoked,Deno:{env:{get:()=> 'test'},serve:fn=>handler=fn},Response,Request,crypto,TextEncoder,console});
@@ -27,4 +27,10 @@ test('detalhe de atraso carrega títulos somente com permissão financeira e con
  t.session({sub:'a',perms:['orcamentos','contas-atrasadas']});const d=await t.call({action:'dashboardDetalhe',dimensao:'atraso',id:'todos'});
  assert.equal(d.httpStatus,200);assert.equal(d.tipo,'atrasos');assert.equal(d.resumo.centavos,1000);assert.equal(d.titulos.length,1);assert.equal(d.titulos[0].id,'t1');assert.equal(JSON.stringify(d).includes('Cliente 2'),false);
  assert.equal(t.queries.some(q=>q.table==='painel_cache'&&q.filters.some(([k,v])=>k==='chave'&&v.includes('recebiveis'))),true);assert.equal(t.writes,0);
+});
+test('rota Dashboard inclui aprovação atual de cadastro antigo e não confunde com cadastro atual',async()=>{
+ const t=setup();t.ordens[0].data='2021-01-02';t.ordens[0].comercial.dataAprovacao=hoje;
+ t.ordens.push({...t.order('fora'),comercial:{...t.order('fora').comercial,dataAprovacao:'2020-01-01'}});
+ const r=await t.call({filtro:{modo:'mes',mes:hoje.slice(0,7)}});
+ assert.equal(r.resumo.centavos,10000);assert.equal(r.resumo.pedidos,1);assert.equal(r.resumo.completo,true);assert.equal(t.writes,0);
 });

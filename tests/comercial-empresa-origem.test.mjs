@@ -10,7 +10,7 @@ const require = createRequire(import.meta.url), { transformSync } = createRequir
 const source = readFileSync(new URL('../supabase/functions/painel-cache/index.ts', import.meta.url), 'utf8')
   .replace(/^import.*createClient.*\n/m, 'const createClient = globalThis.createClient;\n');
 const code = transformSync(source, { loader: 'ts', format: 'iife' }).code;
-const bruto = (extra = {}) => ({ id: 'os-exemplo', cliente_id: 'cliente-exemplo', cliente: 'Comprador Exemplo', vendedor: 'Vendedora Exemplo', tipo: 'Normal', status: 'ABERTO', data_cadastro: '2026-10-01', valor_total: 100, valor_desconto: 10, ...extra });
+const bruto = (extra = {}) => ({ id: 'os-exemplo', cliente_id: 'cliente-exemplo', cliente: 'Comprador Exemplo', vendedor: 'Vendedora Exemplo', tipo: 'Normal', status: 'ABERTO', data_cadastro: '2026-10-01', data_aprovacao:'2026-10-02', valor_total: 100, valor_desconto: 10, ...extra });
 
 function ambiente(anteriores = []) {
   let handler, falhaLeitura = false;
@@ -94,4 +94,13 @@ test('carga incremental também transporta empresa no JSON comercial sem alterar
   assert.equal(enviados[0].linhas[0].comercial.empresaNome, 'Empresa Alfa');
   assert.equal(enviados[0].linhas[0].comercial.empresaId, null);
   assert.deepEqual(enviados[0].linhas[0].itens, ordem.itens);
+});
+test('aprovação sobrevive à projeção do cache e a escritor antigo sem o campo',async()=>{
+ const t=ambiente([{id:'x',comercial:{tipo:'Normal',empresaNome:'Empresa Alfa',dataAprovacao:'2026-10-02'}}]);
+ const linha={id:'x',valor:90,bruto:100,desconto:10,comercial:{tipo:'Normal',empresaNome:'Empresa Alfa'}};
+ assert.equal((await t.enviar([linha])).status,200);assert.equal(t.banco.get('x').comercial.dataAprovacao,'2026-10-02');
+ assert.equal((await t.enviar([{...linha,comercial:{...linha.comercial,dataAprovacao:'2026-10-03'}}])).status,200);
+ assert.equal(t.banco.get('x').comercial.dataAprovacao,'2026-10-03');
+ assert.equal((await t.enviar([{...linha,comercial:{...linha.comercial,dataAprovacao:null}}])).status,200);
+ assert.equal(t.banco.get('x').comercial.dataAprovacao,null);
 });

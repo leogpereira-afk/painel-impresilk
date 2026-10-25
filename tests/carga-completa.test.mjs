@@ -11,8 +11,8 @@ const respostas = {
   orcamento: [{id:'orc-exemplo',status:'ABERTO',valor_total:1000,valor_desconto:100}],
   produto: [{nome:'Placa exemplo',categoria:'Sinalização'}],
   'ordem-servico': [
-    {id:'os-exemplo',status:'APROVADO',valor_total:200,itens:[{item:'Placa exemplo',valor_final:200}]},
-    {id:'os-cancelada',status:'CANCELADO',valor_total:100},
+    {id:'os-exemplo',data_aprovacao:'2026-10-01',status:'APROVADO',valor_total:200,itens:[{item:'Placa exemplo',valor_final:200}]},
+    {id:'os-cancelada',data_aprovacao:'2026-10-01',status:'CANCELADO',valor_total:100},
   ],
 };
 

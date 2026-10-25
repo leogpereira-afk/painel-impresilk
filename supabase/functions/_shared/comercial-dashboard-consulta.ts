@@ -44,7 +44,7 @@ export async function consultarDashboard(sb:any,sessao:any,corpo:any,hoje:string
   podeCampanhas?lerPaginasDashboard(()=>sb.from('painel_registros').select('id,registro').eq('colecao','campanhas').order('id'),500):Promise.resolve([]),
   corpo.action==='dashboardDetalhe'?Promise.resolve([]):lerPaginasDashboard(()=>{let q=sb.from('painel_registros').select('id,registro').eq('colecao','comercial_metas').order('id');if(escopo.ids!==null)q=q.in('registro->>vendedorId',escopo.ids);return q;},500),
  ]);
- const base={catalogo,config,ordens,metas:metas.map((m:any)=>m.registro),recentes:fontes.ordens?.valor||[],cargaStatus:fontes.comercial_carga_status?.valor||{},
+ const base={criterioVendas:'aprovacao',catalogo,config,ordens,metas:metas.map((m:any)=>m.registro),recentes:fontes.ordens?.valor||[],cargaStatus:fontes.comercial_carga_status?.valor||{},
   campanhas:campanhas.map((c:any)=>({id:c.id,nome:c.registro?.nome,os:c.registro?.os||{}})),
   // Avoid retaining unrelated clients or action notes. Budget amounts are not
   // returned; only existing status counts are available as a separate funnel.
