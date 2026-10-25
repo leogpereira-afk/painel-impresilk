@@ -78,4 +78,15 @@ Verificação final desta revisão: **77/77 testes focados passaram**, build de 
 - Conferência local em largura móvel de 390 px: todas as fichas, oito seções e cinco abas complementares, sem transbordamento ou imagem quebrada. Isso não equivale a teste em aparelho físico.
 - Links externos com bloqueio ou erro permanecem identificados para conferência. Arquivos do Drive conservam o acesso original. Compatibilidade, variantes, tintas instaladas e assistência contratada continuam pendentes quando não comprovadas.
 - Verificação: 1.727 testes gerais; 1.409 de cálculos e acesso; 47 focados de manuais e mídia. Build aprovado, lint sem erro (um aviso anterior de Agenda), verificadores de ações/permissões e diff aprovados.
-- Publicação em andamento: servidor antes da interface; resultado produtivo será registrado após conferência autenticada.
+- Etapa de preparação encerrada; resultado publicado abaixo.
+
+
+## Publicado e conferido — encerramento de 24/10/2026
+
+- Implementação `6f7cca8`. Servidor `painel-config` v196 ACTIVE, conteúdo dos 26 arquivos conferido com o código. Functions 40149542611 e Pages 40149772853 concluídos com sucesso; oito arquivos públicos relevantes comparados byte a byte com o build.
+- Correção final da galeria: deduplicação feita antes da troca de referência estável por URL assinada, evitando sumiço de imagens privadas; origem do arquivo preservada quando o bem ganha vínculo técnico posteriormente.
+- CI final: 1.728 testes gerais, 1.402 de cálculos e 7 de acesso aprovados. 48 testes focados de manuais e mídia aprovados (subconjunto da suíte geral). Build aprovado, lint sem erros e aviso anterior de Agenda preservado.
+- Todas as fichas publicadas conferidas com autenticação em viewport de 390 × 844: oito seções, cinco abas complementares, fotos principais/galerias carregadas e ausência de transbordamento. Persistência confirmada ao recarregar e abrir segunda aba. Não equivale a teste em aparelho físico.
+- Impressão nativa reconferida com o mesmo código: PDF lido e renderizado, sem primeira/última página vazia, resolvendo a pendência registrada anteriormente. Nenhum trabalho enviado à impressora.
+- Acervo privado persistido como rascunhos. Nenhuma aprovação operacional automática. Comparação antes/depois confirmou preservação de cadastros e inventário. Fotos privadas continuam no Storage privado; dados reais e evidências fora do repositório público.
+- Links públicos respondendo foram identificados; bloqueios HTTP/TLS permanecem pendentes. Links privados do Drive conservam suas permissões. Compatibilidade de tintas e consumíveis instalados, modelos/variantes/potências incertos, assistência habitual e responsável pela revisão técnica precisam ser confirmados antes de aprovação operacional.
