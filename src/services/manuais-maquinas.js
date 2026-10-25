@@ -12,3 +12,5 @@ export const listarCatalogoManuais=()=>chamar('manuaisMaquinasCatalogo').then(r=
 export const lerManualMaquina=referencia=>chamar('manuaisMaquinasLer',{referencia}).then(r=>r.manual||null);
 export const salvarManualMaquina=(referencia,conteudo,versaoAnterior=null)=>chamar('manuaisMaquinasSalvar',{referencia,conteudo,versaoAnterior}).then(r=>r.manual);
 export const aprovarManualMaquina=(referencia,versaoAnterior)=>chamar('manuaisMaquinasAprovar',{referencia,versaoAnterior}).then(r=>r.manual);
+
+export const salvarMidiaManual=(referencia,dados)=>chamar('manuaisMaquinasMidiaSalvar',{referencia,...dados});

@@ -34,6 +34,7 @@ function lista(v,permitidos,preparar){
  if(!Array.isArray(v)||v.length>LIMITES_MANUAL.lista)falhaManual('Lista inválida ou extensa demais.');
  const ids=new Set();return v.map(item=>{camposManuais(item,['id',...permitidos],'Item');const id=uuid(item.id);if(ids.has(id))falhaManual('Há IDs repetidos na lista.');ids.add(id);return {id,...preparar(item)};});
 }
+function fotoSemId({id,...foto}){void id;return foto;}
 function prepararFotoManual(v,consumivel=false){
  const foto=v??{};camposManuais(foto,['url','fonteUrl','legenda','usoConfirmado',...(!consumivel?['principal']:[])],'Foto');
  const pronta={url:urlManual(foto.url),fonteUrl:urlManual(foto.fonteUrl),legenda:texto(foto.legenda,1000),usoConfirmado:booleano(foto.usoConfirmado)};
@@ -46,7 +47,7 @@ function prepararFotoManual(v,consumivel=false){
  return pronta;
 }
 export function prepararConteudoManual(v){
- camposManuais(v,['identificacaoConfirmada','fabricante','modelo','variante','responsavelId','revisarEm',...SECOES_MANUAL,'consumiveis','fontes','assistencias','treinamentos','foto']);
+ camposManuais(v,['identificacaoConfirmada','fabricante','modelo','variante','responsavelId','revisarEm',...SECOES_MANUAL,'consumiveis','fontes','assistencias','treinamentos','foto','galeria']);
  if(JSON.stringify(v).length>LIMITES_MANUAL.conteudo)falhaManual('Conteúdo extenso demais.');
  const c={identificacaoConfirmada:booleano(v.identificacaoConfirmada),fabricante:texto(v.fabricante),modelo:texto(v.modelo),variante:texto(v.variante),responsavelId:texto(v.responsavelId,180),revisarEm:data(v.revisarEm)};
  for(const s of SECOES_MANUAL)c[s]=texto(v[s],LIMITES_MANUAL.texto);
@@ -60,6 +61,7 @@ export function prepararConteudoManual(v){
  });
  c.treinamentos=lista(v.treinamentos,['titulo','objetivo','conteudo','criterio','url'],s=>({titulo:texto(s.titulo),objetivo:texto(s.objetivo,3000),conteudo:texto(s.conteudo,6000),criterio:texto(s.criterio,3000),url:urlManual(s.url)}));
  c.foto=prepararFotoManual(v.foto);
+ if(v.galeria!==undefined)c.galeria=lista(v.galeria,['url','fonteUrl','legenda','usoConfirmado'],f=>prepararFotoManual(fotoSemId(f),true));
  return c;
 }
 export function validarReferenciaManual(ref){

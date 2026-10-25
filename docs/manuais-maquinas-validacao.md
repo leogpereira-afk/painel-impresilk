@@ -69,3 +69,13 @@ Antes de disponibilizar conteúdo operacional: resolver as divergências de fabr
 - Permanece a limitação já registrada da última conferência nativa do PDF. Aprovação operacional exige responsável e validação técnica.
 
 Verificação final desta revisão: **77/77 testes focados passaram**, build de produção concluído, ESLint sem erros (mesmo aviso anterior em Agenda) e `git diff --check` limpo. A suíte geral mencionada acima pertence à etapa inicial e não foi repetida nesta revisão.
+
+## Publicação autorizada — acervo privado e conferência final
+
+- Servidor valida envio de PNG/JPG/WebP, tamanho, vínculo por ID e autorização; imagens do Inventário permanecem restritas à permissão existente. Bucket privado, nomes únicos, URLs assinadas transitórias e histórico preservado.
+- Importação administrativa cria somente rascunhos, preserva registros existentes e permite retomar após interrupção. Arquivos de acervo nunca entram no repositório ou no build.
+- Galeria e fotos de consumíveis usam os arquivos privados assinados, mantendo referências públicas já aprovadas visualmente. Edição conserva galerias e documentos.
+- Conferência local em largura móvel de 390 px: todas as fichas, oito seções e cinco abas complementares, sem transbordamento ou imagem quebrada. Isso não equivale a teste em aparelho físico.
+- Links externos com bloqueio ou erro permanecem identificados para conferência. Arquivos do Drive conservam o acesso original. Compatibilidade, variantes, tintas instaladas e assistência contratada continuam pendentes quando não comprovadas.
+- Verificação: 1.727 testes gerais; 1.409 de cálculos e acesso; 47 focados de manuais e mídia. Build aprovado, lint sem erro (um aviso anterior de Agenda), verificadores de ações/permissões e diff aprovados.
+- Publicação em andamento: servidor antes da interface; resultado produtivo será registrado após conferência autenticada.

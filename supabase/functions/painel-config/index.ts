@@ -438,8 +438,13 @@ Deno.serve(async (req: Request) => {
       case 'manuaisMaquinasCatalogo':
       case 'manuaisMaquinasListar':
       case 'manuaisMaquinasLer':
+      case 'manuaisMaquinasMidiaSalvar':
       case 'manuaisMaquinasSalvar':
       case 'manuaisMaquinasAprovar':
+        if(!sessao)return resposta({erro:'Entre no sistema.',semSessao:true},401);
+        if(!temModulo('patrimonio'))return resposta({erro:'Sem acesso ao Patrimônio.'},403);
+        if(['manuaisMaquinasSalvar','manuaisMaquinasMidiaSalvar','manuaisMaquinasAprovar'].includes(corpo.action)&&!temModulo('manutencoes')&&!temModulo('configuracoes'))return resposta({erro:'Sem permissão para editar manuais.'},403);
+        if(corpo.action==='manuaisMaquinasAprovar'&&!temModulo('configuracoes'))return resposta({erro:'Sem permissão para aprovar manuais.'},403);
         return await atenderManuaisMaquinas({sb,sessao,corpo,resposta,pessoasRH});
       case "pessoasCompromissos": {
         if(!sessao)return resposta({erro:'Entre no sistema.',semSessao:true},401);

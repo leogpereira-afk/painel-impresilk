@@ -32,7 +32,7 @@ test('foto de consumível segue aprovação, permissões e histórico integral c
  const invalido={...c,consumiveis:[{...c.consumiveis[0],foto:{...foto,fonteUrl:''}}]};assert.equal((await salvar(a,invalido,m.atualizadoEm)).status,422);assert.equal(a.escritas.length,antes);assert.deepEqual((await ler(a)).body.manual.conteudo.consumiveis[0].foto,revisado.consumiveis[0].foto);
 });
 test('porteiro real exige sessão e permissões em leitura, edição, aprovação e verbos genéricos',async()=>{
- for(const action of ['manuaisMaquinasCatalogo','manuaisMaquinasListar','manuaisMaquinasLer','manuaisMaquinasSalvar','manuaisMaquinasAprovar']){
+ for(const action of ['manuaisMaquinasCatalogo','manuaisMaquinasListar','manuaisMaquinasLer','manuaisMaquinasMidiaSalvar','manuaisMaquinasSalvar','manuaisMaquinasAprovar']){
   assert.equal((await ambiente(null).chamar({action,referencia:ref})).status,401);
   assert.equal((await ambiente(['manutencoes']).chamar({action,referencia:ref})).status,403);
  }

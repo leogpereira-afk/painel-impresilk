@@ -1,3 +1,4 @@
+import {assinarMidias,salvarMidiaManual,validarMidiasConteudo} from './manuais-midias.mjs';
 import {temPermissao} from './patrimonio-acesso.mjs';
 import {validarVinculoPessoa} from './patrimonio-pessoas.mjs';
 import {COLECAO_MANUAIS,camposManuais,falhaManual,prepararConteudoManual,validarReferenciaManual,resolverReferenciaManual,catalogoMaquinasManual,chaveReferenciaManual,validarAprovacaoManual,snapshotManual,manualVisivel} from './manuais-maquinas.mjs';
@@ -9,11 +10,12 @@ export async function atenderManuaisMaquinas({sb,sessao,corpo,resposta,pessoasRH
   if(!sessao)return resposta({erro:'Entre no sistema.',semSessao:true},401);
   if(!temPermissao(sessao,'patrimonio'))falhaManual('Sem acesso ao Patrimônio.',403);
   const gestor=temPermissao(sessao,'manutencoes')||temPermissao(sessao,'configuracoes');
+  const midia=corpo.action==='manuaisMaquinasMidiaSalvar';
   const salvar=corpo.action==='manuaisMaquinasSalvar',aprovar=corpo.action==='manuaisMaquinasAprovar';
-  if((salvar||aprovar)&&!gestor)falhaManual('Editar manuais exige Patrimônio e Manutenções ou Configurações.',403);
+  if((salvar||aprovar||midia)&&!gestor)falhaManual('Editar manuais exige Patrimônio e Manutenções ou Configurações.',403);
   if(aprovar&&!temPermissao(sessao,'configuracoes'))falhaManual('Aprovar manuais exige Configurações.',403);
   const catalogo=corpo.action==='manuaisMaquinasCatalogo',listagem=catalogo||corpo.action==='manuaisMaquinasListar';
-  const permitidos=listagem?['action']:['action','referencia',...(salvar?['conteudo','versaoAnterior']:aprovar?['versaoAnterior']:[])];
+  const permitidos=listagem?['action']:['action','referencia',...(midia?['mime','base64','restrita']:salvar?['conteudo','versaoAnterior']:aprovar?['versaoAnterior']:[])];
   camposManuais(corpo,permitidos,'Pedido');
   if(!listagem)validarReferenciaManual(corpo.referencia);
   if((salvar||aprovar)&&(!Object.hasOwn(corpo,'versaoAnterior')||(corpo.versaoAnterior!==null&&typeof corpo.versaoAnterior!=='string')))falhaManual('Informe a versão anterior do manual.');
@@ -31,14 +33,17 @@ export async function atenderManuaisMaquinas({sb,sessao,corpo,resposta,pessoasRH
    for(const ref of resolvido.referencias){const k=chaveReferenciaManual(ref);if(indice.has(k))falhaManual('Há dois manuais para a mesma máquina. Confira os vínculos antes de continuar.',409);indice.set(k,{row,manual:m});}
    manuais.push(m);
   }
-  if(corpo.action==='manuaisMaquinasListar')return resposta({itens:manuais.map(m=>manualVisivel(m,gestor)).filter(Boolean)});
+  const visivel=async m=>assinarMidias(sb,manualVisivel(m,gestor),temPermissao(sessao,'inventario-valores'));
+  if(corpo.action==='manuaisMaquinasListar')return resposta({itens:await Promise.all(manuais.map(visivel)).then(ms=>ms.filter(Boolean))});
   const resolvido=resolverReferenciaManual(corpo.referencia,ativos,bens),encontrado=indice.get(chaveReferenciaManual(corpo.referencia));
   const anterior=encontrado?.row.registro||null;
-  if(corpo.action==='manuaisMaquinasLer')return resposta({manual:manualVisivel(encontrado?.manual,gestor)});
+  if(corpo.action==='manuaisMaquinasLer')return resposta({manual:await visivel(encontrado?.manual)});
+  if(midia)return resposta(await salvarMidiaManual(sb,corpo,anterior?.referencia||resolvido.referencia,temPermissao(sessao,'inventario-valores')));
   if(!salvar&&!aprovar)falhaManual('Ação desconhecida.',400);
   if(aprovar&&!anterior)falhaManual('Manual não encontrado.',404);
   if(corpo.versaoAnterior!==(anterior?.atualizadoEm??null))falhaManual('O manual mudou. Recarregue antes de salvar.',409);
   const conteudo=prepararConteudoManual(salvar?corpo.conteudo:anterior.conteudo);
+  validarMidiasConteudo(conteudo,anterior?.referencia||resolvido.referencia);
   const pessoas=await pessoasRH();
   const responsavel=validarVinculoPessoa({responsavelId:conteudo.responsavelId,...(!conteudo.responsavelId?{responsavel:''}:{})},{responsavelId:anterior?.conteudo?.responsavelId,...(anterior?{responsavel:anterior.responsavel,responsavelIdPessoa:anterior.responsavelIdPessoa}:{})},pessoas,'responsavel');
   if(aprovar)validarAprovacaoManual(conteudo,pessoas);
@@ -49,7 +54,7 @@ export async function atenderManuaisMaquinas({sb,sessao,corpo,resposta,pessoasRH
   // usa o mesmo CAS com p_anterior=null: duas primeiras gravações não vencem.
   const {data,error}=await sb.rpc('painel_registro_gravar',{p_colecao:COLECAO_MANUAIS,p_id:id,p_registro:novo,p_anterior:anterior});
   if(error)throw error;
-  return resposta({manual:data});
+  return resposta({manual:await visivel(data)});
  }catch(e){
   if(e?.code==='40001'||e?.code==='23505')return resposta({erro:'O manual mudou. Recarregue antes de salvar.'},409);
   if([400,403,404,409,422,503].includes(e?.status))return resposta({erro:e.message},e.status);
