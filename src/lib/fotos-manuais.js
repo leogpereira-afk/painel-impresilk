@@ -29,5 +29,5 @@ export function galeriaFotosManual(foto, patrimonio=[],extras=[],midias={}) {
   const reais=patrimonio.flatMap(f=>{const url=urlFotoPatrimonio(f.url);return url?[{url,tipo:'inventario',tratada:false,legenda:'Foto do patrimônio',fonteUrl:''}]:[];});
   const adicionais=extras.map(f=>({...f,tipo:'referencia',tratada:/tratada/i.test(f.legenda)}));
   const ordenadas=foto?.principal==='referencia'?[...principal,...adicionais,...reais]:[...reais,...principal,...adicionais];
-  return ordenadas.map(f=>f.url.includes('/painel-arquivos/manuais/')?{...f,url:midias[f.url]||''}:f).filter(f=>f.url).filter((f,n)=>ordenadas.findIndex(o=>o.url===f.url)===n);
+  return ordenadas.filter((f,n)=>ordenadas.findIndex(o=>o.url===f.url)===n).map(f=>f.url.includes('/painel-arquivos/manuais/')?{...f,url:midias[f.url]||''}:f).filter(f=>f.url);
 }

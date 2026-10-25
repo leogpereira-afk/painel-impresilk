@@ -244,6 +244,15 @@ test('galeria preserva prioridade antiga, aceita referência explícita e manté
   assert.equal(foto.principal,undefined);
 });
 
+test('galeria privada conserva imagens assinadas e omite apenas mídia sem autorização',()=>{
+  const url='https://example.com/storage/v1/object/public/painel-arquivos/manuais/ativo/teste/livre/abc.png';
+  const restrita=url.replace('/livre/','/restrito/');
+  const foto={url,usoConfirmado:true,principal:'referencia'};
+  const midias={[url]:'https://example.com/imagem?token=temporario',[restrita]:''};
+  assert.deepEqual(galeriaFotosManual(foto,[],[{url},{url:restrita}],midias).map(f=>f.url),[midias[url]]);
+  assert.equal(foto.url,url);
+});
+
 test('galeria navega entre fotos reais, usa próxima após falha e retira fotos ao perder permissão',async()=>{
   const props={item:{...item,bem:{id:'bem-ficticio'}},conteudo:{foto:{url:'https://example.com/principal.png',usoConfirmado:true,principal:'referencia'}},grande:true};
   const chamadas=[];
