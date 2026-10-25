@@ -10,6 +10,8 @@ Correção local pronta para revisão: causa conciliada com a origem em leitura 
 
 Vez liberada para a correção das vendas por autorização expressa do dono em 25/10/2026. Implementação e histórico desta tarefa preservados.
 
+Publicado e conferido: código 294e946, Functions 40185926481 e Pages 40185926617 concluídos; carga retomável 40185948379 concluída. As três fontes de outubro foram conferidas no DRE oficial autenticado, incluindo corte parcial, critérios e persistência após recarregar. Históricos anteriores e configuração preservados na comparação antes/depois da carga. Classificações financeiras seguem separadas, uma decisão por vez; nenhum dado real em arquivos versionados. Vez deste escopo técnico encerrada.
+
 Pedido do dono: corrigir falhas do sistema e trazer outubro na Inteligência; classificações dependentes de decisão serão apresentadas individualmente antes de alteração. Escopo: recuperar importador publicado, corrigir janela inclusiva/corte real e executar carga retomável com preservação das fontes. Nenhuma reclassificação automática. Ramo codex/inteligencia-outubro-20261025, clone isolado /tmp/painel-inteligencia-outubro-20261025. Implementação e execução autorizadas pelo pedido; validar antes de publicar servidor e carga.
 
 ## Trabalho atual · Manual de máquinas · codex · 24/10/2026
