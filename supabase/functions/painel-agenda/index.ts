@@ -274,6 +274,24 @@ const CORES_DE_FABRICA: Record<string, string> = {
 };
 const COR_PADRAO = "#64748b";
 
+// O módulo do Painel não concede acesso aos dados privados do RH.
+// Confere o vínculo e o perfil ativo na origem em cada consulta.
+async function acessoCalendarioRH(sessao: any): Promise<boolean> {
+  const usuario = typeof sessao?.sub === "string" ? sessao.sub : "";
+  if (!usuario) return false;
+  const { data: conta, error } = await sb.from("acesso_conta")
+    .select("ativo,auth_user_id,colaborador_id").eq("usuario", usuario).maybeSingle();
+  if (error) throw new Error("Não foi possível conferir o acesso ao RH.");
+  if (!conta || conta.ativo !== true) return false;
+  if (!conta.auth_user_id && !conta.colaborador_id) return false;
+  const consulta = sb.from("perfis").select("perfil,ativo,colaborador_id");
+  const { data: perfil, error: erroPerfil } = await (conta.auth_user_id
+    ? consulta.eq("user_id", conta.auth_user_id)
+    : consulta.eq("colaborador_id", conta.colaborador_id)).maybeSingle();
+  if (erroPerfil) throw new Error("Não foi possível conferir o acesso ao RH.");
+  return !!perfil?.colaborador_id && perfil.ativo !== false && perfil.perfil === "ADMIN_RH";
+}
+
 async function empresa(mes: string) {
   const [eventos,colaboradores,status] = await Promise.all([
     lerColecao("registros", "eventos"),
@@ -374,6 +392,9 @@ Deno.serve(async (req) => {
       case "empresa": {
         const g = await exigirSessao(req, "calendario-empresa");
         if (g.resposta) return g.resposta;
+        if (!await acessoCalendarioRH(g.sessao)) {
+          return json({ eventos: [], restritoRH: true, hoje: hojeSP(), consultadoEm: new Date().toISOString() });
+        }
         return json(await empresa(mes));
       }
       case "patrimonio": {

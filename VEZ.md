@@ -9,6 +9,11 @@ Revisão visual solicitada: cards e navegação coloridos/compactos, fotos trans
 Revisão de cobertura fotográfica: acervo real conferido por ID e preservado somente em entrega privada, com prévia local isolada. Acrescentada referência pública original Schulz ao resolvedor por URL exata confirmada, sem inferir vínculo por modelo. Nova verificação: 67/67 testes focados, lint sem erros e build de produção concluído. Sem concessão de acesso, gravação de fotos/manuais em produção ou publicação.
 
 Fechamento adicional (77/77 testes focados, build concluído, lint sem erros): galeria com escolha da foto principal, navegação e ampliação; consumíveis ilustrados com contrato validado, fontes e histórico preservados. Acervo real e derivados permanecem fora do build e do Git. Conferência de catálogo, fotos e navegação em larguras móvel/desktop concluída; homologação técnica, reconferência final do PDF e publicação continuam pendentes. Correções pontuais de nomes autorizadas pelo dono foram verificadas separadamente na interface publicada, sem carga de manuais/fotos.
+Publicação autorizada pelo dono em 24/10/2026: conferir todos os manuais, fotos e links, testar em largura móvel e publicar mantendo pendências. Integrar main atual, publicar servidor antes da tela e carregar acervo privado como rascunhos, sem aprovar operação.
+
+## Trabalho atual · Privacidade do calendário RH · Codex · 24/10/2026
+
+Publicado e conferido: servidor painel-agenda com autorização RH antes de consultar dados; interface limpa dados antigos ao revalidar. Código 65191c5 e 896301f. Functions 40139181369 e 40139185104 aprovados; Pages 40139257665 aprovado. Cinco arquivos relevantes servidos iguais ao build, incluindo CalendarioEmpresa, index e CSS. Testes fictícios de Comercial, gestor, acesso amplo, conta inativa e RH autorizado; nenhum registro real modificado. Detalhes em docs/calendario-rh-privado-20261024.md. Vez encerrada.
 
 ## Trabalho atual · Campanhas: lembrete no Início, logo no Storage e contraste · claude · 24/10/2026
 

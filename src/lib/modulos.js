@@ -17,7 +17,7 @@ export const MODULOS = [
   { id: "agenda", nome: "Agenda da produção", sub: "as O.S de cada dia, os plantões e a grade de saída, só para ver, sem o valor" },
   { id: "demandas", nome: "Demandas e consultorias", sub: "processos, etapas, pessoas do RH e colaboração restrita aos envolvidos" },
   { id: "reunioes", nome: "Reuniões e treinamentos", sub: "agenda, participantes, atas e arquivos compartilhados da empresa" },
-  { id: "calendario-empresa", nome: "Calendário da empresa", sub: "eventos do RH, aniversários e tempo de empresa, somente consulta" },
+  { id: "calendario-empresa", nome: "Calendário da empresa", sub: "agenda da empresa; dados do RH restritos à equipe autorizada" },
   { id: "contas-atrasadas", nome: "Contas Atrasadas", sub: "quem deve e a cobrança" },
   { id: "orcamentos", nome: "Comercial", sub: "resultados, carteira e próximos atendimentos" },
   { id: "bancos", nome: "Bancos e Pix", sub: "contas, CNPJs e chaves de todas as empresas" },
