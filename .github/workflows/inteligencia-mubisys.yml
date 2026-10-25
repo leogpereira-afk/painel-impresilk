@@ -1,0 +1,32 @@
+name: Inteligência do Mubisys
+on:
+  schedule:
+    # 05:35 de Brasília: depois da carga do Painel e antes do DRE das 06h.
+    - cron: '35 8 * * *'
+  workflow_dispatch:
+    inputs:
+      mes:
+        description: 'Mês AAAA-MM; vazio atualiza o mês corrente'
+        type: string
+        default: ''
+permissions:
+  contents: read
+concurrency:
+  group: cache-mubisys
+  cancel-in-progress: false
+jobs:
+  carregar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Conferir retomada e preservação das fontes
+        run: node --test tests/inteligencia-rotina.test.mjs
+      - name: Atualizar NF-e, compras e detalhes sequencialmente
+        env:
+          PAINEL_TOKEN: ${{ secrets.PAINEL_TOKEN }}
+          INTEL_MES: ${{ inputs.mes }}
+        run: node scripts/carregar-inteligencia.mjs
