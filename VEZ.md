@@ -6,6 +6,12 @@ Agente: codex. Conferência solicitada pelo dono sobre a divergência entre o Co
 
 Correção local pronta para revisão: causa conciliada com a origem em leitura somente; cadastro anterior e aprovação atual passam a compor o mês correto. Retrabalho e total de O.S. separados. Verificação: 1.738 testes raiz, 1.402 cálculos e 7 acessos aprovados; 282 testes pertinentes após ajustes finais, build aprovado e lint sem erros (aviso anterior em Agenda). Prévia com dados fictícios conferida no navegador, incluindo filtros por vendedor e detalhamento. Publicação não realizada e aguardando autorização específica. Sequência de servidor, carga histórica e tela em `docs/comercial/vendas-aprovacao-20261025.md`.
 
+## Trabalho atual · Inteligência outubro · codex · 25/10/2026
+
+Vez liberada para a correção das vendas por autorização expressa do dono em 25/10/2026. Implementação e histórico desta tarefa preservados.
+
+Pedido do dono: corrigir falhas do sistema e trazer outubro na Inteligência; classificações dependentes de decisão serão apresentadas individualmente antes de alteração. Escopo: recuperar importador publicado, corrigir janela inclusiva/corte real e executar carga retomável com preservação das fontes. Nenhuma reclassificação automática. Ramo codex/inteligencia-outubro-20261025, clone isolado /tmp/painel-inteligencia-outubro-20261025. Implementação e execução autorizadas pelo pedido; validar antes de publicar servidor e carga.
+
 ## Trabalho atual · Manual de máquinas · codex · 24/10/2026
 
 Publicado e conferido: implementação `6f7cca8`, servidor `painel-config` v196 ACTIVE (26 arquivos conferidos), Functions 40149542611 e Pages 40149772853 concluídos com sucesso. Oito arquivos públicos relevantes iguais ao build. Conferência autenticada de todas as fichas e fotos em largura móvel, cinco abas e oito seções por ficha, sem transbordamento ou imagens quebradas; persistência relida em segunda aba. Acervo importado como rascunhos, sem aprovação operacional. Cadastros e inventário preservados pela comparação antes/depois. CI: 1.728 testes gerais, 1.402 cálculos e 7 acessos aprovados; 48 testes focados de manuais/mídia aprovados; build concluído, lint sem erros (aviso anterior em Agenda). PDF nativo relido sem páginas vazias. Fontes bloqueadas, tintas/compatibilidade, modelos/potências, assistência e revisão técnica permanecem sinalizados como pendências. Evidências e arquivos reais somente na entrega privada. Vez encerrada.
