@@ -1,5 +1,7 @@
 ## Trabalho atual · Reuniões recorrentes e atas · codex · 26/10/2026
 
+Publicado e conferido: servidor c99fd18, painel-processos v93 e painel-reunioes v93 ACTIVE, onze arquivos conferidos; RPC reunioes_lote_atomico aplicada em 20261026172321, restrita ao service_role. Interface 8d3bdc2, Pages 40368627058 concluído com sucesso e nove arquivos públicos iguais ao build. Verificação: 1.804 testes raiz, 1.458 cálculos, 7 acessos, 15 verificadores e build aprovados; lint sem erros (aviso anterior em Agenda). Site autenticado recarregado: programação recorrente, datas e busca por ID RH conferidas, sem erro de console. Fluxos de escrita e persistência exercitados na prévia fictícia; nenhum registro, convite ou permissão real alterado. Detalhes em docs/reunioes-recorrentes-20261026.md. Vez encerrada.
+
 Publicação autorizada pelo dono em 26/10/2026 ("subir"), após aprovação da prévia. Ordem: RPC transacional, painel-processos, painel-reunioes e interface. Somente código e estrutura; sem criar reuniões reais, convites ou alterar permissões. Main relida em 7c67842, sem conflitos. Publicação em preparação.
 
 Servidor publicado antes da tela: commit c99fd18, RPC aditiva aplicada e permissões conferidas (somente service_role), painel-processos v93 e painel-reunioes v93 ACTIVE. Os onze arquivos dos dois pacotes foram relidos integralmente iguais ao código aprovado; consultas sem sessão recusadas com 401. RPC rejeitou lote vazio antes de gravar. Interface ainda em preparação; nenhum registro real alterado.
