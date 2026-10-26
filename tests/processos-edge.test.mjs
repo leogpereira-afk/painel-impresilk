@@ -14,8 +14,8 @@ const item=()=>({id:'c1',tipo:'consultoria',titulo:'Organização',empresa:'Cons
 const membro={sub:'bia',nome:'Bia',perms:['demandas']};
 test('sessão, permissão, revogação e limites de ação',async()=>{const t=setup();assert.equal((await t.call({action:'listar'},false)).status,401);t.session({sub:'ana',perms:['agenda']});assert.equal((await t.call({action:'pessoas'})).status,403);assert.equal(t.queries.length,0);t.session(membro);assert.equal((await t.call({action:'apagar'})).status,400);t.revoke();assert.equal((await t.call({action:'listar'})).status,401);});
 test('RH canônico, identidade pelo vínculo, calendário e escopo por envolvidos',async()=>{const t=setup();const r=(await t.call({action:'salvar',item:item()})).item;assert.equal(r.envolvidos[0].nome,'Ana RH');assert.equal(r.podeGerir,true);assert.equal(r.meuRhId,'rh-1');assert.ok(t.queries.every(q=>!q.colunas.includes('cpf')&&!q.colunas.includes('salario')&&q.colunas!=='*'));t.session({...membro,sub:'bia-legado'});assert.equal((await t.call({action:'listar'})).itens.length,1);assert.equal((await t.call({action:'obter',id:r.id})).item.meuRhId,'rh-2');let a=await t.call({action:'agenda',mes:'2026-10'});assert.equal(a.eventos.length,2);assert.ok(!JSON.stringify(a).includes('CONFIDENCIAL'));t.session({sub:'fora',nome:'Ana RH',perms:['demandas']});assert.equal((await t.call({action:'listar'})).itens.length,0);assert.equal((await t.call({action:'agenda',mes:'2026-10'})).eventos.length,0);assert.equal((await t.call({action:'obter',id:r.id})).status,404);});
-test('participante atualiza sua etapa, não administra ficha nem convites; conflito conserva versão',async()=>{const t=setup();let r=(await t.call({action:'salvar',item:item()})).item;t.session(membro);assert.equal((await t.call({action:'salvar',item:{...r,versaoAnterior:r.versao}})).status,403);assert.equal((await t.call({action:'convidar',id:r.id,versao:r.versao,nome:'X',dias:2})).status,403);const a=await t.call({action:'etapa',id:r.id,versao:r.versao,etapaId:'e1',situacao:'execucao',nota:'Iniciado',responsavelRhId:'rh-1',prazo:'2099-01-01'});assert.equal(a.status,200);assert.equal(a.item.etapas[0].prazo,'2026-10-15');assert.equal(a.item.etapas[0].responsavelRhId,'rh-2');assert.equal((await t.call({action:'registro',id:r.id,versao:r.versao,texto:'antigo'})).status,409);r=a.item;t.session({sub:'ana',perms:['demandas']});t.conflict();assert.equal((await t.call({action:'anexar',id:r.id,versao:r.versao,nome:'a.pdf',mime:'application/pdf',base64:btoa('%PDF-test')})).status,409);assert.equal(t.files.size,0);assert.equal(t.rows.get(r.id).anexos.length,0);});
-test('convite usa hash, restringe RH/análise/arquivos, valida contribuição e pode ser revogado',async()=>{const t=setup();let r=(await t.call({action:'salvar',item:item()})).item;r=(await t.call({action:'anexar',id:r.id,versao:r.versao,nome:'a.pdf',mime:'application/pdf',base64:btoa('%PDF-test')})).item;const a=r.anexos[0];const c=await t.call({action:'convidar',id:r.id,versao:r.versao,nome:'Consultor',dias:14});assert.equal(c.status,200);const token=c.convite;assert.equal(token.split('.')[1].length,64);assert.ok(!JSON.stringify(t.rows.get(r.id)).includes(token.split('.')[1]));assert.ok(!JSON.stringify(c.item).includes('hash'));r=c.item;let g=await t.call({action:'obter'},false,token);assert.equal(g.status,200);assert.ok(!JSON.stringify(g).includes('CONFIDENCIAL'));assert.ok(!JSON.stringify(g).includes('rh-'));assert.equal(g.item.anexos.length,0);for(const action of ['listar','pessoas','agenda','salvar','convidar','compartilhar','revogar'])assert.equal((await t.call({action},false,token)).status,403);assert.equal((await t.call({action:'obter',id:'c2'},false,token)).status,403);assert.equal((await t.call({action:'arquivo',arquivoId:a.id},false,token)).status,404);r=(await t.call({action:'compartilhar',id:r.id,versao:r.versao,arquivoId:a.id,compartilhado:true})).item;assert.equal((await t.call({action:'arquivo',arquivoId:a.id},false,token)).status,200);g=await t.call({action:'registro',versao:r.versao,texto:'Meu avanço',tipo:'acao',titulo:'Mapa do fluxo',dataAcao:'2026-10-08',resultado:'Documento preparado',proximoPasso:'Validar',etapaId:'e1',compartilhado:false},false,token);assert.equal(g.item.registros[0].nome,'Consultor');assert.equal(g.item.registros[0].compartilhado,true);assert.equal(g.item.registros[0].resultado,'Documento preparado');assert.equal(g.item.registros[0].proximoPasso,'Validar');assert.equal(g.item.registros[0].etapaId,'e1');assert.equal((await t.call({action:'etapa',versao:g.item.versao,etapaId:'e1',situacao:'concluida'},false,token)).status,422);g=await t.call({action:'etapa',versao:g.item.versao,etapaId:'e1',situacao:'validacao',nota:'Confira'},false,token);assert.equal(g.status,200);r=(await t.call({action:'revogar',id:r.id,versao:g.item.versao,conviteId:r.convites[0].id})).item;assert.equal((await t.call({action:'obter'},false,token)).status,401);});
+test('participante atualiza sua etapa, não administra ficha nem convites; conflito conserva versão',async()=>{const t=setup();let r=(await t.call({action:'salvar',item:item()})).item;t.session(membro);assert.equal((await t.call({action:'salvar',item:{...r,versaoAnterior:r.versao}})).status,403);assert.equal((await t.call({action:'convidar',id:r.id,versao:r.versao,nome:'X',dias:2})).status,403);const a=await t.call({action:'etapa',id:r.id,versao:r.versao,etapaId:'e1',situacao:'execucao',inicioReal:'2026-10-01',nota:'Iniciado',responsavelRhId:'rh-1',prazo:'2099-01-01'});assert.equal(a.status,200);assert.equal(a.item.etapas[0].prazo,'2026-10-15');assert.equal(a.item.etapas[0].responsavelRhId,'rh-2');assert.equal((await t.call({action:'registro',id:r.id,versao:r.versao,texto:'antigo'})).status,409);r=a.item;t.session({sub:'ana',perms:['demandas']});t.conflict();assert.equal((await t.call({action:'anexar',id:r.id,versao:r.versao,nome:'a.pdf',mime:'application/pdf',base64:btoa('%PDF-test')})).status,409);assert.equal(t.files.size,0);assert.equal(t.rows.get(r.id).anexos.length,0);});
+test('convite usa hash, restringe RH/análise/arquivos, valida contribuição e pode ser revogado',async()=>{const t=setup();let r=(await t.call({action:'salvar',item:item()})).item;r=(await t.call({action:'anexar',id:r.id,versao:r.versao,nome:'a.pdf',mime:'application/pdf',base64:btoa('%PDF-test')})).item;const a=r.anexos[0];const c=await t.call({action:'convidar',id:r.id,versao:r.versao,nome:'Consultor',dias:14});assert.equal(c.status,200);const token=c.convite;assert.equal(token.split('.')[1].length,64);assert.ok(!JSON.stringify(t.rows.get(r.id)).includes(token.split('.')[1]));assert.ok(!JSON.stringify(c.item).includes('hash'));r=c.item;let g=await t.call({action:'obter'},false,token);assert.equal(g.status,200);assert.ok(!JSON.stringify(g).includes('CONFIDENCIAL'));assert.ok(!JSON.stringify(g).includes('rh-'));assert.equal(g.item.anexos.length,0);for(const action of ['listar','pessoas','agenda','salvar','convidar','compartilhar','revogar'])assert.equal((await t.call({action},false,token)).status,403);assert.equal((await t.call({action:'obter',id:'c2'},false,token)).status,403);assert.equal((await t.call({action:'arquivo',arquivoId:a.id},false,token)).status,404);r=(await t.call({action:'compartilhar',id:r.id,versao:r.versao,arquivoId:a.id,compartilhado:true})).item;assert.equal((await t.call({action:'arquivo',arquivoId:a.id},false,token)).status,200);g=await t.call({action:'registro',versao:r.versao,texto:'Meu avanço',tipo:'acao',titulo:'Mapa do fluxo',dataAcao:'2026-10-08',resultado:'Documento preparado',proximoPasso:'Validar',etapaId:'e1',compartilhado:false},false,token);assert.equal(g.item.registros[0].nome,'Consultor');assert.equal(g.item.registros[0].compartilhado,true);assert.equal(g.item.registros[0].resultado,'Documento preparado');assert.equal(g.item.registros[0].proximoPasso,'Validar');assert.equal(g.item.registros[0].etapaId,'e1');assert.equal((await t.call({action:'etapa',versao:g.item.versao,etapaId:'e1',situacao:'concluida'},false,token)).status,422);g=await t.call({action:'etapa',versao:g.item.versao,etapaId:'e1',situacao:'validacao',inicioReal:'2026-10-01',fimReal:'2026-10-08',nota:'Confira'},false,token);assert.equal(g.status,200);r=(await t.call({action:'revogar',id:r.id,versao:g.item.versao,conviteId:r.convites[0].id})).item;assert.equal((await t.call({action:'obter'},false,token)).status,401);});
 test('convite expirado, processo cancelado, token inválido e limites de prazo',async()=>{const t=setup();let r=(await t.call({action:'salvar',item:item()})).item;assert.equal((await t.call({action:'convidar',id:r.id,versao:r.versao,nome:'X',dias:31})).status,422);const c=await t.call({action:'convidar',id:r.id,versao:r.versao,nome:'X',dias:1});t.rows.get(r.id).convites[0].expiraEm='2000-01-01';assert.equal((await t.call({action:'obter'},false,c.convite)).status,401);assert.equal((await t.call({action:'obter'},false,'c1.bad')).status,401);assert.equal((await t.call({action:'obter'},false,'c1.'+'a'.repeat(64))).status,401);});
 test('mapeamento ambíguo não concede RH; sem comparação de nomes',async()=>{const t=setup();await t.call({action:'salvar',item:item()});t.contas.push({id:'duplicado',usuario:'bia',colaborador_id:'rh-1'});t.session(membro);assert.equal((await t.call({action:'listar'})).itens.length,0);});
 test('diretório e lista paginam 501 resultados; datas inválidas não persistem',async()=>{const t=setup();const r=(await t.call({action:'salvar',item:item()})).item;for(let i=1;i<501;i++)t.rows.set('p'+i,{...r,id:'p'+i});assert.equal((await t.call({action:'listar'})).itens.length,501);assert.equal((await t.call({action:'salvar',item:{...item(),id:'invalido',prazo:'2026-02-30'}})).status,422);assert.ok(!t.rows.has('invalido'));assert.equal((await t.call({action:'agenda',mes:'2026-13'})).status,422);});
@@ -81,7 +81,7 @@ test('administrador externo cadastra equipe e trabalho sem ganhar acesso ao RH o
  assert.equal((await t.call({action:'convidar',versao:g.versao,rhId:'rh-1',nivel:'colaborador',dias:2},false,token)).status,403);
  x=await t.call({action:'convidar',versao:g.versao,consultorId:pessoa.id,nivel:'colaborador',dias:30},false,token);assert.equal(x.status,200);g=x.item;const filho=g.convites[0];assert.equal(filho.paiId,c.item.convites[0].id);assert.equal(filho.expiraEm,c.item.convites[0].expiraEm);assert.equal(filho.hash,undefined);
  const colaborador=x.convite;assert.equal((await t.call({action:'registro',versao:g.versao,texto:'Trabalho realizado',nivel:'administrador'},false,colaborador)).status,200);
- for(const action of ['trabalho','consultor','convidar','revogar'])assert.equal((await t.call({action,nivel:'administrador'},false,colaborador)).status,403);
+ for(const action of ['trabalho','consultor','convidar','revogar','renovarConvite','substituirConvite'])assert.equal((await t.call({action,nivel:'administrador'},false,colaborador)).status,403);
  assert.equal((await t.call({action:'obter',id:'outra-consultoria'},false,token)).status,403);
  r=(await t.call({action:'obter',id:r.id})).item;
  assert.equal((await t.call({action:'revogar',versao:r.versao,conviteId:r.convites[0].id},false,token)).status,403);
@@ -107,4 +107,89 @@ test('convite delegado depende de administrador válido, expiração e nível se
  pai.expiraEm=new Date(Date.now()+86400000).toISOString();pai.nivel='colaborador';assert.equal((await t.call({action:'obter'},false,b.convite)).status,401);
  delete pai.nivel;assert.equal((await t.call({action:'obter'},false,a.convite)).item.podeAdministrarConsultoria,false);assert.equal((await t.call({action:'consultor',nome:'Invasão'},false,a.convite)).status,403);
  pai.nivel='nivel-desconhecido';assert.equal((await t.call({action:'obter'},false,a.convite)).status,401);
+});
+
+async function equipeConvidada(t){
+ let r=(await t.call({action:'salvar',item:item()})).item;
+ r=(await t.call({action:'consultor',id:r.id,versao:r.versao,nome:'Gestora fictícia'})).item;
+ const admin=await t.call({action:'convidar',id:r.id,versao:r.versao,consultorId:r.consultores[0].id,nivel:'administrador',dias:2});
+ const filho=await t.call({action:'convidar',versao:admin.item.versao,consultorId:r.consultores[0].id,nivel:'leitura',dias:1},false,admin.convite);
+ return {id:r.id,admin,filho};
+}
+
+test('renovar validade mantém o link, a identidade e os prazos dos filhos',async()=>{
+ const t=setup(),{id,admin,filho}=await equipeConvidada(t),r=t.rows.get(id),antes=structuredClone(r.convites),aid=antes[0].id;
+ const x=await t.call({action:'renovarConvite',id,versao:r.versao,conviteId:aid,dias:15,nivel:'leitura',consultorId:'forjado'});
+ assert.equal(x.status,200);const atual=t.rows.get(id).convites;
+ assert.equal(atual.length,2);assert.deepEqual({...atual[0],expiraEm:antes[0].expiraEm,renovadoEm:undefined},{...antes[0],renovadoEm:undefined});assert.ok(Date.parse(atual[0].expiraEm)>Date.parse(antes[0].expiraEm));assert.deepEqual(structuredClone(atual[1]),antes[1]);
+ assert.equal((await t.call({action:'obter'},false,admin.convite)).status,200);assert.equal((await t.call({action:'obter'},false,filho.convite)).status,200);assert.ok(!JSON.stringify(x.item).includes(atual[0].hash));
+});
+
+test('substituir link invalida o segredo anterior sem desligar a equipe',async()=>{
+ const t=setup(),{id,admin,filho}=await equipeConvidada(t),r=t.rows.get(id),antes=structuredClone(r.convites),aid=antes[0].id;
+ const x=await t.call({action:'substituirConvite',id,versao:r.versao,conviteId:aid,nivel:'leitura',consultorId:'forjado'});
+ assert.equal(x.status,200);assert.notEqual(x.convite,admin.convite);const atual=t.rows.get(id).convites;
+ assert.equal(atual.length,2);assert.notEqual(atual[0].hash,antes[0].hash);assert.deepEqual({...atual[0],hash:antes[0].hash,substituidoEm:undefined},{...antes[0],substituidoEm:undefined});assert.deepEqual(structuredClone(atual[1]),antes[1]);
+ assert.equal((await t.call({action:'obter'},false,admin.convite)).status,401);const g=await t.call({action:'obter'},false,x.convite);assert.equal(g.status,200);assert.equal(g.item.convites[0].id,antes[1].id);assert.equal((await t.call({action:'obter'},false,filho.convite)).status,200);
+ assert.ok(!JSON.stringify(x.item).includes(atual[0].hash));assert.ok(!JSON.stringify(t.rows.get(id)).includes(x.convite.split('.')[1]));
+});
+
+test('gestor externo renova e substitui somente os próprios filhos sem elevar nível',async()=>{
+ const t=setup(),{id,admin,filho}=await equipeConvidada(t);let r=t.rows.get(id);const aid=r.convites[0].id,fid=r.convites[1].id;
+ const outro=await t.call({action:'convidar',id,versao:r.versao,consultorId:r.consultores[0].id,nivel:'leitura',dias:1});r=t.rows.get(id);const outroId=r.convites.at(-1).id;
+ for(const action of ['renovarConvite','substituirConvite'])for(const conviteId of [aid,outroId])assert.equal((await t.call({action,versao:r.versao,conviteId,dias:30},false,admin.convite)).status,403);
+ let x=await t.call({action:'renovarConvite',versao:r.versao,conviteId:fid,dias:30,nivel:'administrador'},false,admin.convite);assert.equal(x.status,200);r=t.rows.get(id);assert.equal(r.convites[1].expiraEm,r.convites[0].expiraEm);assert.equal(r.convites[1].nivel,'leitura');
+ x=await t.call({action:'substituirConvite',versao:r.versao,conviteId:fid,nivel:'administrador'},false,admin.convite);assert.equal(x.status,200);assert.equal((await t.call({action:'obter'},false,filho.convite)).status,401);assert.equal((await t.call({action:'obter'},false,x.convite)).item.convidado.nivel,'leitura');
+ for(const token of [outro.convite,x.convite])for(const action of ['renovarConvite','substituirConvite'])assert.equal((await t.call({action,conviteId:fid,dias:30},false,token)).status,403);
+});
+
+test('renovação não reativa revogados nem filhos com administrador encerrado',async()=>{
+ const t=setup(),{id,admin,filho}=await equipeConvidada(t);let r=t.rows.get(id);const aid=r.convites[0].id,fid=r.convites[1].id;r.convites[0].expiraEm='2000-01-01';
+ assert.equal((await t.call({action:'renovarConvite',id,versao:r.versao,conviteId:fid,dias:3})).status,422);assert.equal((await t.call({action:'substituirConvite',id,versao:r.versao,conviteId:aid})).status,422);
+ let x=await t.call({action:'renovarConvite',id,versao:r.versao,conviteId:aid,dias:3});assert.equal(x.status,200);assert.equal((await t.call({action:'obter'},false,admin.convite)).status,200);assert.equal((await t.call({action:'obter'},false,filho.convite)).status,401);
+ x=await t.call({action:'revogar',id,versao:x.item.versao,conviteId:aid});r=t.rows.get(id);assert.equal(x.status,200);
+ for(const action of ['renovarConvite','substituirConvite'])for(const conviteId of [aid,fid])assert.equal((await t.call({action,id,versao:r.versao,conviteId,dias:3})).status,422);
+ assert.equal((await t.call({action:'obter'},false,admin.convite)).status,401);
+});
+
+test('renovação e substituição usam o mesmo convite mesmo no limite de 100 emissões',async()=>{
+ const t=setup(),{id}=await equipeConvidada(t);let r=t.rows.get(id);const aid=r.convites[0].id;
+ while(r.convites.length<100)r.convites.push({id:'encerrado-'+r.convites.length,nome:'Fictício',nivel:'leitura',expiraEm:'2000-01-01',revogadoEm:'2000-01-01'});
+ assert.equal((await t.call({action:'convidar',id,versao:r.versao,nome:'Outro',dias:1})).status,422);
+ let x=await t.call({action:'renovarConvite',id,versao:r.versao,conviteId:aid,dias:20});assert.equal(x.status,200);
+ x=await t.call({action:'substituirConvite',id,versao:x.item.versao,conviteId:aid});assert.equal(x.status,200);assert.equal(t.rows.get(id).convites.length,100);
+});
+
+test('revogação preserva histórico cheio e continua disponível sem duplicar evento',async()=>{
+ const t=setup(),{id,admin,filho}=await equipeConvidada(t);const r=t.rows.get(id),aid=r.convites[0].id;
+ r.historico=Array.from({length:2000},(_,i)=>({id:'ficticio-'+i,acao:'Evento fictício '+i}));const antes=structuredClone(r.historico);
+ let x=await t.call({action:'revogar',id,versao:r.versao,conviteId:aid});assert.equal(x.status,200);assert.deepEqual(structuredClone(t.rows.get(id).historico.slice(0,2000)),antes);assert.equal(t.rows.get(id).historico.length,2001);
+ assert.equal((await t.call({action:'obter'},false,admin.convite)).status,401);assert.equal((await t.call({action:'obter'},false,filho.convite)).status,401);const versao=x.item.versao;
+ x=await t.call({action:'revogar',id,versao,conviteId:aid});assert.equal(x.status,200);assert.equal(x.item.versao,versao);assert.equal(t.rows.get(id).historico.length,2001);
+});
+
+test('estado projetado considera cancelamento, expiração e o emissor do convite',async()=>{
+ const t=setup(),{id}=await equipeConvidada(t),r=t.rows.get(id);let x=await t.call({action:'obter',id});assert.equal(x.item.convites[0].estadoAcesso,'ativo');assert.equal(x.item.convites[1].limiteExpiraEm,r.convites[0].expiraEm);
+ r.convites[0].expiraEm='2000-01-01';x=await t.call({action:'obter',id});assert.equal(x.item.convites[0].estadoAcesso,'expirado');assert.equal(x.item.convites[1].estadoAcesso,'administrador_encerrado');
+ r.situacao='cancelada';x=await t.call({action:'obter',id});assert.equal(x.item.convites[1].estadoAcesso,'consultoria_cancelada');
+ for(const action of ['renovarConvite','substituirConvite'])assert.equal((await t.call({action,id,versao:r.versao,conviteId:r.convites[1].id,dias:3})).status,422);
+});
+
+test('reduzir validade do administrador também limita filhos e prorrogação não os amplia',async()=>{
+ const t=setup(),{id}=await equipeConvidada(t);let r=t.rows.get(id);const aid=r.convites[0].id,fid=r.convites[1].id;
+ let x=await t.call({action:'renovarConvite',id,versao:r.versao,conviteId:fid,dias:30});assert.equal(x.status,200);r=t.rows.get(id);assert.equal(r.convites[1].expiraEm,r.convites[0].expiraEm);
+ x=await t.call({action:'renovarConvite',id,versao:r.versao,conviteId:aid,dias:1});assert.equal(x.status,200);r=t.rows.get(id);assert.equal(r.convites[1].expiraEm,r.convites[0].expiraEm);const fimFilho=r.convites[1].expiraEm;
+ x=await t.call({action:'renovarConvite',id,versao:r.versao,conviteId:aid,dias:30});assert.equal(x.status,200);r=t.rows.get(id);assert.equal(r.convites[1].expiraEm,fimFilho);assert.ok(Date.parse(r.convites[0].expiraEm)>Date.parse(fimFilho));
+});
+
+test('conflitos de renovação, substituição e revogação preservam o acesso anterior',async()=>{
+ const t=setup(),{id,admin}=await equipeConvidada(t),r=t.rows.get(id),aid=r.convites[0].id,antes=JSON.stringify(r);t.conflict();
+ for(const action of ['renovarConvite','substituirConvite','revogar']){const x=await t.call({action,id,versao:r.versao,conviteId:aid,dias:20});assert.equal(x.status,409);assert.equal(x.convite,undefined);assert.equal(JSON.stringify(t.rows.get(id)),antes);}
+ assert.equal((await t.call({action:'obter'},false,admin.convite)).status,200);
+});
+
+test('renovação recusa prazo inválido e mantém dados do convite',async()=>{
+ const t=setup(),{id}=await equipeConvidada(t),r=t.rows.get(id),antes=JSON.stringify(r);
+ for(const dias of [0,31,-1,1.5,'x',null])assert.equal((await t.call({action:'renovarConvite',id,versao:r.versao,conviteId:r.convites[0].id,dias})).status,422);
+ assert.equal(JSON.stringify(t.rows.get(id)),antes);
 });

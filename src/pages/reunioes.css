@@ -2,3 +2,56 @@
 .reu-setores{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:10px;margin:20px 0 14px}.reu-setores button{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:15px 14px;border:1px solid var(--hairline,#e2e8f0);border-top:3px solid #94a3b8;background:var(--surface,#fff);border-radius:13px;text-align:left;font-size:14px}.reu-setores strong{font-size:23px}.reu-setores .selecionado{outline:2px solid #6366f1;outline-offset:1px;background:var(--surface-hover,#eef2ff)}.reu-setores .reu-setor-empresa{border-top-color:#6366f1}.reu-setores .reu-setor-financeiro{border-top-color:#059669}.reu-setores .reu-setor-comercial{border-top-color:#d97706}.reu-setores .reu-setor-producao{border-top-color:#0284c7}.reu-rh-busca{display:grid;grid-template-columns:1fr 1fr auto;gap:8px;margin:12px 0}.reu-rh-lista{display:grid;grid-template-columns:1fr 1fr;max-height:235px;overflow:auto;border:1px solid var(--hairline,#e2e8f0);border-radius:10px;padding:8px;gap:5px}.reu-editor .reu-rh-opcao{display:flex;flex-direction:row;align-items:center;gap:10px;padding:10px;border-radius:8px;cursor:pointer}.reu-rh-opcao:has(input:checked){background:var(--surface-hover,#eef2ff)}.reu-rh-opcao input{width:18px;height:18px;accent-color:#4f46e5;flex:none}.reu-rh-opcao small,.reu-pessoa small,.reu-participantes small{display:block;color:var(--muted,#64748b);font-size:12px;margin-top:3px}.reu-selecionados{margin:18px 0 12px}.reu-selecionados h4{font-weight:700;margin-bottom:8px}.reu-pessoa{display:grid;grid-template-columns:minmax(0,1fr) 165px auto;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--hairline,#e2e8f0)}.reu-pessoa strong{overflow-wrap:anywhere}.reu-pessoa>div>select{margin-top:5px;font-size:12px}.reu-calendario-info{display:flex;align-items:center;gap:8px;padding:12px;border-radius:10px;background:var(--surface-hover,#eef2ff);font-size:13px;margin:16px 0}.reu-calendario-info svg{flex:none}.reu-documentos{border:1px solid #c7d2fe;background:var(--surface-hover,#f8faff);padding:16px;border-radius:12px;margin-top:20px}.reu-documentos p,.reu-documentos small{color:var(--muted,#64748b);font-size:13px}.reu-documentos h3{margin-bottom:4px}.reu-participantes li{align-items:center;padding:8px 0;border-bottom:1px solid var(--hairline,#e2e8f0)}.reu-participantes .reu-etiqueta{white-space:nowrap}.reu-filtros input{width:auto}@media(max-width:1000px){.reu-setores{grid-template-columns:repeat(3,minmax(0,1fr))}.reu-rh-busca{grid-template-columns:1fr 1fr}.reu-rh-busca>button{grid-column:1/-1}}@media(max-width:600px){.reu-setores{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.reu-setores button{padding:12px}.reu-rh-lista{grid-template-columns:1fr}.reu-rh-busca{grid-template-columns:1fr}.reu-pessoa{grid-template-columns:1fr auto}.reu-pessoa>div{grid-column:1/-1}.reu-documentos .reu-acoes{align-items:stretch;flex-direction:column}.reu-filtros input{width:100%}}
 
 .reu-minha-presenca{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:16px;border:1px solid var(--accent,#4f46e5);border-radius:12px;margin-top:20px;background:var(--surface-hover,#f8faff)}.reu-minha-presenca h3{margin:0 0 4px}.reu-minha-presenca p{font-size:14px;color:var(--muted,#64748b)}.reu-minha-presenca>button{flex-shrink:0}.reu-minha-presenca.confirmada{border-color:#15803d}.reu-minha-presenca.confirmada h3{color:#15803d}.reu-presenca-acoes{display:flex;gap:8px;align-items:center;justify-content:flex-end;flex-wrap:wrap}.reu-marcar-presenca{font-size:12px;min-height:40px;padding:7px 10px}.reu-presenca-presente{background:#dcfce7;color:#166534}@media(max-width:700px){.reu-minha-presenca{align-items:stretch;flex-direction:column}.reu-participantes li{align-items:flex-start;flex-direction:column}.reu-presenca-acoes{justify-content:flex-start;width:100%}}
+
+/* Filtros e filas usam o mesmo recorte; o horário considera São Paulo. */
+.reunioes,.reu-editor{--ink:#172033;--muted:#526178;--surface-hover:#f2f5fb;--accent:#3730a3;--reu-aviso:#81520a;--reu-fundo-aviso:#fff7df;--reu-borda-aviso:#dba33f;color:var(--ink)}
+.reu-filtro-painel{margin:18px 0 12px;padding:14px 16px;background:var(--surface);border:1px solid var(--hairline);border-radius:14px}
+.reu-filtros-campos{display:grid;grid-template-columns:minmax(180px,1.7fr) minmax(150px,1fr) minmax(180px,1fr);gap:12px}
+.reu-filtros-campos label>span{display:flex;align-items:center;gap:6px;font-size:12px;font-weight:650;color:var(--muted)}
+.reu-filtros-rodape{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:12px}
+.reunioes .reu-somente-meus{display:flex;flex-direction:row;align-items:center;gap:8px;min-height:40px;cursor:pointer}
+.reunioes .reu-somente-meus input{width:18px;height:18px;margin:0;accent-color:#4f46e5}
+.reu-consulta{margin-left:auto;color:var(--muted);font-size:12px}
+.reu-atualizar{min-height:40px;gap:7px}
+.reu-vistas{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
+.reu-vista{display:grid;grid-template-columns:20px minmax(0,1fr) auto;align-items:center;gap:9px;min-height:80px;padding:13px 12px;text-align:left;border:1px solid var(--hairline);border-top:3px solid #7c83c1;border-radius:12px;background:var(--surface);color:var(--ink)}
+.reu-vista>svg{color:var(--muted)}
+.reu-vista strong{display:block;font-size:14px;line-height:1.3}
+.reu-vista small{display:block;margin-top:4px;font-size:11px;line-height:1.4;color:var(--muted)}
+.reu-vista>b{font-size:25px;line-height:1}
+.reu-vista-encerramento{border-top-color:var(--reu-borda-aviso)}
+.reu-vista-historico{border-top-color:#37a28c}
+.reu-vista-todos{border-top-color:#8993a6}
+.reu-vista.selecionada{background:var(--surface-hover);outline:2px solid var(--accent);outline-offset:1px}
+.reu-resultados{display:flex;align-items:center;justify-content:space-between;gap:8px 18px;flex-wrap:wrap;margin:14px 2px 10px;color:var(--muted);font-size:12px}
+.reu-resultados p{margin:0}
+.reu-resultados strong{font-size:14px;color:var(--ink)}
+.reu-vencidos{color:var(--reu-aviso);font-weight:650}
+.reunioes .reu-card{gap:14px;padding:13px 14px;border-left:3px solid #7c83c1}
+.reunioes .reu-card-encerramento{border-left-color:var(--reu-borda-aviso)}
+.reunioes .reu-card-historico{border-left-color:#37a28c}
+.reu-card h2{font-size:17px;line-height:1.35}
+.reu-data small{font-size:11px;color:var(--muted)}
+.reu-card-agenda,.reu-card-meta{display:flex;flex-wrap:wrap;gap:5px 14px;margin-top:5px}
+.reu-card-agenda span,.reu-card-meta span{display:inline-flex;align-items:center;gap:5px;min-width:0}
+.reu-card-agenda svg,.reu-card-meta svg{flex-shrink:0}
+.reu-card-meta{font-size:12px!important}
+.reu-card-acao{flex-shrink:0;gap:8px;min-height:42px;white-space:nowrap;font-size:13px}
+.reu-etiquetas .reu-status-encerramento{color:var(--reu-aviso);background:var(--reu-fundo-aviso)}
+.reu-alerta{background:var(--reu-fundo-aviso);color:var(--reu-aviso);line-height:1.5}
+.reu-acoes-ficha .reu-atualizar{margin-left:auto}
+.reu-vazio{text-align:center;padding:28px 20px;color:var(--muted)}
+.reu-vazio>svg{margin:auto;color:var(--accent)}
+.reu-vazio h2{font-size:19px;color:var(--ink)}
+.reu-vazio p{max-width:620px;margin:0 auto 14px;line-height:1.6}
+.reu-girando{animation:reu-giro 1s linear infinite}
+@keyframes reu-giro{to{transform:rotate(360deg)}}
+html.dark .reunioes,html.dark .reu-editor{--ink:#e9ecf6;--muted:#b6bfd2;--surface-hover:#222941;--accent:#c4c7ff;--reu-aviso:#f1cc84;--reu-fundo-aviso:#352d1b;--reu-borda-aviso:#c79c51}
+html.dark .reu-minha-presenca.confirmada h3{color:#8ed8a4}
+html.dark .reu-presenca-presente{background:#183a2b;color:#a0e4b7}
+html.dark .reu-sucesso{background:#183a2b;color:#a0e4b7}
+html.dark .reu-erro{background:#3b2030;color:#ffb7c7}
+@media(max-width:1000px){.reu-vistas{grid-template-columns:repeat(2,minmax(0,1fr))}.reu-card-acao{align-self:flex-end}}
+@media(max-width:700px){.reu-filtros-campos{grid-template-columns:1fr 1fr}.reu-busca{grid-column:1/-1}.reu-consulta{order:3;flex-basis:100%;margin:0}.reu-filtros-rodape .reu-atualizar{margin-left:auto}.reunioes .reu-card{display:grid;grid-template-columns:48px minmax(0,1fr);gap:10px}.reu-data{min-width:0;padding:7px 4px;align-self:start}.reu-card-acao{grid-column:2;justify-self:start}.reu-resultados{align-items:flex-start;flex-direction:column}.reu-resultados p>span:not(.reu-vencidos){display:block;margin-top:3px}.reu-acoes-ficha .reu-atualizar{margin-left:0}.reu-card-meta span{flex-basis:100%}}
+@media(max-width:420px){.reu-filtro-painel{padding:12px}.reu-filtros-campos{grid-template-columns:1fr}.reu-vista{grid-template-columns:minmax(0,1fr) auto;padding:11px 10px;gap:7px;min-height:90px}.reu-vista>svg{display:none}.reu-vista>b{font-size:23px}.reu-vista strong{font-size:13px}.reu-vista small{font-size:11px}.reu-vistas{gap:8px}}
+@media(prefers-reduced-motion:reduce){.reu-girando{animation:none}}

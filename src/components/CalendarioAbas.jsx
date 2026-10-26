@@ -5,6 +5,7 @@ import { podeAbrir } from '../lib/sessao.js';
 export default function CalendarioAbas({sessao}) {
   const {search:busca,state} = useLocation();
   const filtros=new URLSearchParams(busca);
+  if(filtros.has('processo'))filtros.delete('aba');
   filtros.delete('processo');filtros.delete('encontro');
   const search=filtros.size?'?'+filtros.toString():'';
   return <nav aria-label="Calendário" className="flex flex-wrap gap-2 mb-3">

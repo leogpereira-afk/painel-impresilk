@@ -6,6 +6,8 @@ Prévia local pronta para revisão em 26/10: 96/96 testes pertinentes, build e l
 
 Publicação autorizada pelo dono em 26/10/2026 ("subir") após aprovação da prévia. Publicar seletivamente painel-processos, conferir o conteúdo ativo e só então liberar a interface. Nenhuma concessão de acesso ou alteração de registros reais faz parte desta publicação.
 
+Servidor publicado seletivamente antes da tela: commit `ee5a4e6`, painel-processos v92 ACTIVE, quatro arquivos relidos integralmente iguais à versão aprovada; consulta sem autenticação devolve 401. Suíte raiz fresca: 1.763/1.763. Build oficial e verificações de permissões/classes aprovados. Interface em preparação para publicação.
+
 ## Trabalho atual · Vendas pela aprovação · codex · 25/10/2026
 
 Publicado e conferido: PR 27 integrado em `a28ae37`, preservando a conclusão da Inteligência em `3a9f152`. Servidor publicado antes da tela: painel-cache v173 e painel-comercial v101 ACTIVE; conteúdo conferido, incluindo os 20 arquivos da consulta comercial. Functions 40189305636, carga histórica por aprovação 40189031955 e Pages 40189500991 concluídos com sucesso. Histórico de aprovação confirmado de 2020 até a data da carga. Na sessão autenticada, totais e somas dos detalhes de vendas normais e retrabalho reconciliados com a referência do dono. Mesma quantidade de registros e IDs únicos antes/depois, com hash dos itens preservado. Dez arquivos públicos relevantes iguais ao build; CI com 1.751 testes raiz, 1.402 cálculos e 7 acessos aprovados. Backups, evidências e números reais somente em arquivos privados. Vez encerrada.

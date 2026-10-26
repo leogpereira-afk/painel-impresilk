@@ -2,7 +2,8 @@
 export function resumoProcesso(item,hoje){
  const etapas=item.etapas||[],registros=item.registros||[],abertas=etapas.filter(e=>e.situacao!=='concluida');
  const encerrado=['concluida','cancelada'].includes(item.situacao);
- const atrasadas=encerrado?[]:abertas.filter(e=>e.prazo&&e.prazo<hoje);
+ // Uma entrega pronta aguarda validação; o atraso de execução só conta trabalho ainda não entregue.
+ const atrasadas=encerrado?[]:abertas.filter(e=>e.situacao!=='validacao'&&e.prazo&&e.prazo<hoje);
  const bloqueadas=encerrado?[]:abertas.filter(e=>e.situacao==='bloqueada');
  const validar=encerrado?[]:abertas.filter(e=>e.situacao==='validacao');
  const disponiveis=encerrado?[]:abertas.filter(e=>['pendente','execucao'].includes(e.situacao)&&(e.dependeDe||[]).every(id=>etapas.some(p=>p.id===id&&p.situacao==='concluida'))).sort((a,b)=>(a.prazo||'9999').localeCompare(b.prazo||'9999'));
