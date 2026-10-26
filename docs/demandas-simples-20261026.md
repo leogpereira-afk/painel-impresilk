@@ -18,6 +18,6 @@ Testes e dados da prévia são fictícios. Nenhum registro, convite ou permissã
 
 Verificações de liberação: 1.846 testes raiz e 1.465 testes de cálculos/acessos aprovados. Lint sem erros, somente aviso anterior em Agenda.jsx. Build oficial e 15 verificadores aprovados; 72 classes de cor presentes. A comparação entre sistemas utilizou equipe-auth da main pública da Central do Léo em `8178bad`, pois a cópia local padrão estava desatualizada. Nenhuma regra de acesso foi modificada.
 
-## Publicação
+## Publicação conferida
 
-Em andamento. Registrar a execução do Pages e a conferência dos arquivos servidos antes de marcar como publicada.
+Interface `ea6820c`, GitHub Pages `40393333493` com build e deploy concluídos com sucesso em 26/10/2026. Nove arquivos públicos comparados integralmente com o build aprovado. Site oficial autenticado recarregado: fila compacta, novo cadastro, busca RH e detalhes recolhidos disponíveis; nenhum erro de console observado. Formulário fechado sem salvar. Servidor, registros e permissões reais preservados. Evidência visual privada fora do Git.
