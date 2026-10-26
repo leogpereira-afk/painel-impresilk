@@ -1,5 +1,7 @@
 ## Trabalho atual · Reuniões simples e eficientes · codex · 26/10/2026
 
+Publicado e conferido: interface 1da6a60, Pages 40372734905 concluído com sucesso, nove arquivos públicos iguais ao build. Formulário oficial autenticado recarregado e conferido com catálogo RH carregado, opções recolhíveis e sem erro de console. Gravações e recarga verificadas na prévia fictícia, em computador e celular. Servidor e registros reais preservados. Vez encerrada.
+
 Agente: codex. Pedido do dono: "subir quero simples moderno e eficiente". Refinamento e publicação autorizados da interface de Reuniões: campos essenciais primeiro, opções complementares recolhidas e seleção compacta de participantes pelo ID RH. Clone /tmp/painel-reunioes-recorrentes-20261026, ramo codex/reunioes-simples-20261026, base cf4f31e. Preservar recorrência, atas, calendário, permissões e dados existentes. Testes de gravação somente na prévia fictícia; nenhum registro ou convite real. Servidor v93 permanece sem alteração.
 
 Verificação local concluída: 65 testes pertinentes, build oficial e conferência de classes aprovados; lint sem erros, somente aviso anterior em Agenda. Prévia fictícia conferida no computador e celular, incluindo modo escuro, teclado, convidado obrigatório e persistência após recarregar. Revisão independente sem bloqueadores. Publicação autorizada em preparação; detalhes em docs/reunioes-simples-20261026.md.

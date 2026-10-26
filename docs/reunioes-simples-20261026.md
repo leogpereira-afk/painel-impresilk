@@ -14,4 +14,8 @@ Pedido: publicar uma interface simples, moderna e eficiente, preservando a progr
 
 Navegador em prévia fictícia: reunião única com pauta/local e participante por ID salva e relida após recarga; série de três encontros e convidado externo salva e relida. Validação obrigatória de convidado visível, foco por teclado corrigido e conferido. Celular de 390 px, modo escuro, sem transbordamento horizontal do formulário. Nenhum erro de console observado. Revisão independente sem bloqueadores.
 
-Nenhum registro, convite ou permissão produtiva foi alterado. Publicação e conferência da versão oficial pendentes nesta etapa.
+Nenhum registro, convite ou permissão produtiva foi alterado.
+
+## Publicação conferida
+
+Interface `1da6a60`, workflow Pages `40372734905` concluído com sucesso em 26/10/2026, incluindo regressões, cálculos, acessos, lint, verificadores e build. Nove arquivos públicos comparados integralmente com o build local. Formulário autenticado do site oficial recarregado: campos essenciais, opções recolhíveis, programação e catálogo RH disponíveis; nenhum erro de console observado. Servidor v93 mantido sem alteração. Evidências visuais privadas fora do Git.
