@@ -1,7 +1,7 @@
 import {createClient} from 'https://esm.sh/@supabase/supabase-js@2.45.0';
 import {verificarJwt,crachaRevogado} from '../_shared/cripto.ts';
 import {ErroReuniao,idValido,pessoasParaReunioes} from '../_shared/reunioes.mjs';
-import {COLECAO_PROCESSOS,dadosConvite,revogarAcesso,editarTrabalho,podeAdministrarConsultoria,permiteAcaoConsultoria,validarAcessoConvite,avaliarEtapa,planejarEtapa,cadastrarConsultor,atualizarImplantacao,prepararProcesso,podeGerir,podeLer,agendaProcessos,carimbarProcesso,registrarProcesso,atualizarEtapa,projetarConvidado,projetarInterno,validarArquivoProcesso,falhar} from '../_shared/processos.mjs';
+import {COLECAO_PROCESSOS,dadosConvite,revogarConvite,renovarConvite,substituirConvite,editarTrabalho,podeAdministrarConsultoria,permiteAcaoConsultoria,validarAcessoConvite,avaliarEtapa,planejarEtapa,cadastrarConsultor,atualizarImplantacao,prepararProcesso,podeGerir,podeLer,agendaProcessos,carimbarProcesso,registrarProcesso,atualizarEtapa,projetarConvidado,projetarInterno,validarArquivoProcesso,falhar} from '../_shared/processos.mjs';
 const sb=createClient(Deno.env.get('SUPABASE_URL')!,Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,{auth:{persistSession:false}});
 const SECRET=Deno.env.get('PAINEL_JWT_SECRET')||'',BUCKET='painel-arquivos';
 const cors={'Access-Control-Allow-Origin':'*','Access-Control-Allow-Headers':'authorization, apikey, content-type, x-client-info, x-convite','Access-Control-Allow-Methods':'POST, OPTIONS'};
@@ -54,7 +54,7 @@ Deno.serve(async(req:Request)=>{
    s={...s,rhId:await identidadeRH(s)};
    if(b.action==='pessoas')return json({ok:true,pessoas:await pessoasRH()});
    if(['listar','agenda'].includes(b.action)){const itens=await listar(s);return json(b.action==='agenda'?{ok:true,eventos:agendaProcessos(itens,b.mes)}:{ok:true,itens:itens.map(r=>projetarInterno(r,s))});}
-   if(!['obter','salvar','registro','etapa','anexar','arquivo','compartilhar','convidar','revogar','consultor','implantacao','planejarEtapa','avaliarEtapa','trabalho'].includes(b.action))return json({erro:'Ação inválida.'},400);
+   if(!['obter','salvar','registro','etapa','anexar','arquivo','compartilhar','convidar','revogar','renovarConvite','substituirConvite','consultor','implantacao','planejarEtapa','avaliarEtapa','trabalho'].includes(b.action))return json({erro:'Ação inválida.'},400);
    antes=await obter(b.item?.id||b.id);
    if(antes&&!podeLer(antes,s))return json({erro:'Processo não encontrado.'},404);
   }
@@ -67,7 +67,7 @@ Deno.serve(async(req:Request)=>{
    const {data,error}=await sb.storage.from(BUCKET).createSignedUrl(a.chave,300,{download:a.nome});if(error)throw error;return json({ok:true,url:data.signedUrl});
   }
   if(b.versao!==antes.versao)return json({erro:'A ficha mudou. Atualize antes de continuar.'},409);
-  if((b.action==='compartilhar'&&!podeGerir(antes,s))||(['convidar','revogar','consultor'].includes(b.action)&&!podeAdministrarConsultoria(antes,s)))return json({erro:'Apenas o gestor pode administrar o compartilhamento.'},403);
+  if((b.action==='compartilhar'&&!podeGerir(antes,s))||(['convidar','revogar','renovarConvite','substituirConvite','consultor'].includes(b.action)&&!podeAdministrarConsultoria(antes,s)))return json({erro:'Apenas o gestor pode administrar o compartilhamento.'},403);
   if(b.action==='trabalho'){const item=carimbarProcesso(editarTrabalho(antes,b,s),s,'Organizou o trabalho da consultoria');return json({ok:true,item:apresentar(await gravar(item,antes))});}
   if(b.action==='avaliarEtapa'){const item=carimbarProcesso(avaliarEtapa(antes,b,s),s,'Avaliou a qualidade da etapa');return json({ok:true,item:apresentar(await gravar(item,antes))});}
   if(b.action==='planejarEtapa'){const item=carimbarProcesso(planejarEtapa(antes,b,s),s,'Planejou ou atualizou datas da etapa');return json({ok:true,item:apresentar(await gravar(item,antes))});}
@@ -79,10 +79,18 @@ Deno.serve(async(req:Request)=>{
    const acesso=dadosConvite(antes,b,s);
    const segredo=Array.from(crypto.getRandomValues(new Uint8Array(32))).map(x=>x.toString(16).padStart(2,'0')).join('');
    const c={id:crypto.randomUUID(),...acesso,hash:await digest(segredo),criadoEm:new Date().toISOString(),criadoPor:s.sub};
-   const item=await gravar(carimbarProcesso({...antes,convites:[...antes.convites,c]},s,'Criou convite para '+c.nome),antes);return json({ok:true,item:apresentar(item),convite:antes.id+'.'+segredo});
+   const item=await gravar(carimbarProcesso({...antes,convites:[...antes.convites,c]},s,'Criou convite para '+c.nome),antes);return json({ok:true,item:apresentar(item),convite:antes.id+'.'+segredo,conviteId:c.id});
+  }
+  if(b.action==='renovarConvite'){
+   const item=carimbarProcesso(renovarConvite(antes,b,s),s,'Renovou a validade de convite');return json({ok:true,item:apresentar(await gravar(item,antes))});
+  }
+  if(b.action==='substituirConvite'){
+   const segredo=Array.from(crypto.getRandomValues(new Uint8Array(32))).map(x=>x.toString(16).padStart(2,'0')).join('');
+   const item=carimbarProcesso(substituirConvite(antes,b,s,await digest(segredo)),s,'Substituiu link de convite');
+   return json({ok:true,item:apresentar(await gravar(item,antes)),convite:antes.id+'.'+segredo,conviteId:b.conviteId});
   }
   if(b.action==='revogar'){
-   const item=await gravar(carimbarProcesso(revogarAcesso(antes,b,s),s,'Revogou convite'),antes);return json({ok:true,item:apresentar(item)});
+   const novo=revogarConvite(antes,b,s);const item=novo===antes?antes:await gravar(novo,antes);return json({ok:true,item:apresentar(item)});
   }
   if(b.action==='compartilhar'){
    if(!antes.anexos.some((x:any)=>x.id===b.arquivoId))falhar('Arquivo não encontrado.',404);

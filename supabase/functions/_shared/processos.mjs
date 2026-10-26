@@ -16,7 +16,7 @@ export const podeAdministrarConsultoria=(r,s)=>podeGerir(r,s)||r?.tipo==='consul
 export const podeContribuirConsultoria=s=>!s?.externo||['administrador','colaborador'].includes(nivelConsultoria(s));
 export function permiteAcaoConsultoria(c,acao){
  const nivel=nivelConsultoria(c);if(!Object.hasOwn(NIVEIS_CONSULTORIA,nivel))return false;
- return ['obter','arquivo'].includes(acao)||nivel!=='leitura'&&['registro','anexar','etapa','implantacao','planejarEtapa'].includes(acao)||nivel==='administrador'&&['consultor','convidar','revogar','trabalho'].includes(acao);
+ return ['obter','arquivo'].includes(acao)||nivel!=='leitura'&&['registro','anexar','etapa','implantacao','planejarEtapa'].includes(acao)||nivel==='administrador'&&['consultor','convidar','revogar','renovarConvite','substituirConvite','trabalho'].includes(acao);
 }
 export function editarTrabalho(r,b,s){
  if(!podeAdministrarConsultoria(r,s))falhar('Somente a gestão pode organizar o trabalho.',403);
@@ -35,10 +35,64 @@ export function dadosConvite(r,b,s,agora=new Date().toISOString()){
  const limite=Date.parse(agora)+dias*86400000,expiraEm=new Date(pai?Math.min(limite,Date.parse(pai.expiraEm)):limite).toISOString();
  return {nome:txt(consultor?.nome||rh?.nome||b.nome,180,'o nome do convidado',true),consultorId:consultor?.id||null,rhId:rh?.rhId||null,nivel,paiId:pai?.id||null,expiraEm};
 }
-export function revogarAcesso(r,b,s){
+function conviteParaGerir(r,b,s){
  const c=r.convites.find(x=>x.id===b.conviteId);if(!c)falhar('Convite não encontrado.',404);
- if(!podeGerir(r,s)&&!(podeAdministrarConsultoria(r,s)&&c.paiId===s.conviteId))falhar('Você só pode revogar acessos que emitiu.',403);
- return {...r,convites:r.convites.map(x=>x.id===c.id||x.paiId===c.id?{...x,revogadoEm:x.revogadoEm||new Date().toISOString()}:x)};
+ if(!podeGerir(r,s)&&!(podeAdministrarConsultoria(r,s)&&c.paiId===s.conviteId))falhar('Você só pode administrar acessos que emitiu.',403);
+ return c;
+}
+export function renovarConvite(r,b,s,agora=new Date().toISOString()){
+ const c=conviteParaGerir(r,b,s),estado=statusConvite(r,c,agora);
+ if(!['ativo','expirado'].includes(estado))falhar(estado==='administrador_encerrado'?'Renove primeiro o acesso do administrador que emitiu este convite.':'Este acesso não pode ser renovado. Convites revogados precisam de uma nova concessão.');
+ const dias=Number(b.dias);if(!Number.isInteger(dias)||dias<1||dias>30)falhar('Escolha de 1 a 30 dias.');
+ const pai=c.paiId?r.convites.find(x=>x.id===c.paiId):null;
+ const expiraEm=new Date(pai?Math.min(Date.parse(agora)+dias*86400000,Date.parse(pai.expiraEm)):Date.parse(agora)+dias*86400000).toISOString();
+ // Prorrogar o administrador não reativa nem prorroga a equipe. O teto antigo
+ // também corrige convites legados que ultrapassavam a validade do emissor.
+ const limiteFilhos=Math.min(Date.parse(c.expiraEm),Date.parse(expiraEm));
+ return {...r,convites:r.convites.map(x=>x.id===c.id?{...x,expiraEm,renovadoEm:agora}:nivelConsultoria(c)==='administrador'&&x.paiId===c.id&&!x.revogadoEm&&Date.parse(x.expiraEm)>limiteFilhos?{...x,expiraEm:new Date(limiteFilhos).toISOString()}:x)};
+}
+export function substituirConvite(r,b,s,novoHash,agora=new Date().toISOString()){
+ const c=conviteParaGerir(r,b,s);
+ if(statusConvite(r,c,agora)!=='ativo')falhar('Renove um acesso expirado antes de substituir o link. Acessos encerrados não podem receber outro link.');
+ if(typeof novoHash!=='string'||!/^[a-f0-9]{64}$/.test(novoHash)||novoHash===c.hash)falhar('Não foi possível gerar outro link. Tente novamente.');
+ return {...r,convites:r.convites.map(x=>x.id===c.id?{...x,hash:novoHash,substituidoEm:agora}:x)};
+}
+export function revogarAcesso(r,b,s,agora=new Date().toISOString()){
+ const c=conviteParaGerir(r,b,s),alvos=x=>x.id===c.id||x.paiId===c.id;
+ if(!r.convites.some(x=>alvos(x)&&!x.revogadoEm))return r;
+ return {...r,convites:r.convites.map(x=>alvos(x)?{...x,revogadoEm:x.revogadoEm||agora}:x)};
+}
+export function revogarConvite(r,b,s,agora=new Date().toISOString()){
+ const novo=revogarAcesso(r,b,s,agora);if(novo===r)return r;
+ // Encerrar credenciais deve continuar possível no limite do histórico.
+ // Cada convite só transita para revogado uma vez; repetições não acrescentam eventos.
+ return {...novo,versao:crypto.randomUUID(),atualizadoEm:agora,historico:[...(r.historico||[]),{id:crypto.randomUUID(),em:agora,por:s.sub,nome:s.nome||s.sub,acao:'Revogou convite',conviteId:b.conviteId}]};
+}
+export const etapaTemAtividade=(r,e)=>!!e&&(e.atividadeRegistrada===true||(e.avaliacoes||[]).length>0||(r?.registros||[]).some(x=>x.etapaId===e.id)||e.situacao!=='pendente'||!!e.inicioReal||!!e.fimReal||!!e.concluidaEm||Number(e.progresso)>0||!!e.nota?.trim());
+const CAMPOS_TEMPO_ETAPA=['inicioPrevisto','prazo','inicioReal','fimReal','progresso'];
+const valorEtapa=(e,k)=>k==='progresso'?(e?.progresso??(['validacao','concluida'].includes(e?.situacao)?100:0)):(e?.[k]||'');
+function andamentoEtapa(e,anterior,agora=new Date().toISOString(),forcar=false){
+ // Etapas anteriores sem datas continuam históricas: editar a descrição não inventa uma execução.
+ const igual=anterior&&e.situacao===anterior.situacao&&CAMPOS_TEMPO_ETAPA.every(k=>valorEtapa(e,k)===valorEtapa(anterior,k));
+ if(igual&&!forcar){const mantida={...e};for(const k of CAMPOS_TEMPO_ETAPA){if(Object.hasOwn(anterior,k))mantida[k]=anterior[k];else delete mantida[k];}if(e.nota!==anterior.nota&&(etapaTemAtividade(null,e)||etapaTemAtividade(null,anterior)))mantida.atividadeRegistrada=true;return mantida;}
+ const inicioPrevisto=data(e.inicioPrevisto,'início previsto'),prazo=data(e.prazo,'prazo previsto'),inicioReal=data(e.inicioReal,'início real'),fimReal=data(e.fimReal,'término real');
+ if(inicioPrevisto&&prazo&&inicioPrevisto>prazo||fimReal&&(!inicioReal||fimReal<inicioReal))falhar('O término não pode ser anterior ao início.');
+ const hoje=new Intl.DateTimeFormat('en-CA',{timeZone:'America/Sao_Paulo'}).format(new Date(agora));
+ if(inicioReal>hoje||fimReal>hoje)falhar('Datas reais não podem estar no futuro. Use as datas previstas.');
+ if(['execucao','validacao','concluida'].includes(e.situacao)&&!inicioReal)falhar('Informe quando a etapa começou.');
+ if(['validacao','concluida'].includes(e.situacao)&&!fimReal)falhar('Informe quando a etapa ficou pronta.');
+ if(fimReal&&!['validacao','concluida'].includes(e.situacao))falhar('Uma etapa com término real deve estar pronta para conferência ou concluída.');
+ if(e.situacao==='pendente'&&inicioReal)falhar('Se a etapa já começou, use Em execução ou Bloqueada.');
+ const valor=e.progresso??0;if(typeof valor!=='number'||!Number.isFinite(valor)||valor<0||valor>100)falhar('Informe um progresso entre 0 e 100.');
+ if(valor>0&&!inicioReal)falhar('Informe quando a etapa começou antes de registrar progresso.');
+ if(valor===100&&!['validacao','concluida'].includes(e.situacao))falhar('Para 100%, registre o término e marque pronta para conferência.');
+ if(e.situacao==='pendente'&&valor!==0)falhar('Etapa pendente deve ter progresso zero.');
+ return {...e,inicioPrevisto,prazo,inicioReal,fimReal,progresso:['validacao','concluida'].includes(e.situacao)?100:valor,...(etapaTemAtividade(null,e)||etapaTemAtividade(null,anterior)?{atividadeRegistrada:true}:{})};
+}
+function validarDependenciasEtapas(etapas){
+ const porId=new Map(etapas.map(e=>[e.id,e])),feitas=new Set(),caminho=new Set();
+ function visitar(id){if(caminho.has(id))falhar('As dependências das etapas formam um ciclo.');if(feitas.has(id))return;const e=porId.get(id);if(!e)falhar('Dependência não encontrada.');caminho.add(id);for(const d of e.dependeDe)visitar(d);caminho.delete(id);feitas.add(id);}
+ for(const e of etapas){visitar(e.id);if(['execucao','validacao','concluida'].includes(e.situacao)&&e.dependeDe.some(id=>porId.get(id).situacao!=='concluida'))falhar('Conclua as etapas anteriores primeiro.');if(e.situacao==='bloqueada'&&!e.nota)falhar('Registre o motivo do bloqueio.');}
 }
 export function prepararProcesso(c,antes,s,pessoasRH=[],agora=new Date().toISOString()){
  if(!c||!idValido(c.id)||!['demanda','consultoria'].includes(c.tipo))falhar('Identificação do processo inválida.');
@@ -49,11 +103,15 @@ export function prepararProcesso(c,antes,s,pessoasRH=[],agora=new Date().toISOSt
  const envolvidos=c.envolvidos.map(p=>{if(!idValido(p?.rhId))falhar('Pessoa sem ID do RH.');const rh=pessoasRH.find(x=>x.id===p.rhId)||antes?.envolvidos?.find(x=>x.rhId===p.rhId);if(!rh)falhar('Pessoa não disponível no RH. Atualize a lista.');return {rhId:p.rhId,nome:rh.nome,area:rh.area||'',cargo:rh.cargo||''};});
  const ids=new Set(envolvidos.map(p=>p.rhId));if(ids.size!==envolvidos.length)falhar('Pessoa repetida na lista.');if(!ids.has(c.responsavelRhId))falhar('Selecione o responsável entre os envolvidos.');
  if(!Array.isArray(c.etapas)||c.etapas.length>100)falhar('Informe até 100 etapas.');
- const etapas=c.etapas.map(e=>{if(!e||!idValido(e.id)||!ids.has(e.responsavelRhId)||!Object.hasOwn(ESTADOS_ETAPA,e.situacao)||!Array.isArray(e.dependeDe)||e.dependeDe.length>100)falhar('Confira os responsáveis e dados das etapas.');const anterior=antes?.etapas?.find(x=>x.id===e.id);return {...(anterior?{inicioPrevisto:anterior.inicioPrevisto||'',inicioReal:anterior.inicioReal||'',fimReal:anterior.fimReal||'',progresso:anterior.progresso||0,consultorId:anterior.consultorId||null,planejadaPor:anterior.planejadaPor||'',avaliacoes:anterior.avaliacoes||[]}:{}),id:e.id,titulo:txt(e.titulo,180,'o título da etapa',true),descricao:txt(e.descricao||'',5000,'a descrição da etapa'),responsavelRhId:e.responsavelRhId,prazo:data(e.prazo,'prazo da etapa'),situacao:e.situacao,dependeDe:[...new Set(e.dependeDe)],nota:txt(e.nota||'',5000,'o andamento'),concluidaEm:e.situacao==='concluida'?(antes?.etapas?.find(x=>x.id===e.id&&x.situacao==='concluida')?.concluidaEm||agora):null};});
+ if(antes?.etapas?.some(e=>!c.etapas.some(x=>x?.id===e.id)&&etapaTemAtividade(antes,e)))falhar('Etapas com atividade, registros ou avaliações não podem ser retiradas. Preserve a etapa e seu histórico.');
+ const etapas=c.etapas.map(e=>{
+  if(!e||!idValido(e.id)||!ids.has(e.responsavelRhId)||!Object.hasOwn(ESTADOS_ETAPA,e.situacao)||!Array.isArray(e.dependeDe)||e.dependeDe.length>100)falhar('Confira os responsáveis e dados das etapas.');
+  const anterior=antes?.etapas?.find(x=>x.id===e.id),tempos=Object.fromEntries(CAMPOS_TEMPO_ETAPA.filter(k=>Object.hasOwn(e,k)).map(k=>[k,e[k]]));
+  const proxima={...anterior,...tempos,id:e.id,titulo:txt(e.titulo,180,'o título da etapa',true),descricao:txt(e.descricao||'',5000,'a descrição da etapa'),responsavelRhId:e.responsavelRhId,prazo:data(e.prazo,'prazo da etapa'),situacao:e.situacao,dependeDe:[...new Set(e.dependeDe)],nota:txt(e.nota||'',5000,'o andamento'),concluidaEm:e.situacao==='concluida'?(anterior?.situacao==='concluida'?anterior.concluidaEm:agora):null};
+  return andamentoEtapa(proxima,anterior,agora,c.situacao==='concluida'&&antes?.situacao!=='concluida');
+ });
  if(new Set(etapas.map(e=>e.id)).size!==etapas.length)falhar('Etapas repetidas.');
- const porId=new Map(etapas.map(e=>[e.id,e])),feitas=new Set(),caminho=new Set();
- function visitar(id){if(caminho.has(id))falhar('As dependências das etapas formam um ciclo.');if(feitas.has(id))return;const e=porId.get(id);if(!e)falhar('Dependência não encontrada.');caminho.add(id);for(const d of e.dependeDe)visitar(d);caminho.delete(id);feitas.add(id);}
- for(const e of etapas){visitar(e.id);if(['execucao','validacao','concluida'].includes(e.situacao)&&e.dependeDe.some(id=>porId.get(id).situacao!=='concluida'))falhar('Conclua as etapas anteriores primeiro.');if(e.situacao==='bloqueada'&&!e.nota)falhar('Registre o motivo do bloqueio.');}
+ validarDependenciasEtapas(etapas);
  if(c.situacao==='concluida'&&(!etapas.length||etapas.some(e=>e.situacao!=='concluida')))falhar('Conclua e valide todas as etapas antes de encerrar.');
  const item={id:c.id,tipo:c.tipo,titulo:txt(c.titulo,180,'o título',true),setor:c.setor,prioridade:c.prioridade,situacao:c.situacao,prazo:data(c.prazo,'prazo geral'),objetivo:txt(c.objetivo||'',10000,'o objetivo',true),analise:txt(c.analise||'',20000,'a análise'),solucao:txt(c.solucao||'',20000,'a solução'),empresa:txt(c.empresa||'',180,'a consultoria',c.tipo==='consultoria'),especialidade:txt(c.especialidade||'',180,'a especialidade'),responsavelRhId:c.responsavelRhId,envolvidos,etapas,criadoPor:antes?.criadoPor||s.sub,criadoPorNome:antes?.criadoPorNome||s.nome||s.sub,criadoEm:antes?.criadoEm||agora,anexos:antes?.anexos||[],registros:antes?.registros||[],historico:antes?.historico||[],convites:antes?.convites||[],consultores:antes?.consultores||[]};
  if(JSON.stringify(item).length>600000)falhar('Ficha muito extensa. Arquive este processo e abra outro.');return item;
@@ -104,8 +162,10 @@ export function atualizarEtapa(r,b,s){
  if(!Object.hasOwn(ESTADOS_ETAPA,b.situacao)||s.externo&&b.situacao==='concluida')falhar('A conclusão precisa ser validada pelo responsável interno.');
  if(e.situacao==='concluida'&&!podeGerir(r,s))falhar('Somente o gestor pode reabrir uma etapa concluída.',403);
  const nota=txt(b.nota||'',5000,'o andamento');if(b.situacao==='bloqueada'&&!nota)falhar('Informe o motivo do bloqueio.');
- if(['execucao','validacao','concluida'].includes(b.situacao)&&e.dependeDe.some(id=>r.etapas.find(x=>x.id===id)?.situacao!=='concluida'))falhar('Conclua as etapas anteriores primeiro.');
- return {...r,etapas:r.etapas.map(x=>x.id===e.id?{...x,situacao:b.situacao,nota,concluidaEm:b.situacao==='concluida'?new Date().toISOString():null}:x)};
+ const tempos=Object.fromEntries(['inicioReal','fimReal','progresso'].filter(k=>Object.hasOwn(b,k)).map(k=>[k,b[k]]));
+ const proxima=andamentoEtapa({...e,...tempos,situacao:b.situacao,nota,concluidaEm:b.situacao==='concluida'?(e.situacao==='concluida'?e.concluidaEm:new Date().toISOString()):null},e);
+ const etapas=r.etapas.map(x=>x.id===e.id?proxima:x);validarDependenciasEtapas(etapas);
+ return {...r,etapas};
 }
 export function planejarEtapa(r,b,s){
  if(!podeContribuirConsultoria(s))falhar('Este acesso é somente de leitura.',403);
@@ -116,26 +176,13 @@ export function planejarEtapa(r,b,s){
  if(anterior?.situacao==='concluida'&&!podeGerir(r,s))falhar('Uma etapa validada só pode ser reaberta pela equipe interna.',403);
  if(!anterior&&r.etapas.length>=100)falhar('Limite de 100 etapas atingido.');
  const situacao=b.situacao||'pendente';if(!Object.hasOwn(ESTADOS_ETAPA,situacao)||s.externo&&situacao==='concluida')falhar('Marque como pronta para conferência. A conclusão é validada pela equipe interna.');
- const inicioPrevisto=data(b.inicioPrevisto,'início previsto'),prazo=data(b.prazo,'prazo previsto'),inicioReal=data(b.inicioReal,'início real'),fimReal=data(b.fimReal,'término real');
- if(!prazo)falhar('Informe o prazo previsto da etapa.');
- if(inicioPrevisto&&inicioPrevisto>prazo||fimReal&&(!inicioReal||fimReal<inicioReal))falhar('O término não pode ser anterior ao início.');
- const hoje=new Intl.DateTimeFormat('en-CA',{timeZone:'America/Sao_Paulo'}).format(new Date());
- if(inicioReal>hoje||fimReal>hoje)falhar('Datas reais não podem estar no futuro. Use as datas previstas.');
- if(['execucao','validacao','concluida'].includes(situacao)&&!inicioReal)falhar('Informe quando a etapa começou.');
- if(['validacao','concluida'].includes(situacao)&&!fimReal)falhar('Informe quando a etapa ficou pronta.');
- if(fimReal&&!['validacao','concluida'].includes(situacao))falhar('Uma etapa com término real deve estar pronta para conferência ou concluída.');
- if(situacao==='pendente'&&inicioReal)falhar('Se a etapa já começou, use Em execução ou Bloqueada.');
- const valor=b.progresso??0;if(typeof valor!=='number'||!Number.isFinite(valor)||valor<0||valor>100)falhar('Informe um progresso entre 0 e 100.');
- if(valor===100&&!['validacao','concluida'].includes(situacao))falhar('Para 100%, registre o término e marque pronta para conferência.');
- if(situacao==='pendente'&&valor!==0)falhar('Etapa pendente deve ter progresso zero.');
- const progresso=['validacao','concluida'].includes(situacao)?100:valor;
+ const prazo=data(b.prazo,'prazo previsto');
+ if(!prazo&&(!anterior||anterior.prazo))falhar('Informe o prazo previsto da etapa.');
  const id=anterior?.id||crypto.randomUUID(),deps=b.dependeDe||[];
  if(!Array.isArray(deps)||deps.length>100||deps.some(x=>x===id||!r.etapas.some(e=>e.id===x)))falhar('Confira as dependências da etapa.');
- const e={avaliacoes:anterior?.avaliacoes||[],id,titulo:txt(b.titulo,180,'o título da etapa',true),descricao:txt(b.descricao||'',5000,'a descrição da etapa'),responsavelRhId:anterior?.responsavelRhId||r.responsavelRhId,inicioPrevisto,prazo,inicioReal,fimReal,progresso,situacao,dependeDe:[...new Set(deps)],nota:txt(b.nota||'',5000,'o andamento'),consultorId:anterior?.consultorId||s.consultorId||null,planejadaPor:anterior?.planejadaPor||s.nome||s.sub,concluidaEm:situacao==='concluida'?(anterior?.concluidaEm||new Date().toISOString()):null};
- if(situacao==='bloqueada'&&!e.nota)falhar('Informe o motivo do bloqueio.');
- const etapas=anterior?r.etapas.map(x=>x.id===id?e:x):[...r.etapas,e],porId=new Map(etapas.map(x=>[x.id,x])),visitadas=new Set(),caminho=new Set();
- function visitar(id){if(caminho.has(id))falhar('As dependências formam um ciclo.');if(visitadas.has(id))return;caminho.add(id);for(const d of porId.get(id).dependeDe)visitar(d);caminho.delete(id);visitadas.add(id);}
- for(const x of etapas){visitar(x.id);if(['execucao','validacao','concluida'].includes(x.situacao)&&x.dependeDe.some(d=>porId.get(d)?.situacao!=='concluida'))falhar('Conclua as etapas anteriores primeiro.');}
+ const tempos=Object.fromEntries(CAMPOS_TEMPO_ETAPA.filter(k=>Object.hasOwn(b,k)).map(k=>[k,b[k]]));
+ const e=andamentoEtapa({...anterior,...tempos,avaliacoes:anterior?.avaliacoes||[],id,titulo:txt(b.titulo,180,'o título da etapa',true),descricao:txt(b.descricao||'',5000,'a descrição da etapa'),responsavelRhId:anterior?.responsavelRhId||r.responsavelRhId,prazo,situacao,dependeDe:[...new Set(deps)],nota:txt(b.nota||'',5000,'o andamento'),consultorId:anterior?.consultorId||s.consultorId||null,planejadaPor:anterior?.planejadaPor||s.nome||s.sub,concluidaEm:situacao==='concluida'?(anterior?.situacao==='concluida'?anterior.concluidaEm:new Date().toISOString()):null},anterior);
+ const etapas=anterior?r.etapas.map(x=>x.id===id?e:x):[...r.etapas,e];validarDependenciasEtapas(etapas);
  return {...r,etapas};
 }
 export function avaliarEtapa(r,b,s){
@@ -153,11 +200,22 @@ export function validarAcessoConvite(r,c,agora=new Date().toISOString()){
  const pai=r?.convites?.find(x=>x.id===c.paiId);
  return !!pai&&!pai.paiId&&nivelConsultoria(pai)==='administrador'&&validarConvite(pai,agora);
 }
-export function projetarConvidado(r,c){
- const nome=id=>r.envolvidos.find(p=>p.rhId===id)?.nome||'Responsável',admin=nivelConsultoria(c)==='administrador',contribui=nivelConsultoria(c)!=='leitura';
- return {id:r.id,tipo:r.tipo,titulo:r.titulo,empresa:r.empresa,especialidade:r.especialidade,objetivo:r.objetivo,solucao:r.solucao,prazo:r.prazo,situacao:r.situacao,versao:r.versao,convidado:{id:c.id,nome:c.nome,nivel:nivelConsultoria(c),expiraEm:c.expiraEm},podeAdministrarConsultoria:admin,podeContribuir:contribui,...(admin?{consultores:r.consultores||[],convites:r.convites.filter(x=>x.paiId===c.id).map(({hash,criadoPor,rhId,...x})=>x)}:{}),etapas:r.etapas.map(({responsavelRhId,consultorId,...e})=>({...e,responsavel:nome(responsavelRhId)})),anexos:r.anexos.filter(a=>a.compartilhado).map(({chave,por,...a})=>a),registros:r.registros.filter(x=>x.compartilhado).map(({por,consultorId,...x})=>({...x,podeAtualizar:contribui&&(por==='convite:'+c.id||!!c.consultorId&&consultorId===c.consultorId)}))};
+export function statusConvite(r,c,agora=new Date().toISOString()){
+ if(!c||!Object.hasOwn(NIVEIS_CONSULTORIA,nivelConsultoria(c))||!Number.isFinite(Date.parse(c.expiraEm)))return 'invalido';
+ if(c.revogadoEm)return 'revogado';
+ if(r?.situacao==='cancelada')return 'consultoria_cancelada';
+ if(c.paiId){const pai=r?.convites?.find(x=>x.id===c.paiId);if(!pai||pai.paiId||nivelConsultoria(pai)!=='administrador'||!validarConvite(pai,agora))return 'administrador_encerrado';}
+ return validarConvite(c,agora)?'ativo':'expirado';
 }
-export function projetarInterno(r,s){const gerir=podeGerir(r,s);return {...r,registros:r.registros.map(x=>({...x,podeAtualizar:podeAtualizarRegistro(r,x,s)})),consultores:gerir?(r.consultores||[]):(r.consultores||[]).map(({contato,...c})=>c),convites:gerir?(r.convites||[]).map(({hash,...c})=>c):[],anexos:r.anexos.map(({chave,...a})=>a),podeGerir:gerir,podeAdministrarConsultoria:gerir,podeContribuir:true,meuRhId:s.rhId||''};}
+function projetarAcesso(r,c,agora){
+ const {hash,...publico}=c;
+ return {...publico,estadoAcesso:statusConvite(r,c,agora),limiteExpiraEm:c.paiId?r.convites.find(x=>x.id===c.paiId)?.expiraEm||null:null};
+}
+export function projetarConvidado(r,c){
+ const nome=id=>r.envolvidos.find(p=>p.rhId===id)?.nome||'Responsável',admin=nivelConsultoria(c)==='administrador',contribui=nivelConsultoria(c)!=='leitura',agora=new Date().toISOString();
+ return {id:r.id,tipo:r.tipo,titulo:r.titulo,empresa:r.empresa,especialidade:r.especialidade,objetivo:r.objetivo,solucao:r.solucao,prazo:r.prazo,situacao:r.situacao,versao:r.versao,convidado:{id:c.id,nome:c.nome,nivel:nivelConsultoria(c),expiraEm:c.expiraEm},podeAdministrarConsultoria:admin,podeContribuir:contribui,...(admin?{consultores:r.consultores||[],convites:r.convites.filter(x=>x.paiId===c.id).map(x=>{const {criadoPor,rhId,...publico}=projetarAcesso(r,x,agora);return publico;})}:{}),etapas:r.etapas.map(({responsavelRhId,consultorId,...e})=>({...e,responsavel:nome(responsavelRhId)})),anexos:r.anexos.filter(a=>a.compartilhado).map(({chave,por,...a})=>a),registros:r.registros.filter(x=>x.compartilhado).map(({por,consultorId,...x})=>({...x,podeAtualizar:contribui&&(por==='convite:'+c.id||!!c.consultorId&&consultorId===c.consultorId)}))};
+}
+export function projetarInterno(r,s){const gerir=podeGerir(r,s),agora=new Date().toISOString();return {...r,registros:r.registros.map(x=>({...x,podeAtualizar:podeAtualizarRegistro(r,x,s)})),consultores:gerir?(r.consultores||[]):(r.consultores||[]).map(({contato,...c})=>c),convites:gerir?(r.convites||[]).map(c=>projetarAcesso(r,c,agora)):[],anexos:r.anexos.map(({chave,...a})=>a),podeGerir:gerir,podeAdministrarConsultoria:gerir,podeContribuir:true,meuRhId:s.rhId||''};}
 export function agendaProcessos(itens,mes){
  if(!/^\d{4}-(0[1-9]|1[0-2])$/.test(mes||''))falhar('Informe um mês válido.');
  return itens.filter(r=>r.situacao!=='cancelada').flatMap(r=>[{id:'processo:'+r.id,processoId:r.id,tipoProcesso:r.tipo,titulo:r.titulo,data:r.prazo,concluido:r.situacao==='concluida'},...r.etapas.map(e=>({id:'etapa:'+r.id+':'+e.id,processoId:r.id,tipoProcesso:r.tipo,etapaId:e.id,titulo:e.titulo+' · '+r.titulo,data:e.prazo,concluido:e.situacao==='concluida'}))].filter(e=>e.data?.startsWith(mes)).map(e=>({...e,tipo:r.tipo==='consultoria'?'Consultoria':'Demanda',cor:r.tipo==='consultoria'?'#0f766e':'#7c3aed',descricao:e.concluido?'Concluída':'Prazo previsto',recorrenteAnual:false})));

@@ -1,3 +1,11 @@
+## Trabalho atual · Consultorias, Reuniões e Demandas · codex · 26/10/2026
+
+Agente: codex. Pedido do dono: evoluir Consultorias, administrar permissões e navegação dentro da área e depois melhorar Reuniões e Demandas. Confirmação: permissões e navegação. Clone isolado `/tmp/painel-consultorias-gestao-20261026`, ramo `codex/consultorias-gestao-20261026`, base `d0a9edb`. Escopo: gestão de acessos por consultor, validade e substituição de links com limites existentes; filas e filtros operacionais; coerência das etapas e preservação do histórico. Prévia com dados fictícios antes de publicar. Sem concessão real de acesso, alteração de registros reais, envio de convites ou publicação autorizada nesta etapa. Preservar os demais trabalhos.
+
+Prévia local pronta para revisão em 26/10: 96/96 testes pertinentes, build e lint dos arquivos alterados aprovados; fluxo no Chrome e largura de 390 px conferidos com dados fictícios. Limitações antigas da suíte ampla e da referência local externa estão em `docs/superpowers/consultorias-navegacao-previa-20261026.md`. Sem commit, publicação ou alteração produtiva; aguarda revisão da prévia pelo usuário.
+
+Publicação autorizada pelo dono em 26/10/2026 ("subir") após aprovação da prévia. Publicar seletivamente painel-processos, conferir o conteúdo ativo e só então liberar a interface. Nenhuma concessão de acesso ou alteração de registros reais faz parte desta publicação.
+
 ## Trabalho atual · Vendas pela aprovação · codex · 25/10/2026
 
 Publicado e conferido: PR 27 integrado em `a28ae37`, preservando a conclusão da Inteligência em `3a9f152`. Servidor publicado antes da tela: painel-cache v173 e painel-comercial v101 ACTIVE; conteúdo conferido, incluindo os 20 arquivos da consulta comercial. Functions 40189305636, carga histórica por aprovação 40189031955 e Pages 40189500991 concluídos com sucesso. Histórico de aprovação confirmado de 2020 até a data da carga. Na sessão autenticada, totais e somas dos detalhes de vendas normais e retrabalho reconciliados com a referência do dono. Mesma quantidade de registros e IDs únicos antes/depois, com hash dos itens preservado. Dez arquivos públicos relevantes iguais ao build; CI com 1.751 testes raiz, 1.402 cálculos e 7 acessos aprovados. Backups, evidências e números reais somente em arquivos privados. Vez encerrada.
