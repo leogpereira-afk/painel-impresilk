@@ -37,3 +37,11 @@ Autorizada após revisão da prévia. Publicar seletivamente `painel-processos` 
 - Suíte raiz completa: **1.763/1.763**, zero falhas/ignorados. Rodada focada independente: **96/96**, lint alterado e diff sem erros.
 - Build com `BASE_PATH=/painel-impresilk/` aprovado; 72/72 classes de cor presentes, 131 ações autenticadas e 102 ações de escrita com papel conferido.
 - Servidor seletivo `painel-processos` v92 ACTIVE (commit `ee5a4e6`), quatro arquivos relidos iguais à implementação. Consulta sem autenticação continua 401. A validação do restante do Pages será registrada após a execução da CI.
+
+## Publicado e conferido
+
+- Interface `93f6114`, Pages [40359980934](https://github.com/leogpereira-afk/painel-impresilk/actions/runs/40359980934): build e deploy concluídos com sucesso. A integração foi liberada após a leitura confirmada de painel-processos v92.
+- CI completa: **1.763 testes raiz, 1.433 cálculos e 7 acessos**, zero falhas. Todos os verificadores estáticos, inclusive a comparação das listas com a referência atual da Central, passaram. Permanece um aviso anterior de lint em Agenda e avisos de tamanho de bundle.
+- HTML e oito assets relevantes de entrada, Consultorias, colaboração externa e Reuniões conferidos byte a byte com o build oficial.
+- Site autenticado: botão Acessos abre Pessoas e acessos; recarga mantém a seção e a ficha; navegação para Reuniões/Demandas limpa os parâmetros da consultoria. Filas e filtros publicados visíveis; zero erros de console.
+- Escritas foram exercitadas somente nos testes e na prévia fictícia. Nenhum registro, convite ou permissão real alterado para conferir a publicação. Evidência e observações sobre registros reais mantidas fora deste repositório público.
