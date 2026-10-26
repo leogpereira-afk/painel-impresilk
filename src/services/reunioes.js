@@ -11,6 +11,8 @@ export const listarReunioes=()=>chamar('listar').then(r=>r.itens);
 export const listarPessoasReunioes=()=>chamar('pessoas').then(r=>r.pessoas);
 export const lerAgendaReunioes=mes=>chamar('agenda',{mes}).then(r=>r.eventos);
 export const salvarReuniao=item=>chamar('salvar',{item}).then(r=>avisarAtualizacao(r.item));
+export const salvarSerieReunioes=dados=>chamar('salvarSerie',dados).then(r=>avisarAtualizacao(r));
+export const criarDemandaReuniao=(r,decisaoId)=>chamar('demanda',{id:r.id,versao:r.versao,decisaoId}).then(r=>avisarAtualizacao(r));
 export const confirmarPresencaReuniao=(r,pessoa)=>chamar('presenca',{id:r.id,presencaAnterior:pessoa?.presenca||r.minhaPresenca?.presenca,...(pessoa?{participanteId:pessoa.id}:{})}).then(x=>avisarAtualizacao(x.item));
 export const registrarReuniao=(r,texto)=>chamar('registro',{id:r.id,versao:r.versao,texto}).then(x=>x.item);
 export const abrirArquivoReuniao=(id,arquivoId)=>chamar('arquivo',{id,arquivoId}).then(r=>r.url);

@@ -27,3 +27,8 @@ Não houve commit, push, deploy, aplicação de migração nem criação de reun
 Publicação autorizada pelo dono em 26/10/2026 ("subir"), após aprovação da prévia. AGENTS.md e VEZ.md remotos relidos; main permanece em 7c67842. Ordem de liberação: `supabase/migrations/20261026165648_reunioes_lote_atomico.sql`, `painel-processos` (preservação da origem de demandas), `painel-reunioes`, verificação do servidor e interface. Não criar dados reais para teste nem alterar permissões ou enviar convites.
 
 Prévia: `http://127.0.0.1:5588/revisao-local.html#/reunioes`.
+
+## Liberação do servidor
+Commit `c99fd18`, autorizado pelo dono. RPC aditiva aplicada, SECURITY INVOKER e execução restrita ao service_role conferidos; lote vazio recusado com 22023 sem gravação. `painel-processos` v93 e `painel-reunioes` v93 ACTIVE, onze arquivos relidos iguais ao código local. Consultas sem sessão retornam 401. Nenhum registro real criado ou alterado.
+
+Em caso de reversão após uso real, retornar somente a tela: manter o servidor que preserva os metadados de série, versões de ata e origem das demandas. A RPC aditiva pode permanecer. Não retornar preparadores antigos que descartem os novos campos.

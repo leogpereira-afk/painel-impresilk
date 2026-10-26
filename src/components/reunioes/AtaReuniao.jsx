@@ -1,0 +1,7 @@
+import {FileText} from 'lucide-react';
+const quando=v=>new Date(v).toLocaleString('pt-BR',{timeZone:'America/Sao_Paulo'});
+export default function AtaReuniao({item,aoMudar}){
+ return <details className="reu-editor-secao reu-ata"><summary><FileText size={18}/><strong>Ata do encontro</strong><span>{item.ata?item.ataSituacao==='finalizada'?'Finalizada':'Rascunho':'Opcional'}</span></summary><p className="reu-ajuda">A ata pertence somente a este encontro. Cada alteração salva mantém uma versão com data e autoria.</p>{aoMudar?<><label><span>O que foi discutido e definido</span><textarea rows={7} maxLength={100000} value={item.ata||''} onChange={e=>aoMudar({ata:e.target.value})}/></label><label className="reu-ata-situacao"><span>Situação da ata</span><select value={item.ataSituacao||'rascunho'} onChange={e=>aoMudar({ataSituacao:e.target.value})}><option value="rascunho">Rascunho</option><option value="finalizada">Finalizada</option></select></label></>:<p className="reu-texto">{item.ata||'Ata ainda não registrada.'}</p>}
+ {!!item.ataVersoes?.length&&<details className="reu-ata-versoes"><summary>Versões salvas ({item.ataVersoes.length})</summary>{[...item.ataVersoes].reverse().map((v,i)=><details key={i}><summary>{quando(v.em)} · {v.nome} · {v.situacao==='finalizada'?'Finalizada':'Rascunho'}</summary><p className="reu-texto">{v.texto||'Ata vazia'}</p></details>)}</details>}
+ </details>;
+}

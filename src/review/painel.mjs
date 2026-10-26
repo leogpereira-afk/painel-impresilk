@@ -12,7 +12,7 @@ import {inventarioPermitido,bemPermitido,ativoPermitido,temPermissao} from '../.
 import {getSessao} from '../lib/sessao.js';
 import {prepararInfra,infraPermitida} from '../../supabase/functions/_shared/patrimonio-infra.mjs';
 import {criarVinculoPrevia,projetarFicha} from './vinculo.mjs';
-import {validarPlanejamento,validarLogo} from '../../supabase/functions/_shared/campanhas-planejamento.mjs';
+import {validarPlanejamento,validarLogo,projetarCampanhas} from '../../supabase/functions/_shared/campanhas-planejamento.mjs';
 // Campanhas FICTÍCIAS: duas edições do mesmo evento, para conferir o recado,
 // a estratégia e a criação da próxima. Nenhum cliente, O.S. ou valor é real.
 function campanhasDemo(){
@@ -363,6 +363,7 @@ export async function respostaPreview(url,opcoes={}){
    const mes=/^\d{4}-(0[1-9]|1[0-2])$/.test(corpo.mes||'') ? corpo.mes : '2026-09';
    const d=n=>`${mes}-${String(n).padStart(2,'0')}`;
    if(corpo.action==='comercial')dados=agendaComercialDemo(corpo.mes||'',{...ss,sub:ss?.usuario||'demo',perms:ss?.permissoes||[]});
+   else if(corpo.action==='campanhas')dados={eventos:projetarCampanhas(Object.entries(configs.campanhas).map(([id,c])=>({...c,id})),mes)};
    else if(corpo.action==='producao') dados={hoje:d(14),consultadoEm:new Date().toISOString(),
      os:[
       {id:'os-demo-1',numero:'23096',cliente:'Cliente de demonstração',servico:'Placa de obra',endereco:'Rua de exemplo, 100',data:d(14),rotuloHora:'07:30',ordemHora:'07:30',duracaoDias:1,equipe:['Ana Exemplo','Bruno Exemplo'],veiculo:'Utilitário de exemplo',dias:[d(14)],status:'confirmada',rotuloStatus:'Confirmada',interno:false,finalizada:false},

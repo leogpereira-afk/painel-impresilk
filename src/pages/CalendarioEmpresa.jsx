@@ -96,7 +96,8 @@ export default function CalendarioEmpresa({sessao}) {
   useEffect(() => {
     const contador = pedido;
     void recarregar();
-    return () => { contador.current++; };
+    window.addEventListener('reunioes-atualizadas',recarregar);
+    return () => { contador.current++; window.removeEventListener('reunioes-atualizadas',recarregar); };
   }, [recarregar]);
 
   const hoje = dados?.hoje || "";
@@ -260,6 +261,7 @@ export default function CalendarioEmpresa({sessao}) {
                       {porExtenso(e.data)} · {e.tipo}
                       {e.hora ? ` · ${e.hora}` : ""}
                       {e.recorrenteAnual ? " · todo ano" : ""}
+                      {e.recorrente ? " · encontro de série recorrente" : ""}
                     </p>
                     {e.descricao && <p className="mt-0.5 text-sm text-slate-500">{e.descricao}</p>}
                   </div>

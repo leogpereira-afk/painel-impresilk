@@ -2,6 +2,8 @@
 
 Publicação autorizada pelo dono em 26/10/2026 ("subir"), após aprovação da prévia. Ordem: RPC transacional, painel-processos, painel-reunioes e interface. Somente código e estrutura; sem criar reuniões reais, convites ou alterar permissões. Main relida em 7c67842, sem conflitos. Publicação em preparação.
 
+Servidor publicado antes da tela: commit c99fd18, RPC aditiva aplicada e permissões conferidas (somente service_role), painel-processos v93 e painel-reunioes v93 ACTIVE. Os onze arquivos dos dois pacotes foram relidos integralmente iguais ao código aprovado; consultas sem sessão recusadas com 401. RPC rejeitou lote vazio antes de gravar. Interface ainda em preparação; nenhum registro real alterado.
+
 Pedido aprovado: reuniões únicas/recorrentes, calendário, pessoas pelo ID RH, ata por encontro e encaminhamentos. Ramo codex/reunioes-recorrentes-20261026, clone /tmp/painel-reunioes-recorrentes-20261026, base 7c67842. Implementação local e prévia fictícia autorizadas. Sem publicação, migration produtiva, registros reais ou convites. Escopo e interfaces em docs/superpowers/specs/2026-10-26-reunioes-recorrentes.md.
 
 Implementação e prévia local verificadas; 162 testes aprovados, build e lint sem erros. Fluxos de série/ata/demanda/calendário/reload e celular conferidos. Aguarda aprovação da prévia para publicação. Detalhes e ordem de liberação em docs/reunioes-recorrentes-20261026.md. Não marcado como publicado.

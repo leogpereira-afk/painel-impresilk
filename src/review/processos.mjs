@@ -1,5 +1,5 @@
 import {prepararProcesso,dadosConvite,renovarConvite,substituirConvite,revogarConvite,editarTrabalho,permiteAcaoConsultoria,validarAcessoConvite,avaliarEtapa,planejarEtapa,cadastrarConsultor,atualizarImplantacao,carimbarProcesso,registrarProcesso,atualizarEtapa,agendaProcessos,projetarInterno,projetarConvidado,validarArquivoProcesso} from '../../supabase/functions/_shared/processos.mjs';
-import {pessoasReuniaoDemo as pessoas} from './reunioes.mjs';
+import {pessoasReuniaoDemo as pessoas} from './pessoas-reunioes.mjs';
 const s={sub:'demo',nome:'Conta de demonstração',master:true,rhId:'rh-ana'},itens=new Map(),arquivos=new Map(),tokens=new Map();
 const hoje=new Intl.DateTimeFormat('en-CA',{timeZone:'America/Sao_Paulo'}).format(new Date());
 for(const tipo of ['demanda','consultoria']){
@@ -21,6 +21,13 @@ consultoria.convites.push({...conviteDemo,nivel:'colaborador'});
 for(const v of tokens.values())Object.assign(v,consultoria.convites.find(c=>c.id===v.id));
 try{const salvo=JSON.parse(sessionStorage.getItem(armazenamento)||'null');if(salvo?.itens&&salvo?.tokens){itens.clear();tokens.clear();for(const [k,v] of salvo.itens)itens.set(k,v);for(const [k,v] of salvo.tokens)tokens.set(k,v);}}catch{/* prévia começa limpa se armazenamento não estiver disponível */}
 function persistir(){try{sessionStorage.setItem(armazenamento,JSON.stringify({itens:[...itens],tokens:[...tokens]}));}catch{/* a prévia continua nesta página */}}
+// Reunião e demanda compartilham a mesma instância fictícia, sem chamada produtiva.
+export function obterDemandaReuniaoDemo(id){return itens.get(id);}
+export function inserirDemandaReuniaoDemo(registro){
+ if(registro.tipo!=='demanda')throw new Error('Somente demanda pode ser criada por uma reunião.');
+ if(itens.has(registro.id))throw new Error('A demanda já existe. Atualize o encontro.');
+ itens.set(registro.id,registro);persistir();
+}
 export function respostaProcessos(b,token=''){
  try{
  const c=token?tokens.get(token):null;if(token&&(!validarAcessoConvite(itens.get(c?.processoId),c)||itens.get(c?.processoId)?.situacao==='cancelada'))throw new Error('Convite inválido ou encerrado.');

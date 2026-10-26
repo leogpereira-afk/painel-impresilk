@@ -1,0 +1,8 @@
+import {Link} from 'react-router-dom';
+import {CheckCircle2,ExternalLink} from 'lucide-react';
+import {identificarPessoa} from './pessoas.js';
+const data=v=>v?new Date(v+'T12:00:00Z').toLocaleDateString('pt-BR',{timeZone:'UTC'}):'Sem prazo';
+export default function EncaminhamentosReuniao({item,podeDemandas,ocupado,aoCriarDemanda}){
+ const hoje=new Date().toLocaleDateString('en-CA',{timeZone:'America/Sao_Paulo'});
+ return <section className="reu-secao"><h3><CheckCircle2 size={18}/>Encaminhamentos · {item.decisoes.filter(d=>d.concluida).length}/{item.decisoes.length} concluídos</h3>{item.decisoes.length?<ul className="reu-decisoes">{item.decisoes.map(d=><li key={d.id}><strong>{d.concluida?'✓ ':''}{d.texto}</strong><span>{d.responsavel||'Responsável a definir'}{d.responsavelRhId?' · '+identificarPessoa({rhId:d.responsavelRhId,idPessoa:d.responsavelIdPessoa}):''} · {data(d.prazo)} · {d.concluida?'Concluído':d.prazo&&d.prazo<hoje?'Prazo vencido':'Em aberto'}</span>{d.demandaId?podeDemandas?<Link className="btn-outline reu-demanda-link" to={'/demandas?processo='+encodeURIComponent(d.demandaId)}><ExternalLink size={15}/>Abrir demanda</Link>:<small>Demanda vinculada</small>:item.podeEditar&&podeDemandas&&<div className="reu-demanda-acao"><button type="button" className="btn-outline" disabled={ocupado||!d.responsavelRhId||!d.prazo||d.concluida||item.situacao==='cancelado'} onClick={()=>aoCriarDemanda(d.id)}>Criar demanda</button>{(!d.responsavelRhId||!d.prazo)&&<small>Defina responsável no RH e prazo na edição.</small>}</div>}</li>)}</ul>:<p>Nenhum encaminhamento registrado.</p>}</section>;
+}

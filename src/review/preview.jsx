@@ -9,7 +9,7 @@ import './preview.css';
 function Preview(){
  const location=useLocation(),navigate=useNavigate();
  if(location.pathname==='/entrada')return <Login aoEntrar={()=>navigate('/acessos')}/>;
- return <><aside className="review-preview-banner" role="note"><strong>SIMULAÇÃO — dados fictícios / sem envio.</strong> {location.pathname==='/ferramenta-ia'&&/ferramenta=(acm|letra-caixa|acrylic|mdf|metalon)/.test(location.search)?'Rascunhos de teste das ferramentas ficam neste navegador.':['/consultorias','/demandas','/colaborar'].includes(location.pathname)?'Fichas e acessos de teste permanecem nesta aba ao atualizar. Anexos de teste não são preservados.':'Alterações nesta demonstração ficam apenas nesta aba e são descartadas ao recarregar.'}</aside><AppProvider><App/></AppProvider></>;
+ return <><aside className="review-preview-banner" role="note"><strong>SIMULAÇÃO — dados fictícios / sem envio.</strong> {location.pathname==='/ferramenta-ia'&&/ferramenta=(acm|letra-caixa|acrylic|mdf|metalon)/.test(location.search)?'Rascunhos de teste das ferramentas ficam neste navegador.':['/consultorias','/demandas','/colaborar','/reunioes','/calendario-empresa'].includes(location.pathname)?'Reuniões, fichas e acessos de teste permanecem nesta aba ao atualizar. Anexos de teste não são preservados.':'Alterações nesta demonstração ficam apenas nesta aba e são descartadas ao recarregar.'}</aside><AppProvider><App/></AppProvider></>;
 }
 if(import.meta.env.MODE==='review'){
  const root=import.meta.hot?.data.root||createRoot(document.getElementById('root'));
