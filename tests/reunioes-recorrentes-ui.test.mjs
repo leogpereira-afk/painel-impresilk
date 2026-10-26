@@ -44,6 +44,25 @@ test('encontro único salva diretamente, sem recorrência ou conversão automát
  assert.equal(chamadas.length,0);await f.enviar();assert.equal(chamadas.length,1);assert.equal(chamadas[0][0].id,'encontro-ficticio');assert.deepEqual(chamadas[0][1],{});
 });
 
+test('opções recolhidas preservam pauta, local, tipo e situação ao salvar',async()=>{
+ const chamadas=[],item=base({tipo:'treinamento',situacao:'realizado',versaoAnterior:2}),f=await montar('Editor',{item,aoFechar(){},aoSalvar:async(...x)=>chamadas.push(x)});
+ const opcoes=nos(f.arvore).find(n=>n.type==='details'&&n.props.className==='reu-opcoes-encontro');
+ assert.equal(opcoes.props.open,undefined);assert.match(texto(opcoes.props.children[0]),/Treinamento · Realizado · Local definido · Com pauta/);
+ f.mudarCampo('Título *','Título ajustado');await f.enviar();
+ for(const k of ['pauta','local','tipo','situacao'])assert.equal(chamadas[0][0][k],item[k]);
+ f.mudarCampo('Local ou link da chamada','Sala revisada');f.mudarCampo('Pauta e objetivo','Pauta revisada');await f.enviar();
+ assert.equal(chamadas[1][0].local,'Sala revisada');assert.equal(chamadas[1][0].pauta,'Pauta revisada');
+});
+
+test('resumo compacto da programação mantém todas as datas para conferência',async()=>{
+ const c=await componentes(),datas=['2099-05-04','2099-05-11','2099-05-18'];
+ const f=await montar('Programacao',{item:base(),recorrente:true,regra:{...c.regraInicial(datas[0]),quantidade:3},datas,alvos:[],aoRegra(){},aoRecorrente(){}});
+ const lista=nos(f.arvore).find(n=>n.type==='details'&&texto(n).includes('Conferir as 3 datas'));
+ assert.ok(lista);assert.equal(lista.props.open,undefined);
+ assert.deepEqual(nos(lista).filter(n=>n.type==='li').map(texto),['04/05/2099','11/05/2099','18/05/2099']);
+ assert.match(texto(f.arvore),/04\/05\/2099 a 18\/05\/2099 · 09:00–10:00/);
+});
+
 test('evento input de data/hora persiste ao alternar para recorrente',async()=>{
  const chamadas=[],f=await montar('Editor',{item:base(),aoFechar(){},aoSalvar:async(...x)=>chamadas.push(x)});
  for(const [rotulo,value] of [['Data *','2099-05-11'],['Início *','11:00'],['Fim *','12:00']]){

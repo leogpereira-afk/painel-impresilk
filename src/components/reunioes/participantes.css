@@ -1,0 +1,44 @@
+.reu-participantes-editor .reu-pessoas-cab{display:flex;align-items:baseline;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.reu-participantes-editor .reu-pessoas-cab h3{margin-bottom:0}
+.reu-participantes-editor .reu-pessoas-cab>span,.reu-participantes-editor .reu-pessoas-rodape>small{font-size:12px;color:var(--muted,#526178)}
+.reu-participantes-editor .reu-pessoas-chips{display:flex;flex-wrap:wrap;gap:7px;max-height:170px;overflow:auto;margin:12px 0 4px;padding:3px}
+.reu-participantes-editor .reu-pessoas-chip{display:inline-flex;align-items:center;gap:5px;max-width:100%;border:1px solid var(--hairline,#cbd5e1);border-radius:10px;background:var(--surface-hover,#f2f5fb);padding-left:10px;font-size:13px;line-height:1.4}
+.reu-participantes-editor .reu-pessoas-chip>span{min-width:0;overflow-wrap:anywhere;padding:5px 0}
+.reu-participantes-editor .reu-pessoas-chip small,.reu-participantes-editor .reu-pessoas-opcao small,.reu-participantes-editor .reu-pessoas-presenca small{display:block;font-size:11px;line-height:1.45;color:var(--muted,#526178);margin-top:2px}
+.reu-participantes-editor .reu-pessoas-chip>button{min-width:40px;min-height:40px;flex:none;font-size:21px;line-height:1;color:var(--muted,#526178);border-radius:8px}
+.reu-participantes-editor .reu-pessoas-chip>button:hover{background:var(--surface,#fff);color:var(--ink,#172033)}
+.reu-participantes-editor .reu-pessoas-busca{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(0,1fr);gap:10px;margin-top:14px}
+.reu-participantes-editor .reu-pessoas-busca label{font-size:12px;font-weight:600;color:var(--muted,#526178)}
+.reu-participantes-editor .reu-pessoas-busca input,.reu-participantes-editor .reu-pessoas-busca select{font-weight:400;font-size:14px;color:var(--ink,#172033)}
+.reu-participantes-editor input,.reu-participantes-editor select,.reu-participantes-editor button,.reu-participantes-editor summary{min-height:40px}
+.reu-participantes-editor .reu-pessoas-ferramentas,.reu-participantes-editor .reu-pessoas-rodape{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;margin:8px 0}
+.reu-participantes-editor .reu-pessoas-ferramentas>button{font-size:12px;padding:8px 10px}
+.reu-participantes-editor .reu-pessoas-ferramentas>.btn-ghost{color:var(--accent,#3730a3);padding-left:0}
+.reu-participantes-editor .reu-pessoas-resultados{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));max-height:230px;overflow:auto;gap:5px;padding:6px;border:1px solid var(--hairline,#cbd5e1);border-radius:11px}
+.reu-participantes-editor .reu-pessoas-resultados>p{grid-column:1/-1;padding:8px;font-size:13px}
+.reu-participantes-editor .reu-pessoas-opcao{display:flex;align-items:center;justify-content:space-between;gap:9px;min-width:0;min-height:52px;text-align:left;padding:9px;border-radius:8px;font-size:13px}
+.reu-participantes-editor .reu-pessoas-opcao>span:first-child{min-width:0;overflow-wrap:anywhere}
+.reu-participantes-editor .reu-pessoas-opcao>span:last-child{font-size:20px;color:var(--accent,#3730a3);flex:none}
+.reu-participantes-editor .reu-pessoas-opcao:hover{background:var(--surface-hover,#f2f5fb)}
+.reu-participantes-editor .reu-pessoas-dica{font-size:12px;margin:0 0 12px}
+.reu-participantes-editor .reu-pessoas-rodape{margin-top:12px}
+.reu-participantes-editor .reu-pessoas-rodape>button{font-size:13px}
+.reu-participantes-editor .reu-pessoas-detalhes{margin-top:14px;border-top:1px solid var(--hairline,#cbd5e1);padding-top:6px}
+.reu-participantes-editor .reu-pessoas-detalhes>summary{display:flex;align-items:center;gap:8px;list-style:none;font-size:13px;font-weight:600;padding:8px 0;cursor:pointer}
+.reu-participantes-editor .reu-pessoas-detalhes>summary::-webkit-details-marker{display:none}
+.reu-participantes-editor .reu-pessoas-detalhes>summary:before{content:'▸';color:var(--muted,#526178)}
+.reu-participantes-editor .reu-pessoas-detalhes[open]>summary:before{content:'▾'}
+.reu-participantes-editor .reu-pessoas-detalhes>summary>span{font-size:12px;font-weight:400;color:var(--muted,#526178);margin-left:auto}
+.reu-participantes-editor .reu-pessoas-detalhes>.reu-ajuda{font-size:12px;margin:4px 0 8px}
+.reu-participantes-editor .reu-pessoas-presenca{display:grid;grid-template-columns:minmax(0,1fr) 180px;gap:12px;align-items:center;padding:10px 0;border-top:1px solid var(--hairline,#cbd5e1);font-size:13px;overflow-wrap:anywhere}
+.reu-participantes-editor .reu-pessoas-presenca>div{min-width:0}
+.reu-participantes-editor .reu-pessoas-presenca>div>select{margin-top:7px;font-size:12px}
+.reu-participantes-editor button:focus-visible,.reu-participantes-editor summary:focus-visible,.reu-participantes-editor input:focus-visible,.reu-participantes-editor select:focus-visible{outline:3px solid #818cf8;outline-offset:2px}
+html.dark .reu-participantes-editor .reu-pessoas-chip{background:var(--surface-hover,#222941)}
+@media(max-width:600px){
+ .reu-participantes-editor .reu-pessoas-busca,.reu-participantes-editor .reu-pessoas-resultados{grid-template-columns:1fr}
+ .reu-participantes-editor .reu-pessoas-presenca{grid-template-columns:1fr;gap:8px}
+ .reu-participantes-editor .reu-pessoas-presenca>select{width:100%}
+ .reu-participantes-editor .reu-pessoas-cab{gap:4px 10px}
+ .reu-participantes-editor .reu-pessoas-ferramentas>button{font-size:12px}
+}

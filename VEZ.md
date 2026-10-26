@@ -1,3 +1,9 @@
+## Trabalho atual · Reuniões simples e eficientes · codex · 26/10/2026
+
+Agente: codex. Pedido do dono: "subir quero simples moderno e eficiente". Refinamento e publicação autorizados da interface de Reuniões: campos essenciais primeiro, opções complementares recolhidas e seleção compacta de participantes pelo ID RH. Clone /tmp/painel-reunioes-recorrentes-20261026, ramo codex/reunioes-simples-20261026, base cf4f31e. Preservar recorrência, atas, calendário, permissões e dados existentes. Testes de gravação somente na prévia fictícia; nenhum registro ou convite real. Servidor v93 permanece sem alteração.
+
+Verificação local concluída: 65 testes pertinentes, build oficial e conferência de classes aprovados; lint sem erros, somente aviso anterior em Agenda. Prévia fictícia conferida no computador e celular, incluindo modo escuro, teclado, convidado obrigatório e persistência após recarregar. Revisão independente sem bloqueadores. Publicação autorizada em preparação; detalhes em docs/reunioes-simples-20261026.md.
+
 ## Trabalho atual · Reuniões recorrentes e atas · codex · 26/10/2026
 
 Publicado e conferido: servidor c99fd18, painel-processos v93 e painel-reunioes v93 ACTIVE, onze arquivos conferidos; RPC reunioes_lote_atomico aplicada em 20261026172321, restrita ao service_role. Interface 8d3bdc2, Pages 40368627058 concluído com sucesso e nove arquivos públicos iguais ao build. Verificação: 1.804 testes raiz, 1.458 cálculos, 7 acessos, 15 verificadores e build aprovados; lint sem erros (aviso anterior em Agenda). Site autenticado recarregado: programação recorrente, datas e busca por ID RH conferidas, sem erro de console. Fluxos de escrita e persistência exercitados na prévia fictícia; nenhum registro, convite ou permissão real alterado. Detalhes em docs/reunioes-recorrentes-20261026.md. Vez encerrada.
