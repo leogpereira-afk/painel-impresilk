@@ -1,3 +1,11 @@
+## Trabalho atual · Reuniões recorrentes e atas · codex · 26/10/2026
+
+Publicação autorizada pelo dono em 26/10/2026 ("subir"), após aprovação da prévia. Ordem: RPC transacional, painel-processos, painel-reunioes e interface. Somente código e estrutura; sem criar reuniões reais, convites ou alterar permissões. Main relida em 7c67842, sem conflitos. Publicação em preparação.
+
+Pedido aprovado: reuniões únicas/recorrentes, calendário, pessoas pelo ID RH, ata por encontro e encaminhamentos. Ramo codex/reunioes-recorrentes-20261026, clone /tmp/painel-reunioes-recorrentes-20261026, base 7c67842. Implementação local e prévia fictícia autorizadas. Sem publicação, migration produtiva, registros reais ou convites. Escopo e interfaces em docs/superpowers/specs/2026-10-26-reunioes-recorrentes.md.
+
+Implementação e prévia local verificadas; 162 testes aprovados, build e lint sem erros. Fluxos de série/ata/demanda/calendário/reload e celular conferidos. Aguarda aprovação da prévia para publicação. Detalhes e ordem de liberação em docs/reunioes-recorrentes-20261026.md. Não marcado como publicado.
+
 ## Trabalho atual · Consultorias, Reuniões e Demandas · codex · 26/10/2026
 
 Publicado e conferido: servidor seletivo `painel-processos` v92 ACTIVE, quatro arquivos relidos iguais ao commit `ee5a4e6`; interface `93f6114`, Pages 40359980934 concluído com sucesso. CI: 1.763 testes raiz, 1.433 cálculos e 7 acessos aprovados, verificadores estáticos completos e build oficial aprovados. Nove arquivos públicos iguais ao build. Site autenticado conferido em Consultorias → Pessoas e acessos (incluindo recarga), Reuniões e Demandas, sem erro de console. Nenhum convite, permissão ou registro real alterado. Evidência privada fora do Git; detalhes no documento desta entrega. Vez encerrada.

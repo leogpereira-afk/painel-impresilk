@@ -114,6 +114,9 @@ export function prepararProcesso(c,antes,s,pessoasRH=[],agora=new Date().toISOSt
  validarDependenciasEtapas(etapas);
  if(c.situacao==='concluida'&&(!etapas.length||etapas.some(e=>e.situacao!=='concluida')))falhar('Conclua e valide todas as etapas antes de encerrar.');
  const item={id:c.id,tipo:c.tipo,titulo:txt(c.titulo,180,'o título',true),setor:c.setor,prioridade:c.prioridade,situacao:c.situacao,prazo:data(c.prazo,'prazo geral'),objetivo:txt(c.objetivo||'',10000,'o objetivo',true),analise:txt(c.analise||'',20000,'a análise'),solucao:txt(c.solucao||'',20000,'a solução'),empresa:txt(c.empresa||'',180,'a consultoria',c.tipo==='consultoria'),especialidade:txt(c.especialidade||'',180,'a especialidade'),responsavelRhId:c.responsavelRhId,envolvidos,etapas,criadoPor:antes?.criadoPor||s.sub,criadoPorNome:antes?.criadoPorNome||s.nome||s.sub,criadoEm:antes?.criadoEm||agora,anexos:antes?.anexos||[],registros:antes?.registros||[],historico:antes?.historico||[],convites:antes?.convites||[],consultores:antes?.consultores||[]};
+ // Vínculo estabelecido apenas pela conversão atômica da reunião; o cliente
+ // não pode criá-lo, trocá-lo ou apagá-lo ao editar a demanda depois.
+ for(const campo of ['origemReuniaoId','origemDecisaoId'])if(antes&&Object.hasOwn(antes,campo))item[campo]=antes[campo];
  if(JSON.stringify(item).length>600000)falhar('Ficha muito extensa. Arquive este processo e abra outro.');return item;
 }
 export function carimbarProcesso(r,s,acao,agora=new Date().toISOString()){

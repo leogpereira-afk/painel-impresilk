@@ -2,6 +2,9 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.0';
 import { verificarJwt, crachaRevogado } from '../_shared/cripto.ts';
 import { COLECAO_REUNIOES, ErroReuniao, idValido, podeEditarReuniao, prepararReuniao, carimbarReuniao, novoRegistro, validarArquivoReuniao, pessoasParaReunioes, agendaReunioes } from '../_shared/reunioes.mjs';
 import {identidadePresenca,minhaPresenca,confirmarPresenca,periodoAvisos,avisosReunioes} from '../_shared/reunioes-presenca.mjs';
+import {criarSerieReunioes,prepararAlteracaoSerie} from '../_shared/reunioes-recorrencia.mjs';
+import {COLECAO_PROCESSOS} from '../_shared/processos.mjs';
+import {podeCriarDemandaReuniao,idDemandaReuniao,prepararDemandaReuniao} from '../_shared/reunioes-demanda.mjs';
 const sb=createClient(Deno.env.get('SUPABASE_URL')!,Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,{auth:{persistSession:false}});
 const JWT_SECRET=Deno.env.get('PAINEL_JWT_SECRET')||'',BUCKET='painel-arquivos';
 const cors={'Access-Control-Allow-Origin':'*','Access-Control-Allow-Headers':'authorization, apikey, content-type, x-client-info','Access-Control-Allow-Methods':'POST, OPTIONS'};
@@ -16,17 +19,30 @@ async function lerRH(colecao:string,colunas:string){
 }
 async function pessoasRH(){
  const [pessoas,status,areas,cargos]=await Promise.all([
-  lerRH('colaboradores','id,nome:registro->>nome,areaId:registro->>areaId,cargoId:registro->>cargoId,statusId:registro->>statusId,dataDesligamento:registro->>dataDesligamento,ehDirecao:registro->>ehDirecao'),
+  lerRH('colaboradores','id,idPessoa:registro->>idPessoa,nome:registro->>nome,areaId:registro->>areaId,cargoId:registro->>cargoId,statusId:registro->>statusId,dataDesligamento:registro->>dataDesligamento,ehDirecao:registro->>ehDirecao'),
   lerRH('status','id,contaComoAtivo:registro->>contaComoAtivo'),
   lerRH('areas','id,nome:registro->>nome'),lerRH('cargos','id,nome:registro->>nome'),
  ]);
  return pessoasParaReunioes(pessoas,status,areas,cargos);
 }
-async function obter(id:string){
+async function obter(id:string,colecao=COLECAO_REUNIOES){
  if(!idValido(id))throw new ErroReuniao('Encontro inválido.');
- const {data,error}=await sb.from('painel_registros').select('registro').eq('colecao',COLECAO_REUNIOES).eq('id',id).maybeSingle();
+ const {data,error}=await sb.from('painel_registros').select('registro').eq('colecao',colecao).eq('id',id).maybeSingle();
  if(error)throw error;return data?.registro||null;
 }
+async function lerSerie(serieId:string){
+ const {data,error}=await sb.from('painel_registros').select('id,registro').eq('colecao',COLECAO_REUNIOES).eq('registro->>serieId',serieId).order('id').range(0,104);
+ if(error)throw error;
+ if((data||[]).length>104)throw new ErroReuniao('A série excedeu o limite. Confira os encontros antes de continuar.');
+ return (data||[]).map((r:any)=>({...r.registro,id:r.id})).sort((a:any,b:any)=>a.indice-b.indice);
+}
+async function gravarLote(itens:any[]){
+ if(!itens.length)return;
+ const {error}=await sb.rpc('painel_reunioes_gravar_lote',{p_itens:itens});
+ if(error){if(error.code==='40001')throw new ErroReuniao('Um dos registros mudou. Reabra a ficha antes de continuar.',409);throw error;}
+}
+const entradaLote=(item:any,antes:any,colecao=COLECAO_REUNIOES)=>({colecao,id:item.id,registro:item,anterior:antes});
+const usaRH=(item:any)=>!!item?.responsavelRhId||Array.isArray(item?.participantes)&&item.participantes.some((p:any)=>p?.rhId)||Array.isArray(item?.decisoes)&&item.decisoes.some((d:any)=>d?.responsavelRhId);
 async function gravar(r:any,antes:any){
  const {error}=await sb.rpc('painel_registro_gravar',{p_colecao:COLECAO_REUNIOES,p_id:r.id,p_registro:r,p_anterior:antes});
  if(error){if(error.code==='40001')throw new ErroReuniao('Este encontro mudou enquanto você editava. Reabra a ficha e confira.',409);throw error;}
@@ -72,12 +88,64 @@ Deno.serve(async(req:Request)=>{
    throw new Error('Limite de consulta atingido.');
   }
   const id=b.item?.id||b.id,antes=await obter(id);
+  if(b.action==='salvarSerie'){
+   const agora=new Date().toISOString();
+   if(b.recorrencia!==undefined){
+    // O mesmo ID identifica retries da criação, nunca uma edição implícita.
+    async function existente(r:any){
+     if(!podeEditarReuniao(r,s))throw new ErroReuniao('Somente quem criou ou a direção pode consultar esta criação.',403);
+     if(r.serieId!==id||r.indice!==1)throw new ErroReuniao('Este identificador já pertence a outro encontro.',409);
+     const itens=await lerSerie(id);
+     return json({ok:true,item:await apresentar(r),itens:await Promise.all(itens.map(apresentar)),preservadas:0});
+    }
+    if(antes)return await existente(antes);
+    const itens=criarSerieReunioes(b.item,b.recorrencia,s,usaRH(b.item)?await pessoasRH():[],agora);
+    try{await gravarLote(itens.map((item:any)=>entradaLote(item,null)));}
+    catch(e){
+     if(e instanceof ErroReuniao&&e.status===409){const criado=await obter(id);if(criado)return await existente(criado);}
+     throw e;
+    }
+    return json({ok:true,item:await apresentar(itens[0]),itens:await Promise.all(itens.map(apresentar)),preservadas:0});
+   }
+   if(!antes)return json({erro:'Encontro não encontrado.'},404);
+   if(!podeEditarReuniao(antes,s))return json({erro:'Somente quem criou ou a direção pode alterar este encontro.'},403);
+   if(!['esta','proximas','serie'].includes(b.escopo)||b.escopo!=='esta'&&!antes.serieId)return json({erro:'Escolha o alcance da alteração de uma série.'},422);
+   const lista=b.escopo==='esta'?[antes]:await lerSerie(antes.serieId);
+   const {alteracoes,preservadas}=prepararAlteracaoSerie(antes,lista,b.item,b.escopo,s,usaRH(b.item)?await pessoasRH():[],agora);
+   if(!b.versoesAnteriores||typeof b.versoesAnteriores!=='object'||Array.isArray(b.versoesAnteriores))return json({erro:'Atualize as versões dos encontros antes de salvar.'},409);
+   if(alteracoes.some((a:any)=>!Object.hasOwn(b.versoesAnteriores,a.antes.id)||b.versoesAnteriores[a.antes.id]!==a.antes.versao))return json({erro:'Um dos encontros mudou. Reabra a série antes de salvar.'},409);
+   await gravarLote(alteracoes.map((a:any)=>entradaLote(a.item,a.antes)));
+   const itens=alteracoes.map((a:any)=>a.item),item=itens.find((r:any)=>r.id===id)||antes;
+   return json({ok:true,item:await apresentar(item),itens:await Promise.all(itens.map(apresentar)),preservadas});
+  }
   if(b.action==='salvar'){
-   const vinculadas=Array.isArray(b.item?.participantes)&&b.item.participantes.some((p:any)=>p?.rhId);
+   const vinculadas=usaRH(b.item);
    const novo=prepararReuniao(b.item,antes,s,new Date().toISOString(),vinculadas?await pessoasRH():[]);const item=await gravar(carimbarReuniao(novo,s,antes?'Editou o encontro':'Criou o encontro'),antes);
    return json({ok:true,item:await apresentar(item)});
   }
   if(!antes)return json({erro:'Encontro não encontrado.'},404);
+  if(b.action==='demanda'){
+   if(!podeCriarDemandaReuniao(s))return json({erro:'Sem acesso a Demandas.'},403);
+   if(!podeEditarReuniao(antes,s))return json({erro:'Somente quem criou ou a direção pode encaminhar esta decisão.'},403);
+   const demandaId=await idDemandaReuniao(id,b.decisaoId);
+   async function vinculada(r:any){
+    const decisao=r.decisoes?.find((d:any)=>d.id===b.decisaoId);
+    if(!decisao)throw new ErroReuniao('Decisão não encontrada.',404);
+    if(!decisao.demandaId)return null;
+    const demanda=decisao.demandaId===demandaId?await obter(demandaId,COLECAO_PROCESSOS):null;
+    if(!demanda||demanda.tipo!=='demanda'||demanda.origemReuniaoId!==id||demanda.origemDecisaoId!==b.decisaoId)throw new ErroReuniao('O encaminhamento precisa ser conferido em Demandas. Nenhum novo registro foi criado.',409);
+    return json({ok:true,item:await apresentar(r),demandaId,demanda:{id:demandaId}});
+   }
+   const repetida=await vinculada(antes);if(repetida)return repetida;
+   if(b.versao!==antes.versao)return json({erro:'Este encontro mudou. Reabra a ficha antes de continuar.'},409);
+   const {reuniao,demanda}=await prepararDemandaReuniao(antes,b.decisaoId,s,await pessoasRH());
+   try{await gravarLote([entradaLote(reuniao,antes),entradaLote(demanda,null,COLECAO_PROCESSOS)]);}
+   catch(e){
+    if(e instanceof ErroReuniao&&e.status===409){const atual=await obter(id);if(atual&&podeEditarReuniao(atual,s)){const repetida=await vinculada(atual);if(repetida)return repetida;}}
+    throw e;
+   }
+   return json({ok:true,item:await apresentar(reuniao),demandaId,demanda:{id:demandaId}});
+  }
   if(b.action==='presenca'){
    const pessoa=await identidadeAtual();let atual=antes;
    // Reaplica somente esta presença na versão mais recente; nunca reenvia a ata do navegador.
