@@ -7,6 +7,17 @@ for(const tipo of ['demanda','consultoria']){
  itens.set(b.id,carimbarProcesso(prepararProcesso(b,null,s,pessoas),s,'Criou o processo'));
 }
 const conviteDemo={id:'convite-demo',nome:'Consultor de demonstração',processoId:'consultoria-demo',expiraEm:new Date(Date.now()+86400000).toISOString()};
+// Cenários fictícios de Demandas: prazos, bloqueios, conferência e histórico.
+const dia=deslocamento=>{const d=new Date(hoje+'T12:00:00Z');d.setUTCDate(d.getUTCDate()+deslocamento);return d.toISOString().slice(0,10);};
+for(const c of [
+ {id:'demanda-prazo-demo',titulo:'Padronizar a conferência de materiais',setor:'producao',prioridade:'alta',situacao:'execucao',prazo:dia(-2),etapa:'Revisar o checklist com a equipe',estado:'execucao',inicioReal:dia(-4),progresso:40},
+ {id:'demanda-validacao-demo',titulo:'Validar o novo fluxo de atendimento',setor:'comercial',prioridade:'normal',situacao:'validacao',prazo:dia(2),etapa:'Conferir a proposta de fluxo',estado:'validacao',inicioReal:dia(-3),fimReal:dia(-1),progresso:100},
+ {id:'demanda-bloqueada-demo',titulo:'Organizar os documentos da equipe',setor:'rh',prioridade:'normal',situacao:'planejada',prazo:dia(5),etapa:'Conferir os modelos de documentos',estado:'bloqueada',nota:'Aguardando a definição do modelo de exemplo.'},
+ {id:'demanda-concluida-demo',titulo:'Revisar o roteiro de entrega',setor:'producao',prioridade:'normal',situacao:'concluida',prazo:dia(-3),etapa:'Aprovar o roteiro de exemplo',estado:'concluida',inicioReal:dia(-5),fimReal:dia(-3),progresso:100}
+]){
+ const b={id:c.id,tipo:'demanda',titulo:c.titulo,objetivo:'Exemplo fictício de acompanhamento de demanda, sem registros da empresa.',setor:c.setor,prioridade:c.prioridade,situacao:c.situacao,prazo:c.prazo,responsavelRhId:'rh-bruno',envolvidos:[{rhId:'rh-ana'},{rhId:'rh-bruno'}],etapas:[{id:c.id+'-etapa',titulo:c.etapa,responsavelRhId:'rh-bruno',prazo:c.prazo,situacao:c.estado,dependeDe:[],nota:c.nota||'',inicioReal:c.inicioReal||'',fimReal:c.fimReal||'',progresso:c.progresso||0}],versaoAnterior:null};
+ itens.set(b.id,carimbarProcesso(prepararProcesso(b,null,s,pessoas),s,'Criou a demanda de exemplo'));
+}
 tokens.set('consultoria-demo.'+'a'.repeat(64),conviteDemo);
 for(const [letra,nivel] of [['b','administrador'],['c','leitura']]){
  const c={...conviteDemo,id:'convite-'+nivel,nome:'Consultor '+nivel,nivel};tokens.set('consultoria-demo.'+letra.repeat(64),c);itens.get('consultoria-demo').convites.push(c);

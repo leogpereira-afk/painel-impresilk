@@ -1,8 +1,12 @@
 import {useState} from 'react';
 import {SITUACOES,SETORES,PRIORIDADES,ESTADOS_ETAPA,etapaTemAtividade} from '../../../supabase/functions/_shared/processos.mjs';
+import EditorDemanda from './EditorDemanda.jsx';
 export function Campo({nome,children}){return <label className="block text-sm font-medium text-slate-700"><span className="block mb-1">{nome}</span>{children}</label>;}
 export function Opcoes({mapa}){return Object.entries(mapa).map(([id,nome])=><option key={id} value={id}>{nome}</option>);}
-export default function EditorProcesso({item,tipo,pessoas,aoSalvar,aoCancelar,ocupado}){
+export default function EditorProcesso(props){
+ return props.tipo==='demanda'?<EditorDemanda {...props}/>:<EditorConsultoria {...props}/>;
+}
+function EditorConsultoria({item,tipo,pessoas,aoSalvar,aoCancelar,ocupado}){
  const [f,setF]=useState(()=>item?{...item,versaoAnterior:item.versao}:{id:crypto.randomUUID(),tipo,titulo:'',objetivo:'',analise:'',solucao:'',empresa:'',especialidade:'',setor:'empresa',situacao:'nova',prioridade:'normal',prazo:'',responsavelRhId:'',envolvidos:[],etapas:[],versaoAnterior:null});
  const [busca,setBusca]=useState('');
  const mudar=(k,v)=>setF(x=>({...x,[k]:v}));

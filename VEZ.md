@@ -1,3 +1,9 @@
+## Trabalho atual · Demandas simples e eficientes · codex · 26/10/2026
+
+Agente: codex. Prévia aprovada e publicação autorizada pelo dono em 26/10/2026: "ficou bom pode subir essa versão de demandas". Ramo codex/demandas-simples-20261026, clone /tmp/painel-reunioes-recorrentes-20261026, base 1ed4aa2. Publicar somente a versão de Demandas já apresentada: fila compacta com responsável e prazo, filtros recolhíveis, cadastro com pessoas por nome/ID, ficha resumida e indicadores sob demanda. Corrigida captura imediata das quatro datas de etapa. Preservar etapas, histórico, vínculos, permissões e o fluxo de Consultorias. Sem alteração de servidor, esquema, dados reais ou convites.
+
+Verificação da prévia: 99 testes pertinentes aprovados; cadastro, validação obrigatória, filtro ao voltar, edição, atualização de etapa e persistência após recarregar conferidos no navegador. Celular de 390 px e tema escuro sem rolagem horizontal. Revisão independente sem bloqueadores. Verificações gerais aprovadas: 1.846 testes raiz, 1.465 testes de cálculos e acessos, lint sem erros (aviso anterior em Agenda), 15 verificadores incluindo classes e build oficial. Conferência de sistemas com a dependência pública atual da Central do Léo (8178bad), em vez do checkout local desatualizado. Detalhes em docs/demandas-simples-20261026.md. Publicação em andamento; aguardando Pages e conferência oficial.
+
 ## Trabalho atual · Reuniões simples e eficientes · codex · 26/10/2026
 
 Publicado e conferido: interface 1da6a60, Pages 40372734905 concluído com sucesso, nove arquivos públicos iguais ao build. Formulário oficial autenticado recarregado e conferido com catálogo RH carregado, opções recolhíveis e sem erro de console. Gravações e recarga verificadas na prévia fictícia, em computador e celular. Servidor e registros reais preservados. Vez encerrada.
