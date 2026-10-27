@@ -35,3 +35,13 @@ Após autorização, revisar a main atual, integrar somente os arquivos desta ta
 ## Publicação autorizada
 
 Em 27/10/2026, servidor 9db2370 publicado seletivamente como painel-processos v94 ACTIVE antes da interface. Os quatro arquivos foram relidos iguais ao pacote aprovado; pedido sem sessão retorna 401. Verificação fresca: 1.907 testes gerais/processos, 1.470 cálculos/acessos, 14 verificadores, build oficial e conferência de classes aprovados. Interface e validação produtiva em andamento.
+
+## Conferência da publicação
+
+- Interface `4b84356`, Pages `40595231658`, build e deploy concluídos com sucesso.
+- Nove arquivos públicos iguais byte a byte ao build oficial, incluindo editor, portal externo, serviços e CSS.
+- Sessão oficial autenticada recarregada: lista compacta, edição, autoria e opções de validade disponíveis. Formulário de validade foi conferido e cancelado sem alterar acessos reais.
+- Integridade das fichas existentes comparada antes/depois sem diferença. Evidência privada fora do repositório.
+- Testes locais cobrem gravação, histórico, recarga, permissões, links permanentes e revogação; não equivalem à prova final de escrita em produção.
+- A revisão automática bloqueou a execução do teste produtivo por criar acessos permanentes, exigindo autorização específica. Pergunta enviada ao dono. A ficha fictícia de preparação foi encerrada e todos os seus acessos revogados; nada foi apagado.
+- Pendente: após autorização, criar somente acessos isolados para dados fictícios, validar edição/recarga/histórico no servidor e navegador, e revogar ao concluir. Nenhuma ação ou convite real foi alterado.
