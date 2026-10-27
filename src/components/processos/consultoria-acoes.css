@@ -1,0 +1,91 @@
+.consultoria-acoes{--acao-ink:#17223b;--acao-muted:#596780;--acao-border:#dce2ec;--acao-soft:#f7f8fc;--acao-accent:#4338ca;color:var(--acao-ink)}
+.processo-painel.consultoria-acoes{display:block}
+.consultoria-acoes-topo{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px}
+.consultoria-acoes-topo h2{display:flex;align-items:center;gap:8px}
+.consultoria-acoes-topo h2>span{font-size:12px;line-height:1.5;font-weight:600;background:#eeedff;color:#4338ca;padding:1px 7px;border-radius:20px}
+.consultoria-acoes-botoes{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.consultoria-acoes-botoes button,.consultoria-acao-editar{display:inline-flex;gap:6px;align-items:center;justify-content:center;white-space:nowrap;min-height:38px}
+.consultoria-acoes .processo-ajuda{color:var(--acao-muted);line-height:1.5}
+.consultoria-acoes-pesquisa{display:flex;align-items:flex-start;gap:8px;padding-top:3px}
+.consultoria-acoes-pesquisa>label{display:flex;align-items:center;gap:8px;border:1px solid var(--acao-border);border-radius:9px;flex:1;min-width:150px;padding:0 11px;min-height:40px;color:var(--acao-muted);background:var(--acao-soft)}
+.consultoria-acoes-pesquisa input{width:100%;min-width:0;background:transparent;border:0;padding:9px 0;outline:none;font-size:13px;color:var(--acao-ink)}
+.consultoria-acoes-pesquisa>label:focus-within{outline:2px solid var(--acao-accent);outline-offset:2px}
+.consultoria-acoes-filtros{flex:0 0 auto;border:1px solid var(--acao-border);border-radius:9px;min-width:108px}
+.consultoria-acoes-filtros>summary{display:flex;gap:7px;align-items:center;padding:9px 12px;min-height:38px;font-size:13px;font-weight:600;cursor:pointer;list-style:none}
+.consultoria-acoes-filtros>summary::-webkit-details-marker{display:none}
+.consultoria-acoes-filtros>summary span{padding:0 5px;border-radius:5px;background:#eeedff;color:#4338ca}
+.consultoria-acoes-filtros[open]{flex:1 1 340px}
+.consultoria-acoes-filtros[open]>summary>svg:last-child{transform:rotate(180deg)}
+.consultoria-acoes-filtro-campos{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;padding:0 10px 10px}
+.consultoria-acoes-filtro-campos .input{width:100%;font-size:12px;min-height:38px}
+.consultoria-acoes-contagem{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:9px 0;font-size:12px;color:var(--acao-muted)}
+.consultoria-acoes-contagem button{color:var(--acao-accent);text-decoration:underline;min-height:30px}
+.consultoria-acoes-lista{display:grid;gap:7px;padding:0;margin:0;list-style:none}
+.consultoria-acao{position:relative;border:1px solid var(--acao-border);border-radius:11px;min-width:0;background:transparent;transition:background .15s}
+.consultoria-acao:hover{background:var(--acao-soft)}
+.consultoria-acao>details>summary{list-style:none;cursor:pointer;padding:12px;min-height:66px}
+.consultoria-acao>details>summary::-webkit-details-marker{display:none}
+.consultoria-acao>details>summary.com-edicao{padding-right:126px}
+.consultoria-acao-cabecalho{display:flex;align-items:flex-start;gap:7px;min-width:0}
+.consultoria-acao-cabecalho>strong{font-size:14px;font-weight:650;line-height:1.45;overflow-wrap:anywhere;flex:1}
+.consultoria-acao-tipo{font-size:10px;font-weight:600;border-radius:5px;padding:3px 6px;white-space:nowrap;background:#edf0f7;color:#4f5f7d;line-height:1.5}
+.consultoria-acao-tipo.tipo-acao{background:#eeedff;color:#4338ca}
+.consultoria-acao-tipo.tipo-decisao{background:#e2f3ee;color:#17614d}
+.consultoria-acao-tipo.tipo-pendencia{background:#fff2d9;color:#85550f}
+.consultoria-acao-seta{margin-top:3px;color:var(--acao-muted);flex-shrink:0}
+.consultoria-acao>details[open]>summary .consultoria-acao-seta{transform:rotate(180deg)}
+.consultoria-acao-meta{display:flex;flex-wrap:wrap;align-items:center;gap:4px 12px;margin-top:6px;color:var(--acao-muted);font-size:11px;line-height:1.45}
+.consultoria-acao-meta>span{display:inline-flex;gap:4px;align-items:center;overflow-wrap:anywhere;max-width:100%}
+.consultoria-acao-meta svg{flex-shrink:0}
+.consultoria-acao-meta .consultoria-acao-estado{border-radius:5px;padding:2px 6px;background:#f0f2f6;color:#576278}
+.consultoria-acao-meta .estado-em_implantacao{background:#e6efff;color:#2858a5}
+.consultoria-acao-meta .estado-implantada{background:#e2f3ee;color:#17614d}
+.consultoria-acao-meta .consultoria-acao-interna{color:#85550f}
+.consultoria-acao-proximo{display:flex;gap:5px;align-items:flex-start;margin-top:7px;font-size:12px;color:var(--acao-muted);line-height:1.5}
+.consultoria-acao-proximo>svg{flex-shrink:0;margin-top:2px;color:var(--acao-accent)}
+.consultoria-acao-proximo>span{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;overflow-wrap:anywhere}
+.consultoria-acao-proximo b{font-weight:600}
+.consultoria-acao-editar{position:absolute;right:10px;top:10px;padding:6px 9px;font-size:12px;border-color:var(--acao-border);color:var(--acao-accent)}
+.consultoria-acao-detalhes{padding:12px;margin:0;border-top:1px solid var(--acao-border);display:grid;gap:12px;font-size:13px;line-height:1.6}
+.consultoria-acao-detalhes p{white-space:pre-wrap;overflow-wrap:anywhere}
+.consultoria-acao-detalhes h3{font-size:12px;color:var(--acao-muted);margin-bottom:3px}
+.consultoria-acao-editor{background:var(--acao-soft);border:1px solid var(--acao-border);border-radius:11px;padding:14px;margin-bottom:14px;scroll-margin-top:90px}
+.consultoria-acao-editor .consultoria-acoes-topo{margin:0}
+.consultoria-acao-editor .input{width:100%;min-width:0;font-size:13px}
+.consultoria-acao-editor textarea{resize:vertical}
+.consultoria-acao-editor .processo-form{border:1px solid var(--acao-border);border-radius:8px;padding:10px}
+.consultoria-acao-compartilhar{display:flex;align-items:center;gap:8px;font-size:13px;min-height:32px}
+.consultoria-acao-erro{color:#a22031;background:#fff0f1;border:1px solid #eebbc2;border-radius:8px;padding:10px;font-size:13px}
+.consultoria-acao-concorrencia{display:grid;gap:10px;background:#fff8e8;border:1px solid #dfc68f;border-radius:9px;padding:12px;font-size:13px;color:#694a14}
+.consultoria-acao-concorrencia fieldset{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;border-top:1px solid #dfc68f;padding-top:8px}
+.consultoria-acao-concorrencia legend{font-weight:600;padding-right:6px}
+.consultoria-acao-concorrencia label{display:flex;align-items:flex-start;gap:7px;border:1px solid #dfc68f;border-radius:7px;padding:9px;color:inherit}
+.consultoria-acao-concorrencia input{margin-top:3px}
+.consultoria-acao-concorrencia label span{white-space:pre-wrap;overflow-wrap:anywhere;min-width:0}
+.consultoria-acao-concorrencia label strong{display:block;font-size:11px;margin-bottom:3px}
+.consultoria-acao-concorrencia>button{justify-self:start}
+.consultoria-revisoes{border:1px solid var(--acao-border);border-radius:8px;padding:9px;background:var(--acao-soft)}
+.consultoria-revisoes>summary{display:flex;align-items:center;gap:6px;cursor:pointer;font-size:12px;font-weight:600}
+.consultoria-revisoes>section{padding:10px 0;border-top:1px solid var(--acao-border);margin-top:10px}
+.consultoria-revisoes h4{font-size:12px;font-weight:650;margin-bottom:8px}
+.consultoria-revisoes h4 span{font-weight:400;color:var(--acao-muted)}
+.consultoria-revisao-campo{margin-top:9px;font-size:12px}
+.consultoria-revisao-campo>div{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:4px}
+.consultoria-revisao-campo p{border:1px solid var(--acao-border);border-radius:6px;padding:8px}
+.consultoria-revisao-campo small{display:block;font-size:10px;color:var(--acao-muted);margin-bottom:3px;text-transform:uppercase;letter-spacing:.04em}
+.consultoria-acoes-vazio{display:grid;justify-items:center;text-align:center;gap:6px;padding:30px 16px;border:1px dashed var(--acao-border);border-radius:10px;color:var(--acao-muted);font-size:13px}
+.consultoria-acoes-vazio h3{color:var(--acao-ink)}
+.consultoria-acoes button:focus-visible,.consultoria-acoes summary:focus-visible{outline:2px solid var(--acao-accent);outline-offset:3px}
+.dark .consultoria-acoes{--acao-ink:#e4eaf7;--acao-muted:#b4bfd2;--acao-border:#3a465f;--acao-soft:#202a40;--acao-accent:#bbb6ff}
+.dark .consultoria-acoes .processo-form label,.dark .consultoria-acoes-filtro-campos label{color:var(--acao-ink)}
+.dark .consultoria-acoes-topo h2>span,.dark .consultoria-acao-tipo.tipo-acao,.dark .consultoria-acoes-filtros>summary span{background:#342e61;color:#d0caff}
+.dark .consultoria-acao-tipo,.dark .consultoria-acao-meta .consultoria-acao-estado{background:#303c53;color:#c3cddd}
+.dark .consultoria-acao-tipo.tipo-decisao,.dark .consultoria-acao-meta .estado-implantada{background:#173e35;color:#abe0c7}
+.dark .consultoria-acao-tipo.tipo-pendencia{background:#453620;color:#f1d299}
+.dark .consultoria-acao-meta .estado-em_implantacao{background:#213e67;color:#b8d2ff}
+.dark .consultoria-acao-meta .consultoria-acao-interna{color:#f1d299}
+.dark .consultoria-acao-erro{background:#451f2b;border-color:#8f4254;color:#ffc3cc}
+.dark .consultoria-acao-concorrencia{background:#3a3020;border-color:#856d3f;color:#f0d49e}
+.dark .consultoria-acao-concorrencia fieldset,.dark .consultoria-acao-concorrencia label{border-color:#856d3f;color:#f0d49e}
+@media(max-width:1000px){.consultoria-acoes-pesquisa:has(.consultoria-acoes-filtros[open]){flex-wrap:wrap}.consultoria-acoes-filtros[open]{flex-basis:100%}}
+@media(max-width:640px){.consultoria-acoes-topo{align-items:flex-start;flex-wrap:wrap}.consultoria-acoes-botoes button{min-height:42px}.consultoria-acoes-pesquisa{flex-wrap:wrap}.consultoria-acoes-pesquisa>label{min-height:42px;flex-basis:100%}.consultoria-acoes-filtros{width:100%}.consultoria-acoes-filtros>summary{min-height:42px}.consultoria-acoes-filtro-campos{grid-template-columns:1fr}.consultoria-acao-cabecalho{flex-wrap:wrap;gap:4px}.consultoria-acao-cabecalho>strong{flex-basis:calc(100% - 22px)}.consultoria-acao-tipo{width:max-content;margin-bottom:2px}.consultoria-acao-seta{margin-left:auto}.consultoria-acao>details>summary.com-edicao{padding-right:12px;padding-top:50px}.consultoria-acao-editar{top:6px;right:8px;min-height:38px}.consultoria-acao-meta{gap:5px 9px}.consultoria-revisao-campo>div,.consultoria-acao-concorrencia fieldset{grid-template-columns:1fr}.consultoria-acao-editor{padding:10px}.consultoria-acoes-contagem{align-items:flex-start}}

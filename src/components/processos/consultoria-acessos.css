@@ -1,0 +1,12 @@
+.consultoria-acessos .consultoria-validade{border:1px solid #dfe3ef;border-radius:12px;padding:12px;display:grid;gap:10px;margin:0;min-width:0}
+.consultoria-acessos .consultoria-validade legend{font-size:13px;font-weight:700;padding:0 5px}
+.consultoria-acessos .consultoria-validade .input[type=number]{max-width:160px}
+.consultoria-acessos .consultoria-acoes [aria-pressed=true]{background:#eef2ff;color:#3730a3;border-color:#818cf8;font-weight:700}
+.consultoria-acessos .consultoria-convite{padding:10px}
+.consultoria-acessos .consultoria-pessoa{padding:14px;min-width:0}
+.consultoria-acessos .consultoria-convite .processo-ajuda{display:flex;align-items:center;gap:5px;flex-wrap:wrap}
+.consultoria-acessos .consultoria-link input{font-size:12px}
+.consultoria-acessos button:focus-visible,.consultoria-acessos summary:focus-visible{outline:3px solid #6366f1;outline-offset:3px}
+.dark .consultoria-acessos .consultoria-validade{border-color:#475569}
+.dark .consultoria-acessos .consultoria-acoes [aria-pressed=true]{background:#312e81;color:#e0e7ff;border-color:#818cf8}
+@media(max-width:640px){.consultoria-acessos .consultoria-acoes>button{min-height:42px}.consultoria-acessos .consultoria-niveis{grid-template-columns:1fr}.consultoria-acessos .consultoria-validade{padding:10px}}

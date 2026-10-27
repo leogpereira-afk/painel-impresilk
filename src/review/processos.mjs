@@ -1,4 +1,4 @@
-import {prepararProcesso,dadosConvite,renovarConvite,substituirConvite,revogarConvite,editarTrabalho,permiteAcaoConsultoria,validarAcessoConvite,avaliarEtapa,planejarEtapa,cadastrarConsultor,atualizarImplantacao,carimbarProcesso,registrarProcesso,atualizarEtapa,agendaProcessos,projetarInterno,projetarConvidado,validarArquivoProcesso} from '../../supabase/functions/_shared/processos.mjs';
+import {prepararProcesso,editarRegistro,dadosConvite,renovarConvite,substituirConvite,revogarConvite,editarTrabalho,permiteAcaoConsultoria,validarAcessoConvite,avaliarEtapa,planejarEtapa,cadastrarConsultor,atualizarImplantacao,carimbarProcesso,registrarProcesso,atualizarEtapa,agendaProcessos,projetarInterno,projetarConvidado,validarArquivoProcesso} from '../../supabase/functions/_shared/processos.mjs';
 import {pessoasReuniaoDemo as pessoas} from './pessoas-reunioes.mjs';
 const s={sub:'demo',nome:'Conta de demonstração',master:true,rhId:'rh-ana'},itens=new Map(),arquivos=new Map(),tokens=new Map();
 const hoje=new Intl.DateTimeFormat('en-CA',{timeZone:'America/Sao_Paulo'}).format(new Date());
@@ -23,12 +23,20 @@ for(const [letra,nivel] of [['b','administrador'],['c','leitura']]){
  const c={...conviteDemo,id:'convite-'+nivel,nome:'Consultor '+nivel,nivel};tokens.set('consultoria-demo.'+letra.repeat(64),c);itens.get('consultoria-demo').convites.push(c);
 }
 // Somente dados fictícios, isolados por aba de prévia.
-const armazenamento='consultorias-review-20261026-v1';
+const armazenamento='consultorias-review-20261027-v2';
 const consultoria=itens.get('consultoria-demo');
 consultoria.consultores=[{id:'consultor-admin-demo',nome:'Marina Exemplo',funcao:'Coordenação',contato:'marina@example.invalid'},{id:'consultor-leitor-demo',nome:'Rafael Exemplo',funcao:'Acompanhamento',contato:''},{id:'consultor-novo-demo',nome:'Paula Exemplo',funcao:'Processos',contato:''}];
 consultoria.convites=consultoria.convites.map(c=>({...c,consultorId:c.nivel==='administrador'?'consultor-admin-demo':'consultor-leitor-demo',criadoEm:new Date().toISOString()}));
 consultoria.convites.push({...conviteDemo,id:'convite-expirado-demo',consultorId:'consultor-novo-demo',nome:'Paula Exemplo',nivel:'colaborador',expiraEm:new Date(Date.now()-86400000).toISOString(),criadoEm:new Date(Date.now()-15*86400000).toISOString()});
 consultoria.convites.push({...conviteDemo,nivel:'colaborador'});
+// Registros e acessos fictícios para conferir edição cruzada, privacidade e retomada.
+consultoria.convites=consultoria.convites.map(c=>c.id==='convite-administrador'||c.id==='convite-demo'?{...c,semValidade:true,expiraEm:null}:c);
+consultoria.registros=[
+ {id:'acao-equipe-demo',tipo:'acao',titulo:'Revisar o fluxo de fechamento mensal',dataAcao:hoje,texto:'A equipe reuniu os documentos e desenhou o fluxo de conferência. Este registro foi criado por outra pessoa para demonstrar a edição compartilhada.',resultado:'Etapas de conferência identificadas.',proximoPasso:'Validar responsáveis e sequência na próxima reunião.',etapaId:'levantamento',implantacao:{situacao:'nao_iniciada',progresso:0},implantacoes:[],em:new Date().toISOString(),por:'demo',nome:'Equipe interna · exemplo',compartilhado:true},
+ {id:'acao-consultor-demo',tipo:'acao',titulo:'Organizar os indicadores de acompanhamento',dataAcao:hoje,texto:'Separar indicadores de andamento e de resultado para a reunião de acompanhamento.',resultado:'Modelo de indicadores em revisão.',proximoPasso:'Apresentar o modelo à equipe.',etapaId:'levantamento',implantacao:{situacao:'em_implantacao',como:'Modelo em elaboração.'},implantacoes:[],em:new Date().toISOString(),por:'convite:convite-administrador',consultorId:'consultor-admin-demo',nome:'Marina Exemplo',compartilhado:true},
+ {id:'decisao-demo',tipo:'decisao',titulo:'Reunião de acompanhamento semanal',dataAcao:hoje,texto:'Exemplo de decisão compartilhada: reunir a equipe para revisar as entregas.',resultado:'Roteiro da reunião definido.',proximoPasso:'Confirmar participantes.',etapaId:'',em:new Date().toISOString(),por:'demo',nome:'Equipe interna · exemplo',compartilhado:true},
+ {id:'nota-interna-demo',tipo:'atualizacao',titulo:'Análise interna restrita · exemplo',dataAcao:hoje,texto:'Informação interna fictícia que não deve aparecer no portal do consultor.',resultado:'',proximoPasso:'',etapaId:'',em:new Date().toISOString(),por:'demo',nome:'Equipe interna · exemplo',compartilhado:false}
+];
 for(const v of tokens.values())Object.assign(v,consultoria.convites.find(c=>c.id===v.id));
 try{const salvo=JSON.parse(sessionStorage.getItem(armazenamento)||'null');if(salvo?.itens&&salvo?.tokens){itens.clear();tokens.clear();for(const [k,v] of salvo.itens)itens.set(k,v);for(const [k,v] of salvo.tokens)tokens.set(k,v);}}catch{/* prévia começa limpa se armazenamento não estiver disponível */}
 function persistir(){try{sessionStorage.setItem(armazenamento,JSON.stringify({itens:[...itens],tokens:[...tokens]}));}catch{/* a prévia continua nesta página */}}
@@ -61,6 +69,7 @@ export function respostaProcessos(b,token=''){
  else if(b.action==='consultor')n=cadastrarConsultor(r,b,ator);
  else if(b.action==='implantacao')n=atualizarImplantacao(r,b,ator);
  else if(b.action==='registro')n=registrarProcesso(r,b,ator);
+ else if(b.action==='editarRegistro')n=editarRegistro(r,b,ator);
  else if(b.action==='etapa')n=atualizarEtapa(r,b,ator);
  else if(b.action==='anexar'){const bytes=Uint8Array.from(atob(b.base64),x=>x.charCodeAt(0)),a=validarArquivoProcesso(b.nome,b.mime,bytes.length),id=crypto.randomUUID();arquivos.set(id,URL.createObjectURL(new Blob([bytes],{type:a.mime})));n={...r,anexos:[...r.anexos,{...a,id,compartilhado:!!c,em:new Date().toISOString(),nomeAutor:ator.nome}]};}
  else if(!c&&b.action==='compartilhar')n={...r,anexos:r.anexos.map(a=>a.id===b.arquivoId?{...a,compartilhado:b.compartilhado}:a)};
@@ -68,7 +77,7 @@ export function respostaProcessos(b,token=''){
  else if(b.action==='renovarConvite')n=renovarConvite(r,b,ator);
  else if(b.action==='substituirConvite'){const segredo=crypto.randomUUID().replaceAll('-','').repeat(2);n=substituirConvite(r,b,ator,segredo);for(const [k,v] of tokens)if(v.id===b.conviteId)tokens.delete(k);convite=r.id+'.'+segredo;tokens.set(convite,{...n.convites.find(c=>c.id===b.conviteId),processoId:r.id});}
  else if(b.action==='revogar')n=revogarConvite(r,b,ator);
- else throw new Error('Ação não permitida.');if(b.action!=='revogar')n=carimbarProcesso(n,ator,'Atualizou '+b.action);for(const v of tokens.values()){const atual=n.convites.find(c=>c.id===v.id);if(atual)Object.assign(v,atual);}itens.set(n.id,n);dados={item:proj(n),...(convite?{convite}:{})};
+ else throw new Error('Ação não permitida.');if(b.action!=='revogar'&&n!==r)n=carimbarProcesso(n,ator,'Atualizou '+b.action);for(const v of tokens.values()){const atual=n.convites.find(c=>c.id===v.id);if(atual)Object.assign(v,atual);}itens.set(n.id,n);dados={item:proj(n),...(convite?{convite}:{})};
  }
  persistir();return new Response(JSON.stringify({ok:true,...dados}),{headers:{'Content-Type':'application/json'}});
  }catch(e){return new Response(JSON.stringify({erro:e.message}),{status:e.status||422});}
