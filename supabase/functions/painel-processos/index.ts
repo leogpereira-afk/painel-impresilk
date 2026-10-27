@@ -1,7 +1,7 @@
 import {createClient} from 'https://esm.sh/@supabase/supabase-js@2.45.0';
 import {verificarJwt,crachaRevogado} from '../_shared/cripto.ts';
 import {ErroReuniao,idValido,pessoasParaReunioes} from '../_shared/reunioes.mjs';
-import {COLECAO_PROCESSOS,dadosConvite,revogarConvite,renovarConvite,substituirConvite,editarTrabalho,podeAdministrarConsultoria,permiteAcaoConsultoria,validarAcessoConvite,avaliarEtapa,planejarEtapa,cadastrarConsultor,atualizarImplantacao,prepararProcesso,podeGerir,podeLer,agendaProcessos,carimbarProcesso,registrarProcesso,atualizarEtapa,projetarConvidado,projetarInterno,validarArquivoProcesso,falhar} from '../_shared/processos.mjs';
+import {COLECAO_PROCESSOS,dadosConvite,revogarConvite,renovarConvite,substituirConvite,editarTrabalho,editarRegistro,podeAdministrarConsultoria,permiteAcaoConsultoria,validarAcessoConvite,avaliarEtapa,planejarEtapa,cadastrarConsultor,atualizarImplantacao,prepararProcesso,podeGerir,podeLer,agendaProcessos,carimbarProcesso,registrarProcesso,atualizarEtapa,projetarConvidado,projetarInterno,validarArquivoProcesso,falhar} from '../_shared/processos.mjs';
 const sb=createClient(Deno.env.get('SUPABASE_URL')!,Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,{auth:{persistSession:false}});
 const SECRET=Deno.env.get('PAINEL_JWT_SECRET')||'',BUCKET='painel-arquivos';
 const cors={'Access-Control-Allow-Origin':'*','Access-Control-Allow-Headers':'authorization, apikey, content-type, x-client-info, x-convite','Access-Control-Allow-Methods':'POST, OPTIONS'};
@@ -54,7 +54,7 @@ Deno.serve(async(req:Request)=>{
    s={...s,rhId:await identidadeRH(s)};
    if(b.action==='pessoas')return json({ok:true,pessoas:await pessoasRH()});
    if(['listar','agenda'].includes(b.action)){const itens=await listar(s);return json(b.action==='agenda'?{ok:true,eventos:agendaProcessos(itens,b.mes)}:{ok:true,itens:itens.map(r=>projetarInterno(r,s))});}
-   if(!['obter','salvar','registro','etapa','anexar','arquivo','compartilhar','convidar','revogar','renovarConvite','substituirConvite','consultor','implantacao','planejarEtapa','avaliarEtapa','trabalho'].includes(b.action))return json({erro:'Ação inválida.'},400);
+   if(!['obter','salvar','registro','editarRegistro','etapa','anexar','arquivo','compartilhar','convidar','revogar','renovarConvite','substituirConvite','consultor','implantacao','planejarEtapa','avaliarEtapa','trabalho'].includes(b.action))return json({erro:'Ação inválida.'},400);
    antes=await obter(b.item?.id||b.id);
    if(antes&&!podeLer(antes,s))return json({erro:'Processo não encontrado.'},404);
   }
@@ -73,6 +73,10 @@ Deno.serve(async(req:Request)=>{
   if(b.action==='planejarEtapa'){const item=carimbarProcesso(planejarEtapa(antes,b,s),s,'Planejou ou atualizou datas da etapa');return json({ok:true,item:apresentar(await gravar(item,antes))});}
   if(b.action==='consultor'){const item=carimbarProcesso(cadastrarConsultor(antes,b,s),s,'Cadastrou ou atualizou consultor');return json({ok:true,item:apresentar(await gravar(item,antes))});}
   if(b.action==='implantacao'){const item=carimbarProcesso(atualizarImplantacao(antes,b,s),s,'Atualizou implantação de ação');return json({ok:true,item:apresentar(await gravar(item,antes))});}
+  if(b.action==='editarRegistro'){
+   const novo=editarRegistro(antes,b,s);if(novo===antes)return json({ok:true,item:apresentar(antes)});
+   const item=carimbarProcesso(novo,s,'Editou ação ou registro');return json({ok:true,item:apresentar(await gravar(item,antes))});
+  }
   if(b.action==='convidar'){
    if(antes.tipo!=='consultoria'||antes.situacao==='cancelada')falhar('Convites estão disponíveis para consultorias ativas.');
    if(antes.convites.length>=100)falhar('Limite de 100 convites atingido.');

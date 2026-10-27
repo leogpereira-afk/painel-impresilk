@@ -1,3 +1,9 @@
+## Trabalho atual · Consultorias: ações editáveis e acessos permanentes · codex · 27/10/2026
+
+Publicação autorizada pelo dono em 27/10/2026 após a prévia. Servidor seletivo antes da tela, seguido de conferência produtiva. Consultores com nível colaborador ou administrador podem editar todas as ações compartilhadas da própria consultoria; leitura permanece sem escrita. Gestão de acessos com opção explícita sem vencimento, revogação e substituição preservadas. Histórico de revisão, retomada após recarregar e interface compacta. Clone /tmp/painel-consultorias-edicao-20261027, ramo codex/consultorias-edicao-20261027, base ed4ed67. Testes produtivos somente em ficha fictícia identificada; preservar os registros reais e não converter acessos existentes automaticamente. Preservar Demandas e demais módulos compartilhados.
+
+Prévia implementada e conferida em 27/10/2026: 1.907 testes aprovados, builds de produção/revisão e lint sem erros. Navegador validou edição compartilhada, autoria e revisão após recarga, leitura restrita, convite permanente e revogação; responsivo a 390 px e tema escuro. Evidências e limites em docs/CONSULTORIAS_EDICAO_ACESSOS_2026-10-27.md. Publicação em preparação; servidor deve preceder a tela.
+
 ## Trabalho atual · Demandas simples e eficientes · codex · 26/10/2026
 
 Publicado e conferido: interface ea6820c, Pages 40393333493 concluído com sucesso, nove arquivos públicos idênticos ao build aprovado. Site oficial autenticado recarregado: fila compacta e novo cadastro com busca RH e detalhes recolhíveis conferidos, sem erros de console. Nenhum registro real foi criado ou alterado. Servidor preservado. Vez encerrada.

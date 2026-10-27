@@ -193,3 +193,85 @@ test('renovação recusa prazo inválido e mantém dados do convite',async()=>{
  for(const dias of [0,31,-1,1.5,'x',null])assert.equal((await t.call({action:'renovarConvite',id,versao:r.versao,conviteId:r.convites[0].id,dias})).status,422);
  assert.equal(JSON.stringify(t.rows.get(id)),antes);
 });
+
+const edicaoAcao=(r,x,extra={})=>({action:'editarRegistro',id:r.id,versao:r.versao,registroId:x.id,tipo:x.tipo||'atualizacao',titulo:x.titulo||'',dataAcao:x.dataAcao||'',texto:x.texto,resultado:x.resultado||'',proximoPasso:x.proximoPasso||'',etapaId:x.etapaId||'',...extra});
+async function acaoCompartilhada(t){
+ let r=(await t.call({action:'salvar',item:item()})).item;
+ r=(await t.call({action:'registro',id:r.id,versao:r.versao,tipo:'acao',titulo:'Diagnóstico fictício',dataAcao:'2026-10-01',texto:'Descrição original',resultado:'Entrevistas',proximoPasso:'Conferir',etapaId:'e1',compartilhado:true,implantacao:{situacao:'em_implantacao',como:'Piloto'}})).item;
+ const c=await t.call({action:'convidar',id:r.id,versao:r.versao,nome:'Consultor fictício',dias:2});
+ return {r:c.item,token:c.convite};
+}
+
+test('consultor edita ação compartilhada de outro autor e conserva original, implantação e revisão',async()=>{
+ const t=setup();let {r,token}=await acaoCompartilhada(t);const original=structuredClone(t.rows.get(r.id).registros[0]);
+ let g=(await t.call({action:'obter'},false,token)).item;assert.equal(g.registros[0].podeEditar,true);assert.equal(g.registros[0].podeAtualizar,false);
+ let x=await t.call(edicaoAcao(r,original,{titulo:'Diagnóstico revisado',texto:'Descrição corrigida',resultado:'Mapa revisado',proximoPasso:'Validar',por:'forjado',nome:'Forjado',em:'2000-01-01',consultorId:'forjado',compartilhado:false,implantacao:{situacao:'implantada'},implantacoes:[],revisoes:[]}),false,token);
+ assert.equal(x.status,200);r=x.item;const salvo=t.rows.get(r.id).registros[0];
+ for(const k of ['id','por','nome','em','consultorId','compartilhado','implantacao','implantacoes'])assert.deepEqual(structuredClone(salvo[k]),original[k]);
+ assert.equal(salvo.titulo,'Diagnóstico revisado');assert.equal(salvo.revisoes.length,1);assert.equal(salvo.revisoes[0].antes.texto,'Descrição original');assert.equal(salvo.revisoes[0].depois.texto,'Descrição corrigida');assert.equal(salvo.revisoes[0].nome,'Consultor fictício');assert.ok(salvo.revisoes[0].por.startsWith('convite:'));assert.ok(salvo.revisoes[0].em);
+ assert.equal(r.registros[0].revisoes[0].por,undefined);assert.equal(r.registros[0].por,undefined);assert.ok(!JSON.stringify(r).includes('rh-'));assert.ok(!JSON.stringify(r).includes('convite:'));
+ g=(await t.call({action:'obter'},false,token)).item;assert.equal(g.registros[0].texto,'Descrição corrigida');assert.equal(g.registros[0].revisoes.length,1);
+ const versao=g.versao;x=await t.call(edicaoAcao(g,g.registros[0]),false,token);assert.equal(x.status,200);assert.equal(x.item.versao,versao);assert.equal(x.item.registros[0].revisoes.length,1);
+});
+
+test('edição não revela registros privados nem aceita leitor, outra ficha ou identidade forjada',async()=>{
+ const t=setup();let {r,token}=await acaoCompartilhada(t);
+ r=(await t.call({action:'registro',id:r.id,versao:r.versao,texto:'Registro interno',compartilhado:false})).item;
+ assert.equal((await t.call(edicaoAcao(r,r.registros[1]),false,token)).status,404);
+ assert.equal((await t.call(edicaoAcao(r,r.registros[0],{registroId:'inexistente'}),false,token)).status,404);
+ assert.equal((await t.call(edicaoAcao(r,r.registros[0],{id:'outra-ficha'}),false,token)).status,403);
+ const c=await t.call({action:'convidar',id:r.id,versao:r.versao,nome:'Leitura',nivel:'leitura',dias:2});r=c.item;
+ const g=(await t.call({action:'obter'},false,c.convite)).item;assert.equal(g.registros[0].podeEditar,false);
+ const antes=JSON.stringify(t.rows.get(r.id));assert.equal((await t.call(edicaoAcao(r,r.registros[0],{master:true,nivel:'administrador',podeEditar:true}),false,c.convite)).status,403);assert.equal(JSON.stringify(t.rows.get(r.id)),antes);
+ t.session({sub:'fora',perms:['demandas']});assert.equal((await t.call(edicaoAcao(r,r.registros[0]))).status,404);
+});
+
+test('edição valida campos e concorrência sem alterar a ação ou seu histórico',async()=>{
+ const t=setup(),{r,token}=await acaoCompartilhada(t),original=JSON.stringify(t.rows.get(r.id)),b=edicaoAcao(r,r.registros[0]);
+ for(const alt of [{tipo:'aprovacao'},{titulo:''},{dataAcao:'2026-02-30'},{texto:''},{resultado:'x'.repeat(5001)},{proximoPasso:'x'.repeat(2001)},{etapaId:'outra-etapa'}])assert.equal((await t.call({...b,...alt},false,token)).status,422);
+ assert.equal((await t.call({...b,versao:'antiga',texto:'Não salvar'},false,token)).status,409);assert.equal(JSON.stringify(t.rows.get(r.id)),original);
+ t.conflict();assert.equal((await t.call({...b,texto:'Conflito no banco'},false,token)).status,409);assert.equal(JSON.stringify(t.rows.get(r.id)),original);
+});
+
+test('participante interno edita somente seu registro e master pode corrigir o de outro',async()=>{
+ const t=setup();let r=(await t.call({action:'salvar',item:{...item(),tipo:'demanda'}})).item;
+ r=(await t.call({action:'registro',id:r.id,versao:r.versao,texto:'Registro do gestor'})).item;
+ t.session(membro);let g=(await t.call({action:'obter',id:r.id})).item;assert.equal(g.registros[0].podeEditar,false);assert.equal((await t.call(edicaoAcao(g,g.registros[0]))).status,403);
+ r=(await t.call({action:'registro',id:r.id,versao:r.versao,texto:'Registro da participante'})).item;assert.equal(r.registros[1].podeEditar,true);
+ let x=await t.call(edicaoAcao(r,r.registros[1],{texto:'Registro corrigido'}));assert.equal(x.status,200);r=x.item;
+ t.session({sub:'master-ficticio',nome:'Gestor fictício',master:true});x=await t.call(edicaoAcao(r,r.registros[0],{texto:'Correção do gestor'}));assert.equal(x.status,200);assert.equal(x.item.registros[0].revisoes[0].por,'master-ficticio');
+});
+
+test('link explicitamente sem validade permanece revogável e segredo substituído deixa de funcionar',async()=>{
+ const t=setup();let r=(await t.call({action:'salvar',item:item()})).item;
+ let c=await t.call({action:'convidar',id:r.id,versao:r.versao,nome:'Consultor permanente',semValidade:true});assert.equal(c.status,200);r=c.item;const antigo=c.convite,acesso=r.convites[0];assert.equal(acesso.semValidade,true);assert.equal(acesso.expiraEm,null);assert.equal(acesso.estadoAcesso,'ativo');
+ assert.equal((await t.call({action:'obter'},false,antigo)).status,200);
+ c=await t.call({action:'substituirConvite',id:r.id,versao:r.versao,conviteId:acesso.id});assert.equal(c.status,200);r=c.item;assert.equal((await t.call({action:'obter'},false,antigo)).status,401);assert.equal((await t.call({action:'obter'},false,c.convite)).status,200);
+ r=(await t.call({action:'revogar',id:r.id,versao:r.versao,conviteId:acesso.id})).item;assert.equal((await t.call({action:'obter'},false,c.convite)).status,401);
+ assert.equal((await t.call({action:'renovarConvite',id:r.id,versao:r.versao,conviteId:acesso.id,semValidade:true})).status,422);
+});
+
+test('permanência exige opção booleana explícita e não interpreta datas legadas vazias',async()=>{
+ const t=setup();let r=(await t.call({action:'salvar',item:item()})).item;
+ for(const semValidade of ['true',1,null])assert.equal((await t.call({action:'convidar',id:r.id,versao:r.versao,nome:'Inválido',semValidade,dias:2})).status,422);
+ let c=await t.call({action:'convidar',id:r.id,versao:r.versao,nome:'Legado',dias:2});r=c.item;const salvo=t.rows.get(r.id).convites[0];salvo.expiraEm=null;
+ assert.equal((await t.call({action:'obter'},false,c.convite)).status,401);assert.equal((await t.call({action:'obter',id:r.id})).item.convites[0].estadoAcesso,'invalido');
+ salvo.semValidade=true;salvo.expiraEm='texto inválido';assert.equal((await t.call({action:'obter'},false,c.convite)).status,401);
+});
+
+test('renovar administrador para permanente não amplia nem reativa filhos antigos',async()=>{
+ const t=setup(),{id,admin,filho}=await equipeConvidada(t);let r=t.rows.get(id);const aid=r.convites[0].id,fid=r.convites[1].id;r.convites[1].expiraEm='2000-01-01';const antigo=structuredClone(r.convites[1]);
+ let x=await t.call({action:'renovarConvite',id,versao:r.versao,conviteId:aid,semValidade:true});assert.equal(x.status,200);r=t.rows.get(id);assert.equal(r.convites[0].expiraEm,null);assert.equal(r.convites[0].semValidade,true);assert.deepEqual(structuredClone(r.convites[1]),antigo);
+ assert.equal((await t.call({action:'obter'},false,admin.convite)).status,200);assert.equal((await t.call({action:'obter'},false,filho.convite)).status,401);
+ x=await t.call({action:'renovarConvite',versao:r.versao,conviteId:fid,semValidade:true},false,admin.convite);assert.equal(x.status,200);r=t.rows.get(id);assert.equal(r.convites[1].semValidade,true);assert.equal(r.convites[1].expiraEm,null);assert.equal((await t.call({action:'obter'},false,filho.convite)).status,200);
+ x=await t.call({action:'revogar',id,versao:r.versao,conviteId:aid});assert.equal(x.status,200);assert.ok(t.rows.get(id).convites.every(c=>c.revogadoEm));assert.equal((await t.call({action:'obter'},false,filho.convite)).status,401);
+});
+
+test('pai finito limita convite solicitado sem prazo e redução posterior limita filhos permanentes',async()=>{
+ const t=setup(),{id,admin}=await equipeConvidada(t);let r=t.rows.get(id);const aid=r.convites[0].id;
+ let x=await t.call({action:'convidar',versao:r.versao,consultorId:r.consultores[0].id,nivel:'colaborador',semValidade:true},false,admin.convite);assert.equal(x.status,200);r=t.rows.get(id);assert.equal(r.convites.at(-1).semValidade,false);assert.equal(r.convites.at(-1).expiraEm,r.convites[0].expiraEm);
+ x=await t.call({action:'renovarConvite',id,versao:r.versao,conviteId:aid,semValidade:true});r=t.rows.get(id);assert.equal(x.status,200);
+ x=await t.call({action:'renovarConvite',versao:r.versao,conviteId:r.convites.at(-1).id,semValidade:true},false,admin.convite);assert.equal(x.status,200);r=t.rows.get(id);assert.equal(r.convites.at(-1).semValidade,true);
+ x=await t.call({action:'renovarConvite',id,versao:r.versao,conviteId:aid,dias:1});assert.equal(x.status,200);r=t.rows.get(id);assert.equal(r.convites[0].semValidade,false);assert.equal(r.convites.at(-1).semValidade,false);assert.equal(r.convites.at(-1).expiraEm,r.convites[0].expiraEm);const limite=r.convites.at(-1).expiraEm;
+ x=await t.call({action:'renovarConvite',id,versao:r.versao,conviteId:aid,semValidade:true});assert.equal(x.status,200);r=t.rows.get(id);assert.equal(r.convites.at(-1).expiraEm,limite);assert.equal(r.convites.at(-1).semValidade,false);
+});
