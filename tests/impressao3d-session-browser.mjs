@@ -1,0 +1,20 @@
+import assert from 'node:assert/strict';
+import {mkdir,writeFile} from 'node:fs/promises';
+const {chromium}=await import(process.env.PLAYWRIGHT_MODULE || 'playwright');
+const base=process.env.PRINT_BASE_URL || 'http://127.0.0.1:4390/revisao-local.html';
+assert(['127.0.0.1','localhost'].includes(new URL(base).hostname));
+const out=process.env.PRINT_TEST_OUTPUT || '/tmp/p3d-browser';await mkdir(out,{recursive:true});
+const browser=await chromium.launch({headless:true,executablePath:process.env.CHROME_PATH || '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',args:['--enable-webgl','--use-angle=swiftshader','--enable-unsafe-swiftshader']});
+const page=await browser.newPage({viewport:{width:1440,height:1100}});const checks=[];
+await page.addInitScript(()=>{const descriptor=Object.getOwnPropertyDescriptor(IDBTransaction.prototype,'oncomplete');Object.defineProperty(IDBTransaction.prototype,'oncomplete',{...descriptor,set(callback){const transaction=this;descriptor.set.call(this,event=>{if(transaction.mode==='readwrite'&&window.__delayPrintSave) setTimeout(()=>callback.call(transaction,event),window.__delayPrintSave);else callback.call(transaction,event);});}});});
+const home=()=>page.getByRole('link',{name:'Início',exact:true}).click();
+const open=async()=>{await page.getByRole('link',{name:'Ferramenta I.A',exact:true}).click();await page.getByRole('button',{name:/Impressão 3D/}).click();await page.getByRole('button',{name:'Gerar e conferir 3D',exact:true}).waitFor();};
+try{
+ await page.goto(base+'#/ferramenta-ia?ferramenta=impressao-3d');const name=page.getByRole('textbox',{name:'Nome do projeto',exact:true});await name.waitFor();await name.fill('Edição pendente sintética');await home();
+ assert(await page.evaluate(()=>{const e=new Event('beforeunload',{cancelable:true});window.dispatchEvent(e);return e.defaultPrevented;}));checks.push('Unsaved draft protects reload outside print page');
+ await open();await page.getByText('Edição pendente recuperada desta sessão.',{exact:false}).waitFor();assert.equal(await name.inputValue(),'Edição pendente sintética');
+ await page.evaluate(()=>{window.__delayPrintSave=900;});await page.getByRole('button',{name:'Salvar rascunho',exact:true}).click();await home();await open();
+ await page.getByText('Rascunho recuperado deste navegador.',{exact:false}).waitFor();assert.equal(await name.inputValue(),'Edição pendente sintética');checks.push('Late save finishes before draft remount');
+ await name.fill('Segunda edição sintética');await page.getByRole('button',{name:'Salvar rascunho',exact:true}).click();await page.getByText('Rascunho salvo neste navegador, para sua conta.',{exact:false}).waitFor();assert.equal(await page.getByText('Outra aba alterou este rascunho.',{exact:false}).count(),0);checks.push('Next save uses version from completed own write');
+ await home();assert.equal(await page.evaluate(()=>{const e=new Event('beforeunload',{cancelable:true});window.dispatchEvent(e);return e.defaultPrevented;}),false);checks.push('Clean saved session removes reload guard');
+}finally{await writeFile(out+'/session-race.json',JSON.stringify({base,checks},null,2));await browser.close();}console.log(checks);

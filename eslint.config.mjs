@@ -19,6 +19,7 @@ import react from "eslint-plugin-react";
 import globals from "globals";
 
 export default [
+  { ignores: ['src/lib/impressao3d/vendor/manifold/manifold.js'] }, // Runtime oficial de terceiro; hashes preservados em PROVENANCE.json.
   {
     files: ["src/**/*.{js,jsx}"],
     languageOptions: {
