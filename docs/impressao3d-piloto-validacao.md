@@ -1,10 +1,10 @@
-# Impressão 3D - piloto local
+# Impressão 3D - piloto publicado
 
-28/10/2026 · Impresilk · Para revisão, sem publicação.
+28/10/2026 · Impresilk · Publicado e conferido após autorização do dono.
 
 ## Entrega
 
-Nova entrada `Impressão 3D` em Ferramenta I.A, no clone e ramo locais. Gera corpos de letras com fundo integrado, cavidade e apoio para frente nominal de acrílico. Tem texto com duas fontes, importação restrita de SVG/DXF, parâmetros em milímetros, prévia 3D real, conferência individual contra o volume da impressora e arquivos por peça.
+Nova entrada `Impressão 3D` em Ferramenta I.A, disponível no painel oficial. Gera corpos de letras com fundo integrado, cavidade e apoio para frente nominal de acrílico. Tem texto com duas fontes, importação restrita de SVG/DXF, parâmetros em milímetros, prévia 3D real, conferência individual contra o volume da impressora e arquivos por peça.
 
 Perfis informados pelo usuário e conferidos nas páginas oficiais:
 
@@ -58,7 +58,7 @@ Nenhuma impressão física foi feita nesta rodada. Não houve novo fatiamento de
 
 A análise externa exclui pares de triângulos que compartilham vértice e não prova universalmente a ausência de dobras adjacentes. Os resultados do corpus não homologam toda arte futura.
 
-Não estão incluídos: G-code, 3MF, JPG/PNG/PDF como geometria, auto-reparo, divisão de peças, fatiador, envio à impressora, preços/tempo de produção, LED/fiação ou publicação no painel oficial.
+Não estão incluídos: G-code, 3MF, JPG/PNG/PDF como geometria, auto-reparo, divisão de peças, fatiador, envio à impressora, preços/tempo de produção ou LED/fiação.
 
 ## Próxima etapa prática
 
@@ -73,7 +73,7 @@ Base `61671cc28d8116862829fa0c5eebfb8bd85acc24`, ramo local `codex/impressao3d-p
 
 - Dev: `vite --mode review --host 127.0.0.1 --port 4390 --strictPort`, página `revisao-local.html#/ferramenta-ia?ferramenta=impressao-3d`.
 - Build revisão: `vite build --mode review --config vite.review.config.js`; servir em `/dist-review/`.
-- Build oficial: `BASE_PATH=/painel-impresilk/ vite build`; foi verificado localmente, sem deploy.
+- Build oficial: `BASE_PATH=/painel-impresilk/ vite build`; verificado localmente e publicado conforme registro abaixo.
 - Browser: `tests/impressao3d-browser.mjs` e `tests/impressao3d-session-browser.mjs`; variáveis `PLAYWRIGHT_MODULE`, `CHROME_PATH`, `PRINT_BASE_URL` e `PRINT_TEST_OUTPUT` permitem adaptar o ambiente. Testes recusam URL fora de localhost e usam dados sintéticos.
 - Persistência: não publicar as evidências de navegador com dados reais. O material deste piloto usa somente exemplos sintéticos.
 
@@ -81,4 +81,17 @@ Base `61671cc28d8116862829fa0c5eebfb8bd85acc24`, ramo local `codex/impressao3d-p
 
 Após revisão, o dono autorizou “subir projeto e publicar”. Liberar a versão aprovada como Piloto, conservando as limitações documentadas. A integração utiliza a permissão existente de Ferramenta I.A, sem servidor ou migração. Os rascunhos ficam no navegador por conta, sem envio de arquivo ao servidor. Revalidar testes, builds, workflow Pages e arquivos servidos antes de registrar a conclusão.
 
-Verificação fresca de release: 1.880 testes gerais, 1.496 de cálculos e 7 de acessos aprovados, sem falhas ou exclusões. Lint sem erros, somente aviso preexistente em Agenda. Os 14 verificadores anteriores ao build e as 72 classes de cor passaram; builds de produção e revisão concluídos. Referência externa de sistemas: vida-leo `6adc6dcfbf8bba55ff7694e2a8f12cf6b58bcb84`. Revisão independente repetiu os 41 testes focados, conferiu a proveniência do runtime e os caminhos dos recursos de produção, sem bloqueadores. Publicação ainda depende do workflow e da conferência oficial.
+Verificação fresca de release: 1.880 testes gerais, 1.496 de cálculos e 7 de acessos aprovados, sem falhas ou exclusões. Lint sem erros, somente aviso preexistente em Agenda. Os 14 verificadores anteriores ao build e as 72 classes de cor passaram; builds de produção e revisão concluídos. Referência externa de sistemas: vida-leo `6adc6dcfbf8bba55ff7694e2a8f12cf6b58bcb84`. Revisão independente repetiu os 41 testes focados, conferiu a proveniência do runtime e os caminhos dos recursos de produção, sem bloqueadores. Workflow e conferência oficial concluídos conforme registro abaixo.
+
+## Publicado e conferido - 28/10/2026
+
+- Interface `6515d00fac13dc771a4372be036c4eb7a04f7418`; [Pages 40730694886](https://github.com/leogpereira-afk/painel-impresilk/actions/runs/40730694886) concluído com sucesso em build e deploy.
+- [Endereço oficial](https://leogpereira-afk.github.io/painel-impresilk/ferramenta-ia?ferramenta=impressao-3d), sessão autenticada recarregada e nova entrada de menu conferida.
+- Vinte recursos públicos responderam HTTP 200 e conferem byte a byte por SHA-256 com o build local aprovado: HTML, entrada, FerramentaIA, módulo/viewport, CSS, Worker, Manifold JS/WASM, fontes, licenças e dependências diretas. WASM servido como `application/wasm`.
+- Letra A gerada em produção para Ender-3 V3 e K1 Max: corpo 107,3247756958 × 120 × 40 mm; frente nominal 99,70070877 × 114,7 × 3 mm. Mudança de perfil invalida a exportação até gerar novamente; navegação recupera a edição pendente da sessão.
+- STL do corpo baixado e relido: 188 triângulos, 9.484 bytes, mínimo XYZ zero e dimensões correspondentes. SHA-256 `066f578b20a618c9afb63c6a6acc9d90c873c1717f277714d24f898942a12534`.
+- SVG nominal baixado e relido: XML válido, width/height em mm e viewBox correspondente. SHA-256 `e801bb045a5b101084accf6ea4784ccdde3b6cfc389b58db195024e446b57559`.
+- Vista montada/separada e geração conferidas no navegador oficial; nenhum erro ou aviso de console capturado. O evento de download da automação expirou, mas a conclusão foi confirmada pela existência, horário e leitura integral dos arquivos baixados.
+- Apenas a amostra sintética A foi usada. Nenhum rascunho foi gravado e nenhum registro real, acesso ou servidor foi alterado. Definição de material, fatiamento e impressão física continuam pendentes; publicação permanece identificada como Piloto.
+
+Conferência de whitespace: código próprio sem ocorrências após remover uma linha final vazia; espaços das licenças originais foram preservados. Evidências detalhadas e captura do site oficial guardadas fora do repositório público.
