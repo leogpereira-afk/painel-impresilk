@@ -45,3 +45,17 @@ Em 27/10/2026, servidor 9db2370 publicado seletivamente como painel-processos v9
 - Testes locais cobrem gravação, histórico, recarga, permissões, links permanentes e revogação; não equivalem à prova final de escrita em produção.
 - A revisão automática bloqueou a execução do teste produtivo por criar acessos permanentes, exigindo autorização específica. Pergunta enviada ao dono. A ficha fictícia de preparação foi encerrada e todos os seus acessos revogados; nada foi apagado.
 - Pendente: após autorização, criar somente acessos isolados para dados fictícios, validar edição/recarga/histórico no servidor e navegador, e revogar ao concluir. Nenhuma ação ou convite real foi alterado.
+
+## Teste produtivo autorizado e concluído
+
+Após autorização específica do dono, o teste foi executado exclusivamente na ficha técnica fictícia. Foram criados acessos de administrador, colaborador e leitura com opção explícita sem vencimento. O colaborador editou uma ação de outro autor via servidor e pela interface oficial; autoria, criação, implantação e duas revisões antes/depois permaneceram após recarregar. Uma repetição sem mudança não criou revisão adicional.
+
+O servidor recusou escrita por leitor (403), edição de registro interno (404), acesso a outra ficha (403) e versão desatualizada (409). A tela de leitura não ofereceu edição. Ao final, os acessos de teste foram revogados; os três tokens retornaram 401 e a recarga mostrou convite encerrado. A ficha foi cancelada, preservando duas revisões e todo o histórico.
+
+Todas as gravações do teste foram limitadas ao ID fictício. A conferência final encontrou atividade legítima de usuário nas fichas reais durante a janela de teste; esses anexos e eventos foram preservados. Por isso, o hash integral posterior difere do anterior e não é usado como prova de imutabilidade. Não há eventos do ator fictício nas fichas reais. Evidências e credenciais revogadas permanecem fora do repositório público.
+
+## Refinamento visual posterior — publicação autorizada
+
+O dono solicitou chips mais modernos e robustos após a publicação. Abas ganharam ícones, contadores separados, borda, relevo discreto e seleção evidente. Estado, setor, prioridade e prazo foram compactados em chips; métricas e filtros seguem o mesmo padrão. CSS restrito à Consultoria, tema escuro com contraste corrigido e duas colunas de navegação no celular.
+
+Verificação: 84 testes pertinentes aprovados, lint direcionado e diff-check limpos, build oficial em diretório separado. Navegador conferiu abas, estado selecionado e temas em computador e largura de 390 px, sem rolagem horizontal nem erros de console. Prévia aprovada e publicação autorizada pelo dono em 28/10/2026. Esta liberação contém somente a apresentação e os registros de verificação; sem migração, alteração de servidor ou gravação de dados produtivos.

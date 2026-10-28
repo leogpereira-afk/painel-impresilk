@@ -1,0 +1,53 @@
+/* Navegação e chips da ficha de consultoria. Sem alterar Demandas ou permissões. */
+.consultoria-ficha { --consultoria-ink:#24304b; --consultoria-muted:#56637a; --consultoria-line:#dce1ed; --consultoria-surface:#fff; --consultoria-soft:#f5f6fb; --consultoria-active:#4338ca; --consultoria-active-soft:#edeafd; }
+.consultoria-ficha .consultoria-cabecalho { border-radius:16px; border-color:var(--consultoria-line); padding:15px 16px; box-shadow:0 2px 6px #1b285608; }
+.consultoria-ficha .consultoria-atributos { display:flex; flex-wrap:wrap; align-items:center; gap:7px; padding:3px 0; }
+.consultoria-ficha .consultoria-chip { display:inline-flex; align-items:center; gap:6px; min-height:30px; max-width:100%; padding:5px 10px; border:1px solid var(--consultoria-line); border-radius:9px; background:var(--consultoria-soft); color:var(--consultoria-muted); font-size:12px; line-height:1.4; font-weight:600; }
+.consultoria-ficha .consultoria-chip svg { flex:none; }
+.consultoria-ficha .consultoria-chip-situacao { border-color:#c7c1ed; background:#eeebfc; color:#413297; }
+.consultoria-ficha .consultoria-chip.situacao-concluida { border-color:#b0d8c9; background:#e9f5ef; color:#176043; }
+.consultoria-ficha .consultoria-chip.situacao-cancelada { border-color:var(--consultoria-line); background:var(--consultoria-soft); color:var(--consultoria-muted); }
+.consultoria-ficha .consultoria-chip.prioridade-alta,.consultoria-ficha .consultoria-chip.prioridade-urgente { border-color:#eac2a2; background:#fff4e8; color:#87500f; }
+.consultoria-ficha .processo-abas { display:grid; grid-template-columns:repeat(auto-fit,minmax(145px,1fr)); gap:8px; border:0; border-radius:0; background:transparent; padding:2px 0 5px; overflow:visible; }
+.consultoria-ficha .processo-abas button { position:relative; display:flex; align-items:center; gap:9px; min-width:0; min-height:56px; padding:9px 11px; border:1px solid var(--consultoria-line); border-radius:13px; background:var(--consultoria-surface); color:var(--consultoria-ink); font-size:13px; line-height:1.25; font-weight:650; text-align:left; box-shadow:0 2px 5px #1b285607,inset 0 1px #ffffffb3; transition:border-color .15s,box-shadow .15s,background .15s; white-space:normal; }
+.consultoria-ficha .processo-abas button:hover:not(:disabled) { border-color:#aba2df; box-shadow:0 3px 9px #4338ca12; background:#fbfaff; }
+.consultoria-ficha .processo-abas button.selecionada { color:#392b9d; background:var(--consultoria-active-soft); border-color:#8172d1; box-shadow:inset 0 -3px #5b47bf,0 2px 5px #4338ca0d; }
+.consultoria-ficha .processo-abas button:focus-visible { outline:3px solid #7c6ade; outline-offset:3px; }
+.consultoria-ficha .consultoria-aba-icone { display:grid; place-items:center; width:32px; height:32px; flex:none; color:#554591; border:1px solid #ddd6f1; border-radius:9px; background:linear-gradient(145deg,#faf8ff,#ebe5f8); box-shadow:inset 0 1px #fff,0 2px 3px #3122600b; }
+.consultoria-ficha .icone-trabalho { color:#31686a; border-color:#c5dedd; background:linear-gradient(145deg,#f5fcfb,#deeeec); }
+.consultoria-ficha .icone-acoes { color:#4c50ad; border-color:#d1d5f2; background:linear-gradient(145deg,#f5f7ff,#e3e6fb); }
+.consultoria-ficha .icone-etapas { color:#986624; border-color:#e8d8bc; background:linear-gradient(145deg,#fffcf7,#f6ead5); }
+.consultoria-ficha .icone-arquivos { color:#397199; border-color:#c7dbe9; background:linear-gradient(145deg,#f5fbff,#ddecf5); }
+.consultoria-ficha .icone-acesso { color:#8c4e79; border-color:#e6cfdf; background:linear-gradient(145deg,#fff8fc,#f3e5ed); }
+.consultoria-ficha .selecionada .consultoria-aba-icone { color:#fff; border-color:#6956c3; background:linear-gradient(145deg,#7a64db,#4b389f); box-shadow:inset 0 1px #b5a6ef,0 2px 4px #4338ca26; }
+.consultoria-ficha .consultoria-aba-rotulo { flex:1; min-width:0; }
+.consultoria-ficha .consultoria-aba-contagem { display:inline-flex; align-items:center; justify-content:center; min-width:24px; min-height:24px; flex:none; padding:2px 6px; border:1px solid #e1e4ed; border-radius:7px; background:#f1f3f8; color:#526079; font-size:11px; font-weight:750; font-variant-numeric:tabular-nums; }
+.consultoria-ficha .selecionada .consultoria-aba-contagem { color:#443293; background:#fff; border-color:#c9c0e9; }
+.consultoria-ficha .processo-chip,.consultoria-ficha .consultoria-acao-tipo,.consultoria-ficha .consultoria-acao-meta .consultoria-acao-estado { display:inline-flex; align-items:center; gap:5px; min-height:24px; padding:3px 8px; border:1px solid currentColor; border-color:color-mix(in srgb,currentColor 19%,transparent); border-radius:7px; font-size:11px; line-height:1.35; font-weight:650; }
+.consultoria-ficha .consultoria-acao-tipo::before { content:''; width:5px; height:5px; border-radius:50%; background:currentColor; flex:none; }
+.consultoria-ficha .processo-metricas>button,.consultoria-ficha .processo-metrica { border:1px solid var(--consultoria-line); border-radius:12px; background:var(--consultoria-soft); padding:11px 12px; box-shadow:inset 0 1px #ffffff99; }
+.consultoria-ficha .processo-metricas>button:hover { border-color:#aca1df; background:#f1eefc; }
+.consultoria-ficha .processo-metricas strong { font-size:23px; letter-spacing:-.025em; }
+.consultoria-ficha .consultoria-acoes-filtros { border-radius:11px; background:var(--consultoria-surface); box-shadow:0 2px 4px #1b285608; }
+.consultoria-ficha .consultoria-acoes-filtros[open] { border-color:#a99bdc; background:var(--consultoria-soft); }
+.dark .consultoria-ficha { --consultoria-ink:#e7eaf6; --consultoria-muted:#b7c1d6; --consultoria-line:#3c4761; --consultoria-surface:#1b2439; --consultoria-soft:#222d44; --consultoria-active:#bdb0ff; --consultoria-active-soft:#30284f; }
+.dark .consultoria-ficha .consultoria-cabecalho>.text-indigo-700 { color:#c9bdff; }
+.dark .consultoria-ficha .processo-abas button { box-shadow:inset 0 1px #ffffff09,0 2px 5px #0002; }
+.dark .consultoria-ficha .processo-abas button:hover:not(:disabled),.dark .consultoria-ficha .processo-metricas>button:hover { background:#2b2d49; border-color:#9281c6; }
+.dark .consultoria-ficha .processo-abas button.selecionada { color:#e5ddff; background:#30284f; border-color:#9883d9; box-shadow:inset 0 -3px #b6a1fa,0 2px 5px #0002; }
+.dark .consultoria-ficha .consultoria-aba-icone { color:#ddd2ff; border-color:#554b70; background:linear-gradient(145deg,#3a3551,#29233e); box-shadow:inset 0 1px #ffffff0d; }
+.dark .consultoria-ficha .icone-trabalho { color:#aedbd6; border-color:#3e6263; background:linear-gradient(145deg,#29464a,#20353b); }
+.dark .consultoria-ficha .icone-acoes { color:#c5caff; border-color:#4f577d; background:linear-gradient(145deg,#353c61,#282e4b); }
+.dark .consultoria-ficha .icone-etapas { color:#eac58b; border-color:#6b593c; background:linear-gradient(145deg,#463d2e,#342d25); }
+.dark .consultoria-ficha .icone-arquivos { color:#b1d4ef; border-color:#46647e; background:linear-gradient(145deg,#2e4359,#233449); }
+.dark .consultoria-ficha .icone-acesso { color:#e7bddb; border-color:#72536d; background:linear-gradient(145deg,#4d354b,#3c2a3c); }
+.dark .consultoria-ficha .selecionada .consultoria-aba-icone { color:#fff; border-color:#9480dd; background:linear-gradient(145deg,#7c64c2,#554394); }
+.dark .consultoria-ficha .consultoria-aba-contagem { background:#303b53; border-color:#46516c; color:#d5dded; }
+.dark .consultoria-ficha .selecionada .consultoria-aba-contagem { background:#473a68; border-color:#7c69a5; color:#eee8ff; }
+.dark .consultoria-ficha .consultoria-chip-situacao { background:#342b56; border-color:#655381; color:#dfd1ff; }
+.dark .consultoria-ficha .consultoria-chip.situacao-concluida { background:#223e36; border-color:#457764; color:#a8dfc0; }
+.dark .consultoria-ficha .consultoria-chip.situacao-cancelada { background:var(--consultoria-soft); border-color:var(--consultoria-line); color:var(--consultoria-muted); }
+.dark .consultoria-ficha .consultoria-chip.prioridade-alta,.dark .consultoria-ficha .consultoria-chip.prioridade-urgente { background:#443423; border-color:#886841; color:#f0ce99; }
+.dark .consultoria-ficha .processo-metricas>button,.dark .consultoria-ficha .processo-metrica { box-shadow:inset 0 1px #ffffff07; }
+@media(max-width:640px) { .consultoria-ficha .processo-abas { grid-template-columns:repeat(2,minmax(0,1fr)); gap:7px; } .consultoria-ficha .processo-abas button { min-height:54px; gap:7px; padding:8px 9px; font-size:12px; } .consultoria-ficha .consultoria-aba-icone { width:30px; height:30px; } .consultoria-ficha .consultoria-cabecalho { padding:12px; } .consultoria-ficha .consultoria-chip { font-size:11px; padding:5px 8px; } }
+@media(prefers-reduced-motion:reduce) { .consultoria-ficha .processo-abas button { transition:none; } }
