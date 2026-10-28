@@ -59,3 +59,12 @@ Todas as gravações do teste foram limitadas ao ID fictício. A conferência fi
 O dono solicitou chips mais modernos e robustos após a publicação. Abas ganharam ícones, contadores separados, borda, relevo discreto e seleção evidente. Estado, setor, prioridade e prazo foram compactados em chips; métricas e filtros seguem o mesmo padrão. CSS restrito à Consultoria, tema escuro com contraste corrigido e duas colunas de navegação no celular.
 
 Verificação: 84 testes pertinentes aprovados, lint direcionado e diff-check limpos, build oficial em diretório separado. Navegador conferiu abas, estado selecionado e temas em computador e largura de 390 px, sem rolagem horizontal nem erros de console. Prévia aprovada e publicação autorizada pelo dono em 28/10/2026. Esta liberação contém somente a apresentação e os registros de verificação; sem migração, alteração de servidor ou gravação de dados produtivos.
+
+## Chips publicados e conferidos em 28/10/2026
+
+- Interface `64b79fa`; Pages `40667741839` com build e deploy concluídos com sucesso.
+- Nove arquivos públicos conferidos byte a byte com o build aprovado, incluindo o CSS específico dos chips.
+- Verificação fresca: 1.872 testes gerais e 84 testes pertinentes aprovados; lint sem erros, build oficial e conferência de classes aprovados. O aviso preexistente de Agenda continua sem relação com esta alteração.
+- Navegador no site oficial: computador em 1440 px e largura móvel de 390 px, abas navegáveis, seleção visível, contadores e ícones presentes. No celular, duas colunas com ações de 54 px de altura, sem rolagem horizontal.
+- Histórico do processo aberto após a recarga; console sem erros. Comparação integral dos registros antes/depois sem diferença. Nenhuma escrita nos dados produtivos durante esta liberação.
+- Servidor, permissões e acessos preservados. Evidências visuais e comparação de integridade mantidas fora do repositório público.
