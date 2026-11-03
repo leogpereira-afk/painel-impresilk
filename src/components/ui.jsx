@@ -296,9 +296,9 @@ export function ErroModulo({ mensagem, aoTentar }) {
   );
 }
 
-export function AvisoAtualizacao({erro,aoTentar}) {
+export function AvisoAtualizacao({erro,aoTentar,leituraAnterior=true}) {
   if (!erro) return null;
-  return <div role="alert" className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-warn-200 bg-warn-50 p-4 text-sm text-warn-800"><p><strong>Não foi possível atualizar.</strong> {erro} A última leitura continua visível.</p><button type="button" className="btn-outline" onClick={aoTentar}>Tentar novamente</button></div>;
+  return <div role="alert" className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-warn-200 bg-warn-50 p-4 text-sm text-warn-800"><p><strong>Não foi possível atualizar.</strong> {erro}{leituraAnterior?' A última leitura continua visível.':''}</p><button type="button" className="btn-outline" onClick={aoTentar}>Tentar novamente</button></div>;
 }
 
 export { TOM };

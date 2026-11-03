@@ -290,3 +290,68 @@ test('item ausente avisa sem trocar relatório nem ocultar os demais registros',
   const html=renderizar({dados:relatorio({oportunidades:[oportunidades[0]]}),itemSelecionado:'item-ausente-ficticio'});
   assert.match(html,/O item indicado no link não foi encontrado neste relatório/);assert.match(html,/Processo demonstrativo A/);assert.doesNotMatch(html,/aria-current="true"/);
 });
+
+// Exerce os callbacks reais e a recomposição do componente; efeitos respeitam
+// dependências, para reproduzir mudanças de relatório/item após filtros ativos.
+function comPesquisaInterativa(props,executar){
+  const dispatcher=React.__SECRET_INTERNALS_DO_NOT_USE_OR_YOU_WILL_BE_FIRED.ReactCurrentDispatcher,anterior=dispatcher.current;
+  const estados=[],efeitos=[];let estadoIndice=0,efeitoIndice=0,pendentes=[],atuais=props;
+  dispatcher.current={useId:()=> 'interativo',useRef:()=>({current:null}),useMemo:fn=>fn(),useState:inicial=>{
+    const indice=estadoIndice++;if(!(indice in estados))estados[indice]=typeof inicial==='function'?inicial():inicial;
+    return [estados[indice],valor=>{estados[indice]=typeof valor==='function'?valor(estados[indice]):valor;}];
+  },useEffect:(fn,deps)=>{const indice=efeitoIndice++,previos=efeitos[indice];if(!previos||deps.some((valor,i)=>!Object.is(valor,previos[i]))){efeitos[indice]=deps;pendentes.push(fn);}}};
+  function renderizar(proximas=atuais){atuais=proximas;let arvore;for(let n=0;n<4;n++){estadoIndice=0;efeitoIndice=0;pendentes=[];arvore=PesquisaLicitacoes(atuais);if(!pendentes.length)return arvore;for(const efeito of pendentes)efeito();}throw Error('Efeitos não estabilizaram.');}
+  function buscar(arvore,predicado,achados=[]){if(Array.isArray(arvore)){for(const item of arvore)buscar(item,predicado,achados);}else if(arvore?.props){if(predicado(arvore))achados.push(arvore);buscar(arvore.props.children,predicado,achados);}return achados;}
+  const componente=(arvore,nome)=>buscar(arvore,no=>no.type?.name===nome);
+  const botao=(arvore,texto)=>buscar(arvore,no=>no.type==='button'&&React.Children.toArray(no.props.children).some(item=>item===texto))[0];
+  try{return executar({renderizar,componente,botao});}finally{dispatcher.current=anterior;}
+}
+
+test('categoria e busca filtram serviços dos dois grupos e podem ser limpas sem alterar origem',()=>{
+  const dados=relatorio({oportunidades,candidatosRetidos:[{id:'pendente-adesivo',orgao:'Órgão Fictício',processo:'Processo Fictício',produto:'Adesivos',motivos:['Conferir execução.']}]});
+  const antes=structuredClone(dados);
+  comPesquisaInterativa({dados},({renderizar,componente,botao})=>{
+    let arvore=renderizar(),explorador=componente(arvore,'ExploradorServicos')[0];
+    explorador.props.aoCategoria('adesivos');arvore=renderizar();explorador=componente(arvore,'ExploradorServicos')[0];
+    assert.equal(explorador.props.encontrados.itens,2);assert.equal(componente(arvore,'Oportunidade').length,1);
+    assert.equal(componente(arvore,'CandidatosPendentes')[0].props.categoria,'adesivos');
+    explorador.props.aoBusca('pendente-adesivo');arvore=renderizar();
+    assert.equal(componente(arvore,'ExploradorServicos')[0].props.encontrados.itens,1);assert.equal(componente(arvore,'Oportunidade').length,0);
+    botao(arvore,'Limpar todos os filtros').props.onClick();arvore=renderizar();
+    assert.equal(componente(arvore,'ExploradorServicos')[0].props.categoria,'');assert.equal(componente(arvore,'ExploradorServicos')[0].props.busca,'');
+    assert.equal(componente(arvore,'ExploradorServicos')[0].props.encontrados.itens,4);
+  });
+  assert.deepEqual(dados,antes);
+});
+
+test('filtros avançados afetam somente analisados e PDF/calendário recebem o registro original',()=>{
+  const pendente={id:'pendente-ficticio',produto:'Adesivos',motivos:['Conferir destino.']},dados=relatorio({oportunidades,candidatosRetidos:[pendente]});
+  let pdf;const agendados=[],props={dados,aoBaixarPDF:valor=>{pdf=valor;},aoAgendar:(...args)=>agendados.push(args)};
+  comPesquisaInterativa(props,({renderizar,componente,botao})=>{
+    let arvore=renderizar();componente(arvore,'FiltroSelect').find(item=>item.props.titulo==='Classificação').props.aoMudar('GO');arvore=renderizar();
+    const cards=componente(arvore,'Oportunidade'),retidos=componente(arvore,'CandidatosPendentes')[0];
+    assert.equal(cards.length,1);assert.equal(retidos.props.candidatos,dados.candidatosRetidos);assert.equal(retidos.props.categoria,'');
+    botao(arvore,'Baixar resumo PDF').props.onClick();assert.equal(pdf,dados);
+    cards[0].props.aoAgendar(cards[0].props.item);retidos.props.aoAgendar(pendente);
+    assert.equal(agendados[0][0],oportunidades[0]);assert.deepEqual(agendados[0][1],{pendente:false,relatorio:dados});assert.equal(agendados[1][0],pendente);assert.deepEqual(agendados[1][1],{pendente:true,relatorio:dados});
+  });
+});
+
+test('trocar relatório ou abrir deep link limpa categoria e busca antigas',()=>{
+  const dados=relatorio({oportunidades}),outro=relatorio({id:'relatorio-outro',oportunidades:[{...oportunidades[0],id:'outro-item',produto:'ACM'}]});
+  comPesquisaInterativa({dados},({renderizar,componente})=>{
+    let arvore=renderizar(),explorador=componente(arvore,'ExploradorServicos')[0];explorador.props.aoCategoria('adesivos');explorador.props.aoBusca('adesivos');arvore=renderizar();
+    arvore=renderizar({dados,itemSelecionado:'exemplo-1'});explorador=componente(arvore,'ExploradorServicos')[0];
+    assert.equal(explorador.props.categoria,'');assert.equal(explorador.props.busca,'');assert.equal(componente(arvore,'Oportunidade').find(card=>card.props.item.id==='exemplo-1').props.selecionado,true);
+    explorador.props.aoCategoria('adesivos');arvore=renderizar({dados:outro});explorador=componente(arvore,'ExploradorServicos')[0];
+    assert.equal(explorador.props.categoria,'');assert.deepEqual(explorador.props.categorias.map(item=>item.id),['acm']);assert.equal(componente(arvore,'Oportunidade')[0].props.item.id,'outro-item');
+  });
+});
+
+test('descrição longa tem título compacto e conteúdo integral acessível nos detalhes',()=>{
+  const produto='Fornecimento de placas de sinalização demonstrativas, incluindo instalação, acabamento, arte e preparação do local em todas as unidades do órgão fictício. FINAL DA DESCRIÇÃO FICTÍCIA.';
+  const html=renderizar({dados:relatorio({candidatosRetidos:[{id:'longo-ficticio',produto,motivos:['Conferir documentação.','Conferir destino.']}]})});
+  const titulo=html.match(/<h4 class="lp-servico-produto">([^<]*)<\/h4>/)?.[1];assert.ok(titulo.length<=110);assert.ok(titulo.endsWith('…'));
+  assert.match(html,/Descrição do serviço/);assert.match(html,/FINAL DA DESCRIÇÃO FICTÍCIA/);assert.match(html,/Conferência pendente/);assert.match(html,/Motivos da pendência/);
+  assert.match(html,/<details class="lp-cobertura-painel">/);assert.doesNotMatch(html,/<details class="lp-cobertura-painel" open/);
+});

@@ -15,7 +15,7 @@ async function chamar(action, mes) {
     body: JSON.stringify({ action, mes }),
   });
   const body = await resp.json().catch(() => null);
-  if (!resp.ok) throw new Error(body?.erro || mensagemDoStatus(resp.status));
+  if (!resp.ok) throw Object.assign(new Error(body?.erro || mensagemDoStatus(resp.status)), {status:resp.status});
   return body;
 }
 

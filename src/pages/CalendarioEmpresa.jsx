@@ -52,7 +52,7 @@ export default function CalendarioEmpresa({sessao}) {
   const [patrimonio,setPatrimonio]=useState({chave:'',eventos:[]}),[erroPatrimonio,setErroPatrimonio]=useState('');
   const [documentos,setDocumentos]=useState({chave:'',eventos:[]}),[erroDocumentos,setErroDocumentos]=useState('');
   const [comercial,setComercial]=useState({chave:'',eventos:[]}),[erroComercial,setErroComercial]=useState('');
-  const [campanhas,setCampanhas]=useState({chave:'',eventos:[]}),[erroCampanhas,setErroCampanhas]=useState('');
+  const [campanhas,setCampanhas]=useState({chave:'',eventos:[]}),[erroCampanhas,setErroCampanhas]=useState({chave:'',mensagem:''});
   const [licitacoes,setLicitacoes]=useState({chave:'',eventos:[]}),[erroLicitacoes,setErroLicitacoes]=useState('');
   const temLicitacoes=podeAbrir('licitacoes',sessao);
   const temCampanhas=podeAbrir('campanhas',sessao);
@@ -60,6 +60,8 @@ export default function CalendarioEmpresa({sessao}) {
   const temDocumentos=podeAbrir('documentos',sessao);
   const chaveDocumentos=JSON.stringify([sessao?.usuario,sessao?.master,sessao?.permissoes||[]]);
   const chaveComercial=JSON.stringify([chaveDocumentos,sessao?.vendedorId,mes]);
+  const temLeituraCampanhas=temCampanhas&&campanhas.chave===chaveComercial;
+  const erroCampanhasAtual=temCampanhas&&erroCampanhas.chave===chaveComercial?erroCampanhas.mensagem:'';
   const temPatrimonio=podeAbrir('patrimonio',sessao)||podeAbrir('inventario-valores',sessao);
   const temProcessos=podeAbrir('demandas',sessao);
   const temReunioes=podeAbrir('reunioes',sessao);
@@ -75,8 +77,9 @@ export default function CalendarioEmpresa({sessao}) {
       if (meu !== pedido.current) return;
       setLicitacoes({chave:chaveComercial,eventos:editais.status==='fulfilled'?editais.value:[]});
       setErroLicitacoes(editais.status==='rejected'?'Não foi possível carregar os acompanhamentos de licitações. Atualize para tentar novamente.':'');
-      setCampanhas({chave:chaveComercial,eventos:planos.status==='fulfilled'?planos.value:[]});
-      setErroCampanhas(planos.status==='rejected'?'Não foi possível carregar as ações de campanhas. Atualize para tentar novamente.':'');
+      if(planos.status==='fulfilled')setCampanhas({chave:chaveComercial,eventos:planos.value});
+      else setCampanhas(anterior=>[401,403].includes(planos.reason?.status)||anterior.chave!==chaveComercial?{chave:'',eventos:[]}:anterior);
+      setErroCampanhas({chave:chaveComercial,mensagem:planos.status==='rejected'?'Não foi possível carregar as ações de Campanhas. Atualize para tentar novamente.':''});
       if(atividades.status==='fulfilled')setComercial({chave:chaveComercial,eventos:atividades.value.eventos});
       setErroComercial(atividades.status==='rejected'?'Não foi possível atualizar as atividades comerciais. A última consulta válida deste mês permanece visível.':'');
       setProcessos(trabalhos.status==='fulfilled'?trabalhos.value:[]);
@@ -150,7 +153,7 @@ export default function CalendarioEmpresa({sessao}) {
       <AvisoAtualizacao erro={erroProcessos} aoTentar={recarregar} />
       <AvisoAtualizacao erro={erroPatrimonio} aoTentar={recarregar} />
       <AvisoAtualizacao erro={erroDocumentos} aoTentar={recarregar} />
-      <AvisoAtualizacao erro={erroCampanhas} aoTentar={recarregar} />
+      <AvisoAtualizacao erro={erroCampanhasAtual&&`${erroCampanhasAtual}${temLeituraCampanhas?'':' Não há leitura válida de Campanhas disponível para este mês.'}`} leituraAnterior={temLeituraCampanhas} aoTentar={recarregar} />
       <AvisoAtualizacao erro={erroComercial} aoTentar={recarregar} />
       <AvisoAtualizacao erro={erroLicitacoes} aoTentar={recarregar} />
       <PageTitle
@@ -250,9 +253,11 @@ export default function CalendarioEmpresa({sessao}) {
           </p>
           {visiveis.length === 0 ? (
             <Empty className="mt-4">
-              {foco
-                ? `Nenhum evento do tipo "${foco}" neste mês.`
-                : "Nenhum evento ou reunião lançado neste mês."}
+              {erroCampanhasAtual&&!temLeituraCampanhas&&(!foco||foco==='Campanha')
+                ? "As ações de Campanhas ainda não puderam ser conferidas. Atualize para consultar este mês."
+                : foco
+                  ? `Nenhum evento do tipo "${foco}" neste mês.`
+                  : "Nenhum evento ou reunião lançado neste mês."}
             </Empty>
           ) : (
             <ul className="mt-3">
@@ -277,7 +282,7 @@ export default function CalendarioEmpresa({sessao}) {
           )}
           <p className="mt-4 flex items-center gap-1.5 text-xs text-slate-400">
             <CalendarDays size={13} aria-hidden="true" />
-            Fonte: RH, Reuniões, Comercial, Demandas, Consultorias, Patrimônio, Documentos e Licitações · cada registro é atualizado na sua origem.
+            Fonte: RH, Reuniões, Comercial, Campanhas, Demandas, Consultorias, Patrimônio, Documentos e Licitações · cada registro é atualizado na sua origem.
           </p>
         </Card>
       </div>

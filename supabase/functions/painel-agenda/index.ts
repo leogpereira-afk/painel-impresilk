@@ -97,10 +97,13 @@ async function lerColecao(tabela: string, colecao: string): Promise<any[]> {
   const saida: any[] = [];
   let ultimo = "";
   for (let pagina = 0; pagina < 100; pagina++) {
-    const { data, error } = await sb.from(tabela)
+    let consulta = sb.from(tabela)
       .select("id, registro")
-      .eq("colecao", colecao)
-      .eq("apagado", false)
+      .eq("colecao", colecao);
+    // RH e PCP usam apagado. O Painel retira a linha da coleção de origem
+    // para registro_lixeira; painel_registros não possui essa coluna.
+    if (tabela !== "painel_registros") consulta = consulta.eq("apagado", false);
+    const { data, error } = await consulta
       .gt("id", ultimo)
       .order("id", { ascending: true })
       .limit(500);

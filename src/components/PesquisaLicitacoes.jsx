@@ -1,6 +1,7 @@
 import React, { useEffect, useId, useMemo, useRef, useState } from 'react';
-import { Bot, RefreshCw, Search, Download, Copy, ArrowUpRight, AlertTriangle, MapPin, CalendarClock, ChevronLeft, ChevronRight, FileSearch } from 'lucide-react';
+import { Bot, RefreshCw, Search, Download, Copy, ArrowUpRight, AlertTriangle, MapPin, CalendarClock, ChevronLeft, ChevronRight, FileSearch, Layers, Signpost, Sticker, Type, Flag, Printer, LayoutGrid, SlidersHorizontal, Building2, X } from 'lucide-react';
 import { filtrarOportunidades, resumoCobertura, prazoOportunidade, relatorioAntigo, urlOficialSegura, urlBotSegura, exportarCSV, paginar, normalizarBusca, formatarData } from '../lib/licitacoes-pesquisa.mjs';
+import {categoriaDoServico,categoriasDosServicos,contarServicos,filtrarServicos,resumirProduto} from '../lib/licitacoes-servicos.mjs';
 import './licitacoes-pesquisa.css';
 
 const FILTROS_VAZIOS = { busca: '', classificacao: '', municipio: '', orgao: '', produto: '' };
@@ -86,17 +87,54 @@ function useFocoItem(selecionado,identificador) {
   return elemento;
 }
 
+const ICONES_SERVICO={letras:Type,adesivos:Sticker,sinalizacao:Signpost,lonas:Flag,acm:Layers,impressao:Printer,outros:LayoutGrid};
+function ServicoIcone({categoria,tamanho=22}) {
+  const Icone=ICONES_SERVICO[categoria.icone]||LayoutGrid;
+  return <Icone size={tamanho} strokeWidth={1.65} aria-hidden="true" />;
+}
+
+function CabecalhoServico({item,pendente=false}) {
+  const categoria=categoriaDoServico(item.produto);
+  const tom=pendente?'lp-warn':item.classificacao==='GO'?'lp-ok':item.classificacao==='NO-GO'?'lp-bad':'lp-warn';
+  return <>
+    <div className="lp-servico-capa" data-categoria={categoria.id}>
+      <span className="lp-servico-icone"><ServicoIcone categoria={categoria} tamanho={26}/></span>
+      <span className="lp-servico-familia">{categoria.nome}</span>
+      <span className={`lp-chip ${tom}`} title={pendente?'Evidências ainda precisam de conferência':'Classificação registrada no relatório'}>{pendente?'Pendente':item.classificacao}</span>
+    </div>
+    <div className="lp-servico-identidade">
+      <h4 className="lp-servico-produto">{resumirProduto(item.produto)}</h4>
+      <p className="lp-servico-orgao"><Building2 size={14} aria-hidden="true" />{item.orgao||'Órgão a confirmar'}</p>
+      <p className="lp-eyebrow">{item.processo||item.id||'Identificação pendente'}</p>
+      {(item.item||item.lote)&&<div className="lp-servico-itens">{item.item&&<span>Item {item.item}</span>}{item.lote&&<span>Lote {item.lote}</span>}</div>}
+    </div>
+  </>;
+}
+
+function ExploradorServicos({id,categorias,categoria,aoCategoria,busca,aoBusca,total,retidos,encontrados}) {
+  return <section className="lp-servicos-explorador" aria-labelledby={`${id}-servicos`}>
+    <div className="lp-servicos-hero"><div className="lp-servicos-apresentacao"><span className="lp-servicos-kicker"><Layers size={15} aria-hidden="true" />NESTA PESQUISA</span><h3 id={`${id}-servicos`}>Serviços encontrados</h3><p>Explore por serviço e abra os detalhes de cada item.</p></div><dl className="lp-servicos-numeros"><div><dt>Itens</dt><dd>{total.itens}</dd></div><div><dt>Processos identificados</dt><dd>{total.processos}</dd></div><div><dt>Pendentes</dt><dd>{retidos}</dd></div></dl></div>
+    {total.semProcesso>0&&<p className="lp-identificacao-pendente">{total.semProcesso} {total.semProcesso===1?'item ainda sem identificação completa de órgão/processo.':'itens ainda sem identificação completa de órgão/processo.'}</p>}
+    <div className="lp-servicos-categorias" role="group" aria-label="Categorias dos serviços encontrados">
+      <button type="button" className="lp-categoria" aria-pressed={!categoria} onClick={()=>aoCategoria('')} data-categoria="todos"><span className="lp-categoria-icone"><LayoutGrid size={20} aria-hidden="true" /></span><span className="lp-categoria-nome">Todos os serviços</span><span className="lp-categoria-total">{total.itens}<small> itens</small></span></button>
+      {categorias.map(opcao=><button type="button" key={opcao.id} className="lp-categoria" data-categoria={opcao.id} aria-pressed={categoria===opcao.id} onClick={()=>aoCategoria(categoria===opcao.id?'':opcao.id)}><span className="lp-categoria-icone"><ServicoIcone categoria={opcao} tamanho={20}/></span><span className="lp-categoria-nome">{opcao.nome}</span><span className="lp-categoria-total">{opcao.itens}<small> {opcao.itens===1?'item':'itens'}</small></span></button>)}
+    </div>
+    <div className="lp-explorar-busca"><label htmlFor={`${id}-busca`} className="lp-busca">Buscar nos serviços<span><Search size={17} aria-hidden="true" /><input id={`${id}-busca`} value={busca} onChange={e=>aoBusca(e.target.value)} type="search" placeholder="Serviço, órgão, processo ou destino" /></span></label>{busca&&<button type="button" className="lp-button" onClick={()=>aoBusca('')}><X size={15} aria-hidden="true" />Limpar busca</button>}</div>
+    <p className="lp-servicos-resultados" role="status"><strong>{encontrados.itens} {encontrados.itens===1?'item encontrado':'itens encontrados'}</strong><span>{encontrados.processos} {encontrados.processos===1?'processo identificado':'processos identificados'}{encontrados.semProcesso?` · ${encontrados.semProcesso} sem identificação completa`:''}</span></p>
+  </section>;
+}
+
 function Oportunidade({ item, aoCopiarPrompt, aoAgendar, selecionado=false }) {
   const elemento=useFocoItem(selecionado,item.id);
   const prazo = prazoOportunidade(item.prazo);
   const link = urlOficialSegura(item.oficialUrl);
   const tom = item.classificacao === 'GO' ? 'lp-ok' : item.classificacao === 'NO-GO' ? 'lp-bad' : 'lp-warn';
-  return <article ref={elemento} className={`lp-oportunidade${selecionado?' lp-item-selecionado':''}`} data-licitacao-id={item.id} tabIndex={selecionado?-1:undefined} aria-current={selecionado?'true':undefined} aria-label={selecionado?`Item selecionado: ${item.processo||item.id}`:undefined}>
+  return <article ref={elemento} className={`lp-oportunidade lp-servico-card${selecionado?' lp-item-selecionado':''}`} data-licitacao-id={item.id} tabIndex={selecionado?-1:undefined} aria-current={selecionado?'true':undefined} aria-label={selecionado?`Item selecionado: ${item.processo||item.id}`:undefined}>
     {selecionado&&<p className="lp-item-origem">Item indicado no link</p>}
-    <div className="lp-oportunidade-topo"><div><p className="lp-eyebrow">{item.processo || 'Identificação pendente'}</p><h4>{item.orgao || 'Órgão a confirmar'}</h4></div><span className={`lp-chip ${tom}`} title="Classificação registrada no relatório">{item.classificacao}</span></div>
-    <p className="lp-produto">{item.produto || 'Produto a confirmar'}{item.item ? ` · item ${item.item}` : ''}{item.lote ? ` · lote ${item.lote}` : ''}</p>
+    <CabecalhoServico item={item} />
     <div className="lp-oportunidade-meta"><span><MapPin size={14} aria-hidden="true" />{item.municipiosAbrangidos?.join(', ') || 'Destino a confirmar'}</span><span className={prazo.encerrado ? 'lp-text-bad' : prazo.proximo ? 'lp-text-warn' : ''}><CalendarClock size={14} aria-hidden="true" />{prazo.texto}</span></div>
-    <details className="lp-detalhes-oportunidade" open={selecionado||undefined}><summary>Ver análise e exigências</summary><div className="lp-detalhes-corpo">
+    <details className="lp-detalhes-oportunidade" open={selecionado||undefined}><summary>Ver serviço e análise</summary><div className="lp-detalhes-corpo">
+      <div><h5>Descrição do serviço</h5><p className="lp-descricao-integral">{item.produto||'Serviço a conferir no edital.'}</p></div>
       <p><strong>Classificação registrada:</strong> {item.classificacao}. {item.justificativa || 'Justificativa não detalhada no relatório.'}</p>
       {prazo.encerrado && <p className="lp-aviso lp-warn">O prazo está encerrado na leitura atual. Confira a situação e as retificações no portal oficial.</p>}
       <div className="lp-detalhes-grid"><div><h5>Exigências</h5>{item.exigencias?.length ? <ul>{item.exigencias.map((texto, i) => <li key={i}>{texto}</li>)}</ul> : <p>Não detalhadas neste relatório. Confira o edital e seus anexos.</p>}</div><div><h5>Próxima ação recomendada</h5><p>{item.proximaAcao || 'Conferir o edital vigente e a documentação necessária.'}</p></div></div>
@@ -110,12 +148,13 @@ function Oportunidade({ item, aoCopiarPrompt, aoAgendar, selecionado=false }) {
 function CandidatoPendente({item,selecionado=false,aoAgendar}) {
   const elemento=useFocoItem(selecionado,item.id);
   const link=urlOficialSegura(item.oficialUrl),local=item.localExecucaoRegistrado;
-  return <article ref={elemento} className={`lp-oportunidade lp-candidato${selecionado?' lp-item-selecionado':''}`} data-licitacao-id={item.id} tabIndex={selecionado?-1:undefined} aria-current={selecionado?'true':undefined} aria-label={selecionado?`Item selecionado: ${item.processo||item.id}`:undefined}>
+  return <article ref={elemento} className={`lp-oportunidade lp-candidato lp-servico-card${selecionado?' lp-item-selecionado':''}`} data-licitacao-id={item.id} tabIndex={selecionado?-1:undefined} aria-current={selecionado?'true':undefined} aria-label={selecionado?`Item selecionado: ${item.processo||item.id}`:undefined}>
         {selecionado&&<p className="lp-item-origem">Item indicado no link</p>}
-        <div className="lp-oportunidade-topo"><div><p className="lp-eyebrow">{item.processo||item.id}</p><h4>{item.orgao||'Órgão a confirmar'}</h4></div><span className="lp-chip lp-warn">Conferência pendente</span></div>
-        <p className="lp-produto">{item.produto||'Produto a confirmar'}{item.item?` · item ${item.item}`:''}{item.lote?` · lote ${item.lote}`:''}</p>
-        <div className="lp-motivos"><strong>O que falta conferir</strong>{item.motivos?.length?<ul>{item.motivos.map((motivo,i)=><li key={i}>{motivo}</li>)}</ul>:<p>Evidências ainda insuficientes para apresentar como oportunidade analisada.</p>}</div>
-        <details className="lp-detalhes-oportunidade" open={selecionado||undefined}><summary>Ver dados registrados e exigências</summary><div className="lp-detalhes-corpo">
+        <CabecalhoServico item={item} pendente />
+        <div className="lp-motivos"><strong><AlertTriangle size={14} aria-hidden="true" />Conferência pendente</strong><p>{resumirProduto(item.motivos?.[0]||'Evidências ainda insuficientes para apresentar como oportunidade analisada.',160)}</p>{item.motivos?.length>1&&<small>{item.motivos.length} motivos registrados · veja os detalhes</small>}</div>
+        <details className="lp-detalhes-oportunidade" open={selecionado||undefined}><summary>Ver serviço e pendências</summary><div className="lp-detalhes-corpo">
+          <div><h5>Descrição do serviço</h5><p className="lp-descricao-integral">{item.produto||'Serviço a conferir no edital.'}</p></div>
+          {item.motivos?.length>0&&<div><h5>Motivos da pendência</h5><ul>{item.motivos.map((motivo,i)=><li key={i}>{motivo}</li>)}</ul></div>}
           <p><strong>Prazo registrado (a confirmar):</strong> {prazoOportunidade(item.prazo).valido?`${formatarData(item.prazo,true)} (Brasília)`:item.prazo||'Não informado.'} Confira a abertura para novas propostas e as retificações na fonte oficial.</p>
           <p><strong>Destino registrado (a confirmar):</strong> {local?.municipios?.join(', ')||'Não demonstrado.'}{local?.evidencia?` ${local.evidencia}`:''}{local?.apenasSede?' A localização pode representar somente a sede do órgão.':''}{local?.misto?' Há indicação de atendimento também fora da região.':''}</p>
           {item.justificativaRegistrada&&<p><strong>Justificativa registrada:</strong> {item.justificativaRegistrada}</p>}
@@ -125,23 +164,15 @@ function CandidatoPendente({item,selecionado=false,aoAgendar}) {
       </article>;
 }
 
-function CandidatosPendentes({ candidatos, aoAgendar, itemSelecionado='' }) {
+function CandidatosPendentes({ candidatos, aoAgendar, itemSelecionado='', busca='', categoria='' }) {
   const id=useId();
-  const [busca,setBusca]=useState('');
   const [pagina,setPagina]=useState(()=>paginaDoItem(candidatos,itemSelecionado));
-  useEffect(()=>{setBusca('');setPagina(paginaDoItem(candidatos,itemSelecionado));},[candidatos,itemSelecionado]);
-  const filtrados=useMemo(()=>{
-    const termos=normalizarBusca(busca).split(' ').filter(Boolean);
-    return candidatos.filter(item=>{
-      const texto=normalizarBusca([item.processo,item.orgao,item.produto,item.item,item.lote,...(item.motivos||[])].filter(Boolean).join(' '));
-      return termos.every(termo=>texto.includes(termo));
-    });
-  },[candidatos,busca]);
+  useEffect(()=>{setPagina(!busca&&!categoria?paginaDoItem(candidatos,itemSelecionado):1);},[candidatos,itemSelecionado,busca,categoria]);
+  const filtrados=useMemo(()=>filtrarServicos(candidatos,{busca,categoria}),[candidatos,busca,categoria]);
   const resultados=paginar(filtrados,pagina,6);
   return <section className="lp-pendentes" aria-labelledby={`${id}-titulo`}>
-    <div className="lp-resultados-titulo"><div><h3 id={`${id}-titulo`}>Candidatos pendentes de conferência <span className="lp-count">{candidatos.length}</span></h3><p>Encontrados na pesquisa, com evidências ainda insuficientes. Destino, prazo e aptidão para participar precisam de confirmação.</p></div></div>
-    <label className="lp-busca-pendentes" htmlFor={`${id}-busca`}>Buscar candidato pendente<input id={`${id}-busca`} type="search" value={busca} onChange={e=>{setBusca(e.target.value);setPagina(1);}} placeholder="Processo, órgão, produto ou pendência" /></label>
-    {!filtrados.length?<p className="lp-empty" role="status">Nenhum candidato pendente corresponde à busca.</p>:<div className="lp-oportunidades">{resultados.itens.map(item=><CandidatoPendente key={item.id} item={item} selecionado={item.id===itemSelecionado} aoAgendar={aoAgendar} />)}</div>}
+    <div className="lp-resultados-titulo"><div><h3 id={`${id}-titulo`}>Candidatos pendentes de conferência <span className="lp-count">{filtrados.length}<small> de {candidatos.length}</small></span></h3><p>Encontrados na pesquisa, com evidências ainda insuficientes. Destino, prazo e aptidão para participar precisam de confirmação.</p></div></div>
+    {!filtrados.length?<p className="lp-empty" role="status">Nenhum candidato pendente corresponde à busca e categoria selecionadas.</p>:<div className="lp-oportunidades lp-servicos-grade">{resultados.itens.map(item=><CandidatoPendente key={item.id} item={item} selecionado={item.id===itemSelecionado} aoAgendar={aoAgendar} />)}</div>}
     {filtrados.length>6&&<div className="lp-paginacao"><span aria-live="polite">{filtrados.length} candidatos · página {resultados.pagina} de {resultados.totalPaginas}</span><div><button type="button" className="lp-button" aria-label="Página anterior de candidatos pendentes" disabled={resultados.pagina<=1} onClick={()=>setPagina(resultados.pagina-1)}><ChevronLeft size={16} aria-hidden="true" />Anterior</button><button type="button" className="lp-button" aria-label="Próxima página de candidatos pendentes" disabled={resultados.pagina>=resultados.totalPaginas} onClick={()=>setPagina(resultados.pagina+1)}>Próxima<ChevronRight size={16} aria-hidden="true" /></button></div></div>}
   </section>;
 }
@@ -208,15 +239,21 @@ export default function PesquisaLicitacoes({ dados, carregando = false, erro = '
   const emEspera=Date.parse(execucao?.dados?.cooldownAte)>Date.now();
   const ocupada=execucao?.iniciando||emEspera||(['solicitada','em_andamento'].includes(execucao?.dados?.estado)&&execucao?.dados?.podeRepetir!==true);
   const [filtros, setFiltros] = useState(FILTROS_VAZIOS);
+  const [categoria,setCategoria]=useState('');
   const [pagina, setPagina] = useState(()=>paginaDoItem(filtrarOportunidades(dados?.oportunidades,{}),itemSelecionado));
   const [feedback, setFeedback] = useState('');
   const [textoParaCopiar, setTextoParaCopiar] = useState('');
   const oportunidades = dados?.oportunidades || LISTA_VAZIA;
-  useEffect(()=>{setFiltros(FILTROS_VAZIOS);setPagina(paginaDoItem(filtrarOportunidades(oportunidades,{}),itemSelecionado));setFeedback('');setTextoParaCopiar('');},[dados?.id,itemSelecionado,oportunidades]);
+  const retidos=dados?.candidatosRetidos||LISTA_VAZIA;
+  useEffect(()=>{setFiltros(FILTROS_VAZIOS);setCategoria('');setPagina(paginaDoItem(filtrarOportunidades(oportunidades,{}),itemSelecionado));setFeedback('');setTextoParaCopiar('');},[dados?.id,itemSelecionado,oportunidades,retidos]);
   const itemEncontrado=!!itemSelecionado&&(oportunidades.some(item=>item.id===itemSelecionado)||(dados?.candidatosRetidos||[]).some(item=>item.id===itemSelecionado));
   const municipios = dados?.municipios || LISTA_VAZIA;
   const instituicoes = dados?.instituicoes || LISTA_VAZIA;
-  const filtradas = useMemo(() => filtrarOportunidades(oportunidades, filtros), [oportunidades, filtros]);
+  const filtradas = useMemo(() => filtrarOportunidades(filtrarServicos(oportunidades,{busca:filtros.busca,categoria}),{...filtros,busca:''}), [oportunidades, filtros,categoria]);
+  const servicos=useMemo(()=>[...oportunidades,...retidos],[oportunidades,retidos]);
+  const categorias=useMemo(()=>categoriasDosServicos(servicos),[servicos]);
+  const totalServicos=useMemo(()=>contarServicos(servicos),[servicos]);
+  const encontrados=useMemo(()=>contarServicos([...filtradas,...filtrarServicos(retidos,{busca:filtros.busca,categoria})]),[filtradas,retidos,filtros.busca,categoria]);
   const paginaResultados = paginar(filtradas, pagina, 6);
   const opcoes = useMemo(() => {
     const ordenar = valores => [...new Set(valores.filter(Boolean))].sort((a, b) => a.localeCompare(b, 'pt-BR'));
@@ -246,7 +283,7 @@ export default function PesquisaLicitacoes({ dados, carregando = false, erro = '
     <header className="lp-cabecalho"><div className="lp-titulo"><span className="lp-bot-icon"><Bot size={23} aria-hidden="true" /></span><div><h2 id={`${id}-titulo`}>Pesquisa do BotImpresilk</h2><p>Oportunidades pesquisadas e cobertura documentada do Norte de Minas.</p></div></div><div className="lp-cabecalho-acoes">{podeRodar&&<button type="button" className="lp-button lp-primary" onClick={aoRodar} disabled={ocupada||!aoRodar}><Search size={16} aria-hidden="true" />{execucao?.iniciando?'Solicitando…':'Rodar pesquisa'}</button>}{linkBot && <a className="lp-button" href={linkBot} target="_blank" rel="noopener noreferrer">Conversar com o bot<ArrowUpRight size={15} aria-hidden="true" /></a>}<button type="button" className="lp-button" onClick={aoAtualizar} disabled={carregando || !aoAtualizar}><RefreshCw size={16} aria-hidden="true" className={carregando ? 'lp-girando' : ''} />{carregando ? 'Atualizando leitura' : 'Atualizar leitura'}</button></div></header>
     <p className="lp-contexto">Painel e BotImpresilk consultam o mesmo acervo público. Atualizar leitura recarrega a pesquisa selecionada; não inicia uma nova busca. As licitações acompanhadas pela equipe ficam na seção abaixo.</p>
     <HistoricoPesquisas historico={historico} pagina={paginaHistorico} selecionado={relatorioSelecionado} atual={dados?.id} aoSelecionar={aoSelecionarRelatorio} aoPaginar={aoPaginarHistorico} aoAtualizar={aoAtualizarHistorico} />
-    <EstadoExecucao execucao={execucao} aoConsultar={aoConsultarExecucao} />
+    <details className="lp-operacao"><summary><Bot size={15} aria-hidden="true" />Execução e cobertura da busca automática</summary><EstadoExecucao execucao={execucao} aoConsultar={aoConsultarExecucao} /></details>
     {erro && <div className="lp-aviso lp-bad" role="alert"><AlertTriangle size={17} aria-hidden="true" /><span>{String(erro)}{disponivel ? ' Exibindo o acervo anterior; a atualização não foi confirmada.' : ''}</span></div>}
     {carregando && <p className="lp-estado" role="status">Carregando o relatório publicado{disponivel ? ', mantendo o acervo anterior visível.' : '.'}</p>}
     {!disponivel ? !carregando && !erro && <div className="lp-vazio"><FileSearch size={28} aria-hidden="true" /><h3>{relatorioSelecionado?'Relatório selecionado indisponível':'Nenhum relatório publicado'}</h3><p>{relatorioSelecionado?'A versão solicitada não está disponível. Escolha outra pesquisa no histórico ou consulte a última pesquisa.':'A cobertura e as oportunidades aparecerão após a publicação de uma pesquisa validada. Isso não informa se existem licitações na região.'}</p></div> : <>
@@ -257,18 +294,21 @@ export default function PesquisaLicitacoes({ dados, carregando = false, erro = '
       <div className="lp-linha-dados"><span><strong>Relatório:</strong> {formatarData(dados.geradoEm, true)} (Brasília)</span><span className="lp-identidade"><strong>ID:</strong> {dados.id}</span><span><strong>Período:</strong> {formatarData(dados.periodo?.inicio)} a {formatarData(dados.periodo?.fim)}</span>{dados.consultadoEm && <span><strong>Leitura:</strong> {formatarData(dados.consultadoEm, true)}</span>}<span className="lp-chip lp-neutral">Somente consulta</span></div>
       {antigo && <div className="lp-aviso lp-warn" role="status"><AlertTriangle size={17} aria-hidden="true" /><span><strong>Relatório antigo.</strong> Tem oito dias ou mais. Reconfirme prazos, situação e retificações nas fontes oficiais antes de decidir.</span></div>}
       {cobertura.inconsistente && <div className="lp-aviso lp-warn" role="status">Os totais recebidos exigem conferência. O percentual municipal considera sempre 89 municípios.</div>}
+      <p className="lp-feedback" role="status">{feedback}</p>
+      {textoParaCopiar && <label className="lp-copia-manual" htmlFor={`${id}-copiar`}>Texto para copiar manualmente<textarea id={`${id}-copiar`} readOnly rows={5} value={textoParaCopiar} onFocus={e => e.target.select()} /></label>}
+      <ExploradorServicos id={id} categorias={categorias} categoria={categoria} aoCategoria={valor=>{setCategoria(valor);setPagina(1);}} busca={filtros.busca} aoBusca={valor=>mudarFiltro('busca',valor)} total={totalServicos} retidos={retidos.length} encontrados={encontrados} />
+      {(categoria||Object.values(filtros).some(Boolean))&&<button type="button" className="lp-limpar" onClick={()=>{setFiltros(FILTROS_VAZIOS);setCategoria('');setPagina(1);}}><X size={14} aria-hidden="true" />Limpar todos os filtros</button>}
+      <div className="lp-resultados-titulo"><div><h3>Oportunidades analisadas <span className="lp-count">{filtradas.length}<small> de {oportunidades.length}</small></span></h3><p>GO, NO-GO e REVISÃO HUMANA refletem a análise registrada. Prazos são conferidos também na leitura atual.</p></div><div className="lp-acoes"><button type="button" className="lp-button" onClick={copiarResumo}><Copy size={15} aria-hidden="true" />Copiar resumo</button><button type="button" className="lp-button" onClick={exportarResultados} disabled={!filtradas.length}><Download size={15} aria-hidden="true" />Exportar resultados</button></div></div>
+      {oportunidades.length>0&&<details className="lp-filtros-avancados"><summary><SlidersHorizontal size={15} aria-hidden="true" />Refinar oportunidades analisadas{Object.entries(filtros).filter(([chave,valor])=>chave!=='busca'&&valor).length>0&&<span className="lp-count">{Object.entries(filtros).filter(([chave,valor])=>chave!=='busca'&&valor).length}</span>}</summary><p>Estes filtros aplicam-se às oportunidades analisadas. A busca e a categoria acima também incluem os candidatos pendentes.</p><div className="lp-filtros"><FiltroSelect id={`${id}-classificacao`} titulo="Classificação" valor={filtros.classificacao} opcoes={CLASSIFICACOES} aoMudar={valor => mudarFiltro('classificacao', valor)} /><FiltroSelect id={`${id}-municipio`} titulo="Município de execução" valor={filtros.municipio} opcoes={opcoes.municipio} aoMudar={valor => mudarFiltro('municipio', valor)} /><FiltroSelect id={`${id}-orgao`} titulo="Órgão" valor={filtros.orgao} opcoes={opcoes.orgao} aoMudar={valor => mudarFiltro('orgao', valor)} /><FiltroSelect id={`${id}-produto`} titulo="Produto" valor={filtros.produto} opcoes={opcoes.produto} aoMudar={valor => mudarFiltro('produto', valor)} /></div></details>}
+      {!oportunidades.length ? <p className="lp-empty">Nenhum candidato validado para apresentação neste relatório. Isso não comprova inexistência de oportunidades, especialmente quando há cobertura parcial ou não consultada.</p> : !filtradas.length ? <p className="lp-empty" role="status">Nenhuma oportunidade corresponde aos filtros escolhidos.</p> : <><div className="lp-oportunidades lp-servicos-grade">{paginaResultados.itens.map(item => <Oportunidade key={item.id} item={item} selecionado={item.id===itemSelecionado} aoCopiarPrompt={item => copiarTexto(promptParticipacao(item), 'Prompt do edital')} aoAgendar={aoAgendar?item=>aoAgendar(item,{pendente:false,relatorio:dados}):undefined} />)}</div><div className="lp-paginacao"><span aria-live="polite">{filtradas.length} resultados · página {paginaResultados.pagina} de {paginaResultados.totalPaginas}</span><div><button type="button" className="lp-button" disabled={paginaResultados.pagina <= 1} onClick={() => setPagina(paginaResultados.pagina - 1)}><ChevronLeft size={16} aria-hidden="true" />Anterior</button><button type="button" className="lp-button" disabled={paginaResultados.pagina >= paginaResultados.totalPaginas} onClick={() => setPagina(paginaResultados.pagina + 1)}>Próxima<ChevronRight size={16} aria-hidden="true" /></button></div></div></>}
+      {dados.candidatosRetidos?.length>0&&<CandidatosPendentes key={dados.id} candidatos={dados.candidatosRetidos} busca={filtros.busca} categoria={categoria} itemSelecionado={itemSelecionado} aoAgendar={aoAgendar?item=>aoAgendar(item,{pendente:true,relatorio:dados}):undefined} />}
+      <details className="lp-cobertura-painel"><summary><MapPin size={16} aria-hidden="true" /><span>Cobertura e fontes da pesquisa<small>{cobertura.concluidos} de 89 municípios concluídos · {cobertura.parciais} parciais</small></span></summary><div className="lp-cobertura-conteudo">
       <div className="lp-kpis"><div><span>Municípios concluídos</span><strong>{cobertura.concluidos} <small>de 89</small></strong></div><div><span>Pesquisa parcial</span><strong>{cobertura.parciais}</strong></div><div><span>Não consultados</span><strong>{cobertura.naoConsultados}</strong></div><div><span>Cobertura comprovada</span><strong>{cobertura.coberturaPercentual.toLocaleString('pt-BR')}%</strong></div></div>
       <div className="lp-cobertura-barra"><progress value={cobertura.concluidos} max={89} aria-label="Municípios com pesquisa concluída" /><span>100% exige pesquisa concluída e registrada para os 89 municípios.</span></div>
       {nenhumaConsulta && <div className="lp-aviso lp-neutral"><strong>Pesquisa ainda não executada.</strong> A lista de municípios e instituições define o escopo; não representa consulta aos portais.</div>}
-      <details className="lp-perguntas"><summary>Perguntas prontas para usar com o bot</summary><p>Copie uma pergunta e cole no Telegram. O envio acontece quando você confirmar na conversa do bot.</p><p>Preparar um prompt não envia proposta, documentos ou mensagens. Revise o texto na conversa do bot antes de qualquer decisão.</p><button type="button" className="lp-button" onClick={() => copiarTexto(promptParticipacao(), 'Prompt geral')}><Copy size={14} aria-hidden="true" />Copiar prompt geral</button><div>{PERGUNTAS_BOT.map(pergunta => <div key={pergunta}><p>{pergunta}</p><button type="button" className="lp-button" onClick={() => copiarTexto(pergunta, 'Texto da pergunta')}><Copy size={14} aria-hidden="true" />Copiar pergunta</button></div>)}</div></details>
-      <p className="lp-feedback" role="status">{feedback}</p>
-      {textoParaCopiar && <label className="lp-copia-manual" htmlFor={`${id}-copiar`}>Texto para copiar manualmente<textarea id={`${id}-copiar`} readOnly rows={5} value={textoParaCopiar} onFocus={e => e.target.select()} /></label>}
-      <div className="lp-resultados-titulo"><div><h3>Oportunidades no acervo <span className="lp-count">{oportunidades.length}</span></h3><p>GO, NO-GO e REVISÃO HUMANA refletem a análise registrada. Prazos são conferidos também na leitura atual.</p></div><div className="lp-acoes"><button type="button" className="lp-button" onClick={copiarResumo}><Copy size={15} aria-hidden="true" />Copiar resumo</button><button type="button" className="lp-button" onClick={exportarResultados} disabled={!filtradas.length}><Download size={15} aria-hidden="true" />Exportar resultados</button></div></div>
-      {oportunidades.length>0&&<div className="lp-filtros"><label htmlFor={`${id}-busca`} className="lp-busca">Buscar oportunidade<span><Search size={16} aria-hidden="true" /><input id={`${id}-busca`} value={filtros.busca} onChange={e => mudarFiltro('busca', e.target.value)} type="search" placeholder="Processo, item, produto ou destino" /></span></label><FiltroSelect id={`${id}-classificacao`} titulo="Classificação" valor={filtros.classificacao} opcoes={CLASSIFICACOES} aoMudar={valor => mudarFiltro('classificacao', valor)} /><FiltroSelect id={`${id}-municipio`} titulo="Município de execução" valor={filtros.municipio} opcoes={opcoes.municipio} aoMudar={valor => mudarFiltro('municipio', valor)} /><FiltroSelect id={`${id}-orgao`} titulo="Órgão" valor={filtros.orgao} opcoes={opcoes.orgao} aoMudar={valor => mudarFiltro('orgao', valor)} /><FiltroSelect id={`${id}-produto`} titulo="Produto" valor={filtros.produto} opcoes={opcoes.produto} aoMudar={valor => mudarFiltro('produto', valor)} /></div>}
-      {Object.values(filtros).some(Boolean) && <button type="button" className="lp-limpar" onClick={() => { setFiltros(FILTROS_VAZIOS); setPagina(1); }}>Limpar filtros</button>}
-      {!oportunidades.length ? <p className="lp-empty">Nenhum candidato validado para apresentação neste relatório. Isso não comprova inexistência de oportunidades, especialmente quando há cobertura parcial ou não consultada.</p> : !filtradas.length ? <p className="lp-empty" role="status">Nenhuma oportunidade corresponde aos filtros escolhidos.</p> : <><div className="lp-oportunidades">{paginaResultados.itens.map(item => <Oportunidade key={item.id} item={item} selecionado={item.id===itemSelecionado} aoCopiarPrompt={item => copiarTexto(promptParticipacao(item), 'Prompt do edital')} aoAgendar={aoAgendar?item=>aoAgendar(item,{pendente:false,relatorio:dados}):undefined} />)}</div><div className="lp-paginacao"><span aria-live="polite">{filtradas.length} resultados · página {paginaResultados.pagina} de {paginaResultados.totalPaginas}</span><div><button type="button" className="lp-button" disabled={paginaResultados.pagina <= 1} onClick={() => setPagina(paginaResultados.pagina - 1)}><ChevronLeft size={16} aria-hidden="true" />Anterior</button><button type="button" className="lp-button" disabled={paginaResultados.pagina >= paginaResultados.totalPaginas} onClick={() => setPagina(paginaResultados.pagina + 1)}>Próxima<ChevronRight size={16} aria-hidden="true" /></button></div></div></>}
-      {dados.candidatosRetidos?.length>0&&<CandidatosPendentes key={dados.id} candidatos={dados.candidatosRetidos} itemSelecionado={itemSelecionado} aoAgendar={aoAgendar?item=>aoAgendar(item,{pendente:true,relatorio:dados}):undefined} />}
       <div className="lp-matrizes"><MatrizCobertura key={`municipios-${dados.id}`} titulo="Cobertura municipal" linhas={municipios} campoNome="municipio" nomeArquivo="cobertura-municipal-botimpresilk" resumo={`${cobertura.concluidos} de 89 concluídos`} /><MatrizCobertura key={`instituicoes-${dados.id}`} titulo="Órgãos e instituições" linhas={instituicoes} campoNome="instituicao" tamanho={15} nomeArquivo="cobertura-instituicoes-botimpresilk" resumo={`${coberturaInstituicoes.concluidos || 0} concluídos · ${coberturaInstituicoes.parciais || 0} parciais · ${coberturaInstituicoes.naoConsultados || 0} não consultados`} /></div>
+      </div></details>
+      <details className="lp-perguntas"><summary>Perguntas prontas para usar com o bot</summary><p>Copie uma pergunta e cole no Telegram. O envio acontece quando você confirmar na conversa do bot.</p><p>Preparar um prompt não envia proposta, documentos ou mensagens. Revise o texto na conversa do bot antes de qualquer decisão.</p><button type="button" className="lp-button" onClick={() => copiarTexto(promptParticipacao(), 'Prompt geral')}><Copy size={14} aria-hidden="true" />Copiar prompt geral</button><div>{PERGUNTAS_BOT.map(pergunta => <div key={pergunta}><p>{pergunta}</p><button type="button" className="lp-button" onClick={() => copiarTexto(pergunta, 'Texto da pergunta')}><Copy size={14} aria-hidden="true" />Copiar pergunta</button></div>)}</div></details>
       {(dados.avisos?.length > 0 || dados.pendencias?.length > 0 || dados.limites?.length > 0) && <details className="lp-notas"><summary>Pendências, ressalvas e limites do relatório</summary><div>{dados.avisos?.length > 0 && <><h4>Ressalvas</h4><ul>{dados.avisos.map((aviso, i) => <li key={i}>{aviso}</li>)}</ul></>}{dados.pendencias?.length > 0 && <><h4>Próximas verificações</h4><ul>{dados.pendencias.map((pendencia, i) => <li key={i}>{pendencia}</li>)}</ul></>}{dados.limites?.length > 0 && <><h4>Limites da pesquisa</h4><ul>{dados.limites.map((limite, i) => <li key={i}>{limite}</li>)}</ul></>}</div></details>}
     </>}
   </section>;
