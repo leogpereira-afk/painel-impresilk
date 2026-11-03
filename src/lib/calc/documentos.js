@@ -74,7 +74,7 @@ export function situacaoRequisito(requisito, itens) {
   return { ...item.sit, item };
 }
 
-const CAMPOS = ['id', 'cadastroId', 'tipo', 'nome', 'categoria', 'identificacao', 'titularId', 'ativoIds', 'responsavel', 'responsavelId', 'emissao', 'validade', 'semVencimento', 'alertaDias', 'estado', 'orgaoEmissor', 'estabelecimento', 'contato', 'assistencia', 'linkOficial', 'fornecedor', 'fabricante', 'compra', 'tipoGarantia', 'condicoes', 'cobertura', 'obrigacaoPagamento', 'pagamentoSituacao', 'seguradora', 'valor', 'valorSegurado', 'observacao', 'acionamentos'];
+const CAMPOS = ['id', 'cadastroId', 'tipo', 'nome', 'categoria', 'identificacao', 'titularId', 'usoLicitacoes', 'ativoIds', 'responsavel', 'responsavelId', 'emissao', 'validade', 'semVencimento', 'alertaDias', 'estado', 'orgaoEmissor', 'estabelecimento', 'contato', 'assistencia', 'linkOficial', 'fornecedor', 'fabricante', 'compra', 'tipoGarantia', 'condicoes', 'cobertura', 'obrigacaoPagamento', 'pagamentoSituacao', 'seguradora', 'valor', 'valorSegurado', 'observacao', 'acionamentos'];
 export function controleEditavel(item) {
   const payload = Object.fromEntries(CAMPOS.filter(campo => Object.hasOwn(item, campo) && item[campo] !== undefined).map(campo => [campo, item[campo]]));
   if (payload.id) delete payload.cadastroId;

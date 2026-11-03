@@ -3,6 +3,7 @@ import {ativoPermitido,bemPermitido,exigeInventario,temPermissao,FAMILIAS_EQUIPA
 import {lerPessoasPatrimonio,validarVinculoPessoa} from '../_shared/patrimonio-pessoas.mjs';
 import {prepararFisico} from '../_shared/patrimonio-fisico.mjs';
 import {atenderDocumentos} from '../_shared/documentos-handler.mjs';
+import {atenderCadastrosLicitacoes} from '../_shared/licitacoes-cadastros-handler.mjs';
 import {temHistoricoPessoal} from '../_shared/documentos.mjs';
 import {validarOrigemPesquisa,idAgendamentoLicitacao,validarAgendamentoLicitacao} from '../_shared/licitacoes-agenda.mjs';
 // ============================================================================
@@ -374,6 +375,15 @@ Deno.serve(async (req: Request) => {
     };
     const rotuloDoBem=async(id:string)=>rotuloBemVinculo(await lerRegistro('patrimonio',id),id);
     switch (corpo.action) {
+      case 'listarCadastrosLicitacoes':
+      case 'salvarCadastroLicitacoes':
+      case 'arquivarCadastroLicitacoes': {
+        if(!temPermissao(sessao,'licitacoes'))return resposta({erro:'Sem acesso a Licitações.'},403);
+        const revalidarSessao=async()=>{
+          if(!await verificarJwt(m![1],JWT_SECRET)||await crachaRevogado(sb,'painel',sessao,true))throw Object.assign(new Error('Seu acesso foi encerrado. Entre novamente.'),{status:401});
+        };
+        return await atenderCadastrosLicitacoes({sb,sessao,corpo,resposta,quem,revalidarSessao});
+      }
       case 'listarDocumentos':
       case 'salvarControle':
       case 'renovarControle':
@@ -820,6 +830,7 @@ Deno.serve(async (req: Request) => {
         if (!TIPOS.has(tipo)) return resposta({ erro: "tipo invalido" }, 400);
         { const b = await barraGravar(tipo); if (b) return b; }
         if (!String(it.nome ?? "").trim()) return resposta({ erro: "informe o nome" }, 400);
+        if(['documento','seguro','garantia'].includes(tipo)&&Object.hasOwn(it,'usoLicitacoes'))return resposta({erro:'Altere o uso em Licitações pela ação salvarControle na pasta Documentos.'},422);
 
         let origemPedido:any;
         if(it.origemPesquisa!==undefined){
@@ -909,7 +920,7 @@ Deno.serve(async (req: Request) => {
             checklist:(Array.isArray(x.checklist)?x.checklist:[]).slice(0,30).map((c:any,i:number)=>({id:String(c.id || i).slice(0,80),texto:String(c.texto || "").slice(0,300),feito:c.feito===true})).filter((c:any)=>c.texto.trim()) };
         };
         const limpo = {
-          ...Object.fromEntries(['titularId','ativoIds','origem','origemTipo','pessoalHistorico','semVencimento','alertaDias','estado','orgaoEmissor','estabelecimento','contato','assistencia','linkOficial','fornecedor','fabricante','compra','tipoGarantia','condicoes','cobertura','obrigacaoPagamento','pagamentoSituacao','acionamentos','versoes','anexos','historicoVinculo'].filter(k=>Object.hasOwn(a,k)).map(k=>[k,a[k]])),
+          ...Object.fromEntries(['titularId','ativoIds','origem','origemTipo','pessoalHistorico','usoLicitacoes','semVencimento','alertaDias','estado','orgaoEmissor','estabelecimento','contato','assistencia','linkOficial','fornecedor','fabricante','compra','tipoGarantia','condicoes','cobertura','obrigacaoPagamento','pagamentoSituacao','acionamentos','versoes','anexos','historicoVinculo'].filter(k=>Object.hasOwn(a,k)).map(k=>[k,a[k]])),
           ...(a.bemId ? {bemId:a.bemId} : {}),
           ...(a.arquivoIncendio ? {arquivoIncendio:a.arquivoIncendio} : {}),
           id, tipo,
@@ -1130,7 +1141,7 @@ Deno.serve(async (req: Request) => {
     }
   } catch (e) {
     console.error("[painel-ativos] erro:", e);
-    if ([400,403,404,409,413,422,503].includes((e as any)?.status)) return resposta({erro:(e as Error).message},(e as any).status);
+    if ([400,401,403,404,409,413,422,503].includes((e as any)?.status)) return resposta({erro:(e as Error).message,...((e as any)?.status===401?{semSessao:true}:{})},(e as any).status);
     if ((e as any)?.code === "23503") return resposta({erro:"Este cadastro possui vínculos. Troque ou desvincule o setor, aparelho, gravador, contato técnico, unidade consumidora ou bem nas fichas relacionadas antes de retirar ou alterar."},409);
     if ((e as any)?.code === "23505") return resposta({erro:"Número, canal ou cadastro já utilizado. Confira os itens ativos antes de salvar ou restaurar; a lixeira foi preservada."},409);
     if ((e as any)?.code === "40001") return resposta({erro:"Este registro mudou durante a edição. Recarregue antes de salvar."},409);

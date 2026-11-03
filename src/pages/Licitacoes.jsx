@@ -1,5 +1,8 @@
 import JanelaFormulario from "../components/JanelaFormulario.jsx";
 import PesquisaLicitacoes from "../components/PesquisaLicitacoes.jsx";
+import DocumentosLicitacoes from "../components/DocumentosLicitacoes.jsx";
+import CadastrosLicitacoes from "../components/CadastrosLicitacoes.jsx";
+import '../components/licitacoes-acervo.css';
 import AgendarLicitacao from "../components/AgendarLicitacao.jsx";
 import {obterPesquisaLicitacoes, obterHistoricoLicitacoes, obterExecucaoLicitacoes, iniciarPesquisaLicitacoes, criarControleExecucaoLicitacoes} from "../services/licitacoes.js";
 import {getSessao, aoMudarSessao,podeAbrir} from "../lib/sessao.js";
@@ -24,6 +27,8 @@ import {
   ArrowUpRight,
   AlertTriangle,
   Pencil,
+  FolderOpen,
+  Building2,
 } from "lucide-react";
 import {
   listarAtivos,
@@ -167,6 +172,20 @@ function Linha({ it, baixarEdital, editar, remover }) {
 }
 
 export default function Licitacoes() {
+  const [parametros,setParametros]=useSearchParams();
+  const [sessao,setSessao]=useState(getSessao);
+  const [geracao,setGeracao]=useState(0);
+  useEffect(()=>aoMudarSessao(()=>{setSessao(getSessao());setGeracao(g=>g+1);}),[]);
+  const aba=['documentos','cadastros'].includes(parametros.get('aba'))?parametros.get('aba'):'oportunidades';
+  const selecionar=valor=>{const p=new URLSearchParams(parametros);if(valor==='oportunidades')p.delete('aba');else p.set('aba',valor);setParametros(p);};
+  return <div className="space-y-6">
+    <PageTitle titulo="Licitações" descricao="Encontre oportunidades e mantenha a documentação pronta para participar."/>
+    <nav className="lic-hub-tabs" aria-label="Áreas de Licitações">{[['oportunidades','Oportunidades',Gavel],['documentos','Documentos',FolderOpen],['cadastros','Cadastros',Building2]].map(([id,rotulo,Icon])=><button key={id} onClick={()=>selecionar(id)} aria-current={aba===id?'page':undefined}><Icon size={18}/>{rotulo}</button>)}</nav>
+    <div key={geracao}>{aba==='documentos'?<DocumentosLicitacoes sessao={sessao}/>:aba==='cadastros'?<CadastrosLicitacoes sessao={sessao}/>:<OportunidadesLicitacoes/>}</div>
+  </div>;
+}
+
+function OportunidadesLicitacoes() {
   const [parametros,setParametros]=useSearchParams();
   const relatorioSelecionado=parametros.get('relatorio')||'';
   const [sessao,setSessao]=useState(getSessao);
@@ -411,22 +430,16 @@ export default function Licitacoes() {
   if (erro) {
     return (
       <div className="space-y-6">
-        <PageTitle titulo="Licitações" descricao="Editais, prazos e sessões." />
         <PesquisaLicitacoes {...propsPesquisa}/>
         {modalAgendamento}
         <ErroModulo mensagem={erro} aoTentar={() => window.location.reload()}/>
       </div>
     );
   }
-  if (itens === null) return <div className="space-y-6"><PageTitle titulo="Licitações" descricao="Pesquise oportunidades e acompanhe os editais da equipe."/><PesquisaLicitacoes {...propsPesquisa}/>{modalAgendamento}<CarregandoModulo/></div>;
+  if (itens === null) return <div className="space-y-6"><PesquisaLicitacoes {...propsPesquisa}/>{modalAgendamento}<CarregandoModulo/></div>;
 
   return (
     <div className="space-y-8">
-      <PageTitle
-        titulo="Licitações"
-        descricao="Pesquise oportunidades no acervo do BotImpresilk e acompanhe os editais da equipe."
-      />
-
       <PesquisaLicitacoes {...propsPesquisa}/>
       {modalAgendamento}
       <SectionTitle titulo="Acompanhamento da equipe" sub="Editais cadastrados, responsáveis, sessões e resultados. As oportunidades pesquisadas não entram aqui automaticamente."/>

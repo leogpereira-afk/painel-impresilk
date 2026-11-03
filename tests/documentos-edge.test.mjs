@@ -13,6 +13,17 @@ const linha=(colecao,id,registro)=>({colecao,id,registro:{id,...registro}});
 const titulares=[linha('documentos_titulares',empresa,{tipo:'empresa',nome:'Empresa fictícia',atualizadoEm:'v1'}),linha('documentos_titulares',pessoa,{tipo:'pessoa',nome:'Pessoa fictícia',pessoaId:pessoaRH,atualizadoEm:'v1'})];
 const controle=(id='controle',patch={})=>linha('ativo',id,{tipo:'documento',nome:'Certidão fictícia',categoria:'Certidão',titularId:empresa,emissao:'2026-10-01',validade:'2027-10-01',atualizadoEm:'v1',...patch});
 const arquivo={base64:btoa('%PDF-1.7 exemplo fictício'),mime:'application/pdf',nome:'exemplo.pdf'};
+test('edição legada preserva uso em Licitações e recusa alteração explícita fora da porta canônica',async()=>{
+ const a=ambiente(['documentos'],[controle('controle',{usoLicitacoes:true})]);
+ const ret=await a.chamar({action:'salvar',item:{id:'controle',tipo:'documento',nome:'Certidão fictícia editada'},versao:'v1'});
+ assert.equal(ret.status,200);
+ assert.equal(a.linhas.find(r=>r.colecao==='ativo'&&r.id==='controle').registro.usoLicitacoes,true);
+ const b=ambiente(['documentos'],[controle('controle',{usoLicitacoes:true})]);
+ const alteracao=await b.chamar({action:'salvar',item:{id:'controle',tipo:'documento',nome:'Certidão fictícia',usoLicitacoes:false},versao:'v1'});
+ assert.equal(alteracao.status,422);
+ assert.equal(b.escritas.length,0);
+ assert.equal(b.linhas.find(r=>r.colecao==='ativo'&&r.id==='controle').registro.usoLicitacoes,true);
+});
 function ambiente(perms=['documentos'],rows=[],opcoes={}){
  let handler;const linhas=structuredClone([...titulares,...rows]),escritas=[],consultas=[],uploads=[],downloads=[],arquivos=new Map(Object.entries(opcoes.arquivos||{}));
  const sb={from(tabela){assert.equal(tabela,'painel_registros');let filtros=[],de=0,ate=Infinity,insert;

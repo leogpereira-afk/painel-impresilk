@@ -23,7 +23,7 @@ export function autorizadoDocumento(registro,titulares,sessao,ativos=new Map()){
  const titular=titulares.get(registro.titularId);
  return titular?.tipo==='empresa'||temPermissao(sessao,'documentos-pessoais');
 }
-const CAMPOS=['nome','categoria','identificacao','titularId','emissao','validade','semVencimento','alertaDias','estado','orgaoEmissor','estabelecimento','responsavel','responsavelId','observacao','fornecedor','fabricante','compra','tipoGarantia','condicoes','cobertura','obrigacaoPagamento','pagamentoSituacao','seguradora','valor','valorSegurado','contato','assistencia','linkOficial','acionamentos','ativoIds','criadoEm','atualizadoEm','atualizadoPor'];
+const CAMPOS=['nome','categoria','identificacao','titularId','usoLicitacoes','emissao','validade','semVencimento','alertaDias','estado','orgaoEmissor','estabelecimento','responsavel','responsavelId','observacao','fornecedor','fabricante','compra','tipoGarantia','condicoes','cobertura','obrigacaoPagamento','pagamentoSituacao','seguradora','valor','valorSegurado','contato','assistencia','linkOficial','acionamentos','ativoIds','criadoEm','atualizadoEm','atualizadoPor'];
 const anexoPublico=a=>({id:a.id,nome:a.nome,mime:a.mime,criadoEm:a.criadoEm,criadoPor:a.criadoPor});
 export function snapshotDocumento(r){return Object.fromEntries(CAMPOS.filter(k=>Object.hasOwn(r||{},k)).map(k=>[k,r[k]]));}
 export function documentoPublico(id,r,titulares){
@@ -51,6 +51,11 @@ export function prepararControle(item,anterior,titulares,ativos,sessao,pessoas=[
  if(['versoes','anexos','arquivo','arquivoIncendio','arquivoNome','temArquivo','historico','pessoalHistorico','criadoEm','atualizadoEm','atualizadoPor','origem','origemTipo','titularTipo','titularNome'].some(k=>Object.hasOwn(item,k)))falha('Metadados de arquivos e históricos não são editáveis.');
  const vindo=k=>Object.hasOwn(item,k)?item[k]:a[k];
  const campos={};
+ const enviouUso=Object.hasOwn(item,'usoLicitacoes');
+ if(enviouUso&&typeof item.usoLicitacoes!=='boolean')falha('Uso em Licitações deve ser verdadeiro ou falso.');
+ if((enviouUso||vindo('usoLicitacoes')===true)&&(tipo!=='documento'||titulares.get(vindo('titularId'))?.tipo!=='empresa'))falha('Somente documentos de titular empresa podem ser vinculados a Licitações.');
+ if(enviouUso&&item.usoLicitacoes!==a.usoLicitacoes&&(!temPermissao(sessao,'documentos')||!temPermissao(sessao,'licitacoes')))falha('É necessário acesso a Documentos e Licitações para alterar este vínculo.',403);
+ if(vindo('usoLicitacoes')!==undefined)campos.usoLicitacoes=vindo('usoLicitacoes');
  if(avcb){for(const k of ['emissao','validade'])campos[k]=dataDocumento(vindo(k),k);if(!campos.validade||campos.emissao&&campos.validade<campos.emissao)falha('Informe validade posterior à emissão.');if(Object.hasOwn(item,'titularId')){const id=texto(item.titularId,'titular',180,true),t=titulares.get(id);if(t?.tipo!=='empresa')falha('Selecione titular empresa para o AVCB predial.');campos.titularId=id;}return campos;}
  for(const k of ['nome','categoria','identificacao','titularId','orgaoEmissor','estabelecimento','responsavel','responsavelId','fornecedor','fabricante','tipoGarantia','seguradora'])campos[k]=texto(vindo(k),k,k==='titularId'||k==='responsavelId'?180:200,k==='nome'||k==='categoria'||k==='titularId');
  if(campos.categoria.toUpperCase()==='AVCB'&&String(a.categoria||'').toUpperCase()!=='AVCB')falha('Cadastre o AVCB na Prevenção contra incêndio. Documentos renova a mesma ficha.',409);

@@ -10,7 +10,11 @@ const pessoas = [{ id: pessoaRH, nome: 'Ana · pessoa fictícia', disponivel: tr
 const linhas = [
   registro('documentos_titulares', empresa, { tipo: 'empresa', nome: 'Empresa de demonstração' }),
   registro('documentos_titulares', pessoa, { tipo: 'pessoa', nome: pessoas[0].nome, pessoaId: pessoaRH }),
-  registro('ativo', 'certidao-demo', { tipo: 'documento', nome: 'Certidão fiscal · exemplo', categoria: 'Certidão fiscal', titularId: empresa, emissao: '2026-01-01', validade: '2026-10-05', alertaDias: 30, estado: 'ativo', responsavelId: pessoaRH, responsavel: pessoas[0].nome, temArquivo: true, arquivoNome: 'certidao-exemplo.pdf' }),
+  registro('ativo', 'certidao-demo', { tipo: 'documento', nome: 'Certidão fiscal · exemplo', categoria: 'Certidão fiscal', titularId: empresa, usoLicitacoes: true, emissao: '2026-01-01', validade: '2026-10-05', alertaDias: 30, estado: 'ativo', responsavelId: pessoaRH, responsavel: pessoas[0].nome, temArquivo: true, arquivoNome: 'certidao-exemplo.pdf', linkOficial: 'https://example.com/certidao-ficticia' }),
+  registro('ativo', 'contrato-licitacoes-demo', { tipo: 'documento', nome: 'Contrato social · fictício', categoria: 'Contrato social', titularId: empresa, usoLicitacoes: true, emissao: '2026-01-01', validade: '', semVencimento: true, estado: 'ativo', temArquivo: true, arquivoNome: 'contrato-ficticio.pdf' }),
+  registro('ativo', 'cnd-licitacoes-demo', { tipo: 'documento', nome: 'CND Federal · fictícia', categoria: 'CND Federal', titularId: empresa, usoLicitacoes: true, emissao: '2026-10-01', validade: '2027-03-01', alertaDias: 30, estado: 'ativo', temArquivo: true, arquivoNome: 'cnd-ficticia.pdf', linkOficial: 'https://example.com/cnd-ficticia' }),
+  registro('ativo', 'fgts-licitacoes-demo', { tipo: 'documento', nome: 'CRF do FGTS · fictício', categoria: 'CRF do FGTS', titularId: empresa, usoLicitacoes: true, emissao: '2026-10-20', validade: '2026-11-20', alertaDias: 30, estado: 'ativo', temArquivo: true, arquivoNome: 'fgts-ficticio.pdf', linkOficial: 'https://example.com/fgts-ficticio' }),
+  registro('ativo', 'trabalhista-licitacoes-demo', { tipo: 'documento', nome: 'Certidão trabalhista · fictícia', categoria: 'Certidão trabalhista', titularId: empresa, usoLicitacoes: true, emissao: '', validade: '', estado: 'ativo', temArquivo: false }),
   registro('ativo', 'crlv-demo', { tipo: 'documento', nome: 'CRLV · exemplo', categoria: 'CRLV / licenciamento', titularId: empresa, ativoIds: ['car-demo'], validade: '2026-12-31', alertaDias: 30, estado: 'ativo' }),
   registro('ativo', 'ipva-demo', { tipo: 'documento', nome: 'IPVA · exemplo', categoria: 'IPVA', titularId: empresa, ativoIds: ['car-demo'], validade: '2026-11-01', alertaDias: 30, estado: 'ativo', obrigacaoPagamento: 'Parcela de demonstração', pagamentoSituacao: 'pendente' }),
   registro('ativo', 'garantia-demo', { tipo: 'garantia', nome: 'Garantia da impressora · exemplo', categoria: 'Equipamento', titularId: empresa, ativoIds: ['maq-demo'], compra: '2026-01-10', emissao: '2026-01-10', validade: '', alertaDias: 30, estado: 'ativo', fornecedor: 'Fornecedor fictício', acionamentos: [] }),
@@ -18,6 +22,7 @@ const linhas = [
   registro('ativo', 'pessoal-demo', { tipo: 'documento', nome: 'Documento pessoal · exemplo', categoria: 'Documento pessoal', titularId: pessoa, validade: '2026-10-20', estado: 'ativo' }),
   registro('documentos_requisitos', 'requisito-demo', { titularId: empresa, categoria: 'Alvará de funcionamento', estabelecimento: 'Estabelecimento fictício', estado: 'aplicavel', documentoId: '' }),
   registro('arquivo', 'certidao-demo', { nome: 'certidao-exemplo.pdf', mime: 'application/pdf' }),
+  ...['contrato-licitacoes-demo', 'cnd-licitacoes-demo', 'fgts-licitacoes-demo'].map(id => registro('arquivo', id, { nome: `${id}.pdf`, mime: 'application/pdf' })),
 ];
 function pdfExemplo() {
   const texto = 'BT /F1 16 Tf 40 140 Td (Documento ficticio de demonstracao) Tj ET';
@@ -28,9 +33,9 @@ function pdfExemplo() {
   pdf += `xref\n0 6\n0000000000 65535 f \n${offsets.slice(1).map(n => String(n).padStart(10,'0') + ' 00000 n \n').join('')}trailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n${inicio}\n%%EOF`;
   return new TextEncoder().encode(pdf);
 }
-const arquivos = new Map([['certidao-demo', { bytes: pdfExemplo(), mime: 'application/pdf' }]]);
+const arquivos = new Map(['certidao-demo', 'contrato-licitacoes-demo', 'cnd-licitacoes-demo', 'fgts-licitacoes-demo'].map(id => [id, { bytes: pdfExemplo(), mime: 'application/pdf' }]));
 let fisicos;
-function prepararFisicos(bens) {
+function prepararFisicos(bens = []) {
   if (fisicos) return;
   fisicos = bens;
   for (const bem of bens) linhas.push({ colecao: 'ativo', id: bem.id, registro: bem });
@@ -58,7 +63,11 @@ function bancoMemoria() {
       const colecao = nome === 'painel_registro_gravar' ? p.p_colecao : nome === 'painel_ativo_restaurar' ? 'ativo_lixeira' : 'ativo';
       const anterior = linhas.find(r => r.colecao === colecao && r.id === p.p_id);
       if (JSON.stringify(anterior?.registro || null) !== JSON.stringify(p.p_anterior || null)) return { data: null, error: { code: '40001', message: 'O cadastro mudou. Atualize.' } };
-      if (nome === 'painel_registro_gravar') { anterior.registro = structuredClone(p.p_registro); return { data: p.p_registro, error: null }; }
+      if (nome === 'painel_registro_gravar') {
+        if (anterior) anterior.registro = structuredClone(p.p_registro);
+        else linhas.push({ colecao: p.p_colecao, id: p.p_id, registro: structuredClone(p.p_registro) });
+        return { data: structuredClone(p.p_registro), error: null };
+      }
       if (nome === 'painel_documento_retirar') {
         linhas.push({ ...anterior, colecao: 'ativo_lixeira', registro: { ...anterior.registro, _apagadoEm: new Date().toISOString() } });
       } else if (nome === 'painel_ativo_restaurar') {
@@ -75,6 +84,7 @@ function bancoMemoria() {
     }; } },
   };
 }
+export { bancoMemoria as bancoDocumentosDemo, prepararFisicos as prepararDocumentosDemo };
 const responder = (dados,status=200) => new Response(JSON.stringify(dados),{status,headers:{'Content-Type':'application/json'}});
 const actions = new Set(['listarDocumentos','salvarControle','renovarControle','lerVersaoDocumento','removerControle','lixeiraDocumentos','restaurarControle','salvarTitular','salvarRequisito','previaDocumentos']);
 export async function respostaDocumentos(corpo,sessao,bens) {
