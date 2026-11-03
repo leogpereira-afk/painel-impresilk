@@ -7,7 +7,7 @@ import { ChevronLeft, ChevronRight, RefreshCw, Eye, CalendarDays } from "lucide-
 import {
   PageTitle, Card, Empty, CarregandoModulo, ErroModulo, AvisoAtualizacao,
 } from "../components/ui.jsx";
-import { lerAgendaCampanhas,lerEmpresa,lerAgendaPatrimonio,lerAgendaDocumentos,lerAgendaComercial } from "../services/agenda.js";
+import { lerAgendaLicitacoes,lerAgendaCampanhas,lerEmpresa,lerAgendaPatrimonio,lerAgendaDocumentos,lerAgendaComercial } from "../services/agenda.js";
 import { combinarEventosCalendario, destinoEventoCalendario as destinoDocumento } from '../../supabase/functions/_shared/documentos-agenda.mjs';
 import {lerAgendaProcessos} from '../services/processos.js';
 import {lerAgendaReunioes} from '../services/reunioes.js';
@@ -27,7 +27,7 @@ const hojeLocalSP = () =>
   new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo", year: "numeric", month: "2-digit", day: "2-digit" })
     .format(new Date());
 const mesAtual = () => hojeLocalSP().slice(0, 7);
-const destinoEvento=(evento,mes)=>['comercial','campanhas'].includes(evento.origem)?evento.href:destinoDocumento(evento,mes);
+const destinoEvento=(evento,mes)=>['comercial','campanhas','licitacoes'].includes(evento.origem)?evento.href:destinoDocumento(evento,mes);
 function mesVizinho(mes, passo) {
   const d = new Date(Date.UTC(Number(mes.slice(0, 4)), Number(mes.slice(5, 7)) + passo - 1, 1));
   return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
@@ -53,6 +53,8 @@ export default function CalendarioEmpresa({sessao}) {
   const [documentos,setDocumentos]=useState({chave:'',eventos:[]}),[erroDocumentos,setErroDocumentos]=useState('');
   const [comercial,setComercial]=useState({chave:'',eventos:[]}),[erroComercial,setErroComercial]=useState('');
   const [campanhas,setCampanhas]=useState({chave:'',eventos:[]}),[erroCampanhas,setErroCampanhas]=useState('');
+  const [licitacoes,setLicitacoes]=useState({chave:'',eventos:[]}),[erroLicitacoes,setErroLicitacoes]=useState('');
+  const temLicitacoes=podeAbrir('licitacoes',sessao);
   const temCampanhas=podeAbrir('campanhas',sessao);
   const temComercial=podeAbrir('orcamentos',sessao);
   const temDocumentos=podeAbrir('documentos',sessao);
@@ -68,9 +70,11 @@ export default function CalendarioEmpresa({sessao}) {
     setAtualizando(true);
     setDados(null);
     try {
-      const [empresa,reunioes,trabalhos,bens,prazos,atividades,planos]=await Promise.allSettled([lerEmpresa(mes),temReunioes?lerAgendaReunioes(mes):Promise.resolve([]),temProcessos?lerAgendaProcessos(mes):Promise.resolve([]),temPatrimonio?lerAgendaPatrimonio(mes):Promise.resolve([]),temDocumentos?lerAgendaDocumentos(mes):Promise.resolve([]),temComercial?lerAgendaComercial(mes):Promise.resolve({eventos:[]}),temCampanhas?lerAgendaCampanhas(mes):Promise.resolve([])]);
+      const [empresa,reunioes,trabalhos,bens,prazos,atividades,planos,editais]=await Promise.allSettled([lerEmpresa(mes),temReunioes?lerAgendaReunioes(mes):Promise.resolve([]),temProcessos?lerAgendaProcessos(mes):Promise.resolve([]),temPatrimonio?lerAgendaPatrimonio(mes):Promise.resolve([]),temDocumentos?lerAgendaDocumentos(mes):Promise.resolve([]),temComercial?lerAgendaComercial(mes):Promise.resolve({eventos:[]}),temCampanhas?lerAgendaCampanhas(mes):Promise.resolve([]),temLicitacoes?lerAgendaLicitacoes(mes):Promise.resolve([])]);
       // Resposta fora de ordem não pinta a tela (ver Agenda.jsx).
       if (meu !== pedido.current) return;
+      setLicitacoes({chave:chaveComercial,eventos:editais.status==='fulfilled'?editais.value:[]});
+      setErroLicitacoes(editais.status==='rejected'?'Não foi possível carregar os acompanhamentos de licitações. Atualize para tentar novamente.':'');
       setCampanhas({chave:chaveComercial,eventos:planos.status==='fulfilled'?planos.value:[]});
       setErroCampanhas(planos.status==='rejected'?'Não foi possível carregar as ações de campanhas. Atualize para tentar novamente.':'');
       if(atividades.status==='fulfilled')setComercial({chave:chaveComercial,eventos:atividades.value.eventos});
@@ -91,19 +95,20 @@ export default function CalendarioEmpresa({sessao}) {
     } finally {
       if (meu === pedido.current) setAtualizando(false);
     }
-  }, [mes,temReunioes,temProcessos,temPatrimonio,temDocumentos,chaveDocumentos,temComercial,chaveComercial,temCampanhas]);
+  }, [mes,temReunioes,temProcessos,temPatrimonio,temDocumentos,chaveDocumentos,temComercial,chaveComercial,temCampanhas,temLicitacoes]);
 
   useEffect(() => {
     const contador = pedido;
     void recarregar();
     window.addEventListener('reunioes-atualizadas',recarregar);
-    return () => { contador.current++; window.removeEventListener('reunioes-atualizadas',recarregar); };
+    window.addEventListener('licitacoes-atualizadas',recarregar);
+    return () => { contador.current++; window.removeEventListener('reunioes-atualizadas',recarregar);window.removeEventListener('licitacoes-atualizadas',recarregar); };
   }, [recarregar]);
 
   const hoje = dados?.hoje || "";
   const eventos = useMemo(
-    () => combinarEventosCalendario([dados?.chave===chaveDocumentos ? dados.eventos : [],temReunioes?encontros:[],temProcessos?processos:[],temPatrimonio&&patrimonio.chave===chaveDocumentos?patrimonio.eventos:[],temDocumentos&&documentos.chave===chaveDocumentos?documentos.eventos:[],temComercial&&comercial.chave===chaveComercial?comercial.eventos:[],temCampanhas&&campanhas.chave===chaveComercial?campanhas.eventos:[]],mes),
-    [dados,encontros,temReunioes,mes,processos,temProcessos,temPatrimonio,patrimonio,temDocumentos,documentos,chaveDocumentos,temComercial,comercial,chaveComercial,temCampanhas,campanhas],
+    () => combinarEventosCalendario([dados?.chave===chaveDocumentos ? dados.eventos : [],temReunioes?encontros:[],temProcessos?processos:[],temPatrimonio&&patrimonio.chave===chaveDocumentos?patrimonio.eventos:[],temDocumentos&&documentos.chave===chaveDocumentos?documentos.eventos:[],temComercial&&comercial.chave===chaveComercial?comercial.eventos:[],temCampanhas&&campanhas.chave===chaveComercial?campanhas.eventos:[],temLicitacoes&&licitacoes.chave===chaveComercial?licitacoes.eventos:[]],mes),
+    [dados,encontros,temReunioes,mes,processos,temProcessos,temPatrimonio,patrimonio,temDocumentos,documentos,chaveDocumentos,temComercial,comercial,chaveComercial,temCampanhas,campanhas,temLicitacoes,licitacoes],
   );
 
   /* A legenda É o filtro, como no RH: clicar num tipo mostra só ele. Os tipos
@@ -147,6 +152,7 @@ export default function CalendarioEmpresa({sessao}) {
       <AvisoAtualizacao erro={erroDocumentos} aoTentar={recarregar} />
       <AvisoAtualizacao erro={erroCampanhas} aoTentar={recarregar} />
       <AvisoAtualizacao erro={erroComercial} aoTentar={recarregar} />
+      <AvisoAtualizacao erro={erroLicitacoes} aoTentar={recarregar} />
       <PageTitle
         titulo="Calendário da empresa"
         descricao="Eventos, reuniões, atividades comerciais e vencimentos em um só calendário."
@@ -271,7 +277,7 @@ export default function CalendarioEmpresa({sessao}) {
           )}
           <p className="mt-4 flex items-center gap-1.5 text-xs text-slate-400">
             <CalendarDays size={13} aria-hidden="true" />
-            Fonte: RH, Reuniões, Comercial, Demandas, Consultorias, Patrimônio e Documentos · cada registro é atualizado na sua origem.
+            Fonte: RH, Reuniões, Comercial, Demandas, Consultorias, Patrimônio, Documentos e Licitações · cada registro é atualizado na sua origem.
           </p>
         </Card>
       </div>

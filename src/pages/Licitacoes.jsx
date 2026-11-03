@@ -1,8 +1,10 @@
 import JanelaFormulario from "../components/JanelaFormulario.jsx";
 import PesquisaLicitacoes from "../components/PesquisaLicitacoes.jsx";
-import {obterPesquisaLicitacoes, obterExecucaoLicitacoes, iniciarPesquisaLicitacoes, criarControleExecucaoLicitacoes} from "../services/licitacoes.js";
-import {getSessao, aoMudarSessao} from "../lib/sessao.js";
-import {criarLeituraLicitacoes} from "../lib/licitacoes-leitura.mjs";
+import AgendarLicitacao from "../components/AgendarLicitacao.jsx";
+import {obterPesquisaLicitacoes, obterHistoricoLicitacoes, obterExecucaoLicitacoes, iniciarPesquisaLicitacoes, criarControleExecucaoLicitacoes} from "../services/licitacoes.js";
+import {getSessao, aoMudarSessao,podeAbrir} from "../lib/sessao.js";
+import {useSearchParams} from "react-router-dom";
+import {criarLeituraLicitacoes, criarExportacaoLicitacoes} from "../lib/licitacoes-leitura.mjs";
 // Licitacoes: os editais em que a Impresilk vai (ou pode) entrar, com O DIA da
 // sessao na cara -- o valor da tela e ninguem perder prazo. Ordena pelo que
 // vence primeiro, avisa "HOJE"/"amanha" e guarda o edital em PDF.
@@ -109,7 +111,7 @@ function Linha({ it, baixarEdital, editar, remover }) {
       <span className="shrink-0 text-right">
         <span className={`${it.pz.chip} whitespace-nowrap`}>{it.pz.texto}</span>
         <span className="mt-0.5 block text-xs tabular-nums text-slate-500">
-          {it.validade ? `${dataCurta(it.validade)}${it.hora ? ` as ${it.hora}` : ""}` : "marque a data"}
+          {it.origemPesquisa?.pendente?'Conferência: ':''}{it.dataAcompanhamento ? `${dataCurta(it.dataAcompanhamento)}${it.hora ? ` às ${it.hora}` : ""}` : "marque a data"}
         </span>
       </span>
 
@@ -165,24 +167,59 @@ function Linha({ it, baixarEdital, editar, remover }) {
 }
 
 export default function Licitacoes() {
+  const [parametros,setParametros]=useSearchParams();
+  const relatorioSelecionado=parametros.get('relatorio')||'';
   const [sessao,setSessao]=useState(getSessao);
+  const [agendamento,setAgendamento]=useState(null);
   const [pesquisa,setPesquisa]=useState({dados:null,carregando:true,erro:null});
+  const [historico,setHistorico]=useState({dados:null,carregando:true,erro:null});
+  const [paginaHistorico,setPaginaHistorico]=useState(1);
+  const [pdf,setPDF]=useState({carregando:false,erro:null});
   const [execucao,setExecucao]=useState({dados:null,carregando:false,iniciando:false,erro:null});
-  const leituraPesquisa=useMemo(()=>criarLeituraLicitacoes({consultar:signal=>sessao?obterPesquisaLicitacoes(signal):Promise.reject(new Error("Entre no sistema para consultar a pesquisa.")),receber:setPesquisa}),[sessao]);
+  const leituraPesquisa=useMemo(()=>criarLeituraLicitacoes({consultar:(signal,id)=>sessao?obterPesquisaLicitacoes(signal,id):Promise.reject(new Error("Entre no sistema para consultar a pesquisa.")),receber:setPesquisa}),[sessao]);
+  const leituraHistorico=useMemo(()=>criarLeituraLicitacoes({consultar:(signal,pagina)=>sessao?obterHistoricoLicitacoes(signal,pagina):Promise.reject(new Error("Entre no sistema para consultar o histórico.")),receber:setHistorico}),[sessao]);
+  const controlePDF=useMemo(()=>criarExportacaoLicitacoes({gerar:async(dados,opcoes)=>{
+    const {baixarResumoLicitacoesPDF}=await import('../lib/licitacoes-pdf.mjs');
+    if(!opcoes.signal.aborted)await baixarResumoLicitacoesPDF(dados,opcoes);
+  },receber:setPDF}),[]);
   const controleExecucao=useMemo(()=>criarControleExecucaoLicitacoes({consultar:signal=>sessao?obterExecucaoLicitacoes(signal):Promise.reject(new Error("Entre no sistema para consultar a execução.")),iniciar:signal=>sessao?iniciarPesquisaLicitacoes(signal):Promise.reject(new Error("Entre no sistema para iniciar uma pesquisa.")),receber:setExecucao}),[sessao]);
   useEffect(()=>{
-    void leituraPesquisa.atualizar();void controleExecucao.atualizar();
-    return ()=>{leituraPesquisa.cancelar();controleExecucao.cancelar();};
-  },[leituraPesquisa,controleExecucao]);
+    void leituraPesquisa.atualizar(relatorioSelecionado);
+    controlePDF.cancelar();setPDF({carregando:false,erro:null});
+    return ()=>{leituraPesquisa.cancelar();controlePDF.cancelar();};
+  },[leituraPesquisa,controlePDF,relatorioSelecionado]);
+  useEffect(()=>{
+    void leituraHistorico.atualizar(paginaHistorico);
+    return ()=>leituraHistorico.cancelar();
+  },[leituraHistorico,paginaHistorico]);
+  useEffect(()=>{void controleExecucao.atualizar();return ()=>controleExecucao.cancelar();},[controleExecucao]);
   useEffect(()=>aoMudarSessao(()=>{
     // Cancelamento síncrono: nenhum retorno antigo sobrevive à troca de crachá.
-    leituraPesquisa.cancelar();controleExecucao.cancelar();
+    leituraPesquisa.cancelar();leituraHistorico.cancelar();controleExecucao.cancelar();controlePDF.cancelar();
     setPesquisa({dados:null,carregando:true,erro:null});
+    setHistorico({dados:null,carregando:true,erro:null});setPaginaHistorico(1);
+    setPDF({carregando:false,erro:null});
     setExecucao({dados:null,carregando:false,iniciando:false,erro:null});
+    setAgendamento(null);
     setSessao(getSessao());
-  }),[leituraPesquisa,controleExecucao]);
+  }),[leituraPesquisa,leituraHistorico,controleExecucao,controlePDF]);
+  const selecionarRelatorio=id=>{
+    leituraPesquisa.cancelar();controlePDF.cancelar();
+    setPDF({carregando:false,erro:null});
+    const proximos=new URLSearchParams(parametros);
+    proximos.delete('item');setAgendamento(null);
+    if(id)proximos.set('relatorio',id);else proximos.delete('relatorio');
+    setParametros(proximos);
+  };
   const podeRodar=(sessao?.master===true||(sessao?.permissoes||[]).includes('*'))&&execucao.dados?.podeIniciar!==false;
-  const propsPesquisa={...pesquisa,execucao,podeRodar,aoRodar:()=>{if(podeRodar)void controleExecucao.rodar();},aoConsultarExecucao:controleExecucao.atualizar,aoAtualizar:()=>{void leituraPesquisa.atualizar();void controleExecucao.atualizar();}};
+  // Uma mudança de URL nunca exibe o relatório anterior enquanto o efeito inicia.
+  const pesquisaAtual=pesquisa.chave===relatorioSelecionado?pesquisa:{dados:null,carregando:true,erro:null};
+  const historicoAtual=historico.chave===paginaHistorico?historico:{dados:null,carregando:true,erro:null};
+  const propsPesquisa={...pesquisaAtual,historico:historicoAtual,paginaHistorico,relatorioSelecionado,itemSelecionado:parametros.get('item')||'',pdf,aoBaixarPDF:controlePDF.baixar,
+    aoAgendar:podeAbrir('licitacoes',sessao)&&podeAbrir('calendario-empresa',sessao)?(item,{pendente,relatorio})=>setAgendamento({item:structuredClone(item),relatorio:{id:relatorio.id},pendente}):undefined,
+    aoSelecionarRelatorio:selecionarRelatorio,aoPaginarHistorico:setPaginaHistorico,aoAtualizarHistorico:()=>leituraHistorico.atualizar(paginaHistorico),
+    execucao,podeRodar,aoRodar:()=>{if(podeRodar)void controleExecucao.rodar();},aoConsultarExecucao:controleExecucao.atualizar,
+    aoAtualizar:()=>{controlePDF.cancelar();setPDF({carregando:false,erro:null});void leituraPesquisa.atualizar(relatorioSelecionado);void leituraHistorico.atualizar(paginaHistorico);void controleExecucao.atualizar();}};
   const [itens, setItens] = useState(null);
   const [erro, setErro] = useState(null);
   const [aviso, setAviso] = useState(null);
@@ -220,15 +257,16 @@ export default function Licitacoes() {
 
   const vm = useMemo(() => {
     const todos = (itens || []).map((it) => {
-      const dias = it.validade ? diasEntre(hojeISO, it.validade) : null;
+      const dataAcompanhamento=it.origemPesquisa?.pendente?it.acompanhamento?.prazoAcao:it.validade;
+      const dias = dataAcompanhamento ? diasEntre(hojeISO, dataAcompanhamento) : null;
       const st = STATUS[it.status] || STATUS.avaliar;
-      return { ...it, dias, st, pz: prazo(dias) };
+      return { ...it, dataAcompanhamento, dias, st, pz: prazo(dias) };
     });
     const naMesa = todos.filter((x) => x.st.vivo).sort((a, b) => a.pz.peso - b.pz.peso);
     const encerradas = todos
       .filter((x) => !x.st.vivo)
       .sort((a, b) => String(b.validade).localeCompare(String(a.validade)));
-    const proxima = naMesa.find((x) => x.dias !== null && x.dias >= 0) || null;
+    const proxima = naMesa.find((x) => !x.origemPesquisa?.pendente && x.dias !== null && x.dias >= 0) || null;
     return {
       naMesa,
       encerradas,
@@ -241,6 +279,7 @@ export default function Licitacoes() {
   const editar = (it) => {
     setForm({
       id: it.id,
+      agendaPendente:it.origemPesquisa?.pendente===true,
       nome: it.nome || "",
       identificacao: it.identificacao || "",
       categoria: it.categoria || "",
@@ -368,16 +407,18 @@ export default function Licitacoes() {
     }
   };
 
+  const modalAgendamento=agendamento&&<AgendarLicitacao key={agendamento.relatorio.id+':'+agendamento.item.id} {...agendamento} sessao={sessao} aoFechar={()=>setAgendamento(null)} aoSalvo={item=>setItens(xs=>[...(xs||[]).filter(x=>x.id!==item.id),item])}/>;
   if (erro) {
     return (
       <div className="space-y-6">
         <PageTitle titulo="Licitações" descricao="Editais, prazos e sessões." />
         <PesquisaLicitacoes {...propsPesquisa}/>
+        {modalAgendamento}
         <ErroModulo mensagem={erro} aoTentar={() => window.location.reload()}/>
       </div>
     );
   }
-  if (itens === null) return <div className="space-y-6"><PageTitle titulo="Licitações" descricao="Pesquise oportunidades e acompanhe os editais da equipe."/><PesquisaLicitacoes {...propsPesquisa}/><CarregandoModulo/></div>;
+  if (itens === null) return <div className="space-y-6"><PageTitle titulo="Licitações" descricao="Pesquise oportunidades e acompanhe os editais da equipe."/><PesquisaLicitacoes {...propsPesquisa}/>{modalAgendamento}<CarregandoModulo/></div>;
 
   return (
     <div className="space-y-8">
@@ -387,6 +428,7 @@ export default function Licitacoes() {
       />
 
       <PesquisaLicitacoes {...propsPesquisa}/>
+      {modalAgendamento}
       <SectionTitle titulo="Acompanhamento da equipe" sub="Editais cadastrados, responsáveis, sessões e resultados. As oportunidades pesquisadas não entram aqui automaticamente."/>
 
       <div className="grid gap-3 sm:grid-cols-3">
@@ -407,10 +449,10 @@ export default function Licitacoes() {
         <StatCard rotulo="Ganhas" valor={String(vm.ganhas)} sub="histórico de vitorias" tom={vm.ganhas ? "ok" : "neutral"} icone={Trophy} />
       </div>
 
-      {vm.naMesa.some(it => !it.responsavel?.trim() || !it.validade) && <details className="rounded-xl border border-warn-200 bg-warn-50 p-4 text-sm text-warn-700">
-        <summary className="cursor-pointer font-medium">Preparar acompanhamento · {vm.naMesa.filter(it => !it.responsavel?.trim() || !it.validade).length} {vm.naMesa.filter(it => !it.responsavel?.trim() || !it.validade).length === 1 ? "edital com informação pendente" : "editais com informação pendente"}</summary>
+      {vm.naMesa.some(it => !it.responsavel?.trim() || !it.dataAcompanhamento) && <details className="rounded-xl border border-warn-200 bg-warn-50 p-4 text-sm text-warn-700">
+        <summary className="cursor-pointer font-medium">Preparar acompanhamento · {vm.naMesa.filter(it => !it.responsavel?.trim() || !it.dataAcompanhamento).length} {vm.naMesa.filter(it => !it.responsavel?.trim() || !it.dataAcompanhamento).length === 1 ? "edital com informação pendente" : "editais com informação pendente"}</summary>
         <p className="my-2">Defina responsável e data quando conhecidos para organizar os próximos passos.</p>
-        {vm.naMesa.filter(it => !it.responsavel?.trim() || !it.validade).map(it => <div key={it.id} className="flex flex-wrap items-center justify-between gap-2 border-t border-warn-200 py-2"><span>{it.nome} · {[!it.responsavel?.trim() && "sem responsável", !it.validade && "sem data"].filter(Boolean).join(" · ")}</span><button className="btn-outline" onClick={()=>editar(it)}>Completar cadastro</button></div>)}
+        {vm.naMesa.filter(it => !it.responsavel?.trim() || !it.dataAcompanhamento).map(it => <div key={it.id} className="flex flex-wrap items-center justify-between gap-2 border-t border-warn-200 py-2"><span>{it.nome} · {[!it.responsavel?.trim() && "sem responsável", !it.dataAcompanhamento && "sem data"].filter(Boolean).join(" · ")}</span><button className="btn-outline" onClick={()=>editar(it)}>Completar cadastro</button></div>)}
       </details>}
 
       <div className="flex justify-end"><button className="btn-primary" onClick={()=>{fecharForm();setFormAberto(true);}}>Nova licitação</button></div>
@@ -494,13 +536,13 @@ export default function Licitacoes() {
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="label" htmlFor="l-data">Dia da sessão</label>
+                <label className="label" htmlFor="l-data">{form.agendaPendente?'Data da conferência':'Dia da sessão'}</label>
                 <input
                   id="l-data"
                   type="date"
                   className="input"
-                  value={form.validade}
-                  onChange={(e) => setForm((f) => ({ ...f, validade: e.target.value }))}
+                  value={form.agendaPendente?form.acompanhamento?.prazoAcao||'':form.validade}
+                  onChange={(e) => setForm((f) => form.agendaPendente?{...f,acompanhamento:{...f.acompanhamento,prazoAcao:e.target.value}}:{ ...f, validade: e.target.value })}
                 />
               </div>
               <div>

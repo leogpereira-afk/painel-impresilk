@@ -4,6 +4,7 @@ import {lerPessoasPatrimonio,validarVinculoPessoa} from '../_shared/patrimonio-p
 import {prepararFisico} from '../_shared/patrimonio-fisico.mjs';
 import {atenderDocumentos} from '../_shared/documentos-handler.mjs';
 import {temHistoricoPessoal} from '../_shared/documentos.mjs';
+import {validarOrigemPesquisa,idAgendamentoLicitacao,validarAgendamentoLicitacao} from '../_shared/licitacoes-agenda.mjs';
 // ============================================================================
 // painel-ativos — documentos, veiculos e maquinas (substitui ativos.js)
 //
@@ -820,6 +821,16 @@ Deno.serve(async (req: Request) => {
         { const b = await barraGravar(tipo); if (b) return b; }
         if (!String(it.nome ?? "").trim()) return resposta({ erro: "informe o nome" }, 400);
 
+        let origemPedido:any;
+        if(it.origemPesquisa!==undefined){
+          if(tipo!=='licitacao')return resposta({erro:'Origem de pesquisa permitida somente em Licitações.'},422);
+          if(!temPermissao(sessao,'calendario-empresa'))return resposta({erro:'Seu acesso precisa incluir Calendário da empresa.'},403);
+          origemPedido=validarOrigemPesquisa(it.origemPesquisa);
+          const esperado=await idAgendamentoLicitacao(origemPedido);
+          if((it.id||it.cadastroId)!==esperado||(!it.id&&!it.cadastroId)||(it.id&&it.cadastroId))return resposta({erro:'Identificador do acompanhamento inválido.'},422);
+          validarAgendamentoLicitacao(it);
+        }
+
         const agora = new Date().toISOString();
         const id = it.id || it.cadastroId || crypto.randomUUID();
         const { data: ant, error: falhaLeitura } = await sb.from("painel_registros").select("registro")
@@ -853,11 +864,19 @@ Deno.serve(async (req: Request) => {
           if(retirado) return resposta({erro:"Este cadastro foi retirado. Reabra a tela para cadastrar outro item."},409);
         }
         const tipoGravado = (ant?.registro as any)?.tipo;
+        if(ant?.registro?.origemPesquisa&&!temPermissao(sessao,'calendario-empresa'))return resposta({erro:'Seu acesso precisa incluir Calendário da empresa para alterar este agendamento.'},403);
         if (tipoGravado) {
           { const b = await barraGravar(tipoGravado); if (b) return b; }
           if (tipoGravado !== tipo) {
             return resposta({ erro: "Nao da para mudar o tipo de um item ja cadastrado." }, 400);
           }
+        }
+        // Repetir Adicionar ao calendário não altera data, relatório de origem,
+        // checklist ou anexo de uma ficha que já foi criada por outra sessão.
+        if(origemPedido&&ant?.registro){
+          if(!ant.registro.origemPesquisa||await idAgendamentoLicitacao(ant.registro.origemPesquisa)!==id)return resposta({erro:'Este identificador já pertence a outro acompanhamento.'},409);
+          if(!it.id)return resposta({ok:true,item:retornoLegado(ant.registro),repetido:true});
+          if(JSON.stringify(validarOrigemPesquisa(ant.registro.origemPesquisa))!==JSON.stringify(origemPedido))return resposta({erro:'A origem do acompanhamento não pode ser alterada.'},409);
         }
 
         // O QUE NAO VEIO NO CORPO FICA COMO ESTAVA.
@@ -895,6 +914,7 @@ Deno.serve(async (req: Request) => {
           ...(a.arquivoIncendio ? {arquivoIncendio:a.arquivoIncendio} : {}),
           id, tipo,
           ...(tipo === "licitacao" ? { acompanhamento: acompanhar(it.acompanhamento === undefined ? a.acompanhamento : it.acompanhamento) } : {}),
+          ...(tipo==='licitacao'&&(origemPedido||a.origemPesquisa)?{origemPesquisa:origemPedido||a.origemPesquisa}:{}),
           nome: String(it.nome).trim(),
           categoria: txt(it.categoria, a.categoria),
           identificacao: txt(it.identificacao, a.identificacao),
@@ -939,6 +959,7 @@ Deno.serve(async (req: Request) => {
           criadoEm: ant?.registro?.criadoEm || agora,
         };
         if(['documento','seguro','garantia'].includes(tipo))limpo.atualizadoEm=new Date(Math.max(Date.now(),(Date.parse(String(a.atualizadoEm||''))||0)+1)).toISOString();
+        if(tipo==='licitacao'&&(limpo as any).origemPesquisa)validarAgendamentoLicitacao(limpo);
         if(['documento','seguro','garantia'].includes(tipo))Object.assign(limpo,validarVinculoPessoa(it,a,await pessoasRH(),'responsavel'));
         if(tipo==='seguro')for(const chave of ['valor','valorSegurado']){const bruto=Object.hasOwn(it,chave)?it[chave]:a[chave];if(bruto==null||bruto==='')limpo[chave]=null;else if(!Number.isFinite(Number(bruto))||Number(bruto)<0)return resposta({erro:'Valor do seguro inválido.'},422);else limpo[chave]=Number(bruto);}
         else if(['documento','garantia'].includes(tipo))for(const chave of ['valor','valorSegurado']){if(Object.hasOwn(a,chave))limpo[chave]=a[chave];else delete limpo[chave];}
@@ -981,6 +1002,10 @@ Deno.serve(async (req: Request) => {
           return resposta({ok:true,item:ativoPermitido(data.item,sessao)});
         }
         const {data,error}=await sb.rpc('painel_registro_gravar',{p_colecao:'ativo',p_id:id,p_registro:limpo,p_anterior:ant?.registro || null});
+        if(error&&origemPedido&&!it.id&&['40001','23505'].includes(error.code)){
+          const vencedor=await registroDoId(id);
+          if(vencedor?.tipo==='licitacao'&&vencedor.origemPesquisa&&await idAgendamentoLicitacao(vencedor.origemPesquisa)===id)return resposta({ok:true,item:retornoLegado(vencedor),repetido:true});
+        }
         if(error) throw Object.assign(new Error(error.message),{code:error.code});
         return resposta({ok:true,item:retornoLegado(data)});
       }

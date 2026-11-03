@@ -208,7 +208,7 @@ test('copiar prompt executa clipboard apenas com o contexto público selecionado
   Object.defineProperty(globalThis,'navigator',{configurable:true,value:{clipboard:{writeText:async texto=>{copiado=texto;}}}});
   const dispatcher=React.__SECRET_INTERNALS_DO_NOT_USE_OR_YOU_WILL_BE_FIRED.ReactCurrentDispatcher;
   const previo=dispatcher.current;
-  dispatcher.current={useId:()=> 'exemplo',useMemo:fn=>fn(),useState:inicial=>[typeof inicial==='function'?inicial():inicial,()=>{}]};
+  dispatcher.current={useRef:()=>({current:null}),useEffect:()=>{},useId:()=> 'exemplo',useMemo:fn=>fn(),useState:inicial=>[typeof inicial==='function'?inicial():inicial,()=>{}]};
   function encontrar(elemento){
     if(Array.isArray(elemento)){for(const e of elemento){const r=encontrar(e);if(r)return r;}return null;}
     if(!elemento?.props)return null;
@@ -221,4 +221,72 @@ test('copiar prompt executa clipboard apenas com o contexto público selecionado
     const arvore=PesquisaLicitacoes({dados:relatorio({oportunidades:[item]})});const botao=encontrar(arvore);assert.ok(botao);
     await botao.props.onClick();assert.match(copiado,/Processo demonstrativo A/);assert.match(copiado,/Instituto Exemplo/);assert.match(copiado,/https:\/\/portal.example\/edital-ficticio/);assert.match(copiado,/Material fictício/);assert.doesNotMatch(copiado,/NÃO COPIAR DADO INTERNO/);
   }finally{dispatcher.current=previo;if(anterior)Object.defineProperty(globalThis,'navigator',anterior);else delete globalThis.navigator;}
+});
+
+
+test('histórico agrupa por mês e identifica períodos sem prometer todas as semanas',()=>{
+  const registros=[{id:'semana-exemplo-a',periodo_de:'2026-10-26',periodo_ate:'2026-11-01',gerado_em:'2026-11-01T18:00:00Z',recebido_em:'2026-11-01T19:00:00Z',versao:'v-exemplo'},{id:'semana-exemplo-b',periodo_de:'2026-10-19',periodo_ate:'2026-10-25',gerado_em:'2026-10-25T18:00:00Z',recebido_em:'2026-10-25T19:00:00Z',versao:'v-exemplo'}];
+  const html=renderizar({dados:relatorio(),historico:{dados:{registros,temMais:true}},paginaHistorico:1,relatorioSelecionado:'semana-exemplo-b',aoSelecionarRelatorio(){},aoPaginarHistorico(){}});
+  assert.match(html,/Novembro de 2026/);assert.match(html,/Outubro de 2026/);assert.match(html,/Relatório de 25\/10\/2026/);
+  assert.match(html,/período pesquisado: 19\/10\/2026 a 25\/10\/2026/);assert.doesNotMatch(html,/versão v-exemplo/);assert.match(html,/somente os registros desta página/);assert.match(html,/aria-pressed="true"/);assert.match(html,/Última pesquisa/);assert.match(html,/Próxima página do histórico/);
+});
+
+test('candidato pendente exibe identidade, motivo e dados registrados sem receber GO',()=>{
+  const html=renderizar({dados:relatorio({candidatosRetidos:[{id:'retido-exemplo',processo:'Processo pendente fictício',orgao:'Órgão pendente fictício',produto:'Placas pendentes fictícias',motivos:['Destino de entrega não demonstrado.'],oficialUrl:'https://portal.example/pendente',prazo:'2026-11-14T12:00:00Z',localExecucaoRegistrado:{municipios:['Município fictício'],apenasSede:true,evidencia:'Apenas sede registrada.'},classificacao:'GO'}]})});
+  const trecho=html.slice(html.indexOf('lp-pendentes'),html.indexOf('lp-matrizes'));
+  assert.match(trecho,/Processo pendente fictício/);assert.match(trecho,/Órgão pendente fictício/);assert.match(trecho,/Placas pendentes fictícias/);
+  assert.match(trecho,/Destino de entrega não demonstrado/);assert.match(trecho,/Prazo registrado \(a confirmar\)/);assert.match(trecho,/Destino registrado \(a confirmar\)/);
+  assert.match(trecho,/Sem classificação validada/);assert.doesNotMatch(trecho,/>GO</);assert.match(trecho,/href="https:\/\/portal.example\/pendente"/);
+});
+
+test('candidato pendente não transforma texto do portal ou URL ativa em código',()=>{
+  const html=renderizar({dados:relatorio({candidatosRetidos:[{id:'exemplo-inseguro',processo:'<script>exemplo</script>',oficialUrl:'javascript:alert(1)',motivos:['<img src=x>']}]})});
+  assert.match(html,/&lt;script&gt;/);assert.doesNotMatch(html,/<script>|href="javascript:|<img src=x>/);assert.match(html,/Fonte segura indisponível/);
+});
+
+test('resumo PDF apresenta geração e falha sem depender dos filtros de oportunidades',()=>{
+  const carregando=renderizar({dados:relatorio(),pdf:{carregando:true},aoBaixarPDF(){}});
+  assert.match(carregando,/disabled=""[^>]*>.*?Gerando resumo PDF/s);
+  const erro=renderizar({dados:relatorio(),pdf:{erro:'Falha de exportação fictícia'},aoBaixarPDF(){}});
+  assert.match(erro,/role="alert"[^>]*>Falha de exportação fictícia/);assert.match(erro,/Resumo da pesquisa selecionada/);
+});
+
+test('ID ausente não é apresentado como ausência global de relatórios',()=>{
+  const html=renderizar({dados:{estado:'sem_relatorio'},relatorioSelecionado:'inexistente-exemplo',historico:{dados:{registros:[],temMais:false}},aoSelecionarRelatorio(){}});
+  assert.match(html,/Relatório selecionado indisponível/);assert.doesNotMatch(html,/Nenhum relatório publicado/);assert.match(html,/Última pesquisa/);
+});
+
+test('calendário distingue oportunidade de conferência pendente',()=>{
+  const dados=relatorio({oportunidades:[oportunidades[0]],candidatosRetidos:[{id:'pendente-demo',motivos:['Conferir destino.']}]});
+  const html=renderizar({dados,aoAgendar(){}});
+  assert.match(html,/Adicionar ao calendário/);assert.match(html,/Agendar conferência/);
+  assert.doesNotMatch(renderizar({dados}),/Adicionar ao calendário|Agendar conferência/);
+});
+
+test('prazo descritivo retido é preservado e não recebe hora ou fuso inventado',()=>{
+  const html=renderizar({dados:relatorio({candidatosRetidos:[{id:'prazo-descritivo-exemplo',prazo:'Entrega em 20 dias após autorização.',motivos:['Conferir o prazo de novas propostas.']}]})});
+  assert.match(html,/Entrega em 20 dias após autorização\./);
+  assert.doesNotMatch(html,/Não informado \(Brasília\)/);
+});
+
+
+test('link de item abre página e detalhes da oportunidade indicada sem duplicá-la',()=>{
+  const itens=Array.from({length:13},(_,i)=>({...oportunidades[0],id:`item-ficticio-${i}`,processo:`Processo fictício ${String(i).padStart(2,'0')}`}));
+  const html=renderizar({dados:relatorio({oportunidades:itens}),itemSelecionado:'item-ficticio-10'});
+  assert.match(html,/página 2 de 3/);assert.equal((html.match(/data-licitacao-id="item-ficticio-10"/g)||[]).length,1);
+  const card=html.match(/<article[^>]*data-licitacao-id="item-ficticio-10"[\s\S]*?<\/article>/)?.[0];
+  assert.ok(card);assert.match(card,/lp-item-selecionado/);assert.match(card,/aria-current="true"/);assert.match(card,/tabindex="-1"/);assert.match(card,/lp-detalhes-oportunidade" open=""/);assert.match(card,/Item indicado no link/);
+});
+
+test('link de candidato retido abre sua página sem promover classificação',()=>{
+  const itens=Array.from({length:14},(_,i)=>({id:`retido-ficticio-${i}`,processo:`Retido fictício ${i}`,motivos:['Conferir destino.']}));
+  const html=renderizar({dados:relatorio({candidatosRetidos:itens}),itemSelecionado:'retido-ficticio-13'});
+  assert.match(html,/página 3 de 3/);
+  const card=html.match(/<article[^>]*data-licitacao-id="retido-ficticio-13"[\s\S]*?<\/article>/)?.[0];
+  assert.ok(card);assert.match(card,/lp-item-selecionado/);assert.match(card,/aria-current="true"/);assert.match(card,/lp-detalhes-oportunidade" open=""/);assert.match(card,/Sem classificação validada/);assert.doesNotMatch(card,/>GO</);
+});
+
+test('item ausente avisa sem trocar relatório nem ocultar os demais registros',()=>{
+  const html=renderizar({dados:relatorio({oportunidades:[oportunidades[0]]}),itemSelecionado:'item-ausente-ficticio'});
+  assert.match(html,/O item indicado no link não foi encontrado neste relatório/);assert.match(html,/Processo demonstrativo A/);assert.doesNotMatch(html,/aria-current="true"/);
 });

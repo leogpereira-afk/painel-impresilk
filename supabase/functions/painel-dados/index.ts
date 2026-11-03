@@ -23,7 +23,7 @@ const financeiroDasOS = (pedidos: Set<string>, ids: string[]) => financeiroDasOS
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { verificarJwt, crachaRevogado } from "../_shared/cripto.ts";
-import { consultarPesquisaLicitacoes } from "../_shared/licitacoes-pesquisa.mjs";
+import { consultarPesquisaLicitacoes, selecionarConsultaLicitacoes } from "../_shared/licitacoes-pesquisa.mjs";
 import { processarExecucaoLicitacoes, CHAVE_DISPARO_LICITACOES } from "../_shared/licitacoes-execucao.mjs";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
@@ -189,7 +189,8 @@ Deno.serve(async (req: Request) => {
         // escrita ou pesquisa nova é feita por esta leitura.
         let pesquisa, falha;
         try {
-          pesquisa = await consultarPesquisaLicitacoes({ token: Deno.env.get("LICITACOES_PAINEL_TOKEN") ?? "" });
+          const selecao = selecionarConsultaLicitacoes(url.searchParams);
+          pesquisa = await consultarPesquisaLicitacoes({ token: Deno.env.get("LICITACOES_PAINEL_TOKEN") ?? "", ...selecao });
         } catch (e) {
           falha = e;
         }
@@ -197,7 +198,7 @@ Deno.serve(async (req: Request) => {
         // estrita evita reutilizar o cache de revogação de sessenta segundos.
         const atual = await exigirSessao(req, "licitacoes", true);
         if (atual.resposta) return atual.resposta;
-        if (falha) return json({ erro: (falha as Error).message }, 503);
+        if (falha) return json({ erro: (falha as Error).message }, falha.status || 503);
         return new Response(JSON.stringify(pesquisa), { headers: { ...CORS, "content-type": "application/json", "cache-control": "no-store" } });
       }
 

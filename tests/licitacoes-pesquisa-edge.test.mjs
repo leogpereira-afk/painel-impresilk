@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import vm from 'node:vm';
 import {transformSync} from 'esbuild';
+import {selecionarConsultaLicitacoes} from '../supabase/functions/_shared/licitacoes-pesquisa.mjs';
 
 function ambiente(perms=['licitacoes'],opcoes={}) {
   let handler,leituras=0,conferencias=0;
@@ -12,10 +13,11 @@ function ambiente(perms=['licitacoes'],opcoes={}) {
     createClient:()=>({}),verificarJwt:async()=>opcoes.semSessao?null:{sub:'operador-ficticio',perms,master:opcoes.master===true},
     crachaRevogado:async()=>{conferencias++;return opcoes.revogado===true||(opcoes.revogadoDepois&&conferencias>1);},
     financeiroDasOSCompartilhado(){},Request,Response,URL,console:{error(){}},
-    consultarPesquisaLicitacoes:async()=>{leituras++;return {estado:'sem_relatorio'};},
+    selecionarConsultaLicitacoes,
+    consultarPesquisaLicitacoes:async(selecao)=>{leituras++;if(opcoes.falha404)throw Object.assign(new Error('Relatório ausente'),{status:404});return selecao.historico?{estado:'historico',registros:[],pagina:selecao.pagina,temMais:false}:{estado:'sem_relatorio'};},
   });
-  return {get leituras(){return leituras;},async chamar(method='GET'){
-    const r=await handler(new Request('https://test.invalid?modulo=licitacoes',{method,headers:{authorization:'Bearer ficticio'}}));
+  return {get leituras(){return leituras;},async chamar(method='GET',query=''){
+    const r=await handler(new Request('https://test.invalid?modulo=licitacoes'+query,{method,headers:{authorization:'Bearer ficticio'}}));
     return {status:r.status,body:await r.json()};
   }};
 }
@@ -36,4 +38,15 @@ test('revogação durante a consulta impede devolver dados',async()=>{
 });
 test('POST não inicia pesquisa nem publica dados',async()=>{
   const a=ambiente();assert.equal((await a.chamar('POST')).status,405);assert.equal(a.leituras,0);
+});
+test('histórico compartilha permissão e revogação e não faz escrita',async()=>{
+  const a=ambiente();const r=await a.chamar('GET','&acao=historico&pagina=2');assert.equal(r.status,200);assert.equal(r.body.pagina,2);
+  const b=ambiente(['marketing']);assert.equal((await b.chamar('GET','&acao=historico')).status,403);assert.equal(b.leituras,0);
+  const c=ambiente(['licitacoes'],{revogadoDepois:true});assert.equal((await c.chamar('GET','&acao=historico')).status,401);
+});
+test('seletores inválidos recusados antes da ponte e versão ausente mantém 404',async()=>{
+  for(const q of ['&relatorio=../invalido','&acao=historico&relatorio=x','&pagina=2','&acao=historico&pagina=0','&relatorio=a&relatorio=b','&url=https://evil.invalid']){
+    const a=ambiente();assert.equal((await a.chamar('GET',q)).status,400,q);assert.equal(a.leituras,0);
+  }
+  assert.equal((await ambiente(['licitacoes'],{falha404:true}).chamar('GET','&relatorio=ausente')).status,404);
 });

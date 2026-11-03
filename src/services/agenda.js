@@ -55,3 +55,8 @@ export const lerAgendaCampanhas = mes => chamar('campanhas',mes).then(r=>{
   if(!Array.isArray(r?.eventos))throw Error('Resposta inválida ao consultar as ações das campanhas.');
   return r.eventos;
 });
+
+export const lerAgendaLicitacoes = mes => chamar('licitacoes',mes).then(r=>{
+  if(!Array.isArray(r?.eventos))throw Error('Resposta inválida ao consultar os acompanhamentos de licitações.');
+  return r.eventos;
+});

@@ -1,15 +1,31 @@
 import {API} from '../lib/api.js';
 import {comCracha,mensagemDoStatus} from '../lib/sessao.js';
 
-export async function obterPesquisaLicitacoes(signal) {
+export async function obterPesquisaLicitacoes(signal,relatorio='') {
   if(import.meta.env.MODE==='review'){
     const {pesquisaLicitacoesDemo}=await import('../review/licitacoes.mjs');
-    return pesquisaLicitacoesDemo(signal);
+    return pesquisaLicitacoesDemo(signal,relatorio);
   }
-  const r=await comCracha(`${API}/painel-dados?modulo=licitacoes`,{method:'GET',signal,cache:'no-store'});
+  const parametros=new URLSearchParams({modulo:'licitacoes'});
+  if(relatorio)parametros.set('relatorio',relatorio);
+  const r=await comCracha(`${API}/painel-dados?${parametros}`,{method:'GET',signal,cache:'no-store'});
   const b=await r.json().catch(()=>null);
   if(!r.ok)throw new Error(b?.erro||mensagemDoStatus(r.status));
   if(!b||!['disponivel','sem_relatorio'].includes(b.estado))throw new Error('A pesquisa não foi confirmada pelo servidor. Atualize a leitura.');
+  if(relatorio&&b.estado==='disponivel'&&b.id!==relatorio)throw new Error('O servidor retornou outra pesquisa. A versão selecionada não foi confirmada.');
+  return b;
+}
+
+export async function obterHistoricoLicitacoes(signal,pagina=1) {
+  if(import.meta.env.MODE==='review'){
+    const {historicoLicitacoesDemo}=await import('../review/licitacoes.mjs');
+    return historicoLicitacoesDemo(signal,pagina);
+  }
+  const parametros=new URLSearchParams({modulo:'licitacoes',acao:'historico',pagina:String(pagina)});
+  const r=await comCracha(`${API}/painel-dados?${parametros}`,{method:'GET',signal,cache:'no-store'});
+  const b=await r.json().catch(()=>null);
+  if(!r.ok)throw new Error(b?.erro||mensagemDoStatus(r.status));
+  if(!b||b.estado!=='historico'||!Array.isArray(b.registros)||!Number.isInteger(b.pagina)||b.pagina!==pagina||typeof b.temMais!=='boolean')throw new Error('O histórico não foi confirmado pelo servidor. Atualize a leitura.');
   return b;
 }
 

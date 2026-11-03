@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {consultarPesquisaLicitacoes,projetarPesquisaLicitacoes,hashPesquisa,URL_PESQUISA_LICITACOES,MAX_BYTES_PESQUISA} from '../supabase/functions/_shared/licitacoes-pesquisa.mjs';
+import {consultarPesquisaLicitacoes,projetarPesquisaLicitacoes,projetarHistoricoLicitacoes,hashPesquisa,URL_PESQUISA_LICITACOES,MAX_BYTES_PESQUISA} from '../supabase/functions/_shared/licitacoes-pesquisa.mjs';
 import {gerarRelatorio} from '../supabase/functions/_shared/licitacoes-controle.mjs';
 const agora=new Date('2026-10-12T15:00:00Z');
 async function entrada(overrides={}) {
@@ -62,4 +62,28 @@ test('link do bot usa somente username validado e domínio Telegram fixo',async(
   assert.equal(r.bot.url,'https://t.me/ExemploImpresilkBot');
   for(const username of ['https://outro.invalid','../arquivo','curto!',''])await assert.rejects(projetarPesquisaLicitacoes({...e,bot:{nome:'BotImpresilk',username}},agora),/indisponível/);
   assert.deepEqual(await projetarPesquisaLicitacoes({estado:'sem_relatorio',bot:e.bot},agora),{estado:'sem_relatorio',bot:r.bot});
+});
+test('retidos têm detalhes sem promover classificação ou cobertura',async()=>{
+  const e=await entrada();e.registro.dossie.candidatos=[{id:'pendente-ficticio',processo:'Processo fictício A',orgao:'Órgão exemplo',produto:'Adesivo',item:'4',prazo:'Dia divulgado, hora a confirmar',oficialUrl:'https://example.gov.br/edital',classificacao:'GO',justificativa:'Conferência pendente',exigencias:['Anexo pendente'],localExecucao:{municipios:['Montes Claros'],apenasSede:true,evidencia:'Somente sede identificada'}}];
+  e.registro.hash_sha256=await hashPesquisa(e.registro.dossie);
+  const r=await projetarPesquisaLicitacoes(e,agora);assert.equal(r.oportunidades.length,0);assert.equal(r.cobertura.concluidos,0);
+  assert.equal(r.candidatosRetidos[0].processo,'Processo fictício A');assert.equal(r.candidatosRetidos[0].classificacao,undefined);assert.equal(r.candidatosRetidos[0].municipiosAbrangidos,undefined);
+  assert.equal(r.candidatosRetidos[0].localExecucaoRegistrado.apenasSede,true);assert.ok(r.candidatosRetidos[0].motivos.length);assert.equal(r.candidatosRetidos[0].prazo,'Dia divulgado, hora a confirmar');
+  e.registro.dossie.candidatos[0].oficialUrl='javascript:alert(1)';e.registro.hash_sha256=await hashPesquisa(e.registro.dossie);assert.equal((await projetarPesquisaLicitacoes(e,agora)).candidatosRetidos[0].oficialUrl,'');
+});
+test('histórico permite só metadados e rejeita páginas ou resumos inconsistentes',async()=>{
+  const {dossie,...row}=(await entrada()).registro;assert.ok(dossie);
+  const h={estado:'historico',registros:[row],pagina:1,temMais:false};assert.equal(projetarHistoricoLicitacoes(h,1).registros[0].id,row.id);
+  for(const altered of [{...h,pagina:2},{...h,temMais:true},{...h,registros:[row,row]},{...h,registros:[{...row,dossie}]},{...h,registros:[{...row,periodo_de:'2026-02-31'}]}])assert.throws(()=>projetarHistoricoLicitacoes(altered,1),/indisponível/);
+});
+test('consulta por ID não substitui versão ausente ou resposta de outro relatório',async()=>{
+  let url;
+  const r=await consultarPesquisaLicitacoes({token:'teste',id:'pesquisa-ficticia',agora:()=>agora,fetcher:async(u)=>{url=u;return Response.json(await entrada());}});assert.equal(r.id,'pesquisa-ficticia');assert.equal(new URL(url).searchParams.get('id'),'pesquisa-ficticia');
+  await assert.rejects(consultarPesquisaLicitacoes({token:'teste',id:'outro',agora:()=>agora,fetcher:async()=>Response.json(await entrada())}),/indisponível/);
+  await assert.rejects(consultarPesquisaLicitacoes({token:'teste',id:'ausente',fetcher:async()=>new Response('',{status:404})}),e=>e.status===404);
+  await assert.rejects(consultarPesquisaLicitacoes({token:'teste',id:'../x',fetcher:()=>assert.fail('não chamar')}),e=>e.status===400);
+});
+test('consulta histórico usa origem fixa e página validada',async()=>{
+  let url;const r=await consultarPesquisaLicitacoes({token:'teste',historico:true,pagina:2,fetcher:async(u)=>{url=new URL(u);return Response.json({estado:'historico',registros:[],pagina:2,temMais:false});}});
+  assert.equal(r.pagina,2);assert.equal(url.origin,new URL(URL_PESQUISA_LICITACOES).origin);assert.equal(url.searchParams.get('consulta'),'historico');assert.equal(url.searchParams.get('pagina'),'2');
 });

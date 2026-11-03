@@ -1,4 +1,5 @@
 import { projetarCampanhas } from "../_shared/campanhas-planejamento.mjs";
+import {projetarLicitacoesAgenda} from '../_shared/licitacoes-agenda.mjs';
 // ============================================================================
 // painel-agenda — a agenda, SO PARA VER.
 //
@@ -124,6 +125,21 @@ async function lerColecao(tabela: string, colecao: string): Promise<any[]> {
 }
 
 const texto = (v: unknown, max = 200) => String(v ?? "").trim().slice(0, max);
+
+async function agendaLicitacoes(mes:string){
+  const itens:any[]=[];let ultimo='';
+  for(let pagina=0;pagina<100;pagina++){
+    const {data,error}=await sb.from('painel_registros')
+      .select('id,tipo:registro->>tipo,nome:registro->>nome,validade:registro->>validade,hora:registro->>hora,status:registro->>status,origemPesquisa:registro->origemPesquisa,prazoAcao:registro->acompanhamento->>prazoAcao')
+      .eq('colecao','ativo').eq('registro->>tipo','licitacao').gt('id',ultimo).order('id',{ascending:true}).limit(500);
+    if(error)throw new Error(error.message);
+    const lote=data||[];
+    itens.push(...lote.map((r:any)=>({...r,acompanhamento:{prazoAcao:r.prazoAcao}})));
+    if(lote.length<500)return {eventos:projetarLicitacoesAgenda(itens,mes)};
+    ultimo=String(lote[lote.length-1].id);
+  }
+  throw new Error('Leitura dos acompanhamentos excedeu o limite.');
+}
 
 async function agendaComercial(mes:string,sessao:any) {
  const ctx=await contextoComercial(sb,sessao,{}, {historico:false});
@@ -370,6 +386,18 @@ Deno.serve(async (req) => {
 
   try {
     switch (acao) {
+      case 'licitacoes': {
+        const origem=await exigirSessao(req,'licitacoes');
+        if(origem.resposta)return origem.resposta;
+        const destino=await exigirSessao(req,'calendario-empresa');
+        if(destino.resposta)return destino.resposta;
+        const agenda=await agendaLicitacoes(mes);
+        const atual=await exigirSessao(req,['licitacoes']);
+        if(atual.resposta)return atual.resposta;
+        const calendario=await exigirSessao(req,'calendario-empresa');
+        if(calendario.resposta)return calendario.resposta;
+        return json(agenda);
+      }
       case 'campanhas': {
         const g=await exigirSessao(req,'campanhas');
         if(g.resposta)return g.resposta;

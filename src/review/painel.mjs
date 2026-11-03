@@ -2,6 +2,7 @@ import {respostaAgenda,pessoasAgenda} from './compromissos.mjs';
 import {respostaComercial,agendaComercialDemo} from './comercial.mjs';
 import {respostaReunioes} from './reunioes.mjs';
 import {respostaMarketing} from './marketing.mjs';
+import {listarLicitacoesDemo,salvarLicitacaoDemo,agendaLicitacoesDemo} from './licitacoes-agenda.mjs';
 import {respostaManuais} from './manuais-maquinas.mjs';
 import {respostaDocumentos,agendaDocumentosDemo} from './documentos.mjs';
 import {validarVinculoPessoa,prepararPessoasControle} from '../../supabase/functions/_shared/patrimonio-pessoas.mjs';
@@ -221,6 +222,7 @@ export async function respostaPreview(url,opcoes={}){
  const ss=getSessao(),sessao={sub:'demo',nome:'Conta de demonstração',master:ss?.master,perms:ss?.permissoes||[]};
  if(endpoint==='painel-config'&&corpo.action?.startsWith('manuaisMaquinas'))return respostaManuais(corpo,ss?sessao:null,equipamentosDemo,configs.patrimonio,pessoasPatrimonioDemo,configs.setores);
  if(endpoint==='painel-ativos'){
+  const licitacao=await salvarLicitacaoDemo(corpo,sessao);if(licitacao)return licitacao;
   const documentos=await respostaDocumentos(corpo,sessao,[...equipamentosDemo,...estruturasDemo]);
   if(documentos)return documentos;
  }
@@ -316,7 +318,7 @@ export async function respostaPreview(url,opcoes={}){
   try{dados=corpo.action==='vincularFicha'?vinculoPrevia.vincular(corpo,sessao):corpo.action==='desvincularFicha'?vinculoPrevia.desvincular(corpo,sessao):vinculoPrevia.historico(corpo,sessao);if(dados.bem)dados.bem=bemPermitido(dados.bem,sessao);}
   catch(e){return erroVinculoPreview(e);}
  }
- else if(endpoint==='painel-ativos' && corpo.action==='listar') dados={itens:structuredClone(equipamentosDemo.filter(i=>['veiculo','maquina'].includes(i.tipo)))};
+ else if(endpoint==='painel-ativos' && corpo.action==='listar') dados={itens:[...structuredClone(equipamentosDemo.filter(i=>['veiculo','maquina'].includes(i.tipo))),...listarLicitacoesDemo(sessao)]};
  else if(endpoint==='painel-ativos' && corpo.action==='salvar' && ['veiculo','maquina'].includes(corpo.item?.tipo)){
   try{dados={item:salvarEquipamentoPreview(corpo)};}catch(e){return erroPreview(e.message,e.status||422);}
  }
@@ -360,6 +362,7 @@ export async function respostaPreview(url,opcoes={}){
     alterações" é uma mensagem que não faz sentido nenhum para quem revisa.
     O mês pedido entra nas datas para a grade não nascer vazia. */
  else if(endpoint==='painel-agenda'){
+   if(corpo.action==='licitacoes')return agendaLicitacoesDemo(corpo.mes,sessao);
    const mes=/^\d{4}-(0[1-9]|1[0-2])$/.test(corpo.mes||'') ? corpo.mes : '2026-09';
    const d=n=>`${mes}-${String(n).padStart(2,'0')}`;
    if(corpo.action==='comercial')dados=agendaComercialDemo(corpo.mes||'',{...ss,sub:ss?.usuario||'demo',perms:ss?.permissoes||[]});
