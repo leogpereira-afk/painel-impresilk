@@ -20,7 +20,7 @@ Prévia local com dados fictícios na porta 8923, cenário licitacoes-workspace.
 
 Publicação autorizada pelo dono em 04/11/2026. O servidor painel-ativos foi publicado antes da interface e relido: versão 189 ACTIVE, 27 arquivos iguais ao pacote aprovado e requisição sem sessão recusada com HTTP 401. Nenhuma migração necessária.
 
-O build de d665016 e todas as verificações da CI passaram. A implantação Pages 41894630086 excedeu dez minutos em updating_pages; a repetição somente do deploy reutilizou o mesmo identificador cancelado, retornou status vazio e também excedeu o tempo. A interface anterior continuou servida. Nova tentativa com identificador de commit diferente e o mesmo código aprovado; a conferência de exclusão/restauração no oficial permanece pendente até a tela ser distribuída.
+O build de d665016 e todas as verificações da CI passaram. A implantação Pages 41894630086 excedeu dez minutos em updating_pages; a repetição somente do deploy reutilizou o mesmo identificador cancelado, retornou status vazio e também excedeu o tempo. A interface anterior continuou servida durante essa falha. Nova implantação com commit cf93c31, alterando somente a documentação, concluiu com sucesso na run 41898996407. Os 224 arquivos servidos, incluindo HTML, bundles e 404, coincidem por SHA-256 com o build aprovado.
 
 ## Verificação
 
@@ -30,6 +30,10 @@ Conferência responsiva em 320 e 390 px, além de 1280 px: sem transbordamento h
 
 Regressão geral: 2.238 testes executados; 2.236 passaram no ambiente restrito. Os dois restantes exigiam abrir uma porta local e passaram ao repetir, com essa permissão, o arquivo completo de sete testes (APIs simuladas; nenhuma publicação). Após o último ajuste, 93 testes focais aprovados cobrem permissões, concorrência, idempotência, backup PostgreSQL, restauração com acervo renovado, preservação das escolhas em conflito e ZIP. Lint focal limpo; lint geral sem erros, com aviso preexistente em Agenda. Builds de produção e revisão aprovados. Revisão independente final sem falha material pendente; diff-check limpo.
 
-Verificação fresca para publicação: 2.241 regressões, 1.503 testes de cálculos/acessos e quinze verificadores aprovados; lint sem erros, com o aviso preexistente de Agenda. Kit sintético criado pelo formulário oficial e ZIP baixado com dois PDFs íntegros. A comparação após a criação manteve iguais todos os registros e arquivos preexistentes; somente os dois cadastros sintéticos foram acrescentados. O ciclo de lixeira e restauração ainda depende da publicação da interface.
+Verificação fresca para publicação: 2.241 regressões, 1.503 testes de cálculos/acessos e quinze verificadores aprovados; lint sem erros, com o aviso preexistente de Agenda. A CI da publicação também concluiu suas verificações com sucesso.
+
+No site oficial autenticado, foi criado um kit sintético vinculado a um edital de teste sem participação, com duas versões documentais já existentes: uma com validade e outra sem vencimento. O kit foi movido à lixeira, conferido após recarregar, baixado, restaurado, novamente conferido após recarregar e baixado. Consultas ao servidor confirmaram o mesmo ID, requisitos e snapshots completos; o histórico original permaneceu intacto e recebeu os eventos de movimentação e restauração. Os dois PDFs são idênticos por SHA-256 nos três ZIPs, cujos índices mantêm as datas e a indicação de documento sem vencimento. Nenhum erro de console observado durante o ciclo.
+
+A comparação final manteve idênticos todos os 102 registros e 120 arquivos preexistentes. Somente os dois cadastros sintéticos de apoio foram acrescentados; nenhum documento real foi editado. O kit de teste ficou na lixeira recuperável com quatro eventos, e o edital de apoio permanece identificado como teste sem participação para permitir sua restauração. Nenhuma exclusão definitiva foi feita. A conferência oficial foi realizada no Chrome; os tamanhos de celular foram ensaiados na prévia, não em aparelho físico.
 
 Evidências locais, fora do Git, em /tmp/licitacoes-lixeira-20261104 e /tmp/licitacoes-lixeira-release-20261104. Nenhum documento privado ou cópia de registros entra no repositório.
