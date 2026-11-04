@@ -1,6 +1,6 @@
 # Licitações & Indústrias — documentos e salvamento
 
-Prévia local concluída em 04/11/2026. Sem commit, publicação, migração externa ou alteração de registros reais.
+Publicado e conferido em 04/11/2026 após aprovação da prévia. Implementação 308a198 e correção final 85fba83. As seções de prévia abaixo registram os ensaios anteriores à publicação; a conferência oficial está ao final.
 
 ## Entrega
 
@@ -13,7 +13,7 @@ Prévia local concluída em 04/11/2026. Sem commit, publicação, migração ext
 - Resultado de gravação incerto mantém bytes e rascunho; a aplicação não elimina um anexo que pode ter sido confirmado. Sessão e permissão são revalidadas durante operações e downloads.
 - Acompanhamento preserva textos, anexos de edital, campos remotos e formulários diante de resposta atrasada. Valores estimados e contratados são distintos.
 
-## Verificação final
+## Verificação da prévia
 
 | Conferência | Resultado |
 | --- | --- |
@@ -28,7 +28,7 @@ Prévia local concluída em 04/11/2026. Sem commit, publicação, migração ext
 
 Ensaios automatizados cobrem conflitos concorrentes, repetição de criação, arquivos de resultado incerto, sessão revogada, empresas/permissões incorretas, versão histórica, backup/restauração local e ZIP incompleto. O ensaio de PostgreSQL usa PGlite local. Não representa validação produtiva.
 
-## Conferência no navegador
+## Conferência da prévia no navegador
 
 - Sete abas sem transbordamento em 390 px; Cadastros também conferido em 320 px. Documentos e kits conferidos novamente em 390 e 1280 px, sem controles para fora da largura.
 - Novo kit criado em largura móvel; requisito, referência do edital e versão do documento preservados ao reabrir.
@@ -42,9 +42,9 @@ Conflitos simultâneos e revogação de sessão foram exercitados nos testes aut
 
 ## Limites e continuidade
 
-A revisão usa somente dados fictícios em memória; recarregar descarta as alterações da demonstração. Nenhuma certidão real, validade oficial, inscrição em portal ou proposta foi enviada. Download de kit não declara habilitação.
+A revisão local usa somente dados fictícios em memória; recarregar descarta as alterações da demonstração. A etapa oficial posterior usou cadastros sintéticos identificados, sem modificar documentos reais. Nenhuma inscrição em portal ou proposta foi enviada. Download de kit não declara habilitação.
 
-Antes de eventual publicação, reler origin/main e o protocolo, conciliar a publicação documental paralela e aplicar a migração atômica de participação anterior à função. Publicar servidor compatível antes da interface. A conferência com sessão e dados reais permanece para a etapa autorizada de publicação.
+Na publicação, origin/main e protocolo foram relidos, a publicação documental paralela foi preservada e a migração atômica de participação antecedeu a função e a interface. O servidor compatível foi conferido antes da liberação da tela.
 
 As alterações anteriores da prévia foram preservadas; há cópia local do estado de entrada fora do Git. Arquivos de resultado incerto podem exigir conciliação posterior; a correção prioriza preservar dados, sem limpeza automática destrutiva.
 
@@ -55,3 +55,15 @@ Release 308a198 publicado após aprovação. Pages 41812932386 e Functions 41812
 O ensaio autenticado confirmou salvamento após recarregar, download individual e ZIP, validade atualizada e kit preservando a versão anterior. A comparação dos registros anteriores à publicação permaneceu igual. Durante a renovação, a ordem das chaves retornadas por JSONB fazia a comparação textual criar um snapshot redundante, sem perda dos arquivos.
 
 Correção restrita à comparação estrutural, preservando a ordem das listas e todas as versões existentes. Teste reproduziu a falha antes do ajuste. 141 testes relacionados aprovados, incluindo diferenças reais de metadados e downloads. Servidor publicado antes do reteste final; nenhum histórico existente foi apagado ou deduplicado.
+
+## Conferência final da publicação
+
+- Correção 85fba83: Pages 41827882173 e Functions 41827882224 concluídos com sucesso. Todos os 223 arquivos públicos coincidem por SHA-256 com o build aprovado.
+- Servidores painel-ativos v187 e painel-agenda v129 ACTIVE; os 27 e 23 arquivos, respectivamente, coincidem com os pacotes aprovados. Requisições sem sessão recebem 401.
+- Novo documento, datas e kit salvos no oficial e recuperados após recarregar. Renovação após a correção acrescentou exatamente uma versão, preservando integralmente as anteriores.
+- PDFs atual e históricos baixados com bytes iguais aos originais sintéticos. ZIP antes e depois da renovação passou na conferência de CRC, índice e hash do PDF; o kit conservou a validade e a versão originalmente escolhidas.
+- Edição do kit preservou seus vínculos e acrescentou o evento ao histórico. Console sem erros nos fluxos conferidos.
+- Comparação antes/depois preservou os registros existentes e as referências/metadados dos arquivos no recorte acompanhado. Não houve alteração de documentos reais nem de históricos existentes.
+- Os cadastros sintéticos foram movidos para lixeiras recuperáveis, conservando integralmente seus dados, versões e arquivos. Nenhum teste ficou na lista ativa. Evidências privadas fora do Git.
+
+Os ensaios concorrentes e de revogação de sessão continuam cobertos pelos testes automatizados; não houve teste simultâneo com duas contas reais em produção. O aviso preexistente de ESLint em Agenda.jsx não faz parte desta mudança.
