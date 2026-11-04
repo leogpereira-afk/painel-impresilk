@@ -13,6 +13,8 @@ async function chamar(action, dados = {}, { signal, vigente = () => true } = {})
 }
 export const listarKits = opcoes => chamar('listarKitsLicitacoes', {}, opcoes).then(r => r.itens);
 export const salvarKit = (item, versao, opcoes) => chamar('salvarKitLicitacoes', { item, versao }, opcoes).then(r => r.item);
+export const arquivarKit = (kit, opcoes) => chamar('arquivarKitLicitacoes', { id: kit.id, versao: kit.atualizadoEm }, opcoes).then(r => r.item);
+export const restaurarKit = (kit, opcoes) => chamar('restaurarKitLicitacoes', { id: kit.id, versao: kit.atualizadoEm }, opcoes).then(r => r.item);
 export const prepararKit = (id, versao, opcoes) => chamar('prepararDownloadKitLicitacoes', { id, versao }, opcoes);
 const escapar = valor => String(valor ?? '').replace(/[&<>"']/g, letra => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[letra]));
 export function indiceKit(kit, arquivos, pendencias) {

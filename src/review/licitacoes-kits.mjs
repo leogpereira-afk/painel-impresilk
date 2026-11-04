@@ -1,7 +1,7 @@
 // Simulação local: usa o handler verdadeiro, banco e arquivos fictícios em memória.
 import {atenderKitsLicitacoes} from '../../supabase/functions/_shared/licitacoes-kits-handler.mjs';
 import {bancoDocumentosDemo,prepararDocumentosDemo,sincronizarLicitacoesDocumentosDemo} from './documentos.mjs';
-const actions=new Set(['listarKitsLicitacoes','salvarKitLicitacoes','prepararDownloadKitLicitacoes']);
+const actions=new Set(['listarKitsLicitacoes','salvarKitLicitacoes','prepararDownloadKitLicitacoes','arquivarKitLicitacoes','restaurarKitLicitacoes']);
 const resposta=(body,status=200)=>new Response(JSON.stringify(body),{status,headers:{'content-type':'application/json'}});
 let preparado;
 async function preparar(sb,licitacoes){

@@ -440,6 +440,8 @@ Deno.serve(async (req: Request) => {
       }
       case 'listarKitsLicitacoes':
       case 'salvarKitLicitacoes':
+      case 'arquivarKitLicitacoes':
+      case 'restaurarKitLicitacoes':
       case 'prepararDownloadKitLicitacoes':
         return await atenderKitsLicitacoes({sb,sessao,corpo,resposta,quem,revalidarSessao});
       case 'listarDocumentos':

@@ -131,3 +131,94 @@ test('Atual congela metadados corrigidos sem reupload e conserva kits e versões
  const atualizarAntigo=payload(antigo);atualizarAntigo.requisitos[0].versaoId='';const editado=await a.save(atualizarAntigo,antigo.atualizadoEm);assert.equal(editado.status,200);assert.equal(editado.body.item.requisitos[0].snapshot.validade,'2026-01-02');assert.equal(editado.body.item.requisitos[0].versaoId,atual.requisitos[0].versaoId);
  const historico=a.state.rows.find(r=>r.id===antigo.id&&r.colecao==='licitacoes_kits').registro.historico;assert.equal(historico.at(-1).antes.requisitos[0].snapshot.validade,'2027-01-01');assert.equal(historico.at(-1).depois.requisitos[0].snapshot.validade,'2026-01-02');
 });
+
+const moverKit=(a,kit,action='arquivarKitLicitacoes',versao=kit.atualizadoEm)=>a.call({action,id:kit.id,versao});
+const kitSalvo=a=>a.state.rows.find(r=>r.colecao==='licitacoes_kits').registro;
+
+test('lixeira restaura o mesmo kit, requisitos e histórico sem tocar documentos ou arquivos',async()=>{
+ const a=ambiente(),k=(await a.save()).body.item,antes=structuredClone(kitSalvo(a)),docsAntes=structuredClone(a.state.rows.filter(r=>r.colecao!=='licitacoes_kits')),bytesAntes=[...a.state.files].map(([key,bytes])=>[key,[...bytes]]);
+ kitSalvo(a).metadadoFuturo={preservar:true};
+ const retirado=await moverKit(a,k);assert.equal(retirado.status,200);const lixo=retirado.body.item;
+ assert.equal(lixo.estado,'lixeira');assert.equal(lixo.lixeiraPor,'Operador fictício');assert.equal(lixo.lixeiraEm,lixo.atualizadoEm);assert.deepEqual(lixo.requisitos,k.requisitos);
+ assert.equal(kitSalvo(a).historico.length,2);assert.equal(kitSalvo(a).historico[1].acao,'mover_lixeira');assert.equal(kitSalvo(a).historico[1].antes.estado,'ativo');assert.equal(kitSalvo(a).historico[1].depois.estado,'lixeira');
+ const restaurado=await moverKit(a,lixo,'restaurarKitLicitacoes');assert.equal(restaurado.status,200);const ativo=restaurado.body.item;
+ assert.equal(ativo.id,k.id);assert.equal(ativo.estado,'ativo');assert.equal(ativo.criadoEm,k.criadoEm);assert.equal(ativo.lixeiraEm,lixo.lixeiraEm);assert.deepEqual(ativo.requisitos,k.requisitos);
+ assert.deepEqual(kitSalvo(a).requisitos,antes.requisitos);assert.deepEqual(kitSalvo(a).historico[0],antes.historico[0]);assert.equal(kitSalvo(a).historico.length,3);assert.equal(kitSalvo(a).historico[2].acao,'restaurar');assert.deepEqual(kitSalvo(a).metadadoFuturo,{preservar:true});
+ assert.deepEqual(a.state.rows.filter(r=>r.colecao!=='licitacoes_kits'),docsAntes);assert.deepEqual([...a.state.files].map(([key,bytes])=>[key,[...bytes]]),bytesAntes);assert.equal(a.state.rows.filter(r=>r.colecao==='licitacoes_kits').length,1);
+ assert.equal((await a.download(ativo)).body.arquivos[0].versaoId,'versao-antiga');
+});
+test('kit legado sem estado é ativo e lixeira aparece na listagem sem expor caminhos privados',async()=>{
+ const a=ambiente(),k=(await a.save()).body.item;delete kitSalvo(a).estado;
+ assert.equal((await a.list()).body.itens[0].estado,'ativo');const lixo=(await moverKit(a,k)).body.item;
+ const listado=(await a.list()).body.itens[0];assert.equal(listado.estado,'lixeira');assert.equal(listado.lixeiraEm,lixo.atualizadoEm);assert.doesNotMatch(JSON.stringify(listado),/documentos\/doc|_criacao|versaoAnterior/);
+ assert.equal((await a.download(lixo)).body.arquivos[0].versaoId,'versao-antiga');
+});
+test('lixeira bloqueia edição e criação duplicada, inclusive reenvio da criação antiga',async()=>{
+ const a=ambiente(),k=(await a.save()).body.item,lixo=(await moverKit(a,k)).body.item,antes=structuredClone(kitSalvo(a));
+ const editado=await a.save({...payload(lixo),nome:'Não pode mudar'},lixo.atualizadoEm);assert.equal(editado.status,409);assert.match(editado.body.erro,/lixeira|restaur/i);
+ for(const original of [item(),item({cadastroId:crypto.randomUUID()})]){const r=await a.save(original);assert.equal(r.status,409);assert.match(r.body.erro,/lixeira.*[Rr]estaur|[Rr]estaur.*lixeira/);}
+ assert.deepEqual(kitSalvo(a),antes);assert.equal(a.state.rows.filter(r=>r.colecao==='licitacoes_kits').length,1);
+ for(const campo of ['estado','lixeiraEm','lixeiraPor'])assert.equal((await ambiente().save(item({[campo]:'forjado'}))).status,422);
+});
+test('repetir movimentação sem mudanças não duplica histórico e reenvio perdido é idempotente',async()=>{
+ const a=ambiente(),k=(await a.save()).body.item,lixo=(await moverKit(a,k)).body.item;
+ assert.deepEqual((await moverKit(a,k)).body.item,lixo);assert.deepEqual((await moverKit(a,lixo)).body.item,lixo);assert.equal(kitSalvo(a).historico.length,2);
+ const ativo=(await moverKit(a,lixo,'restaurarKitLicitacoes')).body.item;
+ assert.deepEqual((await moverKit(a,lixo,'restaurarKitLicitacoes')).body.item,ativo);assert.deepEqual((await moverKit(a,ativo,'restaurarKitLicitacoes')).body.item,ativo);assert.equal(kitSalvo(a).historico.length,3);assert.equal(a.state.writes.length,3);
+});
+test('resposta perdida após movimentação preserva gravação e reenvio não duplica evento',async()=>{
+ const a=ambiente(),k=(await a.save()).body.item,original=a.sb.rpc;a.sb.rpc=async(...args)=>{await original(...args);return {data:null,error:{code:'NETWORK'}};};
+ assert.equal((await moverKit(a,k)).status,503);assert.equal(kitSalvo(a).estado,'lixeira');assert.equal(kitSalvo(a).historico.length,2);
+ assert.equal((await moverKit(a,k)).status,200);assert.equal(kitSalvo(a).historico.length,2);assert.equal(a.state.writes.length,2);
+});
+test('movimentação com versão ausente ou obsoleta não altera kit nem ressuscita edição antiga',async()=>{
+ const a=ambiente(),k=(await a.save()).body.item;
+ assert.equal((await a.call({action:'arquivarKitLicitacoes',id:k.id})).status,409);assert.equal(a.state.writes.length,1);
+ const alterado=(await a.save({...payload(k),nome:'Nome mais recente'},k.atualizadoEm)).body.item;assert.equal((await moverKit(a,k)).status,409);
+ const lixo=(await moverKit(a,alterado)).body.item;assert.equal((await a.save(payload(alterado),alterado.atualizadoEm)).status,409);
+ const ativo=(await moverKit(a,lixo,'restaurarKitLicitacoes')).body.item;assert.equal((await moverKit(a,alterado)).status,409);assert.equal(kitSalvo(a).estado,'ativo');assert.equal(kitSalvo(a).atualizadoEm,ativo.atualizadoEm);
+});
+test('RPC CAS bloqueia corrida entre editar e arquivar sem perder o vencedor',async()=>{
+ const a=ambiente(),k=(await a.save()).body.item,original=a.sb.rpc;
+ a.sb.rpc=async(name,p)=>{const atual=kitSalvo(a);atual.nome='Edição concorrente';atual.atualizadoEm='vencedor';return original(name,p);};
+ const result=await moverKit(a,k);assert.equal(result.status,409);assert.equal(kitSalvo(a).nome,'Edição concorrente');assert.notEqual(kitSalvo(a).estado,'lixeira');assert.equal(kitSalvo(a).historico.length,1);
+});
+test('retirar e restaurar exigem ambas permissões e revalidam sessão antes e depois da escrita',async()=>{
+ for(const action of ['arquivarKitLicitacoes','restaurarKitLicitacoes']){
+  for(const perms of [[],['licitacoes'],['documentos']]){const a=ambiente({sessao:{perms}});const r=await a.call({action,id:'kit',versao:'v1'});assert.equal(r.status,403);assert.equal(a.state.writes.length,0);}
+  const a=ambiente(),k=(await a.save()).body.item,alvo=action==='restaurarKitLicitacoes'?(await moverKit(a,k)).body.item:k,writes=a.state.writes.length;a.state.revogado=true;assert.equal((await moverKit(a,alvo,action)).status,401);assert.equal(a.state.writes.length,writes);
+  const b=ambiente(),original=(await b.save()).body.item,base=action==='restaurarKitLicitacoes'?(await moverKit(b,original)).body.item:original;
+  const rpc=b.sb.rpc;b.sb.rpc=async(...args)=>{const res=await rpc(...args);b.state.revogado=true;return res;};const r=await moverKit(b,base,action);assert.equal(r.status,401);assert.equal('item' in r.body,false);
+ }
+});
+test('restaurar kit com documento retirado ou renovado mantém versão e pendências originais',async()=>{
+ const a=ambiente(),k=(await a.save()).body.item,lixo=(await moverKit(a,k)).body.item,original=structuredClone(kitSalvo(a).requisitos);
+ const docRow=a.state.rows.find(r=>r.colecao==='ativo'&&r.id==='doc');docRow.colecao='ativo_lixeira';
+ const editalRow=a.state.rows.find(r=>r.colecao==='ativo'&&r.id==='edital');editalRow.colecao='ativo_lixeira';
+ const restored=await moverKit(a,lixo,'restaurarKitLicitacoes');assert.equal(restored.status,200);assert.equal(restored.body.item.estado,'ativo');assert.deepEqual(kitSalvo(a).requisitos,original);assert.match(restored.body.item.pendencias.join(' '),/indisponível/);assert.equal((await a.download(restored.body.item)).status,409);
+});
+test('movimentações não expõem snapshot restrito e preservam referências ocultas',async()=>{
+ const a=ambiente(),k=(await a.save()).body.item,original=structuredClone(kitSalvo(a).requisitos);a.state.rows.find(r=>r.id==='doc').registro.titularId='pessoa';
+ const r=await moverKit(a,k);assert.equal(r.status,200);assert.equal(r.body.item.requisitos[0].restrito,true);assert.equal(r.body.item.requisitos[0].snapshot,null);assert.equal(r.body.item.requisitos[0].documentoId,'');
+ const restored=await moverKit(a,r.body.item,'restaurarKitLicitacoes');assert.equal(restored.status,200);assert.equal(restored.body.item.requisitos[0].snapshot,null);assert.deepEqual(kitSalvo(a).requisitos,original);assert.equal((await a.download(restored.body.item)).body.arquivos.length,0);
+});
+test('movimentações recusam ID inexistente ou empresa indisponível sem escrever',async()=>{
+ const a=ambiente();assert.equal((await a.call({action:'arquivarKitLicitacoes',id:'inexistente',versao:'v1'})).status,404);assert.equal(a.state.writes.length,0);
+ const k=(await a.save()).body.item;a.state.rows.find(r=>r.colecao==='documentos_titulares'&&r.id===empresa).registro.tipo='pessoa';assert.equal((await moverKit(a,k)).status,403);assert.equal(a.state.writes.length,1);
+});
+
+
+test('renovar o documento enquanto kit está na lixeira não troca sua versão ao restaurar',async()=>{
+ const a=ambiente(),k=(await a.save()).body.item,lixo=(await moverKit(a,k)).body.item,original=structuredClone(kitSalvo(a).requisitos);
+ const renewal=await a.call({action:'renovarControle',item:{id:'doc',nome:'Arquivo novo sem mudar kit',emissao:'2027-01-01',validade:'2028-01-01'},versao:'v1',arquivo:{nome:'renovada.pdf',mime:'application/pdf',base64:btoa('%PDF renovado')}},atenderDocumentos);assert.equal(renewal.status,200);
+ const bytesAntes=[...a.state.files].map(([key,bytes])=>[key,[...bytes]]),restored=await moverKit(a,lixo,'restaurarKitLicitacoes');assert.equal(restored.status,200);assert.deepEqual(kitSalvo(a).requisitos,original);assert.deepEqual([...a.state.files].map(([key,bytes])=>[key,[...bytes]]),bytesAntes);
+ assert.equal(restored.body.item.requisitos[0].snapshot.validade,'2027-01-01');assert.equal((await a.download(restored.body.item)).body.arquivos[0].versaoId,'versao-antiga');
+});
+test('restauração com somente edital retirado explicita pendência e não libera download',async()=>{
+ const a=ambiente(),k=(await a.save()).body.item,lixo=(await moverKit(a,k)).body.item;a.state.rows.find(r=>r.id==='edital').colecao='ativo_lixeira';
+ const r=await moverKit(a,lixo,'restaurarKitLicitacoes');assert.equal(r.status,200);assert.match(r.body.item.pendencias.join(' '),/Edital indisponível/);assert.equal((await a.download(r.body.item)).status,409);
+});
+test('reenvio antigo de movimentação não é idempotente depois de alteração posterior',async()=>{
+ const a=ambiente(),k=(await a.save()).body.item;await moverKit(a,k);kitSalvo(a).atualizadoEm='alteracao-posterior';kitSalvo(a).nome='Mudança posterior preservada';const antes=structuredClone(kitSalvo(a));
+ assert.equal((await moverKit(a,k)).status,409);assert.deepEqual(kitSalvo(a),antes);
+});

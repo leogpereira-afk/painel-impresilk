@@ -1,6 +1,6 @@
 import {temPermissao} from './patrimonio-acesso.mjs';
 import {conferirVersao,novoInstante,snapshotDocumento} from './documentos.mjs';
-import {COLECAO_KITS_LICITACOES as colecao,falhaKit,idReferenciaKit,idKitLicitacoes,prepararKit,documentoEmpresarialKit,snapshotKitDocumento,anexosVersaoKit,chaveAnexoKit,snapshotKit,kitPublico} from './licitacoes-kits.mjs';
+import {COLECAO_KITS_LICITACOES as colecao,falhaKit,idReferenciaKit,idKitLicitacoes,prepararKit,documentoEmpresarialKit,snapshotKitDocumento,anexosVersaoKit,chaveAnexoKit,snapshotKit,kitPublico,estadoKit} from './licitacoes-kits.mjs';
 
 export async function atenderKitsLicitacoes({sb,sessao,corpo,resposta,quem,revalidarSessao}){
  if(!sessao)falhaKit('Entre no sistema.',401);
@@ -72,14 +72,34 @@ export async function atenderKitsLicitacoes({sb,sessao,corpo,resposta,quem,reval
   case 'salvarKitLicitacoes':{
    const edicao=Object.hasOwn(corpo.item||{},'id'),anterior=edicao?await ler(colecao,idReferenciaKit(corpo.item.id,'kit',true)):null;
    if(edicao&&!anterior)falhaKit('Kit não encontrado. Recarregue a lista.',409);
+   if(anterior&&estadoKit(anterior)==='lixeira')falhaKit('Este kit está na lixeira. Restaure-o antes de editar.',409);
    const {id:pedidoId,campos}=prepararKit(corpo.item,anterior);validarKit(campos);
    const id=edicao?pedidoId:await idKitLicitacoes(campos.licitacaoId,campos.titularId),assinatura=JSON.stringify(campos);
-   if(!edicao){const existe=await ler(colecao,id);if(existe){if(existe._criacao?.cadastroId===pedidoId&&existe._criacao.assinatura===assinatura)return responder({ok:true,item:publico(id,existe)});falhaKit('Já existe um kit para este edital e empresa. Recarregue para editar o kit existente.',409);}}
+   if(!edicao){const existe=await ler(colecao,id);if(existe){if(estadoKit(existe)==='lixeira')falhaKit('Já existe um kit deste edital e empresa na lixeira. Restaure o kit existente.',409);if(existe._criacao?.cadastroId===pedidoId&&existe._criacao.assinatura===assinatura)return responder({ok:true,item:publico(id,existe)});falhaKit('Já existe um kit para este edital e empresa. Recarregue para editar o kit existente.',409);}}
    if(anterior)conferirVersao(anterior,corpo.versao);
    // Referências ocultas não podem desaparecer ao editar uma projeção restrita.
    if(anterior?.requisitos?.some(r=>r.documentoId&&!documentoEmpresarialKit(ativos.get(r.documentoId),anterior.titularId,titulares,ativos,sessao)))falhaKit('O kit contém documentos restritos. Recupere o acesso antes de editá-lo.',403);
    const requisitos=[];for(const req of campos.requisitos)requisitos.push(await resolver(req,anterior?.requisitos?.find(r=>r.id===req.id),campos.titularId));
-   const agora=novoInstante(anterior),novo={...(anterior||{}),...campos,requisitos,id,criadoEm:anterior?.criadoEm||agora,criadoPor:anterior?.criadoPor||quem,atualizadoEm:agora,atualizadoPor:quem,_criacao:anterior?._criacao||{cadastroId:pedidoId,assinatura},historico:[...(anterior?.historico||[]),{id:crypto.randomUUID(),em:agora,por:quem,acao:edicao?'editar':'criar',antes:anterior?snapshotKit(anterior):null,depois:snapshotKit({...campos,requisitos})}]};
+   const agora=novoInstante(anterior),novo={...(anterior||{}),...campos,requisitos,id,estado:'ativo',criadoEm:anterior?.criadoEm||agora,criadoPor:anterior?.criadoPor||quem,atualizadoEm:agora,atualizadoPor:quem,_criacao:anterior?._criacao||{cadastroId:pedidoId,assinatura},historico:[...(anterior?.historico||[]),{id:crypto.randomUUID(),em:agora,por:quem,acao:edicao?'editar':'criar',antes:anterior?snapshotKit(anterior):null,depois:snapshotKit({...campos,requisitos})}]};
+   const salvo=await gravar(colecao,id,novo,anterior);return responder({ok:true,item:publico(id,salvo)});
+  }
+  case 'arquivarKitLicitacoes':
+  case 'restaurarKitLicitacoes':{
+   const id=idReferenciaKit(corpo.id,'kit',true),anterior=await ler(colecao,id);
+   if(!anterior)falhaKit('Kit não encontrado. Recarregue a lista.',404);
+   if(titulares.get(anterior.titularId)?.tipo!=='empresa')falhaKit('Empresa do kit indisponível.',403);
+   const destino=corpo.action==='arquivarKitLicitacoes'?'lixeira':'ativo',acao=destino==='lixeira'?'mover_lixeira':'restaurar',ultimo=anterior.historico?.at(-1);
+   // Uma repetição após resposta perdida só é aceita se a última escrita ainda
+   // for exatamente a movimentação pedida sobre a versão que o cliente leu.
+   const repetida=estadoKit(anterior)===destino&&typeof corpo.versao==='string'&&corpo.versao!==''&&ultimo?.acao===acao&&ultimo.versaoAnterior===corpo.versao&&ultimo.em===anterior.atualizadoEm;
+   if(!repetida)conferirVersao(anterior,corpo.versao);
+   if(estadoKit(anterior)===destino)return responder({ok:true,item:publico(id,anterior)});
+   // Não resolver novamente documentos: os snapshots e referências selecionados
+   // permanecem intactos, inclusive quando o acervo mudou ou perdeu acesso.
+   // A projeção pública e o download continuam aplicando as permissões vigentes.
+   const agora=novoInstante(anterior),novo={...anterior,estado:destino,atualizadoEm:agora,atualizadoPor:quem,
+    ...(destino==='lixeira'?{lixeiraEm:agora,lixeiraPor:quem}:{}),
+    historico:[...(anterior.historico||[]),{id:crypto.randomUUID(),em:agora,por:quem,acao,versaoAnterior:anterior.atualizadoEm,antes:snapshotKit(anterior),depois:snapshotKit({...anterior,estado:destino})}]};
    const salvo=await gravar(colecao,id,novo,anterior);return responder({ok:true,item:publico(id,salvo)});
   }
   case 'prepararDownloadKitLicitacoes':{

@@ -40,3 +40,32 @@
   .lic-kit-requisito > summary { padding:10px; }
   .lic-kit-modal .lic-kit-form > .doc-footer { bottom:0; padding:10px 0 max(10px,env(safe-area-inset-bottom)); }
 }
+
+.lic-kit-vistas { display:flex; gap:4px; align-items:center; width:fit-content; max-width:100%; padding:3px; border:1px solid var(--doc-line); border-radius:9px; background:var(--doc-bg,var(--doc-surface)); }
+.lic-kit-vistas > button { display:inline-flex; gap:6px; align-items:center; justify-content:center; min-height:36px; padding:6px 11px; border:1px solid transparent; border-radius:6px; background:transparent; color:var(--doc-muted); font:inherit; font-size:12px; font-weight:700; cursor:pointer; }
+.lic-kit-vistas > button.is-active { background:var(--doc-surface); border-color:var(--doc-line); color:var(--doc-ink); box-shadow:0 1px 2px #0000000a; }
+.lic-kit-vistas > button > span { min-width:20px; padding:1px 5px; border-radius:5px; background:var(--doc-line); color:var(--doc-ink); font-variant-numeric:tabular-nums; }
+.lic-kit-vistas > button:focus-visible { outline:2px solid var(--doc-ink); outline-offset:2px; }
+.lic-kit-vistas > button:disabled { cursor:wait; opacity:.65; }
+.lic-kit-row.is-trashed { border-style:dashed; }
+.lic-kit-actions { max-width:300px; flex-wrap:wrap; justify-content:flex-end; }
+.lic-kit-trash { font-size:12px; }
+.lic-kit-confirmacao { grid-column:1/-1; display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px; padding:10px; border:1px solid var(--doc-line); border-radius:7px; background:var(--doc-bg,var(--doc-surface)); }
+.lic-kit-confirmacao > p { flex:1 1 220px; margin:0; line-height:1.5; }
+.lic-kit-confirmacao > .doc-actions { flex-wrap:wrap; }
+.lic-kit-historico { margin:8px 0 0; padding-left:20px; font-size:12px; }
+.lic-kit-historico > li { padding:3px 0; }
+@media(max-width:700px) {
+  .lic-kit-vistas { width:100%; }
+  .lic-kit-vistas > button { flex:1; min-height:44px; font-size:13px; }
+  .lic-kit-row .lic-kit-trash { grid-column:1/-1; min-height:44px; }
+  .lic-kit-confirmacao { grid-column:auto; }
+  .lic-kit-confirmacao > .doc-actions { width:100%; }
+  .lic-kit-confirmacao > .doc-actions > button:first-child { grid-column:1/-1; }
+  .lic-kit-historico { font-size:13px; }
+}
+
+@media(max-width:700px) {
+  .licitacoes-workspace .lic-kits :is(.doc-actions > button, .lic-kit-vistas > button, .lic-kit-row > details > summary) { min-height:44px; }
+  .licitacoes-workspace .lic-kits .lic-kit-actions { max-width:none; }
+}

@@ -57,7 +57,8 @@ export function pendenciasRequisitoKit(r,{disponivel=true,arquivoDisponivel=true
  if(s.estado&&s.estado!=='ativo')out.push(`Situação documental: ${s.estado}`);
  return out;
 }
-export function snapshotKit(r){return {nome:r.nome,licitacaoId:r.licitacaoId,titularId:r.titularId,requisitos:structuredClone(r.requisitos||[])};}
+export const estadoKit=r=>r?.estado==='lixeira'?'lixeira':'ativo';
+export function snapshotKit(r){return {nome:r.nome,licitacaoId:r.licitacaoId,titularId:r.titularId,estado:estadoKit(r),requisitos:structuredClone(r.requisitos||[])};}
 // A projeção é fechada: metadados futuros e caminhos privados nunca saem da API.
 export function kitPublico(id,r,{titulares,ativos,sessao,hoje}={}){
  const requisitos=(r.requisitos||[]).map(req=>{
@@ -67,6 +68,7 @@ export function kitPublico(id,r,{titulares,ativos,sessao,hoje}={}){
   out.pendencias=pendenciasRequisitoKit(req,{disponivel:permitido&&!doc?._documentosRetirado,arquivoDisponivel,hoje});return out;
  });
  const pendencias=requisitos.flatMap(req=>req.pendencias.map(p=>`${req.categoria}: ${p}`));if(!requisitos.length)pendencias.push('Nenhum requisito cadastrado');
- return {id,nome:r.nome,licitacaoId:r.licitacaoId,titularId:r.titularId,titularNome:titulares.get(r.titularId)?.nome||'',criadoEm:r.criadoEm,criadoPor:r.criadoPor,atualizadoEm:r.atualizadoEm,atualizadoPor:r.atualizadoPor,requisitos,pendencias,aviso:AVISO_KIT_LICITACOES,
+ const edital=ativos.get(r.licitacaoId);if(edital?.tipo!=='licitacao'||edital._documentosRetirado)pendencias.push('Edital indisponível ou retirado do acompanhamento');
+ return {id,nome:r.nome,licitacaoId:r.licitacaoId,titularId:r.titularId,estado:estadoKit(r),lixeiraEm:r.lixeiraEm||'',lixeiraPor:r.lixeiraPor||'',titularNome:titulares.get(r.titularId)?.nome||'',criadoEm:r.criadoEm,criadoPor:r.criadoPor,atualizadoEm:r.atualizadoEm,atualizadoPor:r.atualizadoPor,requisitos,pendencias,aviso:AVISO_KIT_LICITACOES,
   historico:(r.historico||[]).map(h=>({id:h.id,em:h.em,por:h.por,acao:h.acao}))};
 }

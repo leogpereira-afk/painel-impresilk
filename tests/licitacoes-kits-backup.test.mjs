@@ -50,6 +50,21 @@ test('restauração v3 percorre a coleção nova e retorna vínculos/arquivos se
  const destino=banco([{colecao:'licitacoes_kits',id:'outro-ficticio',registro:{id:'outro-ficticio',nome:'Preservar outro kit'}}]);destino.arquivos.clear();const a=await backupAmbiente({db:destino});const r=await a.chamar({action:'restaurar',backup:bk});assert.equal(r.status,200);assert.equal(r.body.verificado,true);assert.equal(r.body.arquivos,1);assert.deepEqual(destino.rows.find(x=>x.colecao==='licitacoes_kits'&&x.id===portalId),fixture()[2]);assert.equal(destino.rows.find(x=>x.id==='outro-ficticio').registro.nome,'Preservar outro kit');assert.deepEqual(destino.rows.find(x=>x.id===documentoId),fixture()[1]);assert.equal(destino.uploads.length,1);
  const bytes=Buffer.from(destino.arquivos.get(arquivoChave));assert.equal(bytes.toString(),'%PDF-1.7 arquivo fictício');assert.equal((await a.chamar({action:'restaurar',backup:bk})).status,200);assert.equal(destino.uploads.length,1);assert.equal(destino.rows.filter(x=>x.colecao==='licitacoes_kits'&&x.id===portalId).length,1);assert.equal(destino.remocoes.length,0);
 });
+test('backup de kit na lixeira conserva estado, datas, histórico e bytes ao recuperar a base',async()=>{
+ const rows=fixture(),kit=rows[2].registro;
+ Object.assign(kit,{estado:'lixeira',lixeiraEm:'2026-11-04T10:00:00.000Z',lixeiraPor:'Operador fictício',atualizadoEm:'2026-11-04T10:00:00.000Z'});
+ kit.historico.push({id:'movimento-ficticio',em:kit.lixeiraEm,por:kit.lixeiraPor,acao:'mover_lixeira',antes:{estado:'ativo'},depois:{estado:'lixeira'}});
+ const origem=await backupAmbiente({db:banco(rows)}),exportado=await origem.chamar({action:'exportar'});
+ assert.equal(exportado.status,200);
+ assert.deepEqual(exportado.body.backup.painel.licitacoes_kits[portalId],kit);
+ const destino=banco([]);destino.arquivos.clear();
+ const restaurador=await backupAmbiente({db:destino}),resultado=await restaurador.chamar({action:'restaurar',backup:exportado.body.backup});
+ assert.equal(resultado.status,200);
+ assert.deepEqual(destino.rows.find(r=>r.colecao==='licitacoes_kits'&&r.id===portalId).registro,kit);
+ assert.deepEqual(destino.rows.find(r=>r.colecao==='ativo'&&r.id===documentoId),rows[1]);
+ assert.deepEqual(destino.arquivos.get(arquivoChave),origem.arquivos.get(arquivoChave));
+ assert.equal(destino.remocoes.length,0);
+});
 test('backup e restauração continuam exclusivos da direção, com sessão e revogação',async()=>{
  const bk={versao:3,sistema:'painel',painel:{licitacoes_kits:{[portalId]:fixture()[2].registro}},contas:{},arquivos:[]};
  for(const options of [{sessao:null},{sessao:{sub:'ficticio',perms:['licitacoes','documentos']}},{sessao:{sub:'ficticio',perms:['*']}},{revogado:true}]){const a=await backupAmbiente(options);for(const action of ['exportar','restaurar']){const r=await a.chamar({action,backup:bk});assert.ok([401,403].includes(r.status));assert.equal(a.consultas.length,0);assert.equal(a.escritas.length,0);assert.equal('backup' in r.body,false);}}

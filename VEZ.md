@@ -1,3 +1,11 @@
+## Trabalho atual · Lixeira reversível dos kits · codex · 04/11/2026
+
+Publicação autorizada pelo dono em 04/11/2026: subir a lixeira aprovada e conferir exclusão reversível/restauração no site oficial. Origin/main novamente atualizado em fb23524, sem trabalho concorrente novo. Publicar e conferir painel-ativos antes de liberar a interface; testar com kit sintético identificado, preservando documentos, validades, versões e histórico. Nenhuma migração ou limpeza definitiva de registros/arquivos.
+
+Pedido do dono: incluir lixeira para excluir e restaurar kits, preservando documentos, validades e histórico, com layout compacto e prévia antes de publicar. Origin/main fb23524 atualizado e protocolo relido; trabalho anterior encerrado. Worktree isolado /tmp/painel-licitacoes-lixeira-20261104, ramo codex/licitacoes-kits-lixeira-20261104. Implementar exclusão lógica, restauração do mesmo kit e histórico de movimentações com verificação de versão/permissões. Ensaios locais com dados fictícios; sem publicar servidor/tela, sem migração produtiva nem alteração de registros ou arquivos reais.
+
+Prévia concluída e conferida: Ativos/Lixeira, restauração, histórico e download do mesmo kit, sem tocar nos documentos. Conferência em 320/390/1280 px, ZIP íntegro e fichas documentais idênticas antes/depois. 93 testes focais finais aprovados, regressão geral de 2.238 casos concluída com repetição dos dois casos limitados pela porta local; lint focal limpo, builds oficial e revisão aprovados. Revisão independente corrigiu e confirmou preservação do rascunho e das escolhas em conflitos entre abas. Prévia na porta 8923, dados fictícios em memória; detalhes em docs/licitacoes-kits-lixeira-20261104.md. Sem commit ou publicação. Aguardando avaliação do dono.
+
 ## Trabalho atual · Revisão móvel de Licitações & Indústrias · codex · 04/11/2026
 
 Publicação desta prévia autorizada pelo dono em 04/11/2026: “4subir”. Origin/main atualizado e protocolo relido em 72a099f, sem trabalho concorrente novo. Publicar somente a revisão móvel aprovada, com verificação no site oficial; nenhuma alteração de servidor, documentos, registros ou históricos produtivos.
