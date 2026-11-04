@@ -3,7 +3,12 @@ import {ativoPermitido,bemPermitido,exigeInventario,temPermissao,FAMILIAS_EQUIPA
 import {lerPessoasPatrimonio,validarVinculoPessoa} from '../_shared/patrimonio-pessoas.mjs';
 import {prepararFisico} from '../_shared/patrimonio-fisico.mjs';
 import {atenderDocumentos} from '../_shared/documentos-handler.mjs';
+import {atenderKitsLicitacoes} from '../_shared/licitacoes-kits-handler.mjs';
 import {atenderCadastrosLicitacoes} from '../_shared/licitacoes-cadastros-handler.mjs';
+import {atenderEntidadesLicitacoes} from '../_shared/licitacoes-entidades-handler.mjs';
+import {atenderRotasLicitacoes} from '../_shared/licitacoes-rotas-handler.mjs';
+import {atenderParticipacaoLicitacao} from '../_shared/licitacoes-participacao-handler.mjs';
+import {consultarPesquisaLicitacoes} from '../_shared/licitacoes-pesquisa.mjs';
 import {temHistoricoPessoal} from '../_shared/documentos.mjs';
 import {validarOrigemPesquisa,idAgendamentoLicitacao,validarAgendamentoLicitacao} from '../_shared/licitacoes-agenda.mjs';
 // ============================================================================
@@ -351,6 +356,12 @@ Deno.serve(async (req: Request) => {
   try {
     let equipeRH: Promise<any[]> | undefined;
     const pessoasRH=()=>equipeRH ||= lerPessoasPatrimonio(sb);
+    const revalidarSessao=async()=>{
+      const atual=await verificarJwt(m![1],JWT_SECRET);
+      if(!atual||await crachaRevogado(sb,'painel',atual,true))throw Object.assign(new Error('Seu acesso foi encerrado. Entre novamente.'),{status:401});
+      // A identidade do token não muda durante a operação; a revogação é relida sem cache.
+      return atual;
+    };
     // ── Vínculo do bem do inventário com a ficha de cima (PLANO-VINCULO.md).
     // Fonte única: ativo.bemId. bem.origemAtivoId é legado e espelho de Carros
     // e Máquinas; o bem descobre a ficha pelos dois. Só select/eq/maybeSingle
@@ -369,12 +380,55 @@ Deno.serve(async (req: Request) => {
     // Versão sempre sobe, mesmo no mesmo milissegundo: serve de atualizadoEm e
     // de hora do evento, que assim fica depois de tudo o que veio antes.
     const versaoNova=(...anteriores:unknown[])=>new Date(Math.max(Date.now(),...anteriores.map(a=>(Date.parse(String(a||''))||0)+1))).toISOString();
+    const anexarEdital=async(registro:any,arquivo:any)=>{
+      if(!arquivo||typeof arquivo!=='object')throw Object.assign(new Error('Arquivo do edital inválido.'),{status:422});
+      const base64=String(arquivo.base64||'');
+      if(!base64||!/^[A-Za-z0-9+/]*={0,2}$/.test(base64)||base64.length%4!==0)throw Object.assign(new Error('Conteúdo do edital inválido.'),{status:422});
+      if(base64.length>MAX_ARQUIVO)throw Object.assign(new Error('Edital acima de 3 MB.'),{status:413});
+      const bytes=b64ParaBytes(base64);
+      if(bytes.length>3*1024*1024)throw Object.assign(new Error('Edital acima de 3 MB.'),{status:413});
+      const nome=String(arquivo.nome||'edital.pdf').trim(),mime=String(arquivo.mime||'application/pdf');
+      if(nome.length>240||mime.length>120)throw Object.assign(new Error('Nome ou tipo do edital muito longo.'),{status:422});
+      const arquivoId=crypto.randomUUID(),chave=`licitacoes/${encodeURIComponent(registro.id)}/${arquivoId}`;
+      await revalidarSessao();
+      const {error}=await sb.storage.from(BUCKET).upload(chave,bytes,{contentType:mime,upsert:false});
+      if(error)throw Object.assign(new Error('Não foi possível enviar o edital. A ficha e o anexo anterior foram preservados.'),{status:503});
+      const anterior=registro.arquivoEdital||(registro.temArquivo?{chave:registro.id,nome:registro.arquivoNome||'edital.pdf',mime:'application/pdf',legado:true}:null);
+      return {...registro,temArquivo:true,arquivoNome:nome,arquivoEdital:{id:arquivoId,chave,nome,mime,bytes:bytes.length,enviadoEm:registro.atualizadoEm},
+        arquivosEdital:[...(registro.arquivosEdital||[]),...(anterior?[anterior]:[])]};
+    };
     const rotuloDaFicha=async(fichaId:string)=>{
       const ficha=fichaId?await lerRegistro('ativo',fichaId):null;
       return rotuloFichaVinculo(ficha,sessao,{retirada:!ficha});
     };
     const rotuloDoBem=async(id:string)=>rotuloBemVinculo(await lerRegistro('patrimonio',id),id);
     switch (corpo.action) {
+      case 'prepararParticipacaoLicitacao': {
+        if(!temPermissao(sessao,'licitacoes')||!temPermissao(sessao,'calendario-empresa'))return resposta({erro:'Seu acesso precisa incluir Licitações e Calendário da empresa.'},403);
+        const revalidarSessao=async()=>{
+          const atual=await verificarJwt(m![1],JWT_SECRET);
+          if(!atual||await crachaRevogado(sb,'painel',atual,true))throw Object.assign(new Error('Seu acesso foi encerrado. Entre novamente.'),{status:401});
+          if(!temPermissao(atual,'licitacoes')||!temPermissao(atual,'calendario-empresa'))throw Object.assign(new Error('Seu acesso precisa incluir Licitações e Calendário da empresa.'),{status:403});
+        };
+        return await atenderParticipacaoLicitacao({sb,sessao,corpo,resposta,quem,revalidarSessao,consultar:id=>consultarPesquisaLicitacoes({token:Deno.env.get('LICITACOES_PAINEL_TOKEN')??'',id})});
+      }
+      case 'listarRotasLicitacoes':
+      case 'salvarRotaLicitacoes': {
+        if(!temPermissao(sessao,'licitacoes'))return resposta({erro:'Sem acesso a Licitações.'},403);
+        const revalidarSessao=async()=>{
+          if(!await verificarJwt(m![1],JWT_SECRET)||await crachaRevogado(sb,'painel',sessao,true))throw Object.assign(new Error('Seu acesso foi encerrado. Entre novamente.'),{status:401});
+        };
+        return await atenderRotasLicitacoes({sb,sessao,corpo,resposta,quem,revalidarSessao});
+      }
+      case 'listarEntidadesLicitacoes':
+      case 'salvarEntidadeLicitacoes':
+      case 'arquivarEntidadeLicitacoes': {
+        if(!temPermissao(sessao,'licitacoes'))return resposta({erro:'Sem acesso a Licitações.'},403);
+        const revalidarSessao=async()=>{
+          if(!await verificarJwt(m![1],JWT_SECRET)||await crachaRevogado(sb,'painel',sessao,true))throw Object.assign(new Error('Seu acesso foi encerrado. Entre novamente.'),{status:401});
+        };
+        return await atenderEntidadesLicitacoes({sb,sessao,corpo,resposta,quem,revalidarSessao});
+      }
       case 'listarCadastrosLicitacoes':
       case 'salvarCadastroLicitacoes':
       case 'arquivarCadastroLicitacoes': {
@@ -384,6 +438,10 @@ Deno.serve(async (req: Request) => {
         };
         return await atenderCadastrosLicitacoes({sb,sessao,corpo,resposta,quem,revalidarSessao});
       }
+      case 'listarKitsLicitacoes':
+      case 'salvarKitLicitacoes':
+      case 'prepararDownloadKitLicitacoes':
+        return await atenderKitsLicitacoes({sb,sessao,corpo,resposta,quem,revalidarSessao});
       case 'listarDocumentos':
       case 'salvarControle':
       case 'renovarControle':
@@ -394,7 +452,7 @@ Deno.serve(async (req: Request) => {
       case 'salvarTitular':
       case 'salvarRequisito':
       case 'previaDocumentos':
-        return await atenderDocumentos({sb,sessao,corpo,resposta,quem,pessoasRH,bytesParaB64,bucket:BUCKET});
+        return await atenderDocumentos({sb,sessao,corpo,resposta,quem,pessoasRH,bytesParaB64,bucket:BUCKET,revalidarSessao});
       case "previaMigracaoPatrimonio": {
         if(sessao.master !== true) return resposta({erro:'Só a direção confere a migração.'},403);
         const linhas=[];
@@ -842,13 +900,14 @@ Deno.serve(async (req: Request) => {
           validarAgendamentoLicitacao(it);
         }
 
-        const agora = new Date().toISOString();
+        let agora = new Date().toISOString();
         const id = it.id || it.cadastroId || crypto.randomUUID();
         const { data: ant, error: falhaLeitura } = await sb.from("painel_registros").select("registro")
           .eq("colecao", "ativo").eq("id", id).maybeSingle();
 
         if(falhaLeitura) throw new Error(falhaLeitura.message);
-        if(['documento','seguro','garantia'].includes(tipo)&&!ant?.registro&&!it.id)return await atenderDocumentos({sb,sessao,corpo:{...corpo,action:'salvarControle',item:{...it,cadastroId:id}},resposta,quem,pessoasRH,bytesParaB64,bucket:BUCKET});
+        if(Object.hasOwn(it,'preparacaoBot')&&(!ant?.registro?.preparacaoBot||JSON.stringify(it.preparacaoBot)!==JSON.stringify(ant.registro.preparacaoBot)))return resposta({erro:'A preparação do BotImpresilk é um registro de origem e não pode ser alterada pelo formulário.'},422);
+        if(['documento','seguro','garantia'].includes(tipo)&&!ant?.registro&&!it.id)return await atenderDocumentos({sb,sessao,corpo:{...corpo,action:'salvarControle',item:{...it,cadastroId:id}},resposta,quem,pessoasRH,bytesParaB64,bucket:BUCKET,revalidarSessao});
         if(!await podeRegistro(ant?.registro||it))return resposta({erro:'Sem acesso a este documento.'},403);
         if(['documento','seguro','garantia'].includes(tipo)&&String(it.categoria||'').trim().toUpperCase()==='AVCB'&&String(ant?.registro?.categoria||'').toUpperCase()!=='AVCB')return resposta({erro:'Cadastre o AVCB na Prevenção contra incêndio e renove a mesma ficha.'},409);
         if(['documento','seguro','garantia'].includes(tipo)&&ant?.registro&&corpo.versao!==(ant.registro.atualizadoEm||''))return resposta({erro:'Este controle mudou. Recarregue antes de salvar.'},409);
@@ -890,6 +949,9 @@ Deno.serve(async (req: Request) => {
           if(JSON.stringify(validarOrigemPesquisa(ant.registro.origemPesquisa))!==JSON.stringify(origemPedido))return resposta({erro:'A origem do acompanhamento não pode ser alterada.'},409);
         }
 
+        if(tipo==='licitacao'&&ant?.registro&&corpo.versao!==(ant.registro.atualizadoEm||''))return resposta({erro:'Esta licitação mudou durante a edição. Releia a versão atual e confira as diferenças antes de salvar.'},409);
+        if(tipo==='licitacao')agora=versaoNova(ant?.registro?.atualizadoEm);
+
         // O QUE NAO VEIO NO CORPO FICA COMO ESTAVA.
         //
         // Antes, `limpo` era montado so a partir de `it`: campo ausente virava
@@ -912,20 +974,25 @@ Deno.serve(async (req: Request) => {
 
         const acompanhar = (v: any) => {
           const x = v && typeof v === "object" && !Array.isArray(v) ? v : {};
+          const validarTexto=(valor:any,limite:number,rotulo:string)=>{const texto=String(valor||'');if(texto.length>limite)throw Object.assign(new Error(`${rotulo}: limite de ${limite} caracteres. O texto não foi cortado.`),{status:422});return texto;};
           const data = String(x.prazoAcao || "");
-          if (data && !/^\d{4}-\d{2}-\d{2}$/.test(data)) throw new Error("Prazo inválido");
-          return { proximaAcao: String(x.proximaAcao || "").slice(0,500), prazoAcao:data,
-            decisao:String(x.decisao || "").slice(0,2000),resultado:String(x.resultado || "").slice(0,2000),
+          if (data && (!/^\d{4}-\d{2}-\d{2}$/.test(data)||!Number.isFinite(Date.parse(data+'T00:00:00Z'))||new Date(data+'T00:00:00Z').toISOString().slice(0,10)!==data)) throw Object.assign(new Error("Prazo inválido"),{status:422});
+          const checklist=Array.isArray(x.checklist)?x.checklist:[];
+          if(checklist.length>30)throw Object.assign(new Error('Checklist: limite de 30 itens. Nenhum item foi cortado.'),{status:422});
+          return {...(a.acompanhamento as any||{}),proximaAcao:validarTexto(x.proximaAcao,500,'Próxima ação'),prazoAcao:data,
+            decisao:validarTexto(x.decisao,2000,'Decisão'),resultado:validarTexto(x.resultado,2000,'Resultado'),
             valorContratado:(Number.isFinite(Number(x.valorContratado)) ? Math.max(0,Number(x.valorContratado)) : 0),
-            checklist:(Array.isArray(x.checklist)?x.checklist:[]).slice(0,30).map((c:any,i:number)=>({id:String(c.id || i).slice(0,80),texto:String(c.texto || "").slice(0,300),feito:c.feito===true})).filter((c:any)=>c.texto.trim()) };
+            checklist:checklist.map((c:any,i:number)=>({...(a.acompanhamento as any)?.checklist?.find((anterior:any)=>anterior.id===c.id),id:validarTexto(c.id||String(i),80,'Identificador do checklist'),texto:validarTexto(c.texto,300,'Descrição do checklist'),feito:c.feito===true})).filter((c:any)=>c.texto.trim()) };
         };
-        const limpo = {
+        let limpo = {
+          ...(tipo==='licitacao'?a:{}),
           ...Object.fromEntries(['titularId','ativoIds','origem','origemTipo','pessoalHistorico','usoLicitacoes','semVencimento','alertaDias','estado','orgaoEmissor','estabelecimento','contato','assistencia','linkOficial','fornecedor','fabricante','compra','tipoGarantia','condicoes','cobertura','obrigacaoPagamento','pagamentoSituacao','acionamentos','versoes','anexos','historicoVinculo'].filter(k=>Object.hasOwn(a,k)).map(k=>[k,a[k]])),
           ...(a.bemId ? {bemId:a.bemId} : {}),
           ...(a.arquivoIncendio ? {arquivoIncendio:a.arquivoIncendio} : {}),
           id, tipo,
           ...(tipo === "licitacao" ? { acompanhamento: acompanhar(it.acompanhamento === undefined ? a.acompanhamento : it.acompanhamento) } : {}),
           ...(tipo==='licitacao'&&(origemPedido||a.origemPesquisa)?{origemPesquisa:origemPedido||a.origemPesquisa}:{}),
+          ...(tipo==='licitacao'&&a.preparacaoBot?{preparacaoBot:a.preparacaoBot}:{}),
           nome: String(it.nome).trim(),
           categoria: txt(it.categoria, a.categoria),
           identificacao: txt(it.identificacao, a.identificacao),
@@ -955,7 +1022,7 @@ Deno.serve(async (req: Request) => {
           // cobre. Vazios nos demais tipos.
           seguradora: txt(it.seguradora, a.seguradora),
           valorSegurado: numOu(it.valorSegurado, a.valorSegurado),
-          arquivoNome: txt(it.arquivoNome, a.arquivoNome),
+          arquivoNome: tipo==='licitacao'?String(a.arquivoNome||''):txt(it.arquivoNome, a.arquivoNome),
           // Miniatura (data URL pequena) para a tela de Marketing nao precisar
           // baixar a logomarca INTEIRA -- ate 3 MB cada -- so para desenhar um
           // quadradinho de 96 px. Fica no proprio registro, entao vem junto com
@@ -964,7 +1031,7 @@ Deno.serve(async (req: Request) => {
           miniatura: it.miniatura === undefined
             ? String(a.miniatura ?? "")
             : String(it.miniatura ?? "").slice(0, 40000),
-          temArquivo: it.temArquivo === undefined ? !!a.temArquivo : !!it.temArquivo,
+          temArquivo: tipo==='licitacao'?!!a.temArquivo:it.temArquivo === undefined ? !!a.temArquivo : !!it.temArquivo,
           atualizadoEm: agora,
           atualizadoPor: quem,
           criadoEm: ant?.registro?.criadoEm || agora,
@@ -1012,13 +1079,27 @@ Deno.serve(async (req: Request) => {
           if(error) throw Object.assign(new Error(error.message),{code:error.code});
           return resposta({ok:true,item:ativoPermitido(data.item,sessao)});
         }
-        const {data,error}=await sb.rpc('painel_registro_gravar',{p_colecao:'ativo',p_id:id,p_registro:limpo,p_anterior:ant?.registro || null});
+        // Agendar e Participar compartilham a criação atômica: uma retirada
+        // entre a leitura e a gravação não pode ressuscitar a mesma ficha.
+        const criarPesquisa=!!origemPedido&&!ant?.registro;
+        if(tipo==='licitacao'){
+          if(corpo.arquivo)limpo=await anexarEdital(limpo,corpo.arquivo);
+          await revalidarSessao();
+        }
+        // Os bytes imutáveis não são removidos em falha: o commit pode ter sido
+        // confirmado no banco antes de a resposta se perder na rede.
+        const {data,error}=criarPesquisa
+          ? await sb.rpc('painel_licitacao_preparar',{p_id:id,p_registro:limpo})
+          : await sb.rpc('painel_registro_gravar',{p_colecao:'ativo',p_id:id,p_registro:limpo,p_anterior:ant?.registro || null});
         if(error&&origemPedido&&!it.id&&['40001','23505'].includes(error.code)){
           const vencedor=await registroDoId(id);
-          if(vencedor?.tipo==='licitacao'&&vencedor.origemPesquisa&&await idAgendamentoLicitacao(vencedor.origemPesquisa)===id)return resposta({ok:true,item:retornoLegado(vencedor),repetido:true});
+          if(vencedor?.id===id&&vencedor.tipo==='licitacao'&&vencedor.origemPesquisa&&await idAgendamentoLicitacao(vencedor.origemPesquisa)===id)return resposta({ok:true,item:retornoLegado(vencedor),repetido:true});
         }
         if(error) throw Object.assign(new Error(error.message),{code:error.code});
-        return resposta({ok:true,item:retornoLegado(data)});
+        const salvo=criarPesquisa?data?.item:data;
+        if(criarPesquisa&&(!salvo||salvo.id!==id||salvo.tipo!=='licitacao'||!salvo.origemPesquisa||await idAgendamentoLicitacao(salvo.origemPesquisa)!==id))return resposta({erro:'O acompanhamento não foi confirmado. Atualize a lista antes de tentar novamente.'},503);
+        if(tipo==='licitacao')await revalidarSessao();
+        return resposta({ok:true,item:retornoLegado(salvo),...(criarPesquisa&&data.repetido===true?{repetido:true}:{})});
       }
 
       // Retirar mantém registro e arquivo recuperáveis na lixeira.
@@ -1029,7 +1110,7 @@ Deno.serve(async (req: Request) => {
         const tipoRemover = await tipoDoId(id);
         if (!tipoRemover) return resposta({ erro: "item nao encontrado" }, 404);
         { const b = await barraGravar(tipoRemover); if (b) return b; }
-        if(['documento','seguro','garantia'].includes(tipoRemover))return await atenderDocumentos({sb,sessao,corpo:{...corpo,action:'removerControle'},resposta,quem,pessoasRH,bytesParaB64,bucket:BUCKET});
+        if(['documento','seguro','garantia'].includes(tipoRemover))return await atenderDocumentos({sb,sessao,corpo:{...corpo,action:'removerControle'},resposta,quem,pessoasRH,bytesParaB64,bucket:BUCKET,revalidarSessao});
         if(corpo.bemId) exigeInventario(sessao);
         if(corpo.bemId && !sessao.master && !perms.includes('*') && !perms.includes('manutencoes')) return resposta({erro:'Sem acesso a Manutenções.'},403);
         // A retirada baixa o bem informado: ele tem de ser o vínculo atual da
@@ -1097,7 +1178,17 @@ Deno.serve(async (req: Request) => {
         if(tipoDono && FAMILIAS_EQUIPAMENTO.includes(tipoDono)) exigeInventario(sessao);
         if (!tipoDono) return resposta({ erro: "Cadastre o item antes de anexar o arquivo." }, 400);
         { const b = await barraGravar(tipoDono); if (b) return b; }
-        if(['documento','seguro','garantia'].includes(tipoDono))return await atenderDocumentos({sb,sessao,corpo:{action:'salvarControle',item:{id,tipo:tipoDono},versao:corpo.versao,arquivo:{base64,mime:corpo.mime,nome:corpo.nome}},resposta,quem,pessoasRH,bytesParaB64,bucket:BUCKET});
+        if(['documento','seguro','garantia'].includes(tipoDono))return await atenderDocumentos({sb,sessao,corpo:{action:'salvarControle',item:{id,tipo:tipoDono},versao:corpo.versao,arquivo:{base64,mime:corpo.mime,nome:corpo.nome}},resposta,quem,pessoasRH,bytesParaB64,bucket:BUCKET,revalidarSessao});
+        if(tipoDono==='licitacao'){
+          const anterior=await registroDoId(id);
+          if(!anterior||corpo.versao!==(anterior.atualizadoEm||''))return resposta({erro:'Esta licitação mudou. Releia a ficha antes de anexar o edital.'},409);
+          const novo=await anexarEdital({...anterior,atualizadoEm:versaoNova(anterior.atualizadoEm),atualizadoPor:quem},corpo);
+          await revalidarSessao();
+          const {data,error}=await sb.rpc('painel_registro_gravar',{p_colecao:'ativo',p_id:id,p_registro:novo,p_anterior:anterior});
+          if(error)throw Object.assign(new Error(error.message),{code:error.code});
+          await revalidarSessao();
+          return resposta({ok:true,item:retornoLegado(data)});
+        }
         if (base64.length > MAX_ARQUIVO) return resposta({ erro: "Arquivo muito grande (limite ~3 MB)." }, 413);
 
         const mime = String(corpo.mime ?? "application/pdf");
@@ -1116,24 +1207,29 @@ Deno.serve(async (req: Request) => {
       case "lerArquivo": {
         const id = String(corpo.id ?? "");
         { const b = await barraId(id); if (b) return b; }
-        if(['documento','seguro','garantia'].includes(await tipoDoId(id)||''))return await atenderDocumentos({sb,sessao,corpo:{action:'lerVersaoDocumento',id},resposta,quem,pessoasRH,bytesParaB64,bucket:BUCKET});
+        if(['documento','seguro','garantia'].includes(await tipoDoId(id)||''))return await atenderDocumentos({sb,sessao,corpo:{action:'lerVersaoDocumento',id},resposta,quem,pessoasRH,bytesParaB64,bucket:BUCKET,revalidarSessao});
         /* So arquivo DE ATIVO. O bucket e compartilhado com os anexos de
            conversa dos compromissos (que tem dono e regra propria no
            painel-config): sem esta trava, qualquer pessoa logada baixava o
            anexo da conversa de outra passando a chave dele aqui. */
         if (FAMILIAS_EQUIPAMENTO.includes(await tipoDoId(id) || '')) exigeInventario(sessao);
         if (!(await tipoDoId(id))) return resposta({ erro: "arquivo nao encontrado" }, 404);
-        const { data: meta } = await sb.from("painel_registros").select("registro")
+        const registro=await registroDoId(id);
+        const { data: meta,error:erroMeta } = await sb.from("painel_registros").select("registro")
           .eq("colecao", "arquivo").eq("id", id).maybeSingle();
-        const { data: arq, error } = await sb.storage.from(BUCKET).download(id);
+        if(erroMeta)throw erroMeta;
+        let anexo=registro?.tipo==='licitacao'?registro.arquivoEdital:null;
+        if(corpo.arquivoId!==undefined){
+          if(registro?.tipo!=='licitacao')return resposta({erro:'Versão de edital não encontrada.'},404);
+          anexo=[registro.arquivoEdital,...(registro.arquivosEdital||[])].find(a=>a&&(a.id===corpo.arquivoId||(a.legado===true&&corpo.arquivoId==='legado')));
+          if(!anexo)return resposta({erro:'Versão de edital não encontrada.'},404);
+        }
+        const { data: arq, error } = await sb.storage.from(BUCKET).download(anexo?.chave||id);
         if (error || !arq) return resposta({ erro: "arquivo nao encontrado" }, 404);
         // base64 PURO, sem prefixo data: -- o cliente faz atob() direto.
-        return resposta({
-          ok: true,
-          base64: bytesParaB64(await arq.arrayBuffer()),
-          mime: meta?.registro?.mime || arq.type || "application/pdf",
-          nome: meta?.registro?.nome || "documento",
-        });
+        const base64=bytesParaB64(await arq.arrayBuffer());
+        if(registro?.tipo==='licitacao')await revalidarSessao();
+        return resposta({ok:true,base64,mime:anexo?.mime||meta?.registro?.mime||arq.type||"application/pdf",nome:anexo?.nome||meta?.registro?.nome||"documento"});
       }
 
       default:

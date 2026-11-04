@@ -14,6 +14,12 @@ const linha=(colecao,id,registro)=>({colecao,id,registro:{id,...registro}});
 const titulares=[linha('documentos_titulares',empresa,{tipo:'empresa',nome:'Empresa fictícia'}),linha('documentos_titulares',outraEmpresa,{tipo:'empresa',nome:'Outra empresa fictícia'}),linha('documentos_titulares',pessoa,{tipo:'pessoa',nome:'PESSOA-PRIVADA',pessoaId:'PESSOA-ID-PRIVADO'})];
 const cadastro=(patch={})=>({cadastroId:novoId,nome:'Portal fictício',url:'https://fornecedores.example/portal',titularId:empresa,...patch});
 const documento=(id='doc-ficticio',patch={})=>linha('ativo',id,{tipo:'documento',usoLicitacoes:true,titularId:empresa,nome:'Certidão fictícia',categoria:'Certidão',validade:'2027-01-01',temArquivo:true,anexos:[{nome:'ARQUIVO-PRIVADO',chave:'CAMINHO-PRIVADO'}],...patch});
+test('cadastro de fornecedor aceita empresa privada sem alterar a identidade do titular',()=>{
+ const mapa=new Map(titulares.map(r=>[r.id,r.registro]));
+ const r=prepararCadastro(cadastro({categoria:'empresa'}),null,mapa);
+ assert.equal(r.categoria,'empresa');assert.equal(r.titularId,empresa);
+ assert.throws(()=>prepararCadastro(cadastro({categoria:'empresa',titularId:pessoa}),null,mapa));
+});
 function banco(rows=[],options={}){
  const estado={linhas:structuredClone([...titulares,...rows]),escritas:[],consultas:[]};
  const sb={from(tabela){assert.equal(tabela,'painel_registros');let filtros=[],de=0,ate=Infinity;const q={select(){return q;},eq(k,v){filtros.push([k,v]);return q;},order(){return q;},range(a,b){de=a;ate=b;return q;},async maybeSingle(){const r=run();return {...r,data:r.data?.[0]||null};},then(a,b){return Promise.resolve(run()).then(a,b);}};

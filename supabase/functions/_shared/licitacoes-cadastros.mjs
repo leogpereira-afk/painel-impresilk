@@ -1,7 +1,7 @@
 import {UUID,objeto,texto,dataDocumento,temHistoricoPessoal,autorizadoDocumento} from './documentos.mjs';
 import {temPermissao} from './patrimonio-acesso.mjs';
 
-export const CATEGORIAS_CADASTRO=['governo','instituicao','plataforma'];
+export const CATEGORIAS_CADASTRO=['governo','instituicao','empresa','plataforma'];
 export const SITUACOES_CADASTRO=['planejado','preparacao','enviado','em-analise','exigencia','ativo','indeferido','inativo','arquivado'];
 export const PRIORIDADES_CADASTRO=['alta','media','baixa'];
 export const CAMPOS_CADASTRO=['nome','categoria','url','titularId','abrangencia','servicos','situacao','protocolo','enviadoEm','validade','semVencimento','proximaAcao','prazoAcao','exigencias','observacao','prioridade','fonteUrl','verificadoEm'];

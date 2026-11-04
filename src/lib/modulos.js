@@ -23,7 +23,7 @@ export const MODULOS = [
   { id: "bancos", nome: "Bancos e Pix", sub: "contas, CNPJs e chaves de todas as empresas" },
   { id: "ferramenta-ia", nome: "Ferramenta I.A", sub: "criação, preparação CNC e orçamento de produção" },
   { id: "marketing", nome: "Marketing", sub: "logomarcas, materiais e atalhos do Drive" },
-  { id: "licitacoes", nome: "Licitações", sub: "editais, prazos e sessões" },
+  { id: "licitacoes", nome: "Licitações & Indústrias", sub: "oportunidades, empresas e cadastros" },
   { id: "glossario", nome: "Glossário", sub: "os termos de comunicação visual explicados" },
   { id: "manutencoes", nome: "Patrimônio · Manutenções", sub: "serviços, prazos e custos dos bens; permissão de manutenção" },
   { id: "patrimonio", nome: "Patrimônio", sub: "bens, equipamentos, estrutura e acesso às manutenções autorizadas" },

@@ -85,13 +85,21 @@ function bancoMemoria() {
   };
 }
 export { bancoMemoria as bancoDocumentosDemo, prepararFisicos as prepararDocumentosDemo };
+// Mantém o mesmo cadastro fictício entre Acompanhamento e os vínculos dos kits.
+export function sincronizarLicitacoesDocumentosDemo(itens){
+ for(const item of itens){
+  const existente=linhas.find(r=>r.colecao==='ativo'&&r.id===item.id);
+  if(existente)existente.registro=structuredClone(item);
+  else linhas.push({colecao:'ativo',id:item.id,registro:structuredClone(item)});
+ }
+}
 const responder = (dados,status=200) => new Response(JSON.stringify(dados),{status,headers:{'Content-Type':'application/json'}});
 const actions = new Set(['listarDocumentos','salvarControle','renovarControle','lerVersaoDocumento','removerControle','lixeiraDocumentos','restaurarControle','salvarTitular','salvarRequisito','previaDocumentos']);
 export async function respostaDocumentos(corpo,sessao,bens) {
   if (!actions.has(corpo.action)) return null;
   prepararFisicos(bens);
   try {
-    return await atenderDocumentos({ sb: bancoMemoria(), sessao, corpo, resposta: responder, quem: 'Conta de demonstração', pessoasRH: async () => structuredClone(pessoas), bytesParaB64: bytes => btoa(Array.from(new Uint8Array(bytes),b => String.fromCharCode(b)).join('')) });
+    return await atenderDocumentos({ sb: bancoMemoria(), sessao, corpo, resposta: responder, quem: 'Conta de demonstração', revalidarSessao:async()=>{}, pessoasRH: async () => structuredClone(pessoas), bytesParaB64: bytes => btoa(Array.from(new Uint8Array(bytes),b => String.fromCharCode(b)).join('')) });
   } catch (e) { return responder({ok:false,erro:e.message},e.status || 409); }
 }
 export function agendaDocumentosDemo(mes,sessao,bens) {

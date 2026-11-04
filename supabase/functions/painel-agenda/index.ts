@@ -133,11 +133,11 @@ async function agendaLicitacoes(mes:string){
   const itens:any[]=[];let ultimo='';
   for(let pagina=0;pagina<100;pagina++){
     const {data,error}=await sb.from('painel_registros')
-      .select('id,tipo:registro->>tipo,nome:registro->>nome,validade:registro->>validade,hora:registro->>hora,status:registro->>status,origemPesquisa:registro->origemPesquisa,prazoAcao:registro->acompanhamento->>prazoAcao')
+      .select('id,tipo:registro->>tipo,nome:registro->>nome,validade:registro->>validade,hora:registro->>hora,status:registro->>status,origemPesquisa:registro->origemPesquisa,prazoAcao:registro->acompanhamento->>prazoAcao,prazoImportado:registro->preparacaoBot->prazoImportado,conferidoPorPessoa:registro->preparacaoBot->conferidoPorPessoa')
       .eq('colecao','ativo').eq('registro->>tipo','licitacao').gt('id',ultimo).order('id',{ascending:true}).limit(500);
     if(error)throw new Error(error.message);
     const lote=data||[];
-    itens.push(...lote.map((r:any)=>({...r,acompanhamento:{prazoAcao:r.prazoAcao}})));
+    itens.push(...lote.map((r:any)=>({...r,acompanhamento:{prazoAcao:r.prazoAcao},preparacaoBot:{prazoImportado:r.prazoImportado,conferidoPorPessoa:r.conferidoPorPessoa}})));
     if(lote.length<500)return {eventos:projetarLicitacoesAgenda(itens,mes)};
     ultimo=String(lote[lote.length-1].id);
   }

@@ -3,8 +3,16 @@ export const ABAS_DOCUMENTOS = { documento: 'Documentos', veiculo: 'Veículos', 
 export const ESTADOS_CONTROLE = { ativo: 'Ativo', renovacao: 'Em renovação', cancelado: 'Cancelado', encerrado: 'Encerrado' };
 export const ESTADOS_ACIONAMENTO = { aberto: 'Aberto', 'em-atendimento': 'Em atendimento', resolvido: 'Resolvido' };
 export const PAGAMENTOS = { pendente: 'Pendente', pago: 'Pago', 'nao-se-aplica': 'Não se aplica' };
+// Sugestões de classificação: o edital e a atividade definem a aplicabilidade.
+export const FINALIDADES_DOCUMENTOS_EMPRESA = {
+  'Jurídica e representação': ['Cartão CNPJ', 'Contrato social', 'Alteração contratual', 'Certidão simplificada da Junta Comercial', 'Procuração', 'Documento do representante', 'Comprovante de endereço'],
+  'Fiscal e trabalhista': ['Inscrição estadual', 'Inscrição municipal', 'CND Federal', 'CND Estadual', 'CND Municipal', 'CRF do FGTS', 'Certidão trabalhista'],
+  'Econômica e financeira': ['Balanço patrimonial', 'Demonstrações contábeis', 'Índices contábeis', 'Certidão de falência e recuperação judicial', 'Garantia de proposta'],
+  'Técnica e operacional': ['Atestado de capacidade técnica', 'Acervo técnico', 'Registro em conselho profissional', 'Responsabilidade técnica', 'Licença ambiental', 'Licença sanitária', 'Alvará de funcionamento', 'Certificação de produto', 'Laudo técnico'],
+  'Cadastros e declarações': ['SICAF', 'CRC / cadastro de fornecedor', 'CAGEF', 'Enquadramento ME / EPP', 'Declaração exigida no edital', 'Declaração de inexistência de impedimento', 'Declaração sobre trabalho de menores', 'Proposta comercial', 'Outro documento do edital'],
+};
 export const CATEGORIAS_DOCUMENTOS = {
-  empresa: ['Cartão CNPJ', 'Contrato social', 'Inscrição estadual', 'Inscrição municipal', 'Alvará de funcionamento', 'AVCB', 'CND Federal', 'CND Estadual', 'CND Municipal', 'CRF do FGTS', 'Certidão trabalhista', 'Licença ambiental', 'Comprovante de endereço'],
+  empresa: Object.values(FINALIDADES_DOCUMENTOS_EMPRESA).flat(),
   pessoa: ['RG', 'CPF', 'CNH', 'Comprovante de endereço', 'Certidão pessoal', 'Registro profissional'],
   veiculo: ['CRLV / licenciamento', 'IPVA', 'CNH', 'Seguro', 'Inspeção veicular'],
   garantia: ['Equipamento', 'Veículo', 'Mobiliário', 'Serviço', 'Estrutura'],

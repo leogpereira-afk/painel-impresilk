@@ -2,11 +2,15 @@ import JanelaFormulario from "../components/JanelaFormulario.jsx";
 import PesquisaLicitacoes from "../components/PesquisaLicitacoes.jsx";
 import DocumentosLicitacoes from "../components/DocumentosLicitacoes.jsx";
 import CadastrosLicitacoes from "../components/CadastrosLicitacoes.jsx";
+import RegioesLicitacoes from "../components/RegioesLicitacoes.jsx";
+import EmpresasLicitacoes from "../components/EmpresasLicitacoes.jsx";
 import '../components/licitacoes-acervo.css';
 import AgendarLicitacao from "../components/AgendarLicitacao.jsx";
+import {prepararParticipacaoLicitacao} from "../services/licitacoes-participacao.js";
+import {formatarDataRegiao} from "../lib/licitacoes-regioes.mjs";
 import {obterPesquisaLicitacoes, obterHistoricoLicitacoes, obterExecucaoLicitacoes, iniciarPesquisaLicitacoes, criarControleExecucaoLicitacoes} from "../services/licitacoes.js";
-import {getSessao, aoMudarSessao,podeAbrir} from "../lib/sessao.js";
-import {useSearchParams} from "react-router-dom";
+import {getSessao, getToken, aoMudarSessao,podeAbrir} from "../lib/sessao.js";
+import {Link,useSearchParams} from "react-router-dom";
 import {criarLeituraLicitacoes, criarExportacaoLicitacoes} from "../lib/licitacoes-leitura.mjs";
 // Licitacoes: os editais em que a Impresilk vai (ou pode) entrar, com O DIA da
 // sessao na cara -- o valor da tela e ninguem perder prazo. Ordena pelo que
@@ -17,9 +21,8 @@ import {criarLeituraLicitacoes, criarExportacaoLicitacoes} from "../lib/licitaco
 import { FormPreparacao, pendenciasEdital } from "../components/PreparacaoLicitacao.jsx";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  Gavel,
+  Search,
   CalendarClock,
-  Trophy,
   Plus,
   Trash2,
   Download,
@@ -28,21 +31,29 @@ import {
   AlertTriangle,
   Pencil,
   FolderOpen,
-  Building2,
 } from "lucide-react";
 import {
   listarAtivos,
   salvarAtivo,
   removerAtivo,
-  guardarArquivo,
   lerArquivo,
   arquivoParaBase64,
   abrirBase64,
 } from "../services/ativos.js";
 import { moedaCheia, dataCurta, diasEntre, ymdLocal, paraNumero, paraCampo } from "../lib/format.js";
-import { Card, PageTitle, SectionTitle, StatCard, Empty, CarregandoModulo, ErroModulo } from "../components/ui.jsx";
+import { Card, CarregandoModulo, ErroModulo } from "../components/ui.jsx";
+
+import {visaoLicitacoes, filtrarAcompanhamento, pendenteAcompanhamento, erroPreparacao, revisarRascunhoLicitacao} from "../lib/licitacoes-workspace.mjs";
+import "../components/licitacoes-workspace.css";
 
 const MAX_BYTES = 3 * 1024 * 1024;
+const normalizarIdentidade=v=>String(v||'').normalize('NFKC').trim().replace(/\s+/g,' ').toLocaleLowerCase('pt-BR');
+function mesmaOportunidade(origem,item,relatorio){
+  if(!origem||!item)return false;
+  if(origem.relatorioId===relatorio?.id&&origem.itemId===item.id)return true;
+  return !!(item.orgao?.trim()&&item.processo?.trim()&&(item.item?.trim()||item.lote?.trim()))&&['orgao','processo','item','lote'].every(k=>normalizarIdentidade(origem[k])===normalizarIdentidade(item[k]));
+}
+
 
 const MODALIDADES = [
   "Pregao Eletronico",
@@ -69,6 +80,7 @@ const STATUS = {
 
 const VAZIA = {
   id: "",
+  versao: null,
   nome: "",
   identificacao: "",
   categoria: "",
@@ -86,9 +98,9 @@ const VAZIA = {
 // Quanto falta para a sessao, em palavras -- e a informacao mais importante da tela.
 function prazo(dias) {
   if (dias === null) return { texto: "sem data", chip: "chip", peso: 9000 };
-  if (dias < 0) return { texto: `passou ha ${-dias} ${-dias === 1 ? "dia" : "dias"}`, chip: "chip-bad", peso: 8000 - dias };
+  if (dias < 0) return { texto: `passou há ${-dias} ${-dias === 1 ? "dia" : "dias"}`, chip: "chip-bad", peso: 8000 - dias };
   if (dias === 0) return { texto: "HOJE", chip: "chip-bad", peso: 0 };
-  if (dias === 1) return { texto: "amanha", chip: "chip-bad", peso: 1 };
+  if (dias === 1) return { texto: "amanhã", chip: "chip-bad", peso: 1 };
   if (dias <= 7) return { texto: `em ${dias} dias`, chip: "chip-warn", peso: dias };
   return { texto: `em ${dias} dias`, chip: "chip", peso: dias };
 }
@@ -98,37 +110,38 @@ function prazo(dias) {
    do "campo que perde o foco" que a casa já pagou duas vezes. A regra
    react/no-unstable-nested-components (ligada em 23/08) pega; esta era a única
    ocorrência viva. Os handlers entram por props. */
-function Linha({ it, baixarEdital, editar, remover }) {
+function Linha({ it, baixarEdital, editar, remover, abrirDocumentos, resultados }) {
   return (
     <div
-      className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-xl border p-3.5"
+      className="lw-row"
       style={{ borderColor: "var(--hairline)" }}
     >
-      <span className="min-w-0 flex-1 basis-52">
-        <span className="block truncate font-display text-sm font-semibold text-slate-900">{it.nome}</span>
-        <span className="block text-xs text-slate-600">{it.responsavel || "Sem responsável"} · {it.acompanhamento?.checklist?.length ? `${pendenciasEdital(it)} pendências` : "Checklist opcional"}</span>
-        {it.acompanhamento?.proximaAcao && <span className="block text-sm mt-1">{it.acompanhamento.proximaAcao}{it.acompanhamento.prazoAcao ? ` · até ${dataCurta(it.acompanhamento.prazoAcao)}` : " · sem prazo"}</span>}
-        <span className="block truncate text-xs text-slate-500">
+      <span className="lw-row-main">
+        <strong>{it.nome}</strong>
+        <span className="lw-row-context">{it.responsavel || "Sem responsável"} · {it.acompanhamento?.checklist?.length ? `${pendenciasEdital(it)} ${pendenciasEdital(it)===1?"pendência":"pendências"}` : "Checklist opcional"}</span>
+        {it.acompanhamento?.proximaAcao && <span className="lw-next">{it.acompanhamento.proximaAcao}{it.acompanhamento.prazoAcao ? ` · até ${dataCurta(it.acompanhamento.prazoAcao)}` : " · sem prazo"}</span>}
+        <span className="lw-row-context">
           {[it.identificacao, it.categoria, it.edital && `edital ${it.edital}`].filter(Boolean).join(" · ") || "—"}
         </span>
       </span>
 
-      <span className="shrink-0 text-right">
+      <span className="lw-row-deadline">
         <span className={`${it.pz.chip} whitespace-nowrap`}>{it.pz.texto}</span>
         <span className="mt-0.5 block text-xs tabular-nums text-slate-500">
-          {it.origemPesquisa?.pendente?'Conferência: ':''}{it.dataAcompanhamento ? `${dataCurta(it.dataAcompanhamento)}${it.hora ? ` às ${it.hora}` : ""}` : "marque a data"}
+          {it.origemPesquisa?.pendente?'Conferência: ':it.preparacaoBot?.prazoImportado?'Prazo da pesquisa: ':''}{it.dataAcompanhamento ? `${dataCurta(it.dataAcompanhamento)}${it.hora ? ` às ${it.hora}` : ""}` : "marque a data"}
         </span>
       </span>
 
-      <span className={`${it.st.chip} shrink-0 whitespace-nowrap`}>{it.st.rotulo}</span>
+      <span className={`lw-row-status ${it.st.chip}`}>{it.st.rotulo}</span>
 
-      {it.valor > 0 && (
-        <span className="shrink-0 font-display text-sm font-medium tabular-nums text-slate-700">
-          {moedaCheia(it.valor)}
+      {(
+        <span className="lw-row-value">
+          {resultados&&<><small>Contratado confirmado</small><strong>{Number(it.acompanhamento?.valorContratado)>0?moedaCheia(it.acompanhamento.valorContratado):'Não informado'}</strong></>}
+          <small>Estimado</small>{it.valor>0?moedaCheia(it.valor):'Não informado'}
         </span>
       )}
 
-      <span className="ml-auto flex shrink-0 items-center gap-0.5">
+      <span className="lw-row-actions">
         {it.url && (
           <a
             href={it.url}
@@ -150,13 +163,14 @@ function Linha({ it, baixarEdital, editar, remover }) {
             <Download size={15} />
           </button>
         )}
+        {abrirDocumentos&&<button type="button" className="inline-flex h-11 items-center gap-1 rounded-lg px-2 text-slate-600 hover:bg-slate-100" onClick={()=>abrirDocumentos(it)} aria-label={`Documentos e kit de ${it.nome}`} title="Documentos e kit do edital"><FolderOpen size={15}/><span>Kit</span></button>}
         <button
           type="button"
           onClick={() => editar(it)}
-          className="grid h-11 w-11 place-items-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-900"
-          title={`Editar ${it.nome}`}
+          className="inline-flex h-11 items-center rounded-lg px-3 text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+          aria-label={`Editar ${it.nome}`} title={`Editar ${it.nome}`}
         >
-          <Pencil size={15} />
+          <Pencil size={15} /><span>Editar</span>
         </button>
         <button
           type="button"
@@ -171,22 +185,47 @@ function Linha({ it, baixarEdital, editar, remover }) {
   );
 }
 
-export default function Licitacoes() {
-  const [parametros,setParametros]=useSearchParams();
-  const [sessao,setSessao]=useState(getSessao);
-  const [geracao,setGeracao]=useState(0);
-  useEffect(()=>aoMudarSessao(()=>{setSessao(getSessao());setGeracao(g=>g+1);}),[]);
-  const aba=['documentos','cadastros'].includes(parametros.get('aba'))?parametros.get('aba'):'oportunidades';
-  const selecionar=valor=>{const p=new URLSearchParams(parametros);if(valor==='oportunidades')p.delete('aba');else p.set('aba',valor);setParametros(p);};
-  return <div className="space-y-6">
-    <PageTitle titulo="Licitações" descricao="Encontre oportunidades e mantenha a documentação pronta para participar."/>
-    <nav className="lic-hub-tabs" aria-label="Áreas de Licitações">{[['oportunidades','Oportunidades',Gavel],['documentos','Documentos',FolderOpen],['cadastros','Cadastros',Building2]].map(([id,rotulo,Icon])=><button key={id} onClick={()=>selecionar(id)} aria-current={aba===id?'page':undefined}><Icon size={18}/>{rotulo}</button>)}</nav>
-    <div key={geracao}>{aba==='documentos'?<DocumentosLicitacoes sessao={sessao}/>:aba==='cadastros'?<CadastrosLicitacoes sessao={sessao}/>:<OportunidadesLicitacoes/>}</div>
-  </div>;
+function formularioLicitacao(it) {
+  return {
+      id: it.id,
+      versao:it.atualizadoEm||'',
+      arquivosEdital:it.arquivosEdital||[],
+      agendaPendente:it.origemPesquisa?.pendente===true,
+      preparacaoBot:it.preparacaoBot,
+      nome: it.nome || "",
+      identificacao: it.identificacao || "",
+      categoria: it.categoria || "",
+      edital: it.edital || "",
+      validade: it.validade || "",
+      hora: it.hora || "",
+      url: it.url || "",
+      // pt-BR, e nao String(numero): devolver "1500.5" fazia o parser tratar o
+      // ponto como milhar e o valor virava 15005 a cada edicao.
+      valor: paraCampo(it.valor),
+      status: it.status || "avaliar",
+      observacao: it.observacao || "",
+      responsavel: it.responsavel || "",
+      acompanhamento: {...(it.acompanhamento || VAZIA.acompanhamento), valorContratado: paraCampo(it.acompanhamento?.valorContratado || 0)},
+  };
+}
+function CompararLicitacao({atual,revisao,aoEscolher}) {
+  const texto=valor=>Array.isArray(valor)?valor.map(c=>`${c.feito?'✓':'☐'} ${c.texto}`).join('\n'):String(valor||'—');
+  return <div className="space-y-3"><p className="text-sm">Última gravação: {atual.atualizadoEm||'versão legada'} · {atual.atualizadoPor||'responsável não informado'}. Anexo atual: {atual.arquivoNome||'sem arquivo'}.</p>{revisao.diferencas.length?revisao.diferencas.map(d=><div key={d.campo} className="rounded border bg-white p-3"><strong>{d.rotulo}</strong><div className="grid gap-3 sm:grid-cols-2"><p className="text-sm whitespace-pre-wrap break-words"><b>Salvo agora:</b>{'\n'}{texto(d.remoto)}</p><p className="text-sm whitespace-pre-wrap break-words"><b>Seu rascunho:</b>{'\n'}{texto(d.local)}</p></div>{d.conflito?<label className="label mt-2">Alterado nas duas versões<select className="input" aria-label={`Versão para ${d.rotulo}`} value={d.escolha||''} onChange={e=>aoEscolher(d.campo,e.target.value)}><option value="" disabled>Escolha o conteúdo a manter</option><option value="atual">Manter o que está salvo agora</option><option value="rascunho">Usar meu rascunho neste campo</option></select></label>:<p className="text-sm text-slate-600">{d.escolha==='atual'?'Você não editou este campo; a atualização do servidor será mantida.':'Sua edição neste campo será mantida.'}</p>}</div>):<p>Os campos do rascunho coincidem com a versão salva.</p>}</div>;
 }
 
-function OportunidadesLicitacoes() {
+export default function Licitacoes() {
+  const [geracao,setGeracao]=useState(0);
+  useEffect(()=>aoMudarSessao(()=>setGeracao(g=>g+1)),[]);
+  return <EspacoLicitacoes key={geracao}/>;
+}
+function EspacoLicitacoes() {
   const [parametros,setParametros]=useSearchParams();
+  const visao=visaoLicitacoes(parametros);
+  const [busca,setBusca]=useState('');
+  const [filtro,setFiltro]=useState('todos');
+  const listaRef=useRef(null);
+  const mudarVisao=(valor)=>setParametros(atuais=>{const copia=new URLSearchParams(atuais);copia.set('visao',valor);copia.delete('aba');return copia;});
+  const filtrarLista=valor=>{setBusca('');setFiltro(valor);mudarVisao('acompanhamento');requestAnimationFrame(()=>listaRef.current?.focus());};
   const relatorioSelecionado=parametros.get('relatorio')||'';
   const [sessao,setSessao]=useState(getSessao);
   const [agendamento,setAgendamento]=useState(null);
@@ -228,6 +267,7 @@ function OportunidadesLicitacoes() {
     const proximos=new URLSearchParams(parametros);
     proximos.delete('item');setAgendamento(null);
     if(id)proximos.set('relatorio',id);else proximos.delete('relatorio');
+    proximos.set('visao','pesquisa');
     setParametros(proximos);
   };
   const podeRodar=(sessao?.master===true||(sessao?.permissoes||[]).includes('*'))&&execucao.dados?.podeIniciar!==false;
@@ -240,6 +280,10 @@ function OportunidadesLicitacoes() {
     execucao,podeRodar,aoRodar:()=>{if(podeRodar)void controleExecucao.rodar();},aoConsultarExecucao:controleExecucao.atualizar,
     aoAtualizar:()=>{controlePDF.cancelar();setPDF({carregando:false,erro:null});void leituraPesquisa.atualizar(relatorioSelecionado);void leituraHistorico.atualizar(paginaHistorico);void controleExecucao.atualizar();}};
   const [itens, setItens] = useState(null);
+  const [participacoes,setParticipacoes]=useState({});
+  const enviosParticipacao=useRef(new Map());
+  useEffect(()=>{const envios=enviosParticipacao.current;return()=>{for(const controle of envios.values())controle.abort();envios.clear();};},[]);
+
   const [erro, setErro] = useState(null);
   const [aviso, setAviso] = useState(null);
   const [form, setForm] = useState(VAZIA);
@@ -247,6 +291,16 @@ function OportunidadesLicitacoes() {
   const inputArquivo = useRef(null);
   const [formAberto,setFormAberto]=useState(false);
   const cadastroId=useRef(crypto.randomUUID());
+  const instanciaEdicao=useRef(0),envioEmCurso=useRef(false),baseEdicao=useRef(VAZIA);
+  const cicloTela=useRef(0),downloadsEdital=useRef(new Set());
+  const [conflito,setConflito]=useState(null),[relendo,setRelendo]=useState(false);
+  useEffect(()=>{
+    const downloads=downloadsEdital.current;
+    const invalidar=()=>{instanciaEdicao.current+=1;cicloTela.current+=1;for(const controle of downloads)controle.abort();downloads.clear();};
+    const parar=aoMudarSessao(invalidar);
+    return()=>{parar();invalidar();};
+  },[]);
+  const abrirDocumentos=it=>setParametros(p=>{const n=new URLSearchParams(p);n.set('visao','documentos');n.set('edital',it.id);return n;});
   // O dia em ESTADO, nao no render: numa tela de prazo de edital, a aba
   // esquecida aberta de um dia para o outro continuava dizendo "amanha" para a
   // sessao que era HOJE. Refeito toda vez que a aba volta ao primeiro plano.
@@ -296,109 +350,107 @@ function OportunidadesLicitacoes() {
   }, [itens, hojeISO]);
 
   const editar = (it) => {
-    setForm({
-      id: it.id,
-      agendaPendente:it.origemPesquisa?.pendente===true,
-      nome: it.nome || "",
-      identificacao: it.identificacao || "",
-      categoria: it.categoria || "",
-      edital: it.edital || "",
-      validade: it.validade || "",
-      hora: it.hora || "",
-      url: it.url || "",
-      // pt-BR, e nao String(numero): devolver "1500.5" fazia o parser tratar o
-      // ponto como milhar e o valor virava 15005 a cada edicao.
-      valor: paraCampo(it.valor),
-      status: it.status || "avaliar",
-      observacao: it.observacao || "",
-      responsavel: it.responsavel || "",
-      acompanhamento: {...(it.acompanhamento || VAZIA.acompanhamento), valorContratado: paraCampo(it.acompanhamento?.valorContratado || 0)},
-    });
+    if(envioEmCurso.current)return;
+    instanciaEdicao.current+=1;setConflito(null);setAviso(null);
+    const ficha=formularioLicitacao(it);baseEdicao.current=structuredClone(ficha);setForm(ficha);
     // Arquivo escolhido e nao enviado ficava no input e grudava no PROXIMO item
     // editado -- trocando o edital de quem nao pediu.
     if (inputArquivo.current) inputArquivo.current.value = "";
     setFormAberto(true);
   };
 
+  const podePreparar=podeAbrir('licitacoes',sessao)&&podeAbrir('calendario-empresa',sessao);
+  const estadoParticipacao=(item,relatorio)=>({
+    ...participacoes[`${relatorio?.id}:${item.id}`],
+    item:(itens||[]).find(it=>mesmaOportunidade(it.origemPesquisa,item,relatorio)),
+  });
+  const abrirParticipacao=item=>{
+    setBusca(item.edital||item.nome||'');setFiltro('todos');
+    mudarVisao(['ganha','perdida','fora'].includes(item.status)?'resultados':'acompanhamento');
+    editar(item);
+  };
+  const participar=async(item,relatorio)=>{
+    if(!podePreparar||!relatorio?.id)return;
+    const chave=`${relatorio.id}:${item.id}`;
+    if(enviosParticipacao.current.has(chave))return;
+    const controller=new AbortController();enviosParticipacao.current.set(chave,controller);
+    setParticipacoes(p=>({...p,[chave]:{ocupado:true,erro:''}}));
+    try{
+      const r=await prepararParticipacaoLicitacao({relatorioId:relatorio.id,itemId:item.id},controller.signal);
+      if(controller.signal.aborted)return;
+      setItens(xs=>[...(xs||[]).filter(it=>it.id!==r.item.id),r.item]);
+      setAviso({tom:'sucesso',texto:r.repetido?'Este edital já está em acompanhamento. A ficha existente foi preservada.':'Preparação salva a partir do acervo do BotImpresilk. Confira o prazo importado e complete o checklist.'});
+      setParticipacoes(p=>({...p,[chave]:{ocupado:false,erro:''}}));
+      window.dispatchEvent(new Event('licitacoes-atualizadas'));
+      abrirParticipacao(r.item);
+    }catch(e){if(!controller.signal.aborted)setParticipacoes(p=>({...p,[chave]:{ocupado:false,erro:e.message||'Não foi possível preparar. Tente novamente.'}}));}
+    finally{if(enviosParticipacao.current.get(chave)===controller)enviosParticipacao.current.delete(chave);}
+  };
+
   const fecharForm = () => {
+    if(envioEmCurso.current)return;
+    instanciaEdicao.current+=1;setConflito(null);setRelendo(false);
     setFormAberto(false);
     cadastroId.current=crypto.randomUUID();
-    setForm(VAZIA);
+    setForm(VAZIA);baseEdicao.current=VAZIA;
     if (inputArquivo.current) inputArquivo.current.value = "";
+  };
+
+  const relerConflito=async()=>{
+    if(envioEmCurso.current||relendo)return;
+    const instancia=instanciaEdicao.current,id=form.id||cadastroId.current;
+    setRelendo(true);
+    try{
+      const atuais=(await listarAtivos()).filter(it=>it.tipo==='licitacao');
+      if(instancia!==instanciaEdicao.current)return;
+      const atual=atuais.find(it=>it.id===id);
+      setItens(atuais);setConflito({atual:atual||null,lido:true,escolhas:{}});
+      setAviso({tom:'erro',texto:atual?'Versão atual consultada. Revise os dados abaixo antes de aplicar seu rascunho.':'Esta ficha não está na lista atual. Seu rascunho e arquivo continuam aqui; não é possível sobrescrever uma ficha retirada.'});
+    }catch(err){if(instancia===instanciaEdicao.current)setAviso({tom:'erro',texto:err.message});}
+    finally{if(instancia===instanciaEdicao.current)setRelendo(false);}
   };
 
   const salvar = useCallback(
     async (e) => {
       e.preventDefault();
+      if(envioEmCurso.current||conflito)return;
       setAviso(null);
       if (!form.nome.trim()) return setAviso({ tom: "erro", texto: "Dê um nome ao objeto da licitação." });
+      const invalido=erroPreparacao(form.acompanhamento);
+      if(invalido)return setAviso({tom:'erro',texto:invalido});
       const file = inputArquivo.current?.files?.[0];
-      if (file && file.size > MAX_BYTES) {
-        return setAviso({ tom: "erro", texto: "Edital acima de 3 MB - guarde no Drive e cole o link no campo do portal." });
-      }
-      setSalvando(true);
+      if (file && file.size > MAX_BYTES) return setAviso({ tom: "erro", texto: "Edital acima de 3 MB - guarde no Drive e cole o link no campo do portal." });
+      const instancia=instanciaEdicao.current;
+      envioEmCurso.current=true;setSalvando(true);
       try {
+        const arquivo=file?{base64:await arquivoParaBase64(file),mime:file.type||'application/pdf',nome:file.name}:null;
+        if(instancia!==instanciaEdicao.current)return;
         const item = await salvarAtivo({
           ...(form.id ? { id: form.id } : {cadastroId:cadastroId.current}),
-          tipo: "licitacao",
-          nome: form.nome.trim(),
-          identificacao: form.identificacao.trim(),
-          categoria: form.categoria.trim(),
-          edital: form.edital.trim(),
-          validade: form.validade,
-          hora: form.hora,
-          url: form.url.trim() && !/^https?:\/\//i.test(form.url.trim()) ? "https://" + form.url.trim() : form.url.trim(),
-          valor: paraNumero(form.valor),
-          status: form.status,
-          observacao: form.observacao.trim(),
-          responsavel: form.responsavel.trim(),
-          acompanhamento: {...form.acompanhamento,valorContratado:paraNumero(form.acompanhamento?.valorContratado || 0)},
-          // Com arquivo novo, ele manda; sem, uma edicao reenvia o anexo que o
-          // item ja tinha (o servidor regrava o registro inteiro).
-          ...(file
-            ? { arquivoNome: file.name, temArquivo: true }
-            : (() => {
-                const atual = form.id ? (itens || []).find((x) => x.id === form.id) : null;
-                return atual ? { arquivoNome: atual.arquivoNome, temArquivo: atual.temArquivo } : {};
-              })()),
-        });
-        if (file) {
-          try {
-            const base64 = await arquivoParaBase64(file);
-            await guardarArquivo(item.id, base64, file.type, file.name);
-          } catch (e) {
-            if (!form.id) {
-              // Cadastro novo cujo edital nao subiu: desfaz para nao deixar um
-              // item anunciando um anexo que nao existe.
-              await removerAtivo(item.id).catch(() => {});
-              throw new Error(`O edital nao subiu (${e.message}). O cadastro foi desfeito - tente de novo.`);
-            }
-            // Edicao: mantem o item, mas volta o anexo ao que era antes.
-            const atual = (itens || []).find((x) => x.id === form.id);
-            await salvarAtivo({
-              ...item,
-              arquivoNome: atual?.arquivoNome || "",
-              temArquivo: !!atual?.temArquivo,
-            }).catch(() => {});
-            throw new Error(`O edital novo nao subiu (${e.message}). O anexo anterior foi mantido.`);
-          }
-        }
-        setItens((l) => {
-          const outros = (l || []).filter((x) => x.id !== item.id);
-          return [...outros, item];
-        });
-        setForm(VAZIA);
-        setFormAberto(false);
+          tipo: "licitacao",nome:form.nome.trim(),identificacao:form.identificacao.trim(),categoria:form.categoria.trim(),
+          edital:form.edital.trim(),validade:form.validade,hora:form.hora,
+          url:form.url.trim()&&!/^https?:\/\//i.test(form.url.trim())?'https://'+form.url.trim():form.url.trim(),
+          valor:paraNumero(form.valor),status:form.status,observacao:form.observacao.trim(),responsavel:form.responsavel.trim(),
+          acompanhamento:{...form.acompanhamento,valorContratado:paraNumero(form.acompanhamento?.valorContratado||0)},
+        },form.versao,arquivo);
+        if(instancia!==instanciaEdicao.current)return;
+        setItens(l=>[...(l||[]).filter(x=>x.id!==item.id),item]);
+        setForm(VAZIA);setFormAberto(false);setConflito(null);
         cadastroId.current=crypto.randomUUID();
-        if (inputArquivo.current) inputArquivo.current.value = "";
-        setAviso({ tom: "ok", texto: `"${item.nome}" salva.` });
+        if(inputArquivo.current)inputArquivo.current.value='';
+        setAviso({tom:'ok',texto:`"${item.nome}" salva.`});
       } catch (err) {
-        setAviso({ tom: "erro", texto: err.message });
+        if(instancia!==instanciaEdicao.current)return;
+        // Falha de rede pode ocorrer depois do commit. Nunca compensar apagando
+        // a ficha ou o anexo; a releitura explícita resolve o resultado incerto.
+        if(!err.status||err.status===409||err.status>=500)setConflito({atual:null,lido:false});
+        setAviso({tom:'erro',texto:`${err.message} Seu rascunho e o arquivo escolhido foram mantidos. Releia a ficha antes de tentar novamente.`});
       } finally {
-        setSalvando(false);
+        // Uma resposta antiga nunca altera a instância seguinte do formulário.
+        if(instancia===instanciaEdicao.current){envioEmCurso.current=false;setSalvando(false);}
       }
     },
-    [form, itens]
+    [form, conflito]
   );
 
   const remover = async (it) => {
@@ -415,90 +467,108 @@ function OportunidadesLicitacoes() {
     }
   };
 
-  const baixarEdital = async (it) => {
+  const baixarEdital = async (it,arquivoId) => {
+    const ciclo=cicloTela.current,token=getToken(),controller=new AbortController();
+    downloadsEdital.current.add(controller);
+    const vigente=()=>!controller.signal.aborted&&ciclo===cicloTela.current&&token===getToken();
     setAviso(null);
     try {
-      const r = await lerArquivo(it.id);
+      const r = await lerArquivo(it.id,arquivoId,controller.signal);
+      if(!vigente())return;
       if (!r?.base64) throw new Error("Edital nao encontrado no servidor.");
       abrirBase64(r.base64, r.mime, r.nome || it.arquivoNome);
     } catch (err) {
-      setAviso({ tom: "erro", texto: err.message });
+      if(vigente())setAviso({ tom: "erro", texto: err.message });
+    } finally {
+      downloadsEdital.current.delete(controller);
     }
   };
 
   const modalAgendamento=agendamento&&<AgendarLicitacao key={agendamento.relatorio.id+':'+agendamento.item.id} {...agendamento} sessao={sessao} aoFechar={()=>setAgendamento(null)} aoSalvo={item=>setItens(xs=>[...(xs||[]).filter(x=>x.id!==item.id),item])}/>;
-  if (erro) {
-    return (
-      <div className="space-y-6">
-        <PesquisaLicitacoes {...propsPesquisa}/>
-        {modalAgendamento}
-        <ErroModulo mensagem={erro} aoTentar={() => window.location.reload()}/>
-      </div>
-    );
-  }
-  if (itens === null) return <div className="space-y-6"><PesquisaLicitacoes {...propsPesquisa}/>{modalAgendamento}<CarregandoModulo/></div>;
-
+  const lista=filtrarAcompanhamento(visao==='resultados'?vm.encerradas:vm.naMesa,{busca,filtro:visao==='resultados'?'todos':filtro,hoje:hojeISO});
+  const proximos=vm.naMesa.filter(it=>it.dias!==null&&it.dias>=0&&it.dias<=7).length;
+  const pendentes=vm.naMesa.filter(it=>pendenteAcompanhamento(it,hojeISO)).length;
+  const revisaoConflito=conflito?.atual?revisarRascunhoLicitacao({base:baseEdicao.current,rascunho:form,atual:formularioLicitacao(conflito.atual),escolhas:conflito.escolhas}):null;
+  const confirmarRevisao=()=>{
+    if(!revisaoConflito||revisaoConflito.pendentes)return;
+    const atual=formularioLicitacao(conflito.atual);
+    baseEdicao.current=structuredClone(atual);
+    setForm({...revisaoConflito.form,id:atual.id,versao:atual.versao,arquivosEdital:atual.arquivosEdital});setConflito(null);setAviso(null);
+  };
   return (
-    <div className="space-y-8">
-      <PesquisaLicitacoes {...propsPesquisa}/>
+    <div className="licitacoes-workspace">
+      <header className="lw-header">
+        <div><span className="lw-eyebrow">IMPRESILK · GESTÃO COMERCIAL</span><h1>Licitações &amp; Indústrias</h1><p>Decida o próximo passo. Acompanhe prazos, documentos e participações.</p></div>
+        <div className="lw-header-actions">
+          {podeAbrir('calendario-empresa',sessao)&&<Link className="btn-outline" to="/calendario-empresa"><CalendarClock size={16}/>Calendário</Link>}
+          {!['documentos','cadastros','regioes','empresas'].includes(visao)&&<button className="btn-primary" disabled={itens===null||!!erro} onClick={()=>{fecharForm();setFormAberto(true);}}><Plus size={16}/>Nova licitação</button>}
+        </div>
+      </header>
+      <label className="lw-tabs-mobile">Área de Licitações &amp; Indústrias<select value={visao} onChange={e=>mudarVisao(e.target.value)}>{[['acompanhamento','Acompanhamento'],['pesquisa','Pesquisar oportunidades'],['regioes','Regiões'],['empresas','Empresas'],['resultados','Resultados'],['documentos','Documentos'],['cadastros','Cadastros']].map(([valor,nome])=><option key={valor} value={valor}>{nome}</option>)}</select></label>
+      <nav className="lw-tabs" aria-label="Áreas de licitações">
+        {[['acompanhamento','Acompanhamento'],['pesquisa','Pesquisar oportunidades'],['regioes','Regiões'],['empresas','Empresas'],['resultados','Resultados'],['documentos','Documentos'],['cadastros','Cadastros']].map(([valor,nome])=><button key={valor} type="button" aria-current={visao===valor?'page':undefined} onClick={()=>mudarVisao(valor)}>{nome}</button>)}
+      </nav>
       {modalAgendamento}
-      <SectionTitle titulo="Acompanhamento da equipe" sub="Editais cadastrados, responsáveis, sessões e resultados. As oportunidades pesquisadas não entram aqui automaticamente."/>
-
-      <div className="grid gap-3 sm:grid-cols-3">
-        <StatCard
-          rotulo="Próxima sessão"
-          valor={vm.proxima ? `${dataCurta(vm.proxima.validade)}${vm.proxima.hora ? ` ${vm.proxima.hora}` : ""}` : "—"}
-          sub={vm.proxima ? vm.proxima.nome : "nenhuma marcada"}
-          tom={vm.proxima && vm.proxima.dias <= 2 ? "bad" : vm.proxima && vm.proxima.dias <= 7 ? "warn" : "neutral"}
-          icone={CalendarClock}
-        />
-        <StatCard
-          rotulo="Na mesa"
-          valor={String(vm.naMesa.length)}
-          sub={vm.atrasadas ? `${vm.atrasadas} com a data passada - atualize a situação` : "avaliando, participando ou aguardando"}
-          tom={vm.atrasadas ? "bad" : "neutral"}
-          icone={Gavel}
-        />
-        <StatCard rotulo="Ganhas" valor={String(vm.ganhas)} sub="histórico de vitorias" tom={vm.ganhas ? "ok" : "neutral"} icone={Trophy} />
-      </div>
-
-      {vm.naMesa.some(it => !it.responsavel?.trim() || !it.dataAcompanhamento) && <details className="rounded-xl border border-warn-200 bg-warn-50 p-4 text-sm text-warn-700">
-        <summary className="cursor-pointer font-medium">Preparar acompanhamento · {vm.naMesa.filter(it => !it.responsavel?.trim() || !it.dataAcompanhamento).length} {vm.naMesa.filter(it => !it.responsavel?.trim() || !it.dataAcompanhamento).length === 1 ? "edital com informação pendente" : "editais com informação pendente"}</summary>
-        <p className="my-2">Defina responsável e data quando conhecidos para organizar os próximos passos.</p>
-        {vm.naMesa.filter(it => !it.responsavel?.trim() || !it.dataAcompanhamento).map(it => <div key={it.id} className="flex flex-wrap items-center justify-between gap-2 border-t border-warn-200 py-2"><span>{it.nome} · {[!it.responsavel?.trim() && "sem responsável", !it.dataAcompanhamento && "sem data"].filter(Boolean).join(" · ")}</span><button className="btn-outline" onClick={()=>editar(it)}>Completar cadastro</button></div>)}
-      </details>}
-
-      <div className="flex justify-end"><button className="btn-primary" onClick={()=>{fecharForm();setFormAberto(true);}}>Nova licitação</button></div>
-      {aviso && (
-        <p
-          className={`rounded-lg px-3 py-2 text-sm ${
-            aviso.tom === "ok" ? "bg-ok-50 text-ok-700" : "bg-bad-50 text-bad-700"
-          }`}
-        >
-          {aviso.texto}
-        </p>
-      )}
-
-      <Card>
-        <SectionTitle titulo="Próximos prazos" sub="Responsável, decisão e próxima ação de cada edital, na ordem do prazo." />
-        {vm.naMesa.length === 0 ? (
-          <Empty>Nenhuma licitação na mesa. Use Nova licitação para começar.</Empty>
-        ) : (
-          <div className="space-y-2.5">
-            {vm.naMesa.map((it) => (
-              <Linha key={it.id} it={it} baixarEdital={baixarEdital} editar={editar} remover={remover} />
-            ))}
+      {aviso&&['acompanhamento','resultados'].includes(visao)&&<p role={aviso.tom==='erro'?'alert':'status'} className="lw-notice">{aviso.texto}</p>}
+      <div hidden={visao!=='pesquisa'}><PesquisaLicitacoes {...propsPesquisa} aoParticipar={podePreparar?participar:undefined} estadoParticipacao={estadoParticipacao} aoAbrirParticipacao={abrirParticipacao}/></div>
+      {visao==='documentos'&&<DocumentosLicitacoes sessao={sessao} licitacoes={itens||[]} licitacaoSelecionada={(itens||[]).find(it=>it.id===parametros.get('edital'))||null} aoLimparSelecao={()=>setParametros(p=>{const n=new URLSearchParams(p);n.delete('edital');return n;})}/>}
+      {visao==='empresas'&&<EmpresasLicitacoes sessao={sessao} empresaSelecionada={parametros.get('empresa')||''}
+        aoEmpresa={id=>setParametros(p=>{const n=new URLSearchParams(p);if(id)n.set('empresa',id);else n.delete('empresa');return n;})}
+        aoCidade={cidade=>setParametros(p=>{const n=new URLSearchParams(p);n.set('visao','regioes');n.set('municipio',cidade);return n;})}/>}
+      {visao==='cadastros'&&<CadastrosLicitacoes sessao={sessao} cadastroSelecionado={parametros.get('cadastro')||''} aoLimparSelecao={()=>setParametros(p=>{const n=new URLSearchParams(p);n.delete('cadastro');return n;})} aoVoltarRegiao={parametros.get('municipio')?()=>mudarVisao('regioes'):undefined}/>}
+      {visao==='regioes'&&<RegioesLicitacoes sessao={sessao} pesquisa={pesquisaAtual.dados} carregandoPesquisa={pesquisaAtual.carregando} erroPesquisa={pesquisaAtual.erro} municipio={parametros.get('municipio')||''} aoParticipar={podePreparar?participar:undefined} estadoParticipacao={estadoParticipacao} aoAbrirParticipacao={abrirParticipacao}
+        aoMunicipio={cidade=>setParametros(p=>{const n=new URLSearchParams(p);if(cidade)n.set('municipio',cidade);else n.delete('municipio');return n;})}
+        aoOportunidade={id=>setParametros(p=>{const n=new URLSearchParams(p);n.set('visao','pesquisa');n.set('item',id);if(pesquisaAtual.dados?.id)n.set('relatorio',pesquisaAtual.dados.id);return n;})}
+        aoVerCadastro={id=>setParametros(p=>{const n=new URLSearchParams(p);n.set('visao','cadastros');if(id)n.set('cadastro',id);else n.delete('cadastro');return n;})}/>}
+      {['acompanhamento','resultados'].includes(visao)&&<>
+        {erro?<ErroModulo mensagem={erro} aoTentar={()=>window.location.reload()}/>:itens===null?<CarregandoModulo/>:<>
+          <div className="lw-metrics" aria-label="Resumo do acompanhamento cadastrado">
+            <button className="lw-metric" onClick={()=>filtrarLista('todos')}><small>Em acompanhamento</small><strong>{vm.naMesa.length}</strong><span>Avaliação, participação e propostas</span></button>
+            <button className="lw-metric" onClick={()=>filtrarLista('semana')}><small>Próximos 7 dias</small><strong>{proximos}</strong><span>Sessões e conferências agendadas</span></button>
+            <button className="lw-metric" data-tone="warning" onClick={()=>filtrarLista('pendentes')}><small>Precisam de atenção</small><strong>{pendentes}</strong><span>Prazo passado ou preparação incompleta</span></button>
+            <button className="lw-metric" data-tone="success" onClick={()=>mudarVisao('resultados')}><small>Participações ganhas</small><strong>{vm.ganhas}</strong><span>Consultar resultados e contratos</span></button>
           </div>
-        )}
-      </Card>
+          {visao==='resultados'&&<div className="lw-notice"><strong>{moedaCheia(vm.encerradas.filter(i=>i.status==='ganha').reduce((v,i)=>v+(Number(i.acompanhamento?.valorContratado)||0),0))} em contratos informados</strong><p>{vm.ganhas} ganhas · {vm.encerradas.filter(i=>i.status==='perdida').length} perdidas · {vm.encerradas.filter(i=>i.status==='fora').length} sem participação. Soma dos valores contratados preenchidos; separada do valor estimado dos editais.</p></div>}
+          <Card>
+            <div className="lw-section-heading"><div><h2>{visao==='resultados'?'Participações encerradas':'Agenda de trabalho'}</h2><p>{visao==='resultados'?'Resultados, documentos e histórico de cada participação.':'Editais da equipe em ordem de prazo, com responsável e próxima ação.'}</p></div><span>{lista.length} registro{lista.length===1?'':'s'}</span></div>
+            <div className="lw-toolbar">
+              <label>Buscar no acompanhamento<input type="search" placeholder="Objeto, órgão, edital ou responsável" value={busca} onChange={e=>setBusca(e.target.value)}/></label>
+              {visao!=='resultados'&&<label>Exibir<select value={filtro} onChange={e=>setFiltro(e.target.value)}><option value="todos">Todas em acompanhamento</option><option value="semana">Próximos 7 dias</option><option value="pendentes">Precisam de atenção</option><option value="avaliar">Avaliando</option><option value="participar">Vou participar</option><option value="enviada">Proposta enviada</option></select></label>}
+              {(busca||filtro!=='todos')&&<button className="btn-outline" onClick={()=>{setBusca('');setFiltro('todos');}}>Limpar filtros</button>}
+            </div>
+            <div ref={listaRef} tabIndex={-1} className="lw-list" aria-label="Lista de licitações">
+              {lista.map(it=><Linha key={it.id} it={it} baixarEdital={baixarEdital} editar={editar} remover={remover} resultados={visao==='resultados'} abrirDocumentos={podeAbrir('documentos',sessao)?abrirDocumentos:undefined}/>)}
+              {!lista.length&&<div className="lw-empty"><Search size={24}/><h3>{busca||filtro!=='todos'?'Nenhum edital neste recorte':visao==='resultados'?'Nenhuma participação encerrada':'Comece pelo próximo edital'}</h3><p>{busca||filtro!=='todos'?'Altere a busca ou os filtros para consultar os demais registros.':visao==='resultados'?'Os resultados aparecerão aqui quando a situação da participação for atualizada.':'Pesquise oportunidades ou cadastre uma licitação para definir responsável, prazo e documentos.'}</p>{visao!=='resultados'&&<button className="btn-outline" onClick={()=>mudarVisao('pesquisa')}>Pesquisar oportunidades<ArrowUpRight size={15}/></button>}</div>}
+            </div>
+            <p className="lw-footer-links">Somente editais cadastrados pela equipe. A pesquisa pública é consultada separadamente.</p>
+          </Card>
+        </>}
+      </>}
 
       {formAberto && <JanelaFormulario titulo={form.id?"Editar licitação":"Nova licitação"} ocupado={salvando} aoFechar={fecharForm}>
       {aviso?.tom==="erro" && <p role="alert" className="text-bad-700 mb-4">{aviso.texto}</p>}
-        <SectionTitle
-          titulo={form.id ? "Editar licitação" : "Nova licitação"}
-          sub="Só o objeto é obrigatório - de preferência já marque a data da sessão."
-        />
+        {form.preparacaoBot&&<div className="lpt-prepared">
+          <strong>Preparação a partir do BotImpresilk</strong>
+          <p>Informações importadas da pesquisa. Confira o prazo no edital vigente e complete as etapas abaixo.</p>
+          <p>Classificação do relatório: <strong>{form.preparacaoBot.classificacao}</strong></p>
+          <p>Relatório: {form.preparacaoBot.relatorioId} · Consulta: {formatarDataRegiao(form.preparacaoBot.consultadoEm)}</p>
+          {form.preparacaoBot.exigencias?.length>0&&<details><summary>Exigências completas do relatório ({form.preparacaoBot.exigencias.length})</summary><ul>{form.preparacaoBot.exigencias.map((t,i)=><li key={i}>{t}</li>)}</ul></details>}
+          {form.preparacaoBot.avisos?.length>0&&<details><summary>Condições da preparação</summary><ul>{form.preparacaoBot.avisos.map((t,i)=><li key={i}>{t}</li>)}</ul></details>}
+        </div>}
+        <p className="mb-4 text-sm text-slate-600">Informe o objeto e organize o responsável, os prazos e a preparação do edital.</p>
+        {conflito&&<div className="rounded-xl border border-amber-300 bg-amber-50 p-4 mb-4 space-y-3">
+          <strong>Confira a versão atual antes de gravar</strong>
+          <p className="text-sm">O rascunho e o arquivo escolhido continuam no formulário. A releitura não os substitui.</p>
+          <button type="button" className="btn-outline" disabled={relendo||salvando} onClick={relerConflito}>{relendo?'Consultando…':'Reler versão atual'}</button>
+          {conflito.lido&&conflito.atual&&<>
+            <CompararLicitacao atual={conflito.atual} revisao={revisaoConflito} aoEscolher={(campo,valor)=>setConflito(c=>({...c,escolhas:{...c.escolhas,[campo]:valor}}))}/>
+            <p className="text-sm">Campos que você não editou conservarão a atualização do servidor. Escolha cada campo alterado nas duas versões. O arquivo selecionado continua no formulário.</p>
+            <button type="button" className="btn-outline" disabled={revisaoConflito.pendentes>0} onClick={confirmarRevisao}>Concluir revisão e voltar ao formulário</button>
+          </>}
+          {conflito.lido&&!conflito.atual&&!form.id&&<button type="button" className="btn-outline" onClick={()=>{setConflito(null);setAviso(null);}}>Revisado; tentar cadastrar novamente</button>}
+        </div>}
         <form onSubmit={salvar} className="space-y-4">
+          <fieldset disabled={salvando||relendo} className="space-y-4 min-w-0">
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="sm:col-span-2">
               <label className="label" htmlFor="l-nome">Objeto</label>
@@ -617,6 +687,7 @@ function OportunidadesLicitacoes() {
             </div>
             <FormPreparacao form={form} setForm={setForm}/>
             <div className="sm:col-span-2">
+              {!!form.arquivosEdital?.length&&<details className="mb-3"><summary>Editais anteriores ({form.arquivosEdital.length})</summary><div className="flex flex-wrap gap-2 mt-2">{form.arquivosEdital.map(a=><button key={a.id||'legado'} type="button" className="btn-outline" onClick={()=>baixarEdital(form,a.id||'legado')}>Baixar {a.nome||'edital anterior'}</button>)}</div></details>}
               <label className="label" htmlFor="l-arq">Edital (PDF até 3 MB)</label>
               <input
                 id="l-arq"
@@ -628,30 +699,20 @@ function OportunidadesLicitacoes() {
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
-            <button className="btn-primary" disabled={salvando}>
+            <button className="btn-primary" disabled={salvando||relendo||!!conflito}>
               {form.id ? <Upload size={15} strokeWidth={2.4} /> : <Plus size={15} strokeWidth={2.4} />}
               {salvando ? "Salvando..." : form.id ? "Salvar alterações" : "Cadastrar licitação"}
             </button>
             {(
-              <button type="button" className="btn-ghost" onClick={fecharForm}>
+              <button type="button" className="btn-ghost" disabled={salvando||relendo} onClick={fecharForm}>
                 Cancelar edição
               </button>
             )}
           </div>
+          </fieldset>
         </form>
       </JanelaFormulario>}
 
-      {vm.encerradas.length > 0 && (
-        <Card>
-          <div className="rounded-xl bg-slate-50 p-4 mb-5 dark:bg-slate-800"><h2 className="font-semibold">Resultado das participações encerradas</h2><p className="text-sm mt-2">{vm.encerradas.filter(i=>i.status==="ganha").length} ganhas · {vm.encerradas.filter(i=>i.status==="perdida").length} perdidas · {vm.encerradas.filter(i=>i.status==="fora").length} sem participação</p><p className="font-semibold mt-2">{moedaCheia(vm.encerradas.filter(i=>i.status==="ganha").reduce((v,i)=>v+(Number(i.acompanhamento?.valorContratado)||0),0))} em contratos informados</p><p className="text-xs text-slate-500 mt-1">Soma dos valores contratados preenchidos em licitações ganhas. O valor estimado do edital permanece separado.</p></div>
-          <SectionTitle titulo="Encerradas" sub="Ganhas, perdidas e as que ficaram de fora." />
-          <div className="space-y-2.5">
-            {vm.encerradas.map((it) => (
-              <Linha key={it.id} it={it} baixarEdital={baixarEdital} editar={editar} remover={remover} />
-            ))}
-          </div>
-        </Card>
-      )}
     </div>
   );
 }

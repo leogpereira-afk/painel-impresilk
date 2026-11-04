@@ -9,8 +9,14 @@ src=src.replace(/(['"])(\.\.\/_shared\/[^'"]+\.mjs)\1/g,(_m,_aspas,caminho)=>JSO
 const {code}=await transform(src,{loader:'ts',format:'esm',target:'es2022'});await import('data:text/javascript;base64,'+Buffer.from(code).toString('base64'));
 const req=(token,item,versao)=>handler(new Request('https://test.invalid',{method:'POST',headers:token?{authorization:'Bearer '+token}:{},body:JSON.stringify({action:'salvar',item,versao})}));
 assert.equal((await req(null,{tipo:'licitacao',nome:'A'})).status,401);assert.equal((await req('mkt',{tipo:'licitacao',nome:'A'})).status,403);
-let r=await req('lic',{id:'lic',tipo:'licitacao',nome:'Edital',responsavel:'Ana'});assert.equal(r.status,200);assert.equal(rows.get('lic').acompanhamento.checklist[0].feito,true);assert.equal(rows.get('lic').temArquivo,true);
-r=await req('lic',{id:'lic',tipo:'licitacao',nome:'Edital',acompanhamento:{proximaAcao:'Enviar',prazoAcao:'2026-09-10',checklist:[{id:'b',texto:'Proposta',feito:'sim'}],valorContratado:2500}});assert.equal(r.status,200);assert.equal(rows.get('lic').acompanhamento.checklist[0].feito,false);assert.equal(rows.get('lic').valor,1000);assert.equal(rows.get('lic').acompanhamento.valorContratado,2500);
+const versaoAberta=rows.get('lic').atualizadoEm||'',antes=structuredClone(rows.get('lic'));
+assert.equal((await req('lic',{id:'lic',tipo:'licitacao',nome:'Sem versão'})).status,409);
+assert.deepEqual(rows.get('lic'),antes,'edição sem versão preserva a ficha integral');
+let r=await req('lic',{id:'lic',tipo:'licitacao',nome:'Edital',responsavel:'Ana'},versaoAberta);assert.equal(r.status,200);assert.equal(rows.get('lic').acompanhamento.checklist[0].feito,true);assert.equal(rows.get('lic').temArquivo,true);
+const vencedor=structuredClone(rows.get('lic'));
+assert.equal((await req('lic',{id:'lic',tipo:'licitacao',nome:'Edição atrasada'},versaoAberta)).status,409);
+assert.deepEqual(rows.get('lic'),vencedor,'edição com versão antiga não sobrescreve o vencedor');
+r=await req('lic',{id:'lic',tipo:'licitacao',nome:'Edital',acompanhamento:{proximaAcao:'Enviar',prazoAcao:'2026-09-10',checklist:[{id:'b',texto:'Proposta',feito:'sim'}],valorContratado:2500}},rows.get('lic').atualizadoEm||'');assert.equal(r.status,200);assert.equal(rows.get('lic').acompanhamento.checklist[0].feito,false);assert.equal(rows.get('lic').valor,1000);assert.equal(rows.get('lic').acompanhamento.valorContratado,2500);
 /* A PERMISSAO VEM ANTES DA VALIDACAO, e e a ordem certa: sem acesso a
    "documentos", a resposta nao pode revelar que o item existe e e de outro
    tipo. Ate 14/09/2026 este caso devolvia 400 ("tipo imutavel") porque
@@ -23,4 +29,4 @@ assert.equal((await req('lic',{id:'lic',tipo:'documento',nome:'Tentativa'})).sta
 assert.equal((await req('dois',{id:'lic',tipo:'documento',nome:'Tentativa'})).status,409);
 assert.equal((await req('dois',{id:'lic',tipo:'documento',nome:'Tentativa'},rows.get('lic').atualizadoEm||'')).status,400);
 assert.equal(rows.get('lic').tipo,'licitacao');
-console.log('Licitações: permissão, preservação do edital, checklist, valor contratado separado e tipo imutável conferidos.');
+console.log('Licitações: permissão, versão obrigatória, edição atrasada recusada, preservação do edital, checklist, valor contratado separado e tipo imutável conferidos.');

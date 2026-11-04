@@ -34,13 +34,13 @@ function ambiente(perms=['documentos'],rows=[],opcoes={}){
   if(opcoes.antesRpc)await opcoes.antesRpc(n,p,linhas);
   const colecao=n==='painel_registro_gravar'?p.p_colecao:n==='painel_ativo_restaurar'?'ativo_lixeira':'ativo';const r=linhas.find(r=>r.colecao===colecao&&r.id===p.p_id);
   if(JSON.stringify(r?.registro||null)!==JSON.stringify(p.p_anterior||null))return {data:null,error:{code:'40001',message:'conflito'}};
-  if(n==='painel_registro_gravar'){r.registro=structuredClone(p.p_registro);escritas.push({tipo:'rpc',n,p});return {data:p.p_registro,error:null};}
+  if(n==='painel_registro_gravar'){r.registro=structuredClone(p.p_registro);escritas.push({tipo:'rpc',n,p});if(opcoes.revogarDepoisCommit)opcoes.revogado=true;return opcoes.commitSemResposta?{data:null,error:{code:'NETWORK',message:'Resposta perdida depois do COMMIT'}}:{data:p.p_registro,error:null};}
   if(n==='painel_documento_retirar'){if(!['documento','seguro','garantia'].includes(r.registro.tipo))return {data:null,error:{code:'23514'}};linhas.push({...r,colecao:'ativo_lixeira',registro:{...r.registro,_apagadoEm:'agora'}});linhas.splice(linhas.indexOf(r),1);escritas.push({tipo:'rpc',n,p});return {data:true,error:null};}
   if(n==='painel_ativo_restaurar'){if(linhas.some(x=>x.colecao==='ativo'&&x.id===r.id))return {data:null,error:{code:'23505'}};const reg={...r.registro};delete reg._apagadoEm;linhas.push({...r,colecao:'ativo',registro:reg});linhas.splice(linhas.indexOf(r),1);escritas.push({tipo:'rpc',n,p});return {data:true,error:null};}
   throw new Error('RPC inesperada '+n);
- },storage:{from(){return {async upload(chave,bytes,opts){uploads.push({chave,opts});assert.equal(opts.upsert,false);if(arquivos.has(chave))return {error:{message:'ocupado'}};arquivos.set(chave,{bytes:new Uint8Array(bytes),type:opts.contentType});return {error:null};},async download(chave){downloads.push(chave);const f=arquivos.get(chave);return {data:f?new Blob([f.bytes],{type:f.type}):null,error:f?null:{message:'ausente'}};},async remove(chaves){for(const chave of chaves)arquivos.delete(chave);return {error:null};}};}}};
+ },storage:{from(){return {async upload(chave,bytes,opts){uploads.push({chave,opts});if(opcoes.revogarNoUpload)opcoes.revogado=true;assert.equal(opts.upsert,false);if(arquivos.has(chave))return {error:{message:'ocupado'}};arquivos.set(chave,{bytes:new Uint8Array(bytes),type:opts.contentType});return {error:null};},async download(chave){downloads.push(chave);if(opcoes.revogarNoDownload)opcoes.revogado=true;const f=arquivos.get(chave);return {data:f?new Blob([f.bytes],{type:f.type}):null,error:f?null:{message:'ausente'}};},async remove(chaves){for(const chave of chaves)arquivos.delete(chave);return {error:null};}};}}};
  const source=readFileSync(new URL('../supabase/functions/painel-ativos/index.ts',import.meta.url),'utf8').replace(/^import .*;\s*$/gm,'');
- vm.runInNewContext(transformSync(source,{loader:'ts',target:'es2022',format:'esm'}).code,{...acesso,atenderDocumentos,temHistoricoPessoal,validarVinculoPessoa,crypto:webcrypto,atob,btoa,Uint8Array,Deno:{env:{get:()=> 'teste'},serve:f=>handler=f},createClient:()=>sb,verificarJwt:async()=>({sub:'teste',nome:'Teste fictício',perms,master:opcoes.master===true}),crachaRevogado:async()=>false,lerPessoasPatrimonio:async()=>opcoes.pessoasRH??[{id:pessoaRH,nome:'Pessoa fictícia',disponivel:true}],Request,Response,console:{error(){}}});
+ vm.runInNewContext(transformSync(source,{loader:'ts',target:'es2022',format:'esm'}).code,{...acesso,atenderDocumentos,temHistoricoPessoal,validarVinculoPessoa,crypto:webcrypto,atob,btoa,Uint8Array,Deno:{env:{get:()=> 'teste'},serve:f=>handler=f},createClient:()=>sb,verificarJwt:async()=>({sub:'teste',nome:'Teste fictício',perms,master:opcoes.master===true}),crachaRevogado:async()=>{opcoes.conferencias=(opcoes.conferencias||0)+1;return opcoes.revogado===true;},lerPessoasPatrimonio:async()=>opcoes.pessoasRH??[{id:pessoaRH,nome:'Pessoa fictícia',disponivel:true}],Request,Response,console:{error(){}}});
  return {linhas,escritas,consultas,uploads,downloads,arquivos,async chamar(corpo){const r=await handler(new Request('http://test.invalid',{method:'POST',headers:{authorization:'Bearer teste'},body:JSON.stringify(corpo)}));return {status:r.status,body:await r.json()};}};
 }
 test('listagem exige Documentos e separa controles, AVCB e bens mínimos por origem',async()=>{
@@ -219,4 +219,21 @@ test('titular aceita ficha RH não UUID e não confunde com o ID da empresa',asy
  }
  const b=ambiente(['documentos','documentos-pessoais'],[],{pessoasRH:[{...pessoasRH[0],disponivel:false}]});
  assert.equal((await b.chamar({action:'salvarTitular',item:{cadastroId:novoId,tipo:'pessoa',nome:'Pessoa fictícia',pessoaId:'rh-ficha-ficticia'}})).status,422);assert.equal(b.escritas.length,0);
+});
+
+
+test('resposta perdida após commit conserva novo arquivo, versões e metadados recuperáveis',async()=>{
+ const a=ambiente(['documentos'],[controle('controle',{temArquivo:true,arquivoNome:'anterior.pdf',campoFuturo:{preservar:true}}),linha('arquivo','controle',{nome:'anterior.pdf',mime:'application/pdf'})],{commitSemResposta:true,arquivos:{controle:{bytes:new TextEncoder().encode('%PDF anterior'),type:'application/pdf'}}});
+ const r=await a.chamar({action:'renovarControle',item:{id:'controle',validade:'2028-10-01'},versao:'v1',arquivo});
+ assert.equal(r.status,503);assert.match(r.body.erro,/confirmar|recarregue/i);
+ const salvo=a.linhas.find(r=>r.id==='controle').registro;assert.equal(salvo.validade,'2028-10-01');assert.deepEqual(salvo.campoFuturo,{preservar:true});assert.equal(salvo.versoes.length,2);
+ assert.ok(a.arquivos.has(salvo.versoes.at(-1).arquivo.chave));assert.ok(a.arquivos.has('controle'));
+ const download=await a.chamar({action:'lerVersaoDocumento',id:'controle'});assert.equal(download.status,200);assert.equal(download.body.base64,arquivo.base64);
+});
+test('revogação durante upload impede commit e durante download impede retorno dos bytes',async()=>{
+ const up=ambiente(['documentos'],[controle()],{revogarNoUpload:true});const r=await up.chamar({action:'renovarControle',item:{id:'controle',validade:'2028-10-01'},versao:'v1',arquivo});assert.equal(r.status,401);assert.equal(up.escritas.length,0);assert.equal(up.linhas.find(r=>r.id==='controle').registro.atualizadoEm,'v1');
+ const down=ambiente(['documentos'],[controle('controle',{temArquivo:true}),linha('arquivo','controle',{nome:'ficticio.pdf',mime:'application/pdf'})],{revogarNoDownload:true,arquivos:{controle:{bytes:new TextEncoder().encode('%PDF ficticio'),type:'application/pdf'}}});const d=await down.chamar({action:'lerVersaoDocumento',id:'controle'});assert.equal(d.status,401);assert.equal('base64' in d.body,false);
+});
+test('revogação após commit não confirma operação nem apaga arquivo que já pertence à ficha',async()=>{
+ const a=ambiente(['documentos'],[controle()],{revogarDepoisCommit:true});const r=await a.chamar({action:'renovarControle',item:{id:'controle',validade:'2028-10-01'},versao:'v1',arquivo});assert.equal(r.status,401);assert.equal(a.escritas.length,1);assert.equal('item' in r.body,false);assert.ok(a.arquivos.has(a.linhas.find(r=>r.id==='controle').registro.versoes.at(-1).arquivo.chave));
 });

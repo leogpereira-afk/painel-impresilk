@@ -6,6 +6,9 @@ import {listarLicitacoesDemo,salvarLicitacaoDemo,agendaLicitacoesDemo} from './l
 import {respostaManuais} from './manuais-maquinas.mjs';
 import {respostaDocumentos,agendaDocumentosDemo} from './documentos.mjs';
 import {respostaCadastrosLicitacoes} from './licitacoes-cadastros.mjs';
+import {respostaKitsLicitacoes} from './licitacoes-kits.mjs';
+import {respostaEntidadesLicitacoes} from './licitacoes-entidades.mjs';
+import {respostaRotasLicitacoes} from './licitacoes-rotas.mjs';
 import {validarVinculoPessoa,prepararPessoasControle} from '../../supabase/functions/_shared/patrimonio-pessoas.mjs';
 import {prepararControle} from '../../supabase/functions/_shared/patrimonio-controles.mjs';
 import {prepararFisico,prepararConferencia} from '../../supabase/functions/_shared/patrimonio-fisico.mjs';
@@ -224,6 +227,9 @@ export async function respostaPreview(url,opcoes={}){
  if(endpoint==='painel-config'&&corpo.action?.startsWith('manuaisMaquinas'))return respostaManuais(corpo,ss?sessao:null,equipamentosDemo,configs.patrimonio,pessoasPatrimonioDemo,configs.setores);
  if(endpoint==='painel-ativos'){
   const licitacao=await salvarLicitacaoDemo(corpo,sessao);if(licitacao)return licitacao;
+  const kit=await respostaKitsLicitacoes(corpo,sessao,fichasDemo(),listarLicitacoesDemo(sessao));if(kit)return kit;
+  const rotas=await respostaRotasLicitacoes(corpo,sessao);if(rotas)return rotas;
+  const entidades=await respostaEntidadesLicitacoes(corpo,sessao,fichasDemo());if(entidades)return entidades;
   const cadastros=await respostaCadastrosLicitacoes(corpo,sessao,fichasDemo());if(cadastros)return cadastros;
     const documentos=await respostaDocumentos(corpo,sessao,[...equipamentosDemo,...estruturasDemo]);
   if(documentos)return documentos;

@@ -47,7 +47,9 @@ export function projetarLicitacoesAgenda(itens,mes){
     let agenda;try{agenda=validarAgendamentoLicitacao(item);}catch{continue;}
     if(!agenda.data.startsWith(mes)||typeof item.id!=='string'||!/^lic-pesq-[a-f0-9]{64}$/.test(item.id)||ids.has(item.id))continue;
     ids.add(item.id);
-    eventos.push({id:'licitacao:'+item.id,origem:'licitacoes',titulo:item.nome,data:agenda.data,hora:agenda.hora,tipo:agenda.origem.pendente?'Conferência de licitação':'Licitação',cor:'#7c3aed',descricao:agenda.origem.pendente?'Conferência de evidências; o prazo da licitação ainda precisa ser confirmado.':'Prazo confirmado no acompanhamento. Confira atualizações na fonte oficial.',href:caminhoPesquisaAgendada(agenda.origem)});
+    const descricao=agenda.origem.pendente?'Conferência de evidências; o prazo da licitação ainda precisa ser confirmado.':
+      item.preparacaoBot?.prazoImportado===true&&item.preparacaoBot?.conferidoPorPessoa!==true?'Prazo importado da pesquisa; confira edital e retificações.':'Prazo confirmado no acompanhamento. Confira atualizações na fonte oficial.';
+    eventos.push({id:'licitacao:'+item.id,origem:'licitacoes',titulo:item.nome,data:agenda.data,hora:agenda.hora,tipo:agenda.origem.pendente?'Conferência de licitação':'Licitação',cor:'#7c3aed',descricao,href:caminhoPesquisaAgendada(agenda.origem)});
   }
   return eventos.sort((a,b)=>a.data.localeCompare(b.data)||a.hora.localeCompare(b.hora)||a.id.localeCompare(b.id));
 }

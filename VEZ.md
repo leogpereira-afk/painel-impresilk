@@ -1,3 +1,45 @@
+## Trabalho atual · Publicação de Licitações & Indústrias · codex · 04/11/2026
+
+Publicação aprovada expressamente pelo dono após prévia: documentos, validades, kits por edital e organização compacta. Conciliar com a main atual, publicar servidor antes da interface e conferir salvamento/download no oficial com registros sintéticos identificados. Preservar documentos, dados reais, permissões e históricos. Worktree isolado codex/licitacoes-release-20261104; base 3ce5c78. Nenhuma inscrição, proposta ou envio externo.
+
+Verificação de release: 2.210 regressões, 1.496 cálculos, 7 testes de acesso e 15 verificadores aprovados. Build oficial aprovado, lint sem erros (aviso anterior em Agenda). Migração painel_licitacao_preparar aplicada e permissões conferidas: somente service_role. Cópias privadas de recuperação preparadas fora do Git; comparação inicial preserva arquivos e dados. Servidor e interface em publicação; conferência oficial pendente.
+
+## Trabalho atual · Salvamento seguro e kits por edital · codex · 03/11/2026
+
+Pedido do dono: corrigir as falhas documentadas na auditoria e aplicar melhorias em Licitações & Indústrias, com baixar documentos, validades e kits por edital, mantendo compacto e preservando dados. Implementação e testes em cópia isolada; prévia antes de publicar. Protocolo remoto atualizado e relido, trabalho remoto encerrado. Preservar todas as alterações anteriores desta prévia. Sem dados reais, inscrições externas, migração produtiva, commit, merge ou deploy nesta etapa. Relatório de referência fora do repositório público; plano técnico em docs/superpowers/plans/2026-11-03-licitacoes-documentos-seguros.md.
+
+Prévia concluída e conferida em 04/11/2026: 464 testes focais finais aprovados; builds oficial e revisão aprovados; lint sem erros (aviso anterior em Agenda). Navegador móvel e desktop: criação de kit, edição de responsável/validade, renovação com histórico, download individual e ZIP verificados com dados fictícios. Revisão independente sem P1/P2 residual. Detalhes e limites em docs/licitacoes-documentos-kits-20261104.md. Não publicado; nenhum registro real alterado.
+
+## Trabalho atual · Guia de NRs para indústrias · codex · 03/11/2026
+
+Pedido do dono: incluir NRs que podem ser exigidas em serviços industriais, com explicações curtas para revisão. Guia informativo e recolhível na aba Empresas, sem declarar capacitações existentes ou exigir todas as normas para todo serviço. Seleção por atividade com fonte oficial do Ministério do Trabalho e Emprego. Apenas prévia local; sem alteração de registros, servidor ou publicação. Protocolo e origin/main relidos; trabalho remoto encerrado.
+
+Guia com nove normas conferido no navegador em 320/390/1280 px, claro/escuro, abertura e recolhimento pelo teclado; sem transbordamento no componente. Conteúdo revisado em fontes oficiais e por revisão independente. 28 regressões de Empresas aprovadas; lint focal e diff-check sem erros. Build de revisão aprovado. Sem publicação ou gravação de capacitações. Detalhes em docs/licitacoes-nrs-20261103.md.
+
+## Trabalho atual · Nome da área comercial · codex · 03/11/2026
+
+Pedido do dono: renomear o menu para Licitações & Indústrias. Alteração local do nome no catálogo de módulos e no título da área; manter IDs, rotas e registros. Origin/main e protocolo relidos. Conferidos nome no menu e título no navegador; ESLint focal e diff-check sem erros. Sem publicação.
+
+## Trabalho atual · Carteira de empresas · codex · 03/11/2026
+
+Continuação da prévia autorizada pelo dono: aba Empresas para prospectar compradores e acompanhar cadastros de fornecedor. Reutilizar entidades privadas e cadastros existentes, com vínculos por ID, documentos, validade, responsável e próxima ação. Sem inscrições em portais, mensagens, dados reais ou publicação. Origin/main 3ce5c78 e protocolo relidos; trabalho remoto de Documentos/Cadastros encerrado e preservado. Clone /tmp/painel-licitacoes-profissional-20261103. Ensaios fictícios, com foco em cadastro, vínculo, conflito e recuperação sem duplicação.
+
+Prévia de Empresas concluída e conferida: criação/edição, cadastro fornecedor, reaproveitamento de portal sem duplicar, vínculo visível em Regiões e filtros testados no navegador. Larguras 1280/390/320 px e tema escuro sem transbordamento. 326 testes pertinentes aprovados; suíte geral com 2.138 aprovações na sandbox e os dois testes de porta local aprovados na repetição do arquivo de sete casos. Builds oficial e revisão aprovados; lint sem erros (aviso anterior em Agenda). Ensaios de sessão, paginação e rascunhos aprovados. Documentação em docs/licitacoes-empresas-20261103.md. Não publicado.
+
+## Trabalho atual · Cidades compactas e participação interna · codex · 03/11/2026
+
+Continuação autorizada pelo dono na prévia isolada /tmp/painel-licitacoes-profissional-20261103. Cidades em linhas, destaque verde e prioridade às oportunidades; botão Participar prepara e inclui o edital no acompanhamento interno a partir do acervo validado do BotImpresilk. Dono confirmou fluxo interno sem enviar proposta ao órgão. Preservar a lista de 89 cidades, os vínculos, rotas, históricos e documentos. Não executar coleta nova nem prometer análise de IA inexistente; distinguir prazo importado de confirmação humana. Ensaios fictícios; sem publicação, inscrições externas ou dados produtivos. Origin/main e protocolo relidos antes de continuar, publicação documental paralela preservada.
+
+Prévia concluída e conferida: 298 testes pertinentes, builds, navegador em 1280/390/320 px e proteção atômica PostgreSQL aprovados. Suíte geral: 2.111 casos na sandbox e dois bloqueados por porta aprovados ao repetir o arquivo de sete testes. Lint sem erros, aviso anterior de Agenda. Participar e Agendar compartilham a mesma ficha, com preservação do vencedor e bloqueio de recriação após retirada. Nova migração local 20261103235900_licitacao_preparacao_atomica.sql deve anteceder a função em eventual publicação. Documentação em docs/licitacoes-participacao-20261103.md. Não publicado; nenhuma migração externa aplicada.
+
+## Trabalho atual · Regiões e relacionamento de licitações · codex · 03/11/2026
+
+Prévia local concluída e conferida; não publicada. Clone isolado /tmp/painel-licitacoes-profissional-20261103. Dono definiu os 89 municípios do Norte de Minas. Escopo: cidades com oportunidades por execução confirmada; fichas privadas de órgãos e empresas, responsáveis, próximos passos e vínculos ao cadastro de fornecedor existente. Testes somente fictícios; nenhuma inscrição externa, coleta nova ou escrita produtiva. Preserva a organização profissional anterior. Origin/main relida em 9b264af; a publicação paralela de Documentos/Cadastros será conciliada antes de eventual publicação desta prévia. Sem deploy autorizado nesta etapa. Rotas saem da sede da Impresilk; quilômetros e tempo são registrados com fonte e data de consulta. Verificação: 262 testes pertinentes aprovados, 2.075 testes gerais na sandbox e os dois bloqueados por porta passaram no arquivo repetido de sete testes; builds, lint sem erros, controles de acesso, recuperação de conflito e navegador móvel conferidos. Detalhes e limites em docs/licitacoes-regioes-20261103.md.
+
+## Trabalho atual · Licitações: organização profissional · codex · 03/11/2026
+
+Prévia local concluída e conferida; não publicada. Pedido do dono: tornar Licitações profissional, organizada e fácil de operar. Clone /tmp/painel-licitacoes-profissional-20261103, ramo codex/licitacoes-profissional-20261103, base 2f887a4. Reorganizar apresentação e navegação do acompanhamento e da pesquisa; preservar documentos, fontes, cobertura, permissões, agendamento e dados. Preserva também a prévia anterior de Documentos e Cadastros do clone /tmp/painel-licitacoes-documentos-20261103, incorporada sem modificar a cópia de origem. Sem publicação, nova coleta ou alteração de registros reais. Ensaios com dados fictícios. Verificação: 245 testes pertinentes; 2.029 regressões gerais aprovadas e os dois casos bloqueados por porta local passaram na repetição do arquivo de sete testes. Lint sem erros, build, controles de acesso e revisão móvel conferidos. Detalhes em docs/licitacoes-profissional-20261103.md.
+
 ## Trabalho atual · Documentos e cadastros de licitações · codex · 03/11/2026
 
 Publicado e conferido: interface 9b264af, Pages 41728598477 e Functions 41728598482 concluídos com sucesso; os 223 arquivos públicos conferidos estão idênticos ao build aprovado. Servidor painel-ativos v183 ACTIVE, 17 arquivos relidos iguais ao pacote e consulta sem sessão recusada com 401. Site oficial autenticado conferiu vínculo, inclusão de arquivos, validade e gravação de cadastros; metadados e existência dos arquivos privados foram relidos sem duplicidades no recorte autorizado. Configuração dos portais externos e exigências documentais seguem no acompanhamento privado, sem significar habilitação ou aprovação de fornecedores. Nenhum dado real foi incluído no Git. Vez de desenvolvimento encerrada.

@@ -23,10 +23,27 @@ export const restaurarControle = id => chamar('restaurarControle', { id });
 export const salvarTitular = (item, versao, opcoes) => chamar('salvarTitular', { item, versao }, opcoes).then(r => r.item);
 export const salvarRequisito = (item, versao) => chamar('salvarRequisito', { item, versao }).then(r => r.item);
 export const previaDocumentos = () => chamar('previaDocumentos');
-export async function baixarDocumento(item, versaoId, arquivoId, { signal, podeAbrirArquivo = () => true } = {}) {
+export async function lerDocumento(item, versaoId, arquivoId, { signal, podeAbrirArquivo = () => true } = {}) {
+  if (signal?.aborted || !podeAbrirArquivo()) throw Object.assign(new Error('A sessão mudou. Abra novamente o documento.'), { name: 'AbortError' });
   const arquivo = await chamar('lerVersaoDocumento', { id: item.id, ...(versaoId ? { versaoId } : {}), ...(arquivoId ? { arquivoId } : {}) }, { signal });
-  if (signal?.aborted || !podeAbrirArquivo()) return;
-  abrirBase64(arquivo.base64, arquivo.mime, arquivo.nome || item.arquivoNome);
+  if (signal?.aborted || !podeAbrirArquivo()) throw Object.assign(new Error('A sessão mudou. Abra novamente o documento.'), { name: 'AbortError' });
+  if (typeof arquivo.base64 !== 'string') throw new Error('O arquivo recebido está incompleto. Tente novamente.');
+  const bytes = Uint8Array.from(atob(arquivo.base64), letra => letra.charCodeAt(0));
+  return { bytes, mime: arquivo.mime || 'application/octet-stream', nome: arquivo.nome || item.arquivoNome || 'documento' };
+}
+export function salvarDownload(bytes, mime, nome) {
+  const url = URL.createObjectURL(new Blob([bytes], { type: mime }));
+  const link = document.createElement('a');
+  link.href = url; link.download = String(nome || 'documento').replace(/[\/\\\u0000-\u001f]/g, '_');
+  document.body.append(link); link.click(); link.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+export async function baixarDocumento(item, versaoId, arquivoId, opcoes = {}) {
+  try {
+    const arquivo = await lerDocumento(item, versaoId, arquivoId, opcoes);
+    if (opcoes.signal?.aborted || opcoes.podeAbrirArquivo && !opcoes.podeAbrirArquivo()) return;
+    salvarDownload(arquivo.bytes, arquivo.mime, arquivo.nome);
+  } catch (erro) { if (erro.name !== 'AbortError') throw erro; }
 }
 export async function prepararArquivo(arquivo) {
   if (!arquivo) return undefined;

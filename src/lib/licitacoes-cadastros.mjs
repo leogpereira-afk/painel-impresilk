@@ -2,7 +2,7 @@ import {dataValida} from './calc/documentos.js';
 
 export const SITUACOES_CADASTRO={planejado:'A cadastrar',preparacao:'Preparando',enviado:'Enviado','em-analise':'Em análise',exigencia:'Documentos solicitados',ativo:'Ativo',indeferido:'Indeferido',inativo:'Inativo',arquivado:'Arquivado'};
 export const PRIORIDADES_CADASTRO={alta:'Alta',media:'Média',baixa:'Baixa'};
-export const CATEGORIAS_CADASTRO={governo:'Órgão público',instituicao:'Instituição',plataforma:'Plataforma de compras'};
+export const CATEGORIAS_CADASTRO={governo:'Órgão público',instituicao:'Instituição',empresa:'Empresa privada',plataforma:'Plataforma de compras'};
 export function diaBrasilia(agora=new Date()) {
   return new Intl.DateTimeFormat('en-CA',{timeZone:'America/Sao_Paulo',year:'numeric',month:'2-digit',day:'2-digit'}).format(agora);
 }

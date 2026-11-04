@@ -46,6 +46,23 @@ test('conferência tem tipo e aviso próprios, com link codificado do item origi
   const o=origem({pendente:true,itemId:'id com espaço / ?',relatorioId:'pesquisa:antiga'}),row=await ficha({origemPesquisa:o,validade:'',acompanhamento:{prazoAcao:'2026-11-04'}});
   const [event]=projetarLicitacoesAgenda([row],'2026-11');assert.equal(event.tipo,'Conferência de licitação');assert.match(event.descricao,/ainda precisa ser confirmado/);const url=new URL(caminhoPesquisaAgendada(o),'https://exemplo.invalid');assert.equal(url.searchParams.get('item'),o.itemId);assert.equal(url.searchParams.get('relatorio'),o.relatorioId);
 });
+test('prazo importado sem conferência humana não aparece como confirmado na agenda',async()=>{
+  for(const conferidoPorPessoa of [false,undefined]){
+    const row=await ficha({preparacaoBot:{prazoImportado:true,conferidoPorPessoa}}),antes=structuredClone(row);
+    const [event]=projetarLicitacoesAgenda([row],'2026-11');
+    assert.equal(event.descricao,'Prazo importado da pesquisa; confira edital e retificações.');
+    assert.equal(event.data,row.validade);assert.equal(event.hora,row.hora);assert.equal(event.tipo,'Licitação');assert.equal('preparacaoBot' in event,false);assert.deepEqual(row,antes);
+  }
+  const confirmado=await ficha({preparacaoBot:{prazoImportado:true,conferidoPorPessoa:true}});
+  assert.match(projetarLicitacoesAgenda([confirmado],'2026-11')[0].descricao,/Prazo confirmado no acompanhamento/);
+  assert.match(projetarLicitacoesAgenda([await ficha()],'2026-11')[0].descricao,/Prazo confirmado no acompanhamento/);
+});
+test('conferência pendente mantém aviso prioritário mesmo com prazo importado',async()=>{
+  const row=await ficha({origemPesquisa:origem({pendente:true}),validade:'',acompanhamento:{prazoAcao:'2026-11-04'},preparacaoBot:{prazoImportado:true,conferidoPorPessoa:false}});
+  const [event]=projetarLicitacoesAgenda([row],'2026-11');
+  assert.equal(event.tipo,'Conferência de licitação');assert.equal(event.data,'2026-11-04');
+  assert.equal(event.descricao,'Conferência de evidências; o prazo da licitação ainda precisa ser confirmado.');
+});
 
 import {readFileSync} from 'node:fs';
 import {transformSync} from 'esbuild';
@@ -58,16 +75,17 @@ function database(){
     function execute(){
       if(state.error)return {data:null,error:{message:'ERRO_EXTERNO_FICTICIO'}};
       let rows=state.rows.filter(row=>filters.every(([k,v])=>(k==='registro->>tipo'?row.registro.tipo:row[k])===v)&&row.id>lower).sort((a,b)=>a.id.localeCompare(b.id)).slice(0,limit);
-      if(fields.startsWith('id,tipo:'))rows=rows.map(r=>({id:r.id,tipo:r.registro.tipo,nome:r.registro.nome,validade:r.registro.validade,hora:r.registro.hora,status:r.registro.status,origemPesquisa:r.registro.origemPesquisa,prazoAcao:r.registro.acompanhamento?.prazoAcao}));
+      if(fields.startsWith('id,tipo:'))rows=rows.map(r=>({id:r.id,tipo:r.registro.tipo,nome:r.registro.nome,validade:r.registro.validade,hora:r.registro.hora,status:r.registro.status,origemPesquisa:r.registro.origemPesquisa,prazoAcao:r.registro.acompanhamento?.prazoAcao,...(fields.includes('prazoImportado:registro->preparacaoBot->prazoImportado')?{prazoImportado:r.registro.preparacaoBot?.prazoImportado}:{}),...(fields.includes('conferidoPorPessoa:registro->preparacaoBot->conferidoPorPessoa')?{conferidoPorPessoa:r.registro.preparacaoBot?.conferidoPorPessoa}:{})}));
       return {data:structuredClone(rows),error:null};
     }
     return q;
   },async rpc(name,args){
-    assert.equal(name,'painel_registro_gravar');const id=args.p_id;
+    assert.ok(['painel_registro_gravar','painel_licitacao_preparar'].includes(name));const id=args.p_id,criar=name==='painel_licitacao_preparar',colecao=criar?'ativo':args.p_colecao;
     if(state.race){state.rows.push({id,colecao:'ativo',registro:structuredClone(state.race)});state.race=null;return {data:null,error:{code:state.raceCode,message:'corrida'}};}
-    const at=state.rows.findIndex(r=>r.id===id&&r.colecao===args.p_colecao),ant=at<0?null:state.rows[at].registro;
-    if(JSON.stringify(ant)!==JSON.stringify(args.p_anterior))return {data:null,error:{code:'40001',message:'concorrência'}};
-    state.writes.push(structuredClone(args));const row={id,colecao:args.p_colecao,registro:structuredClone(args.p_registro)};if(at<0)state.rows.push(row);else state.rows[at]=row;return {data:structuredClone(row.registro),error:null};
+    const at=state.rows.findIndex(r=>r.id===id&&r.colecao===colecao),ant=at<0?null:state.rows[at].registro;
+    if(criar&&ant)return {data:{item:structuredClone(ant),repetido:true},error:null};
+    if(!criar&&JSON.stringify(ant)!==JSON.stringify(args.p_anterior))return {data:null,error:{code:'40001',message:'concorrência'}};
+    state.writes.push(structuredClone(args));const row={id,colecao,registro:structuredClone(args.p_registro)};if(at<0)state.rows.push(row);else state.rows[at]=row;return {data:criar?{item:structuredClone(row.registro),repetido:false}:structuredClone(row.registro),error:null};
   }};
   return {db,state};
 }
@@ -97,12 +115,12 @@ test('criar calendário exige ambas permissões e não grava sem elas',async()=>
 test('edição omitir origem não contorna permissão de calendário nem perde vínculo',async()=>{
   const original=await ficha(),banco=database();banco.state.rows.push({id:original.id,colecao:'ativo',registro:original});
   const negado=ambiente({perms:['licitacoes'],banco});assert.equal((await negado.call({action:'salvar',item:{id:original.id,tipo:'licitacao',nome:original.nome,validade:'2026-12-01'}})).status,403);
-  const autorizado=ambiente({banco}),r=await autorizado.call({action:'salvar',item:{id:original.id,tipo:'licitacao',nome:original.nome,validade:'2026-12-01'}});assert.equal(r.status,200);assert.deepEqual(r.body.item.origemPesquisa,original.origemPesquisa);assert.equal(r.body.item.validade,'2026-12-01');
+  const autorizado=ambiente({banco}),r=await autorizado.call({action:'salvar',versao:original.atualizadoEm||'',item:{id:original.id,tipo:'licitacao',nome:original.nome,validade:'2026-12-01'}});assert.equal(r.status,200);assert.deepEqual(r.body.item.origemPesquisa,original.origemPesquisa);assert.equal(r.body.item.validade,'2026-12-01');
 });
 test('edição não pode trocar relatório de origem nem cadastrar data inexistente',async()=>{
   const a=ambiente(),item=await novo();await a.call({action:'salvar',item});
   const {cadastroId,...resto}=item;assert.equal((await a.call({action:'salvar',item:{...resto,id:cadastroId,origemPesquisa:{...resto.origemPesquisa,relatorioId:'outro'}}})).status,409);
-  assert.equal((await a.call({action:'salvar',item:{id:cadastroId,tipo:'licitacao',nome:item.nome,validade:'2026-02-30'}})).status,422);assert.equal(a.state.writes.length,1);
+  assert.equal((await a.call({action:'salvar',versao:a.state.rows[0].registro.atualizadoEm,item:{id:cadastroId,tipo:'licitacao',nome:item.nome,validade:'2026-02-30'}})).status,422);assert.equal(a.state.writes.length,1);
 });
 test('identificador divergente, origem extra e horário inválido são recusados antes de escrever',async()=>{
   for(const patch of [{cadastroId:'id-manual'},{hora:'24:01'},{origemPesquisa:origem({extra:true})}]){const a=ambiente();assert.equal((await a.call({action:'salvar',item:{...await novo(),...patch}})).status,422);assert.equal(a.state.writes.length,0);}
@@ -112,7 +130,7 @@ test('licitação manual mantém contrato anterior sem precisar calendário e se
 });
 test('conferência pendente persistida não ganha validade de edital',async()=>{
   const item=await novo({origemPesquisa:origem({pendente:true}),validade:'',acompanhamento:{prazoAcao:'2026-11-04'}}),a=ambiente();assert.equal((await a.call({action:'salvar',item})).status,200);assert.equal(a.state.rows[0].registro.validade,'');
-  const r=await a.call({action:'salvar',item:{id:item.cadastroId,tipo:'licitacao',nome:item.nome,validade:'2026-12-01'}});assert.equal(r.status,422);assert.equal(a.state.writes.length,1);
+  const r=await a.call({action:'salvar',versao:a.state.rows[0].registro.atualizadoEm,item:{id:item.cadastroId,tipo:'licitacao',nome:item.nome,validade:'2026-12-01'}});assert.equal(r.status,422);assert.equal(a.state.writes.length,1);
 });
 test('calendário exige ambas permissões antes da consulta',async()=>{
   for(const perms of [[],['licitacoes'],['calendario-empresa']]){const a=ambiente({perms,arquivo:'painel-agenda'}),r=await a.call({action:'licitacoes',mes:'2026-11'});assert.equal(r.status,403);assert.equal(a.state.reads.length,0);}
@@ -121,6 +139,19 @@ test('calendário projeta registros persistidos com consulta mínima e devolve l
   const banco=database(),row=await ficha();banco.state.rows.push({id:row.id,colecao:'ativo',registro:row});
   const a=ambiente({banco,arquivo:'painel-agenda'}),r=await a.call({action:'licitacoes',mes:'2026-11'});assert.equal(r.status,200);assert.equal(r.body.eventos.length,1);assert.match(r.body.eventos[0].href,/relatorio=pesquisa-ficticia&item=item-1/);assert.equal(a.state.writes.length,0);
   const consulta=a.state.reads[0];assert.ok(consulta.filters.some(([k,v])=>k==='registro->>tipo'&&v==='licitacao'));assert.equal(consulta.fields.includes('valor'),false);assert.equal(consulta.fields.includes('arquivo'),false);assert.equal(consulta.fields.includes('registro,'),false);
+});
+test('endpoint da agenda lê somente os dois indicadores do bot e não confirma prazo importado',async()=>{
+  const banco=database(),row=await ficha({preparacaoBot:{prazoImportado:true,conferidoPorPessoa:false,anexo:'NAO_EXIBIR_BOT',observacao:'NAO_EXIBIR_BOT'},valor:900,observacao:'NAO_EXIBIR_FICHA'});
+  banco.state.rows.push({id:row.id,colecao:'ativo',registro:row});const antes=structuredClone(banco.state.rows);
+  const a=ambiente({banco,arquivo:'painel-agenda'}),r=await a.call({action:'licitacoes',mes:'2026-11'});
+  assert.equal(r.status,200);assert.equal(r.body.eventos[0].descricao,'Prazo importado da pesquisa; confira edital e retificações.');
+  assert.doesNotMatch(JSON.stringify(r.body),/NAO_EXIBIR|preparacaoBot|prazoImportado|conferidoPorPessoa/);
+  const consulta=a.state.reads[0].fields;
+  assert.ok(consulta.includes('prazoImportado:registro->preparacaoBot->prazoImportado'));
+  assert.ok(consulta.includes('conferidoPorPessoa:registro->preparacaoBot->conferidoPorPessoa'));
+  assert.equal(consulta.includes('preparacaoBot:registro->preparacaoBot'),false);
+  assert.doesNotMatch(consulta,/valor|observacao|arquivo|anexo/);
+  assert.equal(a.state.writes.length,0);assert.deepEqual(banco.state.rows,antes);
 });
 test('revogação após leitura ou falha de banco não entrega agenda falsa vazia',async()=>{
   let n=0;const a=ambiente({arquivo:'painel-agenda',sessaoFn:async()=>({sub:'teste',perms:++n>2?[]:['licitacoes','calendario-empresa']})});assert.equal((await a.call({action:'licitacoes',mes:'2026-11'})).status,403);

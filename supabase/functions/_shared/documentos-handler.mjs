@@ -3,8 +3,13 @@ import {TIPOS_DOCUMENTO,ehAVCB,texto,identidade,conferirVersao,novoInstante,auto
 import {validarVinculoPessoa} from './patrimonio-pessoas.mjs';
 
 // Apenas o handler autenticado chama esta porta com o cliente de serviço.
-export async function atenderDocumentos({sb,sessao,corpo,resposta,quem,pessoasRH,bytesParaB64,bucket='painel-arquivos'}){
+export async function atenderDocumentos({sb,sessao,corpo,resposta,quem,pessoasRH,bytesParaB64,revalidarSessao,bucket='painel-arquivos'}){
  const falha=(mensagem,status=422)=>{throw Object.assign(new Error(mensagem),{status});};
+ if(!sessao)falha('Entre no sistema.',401);
+ if(typeof revalidarSessao!=='function')falha('Conferência de acesso indisponível.',503);
+ await revalidarSessao();
+ const responder=async body=>{await revalidarSessao();return resposta(body);};
+ const projetar=(r,campos)=>Object.fromEntries(campos.filter(k=>Object.hasOwn(r,k)).map(k=>[k,r[k]]));
  if(!temPermissao(sessao,'documentos'))falha('Sem acesso a Documentos.',403);
  const carregar=async colecao=>{const linhas=[];for(let de=0;;de+=1000){const {data,error}=await sb.from('painel_registros').select('id,registro').eq('colecao',colecao).order('id').range(de,de+999);if(error)throw error;linhas.push(...(data||[]));if((data||[]).length<1000)break;}return linhas;};
  const ler=async(colecao,id)=>{const {data,error}=await sb.from('painel_registros').select('id,registro').eq('colecao',colecao).eq('id',id).maybeSingle();if(error)throw error;return data?.registro||null;};
@@ -16,6 +21,7 @@ export async function atenderDocumentos({sb,sessao,corpo,resposta,quem,pessoasRH
  const titularPermitido=t=>t?.tipo==='empresa'||temPermissao(sessao,'documentos-pessoais');
  const requisitoPermitido=(r,ts,as)=>{const alvo=as.get(r?.documentoId);return titularPermitido(ts.get(r?.titularId))&&(!alvo||autorizadoDocumento(alvo,ts,sessao,as));};
  const gravar=async(colecao,id,novo,anterior)=>{
+  await revalidarSessao();
   if(!anterior){const {data,error}=await sb.from('painel_registros').insert({colecao,id,registro:novo,atualizado_em:novo.atualizadoEm}).select('registro').single();if(error)throw error;return data?.registro||novo;}
   // A RPC vigente bloqueia a linha e compara o JSON completo sob o mesmo lock.
   const {data,error}=await sb.rpc('painel_registro_gravar',{p_colecao:colecao,p_id:id,p_registro:novo,p_anterior:anterior});if(error)throw error;return data;
@@ -43,7 +49,6 @@ export async function atenderDocumentos({sb,sessao,corpo,resposta,quem,pessoasRH
    const ts=await titulares(),as=await ativos(),linhas=await carregar('ativo');
    const itens=linhas.filter(r=>autorizadoDocumento(r.registro,ts,sessao,as)).map(r=>documentoPublico(r.id,r.registro,ts));
    const requisitos=(await carregar('documentos_requisitos')).filter(r=>requisitoPermitido(r.registro,ts,as)).map(r=>({...r.registro,id:r.id}));
-   const projetar=(r,campos)=>Object.fromEntries(campos.filter(k=>Object.hasOwn(r,k)).map(k=>[k,r[k]]));
    const idsVinculados=new Set(itens.flatMap(i=>i.ativoIds||[]));const bens=linhas.map(r=>bemDocumento(r.id,r.registro,sessao)).filter(Boolean);
    for(const id of idsVinculados){const ativo=as.get(id);if(ativo?._documentosRetirado===true){const bem=bemDocumento(id,ativo,sessao);if(bem)bens.push(bem);}}
    const inventario=await carregar('patrimonio');
@@ -52,7 +57,7 @@ export async function atenderDocumentos({sb,sessao,corpo,resposta,quem,pessoasRH
     bem.inventario=ligados.map(r=>{const permitido=bemPermitido({...r.registro,id:r.id},sessao);return projetar(permitido,['id','codigo','situacao','setorSigla','origemAtivoId',...(temPermissao(sessao,'inventario-valores')?['nomeGenerico','descricaoTecnica','dataAquisicao','valor','nf']:[])]);});
     if(ligados.length>1)bem.pendencias=[...(bem.pendencias||[]),'Conferir vínculos de inventário divergentes por ID'];
    }
-   return resposta({ok:true,itens,titulares:[...ts.values()].filter(titularPermitido).map(t=>projetar(t,['id','tipo','nome','pessoaId','atualizadoEm'])),bens,requisitos:requisitos.map(r=>projetar(r,['id','titularId','categoria','estabelecimento','documentoId','estado','observacao','atualizadoEm'])),pessoas:await pessoasRH()});
+   return responder({ok:true,itens,titulares:[...ts.values()].filter(titularPermitido).map(t=>projetar(t,['id','tipo','nome','pessoaId','atualizadoEm'])),bens,requisitos:requisitos.map(r=>projetar(r,['id','titularId','categoria','estabelecimento','documentoId','estado','observacao','atualizadoEm'])),pessoas:await pessoasRH()});
   }
   case 'salvarControle':
   case 'renovarControle':{
@@ -69,6 +74,7 @@ export async function atenderDocumentos({sb,sessao,corpo,resposta,quem,pessoasRH
    const agora=novoInstante(anterior);let versoes=Array.isArray(anterior?.versoes)?[...anterior.versoes]:[],anexos=Array.isArray(anterior?.anexos)?[...anterior.anexos]:[],chave;
    if(corpo.arquivo){
     const arquivo=arquivoDocumento(corpo.arquivo);versoes=await guardarAnterior(id,anterior,versoes,renovar);const versaoId=crypto.randomUUID();chave=`documentos/${encodeURIComponent(id)}/${versaoId}`;
+    await revalidarSessao();
     const {error}=await sb.storage.from(bucket).upload(chave,arquivo.bytes,{contentType:arquivo.mime,upsert:false});if(error)throw error;
     const anexo={id:versaoId,chave,nome:arquivo.nome,mime:arquivo.mime,criadoEm:agora,criadoPor:quem};
     if(!anexos.length&&versoes.length)anexos=versoes.at(-1).anexos||[versoes.at(-1).arquivo].filter(Boolean);
@@ -78,33 +84,43 @@ export async function atenderDocumentos({sb,sessao,corpo,resposta,quem,pessoasRH
    const pessoalHistorico=anterior?.pessoalHistorico===true||t.get(anterior?.titularId)?.tipo==='pessoa'||t.get(campos.titularId??anterior?.titularId)?.tipo==='pessoa'||versoes.some(v=>t.get(v.snapshot?.titularId)?.tipo==='pessoa');
    const novo={...(anterior||{}),...campos,id,criadoEm:anterior?.criadoEm||agora,atualizadoEm:agora,atualizadoPor:quem,versoes,anexos,pessoalHistorico};
    if(chave){const arquivo=versoes.at(-1).arquivo;novo.temArquivo=true;novo.arquivoNome=arquivo.nome;if(ehAVCB(anterior)&&renovar)novo.arquivoIncendio={...arquivo,criadoEm:agora,criadoPor:quem};}
-   let salvo;try{salvo=await gravar('ativo',id,novo,anterior);}catch(e){if(chave)await sb.storage.from(bucket).remove([chave]);throw e;}
-   return resposta({ok:true,item:await publico(id,salvo)});
+   let salvo;try{salvo=await gravar('ativo',id,novo,anterior);}catch(e){
+    // Só compensar um aborto conhecido. Falha de transporte pode chegar depois
+    // do COMMIT: remover aqui destruiria o anexo que a ficha acabou de adotar.
+    const abortado=[401,403].includes(e?.status)||['40001','23505','23514','23503','22P02','42501'].includes(e?.code);
+    if(chave&&abortado){try{await sb.storage.from(bucket).remove([chave]);}catch{/* Órfão seguro; a falha original continua explícita. */}}
+    if(!abortado)falha('Não foi possível confirmar o salvamento. Recarregue a lista antes de tentar novamente; os arquivos foram preservados.',503);
+    throw e;
+   }
+   return responder({ok:true,item:await publico(id,salvo)});
   }
   case 'lerVersaoDocumento':{
    const id=corpo.id,r=await controle(id),versoes=Array.isArray(r.versoes)?r.versoes:[];
    const v=corpo.versaoId?versoes.find(v=>v.id===corpo.versaoId):versoes.at(-1);
    if(corpo.versaoId&&!v)falha('Versão não encontrada.',404);
-   const anexos=corpo.versaoId?(v?.anexos||[v?.arquivo].filter(Boolean)):[...(r.anexos||[]),...versoes.flatMap(v=>v.anexos||[v.arquivo].filter(Boolean))];
+   const anexosDaVersao=v=>v?.anexos?.length?v.anexos:[v?.arquivo].filter(Boolean);
+   const anexos=corpo.versaoId?anexosDaVersao(v):[...(r.anexos||[]),...versoes.flatMap(anexosDaVersao)];
    const meta=corpo.arquivoId?anexos.find(a=>a.id===corpo.arquivoId):ehAVCB(r)&&!corpo.versaoId?r.arquivoIncendio:v?.arquivo||await metadadoLegado(id,r);
    if(corpo.arquivoId&&!meta)falha('Anexo não encontrado.',404);
    // Caminhos internos nunca são aceitos no pedido e precisam pertencer à ficha.
    if(!meta?.chave||!(meta.chave===id&&meta.legado===true||String(meta.chave).startsWith(`documentos/${encodeURIComponent(id)}/`)||ehAVCB(r)&&String(meta.chave).startsWith(`incendio/${encodeURIComponent(id)}/`)))falha('Anexo não encontrado.',404);
    const {data,error}=await sb.storage.from(bucket).download(meta.chave);if(error||!data)falha('Anexo não encontrado.',404);
-   return resposta({ok:true,base64:bytesParaB64(await data.arrayBuffer()),mime:meta.mime,nome:meta.nome});
+   return responder({ok:true,base64:bytesParaB64(await data.arrayBuffer()),mime:meta.mime,nome:meta.nome});
   }
   case 'removerControle':{
    const anterior=await controle(corpo.id);if(!TIPOS_DOCUMENTO.includes(anterior.tipo))falha('Bens físicos não podem ser retirados por Documentos.',403);
    conferirVersao(anterior,corpo.versao);
+   await revalidarSessao();
    const {error}=await sb.rpc('painel_documento_retirar',{p_id:corpo.id,p_anterior:anterior,p_por:quem});if(error)throw error;
-   return resposta({ok:true,lixeira:true});
+   return responder({ok:true,lixeira:true});
   }
   case 'lixeiraDocumentos':{
-   const t=await titulares(),as=await ativos();const itens=(await carregar('ativo_lixeira')).filter(r=>TIPOS_DOCUMENTO.includes(r.registro?.tipo)&&autorizadoDocumento(r.registro,t,sessao,as)).map(r=>documentoPublico(r.id,r.registro,t));return resposta({ok:true,itens});
+   const t=await titulares(),as=await ativos();const itens=(await carregar('ativo_lixeira')).filter(r=>TIPOS_DOCUMENTO.includes(r.registro?.tipo)&&autorizadoDocumento(r.registro,t,sessao,as)).map(r=>documentoPublico(r.id,r.registro,t));return responder({ok:true,itens});
   }
   case 'restaurarControle':{
    const r=await controle(corpo.id,'ativo_lixeira');if(!TIPOS_DOCUMENTO.includes(r.tipo))falha('Restaure bens na área de Patrimônio.',403);
-   const {error}=await sb.rpc('painel_ativo_restaurar',{p_id:corpo.id,p_anterior:r});if(error)throw error;return resposta({ok:true});
+   await revalidarSessao();
+   const {error}=await sb.rpc('painel_ativo_restaurar',{p_id:corpo.id,p_anterior:r});if(error)throw error;return responder({ok:true});
   }
   case 'salvarTitular':{
    const {id,edicao}=identidade(corpo.item),a=await ler('documentos_titulares',id),it=corpo.item;
@@ -114,8 +130,8 @@ export async function atenderDocumentos({sb,sessao,corpo,resposta,quem,pessoasRH
    let nome=texto(it.nome??a?.nome,'nome do titular',200,true),pessoaId=texto(it.pessoaId??a?.pessoaId,'pessoa do RH');
    if(tipo==='empresa'&&pessoaId)falha('Empresa não pode receber vínculo de pessoa.');
    if(pessoaId){nome=validarVinculoPessoa({pessoaId,pessoa:nome},a?{pessoaId:a.pessoaId,pessoa:a.nome}:null,await pessoasRH()).pessoa;}
-   const agora=novoInstante(a),novo={id,tipo,nome,pessoaId:tipo==='pessoa'?pessoaId:'',criadoEm:a?.criadoEm||agora,atualizadoEm:agora};
-   return resposta({ok:true,item:await gravar('documentos_titulares',id,novo,a)});
+   const agora=novoInstante(a),novo={...(a||{}),id,tipo,nome,pessoaId:tipo==='pessoa'?pessoaId:'',criadoEm:a?.criadoEm||agora,atualizadoEm:agora};
+   const salvo=await gravar('documentos_titulares',id,novo,a);return responder({ok:true,item:projetar(salvo,['id','tipo','nome','pessoaId','criadoEm','atualizadoEm'])});
   }
   case 'salvarRequisito':{
    const {id,edicao}=identidade(corpo.item),a=await ler('documentos_requisitos',id),it=corpo.item;
@@ -124,8 +140,8 @@ export async function atenderDocumentos({sb,sessao,corpo,resposta,quem,pessoasRH
    const vindo=k=>Object.hasOwn(it,k)?it[k]:a?.[k];const titularId=texto(vindo('titularId'),'titular',180,true),tit=t.get(titularId);if(!tit)falha('Titular não encontrado.');if(!titularPermitido(tit))falha('Sem acesso a Documentos pessoais.',403);
    const estado=vindo('estado')??'aplicavel';if(!['aplicavel','nao-se-aplica'].includes(estado))falha('Aplicabilidade inválida.');
    const documentoId=texto(vindo('documentoId'),'documento');if(documentoId){const r=await controle(documentoId);if(r.titularId!==titularId)falha('O documento deve pertencer ao titular selecionado.');if(estado==='nao-se-aplica')falha('Um requisito não aplicável não pode apontar documento.');}
-   const agora=novoInstante(a),novo={id,titularId,categoria:texto(vindo('categoria'),'categoria',200,true),estabelecimento:texto(vindo('estabelecimento'),'estabelecimento',200),documentoId,estado,observacao:texto(vindo('observacao'),'observação',2000),criadoEm:a?.criadoEm||agora,atualizadoEm:agora};
-   return resposta({ok:true,item:await gravar('documentos_requisitos',id,novo,a)});
+   const agora=novoInstante(a),novo={...(a||{}),id,titularId,categoria:texto(vindo('categoria'),'categoria',200,true),estabelecimento:texto(vindo('estabelecimento'),'estabelecimento',200),documentoId,estado,observacao:texto(vindo('observacao'),'observação',2000),criadoEm:a?.criadoEm||agora,atualizadoEm:agora};
+   const salvo=await gravar('documentos_requisitos',id,novo,a);return responder({ok:true,item:projetar(salvo,['id','titularId','categoria','estabelecimento','documentoId','estado','observacao','criadoEm','atualizadoEm'])});
   }
   case 'previaDocumentos':{
    const ts=await titulares(),as=await ativos(),itens=[];
@@ -133,7 +149,7 @@ export async function atenderDocumentos({sb,sessao,corpo,resposta,quem,pessoasRH
     if(TIPOS_DOCUMENTO.includes(r?.tipo)||ehAVCB(r)){if(!autorizadoDocumento(r,ts,sessao,as))continue;const pendencias=[];if(!ts.has(r.titularId))pendencias.push('Confirmar titular por ID');if(!r.semVencimento&&!r.validade)pendencias.push('Confirmar validade ou ausência de vencimento');if(!Array.isArray(r.versoes)&&r.temArquivo||ehAVCB(r)&&r.arquivoIncendio&&!r.versoes?.length)pendencias.push('Preservar anexo antigo na primeira renovação');itens.push({id,origem:ehAVCB(r)?'incendio':'ativo',destino:ehAVCB(r)?'mesma-ficha-avcb':'controle',pendencias});}
     else if(['veiculo','maquina'].includes(r?.tipo)&&bemDocumento(id,r,sessao))itens.push({id,origem:'ativo',destino:'bem-fisico',pendencias:r.validade||r.temArquivo?['Conferir documento legado e vincular controle por ID sem transformar a ficha']:[]});
    }
-   return resposta({ok:true,somenteLeitura:true,itens});
+   return responder({ok:true,somenteLeitura:true,itens});
   }
   default:falha('Ação desconhecida.',400);
  }

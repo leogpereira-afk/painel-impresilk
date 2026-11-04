@@ -20,7 +20,7 @@ export async function atenderCadastrosLicitacoes({sb,sessao,corpo,resposta,quem,
  switch(corpo.action){
   case 'listarCadastrosLicitacoes':{
    const itens=(await carregar(colecao)).filter(r=>empresaValida(r.registro)).map(r=>publico(r.id,r.registro));
-   const documentos=[...ativos].filter(([id,r])=>!r._documentosRetirado&&documentoDoCadastro(id,r,r.titularId,titulares,ativos,sessao)).map(([id,r])=>({id,nome:r.nome||'',titularId:r.titularId,categoria:r.categoria||'',validade:r.validade||'',semVencimento:r.semVencimento===true,estado:r.estado||'',temArquivo:r.temArquivo===true||!!r.anexos?.length||!!r.versoes?.length}));
+   const documentos=[...ativos].filter(([id,r])=>!r._documentosRetirado&&documentoDoCadastro(id,r,r.titularId,titulares,ativos,sessao)).map(([id,r])=>({id,nome:r.nome||'',titularId:r.titularId,categoria:r.categoria||'',emissao:r.emissao||'',alertaDias:r.alertaDias??30,validade:r.validade||'',semVencimento:r.semVencimento===true,estado:r.estado||'',temArquivo:r.temArquivo===true||!!r.anexos?.length||!!r.versoes?.length}));
    return responder({ok:true,itens,titulares:[...titulares.values()].filter(t=>t.tipo==='empresa').map(t=>({id:t.id,tipo:'empresa',nome:t.nome||''})),documentos,podeVincularDocumentos:temPermissao(sessao,'documentos')});
   }
   case 'salvarCadastroLicitacoes':

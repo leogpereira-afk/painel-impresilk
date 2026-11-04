@@ -6,11 +6,12 @@ import { API } from "../lib/api.js";
 
 const BASE = `${API}/painel-ativos`;
 
-async function chamar(action, dados = {}) {
+async function chamar(action, dados = {}, signal) {
   const resp = await comCracha(BASE, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ action, ...dados }),
+    signal,
   });
   const corpo = await resp.json().catch(() => null);
   // recusaVinculo: o servidor recusou o vínculo, não houve outra gravação (BemDaFicha.jsx).
@@ -23,16 +24,16 @@ export const listarAtivos = () => chamar("listar").then((r) => r.itens || []);
 export const listarEquipamentosPatrimonio = () => chamar("listarPatrimonio").then((r) => r.itens || []);
 // Cadastro de estrutura limitado aos campos físicos do mesmo item predial.
 export const salvarEstrutura = (item, versao = null) => chamar("salvarEstrutura", { item, versao }).then(r => r.item);
-export const salvarAtivo = (item) => chamar("salvar", { item }).then((r) => r.item);
+export const salvarAtivo = (item, versao = null, arquivo = null) => chamar("salvar", { item, versao, ...(arquivo ? {arquivo} : {}) }).then((r) => r.item);
 export const removerAtivo = (id, bemId) => chamar("remover", { id, bemId });
 // Na edição, `versao` é o atualizadoEm lido; o servidor recusa se a ficha mudou.
 export const salvarEquipamento = (item, patrimonio, bemId, versao) => chamar("salvar",{item,patrimonio,bemId,versao}).then(r=>r.item);
 // A lixeira de 30 dias: o servidor guarda o apagado e purga sozinho.
 export const listarLixeira = () => chamar("lixeira").then((r) => r.itens || []);
 export const restaurarAtivo = (id) => chamar("restaurar", { id });
-export const guardarArquivo = (id, base64, mime, nome) =>
-  chamar("guardarArquivo", { id, base64, mime, nome });
-export const lerArquivo = (id) => chamar("lerArquivo", { id });
+export const guardarArquivo = (id, base64, mime, nome, versao = null) =>
+  chamar("guardarArquivo", { id, base64, mime, nome, versao });
+export const lerArquivo = (id, arquivoId, signal) => chamar("lerArquivo", { id, ...(arquivoId ? {arquivoId} : {}) }, signal);
 
 // Le um File do input e devolve base64 puro (sem o prefixo data:).
 export function arquivoParaBase64(file) {

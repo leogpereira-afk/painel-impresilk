@@ -78,7 +78,7 @@ test('cancelados e encerrados ficam identificados, fora dos contadores de docume
 test('vincular por ID usa o mesmo registro e renovação conserva arquivo antigo no banco demo', async () => {
   prepararDocumentosDemo([{ id: 'car-demo', tipo: 'veiculo', nome: 'Veículo fictício' }]);
   const sb = bancoDocumentosDemo();
-  const chamar = corpo => atenderDocumentos({ sb, sessao, corpo, resposta: dados => dados, quem: 'Teste fictício', pessoasRH: async () => [], bytesParaB64: bytes => Buffer.from(bytes).toString('base64') });
+  const chamar = corpo => atenderDocumentos({ sb, sessao, corpo, resposta: dados => dados, quem: 'Teste fictício', revalidarSessao: async () => {}, pessoasRH: async () => [], bytesParaB64: bytes => Buffer.from(bytes).toString('base64') });
   const antes = await chamar({ action: 'listarDocumentos' });
   const alvo = antes.itens.find(i => i.id === 'crlv-demo');
   const vinculado = await chamar({ action: 'salvarControle', item: { id: alvo.id, usoLicitacoes: true }, versao: alvo.atualizadoEm });

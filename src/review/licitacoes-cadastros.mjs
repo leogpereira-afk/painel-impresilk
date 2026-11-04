@@ -1,5 +1,6 @@
 // Fichas fictícias; nenhum protocolo ou documento real entra na prévia.
 import {atenderCadastrosLicitacoes} from '../../supabase/functions/_shared/licitacoes-cadastros-handler.mjs';
+import {prepararEntidadesDemo} from './licitacoes-entidades.mjs';
 import {bancoDocumentosDemo,prepararDocumentosDemo} from './documentos.mjs';
 const empresa='73405710-78db-461b-9d33-37a228fd62c0';
 const responder=(dados,status=200)=>new Response(JSON.stringify(dados),{status,headers:{'Content-Type':'application/json'}});
@@ -18,6 +19,7 @@ export async function respostaCadastrosLicitacoes(corpo,sessao,bens=[]) {
   prepararDocumentosDemo(bens);
   const sb=bancoDocumentosDemo();
   try {
+    await prepararEntidadesDemo(bens);
     preparado??=preparar(sb);await preparado;
     return await atenderCadastrosLicitacoes({sb,sessao,corpo,resposta:responder,quem:'Conta de demonstração',revalidarSessao:async()=>{}});
   }catch(e){return responder({ok:false,erro:e.message},e.status||500);}
