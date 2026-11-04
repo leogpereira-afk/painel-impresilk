@@ -1,0 +1,56 @@
+/* Compactação aprovada, restrita a Cadastros; preserva o workspace e os formulários. */
+.licitacoes-workspace.lic-cadastros-view > .lw-header { padding-bottom: 10px; }
+.licitacoes-workspace.lic-cadastros-view > .lw-header h1 { font-size: 21px; }
+.licitacoes-workspace.lic-cadastros-view > .lw-header p { display: none; }
+.licitacoes-workspace.lic-cadastros-view > .lw-tabs { margin-bottom: 12px; }
+.licitacoes-workspace.lic-cadastros-view > .lw-tabs button { min-height: 38px; padding: 6px 12px; }
+.licitacoes-workspace .lac-cadastros { gap: 12px; }
+.licitacoes-workspace .lac-cadastros > .lac-heading { gap: 8px 16px; }
+.licitacoes-workspace .lac-cadastros > .lac-heading h2 { font-size: 1.125rem; margin: 0 0 3px; }
+.licitacoes-workspace .lac-cadastros > .lac-heading p { font-size: .8125rem; line-height: 1.5; }
+.licitacoes-workspace .lac-cadastros > .lac-heading .lac-actions :is(button,a),
+.licitacoes-workspace .lac-cadastros .lac-portal > .lac-actions :is(button,a) { min-height: 36px; padding: 6px 10px; border-radius: 8px; font-size: .8125rem; }
+.licitacoes-workspace .lac-cadastros > .lac-heading .lac-actions button[aria-label] { width: 36px; padding: 0; }
+.licitacoes-workspace .lac-cadastros > .lac-message { padding: 6px 10px; border-radius: 8px; font-size: .8125rem; }
+.licitacoes-workspace .lac-cadastros > .lac-metrics { display: flex; flex-wrap: wrap; gap: 8px; }
+.licitacoes-workspace .lac-cadastros > .lac-metrics button { display: flex; min-height: 38px; gap: 7px; padding: 6px 10px; border-radius: 8px; }
+.licitacoes-workspace .lac-cadastros > .lac-metrics svg { width: 16px; height: 16px; }
+.licitacoes-workspace .lac-cadastros > .lac-metrics span { font-size: .8125rem; }
+.licitacoes-workspace .lac-cadastros > .lac-metrics strong { font-size: .8125rem; line-height: 1.5; min-width: 22px; text-align: center; background: #64748b12; border-radius: 5px; padding: 1px 4px; }
+.licitacoes-workspace .lac-cadastros > .lac-filters { padding: 10px 12px; gap: 10px; border-radius: 10px; grid-template-columns: minmax(0,2fr) minmax(0,1fr) minmax(0,1fr); }
+.licitacoes-workspace .lac-cadastros > .lac-filters .label { margin: 0; min-width: 0; text-transform: none; letter-spacing: 0; font-size: .75rem; font-weight: 500; }
+.licitacoes-workspace .lac-cadastros > .lac-filters .input { height: 36px; min-height: 36px; margin-top: 3px; padding: 5px 9px; border-radius: 7px; font-size: .8125rem; }
+.licitacoes-workspace .lac-cadastros > .lac-portal-grid { gap: 12px; align-items: start; }
+.licitacoes-workspace .lac-cadastros .lac-portal { padding: 12px 14px; gap: 8px; border-radius: 11px; }
+.licitacoes-workspace .lac-cadastros .lac-portal > header { gap: 8px; }
+.licitacoes-workspace .lac-cadastros .lac-portal h3 { font-size: .9375rem; }
+.licitacoes-workspace .lac-cadastros .lac-icon { flex-basis: 32px; height: 32px; border-radius: 8px; }
+.licitacoes-workspace .lac-cadastros .lac-icon svg { width: 17px; height: 17px; }
+.licitacoes-workspace .lac-cadastros .lac-badge { padding: 4px 7px; }
+.licitacoes-workspace .lac-cadastros .lac-next, .licitacoes-workspace .lac-cadastros .lac-demand { padding: 7px 9px; border-radius: 7px; font-size: .8125rem; overflow-wrap: anywhere; }
+.licitacoes-workspace .lac-cadastros .lac-next span { min-width: 0; }
+.licitacoes-workspace .lac-cadastros .lac-portal > .lac-details > summary { padding: 6px 0; min-height: 32px; }
+.licitacoes-workspace .lac-cadastros .lac-facts { padding: 8px 0; gap: 8px; }
+.licitacoes-workspace .lac-cadastros .lac-portal > footer { padding-top: 8px; }
+.licitacoes-workspace .lac-cadastros > .lac-recommendations { padding: 10px 12px; border-radius: 10px; }
+.licitacoes-workspace .lac-cadastros > .lac-recommendations > summary { font-size: .875rem; min-height: 28px; align-items: center; }
+@media (max-width: 700px) {
+  .licitacoes-workspace .lac-cadastros > .lac-heading { align-items: flex-start; }
+  .licitacoes-workspace .lac-cadastros > .lac-heading .lac-actions { margin-left: auto; }
+  .licitacoes-workspace .lac-cadastros > .lac-heading .lac-actions :is(button,a),
+  .licitacoes-workspace .lac-cadastros .lac-portal > .lac-actions :is(button,a) { min-height: 44px; }
+  .licitacoes-workspace .lac-cadastros > .lac-heading .lac-actions button[aria-label] { width: 44px; }
+  .licitacoes-workspace .lac-cadastros > .lac-metrics { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 6px; }
+  .licitacoes-workspace .lac-cadastros > .lac-metrics button { min-height: 44px; padding: 6px 8px; gap: 5px; }
+  .licitacoes-workspace .lac-cadastros > .lac-metrics span { font-size: .75rem; }
+  .licitacoes-workspace .lac-cadastros > .lac-metrics svg { display: none; }
+  .licitacoes-workspace .lac-cadastros > .lac-metrics strong { margin-left: auto; }
+  .licitacoes-workspace .lac-cadastros > .lac-filters { grid-template-columns: repeat(2,minmax(0,1fr)); gap: 8px; padding: 10px; }
+  .licitacoes-workspace .lac-cadastros > .lac-filters .lac-search { grid-column: 1/-1; }
+  .licitacoes-workspace .lac-cadastros > .lac-filters .input { height: 44px; min-height: 44px; font-size: 16px; }
+  .licitacoes-workspace .lac-cadastros .lac-portal > header { display: grid; grid-template-columns: 32px minmax(0,1fr); gap: 5px 8px; }
+  .licitacoes-workspace .lac-cadastros .lac-portal > header > .lac-badge { grid-column: 2; justify-self: start; }
+  .licitacoes-workspace .lac-cadastros .lac-portal > .lac-details > summary { min-height: 44px; display: list-item; padding: 12px 0; }
+  .licitacoes-workspace .lac-cadastros .lac-next { flex-wrap: wrap; }
+  .licitacoes-workspace .lac-cadastros > .lac-recommendations > summary { min-height: 44px; }
+}

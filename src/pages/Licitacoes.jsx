@@ -45,6 +45,7 @@ import { Card, CarregandoModulo, ErroModulo } from "../components/ui.jsx";
 
 import {visaoLicitacoes, filtrarAcompanhamento, pendenteAcompanhamento, erroPreparacao, revisarRascunhoLicitacao} from "../lib/licitacoes-workspace.mjs";
 import "../components/licitacoes-workspace.css";
+import "../components/licitacoes-cadastros-compacto.css";
 
 const MAX_BYTES = 3 * 1024 * 1024;
 const normalizarIdentidade=v=>String(v||'').normalize('NFKC').trim().replace(/\s+/g,' ').toLocaleLowerCase('pt-BR');
@@ -496,7 +497,7 @@ function EspacoLicitacoes() {
     setForm({...revisaoConflito.form,id:atual.id,versao:atual.versao,arquivosEdital:atual.arquivosEdital});setConflito(null);setAviso(null);
   };
   return (
-    <div className="licitacoes-workspace">
+    <div className={`licitacoes-workspace${visao==='cadastros'?' lic-cadastros-view':''}`}>
       <header className="lw-header">
         <div><span className="lw-eyebrow">IMPRESILK · GESTÃO COMERCIAL</span><h1>Licitações &amp; Indústrias</h1><p>Decida o próximo passo. Acompanhe prazos, documentos e participações.</p></div>
         <div className="lw-header-actions">

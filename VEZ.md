@@ -1,3 +1,9 @@
+## Trabalho atual · Cadastros compactos integrados · codex · 04/11/2026
+
+Publicação da prévia compacta autorizada pelo dono em 04/11/2026. Após atualização paralela, o dono autorizou alinhar e preservar ambas as mudanças. Publicação anterior encerrada e conferida em 622baab; ajustes de densidade adaptados sobre essa base, preservando o novo workspace, abas, regiões, documentos, kits, permissões e históricos. Somente três arquivos de interface; nenhum servidor ou registro alterado.
+
+Clone /tmp/painel-cadastros-compacto-20261103, ramo codex/cadastros-compacto-integrado-20261104. Escopo: cabeçalho menor na aba Cadastros, indicadores e filtros compactos, fichas com detalhes recolhíveis; manter documentos vinculados e retornos à cidade. Verificação integrada: 69 testes pertinentes, ESLint focal, diff-check e build oficial aprovados; navegador em desktop e 390px, busca, formulário e detalhes com documentos conferidos. Filtros móveis mantêm alvo de 44px e fonte de 16px. Revisão independente aprovada após esse ajuste. Publicação em andamento. Evidências privadas em Dre/output/cadastros-compactos-20261103.
+
 ## Trabalho atual · Publicação de Licitações & Indústrias · codex · 04/11/2026
 
 Publicação aprovada expressamente pelo dono após prévia: documentos, validades, kits por edital e organização compacta. Conciliar com a main atual, publicar servidor antes da interface e conferir salvamento/download no oficial com registros sintéticos identificados. Preservar documentos, dados reais, permissões e históricos. Worktree isolado codex/licitacoes-release-20261104; base 3ce5c78. Nenhuma inscrição, proposta ou envio externo.
