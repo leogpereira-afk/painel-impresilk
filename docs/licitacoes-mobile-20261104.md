@@ -1,6 +1,6 @@
 # Licitações & Indústrias — revisão móvel
 
-Prévia local concluída em 04/11/2026, sobre a base `72a099f`. Escopo: melhorar leitura e operação no celular, especialmente documentos e kits, mantendo informações, versões e históricos. A compactação anterior de Cadastros foi preservada. Não publicado.
+Revisão concluída e publicada em 04/11/2026, sobre a base `72a099f`. Escopo: melhorar leitura e operação no celular, especialmente documentos e kits, mantendo informações, versões e históricos. A compactação anterior de Cadastros foi preservada.
 
 ## Alterações
 
@@ -39,8 +39,12 @@ Os builds mantêm o aviso de tamanho de alguns chunks; não houve falha de compi
 
 Esta é uma prévia com dados fictícios e serviços simulados em memória. Salvar e reabrir demonstram o fluxo local; recarregar a demonstração descarta suas alterações. Não houve gravação, sincronização ou teste com duas sessões em produção, nem teste em aparelho físico. A conferência móvel usa a largura do navegador e não substitui a validação final em Safari/Chrome de um celular real.
 
-Nenhum registro, arquivo real ou histórico produtivo foi alterado. Publicação depende da aprovação desta prévia. Os logs e artefatos de conferência ficam fora do repositório público, em `/tmp/licitacoes-mobile-20261104/`.
+Nenhum registro, arquivo real ou histórico produtivo foi alterado. Os logs e artefatos de conferência ficam fora do repositório público, em `/tmp/licitacoes-mobile-20261104/`.
 
 ## Publicação autorizada
 
-Léo aprovou a publicação desta prévia em 04/11/2026. Base oficial `72a099f` atualizada e protocolo relido; a liberação contém apenas a revisão aprovada. Verificação fresca antes de publicar: 2.215 testes gerais, 1.496 cálculos e sete testes de acesso aprovados; quinze verificadores, build com base oficial e revisão independente aprovados. ESLint sem erros, com o aviso preexistente de Agenda. Nenhuma função, migração ou registro de produção faz parte da alteração. Conferência da versão servida e da interface oficial será registrada após a publicação.
+Léo aprovou a publicação desta prévia em 04/11/2026. Base oficial `72a099f` atualizada e protocolo relido; a liberação contém apenas a revisão aprovada. Verificação fresca antes de publicar: 2.215 testes gerais, 1.496 cálculos e sete testes de acesso aprovados; quinze verificadores, build com base oficial e revisão independente aprovados. ESLint sem erros, com o aviso preexistente de Agenda. Nenhuma função, migração ou registro de produção faz parte da alteração.
+
+Publicado e conferido: commit `f50714c`, workflow Pages `41869608652` concluído com sucesso. Os 224 arquivos oficiais coincidem por SHA-256 com o build aprovado.
+
+Na sessão oficial autenticada, a interface foi conferida em 320 e 390 px. Ações documentais têm 44 px, campos têm 16 px, datas cabem no formulário, rodapé de salvamento permanece acessível e requisitos do kit expandem/recolhem mantendo o preenchimento. Não houve erro de console observado. Os formulários foram cancelados sem gravar; as fichas documentais exibidas permaneceram idênticas antes/depois. A publicação não repetiu testes de gravação produtiva nem criou kits; esses fluxos foram testados com dados fictícios na prévia e nas regressões. Não houve alteração em registros, arquivos ou servidor.
