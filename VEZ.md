@@ -2,7 +2,7 @@
 
 Publicação aprovada expressamente pelo dono após prévia: documentos, validades, kits por edital e organização compacta. Conciliar com a main atual, publicar servidor antes da interface e conferir salvamento/download no oficial com registros sintéticos identificados. Preservar documentos, dados reais, permissões e históricos. Worktree isolado codex/licitacoes-release-20261104; base 3ce5c78. Nenhuma inscrição, proposta ou envio externo.
 
-Verificação de release: 2.210 regressões, 1.496 cálculos, 7 testes de acesso e 15 verificadores aprovados. Build oficial aprovado, lint sem erros (aviso anterior em Agenda). Migração painel_licitacao_preparar aplicada e permissões conferidas: somente service_role. Cópias privadas de recuperação preparadas fora do Git; comparação inicial preserva arquivos e dados. Servidor e interface em publicação; conferência oficial pendente.
+Verificação de release: 2.210 regressões, 1.496 cálculos, 7 testes de acesso e 15 verificadores aprovados. Build oficial aprovado, lint sem erros (aviso anterior em Agenda). Migração painel_licitacao_preparar aplicada e permissões conferidas: somente service_role. Cópias privadas de recuperação preparadas fora do Git; comparação inicial preserva arquivos e dados. Interface 308a198 publicada: Pages 41812932386 e Functions 41812932140 concluídos; 223 arquivos públicos idênticos ao build. Conferência oficial de documento, validade, renovação e ZIP confirmou persistência e bytes. Encontrado snapshot redundante pela ordem das chaves JSONB: comparação estrutural corrigida, 141 testes relacionados aprovados e servidor painel-ativos v186 publicado. Reteste e encerramento pendentes.
 
 ## Trabalho atual · Salvamento seguro e kits por edital · codex · 03/11/2026
 

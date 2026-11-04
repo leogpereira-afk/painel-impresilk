@@ -72,6 +72,45 @@ test('renovação guarda legado, usa arquivo imutável e baixa versão antiga po
  const antiga=await a.chamar({action:'lerVersaoDocumento',id:'controle',versaoId:ret.body.item.versoes[0].id});assert.equal(antiga.status,200);assert.equal(antiga.body.base64,btoa('%PDF antigo'));assert.equal(antiga.body.nome,'antigo.pdf');
  const vigente=await a.chamar({action:'lerArquivo',id:'controle'});assert.equal(vigente.status,200);assert.equal(vigente.body.base64,arquivo.base64);
 });
+// JSONB devolve objetos com outra ordem de chaves, inclusive dentro dos snapshots.
+const ordemJsonb=valor=>Array.isArray(valor)?valor.map(ordemJsonb):valor&&typeof valor==='object'?Object.fromEntries(Object.keys(valor).sort((a,b)=>a.length-b.length||a.localeCompare(b)).map(k=>[k,ordemJsonb(valor[k])])):valor;
+test('renovação após leitura JSONB cria somente a nova versão e mantém os dois arquivos',async()=>{
+ const a=ambiente(['documentos']);let r=await a.chamar({action:'salvarControle',item:{cadastroId:novoId,tipo:'documento',nome:'Certidão fictícia',categoria:'Certidão',titularId:empresa,emissao:'2026-10-01',validade:'2027-10-01',contato:{nome:'Contato fictício',telefone:'0000'},assistencia:{nome:'Assistência fictícia',email:'teste@example.com'}},arquivo});
+ assert.equal(r.status,200);
+ const row=a.linhas.find(l=>l.id===novoId),original=structuredClone(row.registro.versoes[0]);
+ row.registro=ordemJsonb(row.registro);
+ assert.notEqual(JSON.stringify(row.registro.versoes[0].snapshot),JSON.stringify(original.snapshot));
+ const renovado={...arquivo,nome:'renovado.pdf',base64:btoa('%PDF-1.7 renovação fictícia')};
+ r=await a.chamar({action:'renovarControle',item:{id:novoId,emissao:'2027-10-01',validade:'2028-10-01'},versao:r.body.item.atualizadoEm,arquivo:renovado});
+ assert.equal(r.status,200);assert.equal(row.registro.versoes.length,2);
+ assert.deepEqual(row.registro.versoes[0],original);
+ assert.equal(row.registro.versoes[1].snapshot.validade,'2028-10-01');
+ for(const [versaoId,esperado] of [[original.id,arquivo],[row.registro.versoes[1].id,renovado]]){
+  const download=await a.chamar({action:'lerVersaoDocumento',id:novoId,versaoId});
+  assert.equal(download.status,200);assert.equal(download.body.base64,esperado.base64);assert.equal(download.body.nome,esperado.nome);
+ }
+ assert.equal(a.arquivos.size,2);
+});
+test('renovação após leitura JSONB conserva alterações reais de datas e conteúdo antes de renovar',async()=>{
+ for(const alteracao of [{emissao:'2026-10-02',validade:'2027-11-01'},{nome:'Certidão retificada',contato:{nome:'Novo contato fictício',telefone:'1111'}}]){
+  const a=ambiente(['documentos']);let r=await a.chamar({action:'salvarControle',item:{cadastroId:novoId,tipo:'documento',nome:'Certidão fictícia',categoria:'Certidão',titularId:empresa,emissao:'2026-10-01',validade:'2027-10-01'},arquivo});
+  assert.equal(r.status,200);const row=a.linhas.find(l=>l.id===novoId),original=structuredClone(row.registro.versoes[0]);
+  r=await a.chamar({action:'salvarControle',item:{id:novoId,...alteracao},versao:r.body.item.atualizadoEm});assert.equal(r.status,200);
+  const editado=structuredClone(row.registro);row.registro=ordemJsonb(row.registro);
+  r=await a.chamar({action:'renovarControle',item:{id:novoId,nome:'Certidão renovada',validade:'2028-10-01'},versao:r.body.item.atualizadoEm,arquivo:{...arquivo,nome:'renovado.pdf'}});
+  assert.equal(r.status,200);assert.equal(row.registro.versoes.length,3);assert.deepEqual(row.registro.versoes[0],original);
+  for(const chave of Object.keys(alteracao))assert.deepEqual(row.registro.versoes[1].snapshot[chave],editado[chave]);
+  assert.deepEqual(row.registro.versoes[1].arquivo,original.arquivo);assert.equal(row.registro.versoes[2].snapshot.validade,'2028-10-01');assert.equal(row.registro.versoes[2].snapshot.nome,'Certidão renovada');
+ }
+});
+test('renovação após leitura JSONB preserva inclusive versões históricas repetidas já existentes',async()=>{
+ const a=ambiente(['documentos']);let r=await a.chamar({action:'salvarControle',item:{cadastroId:novoId,tipo:'documento',nome:'Certidão fictícia',categoria:'Certidão',titularId:empresa,validade:'2027-10-01'},arquivo});
+ assert.equal(r.status,200);const row=a.linhas.find(l=>l.id===novoId);
+ row.registro.versoes.push({...structuredClone(row.registro.versoes[0]),id:'33405710-78db-461b-9d33-37a228fd62c0'});
+ const historico=structuredClone(row.registro.versoes);row.registro=ordemJsonb(row.registro);
+ r=await a.chamar({action:'renovarControle',item:{id:novoId,validade:'2028-10-01'},versao:r.body.item.atualizadoEm,arquivo});
+ assert.equal(r.status,200);assert.equal(row.registro.versoes.length,3);assert.deepEqual(row.registro.versoes.slice(0,2),historico);
+});
 test('AVCB renova mesma ficha e conserva especificação, valores e anexo anterior',async()=>{
  const r=linha('ativo','avcb',{tipo:'predial',categoria:'AVCB',nome:'AVCB fictício',emissao:'2025-10-01',validade:'2026-10-01',atualizadoEm:'v1',valor:9988,nf:'NF-SECRETA',especificacao:{local:'Sala fictícia'},arquivoIncendio:{chave:'incendio/avcb/antigo',nome:'avcb-antigo.pdf',mime:'application/pdf'}});
  const a=ambiente(['documentos','patrimonio'],[r],{arquivos:{'incendio/avcb/antigo':{bytes:new TextEncoder().encode('%PDF AVCB antigo'),type:'application/pdf'}}});

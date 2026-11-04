@@ -47,3 +47,11 @@ A revisão usa somente dados fictícios em memória; recarregar descarta as alte
 Antes de eventual publicação, reler origin/main e o protocolo, conciliar a publicação documental paralela e aplicar a migração atômica de participação anterior à função. Publicar servidor compatível antes da interface. A conferência com sessão e dados reais permanece para a etapa autorizada de publicação.
 
 As alterações anteriores da prévia foram preservadas; há cópia local do estado de entrada fora do Git. Arquivos de resultado incerto podem exigir conciliação posterior; a correção prioriza preservar dados, sem limpeza automática destrutiva.
+
+## Publicação e ajuste encontrado no oficial — 04/11/2026
+
+Release 308a198 publicado após aprovação. Pages 41812932386 e Functions 41812932140 concluídos; 223 arquivos públicos iguais ao build e 50 arquivos dos dois servidores conferidos. Suíte de release: 2.210 regressões, 1.496 cálculos, 7 testes de acesso e 15 verificadores aprovados.
+
+O ensaio autenticado confirmou salvamento após recarregar, download individual e ZIP, validade atualizada e kit preservando a versão anterior. A comparação dos registros anteriores à publicação permaneceu igual. Durante a renovação, a ordem das chaves retornadas por JSONB fazia a comparação textual criar um snapshot redundante, sem perda dos arquivos.
+
+Correção restrita à comparação estrutural, preservando a ordem das listas e todas as versões existentes. Teste reproduziu a falha antes do ajuste. 141 testes relacionados aprovados, incluindo diferenças reais de metadados e downloads. Servidor publicado antes do reteste final; nenhum histórico existente foi apagado ou deduplicado.

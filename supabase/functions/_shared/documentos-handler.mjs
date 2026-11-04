@@ -2,6 +2,15 @@ import {temPermissao,bemPermitido} from './patrimonio-acesso.mjs';
 import {TIPOS_DOCUMENTO,ehAVCB,texto,identidade,conferirVersao,novoInstante,autorizadoDocumento,documentoPublico,bemDocumento,prepararControle,arquivoDocumento,snapshotDocumento} from './documentos.mjs';
 import {validarVinculoPessoa} from './patrimonio-pessoas.mjs';
 
+// JSONB não conserva a ordem das chaves; a ordem de listas continua significativa.
+function snapshotsIguais(a,b){
+ if(a===b)return true;
+ if(!a||!b||typeof a!=='object'||typeof b!=='object'||Array.isArray(a)!==Array.isArray(b))return false;
+ if(Array.isArray(a))return a.length===b.length&&a.every((valor,i)=>snapshotsIguais(valor,b[i]));
+ const chaves=Object.keys(a);
+ return chaves.length===Object.keys(b).length&&chaves.every(k=>Object.hasOwn(b,k)&&snapshotsIguais(a[k],b[k]));
+}
+
 // Apenas o handler autenticado chama esta porta com o cliente de serviço.
 export async function atenderDocumentos({sb,sessao,corpo,resposta,quem,pessoasRH,bytesParaB64,revalidarSessao,bucket='painel-arquivos'}){
  const falha=(mensagem,status=422)=>{throw Object.assign(new Error(mensagem),{status});};
@@ -35,7 +44,7 @@ export async function atenderDocumentos({sb,sessao,corpo,resposta,quem,pessoasRH
  const guardarAnterior=async(id,r,versoes,capturar=false)=>{
   if(!r)return versoes;
   if(versoes.length){
-   if(!capturar||JSON.stringify(versoes.at(-1).snapshot)===JSON.stringify(snapshotDocumento(r)))return versoes;
+   if(!capturar||snapshotsIguais(versoes.at(-1).snapshot,snapshotDocumento(r)))return versoes;
    const vigente=versoes.at(-1),arquivo=ehAVCB(r)?r.arquivoIncendio:vigente.arquivo,anexos=r.anexos||vigente.anexos||[arquivo].filter(Boolean);
    return [...versoes,{id:crypto.randomUUID(),emissao:r.emissao||'',validade:r.validade||'',arquivo,anexos,criadoEm:r.atualizadoEm||novoInstante(),criadoPor:r.atualizadoPor||'',snapshot:snapshotDocumento(r)}];
   }
