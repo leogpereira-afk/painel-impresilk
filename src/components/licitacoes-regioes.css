@@ -88,7 +88,7 @@
  .lr-region,.lr-city-title,.lr-city-toolbar {flex-wrap:wrap; align-items:flex-start;}
  .lr-region {padding:12px;}.lr-region h2 {font-size:20px;}.lr-region h2 small {margin:4px 0 0;}
  .lr-workspace .lr-metrics .lw-metric {padding:8px 10px;gap:3px 8px;}.lr-workspace .lr-metrics .lw-metric strong {font-size:22px;}
- .lr-city-toolbar label {width:100%;flex-wrap:wrap;}.lr-city-toolbar select {max-width:none;}
+ .lr-city-toolbar label {width:100%;flex-wrap:wrap;}.lr-city-toolbar select {max-width:none;min-height:44px;font-size:16px;}
  .lr-tabs {gap:2px;}.lr-tabs button {font-size:12px;padding:9px 7px;gap:5px;min-height:44px;}
  .lr-opportunity,.lr-pending-list article {flex-wrap:wrap;padding:12px;}
  .lr-workspace :is(.btn-outline,.btn-primary,.btn-ghost) {min-height:44px;}

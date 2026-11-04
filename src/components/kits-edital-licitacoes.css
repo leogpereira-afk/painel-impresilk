@@ -13,9 +13,30 @@
 .lic-kit-row ul { list-style:disc; padding-left:18px; }
 .lic-kit-note { border-top:1px solid var(--doc-line); padding-top:8px; }
 .lic-kit-requisitos { display:grid; gap:12px; }
-.lic-kit-requisito { border:1px solid var(--doc-line); border-radius:10px; padding:12px; min-width:0; }
+.lic-kit-requisito { border:1px solid var(--doc-line); border-radius:10px; min-width:0; overflow-wrap:anywhere; }
 .lic-kit-requisito legend { font-size:12px; font-weight:700; padding:0 5px; }
-.lic-kit-requisito>.btn-ghost { margin-top:8px; }
+.lic-kit-requisito-campos>.btn-ghost { margin-top:8px; }
 .lic-kit-modal .doc-fields { border:0; padding:0; }
 .lic-kit-form>.doc-actions { position:sticky; bottom:-20px; background:var(--doc-surface); padding:12px 0; border-top:1px solid var(--doc-line); }
-@media(max-width:700px) { .lic-kits { padding:10px; }.lic-kit-row { grid-template-columns:minmax(0,1fr); }.lic-kit-row details { grid-column:auto; }.lic-kit-row .doc-actions { justify-content:flex-start; }.lic-kit-requisito { padding:9px; }.lic-kits-header>.doc-actions { margin-left:auto; } }
+@media(max-width:700px) { .lic-kits { padding:10px; }.lic-kit-row { grid-template-columns:minmax(0,1fr); }.lic-kit-row details { grid-column:auto; }.lic-kit-row .doc-actions { justify-content:flex-start; }.lic-kit-requisito-campos { padding:10px; }.lic-kits-header>.doc-actions { margin-left:auto; } }
+
+.lic-kit-requisito > summary { display:flex; align-items:flex-start; gap:10px; cursor:pointer; min-height:44px; padding:10px 12px; font-size:13px; list-style:none; }
+.lic-kit-requisito > summary::-webkit-details-marker { display:none; }
+.lic-kit-requisito > summary::after { content:''; flex:0 0 7px; height:7px; margin:5px 2px 0 0; border-right:2px solid currentColor; border-bottom:2px solid currentColor; transform:rotate(45deg); }
+.lic-kit-requisito[open] > summary::after { transform:rotate(225deg); margin-top:9px; }
+.lic-kit-requisito-resumo { display:grid; flex:1; min-width:0; gap:4px; }
+.lic-kit-requisito-resumo > strong { font-size:13px; line-height:1.5; }
+.lic-kit-requisito-resumo > small { color:var(--doc-muted); font-size:12px; line-height:1.5; }
+.lic-kit-requisito-resumo > .chip { justify-self:start; white-space:normal; line-height:1.4; max-width:100%; }
+.lic-kit-requisito[open] > summary { border-bottom:1px solid var(--doc-line); }
+.lic-kit-requisito-campos { min-width:0; border:0; padding:12px; margin:0; }
+.lic-kit-selection-name { overflow-wrap:anywhere; font-weight:600; color:var(--doc-ink)!important; }
+@media(max-width:700px) {
+  .licitacoes-workspace .lic-kits-header > .doc-actions > button { min-width:44px; min-height:44px; }
+  .lic-kit-row { font-size:13px; }
+  .lic-kit-row small { font-size:12px; line-height:1.5; }
+  .lic-kit-row .doc-actions { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); }
+  .lic-kit-row .doc-actions > button { min-width:0; min-height:44px; width:100%; justify-content:center; white-space:normal; }
+  .lic-kit-requisito > summary { padding:10px; }
+  .lic-kit-modal .lic-kit-form > .doc-footer { bottom:0; padding:10px 0 max(10px,env(safe-area-inset-bottom)); }
+}

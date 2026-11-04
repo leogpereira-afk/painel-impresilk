@@ -1,3 +1,11 @@
+## Trabalho atual · Revisão móvel de Licitações & Indústrias · codex · 04/11/2026
+
+Publicação desta prévia autorizada pelo dono em 04/11/2026: “4subir”. Origin/main atualizado e protocolo relido em 72a099f, sem trabalho concorrente novo. Publicar somente a revisão móvel aprovada, com verificação no site oficial; nenhuma alteração de servidor, documentos, registros ou históricos produtivos.
+
+Pedido do dono: conferir todas as abas no celular, melhorar leitura e operação, principalmente documentos e kits, mantendo compacto e preservando dados; mostrar prévia antes de publicar. Base origin/main 72a099f relida com AGENTS/VEZ, publicação anterior encerrada. Worktree isolado /tmp/painel-licitacoes-mobile-20261104, ramo codex/licitacoes-mobile-20261104. Preservar compactação de Cadastros 8fb3101 e publicação documental anterior. Somente interface e ensaios com dados fictícios; sem publicação, alteração produtiva, servidor, exclusão de arquivos ou envio externo.
+
+Prévia local concluída e conferida em 04/11/2026: sete abas em 320/390 px sem transbordamento horizontal; documentos, renovação, versões, kits, formulário de acompanhamento e downloads PDF/ZIP ensaiados com dados fictícios. Requisitos recolhíveis preservam campos e versões; validação abre o requisito inválido antes do foco. 256 testes pertinentes aprovados, lint sem erros (aviso anterior em Agenda), builds de produção e revisão aprovados após o último ajuste visual, diff-check limpo e revisão independente sem bloqueadores. Detalhes e limites em docs/licitacoes-mobile-20261104.md. Serviços simulados em memória; sem conferência de sincronização produtiva ou aparelho físico. Não publicado; aguardando avaliação da prévia.
+
 ## Trabalho atual · Cadastros compactos integrados · codex · 04/11/2026
 
 Publicação da prévia compacta autorizada pelo dono em 04/11/2026. Após atualização paralela, o dono autorizou alinhar e preservar ambas as mudanças. Publicação anterior encerrada e conferida em 622baab; ajustes de densidade adaptados sobre essa base, preservando o novo workspace, abas, regiões, documentos, kits, permissões e históricos. Somente três arquivos de interface; nenhum servidor ou registro alterado.

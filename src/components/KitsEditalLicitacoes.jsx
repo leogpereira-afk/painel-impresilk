@@ -10,6 +10,18 @@ import './kits-edital-licitacoes.css';
 const data = valor => dataValida(valor) ? dataLonga(valor) : 'Não informada';
 const nomeEdital = item => item?.nome || item?.titulo || item?.numeroEdital || item?.orgao || 'Edital';
 const vazio = (licitacaoId = '', titularId = '') => ({ cadastroId: crypto.randomUUID(), nome: 'Kit documental', licitacaoId, titularId, requisitos: [] });
+
+function dadosRequisito(requisito, documentos) {
+  const doc = documentos.find(d => d.id === requisito.documentoId), versoes = doc?.versoes || [];
+  const versao = requisito.versaoId ? versoes.find(v => v.id === requisito.versaoId) : null;
+  const snapshot = requisito.snapshot || versao?.snapshot || (requisito.versaoId ? versao : doc);
+  const anexos = (requisito.versaoId ? versao?.anexos : doc?.anexos) || [];
+  const sit = !requisito.dispensado && snapshot ? situacaoArquivoLicitacoes({ ...snapshot, tipo: 'documento', temArquivo: !!(doc?.temArquivo || versao?.arquivo) }, hojeBrasilia()) : null;
+  const incompleto = !requisito.categoria?.trim() || !requisito.descricao?.trim();
+  const pendente = incompleto || (requisito.dispensado ? !requisito.justificativa?.trim() : !requisito.documentoId || !snapshot || sit?.grupo !== 'ok');
+  const rotulo = incompleto ? 'Completar requisito' : requisito.dispensado ? requisito.justificativa?.trim() ? 'Não se aplica' : 'Justificar dispensa' : sit?.rotulo || 'Documento pendente';
+  return { doc, versoes, snapshot, anexos, sit, pendente, rotulo };
+}
 export function payloadKit(item) {
   const campos = ['id', 'cadastroId', 'nome', 'licitacaoId', 'titularId'];
   const payload = Object.fromEntries(campos.filter(c => item[c] !== undefined && !(c === 'cadastroId' && item.id)).map(c => [c, item[c]]));
@@ -100,13 +112,14 @@ export default function KitsEditalLicitacoes({ documentos = [], titulares = [], 
     {itens && !lista.length && <p className="doc-note">Nenhum kit neste recorte. Adicione os requisitos aplicáveis do edital; o catálogo não define obrigatoriedade.</p>}
     <div className="lic-kits-list">{lista.map(kit => <article className="lic-kit-row" key={kit.id}><div><strong>{kit.nome}</strong><small>{nomeEdital(editais.find(l => l.id === kit.licitacaoId))} · {titulares.find(t => t.id === kit.titularId)?.nome || 'Titular indisponível'}</small><small>{kit.requisitos.length} requisito(s) · {kit.requisitos.filter(r => r.dispensado).length} não aplicável(is)</small></div><span className={`chip ${kit.pendencias?.length ? 'chip-warn' : ''}`}>{kit.pendencias?.length ? `${kit.pendencias.length} pendência(s)` : 'Conferir edital'}</span><div className="doc-actions"><button type="button" className="btn-outline" disabled={ocupado} onClick={() => abrir(kit)}>Abrir kit</button><button type="button" className="btn-outline" disabled={ocupado} onClick={() => baixar(kit)}><Download size={15}/>Baixar ZIP</button></div><details><summary>Pendências, versões e histórico</summary>{kit.pendencias?.length ? <ul>{kit.pendencias.map((p, i) => <li key={i}>{p}</li>)}</ul> : <p>Nenhuma pendência identificada nos vínculos cadastrados. Confira o edital.</p>}<ul>{kit.requisitos.map(r => <li key={r.id}><strong>{r.categoria}</strong> — {r.dispensado ? `Não se aplica: ${r.justificativa}` : `${r.snapshot?.nome || 'Documento faltante'} · emissão ${data(r.snapshot?.emissao)} · validade ${r.snapshot?.semVencimento ? 'sem vencimento declarado' : data(r.snapshot?.validade)}`}<small>{r.descricao}</small></li>)}</ul><p>{kit.historico?.length || 0} revisão(ões) · última atualização: {kit.atualizadoEm || 'Não informada'}</p></details></article>)}</div>
     <p className="doc-note lic-kit-note">ZIP de até 40 MiB e 79 documentos + índice. Pacotes com pendências são identificados no índice; o download não representa habilitação ou envio.</p>
-    {janela && <JanelaFormulario titulo={janela.id ? 'Editar kit do edital' : 'Novo kit do edital'} classe="doc-modal lic-kit-modal" ocupado={ocupado} aoFechar={fechar}>{conflito && <button className="btn-outline" type="button" disabled={ocupado} onClick={reler}>Recarregar versão sem apagar preenchimento</button>}<FormKit inicial={janela} documentos={documentos} titulares={titulares} editais={editais} ocupado={ocupado} erro={erro} aoSalvar={salvar} aoFechar={fechar}/></JanelaFormulario>}
+    {janela && <JanelaFormulario titulo={janela.id ? 'Editar kit do edital' : 'Novo kit do edital'} classe="doc-modal lic-doc-modal lic-kit-modal" ocupado={ocupado} aoFechar={fechar}>{conflito && <button className="btn-outline" type="button" disabled={ocupado} onClick={reler}>Recarregar versão sem apagar preenchimento</button>}<FormKit inicial={janela} documentos={documentos} titulares={titulares} editais={editais} ocupado={ocupado} erro={erro} aoSalvar={salvar} aoFechar={fechar}/></JanelaFormulario>}
   </section>;
 }
 
 export function FormKit({ inicial, documentos, titulares, editais, ocupado, erro, aoSalvar, aoFechar }) {
   const [item, setItem] = useState(() => structuredClone(inicial)), [erroLocal, setErroLocal] = useState('');
   const [conflitosCampos, setConflitosCampos] = useState([]), [mesclado, setMesclado] = useState(false);
+  const [abertos, setAbertos] = useState(() => Object.fromEntries(inicial.requisitos.map(r => [r.id, dadosRequisito(r, documentos).pendente])));
   const base = useRef(inicial), rascunho = useRef(item);
   rascunho.current = item;
   useEffect(() => {
@@ -138,24 +151,26 @@ export function FormKit({ inicial, documentos, titulares, editais, ocupado, erro
     const falha = validarKit(item); if (falha) return setErroLocal(falha);
     setErroLocal(''); aoSalvar({ ...item, ...(inicial.id ? { id: inicial.id } : {}) });
   }
-  return <form className="doc-form lic-kit-form" onSubmit={salvar}>
+  return <form className="doc-form lic-kit-form" onSubmit={salvar} onInvalidCapture={e => {
+    const detalhe = e.target.closest('details[data-requisito-id]');
+    if (detalhe) { detalhe.open = true; setAbertos(atuais => ({ ...atuais, [detalhe.dataset.requisitoId]: true })); }
+  }}>
     {(erroLocal || erro) && <p className="doc-notice is-error" role="alert">{erroLocal || erro}</p>}
     {mesclado && <p className="doc-notice" role="status">Alterações do servidor em campos e requisitos que você não modificou foram incorporadas. Diferenças que exigem sua escolha aparecem abaixo.</p>}
     {!!conflitosCampos.length && <section className="lic-doc-conflitos" aria-label="Campos em conflito"><strong>Escolha o conteúdo alterado nas duas versões</strong>{conflitosCampos.map((c, i) => <div key={`${c.caminho.join(':')}:${i}`}><strong>{rotuloCampoConflito(c)}</strong>{c.caminho[0] === 'requisitos' && <small>Requisito: {item.requisitos.find(r => r.id === c.caminho[1])?.categoria || c.remoto?.categoria || c.local?.categoria || 'Retirado'}</small>}<p>Meu preenchimento: {resumoConflito(c, 'local')}</p><p>Versão do servidor: {resumoConflito(c, 'remoto')}</p><div className="doc-actions"><button type="button" className="btn-outline" disabled={ocupado} onClick={() => escolherConflito(c, 'local')}>Manter meu preenchimento</button><button type="button" className="btn-outline" disabled={ocupado} onClick={() => escolherConflito(c, 'remoto')}>Usar versão do servidor</button></div></div>)}</section>}
     <fieldset className="doc-fields" disabled={ocupado}>
       <label className="label doc-wide">Nome do kit<input className="input" required maxLength={200} value={item.nome} onChange={e => alterar('nome', e.target.value)}/></label>
-      <label className="label">Edital<select className="input" required disabled={!!inicial.id} value={item.licitacaoId} onChange={e => alterar('licitacaoId', e.target.value)}><option value="">Selecione o edital</option>{editais.map(l => <option key={l.id} value={l.id}>{nomeEdital(l)}</option>)}{item.licitacaoId && !editais.some(l => l.id === item.licitacaoId) && <option value={item.licitacaoId}>Edital indisponível</option>}</select></label>
-      <label className="label">Empresa titular<select className="input" required disabled={!!inicial.id || item.requisitos.length > 0} value={item.titularId} onChange={e => alterar('titularId', e.target.value)}><option value="">Selecione a empresa</option>{titulares.map(t => <option key={t.id} value={t.id}>{t.nome}</option>)}</select><small>O kit mantém uma empresa titular. Defina-a antes dos requisitos.</small></label>
+      <label className="label">Edital<select className="input" aria-label="Edital" required disabled={!!inicial.id} value={item.licitacaoId} onChange={e => alterar('licitacaoId', e.target.value)}><option value="">Selecione o edital</option>{editais.map(l => <option key={l.id} value={l.id}>{nomeEdital(l)}</option>)}{item.licitacaoId && !editais.some(l => l.id === item.licitacaoId) && <option value={item.licitacaoId}>Edital indisponível</option>}</select>{item.licitacaoId && <small className="lic-kit-selection-name">{editais.some(l => l.id === item.licitacaoId) ? nomeEdital(editais.find(l => l.id === item.licitacaoId)) : 'Edital indisponível'}</small>}</label>
+      <label className="label">Empresa titular<select className="input" aria-label="Empresa titular" required disabled={!!inicial.id || item.requisitos.length > 0} value={item.titularId} onChange={e => alterar('titularId', e.target.value)}><option value="">Selecione a empresa</option>{titulares.map(t => <option key={t.id} value={t.id}>{t.nome}</option>)}</select>{item.titularId && <small className="lic-kit-selection-name">{titulares.find(t => t.id === item.titularId)?.nome || 'Titular indisponível'}</small>}<small>O kit mantém uma empresa titular. Defina-a antes dos requisitos.</small></label>
     </fieldset>
-    <p className="doc-note">Adicione somente o que conferiu no edital. Documento ausente permanece pendente. “Não se aplica” exige justificativa. Para usar outro documento do acervo, feche o kit e use “Vincular documento existente”.</p>
+    <p className="doc-note">Adicione somente o que conferiu no edital. Documento ausente permanece pendente. “Não se aplica” exige justificativa. Para usar outro documento do acervo, salve primeiro o kit parcial e depois use “Vincular documento existente”.</p>
     <datalist id="categorias-kit-edital">{CATEGORIAS_DOCUMENTOS.empresa.map(c => <option key={c} value={c}/>)}</datalist>
     <div className="lic-kit-requisitos">{item.requisitos.map((r, n) => {
-      const doc = documentos.find(d => d.id === r.documentoId), versoes = doc?.versoes || [];
-      const versao = r.versaoId ? versoes.find(v => v.id === r.versaoId) : null;
-      const snapshot = r.snapshot || versao?.snapshot || (r.versaoId ? versao : doc);
-      const anexos = (r.versaoId ? versao?.anexos : doc?.anexos) || [];
-      const sit = !r.dispensado && snapshot ? situacaoArquivoLicitacoes({ ...snapshot, tipo: 'documento', temArquivo: !!(doc?.temArquivo || versao?.arquivo) }, hojeBrasilia()) : null;
-      return <fieldset disabled={ocupado} className="lic-kit-requisito" key={r.id}><legend>Requisito {n + 1}</legend><div className="doc-fields">
+      const { doc, versoes, snapshot, anexos, sit, pendente, rotulo } = dadosRequisito(r, documentos);
+      return <details className="lic-kit-requisito" key={r.id} data-requisito-id={r.id} open={abertos[r.id] ?? pendente} onToggle={e => {
+        const aberto = e.currentTarget.open;
+        setAbertos(atuais => atuais[r.id] === aberto ? atuais : { ...atuais, [r.id]: aberto });
+      }}><summary><span className="lic-kit-requisito-resumo"><strong>{n + 1}. {r.categoria || 'Novo requisito'}</strong><small>{r.dispensado ? r.justificativa?.trim() ? 'Não se aplica conforme justificativa' : 'Justificativa a preencher' : snapshot?.nome || doc?.nome || 'Documento a selecionar'}</small><span className={`chip ${pendente ? 'chip-warn' : ''}`}>{rotulo}</span></span></summary><fieldset disabled={ocupado} className="lic-kit-requisito-campos"><legend className="sr-only">Requisito {n + 1}</legend><div className="doc-fields">
         <label className="label">Categoria<input className="input" required list="categorias-kit-edital" maxLength={200} value={r.categoria} onChange={e => requisito(r.id, { categoria: e.target.value })}/></label>
         <label className="label">Exigência / referência no edital<textarea className="input" required rows={2} maxLength={2000} value={r.descricao} onChange={e => requisito(r.id, { descricao: e.target.value })}/></label>
         <label className="doc-check doc-wide"><input type="checkbox" checked={!!r.dispensado} onChange={e => requisito(r.id, { dispensado: e.target.checked, ...(e.target.checked ? { documentoId: '', versaoId: '', arquivoId: '', snapshot: undefined } : {}) })}/>Não se aplica a este edital</label>
@@ -165,7 +180,7 @@ export function FormKit({ inicial, documentos, titulares, editais, ocupado, erro
           {anexos.length > 1 && <label className="label doc-wide">Anexos da versão<select className="input" value={r.arquivoId || ''} onChange={e => requisito(r.id, { arquivoId: e.target.value })}><option value="">Todos os anexos desta versão</option>{anexos.map(a => <option value={a.id} key={a.id}>{a.nome}</option>)}</select></label>}
           <p className="doc-note doc-wide">{snapshot ? `${snapshot.nome || doc?.nome || 'Documento'} · emissão ${data(snapshot.emissao)} · validade ${snapshot.semVencimento ? 'sem vencimento declarado' : data(snapshot.validade)} · ${sit?.rotulo || 'Conferir arquivo'}` : 'Documento faltante. Você pode salvar o kit parcial e completar depois.'}{r.snapshot && ' · Versão preservada neste kit.'}</p>
         </>}
-      </div><button className="btn-ghost" type="button" onClick={() => alterar('requisitos', item.requisitos.filter(a => a.id !== r.id))}><Trash2 size={14}/>Retirar requisito {n + 1}</button></fieldset>;
+      </div><button className="btn-ghost" type="button" onClick={() => alterar('requisitos', item.requisitos.filter(a => a.id !== r.id))}><Trash2 size={14}/>Retirar requisito {n + 1}</button></fieldset></details>;
     })}</div>
     <button type="button" className="btn-outline" disabled={ocupado || !item.titularId || item.requisitos.length >= 60} onClick={() => alterar('requisitos', [...item.requisitos, { id: crypto.randomUUID(), categoria: '', descricao: '', documentoId: '', dispensado: false, justificativa: '' }])}><Plus size={15}/>Adicionar requisito do edital</button>
     <div className="doc-actions doc-footer"><button className="btn-primary" disabled={ocupado || conflitosCampos.length > 0}>{ocupado ? 'Salvando…' : 'Salvar kit'}</button><button className="btn-ghost" type="button" disabled={ocupado} onClick={aoFechar}>Cancelar</button></div>

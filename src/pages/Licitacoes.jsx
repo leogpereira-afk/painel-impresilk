@@ -546,7 +546,7 @@ function EspacoLicitacoes() {
         </>}
       </>}
 
-      {formAberto && <JanelaFormulario titulo={form.id?"Editar licitação":"Nova licitação"} ocupado={salvando} aoFechar={fecharForm}>
+      {formAberto && <JanelaFormulario titulo={form.id?"Editar licitação":"Nova licitação"} ocupado={salvando} aoFechar={fecharForm} classe="lw-dialog">
       {aviso?.tom==="erro" && <p role="alert" className="text-bad-700 mb-4">{aviso.texto}</p>}
         {form.preparacaoBot&&<div className="lpt-prepared">
           <strong>Preparação a partir do BotImpresilk</strong>
@@ -618,7 +618,7 @@ function EspacoLicitacoes() {
                 onChange={(e) => setForm((f) => ({ ...f, edital: e.target.value }))}
               />
             </div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="lw-session-fields grid grid-cols-2 gap-3">
               <div>
                 <label className="label" htmlFor="l-data">{form.agendaPendente?'Data da conferência':'Dia da sessão'}</label>
                 <input

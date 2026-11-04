@@ -38,3 +38,49 @@
 .lic-doc-conflitos>div { border-top:1px solid var(--doc-line); padding-top:10px; min-width:0; overflow-wrap:anywhere; }
 .lic-doc-conflitos p { margin:6px 0; white-space:pre-wrap; }
 .lic-doc-conflitos small { display:block; color:var(--doc-muted); }
+
+/* Ajustes móveis restritos ao acervo de Licitações e seus formulários. */
+.lic-doc-modal .doc-fields small,
+.lic-doc-modal .doc-note,
+.lic-doc-modal > header h2 { overflow-wrap:anywhere; }
+.lic-docs-details .doc-actions,
+.lic-docs-details .doc-versions > li > div { max-width:100%; }
+.lic-docs-details .doc-actions > button { max-width:100%; min-width:0; white-space:normal; overflow-wrap:anywhere; text-align:left; }
+.lic-docs-details .doc-actions > button svg { flex-shrink:0; }
+@media (max-width:700px) {
+  .licitacoes-workspace .lic-docs-header > .doc-actions { display:grid; grid-template-columns:44px minmax(0,1fr); gap:7px; }
+  .licitacoes-workspace .lic-docs-header > .doc-actions > :is(.btn-primary,.btn-outline) { grid-column:1/-1; justify-content:center; }
+  .licitacoes-workspace .lic-docs-header > .doc-actions > button { min-height:44px; min-width:44px; white-space:normal; }
+  .licitacoes-workspace .lic-docs-actions { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); width:100%; gap:7px; }
+  .licitacoes-workspace .lic-docs-actions > button { min-height:44px; min-width:0; width:100%; justify-content:center; white-space:normal; }
+  .licitacoes-workspace .lic-docs-title { font-size:14px; line-height:1.45; }
+  .licitacoes-workspace .lic-docs-main small,
+  .licitacoes-workspace .lic-docs-status small,
+  .licitacoes-workspace .lic-docs-dates dt,
+  .licitacoes-workspace .lic-docs-details,
+  .licitacoes-workspace .lic-docs-details .doc-versions small { font-size:12px; line-height:1.5; }
+  .licitacoes-workspace .lic-docs-dates dd { font-size:13px; line-height:1.5; overflow-wrap:anywhere; }
+  .licitacoes-workspace .lic-docs-details :is(summary,.doc-official-link) { min-height:44px; }
+  .lic-docs-details .doc-official-link { display:inline-flex; align-items:center; }
+  .lic-docs-details .doc-versions > li { display:grid; grid-template-columns:minmax(0,1fr); gap:8px; }
+  .lic-docs-details .doc-versions > li .doc-actions > button { margin-left:0; }
+  .lic-doc-modal { width:calc(100% - 16px); max-height:calc(100dvh - 16px); border-radius:14px; }
+  .lic-doc-modal > header { padding:10px 12px; gap:8px; }
+  .lic-doc-modal > header h2 { font-size:18px; line-height:1.35; min-width:0; }
+  .lic-doc-modal > header button { flex-shrink:0; }
+  .lic-doc-modal .janela-formulario-corpo { padding:12px; }
+  .licitacoes-workspace .lic-doc-modal :is(input:not([type="checkbox"]),select,textarea) { font-size:16px; min-height:44px; max-width:100%; }
+  .lic-doc-modal .doc-fields,
+  .lic-doc-modal .doc-subfields { grid-template-columns:minmax(0,1fr); gap:12px; }
+  .lic-doc-modal .doc-fields small,
+  .lic-doc-modal .doc-note,
+  .lic-doc-modal .lic-doc-catalogo,
+  .lic-doc-modal .doc-check { font-size:12px; line-height:1.5; }
+  .licitacoes-workspace .lic-doc-modal :is(button,summary,.doc-check) { min-height:44px; }
+  .lic-doc-modal button { white-space:normal; overflow-wrap:anywhere; }
+  .lic-doc-modal .doc-actions { min-width:0; }
+  .lic-doc-modal .doc-footer { position:sticky; bottom:0; z-index:2; background:var(--doc-surface); padding:10px 0 max(12px,env(safe-area-inset-bottom)); }
+  .lic-doc-modal .doc-footer > button { min-width:0; }
+  .lic-doc-modal input[type="file"] { padding:7px; }
+  .lic-doc-modal input[type="file"]::file-selector-button { white-space:normal; max-width:100%; }
+}

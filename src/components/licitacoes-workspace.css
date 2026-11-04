@@ -349,3 +349,22 @@ main:has(.licitacoes-workspace) .aviso-reuniao-linha > .btn-primary { background
   .review-shell:has(.licitacoes-workspace) .review-user > div { overflow-wrap: normal; word-break: normal; }
   .review-shell:has(.licitacoes-workspace) .review-logout { margin-left: auto; }
 }
+
+/* Formulários locais: leitura e toque no celular, sem mudar os campos salvos. */
+@media (max-width: 640px) {
+  .lw-dialog .janela-formulario-corpo, .lw-dialog form, .lw-dialog fieldset,
+  .lw-dialog .grid > *, .lw-dialog label { min-width: 0; }
+  .lw-dialog .input { width: 100%; max-width: 100%; min-width: 0; min-height: 44px; font-size: 16px; }
+  .lw-dialog :is(button, .btn-outline, .btn-primary, summary) { min-height: 44px; }
+  .lw-dialog :is(button, a, legend) { white-space: normal; overflow-wrap: anywhere; }
+  .lw-dialog .lw-preparation { padding: 12px; }
+  .lw-dialog .lw-checklist-row { align-items: flex-start; gap: 6px; }
+  .lw-dialog .lw-check-control { display: grid; place-items: center; flex: 0 0 44px; width: 44px; height: 44px; cursor: pointer; }
+  .lw-dialog .lw-check-control input, .lw-dialog .lw-check-label input { width: 18px; height: 18px; flex-shrink: 0; }
+  .lw-dialog .lw-check-label { min-height: 44px; cursor: pointer; }
+  .lw-dialog .lw-checklist-row > .btn-ghost { flex: 0 0 44px; width: 44px; padding-inline: 0; }
+  .licitacoes-workspace .lp-copia-manual textarea { font-size: 16px; }
+}
+@media (max-width: 360px) {
+  .lw-dialog .lw-session-fields { grid-template-columns: minmax(0, 1fr); }
+}

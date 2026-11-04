@@ -87,6 +87,56 @@ test('FormKit mescla novos requisitos remotos e exige escolha para mesmo campo a
   assert.equal(enviados[0].requisitos.find(r => r.id === 'remoto2').descricao, 'Incluído por outra pessoa');
 });
 
+test('recolher e reabrir requisito mantém rascunho, versão e snapshot no salvamento', () => {
+  const a = ambiente('FormKit'), enviados = [];
+  const requisito = { ...req, snapshot: { ...req.snapshot, emissao: '2020-01-01', validade: '', semVencimento: true } };
+  const inicial = { ...kit, requisitos: [requisito] };
+  const props = { inicial, documentos: [{ ...propsBase.documentos[0], temArquivo: true }], titulares: propsBase.titulares, editais: propsBase.licitacoes, aoSalvar: v => enviados.push(v) };
+  const detalhe = arvore => buscar(arvore, n => n.type === 'details' && n.props['data-requisito-id'] === req.id);
+  let arvore = a.render(props);
+  assert.equal(detalhe(arvore).props.open, false, 'requisito completo começa compacto');
+  detalhe(arvore).props.onToggle({ currentTarget: { open: true } });
+  arvore = a.render(props);
+  buscar(detalhe(arvore), n => n.type === 'textarea' && n.props.value === req.descricao).props.onChange({ target: { value: 'Descrição revisada e preservada ao recolher' } });
+  detalhe(a.render(props)).props.onToggle({ currentTarget: { open: false } });
+  arvore = a.render(props);
+  assert.equal(detalhe(arvore).props.open, false);
+  assert.ok(buscar(detalhe(arvore), n => n.type === 'textarea' && n.props.value === 'Descrição revisada e preservada ao recolher'), 'campo permanece montado');
+  detalhe(arvore).props.onToggle({ currentTarget: { open: true } });
+  arvore = a.render(props);
+  buscar(arvore, n => n.type === 'form').props.onSubmit({ preventDefault() {} });
+  assert.equal(enviados.length, 1);
+  const salvo = JSON.parse(JSON.stringify(enviados[0]));
+  assert.deepEqual(salvo.requisitos, [{ ...requisito, descricao: 'Descrição revisada e preservada ao recolher' }]);
+  assert.deepEqual(inicial.requisitos, [requisito], 'registro aberto não é alterado em memória');
+  const payload = a.exports.payloadKit(enviados[0]);
+  assert.equal(payload.requisitos[0].versaoId, req.versaoId);
+  assert.equal(payload.requisitos[0].documentoId, req.documentoId);
+  assert.equal(payload.requisitos[0].snapshot, undefined, 'snapshot continua resolvido pelo servidor');
+});
+
+test('validação nativa reabre requisito recolhido e mantém o campo inválido disponível', () => {
+  const a = ambiente('FormKit'), enviados = [];
+  const props = { inicial: kit, documentos: propsBase.documentos, titulares: propsBase.titulares, editais: propsBase.licitacoes, aoSalvar: v => enviados.push(v) };
+  const detalhe = arvore => buscar(arvore, n => n.type === 'details' && n.props['data-requisito-id'] === req.id);
+  let arvore = a.render(props);
+  buscar(detalhe(arvore), n => n.type === 'textarea' && n.props.value === req.descricao).props.onChange({ target: { value: '' } });
+  detalhe(a.render(props)).props.onToggle({ currentTarget: { open: false } });
+  arvore = a.render(props);
+  assert.equal(detalhe(arvore).props.open, false);
+  const elemento = { open: false, dataset: { requisitoId: req.id } };
+  buscar(arvore, n => n.type === 'form').props.onInvalidCapture({ target: { closest: seletor => {
+    assert.equal(seletor, 'details[data-requisito-id]'); return elemento;
+  } } });
+  assert.equal(elemento.open, true, 'DOM abre antes do navegador focar o campo');
+  arvore = a.render(props);
+  assert.equal(detalhe(arvore).props.open, true, 'estado mantém requisito aberto');
+  assert.ok(buscar(detalhe(arvore), n => n.type === 'textarea' && n.props.required && n.props.value === ''));
+  buscar(arvore, n => n.type === 'form').props.onSubmit({ preventDefault() {} });
+  assert.equal(enviados.length, 0);
+  assert.match(texto(a.render(props)), /Informe a categoria e a descrição/);
+});
+
 test('lista tardia de kit é descartada quando a sessão deixa de ser válida', async () => {
   let vigente = true; const a = ambiente(), props = { ...propsBase, vigente: () => vigente };
   a.render(props); vigente = false; a.pedidos[0].resolve([kit]); await aguardar();
