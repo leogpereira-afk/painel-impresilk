@@ -14,6 +14,53 @@ import { entradaUnica, limparCrachas } from "./entradaUnica.js";
 
 const K_TOKEN = "painel_auth_token";
 const K_SESSAO = "painel_auth_sessao";
+// Recuperação quando a cota compartilhada do localStorage está cheia.
+// Token e identidade ficam juntos, somente nesta aba, sem apagar dados dos apps.
+const K_ABA = "painel_auth_aba";
+let sessaoBloqueada = false;
+const ERRO_ARMAZENAMENTO = "Não consegui guardar sua sessão neste navegador. Verifique o espaço e as permissões de armazenamento e tente novamente.";
+
+function limparSessaoArmazenada() {
+  for (const chave of [K_TOKEN, K_SESSAO]) {
+    try { localStorage.removeItem(chave); } catch { /* Pode estar bloqueado. */ }
+  }
+  try { sessionStorage.removeItem(K_ABA); } catch { /* Pode estar bloqueado. */ }
+}
+function lerSessaoArmazenada() {
+  if (sessaoBloqueada) return null;
+  try {
+    const registro = JSON.parse(sessionStorage.getItem(K_ABA) || "null");
+    if (registro?.token && registro.sessao?.usuario) return {...registro, aba:true};
+  } catch { /* A sessão permanente ainda pode estar disponível. */ }
+  try {
+    const token = localStorage.getItem(K_TOKEN);
+    const sessao = JSON.parse(localStorage.getItem(K_SESSAO) || "null");
+    return token && sessao?.usuario ? {token, sessao, aba:false} : null;
+  } catch { return null; }
+}
+function guardarSessao(token, sessao) {
+  sessaoBloqueada = true;
+  // Limpar só credenciais do Painel, nunca rascunhos/arquivos de outros sistemas.
+  limparSessaoArmazenada();
+  const texto = JSON.stringify(sessao);
+  try {
+    localStorage.setItem(K_TOKEN, token);
+    localStorage.setItem(K_SESSAO, texto);
+    if (localStorage.getItem(K_TOKEN) !== token || localStorage.getItem(K_SESSAO) !== texto) throw Error(ERRO_ARMAZENAMENTO);
+  } catch {
+    limparSessaoArmazenada();
+    try {
+      const registro = JSON.stringify({token, sessao});
+      sessionStorage.setItem(K_ABA, registro);
+      if (sessionStorage.getItem(K_ABA) !== registro) throw Error(ERRO_ARMAZENAMENTO);
+    } catch {
+      limparSessaoArmazenada();
+      limparCrachas();
+      throw Error(ERRO_ARMAZENAMENTO);
+    }
+  }
+  sessaoBloqueada = false;
+}
 // Por que a pessoa foi parar na tela de login. Sem isso, o cracha vencia no
 // meio do trabalho, a tela virava Login sem uma palavra e a impressao era de
 // que o sistema tinha derrubado ela por conta propria.
@@ -46,11 +93,11 @@ export function aoMudarSessao(fn) {
 }
 
 export function getToken() {
-  try {
-    return localStorage.getItem(K_TOKEN) || null;
-  } catch {
-    return null;
-  }
+  if (sessaoBloqueada) return null;
+  // Alguns clientes usam apenas o token legado, sem carregar a interface.
+  const registro = lerSessaoArmazenada();
+  if (registro) return registro.token;
+  try { return localStorage.getItem(K_TOKEN) || null; } catch { return null; }
 }
 
 export function getSessao() {
@@ -69,46 +116,32 @@ export function getSessao() {
     if (perfil === 'almoxarifado-sem-seguranca') return { usuario:'demo',nome:'Almoxarifado sem Segurança · simulação',master:false,permissoes:['patrimonio','inventario-valores','manutencoes'] };
     return {usuario:"demo",nome:"Conta de demonstração",master:true,permissoes:["*"]};
   }
-  try {
-    const raw = localStorage.getItem(K_SESSAO);
-    if (!raw) return null;
-    const s = JSON.parse(raw);
-    if (!s?.usuario) return null;
-    const visto = typeof s.visto === "number" ? s.visto : Date.now();
-    if (Date.now() - visto > INATIVIDADE_MS) {
-      sair("Voce ficou muito tempo sem usar o painel. Entre de novo.");
-      return null;
-    }
-    // Cada leitura renova: quem esta usando nao e deslogado no meio do trabalho.
-    localStorage.setItem(K_SESSAO, JSON.stringify({ ...s, visto: Date.now() }));
-    return s;
-  } catch {
+  const registro = lerSessaoArmazenada();
+  if (!registro) return null;
+  const s = registro.sessao;
+  const visto = typeof s.visto === "number" ? s.visto : Date.now();
+  if (Date.now() - visto > INATIVIDADE_MS) {
+    sair("Voce ficou muito tempo sem usar o painel. Entre de novo.");
     return null;
   }
+  // Falhar ao renovar o horário não invalida uma sessão já autenticada.
+  const renovada = {...s, visto:Date.now()};
+  try {
+    if (registro.aba) sessionStorage.setItem(K_ABA, JSON.stringify({token:registro.token, sessao:renovada}));
+    else localStorage.setItem(K_SESSAO, JSON.stringify(renovada));
+  } catch { /* O horário anterior continua válido; a expiração não é ampliada. */ }
+  return registro.aba ? {...s, somenteNestaAba:true} : s;
 }
 
-export function entrar({ token, usuario, nome, permissoes, master, vendedorId, trocarSenha }) {
-  try {
-    localStorage.setItem(K_TOKEN, token);
-    localStorage.setItem(
-      K_SESSAO,
-      JSON.stringify({
-        usuario,
-        nome,
-        permissoes: permissoes || [],
-        master: !!master,
-        // Vendedor vinculado: quem tem entra e ja cai na propria fila de acoes.
-        vendedorId: vendedorId || "",
-        /* SENHA PROVISORIA: o servidor manda (acesso-entrar e painel-auth) e a
-           tela so abre Minha conta ate a pessoa escolher a dela (App.jsx).
-           Ate 26/09/2026 este campo era jogado fora aqui, e a obrigacao que a
-           direcao via prometida nunca acontecia. Fica guardado junto com a
-           sessao: recarregar a pagina ou abrir outra aba nao fura. */
-        trocarSenha: trocarSenha === true,
-        visto: Date.now(),
-      })
-    );
-  } catch {}
+export function entrar(dados) {
+  if (typeof dados?.token !== "string" || !dados.token.trim() || typeof dados?.usuario !== "string" || !dados.usuario.trim()) {
+    throw Error("A resposta de acesso veio incompleta. Tente entrar novamente.");
+  }
+  const {token, usuario, nome, permissoes, master, vendedorId, trocarSenha} = dados;
+  guardarSessao(token, {
+    usuario, nome, permissoes:permissoes || [], master:!!master,
+    vendedorId:vendedorId || "", trocarSenha:trocarSenha === true, visto:Date.now(),
+  });
   avisar();
 }
 
@@ -118,10 +151,8 @@ export function entrar({ token, usuario, nome, permissoes, master, vendedorId, t
    pagina nesse meio-tempo ela nao cai de novo em "Crie a sua senha" (onde teria
    de escolher OUTRA senha, porque a atual ja e a nova). */
 export function senhaTrocada({ avisarTela = true } = {}) {
-  try {
-    const raw = localStorage.getItem(K_SESSAO);
-    if (raw) localStorage.setItem(K_SESSAO, JSON.stringify({ ...JSON.parse(raw), trocarSenha: false }));
-  } catch {}
+  const registro = lerSessaoArmazenada();
+  if (registro) guardarSessao(registro.token, {...registro.sessao, trocarSenha:false});
   if (avisarTela) avisar();
 }
 
@@ -131,15 +162,13 @@ export function vendedorDaSessao(sessao = getSessao()) {
 }
 
 export function sair(motivo = "") {
+  sessaoBloqueada = true;
+  limparSessaoArmazenada();
+  limparCrachas();
   try {
-    localStorage.removeItem(K_TOKEN);
-    localStorage.removeItem(K_SESSAO);
-    // Sair do painel tira TAMBEM os crachas que ele plantou. Sem isto, sair no
-    // computador da recepcao deixaria o PCP e o Brief abertos para o proximo.
-    limparCrachas();
     if (motivo) localStorage.setItem(K_MOTIVO, motivo);
     else localStorage.removeItem(K_MOTIVO);
-  } catch {}
+  } catch { /* A falha no recado não impede o encerramento da sessão. */ }
   avisar();
 }
 
@@ -220,16 +249,16 @@ export async function comCracha(url, opcoes = {}) {
 // alguem do lado de fora sem ter a quem recorrer, num sistema que so a direcao
 // sabe consertar.
 export async function login(usuario, senha) {
+  let doPainel;
   try {
-    const doPainel = await entradaUnica(usuario, senha);
-    if (doPainel?.token) {
-      entrar(doPainel);
-      return doPainel;
-    }
+    doPainel = await entradaUnica(usuario, senha);
   } catch (e) {
-    // Rede caida cai aqui; senha errada nao (a entrada unica devolve null e
-    // deixa a porta antiga dar a palavra final).
     if (e instanceof TypeError) throw new Error(SEM_REDE);
+  }
+  // Falha de persistência não é falha de autenticação: não tentar outra porta.
+  if (doPainel?.token) {
+    entrar(doPainel);
+    return doPainel;
   }
 
   let resp;

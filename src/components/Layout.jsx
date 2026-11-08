@@ -9,13 +9,16 @@ import {frescor} from "../lib/frescor.js";
 
 function useTema() {
   const [escuro, setEscuro] = useState(() => {
-    const s = localStorage.getItem("painel_tema");
-    if (s) return s === "escuro";
+    try {
+      const s = localStorage.getItem("painel_tema");
+      if (s) return s === "escuro";
+    } catch { /* Preferência visual não bloqueia o acesso. */ }
     return window.matchMedia?.("(prefers-color-scheme: dark)").matches || false;
   });
   useEffect(() => {
     document.documentElement.classList.toggle("dark", escuro);
-    localStorage.setItem("painel_tema", escuro ? "escuro" : "claro");
+    try { localStorage.setItem("painel_tema", escuro ? "escuro" : "claro"); }
+    catch { /* O tema continua funcionando nesta tela mesmo sem espaço. */ }
   }, [escuro]);
   return [escuro, () => setEscuro((v) => !v)];
 }
@@ -48,6 +51,7 @@ export default function Layout({ children, sessao }) {
     {mostraErp && <button type="button" className="btn-ghost" disabled={carregando} onClick={recarregar} aria-label="Sincronizar os dados"><RefreshCw size={18} className={carregando ? "animate-spin" : ""}/></button>}
     <button type="button" className="btn-ghost" onClick={alternarTema} aria-label="Alternar tema">{escuro ? <Sun size={18}/> : <Moon size={18}/>}</button>
   </>}>
+    {sessao?.somenteNestaAba && <p role="status" className="mb-4 rounded-xl border border-warn-200 bg-warn-50 p-4 text-sm text-warn-800">Sessão mantida nesta aba: o navegador não conseguiu guardar o acesso permanente. Ao fechar a aba, será necessário entrar novamente.</p>}
     {!sessao?.trocarSenha&&podeAbrir("reunioes",sessao)&&<AvisoReunioes key={sessao?.usuario+":"+(sessao?.permissoes||[]).join(",")}/>}
     {falhaSync && <div role="alert" className="mb-4 rounded-xl bg-bad-50 p-4 text-sm text-bad-700">{falhaSync.texto} <button type="button" className="underline" onClick={limparFalhaSync}>Fechar aviso</button></div>}
     {mostraErp && fontesQueFalharam.length > 0 && <div role="alert" className="mb-4 rounded-xl border border-warn-200 bg-warn-50 p-4 text-sm text-warn-800"><strong>Algumas fontes não responderam.</strong> {fontesQueFalharam.join(", ")}. Os dados podem estar incompletos. <button type="button" className="underline" onClick={recarregar}>Tentar novamente</button></div>}
