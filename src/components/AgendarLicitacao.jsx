@@ -8,7 +8,7 @@ import {origemDaPesquisa,idAgendamentoLicitacao,dataHoraPrazoBrasilia,validarAge
 import {urlOficialSegura} from '../lib/licitacoes-pesquisa.mjs';
 
 export default function AgendarLicitacao({item,relatorio,pendente=false,sessao,aoFechar,aoSalvo}){
-  const inicial=dataHoraPrazoBrasilia(item.prazo,pendente);
+  const inicial=dataHoraPrazoBrasilia(item.datasEdital?.sessaoPublica?.dataHora || item.prazo,pendente);
   const [titulo,setTitulo]=useState(()=>[pendente?'Conferir licitação':'Licitação',item.orgao||item.processo||item.id,item.produto].filter(Boolean).join(' · ').slice(0,500));
   const [data,setData]=useState(inicial.data),[hora,setHora]=useState(inicial.hora),[diaInteiro,setDiaInteiro]=useState(!inicial.hora);
   const [origem,setOrigem]=useState(null),[cadastroId,setCadastroId]=useState(''),[existente,setExistente]=useState(null),[carregando,setCarregando]=useState(true),[salvando,setSalvando]=useState(false),[erro,setErro]=useState(''),[salvo,setSalvo]=useState(false);

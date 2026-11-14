@@ -40,11 +40,27 @@ async function registroDemonstracao(indice,cenario) {
     proximaAcao:'Abrir o edital e conferir os requisitos com a equipe.',classificacao,justificativa:'Classificação didática para revisar a interface; sem decisão comercial.',
     localExecucao:{municipios:[municipio],apenasSede:false,misto:false,logisticaViavel:true,evidencia:'Destino fictício de entrega demonstrado no recibo.'},validacoes,...extra,
   });
+  const previaInteresses=cenario==='licitacoes-interesses';
+  const edital='https://example.com/licitacoes/edital-exemplo.pdf';
+  const datasEdital={
+    sessaoPublica:{dataHora:iso(4.05),fonteUrl:edital,referencia:'Abertura do edital'},
+    envioProposta:{dataHora:iso(4),fonteUrl:edital,referencia:'Cronograma do edital'},
+    credenciamento:{dataHora:iso(3),fonteUrl:edital,referencia:'Item 3.1'},
+  };
+  const documentosEdital=[
+    {nome:'Credenciamento no portal',categoria:'credenciamento',orientacao:'Confirme o cadastro e o acesso do representante.',referencia:'Item 3.1',fonteUrl:edital},
+    {nome:'Certidão fiscal',categoria:'habilitacao',orientacao:'Separe a certidão vigente para a sessão.',referencia:'Item 9.2',fonteUrl:edital},
+    {nome:'Proposta comercial',categoria:'proposta',orientacao:'Preencha o modelo com o preço do item selecionado.',referencia:'Anexo II',fonteUrl:edital,modeloUrl:'https://example.com/licitacoes/modelo-exemplo.pdf',escopo:'item'},
+  ];
+  const dadosEdital=previaInteresses?{datasEdital,documentosEdital}:null;
   const inicial=cenario==='licitacoes-inicial';
   const dossie={periodo,geradoEm:base.toISOString(),fontes:inicial?[]:[fonte],recibos:inicial?[]:[
     ...stages.map(s=>recibo(s)),recibo('PNCP',{id:'recibo-ficticio-parcial',municipios:['Bocaiúva','Janaúba'],instituicoes:[],resultado:'PARCIAL',conclusao:'INDETERMINADA',pendencia:'Conferir o portal municipal e completar paginação.'}),
   ],candidatos:inicial?[]:[
-    candidato('DEMO-A','Placas e sinalização · demonstração','Montes Claros','GO'),
+    candidato('DEMO-A','Placas e sinalização · demonstração','Montes Claros','GO',dadosEdital),
+    ...(previaInteresses?[candidato('DEMO-A2','Placa de orientação · demonstração','Montes Claros','GO',{
+      ...dadosEdital,processo:'Processo fictício DEMO-A',
+    })]:[]),
     candidato('DEMO-B','Totem e letras-caixa · demonstração','Salinas','REVISÃO HUMANA',{validacoes:{}}),
     candidato('DEMO-C','Adesivos · prazo encerrado fictício','Espinosa','NO-GO',{prazo:iso(-1)}),
     candidato('DEMO-PENDENTE','Sinalização pendente · demonstração','Montes Claros','REVISÃO HUMANA',{localExecucao:{municipios:['Montes Claros'],apenasSede:true,misto:false,evidencia:'Somente a sede fictícia do órgão foi identificada.'},validacoes:{}}),

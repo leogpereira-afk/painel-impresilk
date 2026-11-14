@@ -114,3 +114,110 @@
 @media(max-width:640px){.lp-servicos-hero h3{font-size:23px}.lp-servicos-hero{padding:18px;border-radius:13px}.lp-servicos-numeros dt{font-size:10px}.lp-explorar-busca{flex-wrap:wrap}.lp-explorar-busca .lp-busca{flex-basis:100%}.lp-explorar-busca>.lp-button{min-height:40px;margin-left:auto}.lp-filtros-avancados .lp-filtros>label:last-child{grid-column:auto}.lp-servico-card{padding:14px}.lp-servico-capa{margin:-14px -14px 0;padding:12px 14px;gap:8px}.lp-servico-capa .lp-chip{max-width:115px}.lp-servico-icone{width:34px;height:34px}.lp-servico-familia{font-size:10px}.lp-servico-card h4.lp-servico-produto{font-size:16px}.lp-servico-card .lp-oportunidade-rodape .lp-button{min-height:44px}.lp-cobertura-conteudo{padding:0 10px 12px}}
 @media(prefers-reduced-motion:reduce){.lp-categoria,.lp-servico-card{transition:none}}
 @media print{.lp-servicos-categorias,.lp-explorar-busca,.lp-filtros-avancados,.lp-operacao{display:none}.lp-servicos-hero{background:none;border-color:#ccc}.lp-servico-capa{background:none}.lp-servico-card{box-shadow:none}}
+
+.lp-pesquisa .lp-oportunidades.lp-servicos-grade.lp-editais-grade {
+  align-items: start;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 440px), 1fr));
+  gap: 16px;
+}
+
+.lp-pesquisa .lp-servico-card.lp-edital-card {
+  border-radius: 16px;
+  box-shadow: 0 2px 5px rgb(25 49 76 / 4%), 0 8px 18px rgb(25 49 76 / 3%);
+}
+
+.lp-pesquisa .lp-edital-card .lp-servico-capa { border-radius: 15px 15px 0 0; }
+
+.lp-pesquisa .lp-edital-card h4.lp-servico-produto {
+  font-size: clamp(17px, 1.6vw, 19px);
+  font-weight: 700;
+}
+
+.lp-edital-destino {
+  display: flex;
+  align-items: start;
+  gap: 6px;
+  margin: 12px 0;
+  color: var(--lp-muted);
+  font-size: 12px;
+}
+
+.lp-edital-destino svg { flex: none; margin-top: 2px; }
+
+.lp-documentos-edital {
+  margin-top: 12px;
+  border: 1px solid var(--hairline, #dfe7ef);
+  border-radius: 10px;
+  background: var(--lp-soft);
+}
+
+.lp-documentos-edital > summary {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-height: 44px;
+  padding: 9px 11px;
+  color: var(--lp-ink);
+  font-size: 12px;
+  font-weight: 650;
+  list-style: none;
+}
+
+.lp-documentos-edital > summary::-webkit-details-marker { display: none; }
+.lp-documentos-edital > summary svg { color: var(--lp-accent); flex: none; }
+.lp-documentos-edital > summary svg:last-child { margin-left: auto; }
+.lp-documentos-edital[open] > summary svg:last-child { transform: rotate(180deg); }
+.lp-documentos-edital > :not(summary) { margin: 0 10px 10px; }
+
+.lp-pesquisa .lp-edital-card .lp-detalhes-oportunidade {
+  margin-top: 4px;
+  border-top: 0;
+}
+
+.lp-pesquisa .lp-edital-card .lp-detalhes-oportunidade > summary {
+  min-height: 44px;
+  padding: 12px 2px;
+}
+
+.lp-pesquisa .lp-servico-card.lp-edital-card .lp-oportunidade-rodape {
+  gap: 8px 12px;
+  padding-top: 10px;
+  border-top: 1px solid var(--hairline, #dfe7ef);
+}
+
+.lp-edital-acoes {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+}
+
+.lp-interesse {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 44px;
+  margin-left: auto;
+  padding: 8px 12px;
+  border: 1px solid transparent;
+  border-radius: 9px;
+  background: #226149;
+  color: #fff;
+  font-size: 12px !important;
+  font-weight: 700 !important;
+  cursor: pointer;
+}
+
+.lp-interesse:hover { background: #174c39; }
+.lp-interesse-salvo { color: #1d5c43; background: #eaf6ef; border-color: #c6e2d3; }
+.lp-interesse-salvo:hover { background: #dcefe4; }
+.dark .lp-interesse-salvo { color: #aee0c4; background: #243f34; border-color: #3f6152; }
+.dark .lp-interesse-salvo:hover { background: #2e4d40; }
+
+@media (max-width: 640px) {
+  .lp-edital-acoes { width: 100%; }
+  .lp-interesse { width: 100%; }
+}
+
+@media print { .lp-interesse { display: none; } }

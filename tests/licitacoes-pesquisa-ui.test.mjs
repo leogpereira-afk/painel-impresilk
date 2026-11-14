@@ -147,6 +147,33 @@ test('texto do portal é escapado e link inseguro não vira destino clicável', 
   assert.match(html, /Link oficial indisponível/);
 });
 
+test('cartão separa sessão, proposta e credenciamento e mostra os documentos no acordeão', () => {
+  const edital = 'https://portal.example/edital-ficticio';
+  const item = {
+    ...oportunidades[0], oficialUrl: edital,
+    datasEdital: {
+      sessaoPublica: { dataHora: '2026-11-30T13:00:00Z', fonteUrl: edital, referencia: 'p. 2' },
+      envioProposta: { dataHora: '2026-11-30T12:30:00Z', fonteUrl: edital },
+      credenciamento: { dataHora: '2026-11-28', fonteUrl: edital },
+    },
+    documentosEdital: [{ id: 'credencial-exemplo', categoria: 'credenciamento', nome: 'Credencial do representante', escopo: 'item', itens: ['Lote fictício 1'], referencia: 'Item 5', fonteUrl: edital }],
+  };
+  const html = renderizar({ dados: relatorio({ oportunidades: [item] }) });
+  assert.match(html, /Sessão pública[\s\S]*?30\/11\/2026, 10:00/);
+  assert.match(html, /Prazo para proposta[\s\S]*?30\/11\/2026, 09:30/);
+  assert.match(html, /Prazo de credenciamento[\s\S]*?28\/11\/2026[\s\S]*?Horário a confirmar/);
+  assert.doesNotMatch(html, /Prazo registrado/);
+  assert.match(html, /<details class="lp-documentos-edital"><summary>[\s\S]*?Documentos para participar[\s\S]*?Credencial do representante[\s\S]*?Lote fictício 1[\s\S]*?Item 5/);
+});
+
+test('cartão preserva prazo legado sem atribuí-lo a uma data oficial específica', () => {
+  const html = renderizar({ dados: relatorio({ oportunidades: [oportunidades[0]] }) });
+  assert.match(html, /Sessão pública[\s\S]*?A confirmar na fonte oficial/);
+  assert.match(html, /Prazo para proposta[\s\S]*?A confirmar na fonte oficial/);
+  assert.match(html, /Prazo registrado[\s\S]*?20\/10\/2026, 12:00/);
+  assert.match(html, /Documentos a confirmar no edital e nos anexos oficiais/);
+});
+
 test('relatório antigo exige reconferência e mantém sua data de origem', () => {
   const html = renderizar({ dados: relatorio({ antigo: true, geradoEm: '2000-01-01T10:00:00Z' }), aoAtualizar() {} });
   assert.match(html, /Relatório antigo/);
@@ -334,6 +361,28 @@ test('filtros avançados afetam somente analisados e PDF/calendário recebem o r
     botao(arvore,'Baixar resumo PDF').props.onClick();assert.equal(pdf,dados);
     cards[0].props.aoAgendar(cards[0].props.item);retidos.props.aoAgendar(pendente);
     assert.equal(agendados[0][0],oportunidades[0]);assert.deepEqual(agendados[0][1],{pendente:false,relatorio:dados});assert.equal(agendados[1][0],pendente);assert.deepEqual(agendados[1][1],{pendente:true,relatorio:dados});
+  });
+});
+
+test('Quero participar seleciona o item e o cartão selecionado abre a aba de interesse', () => {
+  const item = { ...oportunidades[2], prazo: undefined };
+  const dados = relatorio({ oportunidades: [item] });
+  let chamadas = [], abrir = 0;
+  const props = { dados, aoSelecionarInteresse: (...args) => { chamadas = args; }, aoAbrirInteresses: () => { abrir++; } };
+  comPesquisaInterativa(props, ({renderizar, componente, botao}) => {
+    const avaliacao = () => componente(renderizar(), 'Oportunidade')[0];
+    let card = avaliacao();
+    let acao = botao(card.type(card.props), 'Quero participar');
+    assert.ok(acao);
+    assert.equal(acao.props.disabled, undefined);
+    acao.props.onClick();
+    assert.deepEqual(chamadas, [item, dados]);
+    card = componente(renderizar({ ...props, interesseSelecionado: () => true }), 'Oportunidade')[0];
+    assert.equal(botao(card.type(card.props), 'Quero participar'), undefined);
+    acao = botao(card.type(card.props), 'Selecionado');
+    assert.ok(acao);
+    acao.props.onClick();
+    assert.equal(abrir, 1);
   });
 });
 

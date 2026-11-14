@@ -1,7 +1,7 @@
 // Navegação e filtros locais. Não alteram o acervo nem os registros salvos.
 export function visaoLicitacoes(parametros) {
   const explicita=parametros.get('visao');
-  if(['acompanhamento','pesquisa','regioes','empresas','resultados','documentos','cadastros'].includes(explicita))return explicita;
+  if(['acompanhamento','pesquisa','interesses','regioes','empresas','resultados','documentos','cadastros'].includes(explicita))return explicita;
   if(['documentos','cadastros'].includes(parametros.get('aba')))return parametros.get('aba');
   return parametros.get('relatorio')||parametros.get('item')?'pesquisa':'acompanhamento';
 }

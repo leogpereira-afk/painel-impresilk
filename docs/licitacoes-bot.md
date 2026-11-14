@@ -1,6 +1,6 @@
 # Licitações: pesquisa do BotImpresilk e acompanhamento da equipe
 
-O módulo possui duas áreas independentes. **Pesquisa do BotImpresilk** lê a última pesquisa pública ou uma versão escolhida no histórico; **Acompanhamento da equipe** conserva editais, arquivos, responsáveis, checklist e resultados cadastrados anteriormente. A leitura da pesquisa, por si só, não cria uma licitação acompanhada nem autoriza proposta, participação ou lance.
+**Pesquisa do BotImpresilk** lê a última pesquisa pública ou uma versão escolhida no histórico. **Quero participar** reúne os itens escolhidos e o checklist individual. **Acompanhamento da equipe** conserva fichas, arquivos, responsáveis e resultados cadastrados pela equipe.
 
 ## Leitura e integração
 
@@ -8,7 +8,14 @@ O navegador chama `painel-dados?modulo=licitacoes` usando o crachá existente. O
 
 Como painel e bot utilizam projetos distintos, a leitura usa a rota dedicada `badboy-telegram?acao=licitacoes-painel`. O endereço é fixo, com credencial de leitura `LICITACOES_PAINEL_TOKEN` somente nos ambientes dos dois servidores. O cabeçalho de serviço é `x-licitacoes-painel-token`. Não repassa o crachá do usuário nem aceita endereço livre. O navegador pode informar somente um ID de relatório validado ou uma página de histórico; o servidor monta esses parâmetros no endereço fixo. Não segue redirects, limita o documento a 600 KiB e encerra a consulta em quinze segundos.
 
-O serviço do bot entrega o dossiê público selecionado, com ID, geração, período, versão e SHA256. O painel rejeita campos desconhecidos, recomputa o relatório com `supabase/functions/_shared/licitacoes-controle.mjs`, confere hash e metadados e entrega apenas a projeção pública. Totais persistidos não substituem a reconstrução. O núcleo congelado é compartilhado com o bot; versão `2026.10.12-cobertura-2-educacao`, SHA256 `99dd186a62b3e92736ed9ff002cbd9de0466f017a88d0147c8c5d0e9ceb87e75`.
+O serviço do bot entrega o dossiê público selecionado, com ID, geração, período, versão e SHA256. O painel rejeita campos desconhecidos, recomputa o relatório com `supabase/functions/_shared/licitacoes-controle.mjs`, confere hash e metadados e entrega apenas a projeção pública. Totais persistidos não substituem a reconstrução. A versão `2026.10.12-cobertura-2-educacao` continua compatível com o acervo anterior.
+
+Na leitura mais recente, o painel consulta o prazo de envio e os anexos ativos quando o número de controle PNCP identifica a mesma contratação. A sessão pública do Portal de Compras Públicas é exibida quando o PNCP aponta para esse processo e ambos os portais registram o mesmo prazo de envio. Cada data aponta para sua fonte. O acervo e o histórico preservam o conteúdo original.
+
+Para incluir dados conferidos pelo produtor do dossiê, use os campos opcionais abaixo. Atualize o validador do BotImpresilk antes de publicar relatórios com esses campos.
+
+- `datasEdital` aceita `sessaoPublica`, `envioProposta` e `credenciamento`. Preencha cada data divulgada com `dataHora` em ISO 8601 com fuso, `fonteUrl` pública e `referencia` quando houver cláusula ou página. Omita dados ainda sem confirmação.
+- `documentosEdital` recebe os requisitos de credenciamento, habilitação e proposta conferidos no edital vigente e nas retificações. Para cada um, informe `nome`, `categoria` (`credenciamento`, `habilitacao` ou `proposta`), `orientacao`, `referencia` e `fonteUrl`. Informe `modeloUrl` quando existir e use `escopo: 'item'` para requisitos específicos do item ou lote. Inclua a condição de exigências que só se aplicam a certos fornecedores.
 
 A matriz institucional contém 32 grupos obrigatórios. Unimontes, UFMG / ICA, IFMG e IFNMG são grupos distintos, incluindo suas reitorias, campi e compras centralizadas destinadas à região. A sede do órgão não substitui a avaliação do local de execução.
 
@@ -22,6 +29,7 @@ Se a credencial estiver ausente, há erro de configuração, sem cobertura inven
 - A busca combina processo, item, produto e destino com filtros de classificação, município de execução, órgão e produto.
 - Prazos abertos aparecem primeiro. Um prazo encerrado na leitura não altera silenciosamente a classificação histórica, mas exige conferência no portal oficial.
 - Detalhes mostram critérios, exigências, destino, viabilidade registrada e próxima ação. Documentos ausentes não são inventados; o link oficial permite conferir edital e anexos.
+- **Quero participar** agrupa itens pelo número de controle do PNCP quando disponível, ou pela identificação de órgão e processo. Seleções, requisitos conferidos manualmente e marcações do checklist ficam salvos neste navegador, por conta. Para organizar um checklist ainda ausente do dossiê, inclua requisitos com cláusula e link ou importe um JSON com a lista `documentosEdital` e, opcionalmente, o `processoPncp`. Se a lista incluir exigências específicas, selecione o item ao importar.
 - Candidatos retidos aparecem em fichas próprias, com órgão, processo, produto, motivos, exigências e fonte registrada segura. Destino, justificativa e prazo são identificados como dados a conferir. Um prazo descritivo é preservado literalmente; nenhum desses registros recebe classificação validada automaticamente.
 - Matrizes municipais e institucionais possuem busca, filtro de cobertura e paginação. Exportação inclui todos os registros filtrados, não apenas a página. CSV neutraliza células que possam ser interpretadas como fórmulas.
 - O botão de Telegram só aparece quando o serviço informa um username válido do bot. A URL é construída com domínio `t.me`; não aceita endereço livre. Perguntas sugeridas podem ser copiadas, sem envio automático. A autenticação e as permissões do bot continuam próprias.

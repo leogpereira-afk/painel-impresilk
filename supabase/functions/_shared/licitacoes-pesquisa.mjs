@@ -1,4 +1,5 @@
-import {gerarRelatorio} from './licitacoes-controle.mjs';
+import {gerarRelatorio,urlPublicaLicitacao} from './licitacoes-controle.mjs';
+import {enriquecerEditaisLicitacoes} from './licitacoes-fontes-edital.mjs';
 
 // Endereço fixo: aceita somente seletor de versão validado, nunca destino ou credencial do cliente.
 export const URL_PESQUISA_LICITACOES='https://reoghclxripktzpdwhiy.supabase.co/functions/v1/badboy-telegram?acao=licitacoes-painel';
@@ -19,22 +20,16 @@ export function selecionarConsultaLicitacoes(params) {
   if(params.has('pagina')||(params.has('relatorio')&&!ID_RELATORIO.test(params.get('relatorio'))))throw parametrosInvalidos();
   return {id:params.get('relatorio')||undefined};
 }
-function urlPublica(valor) {
-  if(typeof valor!=='string'||/[\s\\\u0000-\u001f\u007f]/.test(valor))return '';
-  try {
-    const u=new URL(valor),host=u.hostname.toLowerCase();
-    if(u.protocol!=='https:'||u.username||u.password||!host.includes('.')||host==='localhost'||host.endsWith('.localhost')||host.endsWith('.local')||host.startsWith('[')||/^(?:\d{1,3}\.){3}\d{1,3}$/.test(host))return '';
-    return u.href;
-  }catch{return '';}
-}
 function detalharRetidos(retidos,dossie) {
   const candidatos=new Map();
   for(const candidato of dossie.candidatos||[])if(!candidatos.has(candidato.id))candidatos.set(candidato.id,candidato);
   return retidos.map(retido=>{
     const c=candidatos.get(retido.id)||{},r={...retido};
     for(const campo of ['processo','orgao','item','lote','produto','prazo','proximaAcao'])if(typeof c[campo]==='string')r[campo]=c[campo];
-    r.oficialUrl=urlPublica(c.oficialUrl);
+    r.oficialUrl=urlPublicaLicitacao(c.oficialUrl);
     r.exigencias=Array.isArray(c.exigencias)?[...c.exigencias]:[];
+    if(c.datasEdital)r.datasEdital=c.datasEdital;
+    if(c.documentosEdital)r.documentosEdital=c.documentosEdital;
     if(typeof c.justificativa==='string')r.justificativaRegistrada=c.justificativa;
     if(c.localExecucao)r.localExecucaoRegistrado={...c.localExecucao,municipios:[...(c.localExecucao.municipios||[])]};
     return r;
@@ -122,7 +117,9 @@ export async function consultarPesquisaLicitacoes({token,id,historico=false,pagi
       if(id&&pesquisa.id!==id)throw indisponivel();
       return pesquisa;
     })();
-    return await Promise.race([leitura,expirou]);
+    const pesquisa=await Promise.race([leitura,expirou]);
+    if(id||pesquisa.estado!=='disponivel')return pesquisa;
+    return await enriquecerEditaisLicitacoes(pesquisa,{fetcher,signal:AbortSignal.timeout(5500)});
   }catch(e) {if(e?.status===404)throw e;throw indisponivel();}
   finally {clearTimeout(timer);controller.abort();}
 }

@@ -32,7 +32,10 @@ export const ESQUEMA_PUBLICO = Object.freeze({
   coberturaEntes: ['prefeituraUnidades', 'camara', 'entesIndiretos', 'evidencia'],
   coberturaInstituicoes: ['unidades', 'escopoCompleto', 'evidencia'],
   instituicao: ['nome', 'etapasObrigatorias', 'justificativaPlano'],
-  candidato: ['id', 'processo', 'orgao', 'item', 'lote', 'familiaPortfolio', 'produto', 'evidenciaPortfolio', 'referenciaAprovacaoPortfolio', 'reciboIds', 'oficialUrl', 'prazo', 'exigencias', 'proximaAcao', 'classificacao', 'justificativa', 'localExecucao', 'validacoes'],
+  candidato: ['id', 'processo', 'orgao', 'item', 'lote', 'familiaPortfolio', 'produto', 'evidenciaPortfolio', 'referenciaAprovacaoPortfolio', 'reciboIds', 'oficialUrl', 'prazo', 'exigencias', 'proximaAcao', 'classificacao', 'justificativa', 'localExecucao', 'validacoes', 'datasEdital', 'documentosEdital'],
+  datasEdital: ['sessaoPublica', 'envioProposta', 'credenciamento'],
+  dataEdital: ['dataHora', 'fonteUrl', 'referencia'],
+  documentoEdital: ['nome', 'categoria', 'orientacao', 'referencia', 'fonteUrl', 'modeloUrl', 'escopo'],
   localExecucao: ['municipios', 'apenasSede', 'misto', 'logisticaViavel', 'evidencia'],
   validacoes: ['tecnica', 'documental', 'comercial', 'logistica'],
   validacao: ['estado', 'confirmadaEm', 'referenciaPublicavel', 'resumoPublico'],
@@ -49,6 +52,34 @@ function assertScalars(value, path, strings = [], booleans = [], numbers = []) {
   for (const key of strings) if (key in value && typeof value[key] !== 'string') throw new Error(`${path}.${key}: precisa ser texto público.`);
   for (const key of booleans) if (key in value && typeof value[key] !== 'boolean') throw new Error(`${path}.${key}: precisa ser booleano.`);
   for (const key of numbers) if (key in value && (typeof value[key] !== 'number' || !Number.isFinite(value[key]))) throw new Error(`${path}.${key}: precisa ser número finito.`);
+}
+function validarDadosEdital(candidate, path) {
+  if (candidate.datasEdital !== undefined) {
+    const datesPath = `${path}.datasEdital`;
+    assertObject(candidate.datasEdital, 'datasEdital', datesPath);
+    for (const [key, date] of Object.entries(candidate.datasEdital)) {
+      const datePath = `${datesPath}.${key}`;
+      assertObject(date, 'dataEdital', datePath);
+      assertScalars(date, datePath, ESQUEMA_PUBLICO.dataEdital);
+      if (!validDate(date.dataHora) || !urlPublicaLicitacao(date.fonteUrl)) throw new Error(`${datePath}: informe data, hora, fuso e fonte oficial HTTPS.`);
+    }
+  }
+  if (candidate.documentosEdital !== undefined) {
+    const documentsPath = `${path}.documentosEdital`;
+    assertArray(candidate.documentosEdital, documentsPath);
+    for (const [i, document] of candidate.documentosEdital.entries()) {
+      const documentPath = `${documentsPath}[${i}]`;
+      assertObject(document, 'documentoEdital', documentPath);
+      assertScalars(document, documentPath, ESQUEMA_PUBLICO.documentoEdital);
+      if (!['credenciamento', 'habilitacao', 'proposta'].includes(document.categoria)
+        || ![document.nome, document.orientacao, document.referencia].every(text)
+        || !urlPublicaLicitacao(document.fonteUrl)
+        || (document.modeloUrl !== undefined && !urlPublicaLicitacao(document.modeloUrl))
+        || (document.escopo !== undefined && !['item', 'processo'].includes(document.escopo))) {
+        throw new Error(`${documentPath}: informe requisito, categoria, orientação, cláusula ou página e links públicos HTTPS.`);
+      }
+    }
+  }
 }
 export function validarDossiePublico(dossie) {
   assertObject(dossie, 'dossie', 'dossie');
@@ -87,6 +118,7 @@ export function validarDossiePublico(dossie) {
     const path = `candidatos[${i}]`; assertObject(candidate, 'candidato', path);
     assertScalars(candidate, path, ['id', 'processo', 'orgao', 'item', 'lote', 'familiaPortfolio', 'produto', 'evidenciaPortfolio', 'referenciaAprovacaoPortfolio', 'oficialUrl', 'prazo', 'proximaAcao', 'classificacao', 'justificativa']);
     for (const key of ['reciboIds', 'exigencias']) if (key in candidate) assertArray(candidate[key], `${path}.${key}`, 'string');
+    validarDadosEdital(candidate, path);
     if (candidate.localExecucao !== undefined) {
       assertObject(candidate.localExecucao, 'localExecucao', `${path}.localExecucao`); assertScalars(candidate.localExecucao, `${path}.localExecucao`, ['evidencia'], ['apenasSede', 'misto', 'logisticaViavel']);
       if (candidate.localExecucao.municipios !== undefined) assertArray(candidate.localExecucao.municipios, `${path}.localExecucao.municipios`, 'string');
@@ -108,9 +140,18 @@ const array = value => Array.isArray(value) ? value : [];
 const samePeriod = (a, b) => a?.inicio === b?.inicio && a?.fim === b?.fim;
 const coversStage = (receipt, stage) => receipt.etapa === stage || array(receipt.etapasEquivalentes).includes(stage);
 const validDate = value => typeof value === 'string' && /^\d{4}-\d{2}-\d{2}T(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d+)?(?:Z|[+-](?:0\d|1[0-4]):[0-5]\d)$/.test(value) && validDay(value.slice(0, 10)) && Number.isFinite(Date.parse(value));
+export { validDate as dataHoraLicitacaoValida };
 const validDay = value => typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value) && Number.isFinite(Date.parse(value + 'T00:00:00Z')) && new Date(value + 'T00:00:00Z').toISOString().slice(0, 10) === value;
 function url(value) {
   try { const parsed = new URL(value); return parsed.protocol === 'https:' && !parsed.username && !parsed.password ? parsed : null; } catch { return null; }
+}
+export function urlPublicaLicitacao(value) {
+  if (typeof value !== 'string' || /[\s\\\u0000-\u001f\u007f]/.test(value)) return '';
+  const parsed = url(value);
+  const host = parsed?.hostname.toLowerCase();
+  if (!host?.includes('.') || host.endsWith('.localhost') || host.endsWith('.local')
+    || host.startsWith('[') || /^(?:\d{1,3}\.){3}\d{1,3}$/.test(host)) return '';
+  return parsed.href;
 }
 function sourceReasons(source) {
   const reasons = [];

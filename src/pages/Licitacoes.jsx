@@ -1,5 +1,7 @@
 import JanelaFormulario from "../components/JanelaFormulario.jsx";
 import PesquisaLicitacoes from "../components/PesquisaLicitacoes.jsx";
+import InteressesLicitacoes from "../components/InteressesLicitacoes.jsx";
+import useInteressesLicitacoes from "../components/useInteressesLicitacoes.js";
 import DocumentosLicitacoes from "../components/DocumentosLicitacoes.jsx";
 import CadastrosLicitacoes from "../components/CadastrosLicitacoes.jsx";
 import RegioesLicitacoes from "../components/RegioesLicitacoes.jsx";
@@ -44,10 +46,16 @@ import { moedaCheia, dataCurta, diasEntre, ymdLocal, paraNumero, paraCampo } fro
 import { Card, CarregandoModulo, ErroModulo } from "../components/ui.jsx";
 
 import {visaoLicitacoes, filtrarAcompanhamento, pendenteAcompanhamento, erroPreparacao, revisarRascunhoLicitacao} from "../lib/licitacoes-workspace.mjs";
+import {agruparInteresses, interesseSelecionado, marcarDocumento, removerInteresse, removerRequisito, requisitosConferidos,
+  salvarRequisitos, selecionarInteresse} from "../lib/licitacoes-interesses.mjs";
+import {prazoOportunidade} from "../lib/licitacoes-pesquisa.mjs";
 import "../components/licitacoes-workspace.css";
 import "../components/licitacoes-cadastros-compacto.css";
 
 const MAX_BYTES = 3 * 1024 * 1024;
+const ABAS = [['acompanhamento','Acompanhamento'], ['pesquisa','Pesquisar oportunidades'],
+  ['interesses','Quero participar'], ['regioes','Regiões'], ['empresas','Empresas'],
+  ['resultados','Resultados'], ['documentos','Documentos'], ['cadastros','Cadastros']];
 const normalizarIdentidade=v=>String(v||'').normalize('NFKC').trim().replace(/\s+/g,' ').toLocaleLowerCase('pt-BR');
 function mesmaOportunidade(origem,item,relatorio){
   if(!origem||!item)return false;
@@ -229,6 +237,12 @@ function EspacoLicitacoes() {
   const filtrarLista=valor=>{setBusca('');setFiltro(valor);mudarVisao('acompanhamento');requestAnimationFrame(()=>listaRef.current?.focus());};
   const relatorioSelecionado=parametros.get('relatorio')||'';
   const [sessao,setSessao]=useState(getSessao);
+  const interesses=useInteressesLicitacoes(sessao?.usuario);
+  const painelAtivo=useRef(true);
+  useEffect(()=>{
+    painelAtivo.current=true;
+    return ()=>{painelAtivo.current=false;};
+  },[]);
   const [agendamento,setAgendamento]=useState(null);
   const [pesquisa,setPesquisa]=useState({dados:null,carregando:true,erro:null});
   const [historico,setHistorico]=useState({dados:null,carregando:true,erro:null});
@@ -274,6 +288,12 @@ function EspacoLicitacoes() {
   const podeRodar=(sessao?.master===true||(sessao?.permissoes||[]).includes('*'))&&execucao.dados?.podeIniciar!==false;
   // Uma mudança de URL nunca exibe o relatório anterior enquanto o efeito inicia.
   const pesquisaAtual=pesquisa.chave===relatorioSelecionado?pesquisa:{dados:null,carregando:true,erro:null};
+  const gruposInteresse=useMemo(()=>agruparInteresses(interesses.estado,pesquisaAtual.dados),[interesses.estado,pesquisaAtual.dados]);
+  const abrirInteresses=()=>mudarVisao('interesses');
+  const salvarInteresse=async(item,relatorio)=>{
+    const registrado=await interesses.alterar(estado=>selecionarInteresse(estado,item,relatorio));
+    if(registrado&&painelAtivo.current)abrirInteresses();
+  };
   const historicoAtual=historico.chave===paginaHistorico?historico:{dados:null,carregando:true,erro:null};
   const propsPesquisa={...pesquisaAtual,historico:historicoAtual,paginaHistorico,relatorioSelecionado,itemSelecionado:parametros.get('item')||'',pdf,aoBaixarPDF:controlePDF.baixar,
     aoAgendar:podeAbrir('licitacoes',sessao)&&podeAbrir('calendario-empresa',sessao)?(item,{pendente,relatorio})=>setAgendamento({item:structuredClone(item),relatorio:{id:relatorio.id},pendente}):undefined,
@@ -386,6 +406,16 @@ function EspacoLicitacoes() {
       abrirParticipacao(r.item);
     }catch(e){if(!controller.signal.aborted)setParticipacoes(p=>({...p,[chave]:{ocupado:false,erro:e.message||'Não foi possível preparar. Tente novamente.'}}));}
     finally{if(enviosParticipacao.current.get(chave)===controller)enviosParticipacao.current.delete(chave);}
+  };
+
+  const acaoAcompanhamento=({item,relatorioId})=>{
+    const relatorio={id:relatorioId};
+    const existente=estadoParticipacao(item,relatorio);
+    if(existente.item)return {rotulo:'Ver acompanhamento',acionar:()=>abrirParticipacao(existente.item)};
+    if(item.situacaoEdital||!podePreparar||itens===null||erro||!['GO','REVISÃO HUMANA'].includes(item.classificacao))return null;
+    const prazo=prazoOportunidade(item.prazo);
+    if(!prazo.valido||prazo.encerrado)return null;
+    return {...existente,rotulo:'Criar acompanhamento',acionar:()=>void participar(item,relatorio)};
   };
 
   const fecharForm = () => {
@@ -502,16 +532,26 @@ function EspacoLicitacoes() {
         <div><span className="lw-eyebrow">IMPRESILK · GESTÃO COMERCIAL</span><h1>Licitações &amp; Indústrias</h1><p>Decida o próximo passo. Acompanhe prazos, documentos e participações.</p></div>
         <div className="lw-header-actions">
           {podeAbrir('calendario-empresa',sessao)&&<Link className="btn-outline" to="/calendario-empresa"><CalendarClock size={16}/>Calendário</Link>}
-          {!['documentos','cadastros','regioes','empresas'].includes(visao)&&<button className="btn-primary" disabled={itens===null||!!erro} onClick={()=>{fecharForm();setFormAberto(true);}}><Plus size={16}/>Nova licitação</button>}
+          {!['documentos','cadastros','regioes','empresas','interesses'].includes(visao)&&<button className="btn-primary" disabled={itens===null||!!erro} onClick={()=>{fecharForm();setFormAberto(true);}}><Plus size={16}/>Nova licitação</button>}
         </div>
       </header>
-      <label className="lw-tabs-mobile">Área de Licitações &amp; Indústrias<select value={visao} onChange={e=>mudarVisao(e.target.value)}>{[['acompanhamento','Acompanhamento'],['pesquisa','Pesquisar oportunidades'],['regioes','Regiões'],['empresas','Empresas'],['resultados','Resultados'],['documentos','Documentos'],['cadastros','Cadastros']].map(([valor,nome])=><option key={valor} value={valor}>{nome}</option>)}</select></label>
+      <label className="lw-tabs-mobile">Área de Licitações &amp; Indústrias<select value={visao} onChange={e=>mudarVisao(e.target.value)}>{ABAS.map(([valor,nome])=><option key={valor} value={valor}>{nome}</option>)}</select></label>
       <nav className="lw-tabs" aria-label="Áreas de licitações">
-        {[['acompanhamento','Acompanhamento'],['pesquisa','Pesquisar oportunidades'],['regioes','Regiões'],['empresas','Empresas'],['resultados','Resultados'],['documentos','Documentos'],['cadastros','Cadastros']].map(([valor,nome])=><button key={valor} type="button" aria-current={visao===valor?'page':undefined} onClick={()=>mudarVisao(valor)}>{nome}</button>)}
+        {ABAS.map(([valor,nome])=><button key={valor} type="button" aria-current={visao===valor?'page':undefined} onClick={()=>mudarVisao(valor)}>{nome}</button>)}
       </nav>
       {modalAgendamento}
       {aviso&&['acompanhamento','resultados'].includes(visao)&&<p role={aviso.tom==='erro'?'alert':'status'} className="lw-notice">{aviso.texto}</p>}
-      <div hidden={visao!=='pesquisa'}><PesquisaLicitacoes {...propsPesquisa} aoParticipar={podePreparar?participar:undefined} estadoParticipacao={estadoParticipacao} aoAbrirParticipacao={abrirParticipacao}/></div>
+      {interesses.erro&&['pesquisa','interesses'].includes(visao)&&<p className="lw-notice" role="alert">{interesses.erro}</p>}
+      <div hidden={visao!=='pesquisa'}><PesquisaLicitacoes {...propsPesquisa}
+        aoSelecionarInteresse={salvarInteresse} aoAbrirInteresses={abrirInteresses}
+        interesseSelecionado={(item,relatorio)=>interesseSelecionado(interesses.estado,item,relatorio)}
+        requisitosConferidos={(item,relatorio)=>requisitosConferidos(interesses.estado,item,relatorio)}/></div>
+      {visao==='interesses'&&<InteressesLicitacoes grupos={gruposInteresse}
+        aoPesquisar={()=>mudarVisao('pesquisa')} aoRemover={chave=>interesses.alterar(estado=>removerInteresse(estado,chave))}
+        aoMarcar={(grupoId,docId,pronto)=>interesses.alterar(estado=>marcarDocumento(estado,grupoId,docId,pronto,pesquisaAtual.dados))}
+        aoIncluirRequisitos={(grupoId,itemId,campos,processo)=>interesses.alterar(estado=>salvarRequisitos(estado,grupoId,itemId,campos,processo))}
+        aoRemoverRequisito={id=>interesses.alterar(estado=>removerRequisito(estado,id))}
+        acompanhamento={acaoAcompanhamento}/>}
       {visao==='documentos'&&<DocumentosLicitacoes sessao={sessao} licitacoes={itens||[]} licitacaoSelecionada={(itens||[]).find(it=>it.id===parametros.get('edital'))||null} aoLimparSelecao={()=>setParametros(p=>{const n=new URLSearchParams(p);n.delete('edital');return n;})}/>}
       {visao==='empresas'&&<EmpresasLicitacoes sessao={sessao} empresaSelecionada={parametros.get('empresa')||''}
         aoEmpresa={id=>setParametros(p=>{const n=new URLSearchParams(p);if(id)n.set('empresa',id);else n.delete('empresa');return n;})}
