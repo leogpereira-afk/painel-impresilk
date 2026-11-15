@@ -24,7 +24,7 @@ jobs:
         with:
           node-version: 20
       - name: Conferir retomada e preservação das fontes
-        run: node --test tests/inteligencia-rotina.test.mjs
+        run: node --test tests/inteligencia-rotina.test.mjs tests/inteligencia-recuperacao.test.mjs
       - name: Atualizar NF-e, compras e detalhes sequencialmente
         env:
           PAINEL_TOKEN: ${{ secrets.PAINEL_TOKEN }}

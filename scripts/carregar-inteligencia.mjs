@@ -14,7 +14,7 @@ export async function carregarInteligencia({desde,ate,corte,call,pausa=esperar,l
    if(++etapas>maxEtapas)throw Error('Limite de etapas atingido; cursor preservado para retomada.');
    await pausa(5000);
    try{const r=await call({action:'avancar'});if(!r.carga)throw Error('Etapa sem confirmação.');j=r.carga;falhas=0;}
-   catch{if(++falhas>3)throw Error('Carga anterior interrompida; cursor preservado.');await pausa(30000);j=(await call({action:'status'})).carga;}
+   catch{if(++falhas>3)throw Error('Carga anterior interrompida; cursor preservado.');await pausa(60000*falhas);j=(await call({action:'status'})).carga;}
    if(!j||j.desde!==antigo.desde||j.ate!==antigo.ate||(j.corte??j.ate)!==antigo.corte||j.fonte!==antigo.fonte)throw Error('A carga mudou durante a execução.');
   }
  }
@@ -39,7 +39,7 @@ export async function carregarInteligencia({desde,ate,corte,call,pausa=esperar,l
     j=r.carga;falhas=0;
    }catch{
     if(++falhas>3)throw Error('Carga interrompida após tentativas; cursor e última carga completa preservados.');
-    await pausa(30000);
+    await pausa(60000*falhas);
     j=(await call({action:'status'})).carga;
    }
    if(!igual(j)||j.fonte!==fonte)throw Error('A carga mudou durante a execução.');

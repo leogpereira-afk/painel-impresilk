@@ -1,11 +1,10 @@
-// Respostas sintéticas nos testes; nunca converte falha de detalhe em vazio.
+// Confirma ausência somente após três 404 consecutivos da mesma lista.
 export async function consultarPagina({buscar,lista=true,pausa=ms=>new Promise(r=>setTimeout(r,ms))}){
- const primeira=await buscar();
- if(primeira.ok)return primeira.json();
- if(primeira.status!==404||!lista)throw Error(`Mubisys HTTP ${primeira.status}; fonte não conferida.`);
- await pausa(2000);
- const segunda=await buscar();
- if(segunda.ok)return segunda.json();
- if(segunda.status===404)return [];
- throw Error(`Mubisys HTTP ${segunda.status}; fonte não conferida.`);
+ for(let tentativa=0;tentativa<3;tentativa++){
+  if(tentativa)await pausa(2100);
+  const r=await buscar();
+  if(r.ok)return r.json();
+  if(r.status!==404||!lista)throw Error(`Mubisys HTTP ${r.status}; fonte não conferida.`);
+ }
+ return [];
 }
