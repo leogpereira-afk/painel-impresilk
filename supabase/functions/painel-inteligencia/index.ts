@@ -1,3 +1,4 @@
+import {consultarPagina} from '../_shared/inteligencia-consulta.mjs';
 import {createClient} from 'https://esm.sh/@supabase/supabase-js@2.45.0';
 import {verificarJwt,crachaRevogado} from '../_shared/cripto.ts';
 import {FONTES,direcaoAutorizada,incorporarPagina,snapshot,mesclarListaDetalhes,janelaConsulta} from '../_shared/inteligencia-importacao.mjs';
@@ -9,7 +10,16 @@ const resumo=(j:any)=>j?{fonte:j.fonte,desde:j.desde,ate:j.ate,corte:j.corte??j.
 async function rpc(nome:string,args:any={}){const {data,error}=await sb.rpc(nome,args);if(error)throw new Error('Não foi possível confirmar a etapa da importação.');return data;}
 async function cache(chave:string){const {data,error}=await sb.from('painel_cache').select('valor').eq('chave',chave).maybeSingle();if(error)throw new Error('Falha ao consultar a última carga.');return data?.valor??null;}
 async function credenciais(){let pk=Deno.env.get('MUBI_PUBLIC_KEY')||'',token=Deno.env.get('MUBI_TOKEN')||'';if(!pk||!token){const {data,error}=await sb.from('pcp_meta').select('valor').eq('chave','mubisys').maybeSingle();if(error)throw new Error('Conexão indisponível.');pk=data?.valor?.publicKey||'';token=data?.valor?.accessToken||'';}if(!pk||!token)throw new Error('Mubisys não configurado.');return {pk,token};}
-async function consultar(rota:string,params:any={},timeout=85000){const c=await credenciais(),u=new URL(`https://api.mubisys.com/api/${encodeURIComponent(c.pk)}/${rota}`);for(const [k,v] of Object.entries(params))u.searchParams.set(k,String(v));let r:Response;try{r=await fetch(u,{redirect:'error',headers:{Accept:'application/json','Access-Token':c.token},signal:AbortSignal.timeout(timeout)});}catch{throw new Error('Consulta interrompida. A última carga completa foi preservada.');}if(!r.ok)throw new Error(`Mubisys HTTP ${r.status}; fonte não conferida.`);try{return await r.json();}catch{throw new Error('Resposta do ERP não reconhecida.');}}
+async function consultar(rota:string,params:any={},timeout=85000){
+ const c=await credenciais(),u=new URL(`https://api.mubisys.com/api/${encodeURIComponent(c.pk)}/${rota}`);
+ for(const [k,v] of Object.entries(params))u.searchParams.set(k,String(v));
+ const inicio=Date.now();
+ return consultarPagina({lista:['ordem-servico','nota-fiscal-produto','nota-fiscal-recebida'].includes(rota),buscar:async()=>{
+  const restante=timeout-(Date.now()-inicio);if(restante<=0)throw Error('Consulta interrompida. A última carga completa foi preservada.');
+  return fetch(u,{redirect:'error',headers:{Accept:'application/json','Access-Token':c.token},signal:AbortSignal.timeout(restante)});
+ }});
+}
+
 Deno.serve(async(req:Request)=>{
  if(req.method==='OPTIONS')return new Response('ok',{headers:CORS});
  if(!['GET','POST'].includes(req.method))return json({erro:'Método não permitido.'},405);

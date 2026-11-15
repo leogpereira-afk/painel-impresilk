@@ -1,3 +1,4 @@
+import {consultarPagina} from '../supabase/functions/_shared/inteligencia-consulta.mjs';
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import vm from 'node:vm';
@@ -14,7 +15,7 @@ function ambiente(fonte='nfe',auth='machine',hoje='2026-10-25T12:00:00Z',nfe=nul
  const modulo={exports:{}};vm.runInNewContext(srcImportacao,{module:modulo,exports:modulo.exports,Date:Clock});const imp=modulo.exports;
  const sb={from(tabela){return {select(){return this},eq(){return this},maybeSingle:async()=>({data:tabela==='painel_cache'?{valor:nfe}:{estado}})}},rpc:async(n,a)=>{if(n==='inteligencia_iniciar'){estado=a.p_estado;return {data:estado}}if(n==='inteligencia_reservar')return {data:{estado,trava:'fake'}};saved=a.p_snapshot;estado=a.p_estado;return {data:estado}}};
  const fetch=async u=>{urls.push(new URL(u));return new Response(JSON.stringify({data:[],pagination:{current_page:1,last_page:1,total:0}}));};
- vm.runInNewContext(src,{...imp,...norm,Date:Clock,createClient:()=>sb,verificarJwt:async()=>auth==='restricted'?{sub:'x',master:false,exp:9999999999}:null,crachaRevogado:async()=>false,Deno:{env:{get:k=>({PAINEL_TOKEN:'test',PAINEL_JWT_SECRET:'fake',MUBI_PUBLIC_KEY:'fake',MUBI_TOKEN:'fake'}[k])},serve:f=>handler=f},fetch,URL,Response,Request,AbortSignal,setTimeout});
+ vm.runInNewContext(src,{...imp,...norm,consultarPagina,Date:Clock,createClient:()=>sb,verificarJwt:async()=>auth==='restricted'?{sub:'x',master:false,exp:9999999999}:null,crachaRevogado:async()=>false,Deno:{env:{get:k=>({PAINEL_TOKEN:'test',PAINEL_JWT_SECRET:'fake',MUBI_PUBLIC_KEY:'fake',MUBI_TOKEN:'fake'}[k])},serve:f=>handler=f},fetch,URL,Response,Request,AbortSignal,setTimeout});
  return {urls,get saved(){return saved},get estado(){return estado},async call(body){const r=await handler(new Request('https://example.invalid',{method:'POST',headers:auth==='machine'?{'x-token':'test'}:{authorization:'Bearer fake'},body:JSON.stringify(body)}));return {status:r.status,body:await r.json()}}};
 }
 for(const fonte of ['nfe','compras','detalhes'])test(`último dia incluído na consulta ${fonte}`,async()=>{const a=ambiente(fonte);const r=await a.call({action:'avancar'});assert.equal(r.status,200);assert.equal(a.urls[0].searchParams.get('datafinal'),'2026-10-01');});

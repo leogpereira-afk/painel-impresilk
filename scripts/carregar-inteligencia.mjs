@@ -6,7 +6,19 @@ const esperar=ms=>new Promise(r=>setTimeout(r,ms));
 export async function carregarInteligencia({desde,ate,corte,call,pausa=esperar,log=()=>{},maxEtapas=1500}){
  const igual=j=>j&&j.desde===desde&&j.ate===ate&&(j.corte??j.ate)===corte;
  let j=(await call({action:'status'})).carga;
- if(j&&j.situacao!=='concluida'&&!igual(j))throw Error('Há outra carga em andamento; preserve e conclua esse período primeiro.');
+ if(j&&j.situacao!=='concluida'&&!igual(j)){
+  if(j.desde!==desde||j.ate!==ate||(j.corte??j.ate)>=corte)throw Error('Há outra carga em andamento; preserve e conclua esse período primeiro.');
+  const antigo={desde:j.desde,ate:j.ate,corte:j.corte??j.ate,fonte:j.fonte};
+  let falhas=0,etapas=0;
+  while(j.situacao!=='concluida'){
+   if(++etapas>maxEtapas)throw Error('Limite de etapas atingido; cursor preservado para retomada.');
+   await pausa(5000);
+   try{const r=await call({action:'avancar'});if(!r.carga)throw Error('Etapa sem confirmação.');j=r.carga;falhas=0;}
+   catch{if(++falhas>3)throw Error('Carga anterior interrompida; cursor preservado.');await pausa(30000);j=(await call({action:'status'})).carga;}
+   if(!j||j.desde!==antigo.desde||j.ate!==antigo.ate||(j.corte??j.ate)!==antigo.corte||j.fonte!==antigo.fonte)throw Error('A carga mudou durante a execução.');
+  }
+ }
+
  let inicio=igual(j)?FONTES.indexOf(j.fonte):0;
  if(inicio<0)throw Error('Fonte do estado não reconhecida.');
  if(igual(j)&&j.situacao==='concluida')inicio++;
