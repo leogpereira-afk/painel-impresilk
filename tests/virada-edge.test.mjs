@@ -124,3 +124,10 @@ test('PDF concorrente rejeitado limpa órfão; confirmação perdida mantém PDF
  const t=setup();await create(t);t.conflict();assert.equal((await sendPdi(t)).status,409);assert.equal(t.files.size,0);
  const u=setup();await create(u);u.lose();assert.equal((await sendPdi(u)).status,200);assert.equal(u.files.size,1);assert.equal(u.ciclo.participantes[0].documentos.length,1);
 });
+
+test('direção fora da contagem de empregados participa; inativos e desligados não entram',async()=>{
+ const t=setup();t.rh.status.push({id:'direcao',ativo:'false'},{id:'inativo',ativo:'false'});
+ t.rh.colaboradores[3].statusId='direcao';t.rh.colaboradores[2].statusId='inativo';t.rh.colaboradores[1].saiu='2026-01-01';
+ const r=await t.call({action:'pessoas'});assert.equal(r.status,200);assert.deepEqual(r.pessoas.map(x=>x.id),['rh-1','rh-4']);
+ const salvo=await t.call({action:'salvarCiclo',versao:0,item:{nome:'Ciclo fictício',participantes:[{rhId:'rh-1',mentorId:'rh-4'},{rhId:'rh-4',mentorId:'rh-1'}]}});assert.equal(salvo.status,200);
+});

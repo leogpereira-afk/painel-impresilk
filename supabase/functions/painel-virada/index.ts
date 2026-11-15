@@ -52,7 +52,7 @@ async function pessoasRH() {
     paginas('status', 'id,ativo:registro->>contaComoAtivo'),
     paginas('cargos', 'id,nome:registro->>nome'),
   ]);
-  const ativo = new Set(status.filter(s => s.ativo === 'true' || s.ativo === true).map(s => s.id));
+  const ativo = new Set(status.filter(s => s.ativo === 'true' || s.ativo === true || s.id === 'direcao').map(s => s.id));
   return pessoas.filter(p => p.id && p.nome && !p.saiu && ativo.has(p.statusId))
     .map(p => ({ id: p.id, nome: String(p.nome), funcao: String(cargos.find(c => c.id === p.cargoId)?.nome || '') }))
     .sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
