@@ -1,6 +1,6 @@
 ## Trabalho atual · Correção das rotinas Mubisys · codex · 15/11/2026
 
-Pedido do dono: corrigir DRE, Inteligência e importação de O.S, com testes reais. Clone isolado /tmp/painel-erros-20261115, ramo codex/corrigir-rotinas-20261115. Preservar cargas, históricos e autenticação; sem dados reais versionados. Diagnóstico e testes em andamento.
+Pedido do dono: corrigir DRE, Inteligência e importação de O.S, com testes reais. Clone isolado /tmp/painel-erros-20261115, ramo codex/corrigir-rotinas-20261115. Preservar cargas, históricos e autenticação; sem dados reais versionados. Publicado e conferido. Publicação e execução em produção autorizadas expressamente pelo dono em 15/11/2026. Importação de O.S: credencial da rotina alinhada à credencial já aceita pelo servidor, sem alterar permissões. Inteligência: retomada do corte anterior, confirmação de listas vazias com três respostas consecutivas espaçadas e espera progressiva após limite. DRE: confirmação da janela preservada após limite e intervalo de proteção entre respostas vazias. Testes: 18 casos focais da Inteligência e 118 da DRE aprovados. As três rotinas concluíram com sucesso em produção; bases da Inteligência completas no corte atual e mês solicitado da DRE confirmado como gravado. Servidor da Inteligência ativo, arquivos iguais aos testados; publicações de servidor e Pages aprovadas. Nenhum dado real ou credencial versionado. Vez encerrada.
 
 ## Trabalho atual · Login sem retorno silencioso · codex · 08/11/2026
 
