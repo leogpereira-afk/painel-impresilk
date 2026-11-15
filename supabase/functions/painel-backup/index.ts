@@ -21,6 +21,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { verificarJwt, crachaRevogado } from "../_shared/cripto.ts";
 
 import {capturarArquivos,prepararArquivos} from "../_shared/arquivos-backup.ts";
+import {conferirCopiaVirada} from "../_shared/virada-backup.mjs";
 import {buscarComRetentativa} from "../_shared/repetir-http.ts";
 import {proximoBackup} from "../_shared/fila-backup.mjs";
 import {avancarCopia,base64} from "../_shared/backup-partes.mjs";
@@ -199,6 +200,17 @@ async function montarBackupPainel() {
   // autoexame reprova (ausência de cópia parece ausência de dado).
   painel.tabelasMarketingNoBanco = Array.isArray(mkt?.tabelas) ? mkt.tabelas : null;
 
+  // A Virada mora em tabela própria; a descoberta de coleções não a alcança.
+  if (Object.hasOwn(painel, "viradaCiclos")) throw new Error('Coleção colide com a cópia de A Virada.');
+  const viradaCiclos: Record<string, unknown> = {};
+  for (let de = 0; ; de += 500) {
+    const { data, error } = await sb.from("virada_ciclos").select("id,ativo,versao,registro,atualizado_em").order("id").range(de, de + 499);
+    if (error) throw new Error('A Virada não foi copiada: ' + error.message);
+    for (const row of data || []) viradaCiclos[row.id] = row;
+    if ((data || []).length < 500) break;
+  }
+  painel.viradaCiclos = viradaCiclos;
+
   /* DOIS BUCKETS desde 24/10/2026: o privado (fotos de bens, documentos) e o
      publico (logos das campanhas, que antes viajavam em base64 dentro do
      registro). Cada entrada leva o nome do bucket; copia antiga sem o campo e
@@ -206,7 +218,10 @@ async function montarBackupPainel() {
   const arquivos = [
     ...(await capturarArquivos(sb.storage.from("painel-arquivos"))).map((a: any) => ({ ...a, bucket: "painel-arquivos" })),
     ...(await capturarArquivos(sb.storage.from("painel-publico"))).map((a: any) => ({ ...a, bucket: "painel-publico" })),
+    ...(await capturarArquivos(sb.storage.from("virada-evidencias"))).map((a: any) => ({ ...a, bucket: "virada-evidencias" })),
   ];
+
+  conferirCopiaVirada(viradaCiclos, arquivos);
 
   return {
     versao: VERSAO,
@@ -792,7 +807,7 @@ Deno.serve(async (req: Request) => {
         };
         if (bk.versao >= 2) {
           for (const [nome, mapa] of Object.entries(p)) {
-            if (nome === "config" || nome === "gestao" || nome === "tabelasMarketing" || nome === "tabelasMarketingNoBanco") continue;
+            if (nome === "config" || nome === "gestao" || nome === "tabelasMarketing" || nome === "tabelasMarketingNoBanco" || nome === "viradaCiclos") continue;
             incluir(APELIDO_VOLTA[nome] ?? nome, mapa);
           }
         } else {
@@ -810,28 +825,38 @@ Deno.serve(async (req: Request) => {
         };
         // Um bucket por vez; a copia antiga (sem `bucket`) e toda do privado.
         const manifesto: any[] = Array.isArray(bk.arquivos) ? bk.arquivos : [];
+        const ciclosVirada = conferirCopiaVirada(p.viradaCiclos, manifesto);
         const porBucket = new Map<string, any[]>();
         for (const a of manifesto) {
-          const b = a?.bucket === "painel-publico" ? "painel-publico" : "painel-arquivos";
+          if (a?.bucket && !["painel-publico", "painel-arquivos", "virada-evidencias"].includes(a.bucket)) throw new Error('Bucket desconhecido na cópia.');
+          const b = a?.bucket || "painel-arquivos";
           if (!porBucket.has(b)) porBucket.set(b, []);
           porBucket.get(b)!.push(a);
         }
         const preparados: { quantidade: number; desfazer: () => Promise<void> }[] = [];
         try {
-          for (const [b, lista] of porBucket) preparados.push(await prepararArquivos(sb.storage.from(b), lista, resolver));
+          for (const [b, lista] of porBucket) preparados.push(await prepararArquivos(sb.storage.from(b), lista, resolver, { preservarCriados: b === "virada-evidencias" }));
         } catch (e) { for (const p of [...preparados].reverse()) await p.desfazer(); throw e; }
         const arquivos = {
           quantidade: preparados.reduce((s, p) => s + p.quantidade, 0),
           desfazer: async () => { for (const p of [...preparados].reverse()) await p.desfazer(); },
         };
         try {
-          const { data, error } = await sb.rpc("painel_restaurar_atomico", {
+          const { data, error } = await sb.rpc(ciclosVirada.length ? "painel_restaurar_com_virada" : "painel_restaurar_atomico", {
             p_backup: { config: p.config ?? null, registros, contas, gestao: p.gestao ?? {},
-              marketing: p.tabelasMarketing ? { ...p.tabelasMarketing, quem: s?.sub ?? "backup" } : null },
+              marketing: p.tabelasMarketing ? { ...p.tabelasMarketing, quem: s?.sub ?? "backup" } : null,
+              ...(ciclosVirada.length ? { virada_ciclos: ciclosVirada } : {}) },
           });
           if (error || !data?.verificado) throw new Error(error?.message || "A recuperação não foi confirmada.");
           return resposta({ ok: true, ...data, arquivos:arquivos.quantidade, arquivosIncluidos:bk.versao>=3 });
-        } catch(e) {await arquivos.desfazer();throw e;}
+        } catch(e) {
+          // Uma falha de transporte pode vir depois do commit da recuperação.
+          // Com A Virada, não apagar fotos potencialmente referenciadas. O
+          // ensaio/operador reconcilia os arquivos privados antes de removê-los.
+          if (!ciclosVirada.length) await arquivos.desfazer();
+          else console.error('[painel-backup] Recuperação de A Virada não confirmada; arquivos privados preservados.');
+          throw e;
+        }
 
       }
 

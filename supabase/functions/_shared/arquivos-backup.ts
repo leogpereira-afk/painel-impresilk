@@ -29,7 +29,7 @@ export async function capturarArquivos(bucket: any) {
   return arquivos;
 }
 
-export async function prepararArquivos(bucket: any, arquivos: any[], resolver?: (a:any)=>Promise<Uint8Array>) {
+export async function prepararArquivos(bucket: any, arquivos: any[], resolver?: (a:any)=>Promise<Uint8Array>, opcoes: {preservarCriados?: boolean} = {}) {
   if(!Array.isArray(arquivos)) throw new Error('Manifesto de arquivos inválido.');
   const preparados: any[] = [], vistos = new Set();
   // Valida o conjunto inteiro antes da primeira gravação.
@@ -42,7 +42,10 @@ export async function prepararArquivos(bucket: any, arquivos: any[], resolver?: 
   }
   const criados: string[] = [];
   const desfazer = async () => {
-    if(!criados.length) return;
+    // A Virada pode ter outra recuperação concluindo e referenciando o mesmo
+    // caminho. Sem uma trava que cubra Storage + banco, não excluir bytes.
+    // Opção explícita: comportamento dos buckets anteriores fica preservado.
+    if(opcoes.preservarCriados || !criados.length) return;
     const {error} = await bucket.remove(criados);
     if(error) throw new Error('Os dados não foram restaurados; a limpeza dos arquivos novos precisa ser repetida.');
   };
