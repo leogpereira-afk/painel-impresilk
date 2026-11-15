@@ -1,3 +1,4 @@
+import {respostaVirada} from './virada.mjs';
 import {respostaAgenda,pessoasAgenda} from './compromissos.mjs';
 import {respostaComercial,agendaComercialDemo} from './comercial.mjs';
 import {respostaReunioes} from './reunioes.mjs';
@@ -235,6 +236,7 @@ export async function respostaPreview(url,opcoes={}){
   if(documentos)return documentos;
  }
  if(endpoint==='painel-comercial')return respostaComercial(corpo,{...ss,sub:ss?.usuario||'demo',perms:ss?.permissoes||[]});
+ if(endpoint==='painel-virada')return respostaVirada(url,opcoes);
  if(endpoint==='painel-reunioes')return respostaReunioes(corpo);
  if(endpoint==='painel-marketing')return respostaMarketing(corpo);
  let dados;

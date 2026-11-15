@@ -18,7 +18,8 @@
     "test:acm": "TZ=UTC node --test src/lib/acm/*.test.mjs src/components/acm/*.test.mjs tests/acm-backend.test.mjs tests/acm-installation-orders.test.mjs",
     "test:letras": "TZ=UTC node --test src/lib/letras/*.test.mjs src/lib/fabrication/*.test.mjs",
     "test:placas": "TZ=UTC node --test src/lib/oficina-placas/*.test.mjs src/components/oficina-placas/*.test.mjs",
-    "test:simulador-placas": "TZ=UTC node --test src/lib/simulador-placas/*.test.mjs tests/placas-catalogo.test.mjs"
+    "test:simulador-placas": "TZ=UTC node --test src/lib/simulador-placas/*.test.mjs tests/placas-catalogo.test.mjs",
+    "test:virada": "node --test src/lib/virada.test.mjs tests/virada-*.test.mjs"
   },
   "dependencies": {
     "clsx": "^2.1.1",

@@ -42,6 +42,7 @@ const Patrimonio = lazy(() => import("./pages/Patrimonio.jsx"));
 const Agenda = lazy(() => import("./pages/Agenda.jsx"));
 const Processos = lazy(() => import("./pages/Processos.jsx"));
 const ColaborarProcesso = lazy(() => import("./pages/ColaborarProcesso.jsx"));
+const Virada = lazy(() => import("./pages/Virada.jsx"));
 const Reunioes = lazy(() => import("./pages/Reunioes.jsx"));
 const CalendarioEmpresa = lazy(() => import("./pages/CalendarioEmpresa.jsx"));
 
@@ -214,6 +215,7 @@ export default function App() {
         <Route path="/demandas" element={<Restrito modulo="demandas" sessao={sessao}><CalendarioAbas sessao={sessao}/><Processos key="demanda" tipo="demanda"/></Restrito>} />
         <Route path="/consultorias" element={<Restrito modulo="demandas" sessao={sessao}><CalendarioAbas sessao={sessao}/><Processos key="consultoria" tipo="consultoria"/></Restrito>} />
         <Route path="/reunioes" element={<Restrito modulo="reunioes" sessao={sessao}><CalendarioAbas sessao={sessao}/><Reunioes sessao={sessao}/></Restrito>} />
+        <Route path="/virada" element={<Restrito modulo="virada" sessao={sessao}><Virada /></Restrito>} />
         <Route path="/gestao" element={<Navigate to="/" replace />} />
         <Route
           path="/patrimonio/manutencoes"

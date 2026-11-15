@@ -12,6 +12,7 @@
 // Gestão permanece no registro histórico para compatibilidade com as portas de login.
 // Módulos aposentados não são oferecidos na interface.
 export const MODULOS = [
+  { id: "virada", nome: "A Virada", sub: "desenvolvimento das lideranças em 90 dias: planos, evidências e acompanhamento" },
   { id: "gestao", aposentado: true, nome: "Gestão", sub: "identidade, plano do ano, táticas e atas: a tela de direção" },
   { id: "compromissos", nome: "Compromissos", sub: "a agenda de cada um: cada pessoa vê só a dela" },
   { id: "agenda", nome: "Agenda da produção", sub: "as O.S de cada dia, os plantões e a grade de saída, só para ver, sem o valor" },
