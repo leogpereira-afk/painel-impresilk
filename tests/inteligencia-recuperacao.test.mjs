@@ -18,3 +18,8 @@ test('dois 404 seguidos de 429 preservam falha, nunca lista vazia',async()=>{
  await assert.rejects(consultarPagina({buscar:async()=>({status:status[n++],ok:false}),pausa:async()=>{}}),/429/);
  assert.equal(n,3);
 });
+
+test('confirmações vazias aguardam a proteção de repetição do ERP',async()=>{
+ const pausas=[];await consultarPagina({buscar:async()=>({status:404,ok:false}),pausa:async ms=>pausas.push(ms)});
+ assert.deepEqual(pausas,[31000,31000]);
+});
