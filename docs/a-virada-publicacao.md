@@ -1,6 +1,17 @@
 # A Virada — preparação da publicação e recuperação
 
-Estado: publicação autorizada em andamento. As três migrations foram aplicadas; concessões e documentos reais entram somente após conferir servidor e interface. Repositório público: usar somente exemplos fictícios no código, testes e documentos. A publicação foi autorizada pelo dono em 15/11, no pedido de disponibilizar os PDIs atualizados no site. O dono também autorizou expressamente o ajuste no componente externo de acesso sem protocolo.
+Estado: publicado e conferido em 15/11/2026. Autorização expressa para módulo, PDFs e integração externa; mapeamento exato dos acompanhadores confirmado antes de salvar. Nenhum dado pessoal ou documento real versionado.
+
+## Conferência da publicação
+
+- Servidor publicado antes da interface: implementação fec229f; interface 60700c8; ajuste de elegibilidade da direção 530fd86. Pages 43766884148 e Functions 43766884150 concluídos com sucesso. Integração externa eed69bf, equipe-auth v94 ativo.
+- Código produtivo relido, 212 arquivos HTML/JS/CSS iguais ao build oficial por SHA-256; 401 sem sessão. RLS e bloqueio de leitura anônima conferidos; bucket privado.
+- Sete PDFs publicados pelo navegador no plano correto e baixados pelo site oficial, com todos os bytes idênticos e hashes persistidos conferidos. Seis páginas por pessoa, capa com foto, fundo branco, bordas coloridas e conteúdo sem numerologia. As 42 páginas foram renderizadas e revisadas; missão, visão e 12 valores preservados.
+- Mapeamento de acesso confirmado pelo dono e salvo. Duas pessoas ainda dependem do fluxo de cadastro de contas para acesso individual. Os documentos já estão disponíveis à direção e aos acompanhadores autorizados.
+- Ciclo sem data de início e sem missões presumidas. A contagem não começou. Cargo do programa separado do RH.
+- Verificação: 57 testes focais, regressões completas e verificadores da CI aprovados. Ensaios de backup/recuperação com dados sintéticos; não foi executado restauro em produção. Cópia privada do ciclo e originais dos sete PDFs preservados fora do Git.
+
+As seções seguintes documentam o procedimento e os limites da integração.
 
 ## Integração conferida
 
@@ -55,7 +66,7 @@ O mecanismo atual de backup captura arquivos em memória antes de enviá-los. A 
 
 Os testes novos executam o handler real compilado com serviços simulados e as migrations em PostgreSQL PGlite. Cobrem tabela ausente, foto faltante, round-trip de bytes, bucket correto, compatibilidade de backups antigos, privilégios, idempotência, conflito e rollback atômico. Os testes existentes de backup de kits, cadastros, entidades e rotas foram executados para conferir regressões.
 
-Esses resultados provam o comportamento local com dados sintéticos. Não comprovam implantação, cron produtivo, volume real de arquivos, concessão às sete contas nem recuperação em produção.
+Os ensaios de recuperação provam o comportamento local com dados sintéticos. Implantação e documentos foram conferidos separadamente conforme a seção de publicação. Cron de backup, carga crescente de fotos e restauro produtivo não foram exercitados nesta entrega.
 
 
 ## PDFs individuais — atualização de 15/11
