@@ -1,3 +1,11 @@
+## Trabalho atual · Planejamento anual · codex · 18/11/2026
+
+Publicação autorizada pelo dono em 18/11/2026. Botão incluído na faixa Empresa/Produção/Reuniões/Demandas/Consultorias. Migration aplicada e função painel-planejamento v1 ACTIVE, acesso anônimo recusado com 401. Importação privada autorizada executada de forma atômica, sem sobrescrever registros anteriores. Acompanhamento da publicação da interface em andamento.
+
+Pedido aprovado: implementar botão de Planejamento anual no Calendário da Empresa, responsáveis pelo ID do RH, valores, anexos e ações vinculadas. Clone isolado /tmp/painel-planejamento-20261118; ramo codex/planejamento-anual-20261118. Somente implementação e prévia local, sem publicação ou gravação produtiva. Preservar históricos e não versionar dados reais.
+
+Prévia local concluída e conferida; aguardando avaliação do dono antes de publicar. 85 testes pertinentes aprovados; lint sem erros, builds oficial e revisão aprovados; revisão independente concluída. Navegador: salvar/recarregar, selecionar múltiplos IDs, orçamento único, etapas, anexo com integridade do download, histórico, importação sem duplicação, calendário e perfis gestão/responsável/leitura. Lista e ficha conferidas a 390 px. Sem push, migrations, deploy ou dados reais importados. Evidências e limites em docs/planejamento-anual-verificacao.md; ordem futura de implantação em docs/planejamento-anual-operacao.md.
+
 ## Trabalho atual · A Virada · codex · 15/11/2026
 
 Publicado e conferido. Publicação do módulo e dos documentos autorizada pelo dono, incluindo a inclusão pontual de `virada` no componente externo de acesso. O mapeamento exato de acompanhadores e destinatários foi confirmado expressamente antes da gravação. Servidor publicado antes da interface; três migrations aplicadas. `painel-virada` v2, autorização e backup relidos e iguais ao código aprovado; `equipe-auth` v94 ativo. Interface 530fd86, Pages 43766884148 e Functions 43766884150 concluídos com sucesso. Os 212 arquivos HTML/JS/CSS servidos coincidem por SHA-256 com o build oficial.

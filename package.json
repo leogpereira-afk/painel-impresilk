@@ -27,6 +27,7 @@
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-router-dom": "^6.28.0",
+    "read-excel-file": "9.3.17",
     "tailwind-merge": "^2.5.4",
     "three": "0.180.0"
   },

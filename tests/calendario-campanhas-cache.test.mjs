@@ -23,7 +23,7 @@ const campaignWarning=tree=>allNodes(tree).find(node=>node.type==='AvisoAtualiza
 
 // Real page, controlled hooks and deferred network responses. No browser, data
 // store or production service is contacted; response order is explicit.
-function mount(){
+function mount({lerPlanejamento=async()=>[]}={}){
   const hooks=[],effects=[],requests=[];let cursor=0,month='2026-11',currentSession=sessao;
   const same=(a,b)=>a&&b&&a.length===b.length&&a.every((v,i)=>Object.is(v,b[i]));
   const useState=initial=>{const i=cursor++;if(!(i in hooks))hooks[i]={value:typeof initial==='function'?initial():initial};return [hooks[i].value,value=>{hooks[i].value=typeof value==='function'?value(hooks[i].value):value;}];};
@@ -33,15 +33,16 @@ function mount(){
   const useEffect=(fn,deps)=>{const i=cursor++,before=hooks[i];if(!same(before?.deps,deps)){hooks[i]={deps,cleanup:before?.cleanup};effects.push(()=>{hooks[i].cleanup?.();hooks[i].cleanup=fn();});}};
   const context={module:{exports:{}},require:()=>({jsx,jsxs:jsx}),useState,useRef,useCallback,useMemo,useEffect,
     useMesCalendario:()=>[month,value=>{month=typeof value==='function'?value(month):value;}],
+    useSearchParams:()=>[new URLSearchParams(),()=>{}],URLSearchParams,
     combinarEventosCalendario,destinoDocumento:destinoEventoCalendario,
     podeAbrir:(name,s)=>!!s&&(s.master||s.permissoes?.includes('*')||s.permissoes?.includes(name)),
     lerEmpresa:async()=>({eventos:[],hoje:'2026-11-03'}),
     lerAgendaCampanhas:mes=>new Promise((resolve,reject)=>requests.push({mes,resolve,reject})),
-    lerAgendaReunioes:async()=>[],lerAgendaProcessos:async()=>[],lerAgendaPatrimonio:async()=>[],lerAgendaDocumentos:async()=>[],lerAgendaComercial:async()=>({eventos:[]}),lerAgendaLicitacoes:async()=>[],
+    lerAgendaReunioes:async()=>[],lerAgendaProcessos:async()=>[],lerAgendaPatrimonio:async()=>[],lerAgendaDocumentos:async()=>[],lerAgendaComercial:async()=>({eventos:[]}),lerAgendaLicitacoes:async()=>[],lerAgendaPlanejamento:lerPlanejamento,
     window:{addEventListener(){},removeEventListener(){}}};
   for(const name of ['PageTitle','Card','Empty','CarregandoModulo','ErroModulo','AvisoAtualizacao','ChevronLeft','ChevronRight','RefreshCw','Eye','CalendarDays','Link'])context[name]=stub(name);
   vm.runInNewContext(code,context);
-  const t={requests,render(nextSession=currentSession,{effects:run=true}={}){currentSession=nextSession;cursor=0;const tree=context.module.exports.default({sessao:currentSession});if(run)t.effects();return tree;},effects(){for(const fn of effects.splice(0))fn();},month(value){month=value;},reload(){const title=allNodes(t.render()).find(n=>n.type==='PageTitle');assert.ok(title);return title.props.acao.props.onClick();}};
+  const t={requests,render(nextSession=currentSession,{effects:run=true}={}){currentSession=nextSession;cursor=0;const tree=context.module.exports.default({sessao:currentSession});if(run)t.effects();return tree;},effects(){for(const fn of effects.splice(0))fn();},month(value){month=value;},reload(){const title=allNodes(t.render()).find(n=>n.type==='PageTitle');assert.ok(title);const button=allNodes(title.props.acao).find(n=>n.type==='button'&&text(n).includes('Atualizar'));assert.ok(button);return button.props.onClick();}};
   return t;
 }
 async function loaded(){const t=mount();t.render();t.requests[0].resolve([evento]);await flush();assert.match(text(t.render()),/AÇÃO FICTÍCIA DE CAMPANHA/);return t;}
@@ -101,4 +102,22 @@ test('serviço Campanhas preserva status HTTP e recusa resposta incompleta',asyn
   }
   for(const status of [401,403,500])await assert.rejects(service({ok:false,status,json:async()=>({erro:'Falha fictícia'})})('2026-11'),error=>error.status===status);
   for(const data of [null,{}, {eventos:null}])await assert.rejects(service({ok:true,json:async()=>data})('2026-11'),/Resposta inválida/);
+});
+
+test('falha do planejamento não anuncia agenda vazia nem leitura anterior inexistente',async()=>{
+  const t=mount({lerPlanejamento:async()=>{throw new Error('Falha fictícia');}});
+  t.render();t.requests[0].resolve([]);await flush();const tree=t.render();
+  assert.match(text(tree),/ações do planejamento anual ainda não puderam ser conferidas/);
+  assert.doesNotMatch(text(tree),/Nenhum evento ou reunião lançado neste mês/);
+  const warning=allNodes(tree).find(n=>n.type==='AvisoAtualizacao'&&/planejamento anual/.test(n.props?.erro||''));
+  assert.ok(warning);assert.equal(warning.props.leituraAnterior,false);
+});
+
+test('ação mensal aparece em faixa própria e link conserva mês para voltar ao calendário',async()=>{
+  const t=mount({lerPlanejamento:async()=>[{id:'planejamento:exemplo:evento',acaoId:'exemplo',origem:'planejamento',periodo:'mes',data:'2026-11-01',dataFim:'2026-11-30',titulo:'AÇÃO MENSAL FICTÍCIA',tipo:'Planejamento',cor:'#4f46e5',href:'/calendario-empresa?planejamento=1&ano=2026&acao=exemplo'}]});
+  t.render();t.requests[0].resolve([]);await flush();const tree=t.render();
+  assert.match(text(tree),/Durante este mês/);
+  const links=allNodes(tree).filter(n=>n.type==='Link'&&String(n.props?.to||'').includes('acao=exemplo'));
+  assert.equal(links.length,2); // faixa mensal e agenda; não cria evento diário.
+  assert.ok(links.every(n=>n.props.to.endsWith('&mes=2026-11')));
 });

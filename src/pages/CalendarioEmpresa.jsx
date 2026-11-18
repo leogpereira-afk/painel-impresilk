@@ -12,7 +12,9 @@ import { combinarEventosCalendario, destinoEventoCalendario as destinoDocumento 
 import {lerAgendaProcessos} from '../services/processos.js';
 import {lerAgendaReunioes} from '../services/reunioes.js';
 import {podeAbrir} from '../lib/sessao.js';
-import {Link} from 'react-router-dom';
+import {Link, useSearchParams} from 'react-router-dom';
+import PlanejamentoAnual from '../components/planejamento/PlanejamentoAnual.jsx';
+import {lerAgendaPlanejamento} from '../services/planejamento.js';
 
 const DOW = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
 const MESES = ["janeiro", "fevereiro", "março", "abril", "maio", "junho",
@@ -27,7 +29,7 @@ const hojeLocalSP = () =>
   new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo", year: "numeric", month: "2-digit", day: "2-digit" })
     .format(new Date());
 const mesAtual = () => hojeLocalSP().slice(0, 7);
-const destinoEvento=(evento,mes)=>['comercial','campanhas','licitacoes'].includes(evento.origem)?evento.href:destinoDocumento(evento,mes);
+const destinoEvento=(evento,mes)=>evento.origem==='planejamento'?`${evento.href}&mes=${mes}`:['comercial','campanhas','licitacoes'].includes(evento.origem)?evento.href:destinoDocumento(evento,mes);
 function mesVizinho(mes, passo) {
   const d = new Date(Date.UTC(Number(mes.slice(0, 4)), Number(mes.slice(5, 7)) + passo - 1, 1));
   return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
@@ -42,6 +44,10 @@ const porExtenso = (iso) => {
 };
 
 export default function CalendarioEmpresa({sessao}) {
+  const [parametros,setParametros]=useSearchParams();
+  const planejamentoAberto=parametros.get('planejamento')==='1';
+  const abrirPlanejamento=()=>setParametros(p=>{const novo=new URLSearchParams(p);novo.set('planejamento','1');novo.set('ano',p.get('ano')||'2027');return novo;});
+  const fecharPlanejamento=()=>setParametros(p=>{const novo=new URLSearchParams(p);novo.delete('planejamento');novo.delete('acao');return novo;});
   const [mes, setMes] = useMesCalendario(mesAtual);
   const [foco, setFoco] = useState("");
   const [dados, setDados] = useState(null);
@@ -54,6 +60,7 @@ export default function CalendarioEmpresa({sessao}) {
   const [comercial,setComercial]=useState({chave:'',eventos:[]}),[erroComercial,setErroComercial]=useState('');
   const [campanhas,setCampanhas]=useState({chave:'',eventos:[]}),[erroCampanhas,setErroCampanhas]=useState({chave:'',mensagem:''});
   const [licitacoes,setLicitacoes]=useState({chave:'',eventos:[]}),[erroLicitacoes,setErroLicitacoes]=useState('');
+  const [planejamento,setPlanejamento]=useState({chave:'',eventos:[]}),[erroPlanejamento,setErroPlanejamento]=useState('');
   const temLicitacoes=podeAbrir('licitacoes',sessao);
   const temCampanhas=podeAbrir('campanhas',sessao);
   const temComercial=podeAbrir('orcamentos',sessao);
@@ -72,9 +79,11 @@ export default function CalendarioEmpresa({sessao}) {
     setAtualizando(true);
     setDados(null);
     try {
-      const [empresa,reunioes,trabalhos,bens,prazos,atividades,planos,editais]=await Promise.allSettled([lerEmpresa(mes),temReunioes?lerAgendaReunioes(mes):Promise.resolve([]),temProcessos?lerAgendaProcessos(mes):Promise.resolve([]),temPatrimonio?lerAgendaPatrimonio(mes):Promise.resolve([]),temDocumentos?lerAgendaDocumentos(mes):Promise.resolve([]),temComercial?lerAgendaComercial(mes):Promise.resolve({eventos:[]}),temCampanhas?lerAgendaCampanhas(mes):Promise.resolve([]),temLicitacoes?lerAgendaLicitacoes(mes):Promise.resolve([])]);
+      const [empresa,reunioes,trabalhos,bens,prazos,atividades,planos,editais,anuais]=await Promise.allSettled([lerEmpresa(mes),temReunioes?lerAgendaReunioes(mes):Promise.resolve([]),temProcessos?lerAgendaProcessos(mes):Promise.resolve([]),temPatrimonio?lerAgendaPatrimonio(mes):Promise.resolve([]),temDocumentos?lerAgendaDocumentos(mes):Promise.resolve([]),temComercial?lerAgendaComercial(mes):Promise.resolve({eventos:[]}),temCampanhas?lerAgendaCampanhas(mes):Promise.resolve([]),temLicitacoes?lerAgendaLicitacoes(mes):Promise.resolve([]),lerAgendaPlanejamento(mes)]);
       // Resposta fora de ordem não pinta a tela (ver Agenda.jsx).
       if (meu !== pedido.current) return;
+      setPlanejamento({chave:chaveComercial,eventos:anuais.status==='fulfilled'?anuais.value:[]});
+      setErroPlanejamento(anuais.status==='rejected'?'Não foi possível conferir as ações do planejamento anual. Atualize para tentar novamente.':'');
       setLicitacoes({chave:chaveComercial,eventos:editais.status==='fulfilled'?editais.value:[]});
       setErroLicitacoes(editais.status==='rejected'?'Não foi possível carregar os acompanhamentos de licitações. Atualize para tentar novamente.':'');
       if(planos.status==='fulfilled')setCampanhas({chave:chaveComercial,eventos:planos.value});
@@ -105,13 +114,14 @@ export default function CalendarioEmpresa({sessao}) {
     void recarregar();
     window.addEventListener('reunioes-atualizadas',recarregar);
     window.addEventListener('licitacoes-atualizadas',recarregar);
-    return () => { contador.current++; window.removeEventListener('reunioes-atualizadas',recarregar);window.removeEventListener('licitacoes-atualizadas',recarregar); };
+    window.addEventListener('planejamento-atualizado',recarregar);
+    return () => { contador.current++; window.removeEventListener('reunioes-atualizadas',recarregar);window.removeEventListener('licitacoes-atualizadas',recarregar);window.removeEventListener('planejamento-atualizado',recarregar); };
   }, [recarregar]);
 
   const hoje = dados?.hoje || "";
   const eventos = useMemo(
-    () => combinarEventosCalendario([dados?.chave===chaveDocumentos ? dados.eventos : [],temReunioes?encontros:[],temProcessos?processos:[],temPatrimonio&&patrimonio.chave===chaveDocumentos?patrimonio.eventos:[],temDocumentos&&documentos.chave===chaveDocumentos?documentos.eventos:[],temComercial&&comercial.chave===chaveComercial?comercial.eventos:[],temCampanhas&&campanhas.chave===chaveComercial?campanhas.eventos:[],temLicitacoes&&licitacoes.chave===chaveComercial?licitacoes.eventos:[]],mes),
-    [dados,encontros,temReunioes,mes,processos,temProcessos,temPatrimonio,patrimonio,temDocumentos,documentos,chaveDocumentos,temComercial,comercial,chaveComercial,temCampanhas,campanhas,temLicitacoes,licitacoes],
+    () => combinarEventosCalendario([dados?.chave===chaveDocumentos ? dados.eventos : [],temReunioes?encontros:[],temProcessos?processos:[],temPatrimonio&&patrimonio.chave===chaveDocumentos?patrimonio.eventos:[],temDocumentos&&documentos.chave===chaveDocumentos?documentos.eventos:[],temComercial&&comercial.chave===chaveComercial?comercial.eventos:[],temCampanhas&&campanhas.chave===chaveComercial?campanhas.eventos:[],temLicitacoes&&licitacoes.chave===chaveComercial?licitacoes.eventos:[],planejamento.chave===chaveComercial?planejamento.eventos:[]],mes),
+    [dados,encontros,temReunioes,mes,processos,temProcessos,temPatrimonio,patrimonio,temDocumentos,documentos,chaveDocumentos,temComercial,comercial,chaveComercial,temCampanhas,campanhas,temLicitacoes,licitacoes,planejamento],
   );
 
   /* A legenda É o filtro, como no RH: clicar num tipo mostra só ele. Os tipos
@@ -128,7 +138,7 @@ export default function CalendarioEmpresa({sessao}) {
 
   const porDia = useMemo(() => {
     const m = new Map();
-    for (const e of visiveis) m.set(e.data, [...(m.get(e.data) || []), e]);
+    for (const e of visiveis.filter(e=>e.periodo!=='mes')) m.set(e.data, [...(m.get(e.data) || []), e]);
     return m;
   }, [visiveis]);
 
@@ -143,6 +153,7 @@ export default function CalendarioEmpresa({sessao}) {
     });
   }, [mes]);
 
+  if (planejamentoAberto) return <PlanejamentoAnual sessao={sessao} onFechar={fecharPlanejamento}/>;
   if (erro && dados === null) return <ErroModulo mensagem={erro} aoTentar={recarregar} />;
   if (dados === null) return <CarregandoModulo />;
 
@@ -156,14 +167,15 @@ export default function CalendarioEmpresa({sessao}) {
       <AvisoAtualizacao erro={erroCampanhasAtual&&`${erroCampanhasAtual}${temLeituraCampanhas?'':' Não há leitura válida de Campanhas disponível para este mês.'}`} leituraAnterior={temLeituraCampanhas} aoTentar={recarregar} />
       <AvisoAtualizacao erro={erroComercial} aoTentar={recarregar} />
       <AvisoAtualizacao erro={erroLicitacoes} aoTentar={recarregar} />
+      <AvisoAtualizacao erro={erroPlanejamento} leituraAnterior={false} aoTentar={recarregar} />
       <PageTitle
         titulo="Calendário da empresa"
         descricao="Eventos, reuniões, atividades comerciais e vencimentos em um só calendário."
         acao={
-          <button type="button" className="btn-outline" disabled={atualizando} onClick={recarregar}>
+          <div className="flex flex-wrap gap-2"><button type="button" className="btn-primary" onClick={abrirPlanejamento}><CalendarDays size={16}/>Planejamento anual</button><button type="button" className="btn-outline" disabled={atualizando} onClick={recarregar}>
             <RefreshCw size={16} className={atualizando ? "animate-spin" : ""} />
             {atualizando ? "Atualizando…" : "Atualizar"}
-          </button>
+          </button></div>
         }
       />
 
@@ -215,6 +227,7 @@ export default function CalendarioEmpresa({sessao}) {
         </div>
       )}
 
+      {visiveis.some(e=>e.periodo==='mes')&&<Card className="p-4"><p className="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-2">Durante este mês</p><div className="flex flex-wrap gap-2">{visiveis.filter(e=>e.periodo==='mes').map(e=><Link key={e.id} to={destinoEvento(e,mes)} className="inline-flex items-center gap-2 rounded-xl border border-brand-200 bg-brand-50 px-3 py-2 text-sm text-brand-700"><CalendarDays size={15}/>{e.titulo}<span className="text-xs">Mês inteiro</span></Link>)}</div></Card>}
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
         <Card className="overflow-hidden p-0">
           <div className="grid grid-cols-7 border-b border-[var(--hairline,#eceaf3)] text-center text-xs font-semibold uppercase tracking-wide text-slate-400">
@@ -255,6 +268,8 @@ export default function CalendarioEmpresa({sessao}) {
             <Empty className="mt-4">
               {erroCampanhasAtual&&!temLeituraCampanhas&&(!foco||foco==='Campanha')
                 ? "As ações de Campanhas ainda não puderam ser conferidas. Atualize para consultar este mês."
+                : erroPlanejamento&&(!foco||foco==='Planejamento')
+                  ? 'As ações do planejamento anual ainda não puderam ser conferidas. Atualize para consultar este mês.'
                 : foco
                   ? `Nenhum evento do tipo "${foco}" neste mês.`
                   : "Nenhum evento ou reunião lançado neste mês."}
@@ -264,12 +279,12 @@ export default function CalendarioEmpresa({sessao}) {
               {visiveis.map((e) => (
                 <li key={e.id} className="flex items-start gap-3 border-t border-[var(--fio-lista,#f0f0f5)] py-2.5 first:border-0 first:pt-0">
                   <span className="mt-0.5 grid h-9 w-9 shrink-0 place-items-center rounded-lg text-xs font-semibold tabular-nums text-white" style={{ backgroundColor: e.cor }}>
-                    {e.data.slice(8, 10)}
+                    {e.periodo==='mes'?<CalendarDays size={17}/>:e.data.slice(8, 10)}
                   </span>
                   <div className="min-w-0">
                     <p className="font-medium text-slate-800">{destinoEvento(e,mes)?<Link className="underline" to={destinoEvento(e,mes)}>{e.titulo}</Link>:e.titulo}</p>
                     <p className="text-sm text-slate-500">
-                      {porExtenso(e.data)} · {e.tipo}
+                      {e.periodo==='mes'?'Mês inteiro':porExtenso(e.data)}{e.origem==='planejamento'&&e.periodo!=='mes'&&e.dataFim>e.data?` a ${porExtenso(e.dataFim)}`:''} · {e.tipo}
                       {e.hora ? ` · ${e.hora}` : ""}
                       {e.recorrenteAnual ? " · todo ano" : ""}
                       {e.recorrente ? " · encontro de série recorrente" : ""}
@@ -282,7 +297,7 @@ export default function CalendarioEmpresa({sessao}) {
           )}
           <p className="mt-4 flex items-center gap-1.5 text-xs text-slate-400">
             <CalendarDays size={13} aria-hidden="true" />
-            Fonte: RH, Reuniões, Comercial, Campanhas, Demandas, Consultorias, Patrimônio, Documentos e Licitações · cada registro é atualizado na sua origem.
+            Fonte: RH, Reuniões, Comercial, Campanhas, Planejamento anual, Demandas, Consultorias, Patrimônio, Documentos e Licitações · cada registro é atualizado na sua origem.
           </p>
         </Card>
       </div>

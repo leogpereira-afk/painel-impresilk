@@ -105,6 +105,8 @@ export function getSessao() {
     // Perfis fictícios para conferir o que cada pessoa vê, sem autenticação
     // real. Este ramo desaparece da compilação publicada.
     const perfil = new URLSearchParams(window.location.search).get('perfil');
+    if (perfil === 'planejamento-responsavel') return {usuario:'ana-demo',nome:'Ana Exemplo',master:false,permissoes:['calendario-empresa']};
+    if (perfil === 'planejamento-leitura') return {usuario:'leitura-demo',nome:'Consulta · demonstração',master:false,permissoes:['calendario-empresa']};
     if (perfil === 'virada-lider') return {usuario:'review-lider',nome:'Ana Exemplo',master:false,permissoes:['virada']};
     if (perfil === 'virada-mentor') return {usuario:'review-mentor',nome:'Bruno Exemplo',master:false,permissoes:['virada']};
     if (perfil === 'virada-sem-acesso') return {usuario:'review-externo',nome:'Conta sem acesso · simulação',master:false,permissoes:[]};
